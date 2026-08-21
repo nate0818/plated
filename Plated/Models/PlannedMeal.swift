@@ -16,21 +16,29 @@ final class PlannedMeal {
     var cookedAt: Date?
     var createdAt: Date = Date.now
 
+    /// The line under the meal name on the week row — "Kids pick", "Fast one".
+    var tagline: String = ""
+
     var recipe: Recipe?
     var gathering: Gathering?
+    var cook: HouseholdMember?
 
     init(
         date: Date = .now,
         slot: MealSlot = .dinner,
         recipe: Recipe? = nil,
         customTitle: String = "",
-        servings: Int = 4
+        servings: Int = 4,
+        cook: HouseholdMember? = nil,
+        tagline: String = ""
     ) {
         self.date = Calendar.current.startOfDay(for: date)
         self.slot = slot.rawValue
         self.recipe = recipe
         self.customTitle = customTitle
         self.servings = servings
+        self.cook = cook
+        self.tagline = tagline
         self.createdAt = .now
     }
 
@@ -39,9 +47,12 @@ final class PlannedMeal {
         set { slot = newValue.rawValue }
     }
 
+    /// The night's name. A custom name ("Salmon Night", "Leftovers") wins over
+    /// the recipe's formal title.
     var title: String {
+        if !customTitle.isEmpty { return customTitle }
         if let recipe, !recipe.title.isEmpty { return recipe.title }
-        return customTitle.isEmpty ? "Unplanned" : customTitle
+        return "Unplanned"
     }
 
     var isCooked: Bool { cookedAt != nil }

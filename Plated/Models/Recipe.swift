@@ -14,6 +14,10 @@ final class Recipe {
     var cookMinutes: Int = 0
     var tags: [String] = []
     var isFavorite: Bool = false
+    /// "private", "household", or "table" — who can see this recipe.
+    var visibility: String = "household"
+    /// When true, household members can tweak it. Only the creator deletes.
+    var householdCanEdit: Bool = true
     var createdAt: Date = Date.now
     /// Downsized JPEG. Kept small deliberately — CloudKit charges by the byte.
     @Attribute(.externalStorage) var photoData: Data?

@@ -12,22 +12,41 @@ final class HouseholdMember {
     /// Hex string (no leading `#`) used to tint this member across the app.
     var colorHex: String = "C86629"
     var isPrimaryCook: Bool = false
+    /// "owner" (head of table), "partner", "kid", or "member".
+    var role: String = "member"
+    /// The line under the name — "Partner · plans & cooks".
+    var roleLine: String = ""
+    /// Calendar weekday numbers (1 = Sunday … 7 = Saturday) this person cooks.
+    var cookWeekdays: [Int] = []
     var createdAt: Date = Date.now
+
+    @Relationship(deleteRule: .nullify, inverse: \PlannedMeal.cook)
+    var assignedMeals: [PlannedMeal]? = []
 
     init(
         name: String = "",
         dietaryNotes: String = "",
         avoidedIngredients: [String] = [],
         colorHex: String = "C86629",
-        isPrimaryCook: Bool = false
+        isPrimaryCook: Bool = false,
+        role: String = "member",
+        roleLine: String = "",
+        cookWeekdays: [Int] = []
     ) {
         self.name = name
         self.dietaryNotes = dietaryNotes
         self.avoidedIngredients = avoidedIngredients
         self.colorHex = colorHex
         self.isPrimaryCook = isPrimaryCook
+        self.role = role
+        self.roleLine = roleLine
+        self.cookWeekdays = cookWeekdays
         self.createdAt = .now
     }
+
+    var isOwner: Bool { role == "owner" }
+
+    var firstInitial: String { name.first.map(String.init)?.uppercased() ?? "?" }
 
     var initials: String {
         let parts = name.split(separator: " ").prefix(2)

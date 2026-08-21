@@ -14,7 +14,9 @@ struct PlatedApp: App {
             PlannedMeal.self,
             HouseholdMember.self,
             Gathering.self,
-            GroceryItem.self
+            GroceryItem.self,
+            TablePost.self,
+            TableComment.self
         ])
         let configuration = ModelConfiguration(
             schema: schema,
@@ -30,9 +32,16 @@ struct PlatedApp: App {
         }
     }()
 
+    init() {
+        BrandFonts.registerAll()
+    }
+
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            RootView()
+                // The register is deliberately white-canvas for now; After Dark
+                // arrives as an explicit appearance choice, not system dark mode.
+                .preferredColorScheme(.light)
         }
         .modelContainer(container)
     }

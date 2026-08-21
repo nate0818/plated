@@ -9,11 +9,12 @@ import SwiftData
 struct GroceryListBuilder {
     let context: ModelContext
 
-    /// Regenerates the auto-derived portion of the list for the week containing
-    /// `date`. Hand-added lines and existing checkmarks survive.
+    /// Regenerates the auto-derived portion of the list for the rolling
+    /// 7-night window starting on `date` — the same window the Week screen
+    /// renders. Hand-added lines, checkmarks, and Reminders links survive.
     @discardableResult
     func rebuild(weekOf date: Date, includePantryStaples: Bool = false) throws -> [GroceryItem] {
-        let weekStart = Calendar.current.startOfWeek(for: date)
+        let weekStart = Calendar.current.startOfDay(for: date)
         guard let weekEnd = Calendar.current.date(byAdding: .day, value: 7, to: weekStart) else {
             return []
         }
@@ -32,12 +33,29 @@ struct GroceryListBuilder {
             )
         )
 
-        // Preserve what people checked off so a rebuild mid-shop is not destructive.
+        // Preserve what people checked off so a rebuild mid-shop is not
+        // destructive, and keep Reminders links so re-exporting updates in
+        // place instead of duplicating.
         let checkedNames = Set(existing.filter(\.isChecked).map { Self.key(name: $0.name, unit: $0.unit) })
+        let reminderIDs = Dictionary(
+            existing.compactMap { item in
+                item.reminderID.map { (Self.key(name: item.name, unit: item.unit), $0) }
+            },
+            uniquingKeysWith: { first, _ in first }
+        )
 
         for item in existing where !item.isManual {
             context.delete(item)
         }
+
+        // Sweep auto lines left over from earlier windows so the store does
+        // not accumulate invisible rows as the week rolls forward.
+        let stale = try context.fetch(
+            FetchDescriptor<GroceryItem>(
+                predicate: #Predicate { $0.weekStart < weekStart && !$0.isManual }
+            )
+        )
+        for item in stale { context.delete(item) }
 
         var created: [GroceryItem] = []
         for line in aggregated {
@@ -49,6 +67,7 @@ struct GroceryListBuilder {
                 weekStart: weekStart
             )
             item.isChecked = checkedNames.contains(Self.key(name: line.name, unit: line.unit))
+            item.reminderID = reminderIDs[Self.key(name: line.name, unit: line.unit)]
             item.originTitle = line.origin
             context.insert(item)
             created.append(item)

@@ -32,7 +32,9 @@ final class GroceryItem {
         self.quantity = quantity
         self.unit = unit
         self.aisle = aisle.rawValue
-        self.weekStart = Calendar.current.startOfWeek(for: weekStart)
+        // The window key is whatever the builder says it is — the rolling
+        // 7-night window starts on an arbitrary day, not the calendar week.
+        self.weekStart = Calendar.current.startOfDay(for: weekStart)
         self.isManual = isManual
         self.createdAt = .now
     }

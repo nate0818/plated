@@ -1,0 +1,189 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gabarito:wght@500..900&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap">
+  <style>
+    body { margin: 0; font-family: 'Plus Jakarta Sans', system-ui, sans-serif; }
+    a { color: #FF5A3C; } a:hover { color: #D6401F; }
+  </style>
+</helmet>
+<div style="width: 393px; height: 852px; background: #FFFFFF; position: relative; overflow: hidden; display: flex; flex-direction: column">
+
+  <div style="position: relative; display: flex; align-items: center; justify-content: space-between; padding: 54px 24px 0 24px">
+    <div style="display: flex; flex-direction: column; gap: 2px">
+      <div style="font-size: 12px; font-weight: 700; letter-spacing: 0.08em; color: #B5AC9E">AUGUST 21–27</div>
+      <div style="font-family: 'Gabarito', system-ui, sans-serif; font-size: 25px; font-weight: 700; letter-spacing: -0.3px; color: #221B14">Your week</div>
+    </div>
+    <div style="display: flex; align-items: center; gap: 12px">
+      <div style="display: flex; align-items: center; gap: 7px">
+        <div style="width: 34px; height: 34px; border-radius: 50%; background: {{ ringStyle }}; display: flex; align-items: center; justify-content: center">
+          <div style="width: 26px; height: 26px; border-radius: 50%; background: #FFFFFF; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; color: #221B14">{{ plannedCount }}</div>
+        </div>
+        <div style="font-size: 11px; font-weight: 700; color: #8A8074; line-height: 1.2">of 7<br>plated</div>
+      </div>
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 2px">
+        <div style="width: 44px; height: 44px; border-radius: 50%; background: #F4F1EC; display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 700; color: #221B14">N</div>
+        <div style="font-size: 9px; font-weight: 700; letter-spacing: 0.08em; color: #B5AC9E">HOST</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="position: relative; flex: 1 1 auto; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 14px 24px 100px 24px">
+    <sc-for list="{{ days }}" as="d" hint-placeholder-count="7">
+      <div style="display: flex; flex-direction: column">
+        <sc-if value="{{ d.isPlanned }}" hint-placeholder-val="{{ true }}">
+          <div style="display: flex; align-items: center; gap: 12px; background: #FFFFFF; border: {{ d.border }}; border-radius: 18px; padding: 8px 14px; min-height: 72px; transform: scale({{ d.scale }}); transition: transform 0.32s cubic-bezier(0.34, 1.56, 0.64, 1)">
+            <div style="width: 40px; display: flex; flex-direction: column; align-items: center">
+              <div style="font-size: 10px; font-weight: 800; letter-spacing: 0.06em; color: {{ d.dayColor }}">{{ d.day }}</div>
+              <div style="font-family: 'Gabarito', system-ui, sans-serif; font-size: 19px; font-weight: 800; color: #221B14">{{ d.date }}</div>
+            </div>
+            <img src="{{ d.img }}" style="width: 52px; height: 52px; border-radius: 50%; object-fit: cover; box-shadow: 0 4px 12px rgba(60,50,40,0.14)">
+            <div style="flex: 1 1 auto; display: flex; flex-direction: column; gap: 2px">
+              <div style="font-size: 15px; font-weight: 700; color: #221B14">{{ d.meal }}</div>
+              <div style="font-size: 12px; font-weight: 600; color: {{ d.tagColor }}">{{ d.tag }}</div>
+            </div>
+            <div style="width: 30px; height: 30px; border-radius: 50%; background: {{ d.cookBg }}; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; color: {{ d.cookColor }}">{{ d.cook }}</div>
+          </div>
+        </sc-if>
+        <sc-if value="{{ d.isEmpty }}" hint-placeholder-val="{{ false }}">
+          <div style="display: flex; flex-direction: column; border: 2px dashed #EFE7DD; border-radius: 20px; padding: 8px 14px; min-height: 72px; justify-content: center; transform: scale({{ d.scale }}); transition: transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1)">
+            <div onClick="{{ d.toggle }}" style="display: flex; align-items: center; gap: 12px; cursor: pointer; min-height: 56px">
+              <div style="width: 40px; display: flex; flex-direction: column; align-items: center">
+                <div style="font-size: 10px; font-weight: 800; letter-spacing: 0.06em; color: #B5AC9E">{{ d.day }}</div>
+                <div style="font-family: 'Gabarito', system-ui, sans-serif; font-size: 19px; font-weight: 800; color: #B5AC9E">{{ d.date }}</div>
+              </div>
+              <div style="width: 52px; height: 52px; border-radius: 50%; border: 2px dashed #EFE7DD; display: flex; align-items: center; justify-content: center">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#B5AC9E" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>
+              </div>
+              <div style="flex: 1 1 auto; font-size: 14px; font-weight: 600; color: #8A8074">Nothing plated yet</div>
+            </div>
+            <sc-if value="{{ d.expanded }}" hint-placeholder-val="{{ false }}">
+              <div style="display: flex; gap: 8px; padding: 12px 0 4px 52px">
+                <div onClick="{{ d.pick }}" style="height: 44px; padding: 0 16px; border-radius: 999px; background: #221B14; display: flex; align-items: center; font-size: 13px; font-weight: 700; color: #FFFFFF; cursor: pointer">Pick for me</div>
+                <div style="height: 44px; padding: 0 16px; border-radius: 999px; background: #FFFFFF; border: 1px solid #F0EBE4; display: flex; align-items: center; font-size: 13px; font-weight: 700; color: #221B14">Cookbook</div>
+                <div style="height: 44px; padding: 0 16px; border-radius: 999px; background: #FFFFFF; border: 1px solid #F0EBE4; display: flex; align-items: center; font-size: 13px; font-weight: 700; color: #221B14">Ask the table</div>
+              </div>
+            </sc-if>
+          </div>
+        </sc-if>
+      </div>
+    </sc-for>
+    <div style="display: flex; align-items: center; justify-content: center; gap: 6px; padding-top: 6px">
+      <div style="width: 26px; height: 26px; border-radius: 50%; background: #EDF5EF; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: #3DA35D">S</div>
+      <div style="font-size: 12px; font-weight: 600; color: #8A8074">Sam cooks Sat &amp; Sun · Riley takes Tuesday</div>
+    </div>
+  </div>
+
+  <div style="position: absolute; left: 20px; right: 20px; bottom: 16px; height: 68px; background: rgba(255,255,255,0.94); backdrop-filter: blur(16px); border: 1px solid #EFECE7; border-radius: 999px; box-shadow: 0 12px 32px rgba(60,50,40,0.08); display: flex; align-items: center; padding: 0 8px">
+    <div onClick="{{ bWeek }}" style="flex: 1 1 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; color: #221B14; cursor: pointer; align-self: stretch; min-height: 66px; transform: scale({{ sWeek }}); transition: transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1)">
+      <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3.5" y="5" width="17" height="15.5" rx="4"></rect><path d="M3.5 10h17M8 3v4M16 3v4"></path></svg>
+      <span style="font-size: 10px; font-weight: 800">Week</span>
+    </div>
+    <div onClick="{{ bTable }}" style="flex: 1 1 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; color: #B5AC9E; cursor: pointer; align-self: stretch; min-height: 66px; transform: scale({{ sTable }}); transition: transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1)">
+      <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3.5" y="3.5" width="17" height="17" rx="5"></rect><circle cx="12" cy="12" r="4"></circle></svg>
+      <span style="font-size: 10px; font-weight: 700">Table</span>
+    </div>
+    <div onClick="{{ bAdd }}" style="flex: 0 0 72px; display: flex; justify-content: center; cursor: pointer">
+      <div style="width: 54px; height: 54px; border-radius: 50%; background: #FF5A3C; box-shadow: 0 8px 20px rgba(60,50,40,0.16); display: flex; align-items: center; justify-content: center; transform: scale({{ sAdd }}) rotate({{ rAdd }}); transition: transform 0.32s cubic-bezier(0.34, 1.56, 0.64, 1)">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>
+      </div>
+    </div>
+    <div onClick="{{ bBook }}" style="flex: 1 1 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; color: #B5AC9E; cursor: pointer; align-self: stretch; min-height: 66px; transform: scale({{ sBook }}); transition: transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1)">
+      <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5V5.5A2.5 2.5 0 0 1 6.5 3H20v14H6.5A2.5 2.5 0 0 0 4 19.5Z"></path><path d="M4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5"></path></svg>
+      <span style="font-size: 10px; font-weight: 700">Recipes</span>
+    </div>
+    <div onClick="{{ bHome }}" style="flex: 1 1 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; color: #B5AC9E; cursor: pointer; align-self: stretch; min-height: 66px; transform: scale({{ sHome }}); transition: transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1)">
+      <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="8" r="3.5"></circle><path d="M3 20c1.2-3 3.5-4.5 6-4.5s4.8 1.5 6 4.5"></path><circle cx="17" cy="9" r="2.5"></circle><path d="M16 15.7c2 .3 3.6 1.6 4.5 3.8"></path></svg>
+      <span style="font-size: 10px; font-weight: 700">Home</span>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script data-dc-script data-props='{"$preview":{"width":393,"height":852}}'>
+const COOKS = {
+  N: { bg: '#FFEDE3', color: '#FF5A3C' },
+  S: { bg: '#EDF5EF', color: '#3DA35D' },
+  R: { bg: '#FFF4DC', color: '#C88A00' }
+};
+
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { expanded: null, picked: {}, bounce: null };
+  }
+
+  bounceIt(key) {
+    this.bounceSeq = (this.bounceSeq || 0) + 1;
+    const seq = this.bounceSeq;
+    this.setState({ bounce: key });
+    setTimeout(() => {
+      if (this.bounceSeq === seq) { this.setState({ bounce: null }); }
+    }, 300);
+  }
+
+  renderVals() {
+    const s = this.state;
+    const base = [
+      { day: 'FRI', date: '21', meal: 'Salmon Night', img: "salmon-plate.jpg", tag: 'Tonight · 25 min', tagColor: '#221B14', cook: 'N', today: true },
+      { day: 'SAT', date: '22', meal: 'Pizza Night', img: "pizza.jpg", tag: 'Kids pick', tagColor: '#8A8074', cook: 'S' },
+      { day: 'SUN', date: '23', meal: 'BBQ Skewers', img: "skewers.jpg", tag: 'Grandma joins', tagColor: '#8A8074', cook: 'S' },
+      { day: 'MON', date: '24', empty: true, pickMeal: { meal: 'Rainbow Bowls', img: "veggie.jpg", tag: 'Picked for you · 20 min', tagColor: '#8A8074', cook: 'N' } },
+      { day: 'TUE', date: '25', meal: 'Steak Bowls', img: "plates.jpg", tag: 'Riley cooks', tagColor: '#8A8074', cook: 'R' },
+      { day: 'WED', date: '26', meal: 'Poke Night', img: "poke.jpg", tag: 'Fast one', tagColor: '#8A8074', cook: 'N' },
+      { day: 'THU', date: '27', empty: true, pickMeal: { meal: 'Pancake Dinner', img: "pancakes.jpg", tag: 'Picked for you · crowd fave', tagColor: '#8A8074', cook: 'N' } }
+    ];
+
+    const days = base.map((d) => {
+      const picked = s.picked[d.day];
+      const planned = !d.empty || !!picked;
+      const src = picked || d;
+      const cookInfo = COOKS[src.cook] || COOKS.N;
+      return {
+        day: d.day,
+        date: d.date,
+        isPlanned: planned,
+        isEmpty: !planned,
+        meal: src.meal || '',
+        img: src.img || '',
+        tag: src.tag || '',
+        tagColor: src.tagColor || '#8A8074',
+        cook: src.cook || 'N',
+        cookBg: cookInfo.bg,
+        cookColor: cookInfo.color,
+        border: d.today ? '1.5px solid #221B14' : '1px solid #EFECE7',
+        dayColor: d.today ? '#221B14' : '#B5AC9E',
+        expanded: s.expanded === d.day,
+        scale: s.bounce === 'day-' + d.day ? '1.02' : '1',
+        toggle: () => this.setState({ expanded: s.expanded === d.day ? null : d.day }),
+        pick: () => {
+          this.setState({ picked: { ...s.picked, [d.day]: d.pickMeal }, expanded: null });
+          this.bounceIt('day-' + d.day);
+        }
+      };
+    });
+
+    const plannedCount = days.filter((d) => d.isPlanned).length;
+    const deg = Math.round((plannedCount / 7) * 360);
+    const sc = (key) => (s.bounce === key ? '1.3' : '1');
+
+    return {
+      days,
+      plannedCount: String(plannedCount),
+      ringStyle: 'conic-gradient(#3DA35D 0deg ' + deg + 'deg, #F0EBE4 ' + deg + 'deg 360deg)',
+      bWeek: () => this.bounceIt('week'), sWeek: sc('week'),
+      bTable: () => this.bounceIt('table'), sTable: sc('table'),
+      bAdd: () => this.bounceIt('add'), sAdd: s.bounce === 'add' ? '1.15' : '1', rAdd: s.bounce === 'add' ? '90deg' : '0deg',
+      bBook: () => this.bounceIt('book'), sBook: sc('book'),
+      bHome: () => this.bounceIt('home'), sHome: sc('home')
+    };
+  }
+}
+</script>
+</body>
+</html>

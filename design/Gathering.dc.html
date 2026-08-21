@@ -1,0 +1,120 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    body { margin: 0; font-family: -apple-system, system-ui, sans-serif; background: #FAF5EC; }
+    a { color: #BE3A2B; } a:hover { color: #8a2a18; }
+    button { font-family: inherit; }
+  </style>
+</helmet>
+<div style="width: 393px; height: 852px; background: #FAF5EC; display: flex; flex-direction: column; overflow: hidden">
+  <div style="flex: 1 1 auto; overflow-y: auto">
+    <div style="display: flex; flex-direction: column; padding: 64px 20px 0 20px">
+      <div style="display: flex; align-items: flex-start; gap: 18px">
+        <div style="display: flex; flex-direction: column; align-items: center; width: 64px">
+          <div style="font-size: 11px; font-weight: 600; letter-spacing: 1.5px; color: #6E6459">SUN</div>
+          <div style="font-family: ui-serif, Georgia, serif; font-size: 44px; font-weight: 600; color: #2C241C; line-height: 1; font-variant-numeric: tabular-nums">23</div>
+        </div>
+        <div style="flex: 1 1 auto; display: flex; flex-direction: column; gap: 4px">
+          <div style="font-family: ui-serif, Georgia, serif; font-size: 32px; font-weight: 600; letter-spacing: -0.5px; color: #2C241C; line-height: 1.1">Sunday Supper</div>
+          <div style="font-size: 11px; font-weight: 600; letter-spacing: 1.5px; color: #6E6459">HOSTED BY NATE · 5:00 PM · THE MEADOWS TABLE</div>
+        </div>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 10px; margin-top: 18px">
+        <div style="display: flex">
+          <div style="width: 32px; height: 32px; border-radius: 50%; background: #F2E4D5; border: 2px solid #FAF5EC; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; color: #A5622F">N</div>
+          <div style="width: 32px; height: 32px; border-radius: 50%; background: #E7EAD9; border: 2px solid #FAF5EC; margin-left: -8px; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; color: #5F7A3D">R</div>
+          <div style="width: 32px; height: 32px; border-radius: 50%; background: #F4E7CF; border: 2px solid #FAF5EC; margin-left: -8px; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; color: #B47816">SM</div>
+          <div style="width: 32px; height: 32px; border-radius: 50%; background: #EFE0E2; border: 2px solid #FAF5EC; margin-left: -8px; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; color: #8E4A54">GM</div>
+          <div style="width: 32px; height: 32px; border-radius: 50%; background: #E7EAD9; border: 2px solid #FAF5EC; margin-left: -8px; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; color: #5F7A3D">JD</div>
+          <div style="width: 32px; height: 32px; border-radius: 50%; background: #F2E4D5; border: 2px solid #FAF5EC; margin-left: -8px; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; color: #A5622F">+1</div>
+        </div>
+        <div style="font-size: 11px; font-weight: 600; letter-spacing: 1px; color: #6E6459">6 AT THE TABLE</div>
+      </div>
+
+      <div style="font-size: 12px; font-weight: 600; letter-spacing: 1.5px; color: #6E6459; margin-top: 26px; margin-bottom: 10px">THE MENU — WHO IS BRINGING WHAT</div>
+      <div style="display: flex; flex-direction: column; gap: 10px; padding-bottom: 20px">
+        <sc-for list="{{ courses }}" as="c" hint-placeholder-count="4">
+          <div style="background: #FFFFFF; border-radius: 16px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); border: 1px solid #E9E1D3; padding: 12px 14px; display: flex; align-items: center; gap: 14px">
+            <div style="width: 56px; height: 56px; border-radius: 50%; background: #FFFFFF; box-shadow: 0 4px 10px rgba(0,0,0,0.07); display: flex; align-items: center; justify-content: center; position: relative">
+              <div style="position: absolute; inset: 7%; border-radius: 50%; border: 1px solid #E9E1D3"></div>
+              <div style="width: 82%; height: 82%; border-radius: 50%; background: {{ c.bg }}"></div>
+            </div>
+            <div style="flex: 1 1 auto; display: flex; flex-direction: column; gap: 2px">
+              <div style="font-family: ui-serif, Georgia, serif; font-size: 18px; font-weight: 600; color: #2C241C">{{ c.dish }}</div>
+              <div style="font-size: 11px; font-weight: 600; letter-spacing: 1px; color: {{ c.byColor }}">{{ c.byline }}</div>
+            </div>
+            <sc-if value="{{ c.claimable }}" hint-placeholder-val="{{ true }}">
+              <button onClick="{{ c.claim }}" style="cursor: pointer; height: 44px; padding: 0 14px; border-radius: 12px; border: {{ c.btnBorder }}; background: {{ c.btnBg }}; color: {{ c.btnColor }}; font-size: 13px; font-weight: 600">{{ c.btnLabel }}</button>
+            </sc-if>
+          </div>
+        </sc-for>
+        <div style="border: 1.5px dashed #E9E1D3; border-radius: 16px; padding: 14px; display: flex; align-items: center; gap: 14px">
+          <div style="width: 56px; height: 56px; border-radius: 50%; border: 1.5px dashed rgba(110,100,89,0.45)"></div>
+          <div style="font-size: 14px; font-weight: 600; color: #6E6459">Add a course</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="background: #241C14; padding: 18px 20px 28px 20px; display: flex; flex-direction: column; gap: 12px">
+      <div style="font-size: 11px; font-weight: 600; letter-spacing: 1.5px; color: rgba(243,237,227,0.7)">THE PLAN</div>
+      <div style="display: flex; align-items: center; gap: 12px">
+        <div style="font-family: ui-serif, Georgia, serif; font-size: 28px; font-weight: 600; color: #F3EDE3; font-variant-numeric: tabular-nums">{{ claimedCount }}</div>
+        <div style="font-size: 13px; color: rgba(243,237,227,0.55)">of 4 courses claimed. Grocery lists update for everyone as courses are claimed.</div>
+      </div>
+      <button style="cursor: pointer; height: 48px; border: none; border-radius: 14px; background: #E5765F; color: #241C14; font-size: 16px; font-weight: 600">Add to Calendar</button>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script data-dc-script data-props='{"accent":{"editor":"color","default":"#BE3A2B","options":["#BE3A2B","#8E4A54","#5F7A3D","#B47816"],"section":"Brand"},"$preview":{"width":393,"height":852}}'>
+const DISH = {
+  saffron: 'radial-gradient(110px 90px at 30% 26%, rgba(246,227,180,0.9), transparent 66%), radial-gradient(130px 110px at 72% 76%, #6E4210, transparent 78%), radial-gradient(160px 140px at 54% 46%, #DD9C34, #a06f1f 96%)',
+  wine:    'radial-gradient(100px 84px at 32% 28%, rgba(237,164,124,0.85), transparent 66%), radial-gradient(130px 110px at 70% 74%, #471522, transparent 80%), radial-gradient(160px 140px at 52% 48%, #9E3547, #5d1e2c 96%)',
+  basil:   'radial-gradient(110px 90px at 30% 24%, rgba(237,226,137,0.9), transparent 66%), radial-gradient(130px 110px at 72% 78%, #2E4B23, transparent 78%), radial-gradient(160px 140px at 52% 50%, #6FA544, #476d2c 96%)',
+  copper:  'radial-gradient(110px 90px at 32% 26%, rgba(232,217,166,0.9), transparent 66%), radial-gradient(130px 110px at 70% 76%, #4C3A1E, transparent 78%), radial-gradient(160px 140px at 52% 48%, #A5622F, #6d3f1d 96%)'
+};
+
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { claims: {} };
+  }
+
+  renderVals() {
+    const s = this.state;
+    const accent = this.props.accent ?? '#BE3A2B';
+    const base = [
+      { id: 'paella', dish: 'Birthday Paella', bg: DISH.saffron, owner: 'NATE IS COOKING' },
+      { id: 'ragu', dish: 'Mushroom Ragu', bg: DISH.wine, owner: 'SAM IS BRINGING THIS' },
+      { id: 'salad', dish: 'Big Green Salad', bg: DISH.basil, owner: null },
+      { id: 'crumble', dish: 'Peach Crumble', bg: DISH.copper, owner: null }
+    ];
+    const courses = base.map((c) => {
+      const mine = !!s.claims[c.id];
+      const claimed = c.owner !== null;
+      return { ...c,
+        byline: claimed ? c.owner : (mine ? 'YOU ARE BRINGING THIS' : 'UNCLAIMED'),
+        byColor: claimed ? '#6E6459' : (mine ? '#3E6B4A' : '#B47816'),
+        claimable: !claimed,
+        btnLabel: mine ? 'Yours' : 'Claim it',
+        btnBg: mine ? 'transparent' : accent,
+        btnColor: mine ? '#3E6B4A' : '#FFFFFF',
+        btnBorder: mine ? '1px solid #E9E1D3' : '1px solid transparent',
+        claim: () => this.setState({ claims: { ...s.claims, [c.id]: !mine } })
+      };
+    });
+    const claimedCount = String(base.filter((c) => c.owner !== null).length + Object.values(s.claims).filter(Boolean).length);
+    return { courses, claimedCount };
+  }
+}
+</script>
+</body>
+</html>

@@ -186,6 +186,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Plated adds your gatherings and dinner parties to your calendar.";
+				INFOPLIST_KEY_NSContactsUsageDescription = "Plated matches your contacts on this device so you can set places at your table. Names never leave your phone.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Plated uses your location to check local weather and suggest meals that fit the day.";
 				INFOPLIST_KEY_NSRemindersFullAccessUsageDescription = "Plated sends your grocery list to Reminders so you can shop from any device.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -217,6 +218,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Plated adds your gatherings and dinner parties to your calendar.";
+				INFOPLIST_KEY_NSContactsUsageDescription = "Plated matches your contacts on this device so you can set places at your table. Names never leave your phone.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Plated uses your location to check local weather and suggest meals that fit the day.";
 				INFOPLIST_KEY_NSRemindersFullAccessUsageDescription = "Plated sends your grocery list to Reminders so you can shop from any device.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
