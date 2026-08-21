@@ -243,8 +243,9 @@ struct NewRecipeView: View {
             .background {
                 if active {
                     Capsule()
-                        .fill(Color.canvas)
-                        .shadow(color: Color(rgb: 0x825028).opacity(0.12), radius: 4, y: 2)
+                        .fill(Color.raisedFill)
+                        .overlay(Capsule().strokeBorder(Color.navHairline))
+                        .shadow(color: Color.shadowWarm.opacity(0.12), radius: 4, y: 2)
                 }
             }
         }

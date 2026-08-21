@@ -3,6 +3,10 @@ import SwiftData
 
 @main
 struct PlatedApp: App {
+    /// After Dark — the premium dark room, switched on in Home. The app never
+    /// follows the system appearance; the table decides its own lighting.
+    @AppStorage("afterDark") private var afterDark = false
+
     /// One container for the whole app. `cloudKitDatabase: .automatic` uses the
     /// iCloud container when the entitlement is present and quietly falls back
     /// to local-only storage when it is not, so the app runs for anyone who
@@ -39,9 +43,7 @@ struct PlatedApp: App {
     var body: some Scene {
         WindowGroup {
             RootView()
-                // The register is deliberately white-canvas for now; After Dark
-                // arrives as an explicit appearance choice, not system dark mode.
-                .preferredColorScheme(.light)
+                .preferredColorScheme(afterDark ? .dark : .light)
         }
         .modelContainer(container)
     }

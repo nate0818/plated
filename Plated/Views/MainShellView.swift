@@ -17,6 +17,7 @@ struct MainShellView: View {
     /// Guards sample seeding so a slow CloudKit first-import can never race
     /// an "empty" check into duplicating everything.
     @AppStorage("didSeedSampleData") private var didSeedSampleData = false
+    @AppStorage("didSeedDiscover") private var didSeedDiscover = false
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -48,8 +49,32 @@ struct MainShellView: View {
         .task {
             if !didSeedSampleData && recipes.isEmpty && members.isEmpty {
                 didSeedSampleData = true
+                didSeedDiscover = true
                 SampleData.seed(into: context)
+            } else if !didSeedDiscover {
+                // Installs seeded before Discover existed get its open tables
+                // once — guarded at the store too, so a CloudKit import that
+                // already carries them can never be double-seeded.
+                didSeedDiscover = true
+                let existing = try? context.fetchCount(
+                    FetchDescriptor<TablePost>(predicate: #Predicate { $0.isDiscover })
+                )
+                if (existing ?? 0) == 0 {
+                    SampleData.seedDiscover(into: context)
+                    try? context.save()
+                }
             }
+            #if DEBUG
+            // UI-test hook: `simctl launch … -plated-tab table` lands here.
+            let args = ProcessInfo.processInfo.arguments
+            if let flag = args.firstIndex(of: "-plated-tab"), args.indices.contains(flag + 1),
+               let tab = AppTab(rawValue: args[flag + 1]) {
+                selection = tab
+            }
+            if args.contains("-plated-open-create") {
+                createPresented = true
+            }
+            #endif
         }
     }
 }
@@ -82,7 +107,7 @@ struct PlateTabBar: View {
                     Circle()
                         .fill(Color.tomato)
                         .frame(width: 54, height: 54)
-                        .shadow(color: Color(rgb: 0x3C3228).opacity(0.16), radius: 10, y: 8)
+                        .shadow(color: Color.shadowInk.opacity(0.16), radius: 10, y: 8)
                     Image(systemName: "plus")
                         .font(.system(size: 22, weight: .bold))
                         .foregroundStyle(.white)

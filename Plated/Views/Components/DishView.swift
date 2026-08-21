@@ -109,12 +109,21 @@ struct DishView: View {
         DishPalette.resolve(title: title, tags: tags, moods: moods)
     }
 
+    @Environment(\.colorScheme) private var scheme
+
     var body: some View {
         PorcelainBase(diameter: diameter)
             .overlay {
                 food
                     .frame(width: diameter * 0.82, height: diameter * 0.82)
                     .clipShape(Circle())
+                    .overlay {
+                        // After dark the deep palette pools sink into the dark
+                        // porcelain — a whisper of rim keeps the food's silhouette.
+                        if scheme == .dark {
+                            Circle().strokeBorder(Color.white.opacity(0.10), lineWidth: 1)
+                        }
+                    }
             }
             .overlay {
                 if diameter >= 96 {

@@ -18,6 +18,9 @@ final class Recipe {
     var visibility: String = "household"
     /// When true, household members can tweak it. Only the creator deletes.
     var householdCanEdit: Bool = true
+    /// Set when this recipe was saved from a Table or Discover post — a stable
+    /// key so "already in your cookbook" never trips on a mere title match.
+    var originID: String = ""
     var createdAt: Date = Date.now
     /// Downsized JPEG. Kept small deliberately — CloudKit charges by the byte.
     @Attribute(.externalStorage) var photoData: Data?

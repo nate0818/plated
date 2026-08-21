@@ -7,7 +7,9 @@ struct HouseholdHomeView: View {
     @Environment(\.modelContext) private var context
     @Query(sort: \HouseholdMember.createdAt) private var members: [HouseholdMember]
 
+    @Environment(\.colorScheme) private var colorScheme
     @AppStorage("autoRotateOpenNights") private var autoRotate = true
+    @AppStorage("afterDark") private var afterDark = false
     @AppStorage("userFamilyName") private var userFamilyName = ""
     @State private var addPresented = false
 
@@ -52,6 +54,36 @@ struct HouseholdHomeView: View {
                     .padding(.top, 8)
                 }
 
+                VStack(alignment: .leading, spacing: 10) {
+                    MicroLabel("The room")
+                    HStack(spacing: 12) {
+                        Circle()
+                            .fill(Color.fill)
+                            .frame(width: 40, height: 40)
+                            .overlay {
+                                Image(systemName: afterDark ? "moon.stars.fill" : "moon")
+                                    .font(.system(size: 16, weight: .medium))
+                                    .foregroundStyle(afterDark ? Color.ink : Color.inkSecondary)
+                            }
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("After Dark")
+                                .font(.jakarta(14, .bold))
+                                .foregroundStyle(Color.ink)
+                            Text("The warm room. Photos glow, chrome sleeps.")
+                                .font(.jakarta(12, .medium))
+                                .foregroundStyle(Color.inkSecondary)
+                        }
+                        Spacer()
+                        Toggle("", isOn: $afterDark.animation(.plSettle))
+                            .labelsHidden()
+                            .tint(Color.basil)
+                            .onChange(of: afterDark) { _, _ in Haptic.plate() }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 14)
+                    .overlay(RoundedRectangle(cornerRadius: Radius.card).strokeBorder(Color.hairline))
+                }
+
                 Button {
                     Haptic.tap()
                     addPresented = true
@@ -76,10 +108,13 @@ struct HouseholdHomeView: View {
             .padding(.bottom, 110)
         }
         .background(alignment: .topTrailing) {
-            RadialGradient(colors: [.basilTint, .basilTint.opacity(0)], center: .center, startRadius: 0, endRadius: 220)
-                .frame(width: 440, height: 440)
-                .offset(x: 140, y: -160)
-                .ignoresSafeArea()
+            // After Dark lets the chrome sleep — no ambient glow in the dark room.
+            if colorScheme == .light {
+                RadialGradient(colors: [.basilTint, .basilTint.opacity(0)], center: .center, startRadius: 0, endRadius: 220)
+                    .frame(width: 440, height: 440)
+                    .offset(x: 140, y: -160)
+                    .ignoresSafeArea()
+            }
         }
         .sheet(isPresented: $addPresented) {
             AddMemberSheet()

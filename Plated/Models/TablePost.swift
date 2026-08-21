@@ -12,6 +12,8 @@ final class TablePost {
     var caption: String = ""
     /// "dish" (photo moment) or "ask" (open request for ideas).
     var kind: String = "dish"
+    /// True for posts from open tables shown in Discover, never in your feed.
+    var isDiscover: Bool = false
     var createdAt: Date = Date.now
     /// Plates from the rest of the table. Mine is tracked separately so the
     /// toggle can't drift the count.
@@ -28,6 +30,7 @@ final class TablePost {
         dishTitle: String = "",
         caption: String = "",
         kind: String = "dish",
+        isDiscover: Bool = false,
         createdAt: Date = .now,
         plateCount: Int = 0,
         photoData: Data? = nil
@@ -37,6 +40,7 @@ final class TablePost {
         self.dishTitle = dishTitle
         self.caption = caption
         self.kind = kind
+        self.isDiscover = isDiscover
         self.createdAt = createdAt
         self.plateCount = plateCount
         self.photoData = photoData
@@ -48,11 +52,16 @@ final class TablePost {
     var hasChefsKiss: Bool { totalPlates >= 10 }
 
     var initials: String {
-        let parts = authorName.split(separator: " ").prefix(2)
+        let parts = authorName.split(separator: " ")
+            .filter { $0.first?.isLetter == true }
+            .prefix(2)
         return parts.compactMap { $0.first }.map(String.init).joined().uppercased()
     }
 
     var firstName: String { authorName.split(separator: " ").first.map(String.init) ?? authorName }
+
+    /// Stable identity for "saved to cookbook" bookkeeping.
+    var originKey: String { "post:\(authorName)|\(dishTitle)" }
 
     var sortedComments: [TableComment] {
         (comments ?? []).sorted { $0.createdAt < $1.createdAt }

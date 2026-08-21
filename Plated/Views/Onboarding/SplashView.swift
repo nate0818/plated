@@ -20,9 +20,10 @@ struct SplashView: View {
             VStack(spacing: 22) {
                 ZStack {
                     Circle()
-                        .fill(Color.canvas)
+                        .fill(Color.cardFill)
                         .frame(width: 104, height: 104)
-                        .shadow(color: Color(rgb: 0x825028).opacity(0.16), radius: 24, y: 12)
+                        .overlay(Circle().strokeBorder(Color.hairline, lineWidth: 1))
+                        .shadow(color: Color.shadowWarm.opacity(0.16), radius: 24, y: 12)
                     Circle()
                         .strokeBorder(Color.hairline, lineWidth: 2)
                         .frame(width: 74, height: 74)

@@ -124,7 +124,7 @@ struct ContactsView: View {
             .frame(width: 52, height: 52)
             .overlay(Text(letter).font(.jakarta(17, .bold)).foregroundStyle(tone.tone))
             .overlay(Circle().strokeBorder(Color.canvas, lineWidth: 3))
-            .shadow(color: Color(rgb: 0x825028).opacity(0.12), radius: 10, y: 8)
+            .shadow(color: Color.shadowWarm.opacity(0.12), radius: 10, y: 8)
     }
 
     private func candidateRow(_ candidate: Binding<Candidate>) -> some View {
@@ -162,7 +162,7 @@ struct ContactsView: View {
                         .padding(.horizontal, 16)
                         .frame(height: 36)
                         .background(Color.tomato, in: Capsule())
-                        .shadow(color: Color(rgb: 0x3C3228).opacity(0.14), radius: 7, y: 6)
+                        .shadow(color: Color.shadowInk.opacity(0.14), radius: 7, y: 6)
                 }
                 .buttonStyle(.plain)
             }

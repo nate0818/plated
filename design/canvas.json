@@ -1,86 +1,109 @@
 {
-  "artboards": [
-    {
-      "file": "Splash.dc.html",
-      "x": 0,
-      "y": 0,
-      "w": 393,
-      "h": 852,
-      "title": "1 \u00b7 App load"
-    },
-    {
-      "file": "SignIn.dc.html",
-      "x": 473,
-      "y": 0,
-      "w": 393,
-      "h": 852,
-      "title": "2 \u00b7 Sign in with Apple"
-    },
-    {
-      "file": "Contacts.dc.html",
-      "x": 946,
-      "y": 0,
-      "w": 393,
-      "h": 852,
-      "title": "3 \u00b7 Set your table"
-    },
-    {
-      "file": "Main.dc.html",
-      "x": 0,
-      "y": 1040,
-      "w": 393,
-      "h": 852,
-      "title": "4 \u00b7 Week home \u2014 CLICKABLE"
-    },
-    {
-      "file": "Table.dc.html",
-      "x": 473,
-      "y": 1040,
-      "w": 393,
-      "h": 852,
-      "title": "5 \u00b7 The Table \u2014 CLICKABLE"
-    },
-    {
-      "file": "Recipe.dc.html",
-      "x": 946,
-      "y": 1040,
-      "w": 393,
-      "h": 852,
-      "title": "6 \u00b7 New recipe"
-    },
-    {
-      "file": "Household.dc.html",
-      "x": 1419,
-      "y": 1040,
-      "w": 393,
-      "h": 852,
-      "title": "7 \u00b7 Household roles"
-    }
-  ],
-  "annotations": [
-    {
-      "id": "flow-onboarding",
-      "x": 0,
-      "y": -150,
-      "w": 420,
-      "text": "THE FIRST MINUTE \u2014 splash settles in like a plate on a table; Sign in with Apple is the only door; contacts builds your invite-only Table (\"set a place\" = invite)."
-    },
-    {
-      "id": "flow-core",
-      "x": 0,
-      "y": 870,
-      "w": 460,
-      "text": "THE DAILY APP \u2014 final register: quiet chrome, earned color. Chrome is calm and near-monochrome so every family's photos look good; color appears when something good happens \u2014 the plate reaction fills tomato, the 10th plate earns the Chef's kiss, the + button is the one always-tomato element. The fun lives in motion and voice: icons bounce, the + spins, Pick-for-me fills a day and the ring ticks up."
-    },
-    {
-      "id": "note-roles",
-      "x": 1419,
-      "y": 930,
-      "w": 380,
-      "text": "Owner = crowned \"Head of table.\" Assign days per person, auto-rotate open days, kids contribute ideas. Same grammar as the week screen."
-    }
-  ],
-  "launch": {
-    "view": "canvas"
+ "artboards": [
+  {
+   "file": "Splash.dc.html",
+   "x": 0,
+   "y": 0,
+   "w": 393,
+   "h": 852,
+   "title": "1 · App load"
+  },
+  {
+   "file": "SignIn.dc.html",
+   "x": 473,
+   "y": 0,
+   "w": 393,
+   "h": 852,
+   "title": "2 · Sign in with Apple"
+  },
+  {
+   "file": "Contacts.dc.html",
+   "x": 946,
+   "y": 0,
+   "w": 393,
+   "h": 852,
+   "title": "3 · Set your table"
+  },
+  {
+   "file": "Main.dc.html",
+   "x": 0,
+   "y": 1040,
+   "w": 393,
+   "h": 852,
+   "title": "4 · Week home — CLICKABLE"
+  },
+  {
+   "file": "Table.dc.html",
+   "x": 473,
+   "y": 1040,
+   "w": 393,
+   "h": 852,
+   "title": "5 · The Table — CLICKABLE"
+  },
+  {
+   "file": "Recipe.dc.html",
+   "x": 946,
+   "y": 1040,
+   "w": 393,
+   "h": 852,
+   "title": "6 · New recipe"
+  },
+  {
+   "file": "Household.dc.html",
+   "x": 1419,
+   "y": 1040,
+   "w": 393,
+   "h": 852,
+   "title": "7 · Household roles"
+  },
+  {
+   "file": "Discover.dc.html",
+   "x": 0,
+   "y": 2080,
+   "w": 393,
+   "h": 852,
+   "title": "8 · Discover — open tables"
+  },
+  {
+   "file": "AfterDark.dc.html",
+   "x": 473,
+   "y": 2080,
+   "w": 393,
+   "h": 852,
+   "title": "9 · After Dark"
   }
+ ],
+ "annotations": [
+  {
+   "id": "flow-onboarding",
+   "x": 0,
+   "y": -150,
+   "w": 420,
+   "text": "THE FIRST MINUTE — splash settles in like a plate on a table; Sign in with Apple is the only door; contacts builds your invite-only Table (\"set a place\" = invite)."
+  },
+  {
+   "id": "flow-core",
+   "x": 0,
+   "y": 870,
+   "w": 460,
+   "text": "THE DAILY APP — final register: quiet chrome, earned color. Chrome is calm and near-monochrome so every family's photos look good; color appears when something good happens — the plate reaction fills tomato, the 10th plate earns the Chef's kiss, the + button is the one always-tomato element. The fun lives in motion and voice: icons bounce, the + spins, Pick-for-me fills a day and the ring ticks up."
+  },
+  {
+   "id": "note-roles",
+   "x": 1419,
+   "y": 930,
+   "w": 380,
+   "text": "Owner = crowned \"Head of table.\" Assign days per person, auto-rotate open days, kids contribute ideas. Same grammar as the week screen."
+  },
+  {
+   "id": "note-phase2",
+   "x": 946,
+   "y": 2080,
+   "w": 400,
+   "text": "PHASE 2 — Discover lives behind the search glass in the Table header: dinners from tables that chose to be open, view-only, nothing leaks outward. After Dark is the warm room — espresso black chosen in Home, never system dark mode. Photos glow, chrome sleeps, tomato still lands."
+  }
+ ],
+ "launch": {
+  "view": "canvas"
+ }
 }

@@ -14,37 +14,56 @@ extension Color {
         )
     }
 
-    // Chrome
-    static let canvas         = Color(rgb: 0xFFFFFF)
-    static let ink            = Color(rgb: 0x221B14)
-    static let inkSecondary   = Color(rgb: 0x8A8074)
-    static let inkFaint       = Color(rgb: 0xB5AC9E)
-    static let hairline       = Color(rgb: 0xF0EBE4)   // card borders
-    static let hairlineSoft   = Color(rgb: 0xF7F3EE)   // row separators
-    static let hairlineDashed = Color(rgb: 0xEFE7DD)   // empty-state dashes
-    static let navHairline    = Color(rgb: 0xEFECE7)   // floating bar edge
-    static let fill           = Color(rgb: 0xF4F1EC)   // neutral avatar / wells
-    static let chipFill       = Color(rgb: 0xF7F5F1)   // link chips
+    /// One token, two rooms. Light is the white tablecloth; dark is After
+    /// Dark — warm espresso black, chosen in Home, never system-decided.
+    init(light: UInt32, dark: UInt32) {
+        self.init(uiColor: UIColor { trait in
+            let value = trait.userInterfaceStyle == .dark ? dark : light
+            return UIColor(
+                red: CGFloat((value >> 16) & 0xFF) / 255,
+                green: CGFloat((value >> 8) & 0xFF) / 255,
+                blue: CGFloat(value & 0xFF) / 255,
+                alpha: 1
+            )
+        })
+    }
 
-    // Earned color
-    static let tomato         = Color(rgb: 0xFF5A3C)
-    static let tomatoPressed  = Color(rgb: 0xD6401F)
-    static let mango          = Color(rgb: 0xFFB020)   // the chef's kiss only
-    static let basil          = Color(rgb: 0x3DA35D)   // progress, "seated"
-    static let amber          = Color(rgb: 0xC88A00)
-    static let grape          = Color(rgb: 0xB95CF4)
+    // Chrome
+    static let canvas         = Color(light: 0xFFFFFF, dark: 0x16120E)
+    static let ink            = Color(light: 0x221B14, dark: 0xF4EDE3)
+    static let inkSecondary   = Color(light: 0x8A8074, dark: 0xA79B8B)
+    static let inkFaint       = Color(light: 0xB5AC9E, dark: 0x6B6157)
+    static let hairline       = Color(light: 0xF0EBE4, dark: 0x2B241C)   // card borders
+    static let hairlineSoft   = Color(light: 0xF7F3EE, dark: 0x231D17)   // row separators
+    static let hairlineDashed = Color(light: 0xEFE7DD, dark: 0x342C22)   // empty-state dashes
+    static let navHairline    = Color(light: 0xEFECE7, dark: 0x2D261E)   // floating bar edge
+    static let fill           = Color(light: 0xF4F1EC, dark: 0x282119)   // neutral avatar / wells
+    static let chipFill       = Color(light: 0xF7F5F1, dark: 0x241E17)   // link chips
+    static let raisedFill     = Color(light: 0xFFFFFF, dark: 0x362E24)   // the lifted pill inside a well
+
+    // Earned color — lifted a touch after dark so it still lands
+    static let tomato         = Color(light: 0xFF5A3C, dark: 0xF75434)   // dark value keeps white labels ≥3:1
+    static let tomatoPressed  = Color(light: 0xD6401F, dark: 0xD6401F)   // pressed always darkens
+    static let mango          = Color(light: 0xFFB020, dark: 0xFFB63A)   // the chef's kiss only
+    static let basil          = Color(light: 0x3DA35D, dark: 0x55BE76)   // progress, "seated"
+    static let amber          = Color(light: 0xC88A00, dark: 0xE3A83C)
+    static let grape          = Color(light: 0xB95CF4, dark: 0xC98BF7)
 
     // Tints — avatar and chip washes, one per person color
-    static let tomatoTint     = Color(rgb: 0xFFEDE3)
-    static let basilTint      = Color(rgb: 0xEDF5EF)
-    static let mangoTint      = Color(rgb: 0xFFF4DC)
-    static let grapeTint      = Color(rgb: 0xF5EDFB)
-    static let todayTint      = Color(rgb: 0xFFF7F0)   // today cell in cook grid
+    static let tomatoTint     = Color(light: 0xFFEDE3, dark: 0x39241C)
+    static let basilTint      = Color(light: 0xEDF5EF, dark: 0x1F2E24)
+    static let mangoTint      = Color(light: 0xFFF4DC, dark: 0x332A15)
+    static let grapeTint      = Color(light: 0xF5EDFB, dark: 0x2E2138)
+    static let todayTint      = Color(light: 0xFFF7F0, dark: 0x2A1D16)   // today cell in cook grid
+
+    // Shadow inks — warm brown on white, true black after dark
+    static let shadowInk      = Color(light: 0x3C3228, dark: 0x000000)
+    static let shadowWarm     = Color(light: 0x825028, dark: 0x000000)
 
     // Kept for DishView's generative palette families
-    static let cardFill       = Color(rgb: 0xFFFFFF)
-    static let copper         = Color(rgb: 0xA5622F)
-    static let successTone    = Color(rgb: 0x3DA35D)
+    static let cardFill       = Color(light: 0xFFFFFF, dark: 0x1E1913)
+    static let copper         = Color(light: 0xA5622F, dark: 0xC97F4A)
+    static let successTone    = Color(light: 0x3DA35D, dark: 0x55BE76)
 }
 
 // MARK: - Person palette
@@ -114,18 +133,35 @@ enum Haptic {
 
 // MARK: - Shadows
 
+/// Black at light-mode opacities is invisible on espresso — dark elevation
+/// needs a real boost, so the modifiers read the room.
+private struct PLShadow: ViewModifier {
+    @Environment(\.colorScheme) private var scheme
+    let lightOpacity: Double
+    let darkOpacity: Double
+    let radius: CGFloat
+    let y: CGFloat
+
+    func body(content: Content) -> some View {
+        content.shadow(
+            color: Color.shadowInk.opacity(scheme == .dark ? darkOpacity : lightOpacity),
+            radius: radius, y: y
+        )
+    }
+}
+
 extension View {
-    /// Cards and photo tiles: 0 8 24 @ 10%.
+    /// Cards and photo tiles: 0 8 24 @ 10%, deepened after dark.
     func plCardShadow() -> some View {
-        shadow(color: Color(rgb: 0x3C3228).opacity(0.10), radius: 12, y: 8)
+        modifier(PLShadow(lightOpacity: 0.10, darkOpacity: 0.45, radius: 12, y: 8))
     }
     /// Floating chrome (nav pill, + button): 0 12 32 @ 8%.
     func plFloatShadow() -> some View {
-        shadow(color: Color(rgb: 0x3C3228).opacity(0.08), radius: 16, y: 12)
+        modifier(PLShadow(lightOpacity: 0.08, darkOpacity: 0.5, radius: 16, y: 12))
     }
     /// Dish circles: 0 4 12 @ 14%.
     func plDishShadow() -> some View {
-        shadow(color: Color(rgb: 0x3C3228).opacity(0.14), radius: 6, y: 4)
+        modifier(PLShadow(lightOpacity: 0.14, darkOpacity: 0.5, radius: 6, y: 4))
     }
 }
 
@@ -190,6 +226,42 @@ struct TomatoPillButton: View {
             .frame(height: 56)
         }
         .buttonStyle(TomatoPillStyle())
+    }
+}
+
+/// The quiet sibling of the tomato pill — for the screen's committing action
+/// when the tomato budget is already spent (e.g. a reaction at rest).
+struct InkPillButton: View {
+    let title: String
+    var systemImage: String?
+    let action: () -> Void
+
+    var body: some View {
+        Button {
+            Haptic.tap()
+            action()
+        } label: {
+            HStack(spacing: 8) {
+                if let systemImage {
+                    Image(systemName: systemImage).font(.system(size: 16, weight: .semibold))
+                }
+                Text(title).font(.jakarta(17, .bold))
+            }
+            .foregroundStyle(Color.canvas)
+            .frame(maxWidth: .infinity)
+            .frame(height: 56)
+        }
+        .buttonStyle(InkPillStyle())
+    }
+}
+
+private struct InkPillStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .background(Color.ink.opacity(configuration.isPressed ? 0.85 : 1), in: Capsule())
+            .plFloatShadow()
+            .scaleEffect(configuration.isPressed ? 0.98 : 1)
+            .animation(.plSnap, value: configuration.isPressed)
     }
 }
 

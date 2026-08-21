@@ -6,6 +6,8 @@ import AuthenticationServices
 struct SignInView: View {
     let onSignedIn: () -> Void
 
+    @Environment(\.colorScheme) private var colorScheme
+
     @AppStorage("userFirstName") private var userFirstName = ""
     @AppStorage("userFamilyName") private var userFamilyName = ""
     @State private var arrived = false
@@ -85,7 +87,7 @@ struct SignInView: View {
                     Haptic.tap()
                     onSignedIn()
                 }
-                .signInWithAppleButtonStyle(.black)
+                .signInWithAppleButtonStyle(colorScheme == .dark ? .white : .black)
                 .frame(height: 56)
                 .clipShape(Capsule())
 
@@ -111,6 +113,6 @@ struct SignInView: View {
             .scaledToFill()
             .frame(width: size, height: size)
             .clipShape(Circle())
-            .shadow(color: Color(rgb: 0x825028).opacity(0.2), radius: 28, y: 20)
+            .shadow(color: Color.shadowWarm.opacity(0.2), radius: 28, y: 20)
     }
 }

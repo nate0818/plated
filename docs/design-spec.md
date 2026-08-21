@@ -37,6 +37,8 @@ v1.0 (cream/serif "plates on porcelain") is retired; see git history. This regis
 
 People get fixed (tint, tone) pairs via `PersonTone`; the rotation is tomato → basil → amber → grape.
 
+**After Dark** — every token above carries a dark twin (`Color(light:dark:)`), switched by the After Dark toggle in Home via `preferredColorScheme`; the app never follows the system appearance. The dark room is warm espresso, never cool gray: canvas `#16120E`, ink `#F4EDE3`, secondary `#A79B8B`, faint `#6B6157`, hairlines `#2B241C`–`#342C22`. Accents lift a touch so they still land (tomato `#FF6448`, basil `#55BE76`, mango `#FFB63A`, amber `#E3A83C`); tints deepen to embers (`#39241C #1F2E24 #332A15 #2E2138`). Shadows go true black. Decorative glows sleep in the dark — chrome recedes further, photos glow harder.
+
 ## 3. Type
 
 - **Gabarito** (display): screen titles 25/700, hero lines 32/800, date numerals 19/800, sheet titles 19/800, splash 42/800. Negative tracking on large sizes (−0.3 to −1).
@@ -52,8 +54,9 @@ Three springs, defined once: `.plPop` (0.32/0.55 — icon and reaction bounce, t
 - Tab IA: **Week · Table · + · Recipes · Home** in a floating 68pt capsule; active item ink, others faint; + is tomato, 54pt, rotates 90° on press.
 - Week (home): rolling next-7-nights, tonight first with 1.5pt ink border; open nights are dashed rows that expand into Pick for me / Cookbook / Ask the table; conic progress ring "N of 7 plated"; grocery is a basket in the header (of the plan, not a destination).
 - Table: private invite-only feed; plate reactions; **10 plates = chef's kiss**; comments allow URLs (link chips).
+- Discover: behind the search glass in the Table header — a 2-col rounded-rect grid of dinners from tables that chose to be open. View-only from outside; plating and "save to cookbook" work; nothing about your table leaks outward. Kiss badges (sparkle-in-circle) mark ≥10-plate dishes.
 - All tap targets ≥ 44pt. Sheets use `presentationCornerRadius(28)` and solid canvas backgrounds.
 
 ## 6. Roadmap register notes
 
-Phase 2 brings Discover (inside Table via search) and **After Dark** — a deliberate premium dark appearance chosen in Home, not system dark mode. Until then the app pins `.preferredColorScheme(.light)`.
+Phase 2 (Discover + After Dark) shipped. Phase 3 is the connective tissue: CloudKit sharing for real multi-household Tables, real seat invites from the pending-seats list, "what's for dinner" widgets, and App Intents.

@@ -221,6 +221,39 @@ enum SampleData {
         ]
         [post1, post2, post3].forEach { context.insert($0) }
 
+        seedDiscover(into: context)
+
         try? context.save()
+    }
+
+    /// Discover — dinners from tables that chose to be open. Stand-in content
+    /// until the real public network arrives with CloudKit.
+    @MainActor
+    static func seedDiscover(into context: ModelContext) {
+        let open: [(String, String, String, String, Int, Int)] = [
+            // dish, table, caption, photo, plates, hoursAgo
+            ("Golden Hour Pancakes", "The Morning Table", "Sunday stack, backlit on purpose.", "pancakes", 23, 3),
+            ("Charred Skewer Sunday", "Ember & Oak", "If it isn't a little burnt, start over.", "skewers", 14, 6),
+            ("Rainbow Bowl, 20 Minutes", "The Weeknight Club", "Weeknight rules: one bowl, every color, no drama.", "veggie", 9, 10),
+            ("Midnight Salmon", "After Service", "What line cooks make when the restaurant closes.", "salmon-dark", 31, 26),
+            ("Friday Pizza Ritual", "The Rossi Table", "Nonna's dough, the kids' toppings. Non-negotiable.", "pizza", 18, 30),
+            ("Poke for Two", "Tide & Rice", "Rice cooker on, knife out, done before the news.", "poke", 7, 49),
+            ("Steak Bowl Standard", "Counter Culture", "The marinade is a family secret. The bowl is not.", "plates", 11, 55),
+            ("Lemon Butter Weeknight", "The Garcias", "Crispy skin club, table of six.", "salmon-plate", 5, 76)
+        ]
+        let hexes = ["FF5A3C", "3DA35D", "C88A00", "B95CF4"]
+        for (index, entry) in open.enumerated() {
+            let (dish, table, caption, photoName, plates, hoursAgo) = entry
+            context.insert(TablePost(
+                authorName: table,
+                authorColorHex: hexes[index % hexes.count],
+                dishTitle: dish,
+                caption: caption,
+                isDiscover: true,
+                createdAt: Calendar.current.date(byAdding: .hour, value: -hoursAgo, to: .now) ?? .now,
+                plateCount: plates,
+                photoData: photo(photoName)
+            ))
+        }
     }
 }

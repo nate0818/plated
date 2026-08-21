@@ -6,7 +6,10 @@ import SwiftData
 /// all over the internet.
 struct TableFeedView: View {
     @Environment(\.modelContext) private var context
-    @Query(sort: \TablePost.createdAt, order: .reverse) private var posts: [TablePost]
+    @Query(
+        filter: #Predicate<TablePost> { !$0.isDiscover },
+        sort: \TablePost.createdAt, order: .reverse
+    ) private var posts: [TablePost]
     @Query(sort: \HouseholdMember.createdAt) private var members: [HouseholdMember]
     @Query private var recipes: [Recipe]
 
@@ -14,6 +17,7 @@ struct TableFeedView: View {
     @State private var commentingPost: TablePost?
     @State private var savedToast: String?
     @State private var toastToken = 0
+    @State private var discoverPresented = false
     @AppStorage("pendingSeats") private var pendingSeatsRaw = ""
 
     private var seatCount: Int {
@@ -47,6 +51,16 @@ struct TableFeedView: View {
         .sheet(item: $commentingPost) { post in
             CommentSheet(post: post)
         }
+        .fullScreenCover(isPresented: $discoverPresented) {
+            DiscoverView()
+        }
+        .onAppear {
+            #if DEBUG
+            if ProcessInfo.processInfo.arguments.contains("-plated-open-discover") {
+                discoverPresented = true
+            }
+            #endif
+        }
         .overlay(alignment: .bottom) {
             if let toast = savedToast {
                 Text(toast)
@@ -78,6 +92,23 @@ struct TableFeedView: View {
                     .foregroundStyle(Color.ink)
             }
             Spacer()
+            Button {
+                Haptic.tap()
+                discoverPresented = true
+            } label: {
+                Circle()
+                    .strokeBorder(Color.hairline, lineWidth: 1.5)
+                    .frame(width: 38, height: 38)
+                    .overlay {
+                        Image(systemName: "magnifyingglass")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(Color.ink)
+                    }
+                    .frame(minWidth: 44, minHeight: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .padding(.trailing, 8)
             HStack(spacing: -8) {
                 ForEach(Array(members.filter { !$0.isOwner }.prefix(2)), id: \.persistentModelID) { member in
                     AvatarCircle(initials: member.firstInitial, tone: member.tone, size: 34)
@@ -107,7 +138,7 @@ struct TableFeedView: View {
                 Button {
                     saveToCookbook(post)
                 } label: {
-                    Text("Plate it")
+                    Text("Save")
                         .font(.jakarta(13, .bold))
                         .foregroundStyle(Color.ink)
                         .frame(minWidth: 44, minHeight: 44)
@@ -232,7 +263,7 @@ struct TableFeedView: View {
         .frame(height: 36)
         .background(Color.canvas, in: Capsule())
         .overlay(Capsule().strokeBorder(Color.navHairline))
-        .shadow(color: Color(rgb: 0x3C3228).opacity(0.14), radius: 10, y: 8)
+        .shadow(color: Color.shadowInk.opacity(0.14), radius: 10, y: 8)
     }
 
     private func plateButton(_ post: TablePost) -> some View {
@@ -315,10 +346,11 @@ struct TableFeedView: View {
     private func saveToCookbook(_ post: TablePost) {
         Haptic.plate()
         let title = post.dishTitle.isEmpty ? "From \(post.firstName)'s table" : post.dishTitle
-        if !recipes.contains(where: { $0.title == title }) {
+        if !recipes.contains(where: { $0.originID == post.originKey }) {
             let recipe = Recipe(title: title, summary: post.caption)
             recipe.photoData = post.photoData
             recipe.tags = ["From the Table"]
+            recipe.originID = post.originKey
             context.insert(recipe)
         }
         toastToken += 1
