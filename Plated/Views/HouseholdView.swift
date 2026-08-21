@@ -52,6 +52,9 @@ struct HouseholdView: View {
                     for index in offsets { context.delete(members[index]) }
                 }
             }
+            .scrollContentBackground(.hidden)
+            .background(Color.canvas)
+            .tint(.tomato)
             .navigationTitle("Household")
             .navigationBarTitleDisplayMode(.inline)
             .overlay {
@@ -135,6 +138,9 @@ struct MemberEditorView: View {
                 .padding(.vertical, 4)
             }
         }
+        .scrollContentBackground(.hidden)
+        .background(Color.canvas)
+        .tint(.tomato)
         .navigationTitle(member.name.isEmpty ? "Member" : member.name)
         .navigationBarTitleDisplayMode(.inline)
     }

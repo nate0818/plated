@@ -55,6 +55,9 @@ struct RecipeEditorView: View {
                     .onAppear { tagText = recipe.tags.joined(separator: ", ") }
             }
         }
+        .scrollContentBackground(.hidden)
+        .background(Color.canvas)
+        .tint(.tomato)
         .navigationTitle("Edit Recipe")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

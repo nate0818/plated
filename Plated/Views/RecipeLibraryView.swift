@@ -8,46 +8,94 @@ struct RecipeLibraryView: View {
     @State private var searchText = ""
     @State private var showFavoritesOnly = false
     @State private var newRecipe: Recipe?
+    @Namespace private var zoomNamespace
+
+    private let columns = [
+        GridItem(.flexible(), spacing: 12),
+        GridItem(.flexible(), spacing: 12),
+    ]
 
     var body: some View {
         NavigationStack {
-            List {
-                ForEach(filteredRecipes) { recipe in
-                    NavigationLink(value: recipe) {
-                        RecipeRow(recipe: recipe)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("Recipes")
+                        .font(.heroTitle)
+                        .foregroundStyle(Color.ink)
+                        .padding(.top, 8)
+
+                    if filteredRecipes.isEmpty {
+                        emptyState
+                    } else {
+                        LazyVGrid(columns: columns, spacing: 12) {
+                            ForEach(filteredRecipes) { recipe in
+                                NavigationLink(value: recipe) {
+                                    RecipeCard(recipe: recipe)
+                                }
+                                .buttonStyle(PressableCardStyle())
+                                .matchedTransitionSource(id: recipe.persistentModelID, in: zoomNamespace)
+                            }
+                        }
                     }
                 }
-                .onDelete(perform: delete)
+                .padding(.horizontal, 20)
+                .padding(.bottom, 24)
             }
-            .navigationTitle("Recipes")
-            .navigationDestination(for: Recipe.self) { RecipeDetailView(recipe: $0) }
+            .background(Color.canvas)
+            .scrollIndicators(.hidden)
+            .navigationDestination(for: Recipe.self) { recipe in
+                RecipeDetailView(recipe: recipe)
+                    .navigationTransition(.zoom(sourceID: recipe.persistentModelID, in: zoomNamespace))
+            }
             .searchable(text: $searchText, prompt: "Search recipes and ingredients")
-            .overlay {
-                if filteredRecipes.isEmpty {
-                    ContentUnavailableView(
-                        searchText.isEmpty ? "No recipes yet" : "No matches",
-                        systemImage: "book",
-                        description: Text(searchText.isEmpty
-                            ? "Add the dishes you actually cook. They become the building blocks of your week."
-                            : "Nothing matched \"\(searchText)\".")
-                    )
-                }
-            }
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Toggle("Favorites", systemImage: showFavoritesOnly ? "heart.fill" : "heart", isOn: $showFavoritesOnly)
-                        .toggleStyle(.button)
+                    Button {
+                        withAnimation(.appSnappy) { showFavoritesOnly.toggle() }
+                    } label: {
+                        Image(systemName: showFavoritesOnly ? "heart.fill" : "heart")
+                            .contentTransition(.symbolEffect(.replace))
+                            .foregroundStyle(showFavoritesOnly ? Color.tomato : Color.ink)
+                    }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Add recipe", systemImage: "plus", action: addRecipe)
+                        .foregroundStyle(Color.ink)
                 }
             }
+            .toolbarBackground(Color.canvas, for: .navigationBar)
+            .tint(.ink)
             .sheet(item: $newRecipe) { recipe in
                 NavigationStack {
                     RecipeEditorView(recipe: recipe)
                 }
+                .presentationCornerRadius(Radius.sheet)
             }
         }
+    }
+
+    private var emptyState: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(searchText.isEmpty ? "Your cookbook starts here." : "Nothing matched \"\(searchText)\".")
+                .font(.cardTitle)
+                .foregroundStyle(Color.ink)
+            if searchText.isEmpty {
+                Text("Add the dishes you actually cook — they become the building blocks of your week.")
+                    .font(.subheadline)
+                    .foregroundStyle(Color.inkSecondary)
+                Button("Add your first recipe", action: addRecipe)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Color.tomato)
+                    .padding(.top, 4)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(20)
+        .overlay(
+            RoundedRectangle(cornerRadius: Radius.hero, style: .continuous)
+                .strokeBorder(Color.hairline, style: StrokeStyle(lineWidth: 1.5, dash: [6, 5]))
+        )
+        .padding(.top, 8)
     }
 
     private var filteredRecipes: [Recipe] {
@@ -66,39 +114,59 @@ struct RecipeLibraryView: View {
         context.insert(recipe)
         newRecipe = recipe
     }
-
-    private func delete(at offsets: IndexSet) {
-        for index in offsets {
-            context.delete(filteredRecipes[index])
-        }
-    }
 }
 
-private struct RecipeRow: View {
+private struct RecipeCard: View {
     let recipe: Recipe
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            HStack {
+        VStack(alignment: .leading, spacing: 0) {
+            RecipeArt(recipe: recipe)
+                .aspectRatio(4 / 3, contentMode: .fill)
+                .frame(maxWidth: .infinity)
+                .clipShape(
+                    UnevenRoundedRectangle(
+                        topLeadingRadius: Radius.card,
+                        topTrailingRadius: Radius.card,
+                        style: .continuous
+                    )
+                )
+                .overlay(alignment: .topTrailing) {
+                    if recipe.isFavorite {
+                        Image(systemName: "heart.fill")
+                            .font(.caption)
+                            .foregroundStyle(.white)
+                            .padding(6)
+                            .background(.ultraThinMaterial, in: Circle())
+                            .environment(\.colorScheme, .dark)
+                            .padding(8)
+                    }
+                }
+
+            VStack(alignment: .leading, spacing: 4) {
                 Text(recipe.title.isEmpty ? "Untitled recipe" : recipe.title)
-                if recipe.isFavorite {
-                    Image(systemName: "heart.fill")
-                        .font(.caption2)
-                        .foregroundStyle(.pink)
-                }
+                    .font(.system(.body, design: .serif, weight: .semibold))
+                    .foregroundStyle(Color.ink)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                Text(metadata)
+                    .font(.caption)
+                    .monospacedDigit()
+                    .foregroundStyle(Color.inkSecondary)
             }
-            HStack(spacing: 8) {
-                if recipe.totalMinutes > 0 {
-                    Label("\(recipe.totalMinutes) min", systemImage: "clock")
-                }
-                Label("\(recipe.servings)", systemImage: "person.2")
-                if recipe.timesCooked > 0 {
-                    Text("· cooked \(recipe.timesCooked)×")
-                }
-            }
-            .font(.caption)
-            .foregroundStyle(.secondary)
+            .padding(12)
         }
+        .cardSurface(radius: Radius.card)
+    }
+
+    private var metadata: String {
+        var parts: [String] = []
+        if recipe.totalMinutes > 0 { parts.append("\(recipe.totalMinutes) min") }
+        parts.append("Serves \(recipe.servings)")
+        if recipe.timesCooked > 0 { parts.append("\(recipe.timesCooked)×") }
+        return parts.joined(separator: " · ")
     }
 }
 

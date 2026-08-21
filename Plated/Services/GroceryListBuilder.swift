@@ -18,8 +18,9 @@ struct GroceryListBuilder {
             return []
         }
 
+        // Only meals not yet cooked — no shopping for dinners already eaten.
         let mealPredicate = #Predicate<PlannedMeal> { meal in
-            meal.date >= weekStart && meal.date < weekEnd
+            meal.date >= weekStart && meal.date < weekEnd && meal.cookedAt == nil
         }
         let meals = try context.fetch(FetchDescriptor(predicate: mealPredicate))
 

@@ -49,12 +49,15 @@ struct RecipePickerView: View {
                     }
                 }
             }
+            .scrollContentBackground(.hidden)
+            .background(Color.canvas)
             .searchable(text: $searchText, prompt: "Search recipes")
             .navigationTitle("\(slot.title) · \(date.formatted(.dateTime.weekday(.abbreviated).month().day()))")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
+                        .foregroundStyle(Color.inkSecondary)
                 }
             }
         }

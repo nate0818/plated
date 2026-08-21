@@ -85,6 +85,8 @@ enum SampleData {
             ("tagliatelle", 1, "lb", .pantry, false)
         ])
 
+        chili.isFavorite = true
+
         // A little history so the Insights tab has something to chart.
         let calendar = Calendar.current
         let history: [(Recipe, Int)] = [(chili, 7), (chili, 21), (pasta, 14), (salad, 3), (chili, 35)]
@@ -93,6 +95,28 @@ enum SampleData {
             let meal = PlannedMeal(date: date, slot: .dinner, recipe: recipe, servings: recipe.servings)
             meal.cookedAt = date
             context.insert(meal)
+        }
+
+        // This week's plan, so the home screen opens with a real Tonight.
+        let today = Date.now.startOfDay
+        context.insert(PlannedMeal(date: today, slot: .dinner, recipe: chili, servings: 6))
+        context.insert(PlannedMeal(date: today, slot: .breakfast, customTitle: "Yogurt & granola"))
+        if let tomorrow = calendar.date(byAdding: .day, value: 1, to: today) {
+            context.insert(PlannedMeal(date: tomorrow, slot: .dinner, recipe: salad, servings: 4))
+        }
+        if let sunday = calendar.nextDate(
+            after: today, matching: DateComponents(weekday: 1), matchingPolicy: .nextTime
+        ) {
+            let supper = PlannedMeal(date: sunday, slot: .dinner, recipe: pasta, servings: 8)
+            let gathering = Gathering(
+                title: "Sunday Supper",
+                notes: "The Meadows table, everyone home.",
+                startDate: calendar.date(bySettingHour: 17, minute: 0, second: 0, of: sunday) ?? sunday,
+                guestCount: 6
+            )
+            context.insert(gathering)
+            supper.gathering = gathering
+            context.insert(supper)
         }
     }
 

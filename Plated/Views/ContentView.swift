@@ -17,23 +17,22 @@ struct ContentView: View {
             Tab("Plan", systemImage: "calendar", value: AppTab.plan) {
                 WeekPlanView()
             }
-            Tab("Recipes", systemImage: "book", value: AppTab.recipes) {
+            Tab("Recipes", systemImage: "book.pages", value: AppTab.recipes) {
                 RecipeLibraryView()
             }
-            Tab("Grocery", systemImage: "cart", value: AppTab.grocery) {
+            Tab("Grocery", systemImage: "checklist", value: AppTab.grocery) {
                 GroceryListView()
             }
-            Tab("Gatherings", systemImage: "person.3", value: AppTab.gatherings) {
+            Tab("Gatherings", systemImage: "person.2", value: AppTab.gatherings) {
                 GatheringsView()
             }
-            Tab("Insights", systemImage: "chart.bar", value: AppTab.insights) {
+            Tab("Insights", systemImage: "chart.bar.xaxis", value: AppTab.insights) {
                 InsightsView()
             }
         }
         .tabViewStyle(.sidebarAdaptable)
+        .tint(.tomato)
         .task {
-            // First launch on a fresh device: give the user something to look at
-            // rather than five empty tabs.
             if recipes.isEmpty && members.isEmpty {
                 SampleData.seed(into: context)
             }
