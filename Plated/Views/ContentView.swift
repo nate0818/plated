@@ -5,6 +5,7 @@ struct ContentView: View {
     @Environment(\.modelContext) private var context
     @Query private var recipes: [Recipe]
     @Query private var members: [HouseholdMember]
+    @Query private var meals: [PlannedMeal]
 
     @State private var selection: AppTab = .plan
 
@@ -12,9 +13,15 @@ struct ContentView: View {
         case plan, recipes, grocery, gatherings, insights
     }
 
+    private var tonightPlanned: Bool {
+        meals.contains {
+            Calendar.current.isDateInToday($0.date) && $0.slotValue == .dinner
+        }
+    }
+
     var body: some View {
         TabView(selection: $selection) {
-            Tab("Plan", systemImage: "calendar", value: AppTab.plan) {
+            Tab("Plan", systemImage: tonightPlanned ? "circle.circle.fill" : "circle.circle", value: AppTab.plan) {
                 WeekPlanView()
             }
             Tab("Recipes", systemImage: "book.pages", value: AppTab.recipes) {

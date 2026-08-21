@@ -1,9 +1,10 @@
 import SwiftUI
 import SwiftData
 
-/// The home screen. Opening Plated should feel like opening this week's menu
-/// at a restaurant you own: tonight is the headline, the rest of the week is
-/// the table of contents, and past days recede into a quiet diary.
+/// The home screen: a table setting. Tonight's dish sits directly on the cream
+/// canvas — the canvas is the tablecloth. Seven small plates form the week
+/// strip; the days that already happened collect in a dark ink band at the
+/// bottom, cleared plates on a dark table.
 struct WeekPlanView: View {
     @Environment(\.modelContext) private var context
 
@@ -26,77 +27,74 @@ struct WeekPlanView: View {
 
     private var calendar: Calendar { Calendar.current }
     private var weekDays: [Date] { calendar.weekDays(for: anchorDate) }
-    private var isCurrentWeek: Bool { calendar.isSameDay(calendar.startOfWeek(for: anchorDate), calendar.startOfWeek(for: .now)) }
+    private var isCurrentWeek: Bool {
+        calendar.isSameDay(calendar.startOfWeek(for: anchorDate), calendar.startOfWeek(for: .now))
+    }
     private var today: Date { Date.now.startOfDay }
 
     var body: some View {
         NavigationStack {
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: 12) {
-                    header
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    Group {
+                        Masthead(
+                            eyebrow: Date.now.formatted(.dateTime.weekday(.wide).month(.wide).day()),
+                            title: isCurrentWeek ? "Tonight" : "That week"
+                        ) {
+                            HStack(spacing: 6) {
+                                ProgressRing(progress: dinnerProgress, size: 22, tone: .successTone)
+                                Text("\(plannedDinners) OF 7")
+                                    .font(.caption.weight(.semibold))
+                                    .fontWidth(.condensed)
+                                    .monospacedDigit()
+                                    .foregroundStyle(Color.inkSecondary)
+                                    .contentTransition(.numericText(value: Double(plannedDinners)))
+                            }
+                        }
                         .padding(.top, 8)
-                        .padding(.bottom, 8)
 
-                    if isCurrentWeek {
-                        TodayCard(
-                            meals: mealsFor(day: today),
-                            isExpanded: expandedDay == today,
-                            onToggleExpand: { toggleExpanded(today) },
-                            onFillSlot: { slotBeingFilled = DaySlot(date: today, slot: $0) },
-                            onToggleCooked: toggleCooked,
-                            onDelete: delete,
-                            onPickForMe: { pickForMe(date: today) },
-                            members: members
-                        )
+                        hero
+                            .padding(.top, 20)
+
+                        weekStrip
+                            .padding(.top, 24)
 
                         if let suggestion = topSuggestion {
-                            SuggestionBanner(suggestion: suggestion) {
+                            SuggestionLine(suggestion: suggestion) {
                                 schedule(suggestion.recipe, on: tomorrow, slot: .dinner)
                             } onDismiss: {
                                 withAnimation(.appSmooth) {
                                     suggestionDismissedOn = today.formatted(.iso8601.year().month().day())
                                 }
                             }
+                            .padding(.top, 20)
+                        }
+
+                        Eyebrow("This week")
+                            .padding(.top, 28)
+                            .padding(.bottom, 10)
+
+                        VStack(spacing: 12) {
+                            ForEach(upcomingDays, id: \.self) { day in
+                                dayRow(day)
+                            }
                         }
                     }
+                    .padding(.horizontal, 20)
 
-                    Eyebrow(isCurrentWeek ? "This week" : "Week of \(weekDays.first?.formatted(.dateTime.month().day()) ?? "")")
-                        .padding(.top, 12)
-                        .padding(.bottom, 2)
-
-                    ForEach(orderedDays, id: \.self) { day in
-                        DayRow(
-                            date: day,
-                            meals: mealsFor(day: day),
-                            isPast: day < today,
-                            isExpanded: expandedDay == day,
-                            forecast: forecast.forecast(for: day),
-                            onToggleExpand: { toggleExpanded(day) },
-                            onFillSlot: { slotBeingFilled = DaySlot(date: day, slot: $0) },
-                            onToggleCooked: toggleCooked,
-                            onDelete: delete,
-                            onPickForMe: { pickForMe(date: day) },
-                            members: members
-                        )
-                        .scrollTransition { content, phase in
-                            content
-                                .opacity(phase.isIdentity ? 1 : 0.4)
-                                .scaleEffect(phase.isIdentity ? 1 : 0.94)
-                        }
+                    if !pastContent.isEmpty {
+                        inkBand
+                            .padding(.top, 28)
                     }
                 }
-                .padding(.horizontal, 20)
                 .padding(.bottom, 24)
             }
             .background(Color.canvas)
             .scrollIndicators(.hidden)
             .toolbar {
-                ToolbarItemGroup(placement: .topBarLeading) {
-                    Button("Previous week", systemImage: "chevron.left") { shiftWeek(by: -1) }
-                    Button("Next week", systemImage: "chevron.right") { shiftWeek(by: 1) }
-                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Household", systemImage: "person.2") { showingHousehold = true }
+                        .foregroundStyle(Color.ink)
                 }
             }
             .toolbarBackground(Color.canvas, for: .navigationBar)
@@ -113,43 +111,224 @@ struct WeekPlanView: View {
         }
     }
 
-    // MARK: - Header
+    // MARK: - Hero: tonight's dish on the tablecloth
 
-    private var header: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(alignment: .firstTextBaseline) {
-                Eyebrow(Date.now.formatted(.dateTime.weekday(.wide).month(.wide).day()))
-                Spacer()
-                HStack(spacing: 6) {
-                    ProgressRing(progress: dinnerProgress, size: 22)
-                    Text("\(plannedDinners)/7")
-                        .font(.caption.weight(.semibold))
-                        .monospacedDigit()
-                        .foregroundStyle(Color.inkSecondary)
-                        .contentTransition(.numericText(value: Double(plannedDinners)))
+    @ViewBuilder
+    private var hero: some View {
+        let heroDay = isCurrentWeek ? today : weekDays.first ?? today
+        let dinner = mealsFor(day: heroDay).first { $0.slotValue == .dinner }
+
+        VStack(spacing: 14) {
+            if let dinner {
+                Button {
+                    toggleExpanded(heroDay)
+                } label: {
+                    VStack(spacing: 14) {
+                        DishView(
+                            recipe: dinner.recipe ?? Recipe(title: dinner.title),
+                            diameter: 280,
+                            animated: true
+                        )
+                        VStack(spacing: 4) {
+                            ViewThatFits(in: .horizontal) {
+                                Text(dinner.title)
+                                    .font(.system(size: 26, weight: .semibold, design: .serif))
+                                Text(dinner.title)
+                                    .font(.system(size: 21, weight: .semibold, design: .serif))
+                            }
+                            .foregroundStyle(Color.ink)
+                            .multilineTextAlignment(.center)
+                            .lineLimit(2)
+
+                            Text(heroMetadata(dinner))
+                                .font(.caption.weight(.semibold))
+                                .fontWidth(.condensed)
+                                .tracking(1.5)
+                                .monospacedDigit()
+                                .foregroundStyle(Color.inkSecondary)
+                        }
+                    }
+                }
+                .buttonStyle(PressableCardStyle())
+
+                if !dinner.isCooked {
+                    Button("Start cooking") { toggleCooked(dinner) }
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(Color.tomato)
+                } else {
+                    Label("Plated", systemImage: "checkmark")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Color.successTone)
+                }
+
+                if expandedDay == heroDay {
+                    SlotList(
+                        meals: mealsFor(day: heroDay),
+                        members: members,
+                        onFillSlot: { slotBeingFilled = DaySlot(date: heroDay, slot: $0) },
+                        onToggleCooked: toggleCooked,
+                        onDelete: delete
+                    )
+                    .padding(.horizontal, 16)
+                    .cardSurface()
+                }
+            } else {
+                VStack(spacing: 14) {
+                    PlateView(state: .empty, diameter: 280)
+                    Text("The evening is wide open.")
+                        .font(.system(size: 21, weight: .semibold, design: .serif))
+                        .foregroundStyle(Color.ink)
+                    HStack(spacing: 24) {
+                        Button("Pick for me") { pickForMe(date: heroDay) }
+                            .font(.body.weight(.semibold))
+                            .foregroundStyle(Color.tomato)
+                        Button("Browse") { slotBeingFilled = DaySlot(date: heroDay, slot: .dinner) }
+                            .font(.body.weight(.semibold))
+                            .foregroundStyle(Color.inkSecondary)
+                    }
                 }
             }
-            Text(isCurrentWeek ? "Tonight" : weekTitle)
-                .font(.heroTitle)
-                .foregroundStyle(Color.ink)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private func heroMetadata(_ meal: PlannedMeal) -> String {
+        var parts: [String] = []
+        if let minutes = meal.recipe?.totalMinutes, minutes > 0 { parts.append("\(minutes) MIN") }
+        parts.append("SERVES \(meal.servings)")
+        if let gathering = meal.gathering { parts.append(gathering.title.uppercased()) }
+        return parts.joined(separator: " · ")
+    }
+
+    // MARK: - Week strip: seven plates
+
+    private var weekStrip: some View {
+        HStack(spacing: 8) {
+            ForEach(weekDays, id: \.self) { day in
+                let isToday = calendar.isSameDay(day, today)
+                Button {
+                    withAnimation(.appSmooth) {
+                        if mealsFor(day: day).isEmpty {
+                            slotBeingFilled = DaySlot(date: day, slot: .dinner)
+                        } else {
+                            expandedDay = expandedDay == day ? nil : day
+                        }
+                    }
+                } label: {
+                    VStack(spacing: 5) {
+                        PlateView(state: plateState(for: day), diameter: 44)
+                            .overlay {
+                                if isToday && isCurrentWeek {
+                                    Circle()
+                                        .strokeBorder(Color.tomato, lineWidth: 2)
+                                        .frame(width: 52, height: 52)
+                                }
+                            }
+                            .opacity(day < today && plateStateIsEmpty(for: day) ? 0.4 : 1)
+                        Text(day.formatted(.dateTime.weekday(.narrow)).uppercased())
+                            .font(.system(size: 11, weight: .semibold))
+                            .fontWidth(.condensed)
+                            .foregroundStyle(isToday ? Color.ink : Color.inkSecondary)
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 30).onEnded { value in
+                guard abs(value.translation.width) > abs(value.translation.height) else { return }
+                shiftWeek(by: value.translation.width < 0 ? 1 : -1)
+            }
+        )
+    }
+
+    private func plateState(for day: Date) -> PlateState {
+        let meals = mealsFor(day: day)
+        if let dinner = meals.first(where: { $0.slotValue == .dinner }) {
+            if dinner.isCooked { return .cleared }
+            if let recipe = dinner.recipe { return .planned(recipe) }
+            return .cleared
+        }
+        if let anyCooked = meals.first(where: \.isCooked), anyCooked.isCooked { return .cleared }
+        return .empty
+    }
+
+    private func plateStateIsEmpty(for day: Date) -> Bool {
+        if case .empty = plateState(for: day) { return true }
+        return false
+    }
+
+    // MARK: - Day rows (upcoming only; past lives in the ink band)
+
+    @ViewBuilder
+    private func dayRow(_ day: Date) -> some View {
+        let meals = mealsFor(day: day)
+        if meals.isEmpty {
+            EmptyDayRow(
+                date: day,
+                accentPick: day == firstEmptyDay,
+                onPickForMe: { pickForMe(date: day) },
+                onBrowse: { slotBeingFilled = DaySlot(date: day, slot: .dinner) }
+            )
+        } else {
+            FilledDayRow(
+                date: day,
+                meals: meals,
+                isExpanded: expandedDay == day,
+                forecast: forecast.forecast(for: day),
+                onToggleExpand: { toggleExpanded(day) },
+                onFillSlot: { slotBeingFilled = DaySlot(date: day, slot: $0) },
+                onToggleCooked: toggleCooked,
+                onDelete: delete,
+                members: members
+            )
         }
     }
 
-    private var weekTitle: String {
-        guard let first = weekDays.first, let last = weekDays.last else { return "This Week" }
-        return (first..<last).formatted(.interval.month(.abbreviated).day())
+    // MARK: - Ink band: earlier this week
+
+    private var pastContent: [(day: Date, meals: [PlannedMeal])] {
+        guard isCurrentWeek else { return [] }
+        return weekDays
+            .filter { $0 < today }
+            .map { ($0, mealsFor(day: $0)) }
+            .filter { !$0.1.isEmpty }
+    }
+
+    private var inkBand: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Eyebrow("Earlier this week", color: .inkWellText.opacity(0.7))
+            ForEach(pastContent, id: \.day) { entry in
+                ForEach(entry.meals) { meal in
+                    HStack(spacing: 12) {
+                        PlateView(state: meal.isCooked ? .cleared : .empty, diameter: 26)
+                        Text(meal.title)
+                            .font(.subheadline)
+                            .foregroundStyle(Color.inkWellText.opacity(0.55))
+                            .strikethrough(meal.isCooked, color: .inkWellText.opacity(0.35))
+                        Spacer()
+                        Text(entry.day.formatted(.dateTime.weekday(.abbreviated)).uppercased())
+                            .font(.system(size: 11, weight: .semibold))
+                            .fontWidth(.condensed)
+                            .foregroundStyle(Color.inkWellText.opacity(0.4))
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(20)
+        .background(Color.inkWell)
     }
 
     // MARK: - Derived
 
-    /// Today leads as the hero; future days follow; past days sink to the
-    /// bottom as a quiet diary.
-    private var orderedDays: [Date] {
-        let days = weekDays
-        guard isCurrentWeek else { return days }
-        let future = days.filter { $0 > today }
-        let past = days.filter { $0 < today }
-        return future + past
+    private var upcomingDays: [Date] {
+        isCurrentWeek ? weekDays.filter { $0 > today } : weekDays
+    }
+
+    private var firstEmptyDay: Date? {
+        upcomingDays.first { mealsFor(day: $0).isEmpty }
     }
 
     private var plannedDinners: Int {
@@ -165,6 +344,7 @@ struct WeekPlanView: View {
     }
 
     private var topSuggestion: SuggestionEngine.Suggestion? {
+        guard isCurrentWeek else { return nil }
         guard suggestionDismissedOn != today.formatted(.iso8601.year().month().day()) else { return nil }
         guard mealsFor(day: tomorrow).filter({ $0.slotValue == .dinner }).isEmpty else { return nil }
         let engine = SuggestionEngine(recipes: recipes, members: members)
@@ -223,217 +403,59 @@ struct WeekPlanView: View {
     }
 }
 
-// MARK: - Today card
+// MARK: - Day rows
 
-private struct TodayCard: View {
-    let meals: [PlannedMeal]
-    let isExpanded: Bool
-    let onToggleExpand: () -> Void
-    let onFillSlot: (MealSlot) -> Void
-    let onToggleCooked: (PlannedMeal) -> Void
-    let onDelete: (PlannedMeal) -> Void
-    let onPickForMe: () -> Void
-    let members: [HouseholdMember]
-
-    private var dinner: PlannedMeal? { meals.first { $0.slotValue == .dinner } }
-    private var otherMeals: [PlannedMeal] { meals.filter { $0.slotValue != .dinner } }
-
-    var body: some View {
-        if let dinner {
-            plannedCard(dinner)
-        } else {
-            emptyTonight
-        }
-    }
-
-    private func plannedCard(_ dinner: PlannedMeal) -> some View {
-        Button(action: onToggleExpand) {
-            VStack(alignment: .leading, spacing: 0) {
-                heroArt(dinner)
-                    .frame(maxWidth: .infinity)
-                    .aspectRatio(16 / 10, contentMode: .fit)
-                    .clipShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
-                    .padding(4)
-
-                VStack(alignment: .leading, spacing: 10) {
-                    if !otherMeals.isEmpty || isExpanded {
-                        HStack(spacing: 6) {
-                            ForEach(otherMeals) { meal in
-                                SlotChip(slot: meal.slotValue, label: meal.title)
-                            }
-                            Spacer()
-                        }
-                    }
-                    if isExpanded {
-                        SlotList(
-                            meals: meals,
-                            members: members,
-                            onFillSlot: onFillSlot,
-                            onToggleCooked: onToggleCooked,
-                            onDelete: onDelete
-                        )
-                    }
-                }
-                .padding(.horizontal, 16)
-                .padding(.top, otherMeals.isEmpty && !isExpanded ? 0 : 10)
-                .padding(.bottom, otherMeals.isEmpty && !isExpanded ? 12 : 16)
-            }
-        }
-        .buttonStyle(PressableCardStyle())
-        .cardSurface(radius: Radius.hero, elevated: true)
-    }
-
-    private func heroArt(_ dinner: PlannedMeal) -> some View {
-        ZStack(alignment: .bottomLeading) {
-            Group {
-                if let recipe = dinner.recipe {
-                    RecipeArt(recipe: recipe)
-                } else {
-                    LinearGradient(
-                        colors: [Color.copper.wash().mix(with: .copper, by: 0.2),
-                                 Color.mulledWine.wash().mix(with: .mulledWine, by: 0.35)],
-                        startPoint: .topLeading, endPoint: .bottomTrailing
-                    )
-                }
-            }
-
-            LinearGradient(
-                stops: [
-                    .init(color: .clear, location: 0.45),
-                    .init(color: .black.opacity(0.14), location: 0.62),
-                    .init(color: .black.opacity(0.45), location: 1.0),
-                ],
-                startPoint: .top, endPoint: .bottom
-            )
-
-            VStack(alignment: .leading, spacing: 4) {
-                HStack {
-                    Text("TONIGHT")
-                        .font(.caption.weight(.semibold))
-                        .tracking(1.2)
-                        .foregroundStyle(.white.opacity(0.9))
-                    Spacer()
-                    if let minutes = dinner.recipe?.totalMinutes, minutes > 0 {
-                        Text("\(minutes) MIN")
-                            .font(.system(size: 11, weight: .medium))
-                            .monospacedDigit()
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(.ultraThinMaterial, in: Capsule())
-                            .environment(\.colorScheme, .dark)
-                    }
-                }
-                Text(dinner.title)
-                    .font(.heroCardTitle)
-                    .foregroundStyle(.white)
-                    .strikethrough(dinner.isCooked, color: .white.opacity(0.7))
-            }
-            .padding(16)
-        }
-    }
-
-    private var emptyTonight: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("What's for tonight?")
-                .font(.cardTitle)
-                .foregroundStyle(Color.ink)
-            Text("The evening is wide open.")
-                .font(.subheadline)
-                .foregroundStyle(Color.inkSecondary)
-            HStack(spacing: 20) {
-                Button("Pick for me", action: onPickForMe)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Color.tomato)
-                Button("Browse") { onFillSlot(.dinner) }
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Color.inkSecondary)
-            }
-            .padding(.top, 2)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(20)
-        .overlay(
-            RoundedRectangle(cornerRadius: Radius.hero, style: .continuous)
-                .strokeBorder(Color.hairline, style: StrokeStyle(lineWidth: 1.5, dash: [6, 5]))
-        )
-    }
-}
-
-// MARK: - Compact day row
-
-private struct DayRow: View {
+private struct FilledDayRow: View {
     let date: Date
     let meals: [PlannedMeal]
-    let isPast: Bool
     let isExpanded: Bool
     let forecast: ForecastProvider.DayForecast?
     let onToggleExpand: () -> Void
     let onFillSlot: (MealSlot) -> Void
     let onToggleCooked: (PlannedMeal) -> Void
     let onDelete: (PlannedMeal) -> Void
-    let onPickForMe: () -> Void
     let members: [HouseholdMember]
 
     private var dinner: PlannedMeal? { meals.first { $0.slotValue == .dinner } }
     private var headline: PlannedMeal? { dinner ?? meals.first }
 
     var body: some View {
-        if meals.isEmpty {
-            if isPast { quietPastRow } else { emptyRow }
-        } else {
-            filledRow
-        }
-    }
-
-    private var quietPastRow: some View {
-        HStack(spacing: 14) {
-            dayBlock
-            Text("Nothing planned")
-                .font(.subheadline)
-                .foregroundStyle(Color.inkTertiary)
-            Spacer()
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 6)
-    }
-
-    private var filledRow: some View {
         Button(action: onToggleExpand) {
             VStack(alignment: .leading, spacing: 0) {
                 HStack(spacing: 14) {
-                    dayBlock
+                    VStack(spacing: 1) {
+                        Text(date.formatted(.dateTime.weekday(.abbreviated)).uppercased())
+                            .font(.system(size: 10, weight: .semibold))
+                            .fontWidth(.condensed)
+                            .tracking(1)
+                            .foregroundStyle(Color.inkSecondary)
+                        Text(date.formattedDayNumber())
+                            .font(.dayNumeral)
+                            .monospacedDigit()
+                            .foregroundStyle(Color.ink)
+                    }
+                    .frame(width: 44)
 
                     VStack(alignment: .leading, spacing: 4) {
+                        Text(headline?.title ?? "")
+                            .font(.body.weight(.semibold))
+                            .foregroundStyle(Color.ink)
+                            .lineLimit(2)
+                            .multilineTextAlignment(.leading)
                         HStack(spacing: 6) {
-                            if isPast && meals.allSatisfy(\.isCooked) && !meals.isEmpty {
-                                Image(systemName: "checkmark")
-                                    .font(.caption2.weight(.semibold))
-                                    .foregroundStyle(Color.inkTertiary)
-                            }
-                            Text(headline?.title ?? "")
-                                .font(.body.weight(.semibold))
-                                .foregroundStyle(isPast ? Color.inkTertiary : Color.ink)
-                                .strikethrough(isPast && (headline?.isCooked ?? false), color: .inkTertiary)
-                                .lineLimit(1)
-                            if headline?.gathering != nil {
-                                HStack(spacing: 3) {
-                                    Circle().fill(Color.mulledWine).frame(width: 6, height: 6)
-                                    Circle().fill(Color.mulledWine.opacity(0.5)).frame(width: 6, height: 6)
-                                }
-                            }
-                        }
-                        HStack(spacing: 5) {
-                            ForEach(meals) { meal in
-                                Circle()
-                                    .fill(isPast ? Color.inkTertiary : meal.slotValue.tone)
-                                    .frame(width: 6, height: 6)
-                            }
                             if let gathering = headline?.gathering {
-                                Text(gathering.title)
-                                    .font(.caption)
-                                    .foregroundStyle(isPast ? Color.inkTertiary : Color.mulledWine)
-                            } else if let forecast, !isPast {
+                                Text(gathering.title.uppercased())
+                                    .font(.system(size: 11, weight: .semibold))
+                                    .fontWidth(.condensed)
+                                    .tracking(1)
+                                    .foregroundStyle(Color.mulledWine)
+                            } else if meals.count > 1 {
+                                Text("\(meals.count) MEALS")
+                                    .font(.system(size: 11, weight: .semibold))
+                                    .fontWidth(.condensed)
+                                    .tracking(1)
+                                    .foregroundStyle(Color.inkSecondary)
+                            } else if let forecast {
                                 Label("\(Int(forecast.highF.rounded()))°", systemImage: forecast.symbolName)
                                     .font(.caption)
                                     .monospacedDigit()
@@ -445,10 +467,9 @@ private struct DayRow: View {
                     Spacer(minLength: 8)
 
                     if let recipe = dinner?.recipe {
-                        RecipeArt(recipe: recipe)
-                            .frame(width: 48, height: 48)
-                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                            .opacity(isPast ? 0.5 : 1)
+                        DishView(recipe: recipe, diameter: 48)
+                    } else if dinner != nil {
+                        DishView(title: dinner?.customTitle ?? "meal", diameter: 48)
                     }
                 }
                 .padding(.horizontal, 16)
@@ -470,10 +491,17 @@ private struct DayRow: View {
         .buttonStyle(PressableCardStyle())
         .cardSurface(radius: Radius.card)
     }
+}
 
-    private var emptyRow: some View {
+private struct EmptyDayRow: View {
+    let date: Date
+    let accentPick: Bool
+    let onPickForMe: () -> Void
+    let onBrowse: () -> Void
+
+    var body: some View {
         HStack(spacing: 14) {
-            dayBlock
+            PlateView(state: .empty, diameter: 44)
             VStack(alignment: .leading, spacing: 4) {
                 Text("What's for \(date.formatted(.dateTime.weekday(.wide)))?")
                     .font(.subheadline)
@@ -481,8 +509,8 @@ private struct DayRow: View {
                 HStack(spacing: 16) {
                     Button("Pick for me", action: onPickForMe)
                         .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(Color.tomato)
-                    Button("Browse") { onFillSlot(.dinner) }
+                        .foregroundStyle(accentPick ? Color.tomato : Color.inkSecondary)
+                    Button("Browse", action: onBrowse)
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(Color.inkSecondary)
                 }
@@ -490,29 +518,15 @@ private struct DayRow: View {
             Spacer()
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 14)
+        .padding(.vertical, 12)
         .overlay(
             RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
-                .strokeBorder(Color.hairline, style: StrokeStyle(lineWidth: 1.5, dash: [6, 5]))
+                .strokeBorder(Color.hairline, style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
         )
-    }
-
-    private var dayBlock: some View {
-        VStack(spacing: 1) {
-            Text(date.formatted(.dateTime.weekday(.abbreviated)).uppercased())
-                .font(.system(size: 10, weight: .semibold))
-                .tracking(1)
-                .foregroundStyle(isPast ? Color.inkTertiary : Color.inkSecondary)
-            Text(date.formattedDayNumber())
-                .font(.dayNumeral)
-                .monospacedDigit()
-                .foregroundStyle(isPast ? Color.inkTertiary : Color.ink)
-        }
-        .frame(width: 44)
     }
 }
 
-// MARK: - Expanded slot list (shared by Today card and day rows)
+// MARK: - Expanded slot list
 
 private struct SlotList: View {
     let meals: [PlannedMeal]
@@ -565,10 +579,7 @@ private struct MealLine: View {
     var body: some View {
         HStack(spacing: 10) {
             Button(action: onToggleCooked) {
-                Image(systemName: meal.isCooked ? "checkmark.circle.fill" : "circle")
-                    .font(.body)
-                    .foregroundStyle(meal.isCooked ? Color.successTone : Color.inkTertiary)
-                    .contentTransition(.symbolEffect(.replace))
+                PlateView(state: meal.isCooked ? .cleared : .empty, diameter: 26)
             }
             .buttonStyle(.plain)
             .sensoryFeedback(.impact(weight: .light, intensity: 0.7), trigger: meal.isCooked)
@@ -603,35 +614,33 @@ private struct MealLine: View {
     }
 }
 
-// MARK: - Suggestion banner
+// MARK: - Suggestion line
 
-private struct SuggestionBanner: View {
+private struct SuggestionLine: View {
     let suggestion: SuggestionEngine.Suggestion
     let onAccept: () -> Void
     let onDismiss: () -> Void
 
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
+            DishView(recipe: suggestion.recipe, diameter: 44)
             VStack(alignment: .leading, spacing: 2) {
                 Text(suggestion.headline)
                     .font(.footnote)
                     .foregroundStyle(Color.ink)
                     .lineLimit(2)
-                Text(suggestion.recipe.title)
-                    .font(.footnote.weight(.medium))
+                Text(suggestion.recipe.title.uppercased())
+                    .font(.system(size: 11, weight: .semibold))
+                    .fontWidth(.condensed)
+                    .tracking(1)
                     .foregroundStyle(Color.inkSecondary)
             }
             Spacer()
-            Button("Add to plan", action: onAccept)
+            Button("Add", action: onAccept)
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(Color.tomato)
+                .foregroundStyle(Color.ink)
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-        .background(
-            Color.tomato.mix(with: .canvas, by: 0.94),
-            in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
-        )
+        .padding(12)
         .overlay(
             RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
                 .strokeBorder(Color.hairline, lineWidth: 1)

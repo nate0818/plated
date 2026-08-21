@@ -8,10 +8,9 @@ struct RecipeDetailView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                RecipeArt(recipe: recipe)
-                    .aspectRatio(4 / 3, contentMode: .fill)
+                DishView(recipe: recipe, diameter: 340)
                     .frame(maxWidth: .infinity)
-                    .clipShape(RoundedRectangle(cornerRadius: Radius.hero, style: .continuous))
+                    .padding(.top, 8)
 
                 VStack(alignment: .leading, spacing: 8) {
                     Text(recipe.title.isEmpty ? "Untitled recipe" : recipe.title)

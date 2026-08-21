@@ -14,6 +14,8 @@ final class GroceryItem {
     var weekStart: Date = Date.now
     /// True when a person typed it in, which protects it from regeneration.
     var isManual: Bool = false
+    /// Title of the recipe this line came from, for the origin suffix.
+    var originTitle: String = ""
     /// Reminders identifier once exported, to avoid duplicate reminders.
     var reminderID: String?
     var createdAt: Date = Date.now

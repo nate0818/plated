@@ -19,10 +19,15 @@ struct RecipeLibraryView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    Text("Recipes")
-                        .font(.heroTitle)
-                        .foregroundStyle(Color.ink)
-                        .padding(.top, 8)
+                    Masthead(eyebrow: "The cookbook", title: "Recipes") {
+                        Text(mastheadDatum)
+                            .font(.caption.weight(.semibold))
+                            .fontWidth(.condensed)
+                            .tracking(1)
+                            .monospacedDigit()
+                            .foregroundStyle(Color.inkSecondary)
+                    }
+                    .padding(.top, 8)
 
                     if filteredRecipes.isEmpty {
                         emptyState
@@ -35,6 +40,7 @@ struct RecipeLibraryView: View {
                                 .buttonStyle(PressableCardStyle())
                                 .matchedTransitionSource(id: recipe.persistentModelID, in: zoomNamespace)
                             }
+                            InvitationCell(onAdd: addRecipe)
                         }
                     }
                 }
@@ -98,6 +104,13 @@ struct RecipeLibraryView: View {
         .padding(.top, 8)
     }
 
+    private var mastheadDatum: String {
+        let favorites = recipes.filter(\.isFavorite).count
+        var parts = ["\(recipes.count) DISH\(recipes.count == 1 ? "" : "ES")"]
+        if favorites > 0 { parts.append("\(favorites) FAVORITE\(favorites == 1 ? "" : "S")") }
+        return parts.joined(separator: " · ")
+    }
+
     private var filteredRecipes: [Recipe] {
         recipes.filter { recipe in
             if showFavoritesOnly && !recipe.isFavorite { return false }
@@ -121,52 +134,70 @@ private struct RecipeCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            RecipeArt(recipe: recipe)
-                .aspectRatio(4 / 3, contentMode: .fill)
+            DishView(recipe: recipe, diameter: 140)
                 .frame(maxWidth: .infinity)
-                .clipShape(
-                    UnevenRoundedRectangle(
-                        topLeadingRadius: Radius.card,
-                        topTrailingRadius: Radius.card,
-                        style: .continuous
-                    )
-                )
+                .padding(.top, 18)
                 .overlay(alignment: .topTrailing) {
                     if recipe.isFavorite {
                         Image(systemName: "heart.fill")
-                            .font(.caption)
-                            .foregroundStyle(.white)
-                            .padding(6)
+                            .font(.system(size: 13))
+                            .foregroundStyle(Color.tomato)
+                            .padding(7)
                             .background(.ultraThinMaterial, in: Circle())
-                            .environment(\.colorScheme, .dark)
-                            .padding(8)
+                            .padding(10)
                     }
                 }
 
             VStack(alignment: .leading, spacing: 4) {
-                Text(recipe.title.isEmpty ? "Untitled recipe" : recipe.title)
-                    .font(.system(.body, design: .serif, weight: .semibold))
-                    .foregroundStyle(Color.ink)
-                    .lineLimit(2)
-                    .multilineTextAlignment(.leading)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                ViewThatFits(in: .horizontal) {
+                    Text(recipe.title.isEmpty ? "Untitled recipe" : recipe.title)
+                        .font(.system(size: 17, weight: .semibold, design: .serif))
+                }
+                .foregroundStyle(Color.ink)
+                .lineLimit(2)
+                .multilineTextAlignment(.leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
 
                 Text(metadata)
-                    .font(.caption)
+                    .font(.system(size: 11, weight: .semibold))
+                    .fontWidth(.condensed)
+                    .tracking(1)
                     .monospacedDigit()
                     .foregroundStyle(Color.inkSecondary)
             }
-            .padding(12)
+            .padding(14)
         }
         .cardSurface(radius: Radius.card)
     }
 
     private var metadata: String {
         var parts: [String] = []
-        if recipe.totalMinutes > 0 { parts.append("\(recipe.totalMinutes) min") }
-        parts.append("Serves \(recipe.servings)")
-        if recipe.timesCooked > 0 { parts.append("\(recipe.timesCooked)×") }
+        if recipe.totalMinutes > 0 { parts.append("\(recipe.totalMinutes) MIN") }
+        parts.append("SERVES \(recipe.servings)")
         return parts.joined(separator: " · ")
+    }
+}
+
+/// The grid's last cell is always an invitation, dashed like Plan's empty days.
+private struct InvitationCell: View {
+    let onAdd: () -> Void
+
+    var body: some View {
+        Button(action: onAdd) {
+            VStack(spacing: 12) {
+                PlateView(state: .empty, diameter: 96)
+                Text("Add a recipe")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Color.inkSecondary)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 32)
+            .overlay(
+                RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
+                    .strokeBorder(Color.hairline, style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
+            )
+        }
+        .buttonStyle(.plain)
     }
 }
 

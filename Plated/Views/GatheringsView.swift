@@ -13,10 +13,16 @@ struct GatheringsView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    Text("Gatherings")
-                        .font(.heroTitle)
-                        .foregroundStyle(Color.ink)
-                        .padding(.top, 8)
+                    Masthead(eyebrow: "The table", title: "Gatherings") {
+                        if let next = gatherings.first(where: { $0.startDate >= .now }) {
+                            Text("NEXT: \(next.startDate.formatted(.dateTime.weekday(.abbreviated)).uppercased())")
+                                .font(.caption.weight(.semibold))
+                                .fontWidth(.condensed)
+                                .tracking(1)
+                                .foregroundStyle(Color.inkSecondary)
+                        }
+                    }
+                    .padding(.top, 8)
 
                     if gatherings.isEmpty {
                         emptyState
@@ -58,24 +64,18 @@ struct GatheringsView: View {
     }
 
     private var emptyState: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Cooking for a crowd?")
-                .font(.cardTitle)
+        VStack(spacing: 16) {
+            PlateView(state: .empty, diameter: 120)
+            Text("Feeding people is the whole point.")
+                .font(.system(size: 20, weight: .semibold, design: .serif))
                 .foregroundStyle(Color.ink)
-            Text("Thanksgiving, a birthday, friends over Sunday — plan the menu here and put it on the calendar.")
-                .font(.subheadline)
-                .foregroundStyle(Color.inkSecondary)
+                .multilineTextAlignment(.center)
             Button("Plan a gathering", action: addGathering)
-                .font(.subheadline.weight(.semibold))
+                .font(.body.weight(.semibold))
                 .foregroundStyle(Color.tomato)
-                .padding(.top, 4)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(20)
-        .overlay(
-            RoundedRectangle(cornerRadius: Radius.hero, style: .continuous)
-                .strokeBorder(Color.hairline, style: StrokeStyle(lineWidth: 1.5, dash: [6, 5]))
-        )
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 48)
     }
 
     private func addGathering() {
@@ -92,33 +92,66 @@ private struct GatheringCard: View {
     let gathering: Gathering
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .firstTextBaseline) {
-                Eyebrow(gathering.startDate.formatted(.dateTime.weekday(.wide).month(.abbreviated).day()), color: .mulledWine)
-                Spacer()
-                if gathering.isSyncedToCalendar {
-                    Image(systemName: "calendar.badge.checkmark")
-                        .font(.caption)
-                        .foregroundStyle(Color.successTone)
+        HStack(alignment: .top, spacing: 16) {
+            VStack(spacing: 0) {
+                Text(gathering.startDate.formatted(.dateTime.weekday(.abbreviated)).uppercased())
+                    .font(.system(size: 11, weight: .semibold))
+                    .fontWidth(.condensed)
+                    .tracking(1.5)
+                    .foregroundStyle(Color.inkSecondary)
+                Text(gathering.startDate.formatted(.dateTime.day()))
+                    .font(.system(size: 44, weight: .semibold, design: .serif))
+                    .monospacedDigit()
+                    .foregroundStyle(Color.ink)
+            }
+            .frame(width: 64)
+
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    Text(gathering.title.isEmpty ? "Untitled gathering" : gathering.title)
+                        .font(.cardTitle)
+                        .foregroundStyle(Color.ink)
+                        .lineLimit(2)
+                    Spacer()
+                    if gathering.isSyncedToCalendar {
+                        Image(systemName: "calendar.badge.checkmark")
+                            .font(.caption)
+                            .foregroundStyle(Color.successTone)
+                    }
+                }
+
+                HStack(spacing: -12) {
+                    ForEach(gathering.meals.prefix(4)) { meal in
+                        if let recipe = meal.recipe {
+                            DishView(recipe: recipe, diameter: 56)
+                        } else {
+                            DishView(title: meal.title, diameter: 56)
+                        }
+                    }
+                    PlateView(state: .empty, diameter: 56)
+                        .background(Circle().fill(Color.cardFill))
+                }
+
+                HStack(spacing: 8) {
+                    if gathering.guestCount > 0 {
+                        HStack(spacing: -6) {
+                            ForEach(0..<min(gathering.guestCount, 5), id: \.self) { index in
+                                let tone: Color = [.honey, .basil, .copper, .mulledWine][index % 4]
+                                Circle()
+                                    .fill(tone.wash(over: .cardFill))
+                                    .overlay(Circle().strokeBorder(Color.cardFill, lineWidth: 1.5))
+                                    .frame(width: 24, height: 24)
+                            }
+                        }
+                        Text("\(gathering.guestCount) AT THE TABLE · \(gathering.startDate.formatted(date: .omitted, time: .shortened).uppercased())")
+                            .font(.system(size: 10, weight: .semibold))
+                            .fontWidth(.condensed)
+                            .tracking(0.5)
+                            .monospacedDigit()
+                            .foregroundStyle(Color.inkSecondary)
+                    }
                 }
             }
-
-            Text(gathering.title.isEmpty ? "Untitled gathering" : gathering.title)
-                .font(.cardTitle)
-                .foregroundStyle(Color.ink)
-
-            HStack(spacing: 12) {
-                Label(gathering.startDate.formatted(date: .omitted, time: .shortened), systemImage: "clock")
-                if gathering.guestCount > 0 {
-                    Label("\(gathering.guestCount) guests", systemImage: "person.2")
-                }
-                if !gathering.meals.isEmpty {
-                    Label("\(gathering.meals.count) on the menu", systemImage: "fork.knife")
-                }
-            }
-            .font(.caption)
-            .monospacedDigit()
-            .foregroundStyle(Color.inkSecondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)

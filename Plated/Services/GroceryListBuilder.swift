@@ -49,6 +49,7 @@ struct GroceryListBuilder {
                 weekStart: weekStart
             )
             item.isChecked = checkedNames.contains(Self.key(name: line.name, unit: line.unit))
+            item.originTitle = line.origin
             context.insert(item)
             created.append(item)
         }
@@ -68,13 +69,15 @@ struct GroceryListBuilder {
                 let key = Self.key(name: ingredient.normalizedName, unit: ingredient.unit)
                 if var existing = lines[key] {
                     existing.quantity += quantity
+                    if existing.origin != meal.title { existing.origin = "Several recipes" }
                     lines[key] = existing
                 } else {
                     lines[key] = AggregatedLine(
                         name: ingredient.name,
                         quantity: quantity,
                         unit: ingredient.unit,
-                        aisle: ingredient.aisleValue
+                        aisle: ingredient.aisleValue,
+                        origin: meal.title
                     )
                 }
             }
@@ -92,6 +95,7 @@ struct GroceryListBuilder {
         var quantity: Double
         var unit: String
         var aisle: GroceryAisle
+        var origin: String = ""
     }
 
     private static func key(name: String, unit: String) -> String {

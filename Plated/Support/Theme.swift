@@ -36,6 +36,10 @@ extension Color {
     static let warningTone  = Color(light: 0xB45309, dark: 0xF0A24F)
     static let successTone  = Color(light: 0x3E6B4A, dark: 0x7FA98B)
 
+    // Ink field — the dark band that always means "done / collected".
+    static let inkWell      = Color(light: 0x241C14, dark: 0x100D0A)
+    static let inkWellText  = Color(light: 0xF3EDE3, dark: 0xF3EDE3)
+
     /// Tone-on-tone chip wash: 12% of the color over the local surface.
     func wash(over surface: Color = .canvas) -> Color {
         self.mix(with: surface, by: 0.88)
@@ -82,8 +86,11 @@ extension Font {
     static let cardTitle = Font.system(.title3, design: .serif, weight: .semibold)
     /// New York 24 semibold — title overlaid on the Today card.
     static let heroCardTitle = Font.system(.title2, design: .serif, weight: .semibold)
-    /// New York 40 semibold — big stat numerals.
-    static let statNumeral = Font.system(size: 40, weight: .semibold, design: .serif)
+    /// New York 56 semibold — big stat numerals in the Insights ledger.
+    static let statNumeral = Font.system(size: 56, weight: .semibold, design: .serif)
+    /// New York 54 semibold — the masthead word at the top of every screen.
+    static let masthead = Font.system(size: 54, weight: .semibold, design: .serif)
+    static let mastheadCompact = Font.system(size: 44, weight: .semibold, design: .serif)
     /// New York 20 — date numerals in the week rows.
     static let dayNumeral = Font.system(.title3, design: .serif, weight: .semibold)
 }
@@ -101,8 +108,32 @@ struct Eyebrow: View {
     var body: some View {
         Text(text.uppercased())
             .font(.caption.weight(.semibold))
-            .tracking(1.2)
+            .fontWidth(.condensed)
+            .tracking(1.5)
             .foregroundStyle(color)
+    }
+}
+
+/// The masthead every screen opens with: condensed eyebrow, one serif word
+/// at 54pt breaking left, one flush-right datum. The type is the menu.
+struct Masthead<Trailing: View>: View {
+    let eyebrow: String
+    let title: String
+    @ViewBuilder var trailing: Trailing
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Eyebrow(eyebrow)
+            HStack(alignment: .lastTextBaseline) {
+                ViewThatFits(in: .horizontal) {
+                    Text(title).font(.masthead)
+                    Text(title).font(.mastheadCompact)
+                }
+                .foregroundStyle(Color.ink)
+                Spacer()
+                trailing
+            }
+        }
     }
 }
 
@@ -246,57 +277,3 @@ struct ProgressRing: View {
     }
 }
 
-// MARK: - Recipe placeholder art
-// Photography is the color system; until a recipe has a photo, it gets a quiet
-// tonal gradient derived from its weather moods — a menu card, not a gray box.
-
-struct RecipePlaceholder: View {
-    let recipe: Recipe
-
-    private var tones: [Color] {
-        if let mood = recipe.moods.first {
-            switch mood {
-            case .cold, .rainy: return [.mulledWine, .copper]
-            case .cool: return [.copper, .honey]
-            case .mild: return [.basil, .honey]
-            case .warm, .grillWeather: return [.honey, .tomato]
-            case .hot: return [.basil, .copper]
-            }
-        }
-        // Stable fallback derived from the title so cards stay distinct.
-        let all: [Color] = [.honey, .basil, .copper, .mulledWine]
-        let index = abs(recipe.title.unicodeScalars.reduce(0) { $0 + Int($1.value) }) % all.count
-        return [all[index], all[(index + 1) % all.count]]
-    }
-
-    var body: some View {
-        LinearGradient(
-            colors: [tones[0].mix(with: .white, by: 0.28),
-                     tones[1].mix(with: .black, by: 0.12)],
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
-        )
-        .overlay(alignment: .topTrailing) {
-            Image(systemName: "fork.knife")
-                .font(.system(size: 34, weight: .ultraLight))
-                .foregroundStyle(.white.opacity(0.35))
-                .padding(14)
-        }
-    }
-}
-
-// MARK: - Recipe photo or placeholder
-
-struct RecipeArt: View {
-    let recipe: Recipe
-
-    var body: some View {
-        if let data = recipe.photoData, let image = UIImage(data: data) {
-            Image(uiImage: image)
-                .resizable()
-                .scaledToFill()
-        } else {
-            RecipePlaceholder(recipe: recipe)
-        }
-    }
-}

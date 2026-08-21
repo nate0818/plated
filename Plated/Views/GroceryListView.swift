@@ -44,16 +44,7 @@ struct GroceryListView: View {
 
                     ForEach(grouped, id: \.aisle) { group in
                         VStack(alignment: .leading, spacing: 8) {
-                            HStack {
-                                Label {
-                                    Eyebrow(group.aisle.rawValue)
-                                } icon: {
-                                    Image(systemName: group.aisle.symbolName)
-                                        .font(.caption)
-                                        .foregroundStyle(Color.inkSecondary)
-                                }
-                                Spacer()
-                            }
+                            Eyebrow("\(group.aisle.rawValue) — \(group.items.count)")
                             VStack(spacing: 0) {
                                 ForEach(Array(group.items.enumerated()), id: \.element.persistentModelID) { index, item in
                                     if index > 0 {
@@ -68,6 +59,15 @@ struct GroceryListView: View {
                                 }
                             }
                             .cardSurface()
+                            .overlay(alignment: .leading) {
+                                UnevenRoundedRectangle(
+                                    topLeadingRadius: Radius.card,
+                                    bottomLeadingRadius: Radius.card,
+                                    style: .continuous
+                                )
+                                .fill(aisleTone(group.aisle))
+                                .frame(width: 2)
+                            }
                         }
                     }
 
@@ -89,12 +89,11 @@ struct GroceryListView: View {
             .background(Color.canvas)
             .scrollIndicators(.hidden)
             .toolbar {
-                ToolbarItemGroup(placement: .topBarLeading) {
-                    Button("Previous week", systemImage: "chevron.left") { shiftWeek(by: -1) }
-                    Button("Next week", systemImage: "chevron.right") { shiftWeek(by: 1) }
-                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
+                        Button("Previous week", systemImage: "chevron.left") { shiftWeek(by: -1) }
+                        Button("Next week", systemImage: "chevron.right") { shiftWeek(by: 1) }
+                        Divider()
                         Button("Rebuild from meal plan", systemImage: "arrow.clockwise", action: rebuild)
                         Toggle("Include pantry staples", isOn: $includePantryStaples)
                         Button("Send to Reminders", systemImage: "square.and.arrow.up") {
@@ -125,26 +124,30 @@ struct GroceryListView: View {
     // MARK: - Sections
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(alignment: .firstTextBaseline) {
-                Eyebrow("Week of \(weekStart.formatted(.dateTime.month(.wide).day()))")
-                Spacer()
-                if !items.isEmpty {
-                    HStack(spacing: 6) {
-                        ProgressRing(progress: checkProgress, size: 22, tone: .successTone)
-                        Text("\(checked.count) of \(items.count)")
-                            .font(.caption.weight(.semibold))
-                            .monospacedDigit()
-                            .foregroundStyle(Color.inkSecondary)
-                            .contentTransition(.numericText(value: Double(checked.count)))
-                    }
+        Masthead(
+            eyebrow: "Week of \(weekStart.formatted(.dateTime.month(.wide).day()))",
+            title: "Grocery"
+        ) {
+            if !items.isEmpty {
+                HStack(spacing: 8) {
+                    ProgressRing(progress: checkProgress, size: 40, tone: .successTone)
+                    Text("\(checked.count) OF \(items.count)")
+                        .font(.caption.weight(.semibold))
+                        .fontWidth(.condensed)
+                        .monospacedDigit()
+                        .foregroundStyle(Color.inkSecondary)
+                        .contentTransition(.numericText(value: Double(checked.count)))
                 }
             }
-            Text("Grocery")
-                .font(.heroTitle)
-                .foregroundStyle(Color.ink)
         }
         .padding(.top, 8)
+        .contentShape(.rect)
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 30).onEnded { value in
+                guard abs(value.translation.width) > abs(value.translation.height) else { return }
+                shiftWeek(by: value.translation.width < 0 ? 1 : -1)
+            }
+        )
     }
 
     private var addRow: some View {
@@ -164,7 +167,10 @@ struct GroceryListView: View {
         }
         .padding(.horizontal, 16)
         .frame(height: 52)
-        .cardSurface()
+        .overlay(
+            RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
+                .strokeBorder(Color.hairline, style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
+        )
     }
 
     private var emptyState: some View {
@@ -189,16 +195,17 @@ struct GroceryListView: View {
     }
 
     private var inCartGroup: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 14) {
             Button {
                 withAnimation(.appSmooth) { cartExpanded.toggle() }
             } label: {
-                HStack(spacing: 6) {
-                    Eyebrow("In cart (\(checked.count))", color: .inkTertiary)
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(Color.inkTertiary)
-                        .rotationEffect(.degrees(cartExpanded ? 0 : -90))
+                HStack {
+                    Text("IN CART (\(checked.count))")
+                        .font(.caption.weight(.semibold))
+                        .fontWidth(.condensed)
+                        .tracking(1.5)
+                        .foregroundStyle(Color.inkWellText.opacity(0.7))
+                        .contentTransition(.numericText(value: Double(checked.count)))
                     Spacer()
                 }
                 .contentShape(.rect)
@@ -207,18 +214,37 @@ struct GroceryListView: View {
 
             if cartExpanded {
                 VStack(spacing: 0) {
-                    ForEach(Array(checked.enumerated()), id: \.element.persistentModelID) { index, item in
-                        if index > 0 {
-                            Divider().overlay(Color.hairline).padding(.leading, 52)
+                    ForEach(checked) { item in
+                        HStack(spacing: 12) {
+                            PlateView(state: .cleared, diameter: 26)
+                            Text(item.displayText)
+                                .font(.body)
+                                .foregroundStyle(Color.inkWellText.opacity(0.55))
+                                .strikethrough(true, color: .inkWellText.opacity(0.35))
+                                .lineLimit(1)
+                            Spacer()
                         }
-                        GroceryRow(item: item) { toggle(item) }
+                        .frame(height: 44)
+                        .contentShape(.rect)
+                        .onTapGesture { toggle(item) }
                     }
                 }
-                .cardSurface()
-                .opacity(0.75)
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(20)
+        .background(Color.inkWell)
+        .padding(.horizontal, -20)
         .padding(.top, 8)
+    }
+
+    private func aisleTone(_ aisle: GroceryAisle) -> Color {
+        switch aisle {
+        case .produce: return .basil
+        case .meat: return .mulledWine
+        case .dairy, .bakery: return .honey
+        default: return .copper
+        }
     }
 
     private var checkProgress: Double {
@@ -286,13 +312,37 @@ private struct GroceryRow: View {
     var body: some View {
         Button(action: onToggle) {
             HStack(spacing: 12) {
-                Checkbox(isOn: item.isChecked)
+                ZStack {
+                    PlateView(state: .empty, diameter: 26)
+                    Circle()
+                        .fill(Color.successTone)
+                        .scaleEffect(item.isChecked ? 0.999 : 0.001)
+                    Image(systemName: "checkmark")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(.white)
+                        .opacity(item.isChecked ? 1 : 0)
+                        .scaleEffect(item.isChecked ? 1 : 0.4)
+                }
+                .frame(width: 26, height: 26)
+                .animation(.appBouncy, value: item.isChecked)
 
-                Text(item.displayText)
-                    .font(.body)
-                    .foregroundStyle(item.isChecked ? Color.inkTertiary : Color.ink)
-                    .strikethrough(item.isChecked, color: .inkTertiary)
-                    .lineLimit(1)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(item.displayText)
+                        .font(.body)
+                        .foregroundStyle(item.isChecked ? Color.inkTertiary : Color.ink)
+                        .strikethrough(item.isChecked, color: .inkTertiary)
+                        .lineLimit(1)
+                    if !item.originTitle.isEmpty {
+                        HStack(spacing: 5) {
+                            DishView(title: item.originTitle, diameter: 14)
+                            Text(item.originTitle.uppercased())
+                                .font(.system(size: 10, weight: .semibold))
+                                .fontWidth(.condensed)
+                                .tracking(0.5)
+                                .foregroundStyle(Color.inkTertiary)
+                        }
+                    }
+                }
 
                 Spacer()
 
@@ -303,32 +353,11 @@ private struct GroceryRow: View {
                 }
             }
             .padding(.horizontal, 16)
-            .frame(height: 52)
+            .frame(height: 54)
             .contentShape(.rect)
         }
         .buttonStyle(.plain)
         .sensoryFeedback(.impact(weight: .light, intensity: 0.7), trigger: item.isChecked)
-    }
-}
-
-private struct Checkbox: View {
-    let isOn: Bool
-
-    var body: some View {
-        ZStack {
-            Circle()
-                .strokeBorder(Color.inkSecondary.opacity(0.4), lineWidth: 1.5)
-            Circle()
-                .fill(Color.successTone)
-                .scaleEffect(isOn ? 1 : 0.001)
-            Image(systemName: "checkmark")
-                .font(.caption.weight(.bold))
-                .foregroundStyle(.white)
-                .opacity(isOn ? 1 : 0)
-                .scaleEffect(isOn ? 1 : 0.4)
-        }
-        .frame(width: 26, height: 26)
-        .animation(.appBouncy, value: isOn)
     }
 }
 
