@@ -51,6 +51,7 @@ struct NotificationsView: View {
                     Image(systemName: "bell")
                         .font(.system(size: 28, weight: .medium))
                         .foregroundStyle(Color.inkFaint)
+                        .plBreathing()
                     Text("All quiet at the table")
                         .font(.jakarta(15, .bold))
                         .foregroundStyle(Color.inkSecondary)

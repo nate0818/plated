@@ -387,6 +387,7 @@ struct PostThreadView: View {
                     .buttonStyle(.pressable)
                 }
                 .padding(.horizontal, 24)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
             }
 
             if mentionBarShown {
@@ -572,6 +573,8 @@ struct PostThreadView: View {
     }
 
     private func showSaveToast(_ message: String) {
+        // The confirmation reaches the hand as well as the eye.
+        Haptic.tap()
         saveToastToken += 1
         let token = saveToastToken
         withAnimation(.plSnap) { saveToast = message }

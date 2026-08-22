@@ -100,6 +100,7 @@ struct PersonProfileView: View {
                 if posts.isEmpty {
                     VStack(spacing: 8) {
                         PlateReactionGlyph(filled: false)
+                            .plBreathing()
                         Text(isMe ? "Nothing shared yet — plate something for the table." : "\(firstName) hasn't shared a plate yet.")
                             .font(.jakarta(13, .medium))
                             .foregroundStyle(Color.inkFaint)

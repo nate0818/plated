@@ -84,6 +84,7 @@ struct DiscoverView: View {
                     Image(systemName: "magnifyingglass")
                         .font(.system(size: 28, weight: .medium))
                         .foregroundStyle(Color.inkFaint)
+                        .plBreathing()
                     Text("No table is serving that")
                         .font(.jakarta(15, .bold))
                         .foregroundStyle(Color.inkSecondary)
@@ -274,6 +275,7 @@ struct DiscoverPostSheet: View {
                     .frame(height: 56)
                     .overlay(Capsule().strokeBorder(Color.hairline, lineWidth: 1.5))
                     .padding(.top, 6)
+                    .transition(.scale(scale: 0.94).combined(with: .opacity))
                 } else {
                     InkPillButton(title: "Save to cookbook", systemImage: "book.closed") {
                         save()

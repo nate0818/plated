@@ -77,6 +77,7 @@ struct TableFeedView: View {
                         if shownPosts.isEmpty {
                             VStack(spacing: 8) {
                                 PlateReactionGlyph(filled: false)
+                                    .plBreathing()
                                 Text(scope == .household ? "The household hasn't posted yet." : "Nothing on the table yet.")
                                     .font(.jakarta(14, .bold))
                                     .foregroundStyle(Color.inkSecondary)
@@ -536,6 +537,8 @@ struct TableFeedView: View {
     }
 
     private func showToast(_ message: String) {
+        // The confirmation reaches the hand as well as the eye.
+        Haptic.tap()
         toastToken += 1
         let token = toastToken
         withAnimation(.plSnap) { savedToast = message }

@@ -166,6 +166,28 @@ extension ButtonStyle where Self == PressableStyle {
     static var pressable: PressableStyle { PressableStyle() }
 }
 
+/// A slow ambient breath for empty-state glyphs — the room is set and
+/// waiting, not dead. Sits out under Reduce Motion.
+private struct PLBreathing: ViewModifier {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func body(content: Content) -> some View {
+        if reduceMotion {
+            content
+        } else {
+            content.phaseAnimator([false, true]) { view, up in
+                view
+                    .scaleEffect(up ? 1.05 : 1)
+                    .opacity(up ? 1 : 0.9)
+            } animation: { _ in .easeInOut(duration: 2.4) }
+        }
+    }
+}
+
+extension View {
+    func plBreathing() -> some View { modifier(PLBreathing()) }
+}
+
 // MARK: - Shadows
 
 /// Black at light-mode opacities is invisible on espresso — dark elevation

@@ -160,8 +160,12 @@ struct CookbookView: View {
                     LazyVGrid(columns: [GridItem(.flexible(), spacing: 20), GridItem(.flexible())], spacing: 26) {
                         ForEach(shown, id: \.persistentModelID) { recipe in
                             recipeTile(recipe)
+                                .transition(.scale(scale: 0.92).combined(with: .opacity))
                         }
                     }
+                    // Filtering resettles the shelf — dishes fade and slide
+                    // to their new seats instead of teleporting.
+                    .animation(.plSnap, value: shown.map(\.persistentModelID))
                     .padding(.horizontal, 24)
                     .padding(.top, 20)
                     .padding(.bottom, 110)
@@ -171,6 +175,7 @@ struct CookbookView: View {
                             Image(systemName: "line.3.horizontal.decrease")
                                 .font(.system(size: 26, weight: .medium))
                                 .foregroundStyle(Color.inkFaint)
+                                .plBreathing()
                             Text(filter.isFiltering ? "Nothing matches that filter" : "No recipes yet")
                                 .font(.jakarta(15, .bold))
                                 .foregroundStyle(Color.inkSecondary)
@@ -803,8 +808,12 @@ struct PlateAssignSheet: View {
             TomatoPillButton(title: confirmation ?? plateLabel) {
                 plate()
             }
+            // "Plate it for Tuesday" → "Plated for Tuesday" morphs in place.
+            .contentTransition(.numericText())
+            .animation(.plSnap, value: confirmation)
             .disabled(chosenDate == nil)
             .opacity(chosenDate == nil ? 0.4 : 1)
+            .animation(.plSnap, value: chosenDate == nil)
             .padding(.horizontal, 24)
             .padding(.bottom, 14)
         }
@@ -947,6 +956,7 @@ struct RecipePickerSheet: View {
                 LazyVGrid(columns: [GridItem(.flexible(), spacing: 18), GridItem(.flexible()), GridItem(.flexible())], spacing: 20) {
                     ForEach(recipes, id: \.persistentModelID) { recipe in
                         Button {
+                            Haptic.tap()
                             onPick(recipe)
                             dismiss()
                         } label: {
