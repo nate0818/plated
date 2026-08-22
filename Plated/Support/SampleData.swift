@@ -11,7 +11,7 @@ enum SampleData {
         let schema = Schema([
             Recipe.self, Ingredient.self, PlannedMeal.self,
             HouseholdMember.self, Gathering.self, GroceryItem.self,
-            TablePost.self, TableComment.self
+            TablePost.self, TableComment.self, DirectMessage.self
         ])
         let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
         // swiftlint:disable:next force_try
@@ -51,6 +51,7 @@ enum SampleData {
         )
         salmon.isFavorite = true
         salmon.photoData = photo("salmon-plate")
+        salmon.categoryValue = .quick
         salmon.ingredients = [
             Ingredient(name: "Salmon fillets", quantity: 4, unit: "", aisle: .meat, sortIndex: 0),
             Ingredient(name: "Lemon", quantity: 2, unit: "", aisle: .produce, sortIndex: 1),
@@ -64,6 +65,7 @@ enum SampleData {
             weatherMoods: [.cool, .rainy]
         )
         pizza.photoData = photo("pizza")
+        pizza.categoryValue = .kidsPick
         pizza.ingredients = [
             Ingredient(name: "Pizza dough", quantity: 2, unit: "balls", aisle: .bakery, sortIndex: 0),
             Ingredient(name: "Mozzarella", quantity: 16, unit: "oz", aisle: .dairy, sortIndex: 1),
@@ -77,6 +79,7 @@ enum SampleData {
             weatherMoods: [.grillWeather, .hot]
         )
         skewers.photoData = photo("skewers")
+        skewers.categoryValue = .grill
         skewers.ingredients = [
             Ingredient(name: "Chicken thighs", quantity: 2, unit: "lb", aisle: .meat, sortIndex: 0),
             Ingredient(name: "Bell peppers", quantity: 3, unit: "", aisle: .produce, sortIndex: 1),
@@ -90,6 +93,7 @@ enum SampleData {
             weatherMoods: [.warm, .mild]
         )
         bowls.photoData = photo("veggie")
+        bowls.categoryValue = .bowls
         bowls.ingredients = [
             Ingredient(name: "Quinoa", quantity: 1.5, unit: "cups", aisle: .pantry, sortIndex: 0),
             Ingredient(name: "Avocado", quantity: 2, unit: "", aisle: .produce, sortIndex: 1),
@@ -103,6 +107,7 @@ enum SampleData {
             weatherMoods: [.mild, .cool]
         )
         steak.photoData = photo("plates")
+        steak.categoryValue = .bowls
         steak.ingredients = [
             Ingredient(name: "Flank steak", quantity: 1.5, unit: "lb", aisle: .meat, sortIndex: 0),
             Ingredient(name: "Rice", quantity: 2, unit: "cups", aisle: .pantry, isPantryStaple: true, sortIndex: 1),
@@ -115,6 +120,7 @@ enum SampleData {
             weatherMoods: [.hot, .warm]
         )
         poke.photoData = photo("poke")
+        poke.categoryValue = .healthy
         poke.ingredients = [
             Ingredient(name: "Ahi tuna", quantity: 1, unit: "lb", aisle: .meat, sortIndex: 0),
             Ingredient(name: "Sushi rice", quantity: 2, unit: "cups", aisle: .pantry, sortIndex: 1),
@@ -129,6 +135,7 @@ enum SampleData {
         )
         pancakes.isFavorite = true
         pancakes.photoData = photo("pancakes")
+        pancakes.categoryValue = .comfort
         pancakes.ingredients = [
             Ingredient(name: "Flour", quantity: 2, unit: "cups", aisle: .pantry, isPantryStaple: true, sortIndex: 0),
             Ingredient(name: "Eggs", quantity: 3, unit: "", aisle: .dairy, sortIndex: 1),

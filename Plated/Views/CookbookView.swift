@@ -6,11 +6,46 @@ import SwiftData
 struct CookbookView: View {
     @Query(sort: \Recipe.createdAt) private var recipes: [Recipe]
     @State private var selected: Recipe?
+    @State private var categoryFilter: RecipeCategory?
+    @State private var difficultyFilter: RecipeDifficulty?
+    @State private var sortMode: SortMode = .favoritesFirst
+
+    enum SortMode: String, CaseIterable, Identifiable {
+        case favoritesFirst = "Favorites first"
+        case newest = "Newest"
+        case alphabetical = "A to Z"
+        case quickest = "Quickest"
+
+        var id: String { rawValue }
+    }
+
+    /// Categories that actually appear in this cookbook — no empty filters.
+    private var presentCategories: [RecipeCategory] {
+        RecipeCategory.allCases.filter { option in
+            recipes.contains { $0.categoryValue == option }
+        }
+    }
+
+    private var filtered: [Recipe] {
+        recipes.filter { recipe in
+            (categoryFilter == nil || recipe.categoryValue == categoryFilter)
+                && (difficultyFilter == nil || recipe.difficultyValue == difficultyFilter)
+        }
+    }
 
     private var ordered: [Recipe] {
-        recipes.sorted { lhs, rhs in
-            if lhs.isFavorite != rhs.isFavorite { return lhs.isFavorite }
-            return lhs.createdAt > rhs.createdAt
+        filtered.sorted { lhs, rhs in
+            switch sortMode {
+            case .favoritesFirst:
+                if lhs.isFavorite != rhs.isFavorite { return lhs.isFavorite }
+                return lhs.createdAt > rhs.createdAt
+            case .newest:
+                return lhs.createdAt > rhs.createdAt
+            case .alphabetical:
+                return lhs.title.localizedCaseInsensitiveCompare(rhs.title) == .orderedAscending
+            case .quickest:
+                return lhs.totalMinutes < rhs.totalMinutes
+            }
         }
     }
 
@@ -18,16 +53,20 @@ struct CookbookView: View {
         VStack(spacing: 0) {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
-                    MicroLabel("\(recipes.count) dishes")
+                    MicroLabel(countLabel)
                     Text("Cookbook")
                         .font(.gabarito(25, .bold))
                         .tracking(-0.3)
                         .foregroundStyle(Color.ink)
                 }
                 Spacer()
+                sortMenu
             }
             .padding(.horizontal, 24)
             .padding(.top, 6)
+
+            filterRow
+                .padding(.top, 12)
 
             ScrollView(showsIndicators: false) {
                 LazyVGrid(columns: [GridItem(.flexible(), spacing: 20), GridItem(.flexible())], spacing: 26) {
@@ -38,11 +77,91 @@ struct CookbookView: View {
                 .padding(.horizontal, 24)
                 .padding(.top, 20)
                 .padding(.bottom, 110)
+
+                if ordered.isEmpty {
+                    VStack(spacing: 8) {
+                        Image(systemName: "line.3.horizontal.decrease")
+                            .font(.system(size: 26, weight: .medium))
+                            .foregroundStyle(Color.inkFaint)
+                        Text("Nothing filed here yet")
+                            .font(.jakarta(15, .bold))
+                            .foregroundStyle(Color.inkSecondary)
+                    }
+                    .padding(.top, 40)
+                }
             }
         }
         .sheet(item: $selected) { recipe in
             RecipeDetailSheet(recipe: recipe)
         }
+    }
+
+    private var countLabel: String {
+        let filteredOut = recipes.count - filtered.count
+        return filteredOut > 0 ? "\(filtered.count) of \(recipes.count) dishes" : "\(recipes.count) dishes"
+    }
+
+    private var sortMenu: some View {
+        Menu {
+            Picker("Sort", selection: $sortMode) {
+                ForEach(SortMode.allCases) { mode in
+                    Text(mode.rawValue).tag(mode)
+                }
+            }
+            Picker("Effort", selection: $difficultyFilter) {
+                Text("Any effort").tag(RecipeDifficulty?.none)
+                ForEach(RecipeDifficulty.allCases) { level in
+                    Text(level.rawValue).tag(RecipeDifficulty?.some(level))
+                }
+            }
+        } label: {
+            Circle()
+                .strokeBorder(Color.hairline, lineWidth: 1.5)
+                .frame(width: 38, height: 38)
+                .overlay {
+                    Image(systemName: "line.3.horizontal.decrease")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(difficultyFilter == nil ? Color.ink : Color.tomato)
+                }
+                .frame(minWidth: 44, minHeight: 44)
+                .contentShape(Rectangle())
+        }
+    }
+
+    private var filterRow: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                filterChip("All dishes", active: categoryFilter == nil) { categoryFilter = nil }
+                ForEach(presentCategories) { option in
+                    filterChip(option.rawValue, active: categoryFilter == option) {
+                        categoryFilter = categoryFilter == option ? nil : option
+                    }
+                }
+            }
+            .padding(.horizontal, 24)
+        }
+    }
+
+    private func filterChip(_ label: String, active: Bool, action: @escaping () -> Void) -> some View {
+        Button {
+            Haptic.tap()
+            withAnimation(.plSnap) { action() }
+        } label: {
+            Text(label)
+                .font(.jakarta(13, .bold))
+                .fixedSize()
+                .foregroundStyle(active ? Color.canvas : Color.ink)
+                .padding(.horizontal, 14)
+                .frame(height: 36)
+                .background {
+                    if active {
+                        Capsule().fill(Color.ink)
+                    } else {
+                        Capsule().strokeBorder(Color.hairline)
+                    }
+                }
+        }
+        .buttonStyle(.plain)
     }
 
     private func recipeTile(_ recipe: Recipe) -> some View {
@@ -98,7 +217,7 @@ struct CookbookView: View {
     private func metaLine(_ recipe: Recipe) -> String {
         var parts: [String] = []
         if recipe.totalMinutes > 0 { parts.append("\(recipe.totalMinutes) min") }
-        parts.append("Serves \(recipe.servings)")
+        parts.append(recipe.categoryValue?.rawValue ?? "Serves \(recipe.servings)")
         return parts.joined(separator: " · ")
     }
 }
@@ -234,12 +353,7 @@ struct RecipeDetailSheet: View {
     }
 
     private var effortLabel: String {
-        switch recipe.totalMinutes {
-        case 0: return "Easy"
-        case ..<30: return "Easy"
-        case ..<60: return "Weekend"
-        default: return "Project"
-        }
+        recipe.difficultyValue.rawValue
     }
 
     private var visibilityIcon: String {

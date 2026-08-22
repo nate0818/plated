@@ -18,6 +18,8 @@ struct MainShellView: View {
     /// an "empty" check into duplicating everything.
     @AppStorage("didSeedSampleData") private var didSeedSampleData = false
     @AppStorage("didSeedDiscover") private var didSeedDiscover = false
+    @AppStorage("didRepairLegacyDiscover") private var didRepairLegacyDiscover = false
+    @AppStorage("didStampSampleCategories") private var didStampSampleCategories = false
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -64,6 +66,39 @@ struct MainShellView: View {
                     try? context.save()
                 }
             }
+            if !didStampSampleCategories {
+                // Sample recipes seeded before categories existed get filed
+                // once, so the cookbook filters have something to hold.
+                didStampSampleCategories = true
+                let sampleFiling: [String: RecipeCategory] = [
+                    "Lemon Butter Salmon": .quick,
+                    "Pizza Night": .kidsPick,
+                    "BBQ Skewers": .grill,
+                    "Rainbow Bowls": .bowls,
+                    "Steak Bowls": .bowls,
+                    "Poke Night": .healthy,
+                    "Pancake Dinner": .comfort
+                ]
+                for recipe in recipes where recipe.category.isEmpty {
+                    if let filed = sampleFiling[recipe.title] {
+                        recipe.categoryValue = filed
+                    }
+                }
+                try? context.save()
+            }
+            if !didRepairLegacyDiscover {
+                // Stores seeded before Discover posts were stamped left those
+                // rows with isDiscover == false, so open-table posts bled into
+                // the private feed. Any unstamped post whose author+dish
+                // matches a stamped Discover row is that legacy artifact.
+                didRepairLegacyDiscover = true
+                let all = (try? context.fetch(FetchDescriptor<TablePost>())) ?? []
+                let discoverKeys = Set(all.filter(\.isDiscover).map(\.originKey))
+                for post in all where !post.isDiscover && discoverKeys.contains(post.originKey) {
+                    context.delete(post)
+                }
+                try? context.save()
+            }
             #if DEBUG
             // UI-test hook: `simctl launch … -plated-tab table` lands here.
             let args = ProcessInfo.processInfo.arguments
@@ -71,7 +106,7 @@ struct MainShellView: View {
                let tab = AppTab(rawValue: args[flag + 1]) {
                 selection = tab
             }
-            if args.contains("-plated-open-create") {
+            if LaunchFlags.consume("-plated-open-create") {
                 createPresented = true
             }
             #endif
@@ -90,7 +125,7 @@ struct PlateTabBar: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            tabItem(.week, label: "Week") {
+            tabItem(.week, label: "Plan") {
                 Image(systemName: "calendar")
                     .font(.system(size: 21, weight: .medium))
             }
@@ -122,7 +157,7 @@ struct PlateTabBar: View {
                     .font(.system(size: 20, weight: .medium))
             }
             tabItem(.home, label: "Home") {
-                Image(systemName: "person.2")
+                Image(systemName: "house")
                     .font(.system(size: 20, weight: .medium))
             }
         }
@@ -173,7 +208,7 @@ struct PlateTabBar: View {
 struct PlateGlyph: View {
     var body: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 5.5)
+            RoundedRectangle(cornerRadius: 8)
                 .strokeBorder(lineWidth: 2)
                 .frame(width: 17, height: 17)
             Circle()

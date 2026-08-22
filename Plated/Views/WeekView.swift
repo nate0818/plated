@@ -1,25 +1,56 @@
 import SwiftUI
 import SwiftData
+import UniformTypeIdentifiers
 
 /// Home. The next seven nights, tonight on top — planned nights are plated
 /// photos, open nights are dashed placemats waiting. The ring fills as the
-/// week does.
+/// week does, and the weeks after scroll on below so planning ahead is just
+/// more scrolling. Sideways, the plan becomes a month.
 struct WeekView: View {
     var askTheTable: () -> Void = {}
 
     @Environment(\.modelContext) private var context
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
     @Query private var meals: [PlannedMeal]
     @Query private var recipes: [Recipe]
     @Query(sort: \HouseholdMember.createdAt) private var members: [HouseholdMember]
+
+    @AppStorage("showCalendarEvents") private var showCalendarEvents = false
 
     @State private var expandedDay: Date?
     @State private var bounceDay: Date?
     @State private var groceryPresented = false
     @State private var pickerDay: Date?
+    @State private var profilePresented = false
+    @State private var actionDay: Date?
+    @State private var swipedDay: Date?
+    @State private var forecast = ForecastProvider.shared
+    @State private var events = DayEventsProvider.shared
+
+    /// How far ahead the plan scrolls — this week plus three more.
+    private let weeksAhead = 4
+
+    /// UI-test hook: renders the landscape month view in any orientation.
+    private var forceMonth: Bool {
+        #if DEBUG
+        ProcessInfo.processInfo.arguments.contains("-plated-force-month")
+        #else
+        false
+        #endif
+    }
 
     private var weekDates: [Date] {
         let today = Calendar.current.startOfDay(for: .now)
         return (0..<7).compactMap { Calendar.current.date(byAdding: .day, value: $0, to: today) }
+    }
+
+    private var futureWeeks: [[Date]] {
+        let today = Calendar.current.startOfDay(for: .now)
+        return (1..<weeksAhead).map { week in
+            (0..<7).compactMap {
+                Calendar.current.date(byAdding: .day, value: week * 7 + $0, to: today)
+            }
+        }
     }
 
     private var plannedCount: Int {
@@ -27,6 +58,50 @@ struct WeekView: View {
     }
 
     var body: some View {
+        Group {
+            if verticalSizeClass == .compact || forceMonth {
+                MonthPlannerView()
+            } else {
+                portraitPlan
+            }
+        }
+        .sheet(isPresented: $groceryPresented) { GrocerySheet() }
+        .sheet(isPresented: $profilePresented) { ProfileSheet() }
+        .sheet(item: $pickerDay) { date in
+            RecipePickerSheet(date: date) { recipe in
+                plate(recipe, on: date, tagline: "")
+            }
+        }
+        .confirmationDialog(
+            actionDay.map { "Dinner on \(dayName($0))" } ?? "",
+            isPresented: Binding(get: { actionDay != nil }, set: { if !$0 { actionDay = nil } }),
+            titleVisibility: .visible
+        ) {
+            if let date = actionDay {
+                Button("Swap the dish") { pickerDay = date }
+                Button("Remove from \(dayName(date))", role: .destructive) { remove(on: date) }
+                Button("Cancel", role: .cancel) {}
+            }
+        }
+        .task {
+            await forecast.refresh(days: 10)
+            if showCalendarEvents { events.refresh() }
+        }
+        .onAppear {
+            #if DEBUG
+            // UI-test hook: `simctl launch … -plated-open-grocery` lands here.
+            // One-shot on purpose — it must never replay on tab reselect.
+            if LaunchFlags.consume("-plated-open-grocery") {
+                groceryPresented = true
+            }
+            if LaunchFlags.consume("-plated-open-profile") {
+                profilePresented = true
+            }
+            #endif
+        }
+    }
+
+    private var portraitPlan: some View {
         VStack(spacing: 0) {
             header
                 .padding(.horizontal, 24)
@@ -35,33 +110,38 @@ struct WeekView: View {
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 8) {
                     ForEach(weekDates, id: \.self) { date in
-                        if let meal = dinner(on: date) {
-                            plannedRow(meal, date: date)
-                        } else {
-                            emptyRow(date: date)
+                        dayRow(date)
+                    }
+                    ForEach(Array(futureWeeks.enumerated()), id: \.offset) { index, week in
+                        HStack {
+                            MicroLabel(weekSectionLabel(week, index: index))
+                            Spacer()
+                            Text("\(week.filter { dinner(on: $0) != nil }.count) of 7")
+                                .font(.jakarta(11, .bold))
+                                .foregroundStyle(Color.inkFaint)
+                        }
+                        .padding(.top, 18)
+                        .padding(.bottom, 2)
+                        ForEach(week, id: \.self) { date in
+                            dayRow(date)
                         }
                     }
                     cooksFooter
-                        .padding(.top, 6)
+                        .padding(.top, 14)
                 }
                 .padding(.horizontal, 24)
                 .padding(.top, 14)
                 .padding(.bottom, 110)
             }
         }
-        .sheet(isPresented: $groceryPresented) { GrocerySheet() }
-        .onAppear {
-            #if DEBUG
-            // UI-test hook: `simctl launch … -plated-open-grocery` lands here.
-            if ProcessInfo.processInfo.arguments.contains("-plated-open-grocery") {
-                groceryPresented = true
-            }
-            #endif
-        }
-        .sheet(item: $pickerDay) { date in
-            RecipePickerSheet(date: date) { recipe in
-                plate(recipe, on: date, tagline: "")
-            }
+    }
+
+    @ViewBuilder
+    private func dayRow(_ date: Date) -> some View {
+        if let meal = dinner(on: date) {
+            plannedRow(meal, date: date)
+        } else {
+            emptyRow(date: date)
         }
     }
 
@@ -103,13 +183,20 @@ struct WeekView: View {
                         .fixedSize()
                 }
 
-                VStack(spacing: 2) {
-                    AvatarCircle(initials: hostInitial, tone: .neutralPair, size: 44)
-                    Text("HOST")
-                        .font(.jakarta(9, .bold))
-                        .tracking(0.7)
-                        .foregroundStyle(Color.inkFaint)
+                Button {
+                    Haptic.tap()
+                    profilePresented = true
+                } label: {
+                    VStack(spacing: 2) {
+                        AvatarCircle(initials: hostInitial, tone: .neutralPair, size: 44)
+                        Text("HOST")
+                            .font(.jakarta(9, .bold))
+                            .tracking(0.7)
+                            .foregroundStyle(Color.inkFaint)
+                    }
+                    .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
             }
         }
     }
@@ -141,33 +228,46 @@ struct WeekView: View {
 
     private func plannedRow(_ meal: PlannedMeal, date: Date) -> some View {
         let today = Calendar.current.isDateInToday(date)
-        return HStack(spacing: 12) {
-            dayColumn(date, dimmed: false)
+        return SwipeToRemove(isOpen: swipeBinding(date), onRemove: { remove(on: date) }) {
+            HStack(spacing: 12) {
+                dayColumn(date, dimmed: false)
 
-            dishCircle(for: meal)
+                dishCircle(for: meal)
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(meal.title)
-                    .font(.jakarta(15, .bold))
-                    .foregroundStyle(Color.ink)
-                    .lineLimit(1)
-                Text(tagLine(for: meal, today: today))
-                    .font(.jakarta(12, .semibold))
-                    .foregroundStyle(today ? Color.ink : Color.inkSecondary)
-                    .lineLimit(1)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(meal.title)
+                        .font(.jakarta(15, .bold))
+                        .foregroundStyle(Color.ink)
+                        .lineLimit(1)
+                    Text(tagLine(for: meal, today: today))
+                        .font(.jakarta(12, .semibold))
+                        .foregroundStyle(today ? Color.ink : Color.inkSecondary)
+                        .lineLimit(1)
+                }
+                Spacer(minLength: 8)
+                if let cook = meal.cook {
+                    AvatarCircle(initials: cook.firstInitial, tone: cook.tone, size: 30)
+                }
             }
-            Spacer(minLength: 8)
-            if let cook = meal.cook {
-                AvatarCircle(initials: cook.firstInitial, tone: cook.tone, size: 30)
+            .padding(.vertical, 8)
+            .padding(.horizontal, 14)
+            .frame(minHeight: 72)
+            .background(Color.canvas, in: RoundedRectangle(cornerRadius: Radius.row))
+            .overlay {
+                RoundedRectangle(cornerRadius: Radius.row)
+                    .strokeBorder(today ? Color.ink : Color.navHairline, lineWidth: today ? 1.5 : 1)
+            }
+            .contentShape(Rectangle())
+            .onTapGesture {
+                Haptic.tap()
+                actionDay = date
             }
         }
-        .padding(.vertical, 8)
-        .padding(.horizontal, 14)
-        .frame(minHeight: 72)
-        .background(Color.canvas, in: RoundedRectangle(cornerRadius: Radius.row))
-        .overlay {
-            RoundedRectangle(cornerRadius: Radius.row)
-                .strokeBorder(today ? Color.ink : Color.navHairline, lineWidth: today ? 1.5 : 1)
+        .draggable(DayTransfer.token(for: date)) {
+            dishCircle(for: meal)
+        }
+        .dropDestination(for: String.self) { tokens, _ in
+            moveMeal(from: tokens.first, to: date)
         }
         .scaleEffect(bounceDay == date ? 1.02 : 1)
         .animation(.plPop, value: bounceDay)
@@ -217,20 +317,38 @@ struct WeekView: View {
             RoundedRectangle(cornerRadius: Radius.card)
                 .strokeBorder(Color.hairlineDashed, style: StrokeStyle(lineWidth: 2, dash: [7, 6]))
         }
+        .dropDestination(for: String.self) { tokens, _ in
+            moveMeal(from: tokens.first, to: date)
+        }
     }
 
     private func dayColumn(_ date: Date, dimmed: Bool) -> some View {
         let today = Calendar.current.isDateInToday(date)
         return VStack(spacing: 0) {
-            Text(date.formattedWeekday().uppercased())
-                .font(.jakarta(10, .extraBold))
-                .tracking(0.6)
-                .foregroundStyle(today && !dimmed ? Color.ink : Color.inkFaint)
+            HStack(spacing: 3) {
+                Text(date.formattedWeekday().uppercased())
+                    .font(.jakarta(10, .extraBold))
+                    .tracking(0.6)
+                    .foregroundStyle(today && !dimmed ? Color.ink : Color.inkFaint)
+                if showCalendarEvents && events.hasEvent(on: date) {
+                    Circle().fill(Color.grape).frame(width: 5, height: 5)
+                }
+            }
             Text(date.formattedDayNumber())
                 .font(.gabarito(19, .extraBold))
                 .foregroundStyle(dimmed ? Color.inkFaint : Color.ink)
+            if let day = forecast.forecast(for: date) {
+                HStack(spacing: 2) {
+                    Image(systemName: day.symbolName)
+                        .font(.system(size: 8, weight: .semibold))
+                    Text("\(Int(day.highF.rounded()))°")
+                        .font(.jakarta(9, .bold))
+                }
+                .foregroundStyle(Color.inkFaint)
+                .padding(.top, 1)
+            }
         }
-        .frame(width: 40)
+        .frame(width: 44)
     }
 
     private func dishCircle(for meal: PlannedMeal) -> some View {
@@ -324,6 +442,21 @@ struct WeekView: View {
         return "\(shortMonth.string(from: first)) – \(shortMonth.string(from: last))"
     }
 
+    private func weekSectionLabel(_ week: [Date], index: Int) -> String {
+        guard let first = week.first else { return "" }
+        if index == 0 { return "Next week" }
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMM d"
+        return "Week of \(formatter.string(from: first))"
+    }
+
+    private func dayName(_ date: Date) -> String {
+        if Calendar.current.isDateInToday(date) { return "tonight" }
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEEE"
+        return formatter.string(from: date)
+    }
+
     private var hostInitial: String {
         members.first(where: \.isOwner)?.firstInitial ?? "?"
     }
@@ -359,6 +492,13 @@ struct WeekView: View {
 
     // MARK: Actions
 
+    private func swipeBinding(_ date: Date) -> Binding<Bool> {
+        Binding(
+            get: { swipedDay == date },
+            set: { open in swipedDay = open ? date : (swipedDay == date ? nil : swipedDay) }
+        )
+    }
+
     private func pickForMe(_ date: Date) {
         let engine = SuggestionEngine(recipes: recipes, members: members)
         // Avoid repeating a dish within the visible week only — history is
@@ -374,16 +514,25 @@ struct WeekView: View {
         plate(recipe, on: date, tagline: minutes > 0 ? "Picked for you · \(minutes) min" : "Picked for you")
     }
 
+    /// Lands a recipe on a night — or, when the night is already planned,
+    /// swaps the dish in place so "change my mind" is one pick, not
+    /// delete-then-add.
     private func plate(_ recipe: Recipe, on date: Date, tagline: String) {
         Haptic.plate()
         let cook = members.first { $0.cookWeekdays.contains(Calendar.current.component(.weekday, from: date)) }
             ?? members.first(where: \.isOwner)
-        let meal = PlannedMeal(
-            date: date, slot: .dinner, recipe: recipe,
-            servings: recipe.servings, cook: cook, tagline: tagline
-        )
         withAnimation(.plPop) {
-            context.insert(meal)
+            if let existing = dinner(on: date) {
+                existing.recipe = recipe
+                existing.customTitle = ""
+                existing.servings = recipe.servings
+                existing.tagline = tagline
+            } else {
+                context.insert(PlannedMeal(
+                    date: date, slot: .dinner, recipe: recipe,
+                    servings: recipe.servings, cook: cook, tagline: tagline
+                ))
+            }
             expandedDay = nil
             bounceDay = date
         }
@@ -391,6 +540,37 @@ struct WeekView: View {
             try? await Task.sleep(for: .milliseconds(320))
             if bounceDay == date { bounceDay = nil }
         }
+    }
+
+    private func remove(on date: Date) {
+        guard let meal = dinner(on: date) else { return }
+        Haptic.plate()
+        withAnimation(.plSnap) {
+            swipedDay = nil
+            context.delete(meal)
+        }
+    }
+
+    /// Drag a plate to another night. Dropping on a planned night swaps the
+    /// two dinners rather than eating one.
+    private func moveMeal(from token: String?, to target: Date) -> Bool {
+        guard let source = DayTransfer.date(from: token),
+              !Calendar.current.isSameDay(source, target),
+              let meal = dinner(on: source) else { return false }
+        Haptic.plate()
+        withAnimation(.plPop) {
+            if let occupant = dinner(on: target) {
+                occupant.date = source.startOfDay
+            }
+            meal.date = target.startOfDay
+            swipedDay = nil
+            bounceDay = target
+        }
+        Task {
+            try? await Task.sleep(for: .milliseconds(320))
+            if bounceDay == target { bounceDay = nil }
+        }
+        return true
     }
 
     private func ask(_ date: Date) {
@@ -407,6 +587,72 @@ struct WeekView: View {
         context.insert(post)
         expandedDay = nil
         askTheTable()
+    }
+}
+
+/// Encodes a day as a drag payload — plain date tokens, no model IDs, so a
+/// drop can never dangle if the store changes mid-drag.
+private enum DayTransfer {
+    static func token(for date: Date) -> String {
+        "plated-day:\(Int(date.startOfDay.timeIntervalSince1970))"
+    }
+
+    static func date(from token: String?) -> Date? {
+        guard let token, token.hasPrefix("plated-day:"),
+              let seconds = TimeInterval(token.dropFirst("plated-day:".count)) else { return nil }
+        return Date(timeIntervalSince1970: seconds)
+    }
+}
+
+/// Swipe a planned night left to reveal Remove — the standard gesture,
+/// rebuilt for rows that live outside a List.
+private struct SwipeToRemove<Content: View>: View {
+    @Binding var isOpen: Bool
+    let onRemove: () -> Void
+    @ViewBuilder let content: () -> Content
+
+    @State private var dragOffset: CGFloat = 0
+    private let revealWidth: CGFloat = 76
+
+    var body: some View {
+        ZStack(alignment: .trailing) {
+            if isOpen || dragOffset < 0 {
+                Button {
+                    onRemove()
+                } label: {
+                    Circle()
+                        .fill(Color.tomato)
+                        .frame(width: 44, height: 44)
+                        .overlay {
+                            Image(systemName: "trash")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundStyle(.white)
+                        }
+                }
+                .buttonStyle(.plain)
+                .padding(.trailing, 10)
+            }
+
+            content()
+                .offset(x: (isOpen ? -revealWidth : 0) + dragOffset)
+                .simultaneousGesture(
+                    DragGesture(minimumDistance: 24)
+                        .onChanged { value in
+                            // Horizontal-dominant only, so the plan still scrolls.
+                            guard abs(value.translation.width) > abs(value.translation.height) else { return }
+                            let base: CGFloat = isOpen ? -revealWidth : 0
+                            dragOffset = min(max(value.translation.width, -revealWidth - base), -base)
+                        }
+                        .onEnded { value in
+                            let projected = (isOpen ? -revealWidth : 0) + value.translation.width
+                            withAnimation(.plSnap) {
+                                isOpen = projected < -revealWidth / 2
+                                dragOffset = 0
+                            }
+                        }
+                )
+        }
+        .animation(.plSnap, value: isOpen)
     }
 }
 

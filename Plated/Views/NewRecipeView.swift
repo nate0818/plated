@@ -18,8 +18,20 @@ struct NewRecipeView: View {
     @State private var photoItem: PhotosPickerItem?
     @State private var photoData: Data?
     @State private var photoLoading = false
+    @State private var category: RecipeCategory?
+    @State private var difficultyOverride: RecipeDifficulty?
+    @State private var draftIngredients: [DraftIngredient] = []
+    @State private var ingredientEntry = ""
+    @State private var addToGroceries = true
 
     private let minuteChoices = [15, 25, 40, 60, 90]
+
+    struct DraftIngredient: Identifiable {
+        let id = UUID()
+        var name: String
+        var quantity: Double
+        var unit: String
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -72,8 +84,27 @@ struct NewRecipeView: View {
                         } label: {
                             factCard("Serves", "\(serves)")
                         }
-                        factCard("Effort", minutes < 30 ? "Easy" : (minutes < 60 ? "Weekend" : "Project"))
+                        Menu {
+                            ForEach(RecipeDifficulty.allCases) { level in
+                                Button(level.rawValue) { difficultyOverride = level }
+                            }
+                        } label: {
+                            factCard("Effort", effectiveDifficulty.rawValue)
+                        }
                     }
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        MicroLabel("What kind of dish")
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 8) {
+                                ForEach(RecipeCategory.allCases) { option in
+                                    categoryChip(option)
+                                }
+                            }
+                        }
+                    }
+
+                    ingredientsSection
 
                     VStack(alignment: .leading, spacing: 8) {
                         MicroLabel("Who can see it")
@@ -141,6 +172,154 @@ struct NewRecipeView: View {
     }
 
     // MARK: Pieces
+
+    private var effectiveDifficulty: RecipeDifficulty {
+        difficultyOverride ?? RecipeDifficulty.from(minutes: minutes)
+    }
+
+    private func categoryChip(_ option: RecipeCategory) -> some View {
+        let active = category == option
+        return Button {
+            Haptic.tap()
+            withAnimation(.plSnap) { category = active ? nil : option }
+        } label: {
+            HStack(spacing: 5) {
+                Image(systemName: option.symbolName)
+                    .font(.system(size: 11, weight: .bold))
+                Text(option.rawValue)
+                    .font(.jakarta(13, .bold))
+            }
+            .fixedSize()
+            .foregroundStyle(active ? Color.canvas : Color.ink)
+            .padding(.horizontal, 13)
+            .frame(height: 38)
+            .background {
+                if active {
+                    Capsule().fill(Color.ink)
+                } else {
+                    Capsule().strokeBorder(Color.hairline)
+                }
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// Quick ingredient capture — "2 lb chicken thighs" in one line, parsed
+    /// on the way in, so the grocery list has something real to build from.
+    private var ingredientsSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            MicroLabel("Ingredients")
+
+            ForEach(draftIngredients) { draft in
+                HStack {
+                    Text(draft.name)
+                        .font(.jakarta(14, .semibold))
+                        .foregroundStyle(Color.ink)
+                    Spacer()
+                    Text(draftQuantityText(draft))
+                        .font(.jakarta(13, .medium))
+                        .foregroundStyle(Color.inkSecondary)
+                    Button {
+                        Haptic.tap()
+                        withAnimation(.plSnap) {
+                            draftIngredients.removeAll { $0.id == draft.id }
+                        }
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(Color.inkFaint)
+                            .frame(minWidth: 32, minHeight: 32)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.horizontal, 4)
+            }
+
+            HStack(spacing: 8) {
+                TextField("Add one — “2 lb chicken thighs”", text: $ingredientEntry)
+                    .font(.jakarta(14, .medium))
+                    .padding(.horizontal, 14)
+                    .frame(height: 44)
+                    .overlay(RoundedRectangle(cornerRadius: Radius.chip).strokeBorder(Color.hairline))
+                    .onSubmit(addIngredient)
+                Button {
+                    addIngredient()
+                } label: {
+                    Circle()
+                        .strokeBorder(Color.hairline, lineWidth: 1.5)
+                        .frame(width: 40, height: 40)
+                        .overlay {
+                            Image(systemName: "plus")
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundStyle(Color.ink)
+                        }
+                        .frame(minWidth: 44, minHeight: 44)
+                }
+                .buttonStyle(.plain)
+                .disabled(ingredientEntry.trimmingCharacters(in: .whitespaces).isEmpty)
+            }
+
+            if !draftIngredients.isEmpty {
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Add to this week's grocery list")
+                            .font(.jakarta(14, .bold))
+                            .foregroundStyle(Color.ink)
+                        Text("These \(draftIngredients.count) items land in the basket when you save.")
+                            .font(.jakarta(12, .medium))
+                            .foregroundStyle(Color.inkSecondary)
+                    }
+                    Spacer()
+                    Toggle("", isOn: $addToGroceries)
+                        .labelsHidden()
+                        .tint(Color.basil)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .overlay(RoundedRectangle(cornerRadius: Radius.card).strokeBorder(Color.hairline))
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+        .animation(.plSnap, value: draftIngredients.count)
+    }
+
+    private func addIngredient() {
+        let entry = ingredientEntry.trimmingCharacters(in: .whitespaces)
+        guard !entry.isEmpty else { return }
+        Haptic.tap()
+        draftIngredients.append(Self.parseIngredient(entry))
+        ingredientEntry = ""
+    }
+
+    private func draftQuantityText(_ draft: DraftIngredient) -> String {
+        var parts: [String] = []
+        if draft.quantity > 0 { parts.append(Ingredient.format(draft.quantity)) }
+        if !draft.unit.isEmpty { parts.append(draft.unit) }
+        return parts.joined(separator: " ")
+    }
+
+    /// "2 lb chicken thighs" → (2, "lb", "chicken thighs"). Forgiving on
+    /// purpose — anything unparseable is just a name.
+    static func parseIngredient(_ entry: String) -> DraftIngredient {
+        var tokens = entry.split(separator: " ").map(String.init)
+        var quantity: Double = 0
+        var unit = ""
+        if let first = tokens.first, let value = Double(first) {
+            quantity = value
+            tokens.removeFirst()
+            let knownUnits: Set<String> = [
+                "lb", "lbs", "oz", "g", "kg", "cup", "cups", "tbsp", "tsp",
+                "clove", "cloves", "can", "cans", "jar", "bottle", "bunch",
+                "pint", "quart", "ball", "balls", "slice", "slices"
+            ]
+            if let next = tokens.first, knownUnits.contains(next.lowercased()) {
+                unit = next
+                tokens.removeFirst()
+            }
+        }
+        let name = tokens.joined(separator: " ")
+        return DraftIngredient(name: name.isEmpty ? entry : name, quantity: quantity, unit: unit)
+    }
 
     private var photoWell: some View {
         PhotosPicker(selection: $photoItem, matching: .images) {
@@ -297,7 +476,33 @@ struct NewRecipeView: View {
         recipe.visibility = visibility
         recipe.householdCanEdit = visibility == "private" ? false : householdCanEdit
         recipe.photoData = photoData
+        recipe.categoryValue = category
+        if let difficultyOverride {
+            recipe.difficultyValue = difficultyOverride
+        }
+        recipe.ingredients = draftIngredients.enumerated().map { index, draft in
+            Ingredient(
+                name: draft.name, quantity: draft.quantity, unit: draft.unit,
+                aisle: Self.guessAisle(for: draft.name), sortIndex: index
+            )
+        }
         context.insert(recipe)
+
+        // The ask that used to be a surprise: new ingredients go straight to
+        // this week's basket when the cook says so. Manual lines survive the
+        // auto-rebuild by design.
+        if addToGroceries {
+            let weekStart = Calendar.current.startOfDay(for: .now)
+            for draft in draftIngredients {
+                let item = GroceryItem(
+                    name: draft.name, quantity: draft.quantity, unit: draft.unit,
+                    aisle: Self.guessAisle(for: draft.name),
+                    weekStart: weekStart, isManual: true
+                )
+                item.originTitle = recipe.title
+                context.insert(item)
+            }
+        }
 
         if let night {
             let cook = members.first { $0.cookWeekdays.contains(Calendar.current.component(.weekday, from: night)) }
@@ -308,6 +513,26 @@ struct NewRecipeView: View {
             ))
         }
         dismiss()
+    }
+
+    /// A few obvious keywords beat asking the cook to file groceries by hand.
+    /// Everything unrecognized lands in Other, which is where it would have
+    /// gone anyway.
+    static func guessAisle(for name: String) -> GroceryAisle {
+        let lowered = name.lowercased()
+        let table: [(GroceryAisle, [String])] = [
+            (.meat, ["chicken", "beef", "steak", "pork", "salmon", "fish", "tuna", "shrimp", "turkey", "sausage", "bacon"]),
+            (.dairy, ["milk", "butter", "cheese", "egg", "yogurt", "cream", "mozzarella", "parmesan"]),
+            (.produce, ["lemon", "lime", "onion", "garlic", "pepper", "tomato", "avocado", "lettuce", "cucumber", "basil", "cilantro", "spinach", "carrot", "potato", "broccoli", "asparagus", "berries", "apple", "banana"]),
+            (.bakery, ["bread", "dough", "bun", "tortilla", "bagel", "roll"]),
+            (.frozen, ["frozen", "ice cream"]),
+            (.beverages, ["juice", "soda", "wine", "beer", "coffee", "tea"]),
+            (.pantry, ["rice", "pasta", "flour", "sugar", "oil", "sauce", "beans", "chickpea", "quinoa", "stock", "broth", "spice", "salt", "syrup", "vinegar", "can "])
+        ]
+        for (aisle, keywords) in table where keywords.contains(where: lowered.contains) {
+            return aisle
+        }
+        return .other
     }
 
     /// Downscale to ~1200px and recompress — CloudKit charges by the byte.

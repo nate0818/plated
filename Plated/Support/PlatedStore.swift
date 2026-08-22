@@ -17,7 +17,8 @@ enum PlatedStore {
         Gathering.self,
         GroceryItem.self,
         TablePost.self,
-        TableComment.self
+        TableComment.self,
+        DirectMessage.self
     ])
 
     /// `cloudKitDatabase: .automatic` uses the iCloud container when the

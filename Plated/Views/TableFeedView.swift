@@ -14,16 +14,24 @@ struct TableFeedView: View {
     @Query private var recipes: [Recipe]
 
     @State private var bouncePost: PersistentIdentifier?
-    @State private var commentingPost: TablePost?
+    @State private var threadPost: TablePost?
+    @State private var seatsPresented = false
     @State private var savedToast: String?
     @State private var toastToken = 0
     @State private var discoverPresented = false
     @AppStorage("pendingSeats") private var pendingSeatsRaw = ""
 
     private var seatCount: Int {
-        let authors = Set(posts.filter { $0.kind == "dish" }.map(\.authorName))
-        let pending = pendingSeatsRaw.split(separator: "\n").count
-        return max(members.count + authors.subtracting(members.map(\.name)).count + pending, 1)
+        // "Sam Meadows" the author is "Sam" the household member — first
+        // names bridge the two worlds until real user IDs exist.
+        let knownNames = Set(members.map(\.name))
+        let guests = Set(
+            posts.filter { $0.kind == "dish" }
+                .map(\.authorName)
+                .filter { !knownNames.contains($0) && !knownNames.contains(String($0.split(separator: " ").first ?? "")) }
+        )
+        let pending = pendingSeatsRaw.split(separator: "\n").filter { !$0.isEmpty }.count
+        return max(members.count + guests.count + pending, 1)
     }
 
     var body: some View {
@@ -48,16 +56,25 @@ struct TableFeedView: View {
                 .padding(.bottom, 110)
             }
         }
-        .sheet(item: $commentingPost) { post in
-            CommentSheet(post: post)
+        .sheet(item: $threadPost) { post in
+            PostThreadView(post: post) { saveToCookbook($0) }
+        }
+        .sheet(isPresented: $seatsPresented) {
+            TableSeatsSheet()
         }
         .fullScreenCover(isPresented: $discoverPresented) {
             DiscoverView()
         }
         .onAppear {
             #if DEBUG
-            if ProcessInfo.processInfo.arguments.contains("-plated-open-discover") {
+            if LaunchFlags.consume("-plated-open-discover") {
                 discoverPresented = true
+            }
+            if LaunchFlags.consume("-plated-open-seats") {
+                seatsPresented = true
+            }
+            if LaunchFlags.consume("-plated-open-thread") {
+                threadPost = posts.first { $0.kind == "dish" }
             }
             #endif
         }
@@ -78,20 +95,23 @@ struct TableFeedView: View {
     // MARK: Header
 
     private var header: some View {
-        HStack {
+        HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
                     Image(systemName: "lock")
                         .font(.system(size: 11, weight: .bold))
                         .foregroundStyle(Color.inkFaint)
                     MicroLabel("\(seatCount) seats · Invite only")
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
                 }
                 Text("The Table")
                     .font(.gabarito(25, .bold))
                     .tracking(-0.3)
                     .foregroundStyle(Color.ink)
             }
-            Spacer()
+            .layoutPriority(1)
+            Spacer(minLength: 8)
             Button {
                 Haptic.tap()
                 discoverPresented = true
@@ -108,15 +128,23 @@ struct TableFeedView: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .padding(.trailing, 8)
-            HStack(spacing: -8) {
-                ForEach(Array(members.filter { !$0.isOwner }.prefix(2)), id: \.persistentModelID) { member in
-                    AvatarCircle(initials: member.firstInitial, tone: member.tone, size: 34)
+            // The seats at your table — tap to see, message, and manage them.
+            Button {
+                Haptic.tap()
+                seatsPresented = true
+            } label: {
+                HStack(spacing: -8) {
+                    ForEach(Array(members.filter { !$0.isOwner }.prefix(2)), id: \.persistentModelID) { member in
+                        AvatarCircle(initials: member.firstInitial, tone: member.tone, size: 34)
+                            .overlay(Circle().strokeBorder(Color.canvas, lineWidth: 2))
+                    }
+                    AvatarCircle(initials: "+\(max(seatCount - 3, 1))", tone: .tomatoPair, size: 34)
                         .overlay(Circle().strokeBorder(Color.canvas, lineWidth: 2))
                 }
-                AvatarCircle(initials: "+\(max(seatCount - 3, 1))", tone: .tomatoPair, size: 34)
-                    .overlay(Circle().strokeBorder(Color.canvas, lineWidth: 2))
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
         }
     }
 
@@ -149,13 +177,20 @@ struct TableFeedView: View {
 
             ZStack(alignment: .topTrailing) {
                 if let data = post.photoData, let image = UIImage(data: data) {
-                    Image(uiImage: image)
-                        .resizable()
-                        .scaledToFill()
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 300)
-                        .clipShape(RoundedRectangle(cornerRadius: Radius.card))
-                        .plCardShadow()
+                    // The photo is the door to the thread.
+                    Button {
+                        Haptic.tap()
+                        threadPost = post
+                    } label: {
+                        Image(uiImage: image)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 300)
+                            .clipShape(RoundedRectangle(cornerRadius: Radius.card))
+                            .plCardShadow()
+                    }
+                    .buttonStyle(.plain)
                 }
                 if post.hasChefsKiss {
                     chefsKissPill
@@ -166,14 +201,22 @@ struct TableFeedView: View {
 
             HStack(spacing: 14) {
                 plateButton(post)
-                HStack(spacing: 7) {
-                    Image(systemName: "bubble.right")
-                        .font(.system(size: 18, weight: .medium))
-                        .foregroundStyle(Color.inkSecondary)
-                    Text("\(post.sortedComments.count)")
-                        .font(.jakarta(14, .bold))
-                        .foregroundStyle(Color.inkSecondary)
+                Button {
+                    Haptic.tap()
+                    threadPost = post
+                } label: {
+                    HStack(spacing: 7) {
+                        Image(systemName: "bubble.right")
+                            .font(.system(size: 18, weight: .medium))
+                            .foregroundStyle(Color.inkSecondary)
+                        Text("\(post.sortedComments.count)")
+                            .font(.jakarta(14, .bold))
+                            .foregroundStyle(Color.inkSecondary)
+                    }
+                    .frame(minHeight: 44)
+                    .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
                 Spacer()
             }
             .padding(.top, 10)
@@ -190,7 +233,7 @@ struct TableFeedView: View {
             }
 
             Button {
-                commentingPost = post
+                threadPost = post
             } label: {
                 Text("Add a comment for \(post.firstName)…")
                     .font(.jakarta(12, .semibold))
@@ -236,7 +279,7 @@ struct TableFeedView: View {
                 commentLine(comment)
             }
             Button {
-                commentingPost = post
+                threadPost = post
             } label: {
                 Text("Suggest a dish…")
                     .font(.jakarta(12, .semibold))
@@ -271,18 +314,8 @@ struct TableFeedView: View {
             togglePlate(post)
         } label: {
             HStack(spacing: 7) {
-                ZStack {
-                    Circle()
-                        .strokeBorder(post.platedByMe ? Color.tomato : Color.inkSecondary, lineWidth: 2)
-                        .background(Circle().fill(post.platedByMe ? Color.tomato : Color.clear))
-                        .frame(width: 26, height: 26)
-                    if post.platedByMe {
-                        Circle()
-                            .fill(Color.canvas)
-                            .frame(width: 9, height: 9)
-                    }
-                }
-                .scaleEffect(bouncePost == post.persistentModelID ? 1.35 : 1)
+                PlateReactionGlyph(filled: post.platedByMe)
+                    .scaleEffect(bouncePost == post.persistentModelID ? 1.35 : 1)
                 Text("\(post.totalPlates)")
                     .font(.jakarta(14, .bold))
                     .foregroundStyle(post.platedByMe ? Color.tomato : Color.inkSecondary)
@@ -342,7 +375,8 @@ struct TableFeedView: View {
     }
 
     /// "Plate it" pulls the dish home: the post becomes a cookbook recipe,
-    /// photo and all, ready to land on a night.
+    /// photo and all, ready to land on a night. The author gets the credit —
+    /// a save is the sincerest form of dinner flattery.
     private func saveToCookbook(_ post: TablePost) {
         Haptic.plate()
         let title = post.dishTitle.isEmpty ? "From \(post.firstName)'s table" : post.dishTitle
@@ -352,10 +386,13 @@ struct TableFeedView: View {
             recipe.tags = ["From the Table"]
             recipe.originID = post.originKey
             context.insert(recipe)
+            // Local ledger today; becomes a real push to the author when the
+            // network arrives. Counted once per dish, like the save itself.
+            Awards.recordSaveReceived(by: post.authorName)
         }
         toastToken += 1
         let token = toastToken
-        withAnimation(.plSnap) { savedToast = "Saved to your cookbook" }
+        withAnimation(.plSnap) { savedToast = "Saved — \(post.firstName) gets the credit" }
         Task {
             try? await Task.sleep(for: .seconds(2))
             if toastToken == token {
@@ -380,62 +417,57 @@ struct TableFeedView: View {
     }
 }
 
-/// Comments allow URLs on purpose. Grandma has links.
-struct CommentSheet: View {
-    let post: TablePost
-
-    @Environment(\.modelContext) private var context
-    @Environment(\.dismiss) private var dismiss
-    @AppStorage("userFirstName") private var userFirstName = ""
-    @Query private var members: [HouseholdMember]
-
-    @State private var text = ""
-    @State private var link = ""
+/// The plate reaction mark. At rest it is an actual plate — rim outside,
+/// well inside — so nobody mistakes it for an empty radio button; filled,
+/// it goes tomato with the well knocked out in canvas.
+struct PlateReactionGlyph: View {
+    var filled: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("For \(post.firstName)")
-                .font(.gabarito(19, .extraBold))
-                .foregroundStyle(Color.ink)
-                .frame(maxWidth: .infinity)
-                .padding(.top, 18)
-
-            TextField("Say something nice…", text: $text, axis: .vertical)
-                .font(.jakarta(15, .medium))
-                .lineLimit(3...6)
-                .padding(14)
-                .overlay(RoundedRectangle(cornerRadius: Radius.chip).strokeBorder(Color.hairline))
-
-            TextField("Add a link (optional)", text: $link)
-                .font(.jakarta(14, .medium))
-                .keyboardType(.URL)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-                .padding(14)
-                .overlay(RoundedRectangle(cornerRadius: Radius.chip).strokeBorder(Color.hairline))
-
-            TomatoPillButton(title: "Send to the table") {
-                let author = userFirstName.isEmpty
-                    ? (members.first(where: \.isOwner)?.name ?? "Me")
-                    : userFirstName
-                let comment = TableComment(authorName: author, text: text, linkURL: normalizedLink)
-                comment.post = post
-                context.insert(comment)
-                dismiss()
+        ZStack {
+            Circle()
+                .strokeBorder(filled ? Color.tomato : Color.inkSecondary, lineWidth: 2)
+                .background(Circle().fill(filled ? Color.tomato : Color.clear))
+                .frame(width: 26, height: 26)
+            if filled {
+                Circle()
+                    .fill(Color.canvas)
+                    .frame(width: 9, height: 9)
+            } else {
+                Circle()
+                    .strokeBorder(Color.inkSecondary, lineWidth: 1.5)
+                    .frame(width: 13, height: 13)
             }
-            .disabled(text.isEmpty)
-            .opacity(text.isEmpty ? 0.4 : 1)
-            Spacer()
         }
-        .padding(.horizontal, 24)
-        .presentationDetents([.height(340)])
-        .presentationDragIndicator(.visible)
-        .presentationBackground(Color.canvas)
-        .presentationCornerRadius(Radius.sheet)
     }
+}
 
-    private var normalizedLink: String {
-        guard !link.isEmpty else { return "" }
-        return link.hasPrefix("http") ? link : "https://\(link)"
+/// The same reaction, self-contained for the thread view.
+struct PlateReactionButton: View {
+    let post: TablePost
+    @Binding var bounce: Bool
+
+    var body: some View {
+        Button {
+            let turningOn = !post.platedByMe
+            withAnimation(.plPop) {
+                post.platedByMe.toggle()
+                bounce = true
+            }
+            if turningOn {
+                post.hasChefsKiss ? Haptic.kiss() : Haptic.plate()
+            } else {
+                Haptic.tap()
+            }
+            Task {
+                try? await Task.sleep(for: .milliseconds(320))
+                withAnimation(.plSnap) { bounce = false }
+            }
+        } label: {
+            PlateReactionGlyph(filled: post.platedByMe)
+                .scaleEffect(bounce ? 1.35 : 1)
+                .frame(minWidth: 44, minHeight: 44)
+        }
+        .buttonStyle(.plain)
     }
 }

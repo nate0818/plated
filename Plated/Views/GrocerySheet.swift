@@ -6,6 +6,7 @@ import SwiftData
 /// one tap from Reminders.
 struct GrocerySheet: View {
     @Environment(\.modelContext) private var context
+    @Environment(\.openURL) private var openURL
     @Query(sort: \GroceryItem.name) private var items: [GroceryItem]
 
     @State private var exportResult: String?
@@ -13,7 +14,14 @@ struct GrocerySheet: View {
 
     private var currentItems: [GroceryItem] {
         let windowStart = Calendar.current.startOfDay(for: .now)
-        return items.filter { Calendar.current.isSameDay($0.weekStart, windowStart) }
+        // Manual lines keep the window key of the day they were typed; give
+        // them a week of life so they don't vanish as the window rolls.
+        let manualHorizon = Calendar.current.date(byAdding: .day, value: -7, to: windowStart) ?? windowStart
+        return items.filter {
+            $0.isManual
+                ? $0.weekStart >= manualHorizon
+                : Calendar.current.isSameDay($0.weekStart, windowStart)
+        }
     }
 
     private var grouped: [(GroceryAisle, [GroceryItem])] {
@@ -67,6 +75,22 @@ struct GrocerySheet: View {
                     TomatoPillButton(title: exporting ? "Sending…" : "Send to Reminders", systemImage: "checklist") {
                         exportToReminders()
                     }
+                    Button {
+                        orderWithInstacart()
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: "cart")
+                                .font(.system(size: 15, weight: .semibold))
+                            Text("Order with Instacart")
+                                .font(.jakarta(15, .bold))
+                        }
+                        .foregroundStyle(Color.ink)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 50)
+                        .overlay(Capsule().strokeBorder(Color.hairline, lineWidth: 1.5))
+                        .contentShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
                     if let exportResult {
                         Text(exportResult)
                             .font(.jakarta(12, .semibold))
@@ -126,6 +150,19 @@ struct GrocerySheet: View {
         if item.quantity > 0 { parts.append(Ingredient.format(item.quantity)) }
         if !item.unit.isEmpty { parts.append(item.unit) }
         return parts.joined(separator: " ")
+    }
+
+    /// No public cart API exists, so this is the honest version: the list
+    /// rides the clipboard and Instacart opens (the app when installed, the
+    /// site otherwise) ready for a paste-and-search run.
+    private func orderWithInstacart() {
+        Haptic.plate()
+        let list = currentItems.filter { !$0.isChecked }.map(\.displayText).joined(separator: "\n")
+        UIPasteboard.general.string = list
+        exportResult = "List copied — paste items into your Instacart cart"
+        if let url = URL(string: "https://www.instacart.com/store") {
+            openURL(url)
+        }
     }
 
     private func exportToReminders() {

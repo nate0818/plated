@@ -6,6 +6,8 @@ import SwiftData
 struct HouseholdHomeView: View {
     @Environment(\.modelContext) private var context
     @Query(sort: \HouseholdMember.createdAt) private var members: [HouseholdMember]
+    @Query private var recipes: [Recipe]
+    @Query(filter: #Predicate<TablePost> { !$0.isDiscover }) private var posts: [TablePost]
 
     @Environment(\.colorScheme) private var colorScheme
     @AppStorage("autoRotateOpenNights") private var autoRotate = true
@@ -26,6 +28,8 @@ struct HouseholdHomeView: View {
                 }
 
                 membersCard
+
+                insightsSection
 
                 VStack(alignment: .leading, spacing: 10) {
                     MicroLabel("Who cooks when")
@@ -127,6 +131,71 @@ struct HouseholdHomeView: View {
         return userFamilyName.lowercased().hasSuffix("s")
             ? "The \(userFamilyName)"
             : "The \(userFamilyName)s"
+    }
+
+    // MARK: Insights
+    // The trophy shelf — what this table has earned, counted quietly.
+
+    private var kissCount: Int { posts.filter(\.hasChefsKiss).count }
+
+    private var insightsSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            MicroLabel("Your table, counted")
+            HStack(spacing: 8) {
+                insightTile("Kisses", "\(kissCount)", symbol: "sparkles", accent: kissCount > 0)
+                insightTile("Recipes", "\(recipes.count)", symbol: "book.closed")
+                insightTile("Posts", "\(posts.count)", symbol: "circle.circle")
+                insightTile("Saves", "\(Awards.totalSavesRecorded)", symbol: "arrow.down.heart")
+            }
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    milestoneChip("First recipe", earned: !recipes.isEmpty)
+                    milestoneChip("First table post", earned: posts.contains { $0.kind == "dish" })
+                    milestoneChip("First chef's kiss", earned: kissCount > 0)
+                    milestoneChip("Full table", earned: members.count >= 3)
+                    milestoneChip("First save", earned: Awards.totalSavesRecorded > 0)
+                }
+            }
+        }
+    }
+
+    private func insightTile(_ label: String, _ value: String, symbol: String, accent: Bool = false) -> some View {
+        VStack(spacing: 3) {
+            Image(systemName: symbol)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(accent ? Color.mango : Color.inkFaint)
+            Text(value)
+                .font(.gabarito(19, .extraBold))
+                .foregroundStyle(Color.ink)
+            Text(label.uppercased())
+                .font(.jakarta(9, .extraBold))
+                .tracking(0.5)
+                .foregroundStyle(Color.inkFaint)
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: 76)
+        .overlay(RoundedRectangle(cornerRadius: Radius.chip).strokeBorder(Color.hairline))
+    }
+
+    private func milestoneChip(_ label: String, earned: Bool) -> some View {
+        HStack(spacing: 5) {
+            Image(systemName: earned ? "checkmark.circle.fill" : "circle.dashed")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(earned ? Color.basil : Color.inkFaint)
+            Text(label)
+                .font(.jakarta(12, .bold))
+                .foregroundStyle(earned ? Color.ink : Color.inkFaint)
+        }
+        .fixedSize()
+        .padding(.horizontal, 12)
+        .frame(height: 32)
+        .background {
+            if earned {
+                Capsule().fill(Color.basilTint)
+            } else {
+                Capsule().strokeBorder(Color.hairlineDashed, style: StrokeStyle(lineWidth: 1.5, dash: [4, 4]))
+            }
+        }
     }
 
     private var membersCard: some View {
