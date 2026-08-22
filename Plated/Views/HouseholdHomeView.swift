@@ -454,10 +454,13 @@ struct HouseholdHomeView: View {
                     .font(.jakarta(15, .bold))
                     .foregroundStyle(Color.ink)
                 if member.isOwner {
-                    Text("HEAD OF TABLE")
+                    Text(HouseholdIdentity.isPlaceholder(member.name)
+                         ? "HEAD OF TABLE · TAP TO ADD YOUR NAME"
+                         : "HEAD OF TABLE")
                         .font(.jakarta(12, .bold))
                         .tracking(0.5)
                         .foregroundStyle(Color.inkSecondary)
+                        .lineLimit(2)
                 } else {
                     Text(member.roleLine.isEmpty ? member.role.capitalized : member.roleLine)
                         .font(.jakarta(12, .semibold))

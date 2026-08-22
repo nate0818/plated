@@ -20,6 +20,15 @@ enum HouseholdIdentity {
         return ""
     }
 
+    /// The bootstrap names an owner "Me" when Apple gave us nothing.
+    /// Apple hands a name over on the FIRST authorization only and never
+    /// again, so a placeholder can never be repaired by asking again —
+    /// it has to be treated as a prompt everywhere it is displayed.
+    static func isPlaceholder(_ name: String) -> Bool {
+        let trimmed = name.trimmingCharacters(in: .whitespaces).lowercased()
+        return trimmed.isEmpty || trimmed == "me" || trimmed == "you"
+    }
+
     /// "Meadows" → "Meadows'"; "Chen" → "Chen's". A surname already ending
     /// in s takes the bare apostrophe — "Meadows's Household" reads wrong
     /// on a wall and wrong on a screen.

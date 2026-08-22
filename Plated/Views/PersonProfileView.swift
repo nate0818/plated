@@ -71,10 +71,32 @@ struct PersonProfileView: View {
                     .padding(.top, 8)
 
                     VStack(alignment: .leading, spacing: 3) {
-                        Text(displayName)
-                            .font(.gabarito(24, .semibold))
-                            .tracking(-0.4)
-                            .foregroundStyle(Color.ink)
+                        // "Me" is what the bootstrap wrote when Apple gave
+                        // us nothing — it's a prompt, not a name.
+                        if isMe && HouseholdIdentity.isPlaceholder(personName) {
+                            Button {
+                                Haptic.tap()
+                                editShown = true
+                            } label: {
+                                HStack(spacing: 6) {
+                                    Text("Add your name")
+                                        .font(.gabarito(24, .semibold))
+                                        .tracking(-0.4)
+                                        .foregroundStyle(Color.ink)
+                                    Image(systemName: "pencil")
+                                        .font(.system(size: 13, weight: .semibold))
+                                        .foregroundStyle(Color.inkFaint)
+                                }
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.pressable)
+                            .accessibilityLabel("Add your name")
+                        } else {
+                            Text(displayName)
+                                .font(.gabarito(24, .semibold))
+                                .tracking(-0.4)
+                                .foregroundStyle(Color.ink)
+                        }
                         MicroLabel(roleLine)
                         if isMe && !myBio.isEmpty {
                             Text(myBio)
@@ -316,7 +338,12 @@ struct PersonProfileView: View {
 /// Name and bio, nothing else — the profile stays light.
 struct EditProfileSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var context
+    @Query(sort: \HouseholdMember.createdAt) private var members: [HouseholdMember]
     @AppStorage("userBio") private var bio = ""
+    @AppStorage("userFirstName") private var firstName = ""
+    @State private var draftName = ""
+    @FocusState private var namingSelf: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -327,6 +354,19 @@ struct EditProfileSheet: View {
                 .padding(.top, 18)
 
             VStack(alignment: .leading, spacing: 8) {
+                MicroLabel("Your name")
+                TextField("Nate", text: $draftName)
+                    .font(.jakarta(14, .semibold))
+                    .padding(.horizontal, 14)
+                    .frame(minHeight: 48)
+                    .overlay(RoundedRectangle(cornerRadius: Radius.chip).strokeBorder(Color.hairline))
+                    .contentShape(RoundedRectangle(cornerRadius: Radius.chip))
+                    .onTapGesture { namingSelf = true }
+                    .focused($namingSelf)
+                    .submitLabel(.done)
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
                 MicroLabel("Bio")
                 TextField("What kind of cook are you?", text: $bio, axis: .vertical)
                     .font(.jakarta(14, .medium))
@@ -335,18 +375,37 @@ struct EditProfileSheet: View {
                     .overlay(RoundedRectangle(cornerRadius: Radius.chip).strokeBorder(Color.hairline))
             }
 
-            Text("Your photo comes from your table's eyes only for now — Apple doesn't share Apple ID pictures with apps, so profile photos arrive with Plated's own network.")
+            Text("Apple shares your name once, when you first sign in, and never again — so if Plated is calling you \"Me\", this is where you fix it. Photos aren't shared by Apple at all; they arrive with Plated's own network.")
                 .font(.jakarta(11, .medium))
                 .foregroundStyle(Color.inkFaint)
 
-            InkPillButton(title: "Done") { dismiss() }
+            InkPillButton(title: "Done") {
+                saveName()
+                dismiss()
+            }
             Spacer()
         }
+        .onAppear {
+            let owner = members.first(where: \.isOwner)?.name ?? firstName
+            draftName = HouseholdIdentity.isPlaceholder(owner) ? "" : owner
+        }
         .padding(.horizontal, 24)
-        .presentationDetents([.height(320)])
+        .presentationDetents([.height(430), .large])
         .presentationDragIndicator(.visible)
         .presentationBackground(Color.canvas)
         .presentationCornerRadius(Radius.sheet)
+    }
+
+    /// The name lives in two places — the preference the app reads for
+    /// authorship and the owner's own row at the table. Both or neither.
+    private func saveName() {
+        let name = draftName.trimmingCharacters(in: .whitespaces)
+        guard !name.isEmpty else { return }
+        firstName = name
+        if let owner = members.first(where: \.isOwner) {
+            owner.name = name
+        }
+        Haptic.plate()
     }
 }
 
