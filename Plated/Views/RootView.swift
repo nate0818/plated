@@ -10,6 +10,15 @@ struct RootView: View {
     @State private var splashDone = false
     @State private var appReady = false
 
+    /// A revoked Apple credential (Settings → Apple ID → Sign out of app)
+    /// closes the door again on next launch.
+    private func recheckCredential() async {
+        if didSignIn, await AppleIdentity.credentialRevoked() {
+            AppleIdentity.clear()
+            didSignIn = false
+        }
+    }
+
     var body: some View {
         ZStack {
             Color.canvas.ignoresSafeArea()
@@ -43,6 +52,7 @@ struct RootView: View {
             try? await Task.sleep(for: .seconds(wake))
             appReady = true
         }
+        .task { await recheckCredential() }
     }
 }
 

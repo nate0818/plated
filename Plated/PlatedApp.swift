@@ -41,7 +41,9 @@ struct PlatedApp: App {
                 .task {
                     // Maintenance: wipe the private CloudKit database, print
                     // a verdict for the console, and quit. PlatedStore ran
-                    // local-only this launch, so nothing re-exports.
+                    // local-only this launch, so nothing re-exports. Debug
+                    // only — a shipped binary carries no data-nuking flag.
+                    #if DEBUG
                     if LaunchFlags.consume("-plated-purge-cloud") {
                         do {
                             try await TableSync.purgeMirroredData()
@@ -51,6 +53,7 @@ struct PlatedApp: App {
                         }
                         exit(0)
                     }
+                    #endif
                 }
         }
         .modelContainer(container)
