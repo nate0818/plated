@@ -80,6 +80,10 @@ struct MainShellView: View {
             }
         }
         .task {
+            // Sample data is a simulator-only furnishing: a real device
+            // starts empty and stays truthful (and never uploads fake
+            // rows to the owner's CloudKit database).
+            #if targetEnvironment(simulator)
             if !didSeedSampleData && recipes.isEmpty && members.isEmpty {
                 didSeedSampleData = true
                 didSeedDiscover = true
@@ -97,6 +101,7 @@ struct MainShellView: View {
                     try? context.save()
                 }
             }
+            #endif
             if !didStampSampleCategories {
                 // Sample recipes seeded before categories existed get filed
                 // once, so the cookbook filters have something to hold.

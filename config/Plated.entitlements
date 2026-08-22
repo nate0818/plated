@@ -3,12 +3,10 @@
 <plist version="1.0">
 <dict>
 	<!--
-	  Reference entitlements for the FULL capability set (iCloud + WeatherKit).
-	  Still not wired into the build; the app-group-only entitlements that ARE
-	  wired live in PlatedApp.entitlements / PlatedWidgets.entitlements beside
-	  this file. Add the iCloud and WeatherKit capabilities in Xcode's
-	  Signing & Capabilities tab, then replace the container identifier
-	  below with your own. See README › Turning on iCloud sync.
+	  Historical reference. The full capability set (plus Sign in with Apple
+	  and the app group) is now wired into PlatedApp.entitlements, which is
+	  what the app target actually signs with. See README › Capabilities and
+	  signing.
 	-->
 	<key>com.apple.developer.icloud-container-identifiers</key>
 	<array>

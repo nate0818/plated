@@ -9,5 +9,12 @@
 		<key>UIColorName</key>
 		<string>LaunchGround</string>
 	</dict>
+	<!-- CloudKit silent pushes. Kept here because Xcode accepts
+	     INFOPLIST_KEY_UIBackgroundModes as a setting but never emits it
+	     into the generated Info.plist. -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
 </dict>
 </plist>

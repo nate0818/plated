@@ -67,20 +67,23 @@ open Plated.xcodeproj
 Pick a simulator and run. The app seeds a few recipes and some cooking history
 on first launch so there is something to look at.
 
-### Turning on iCloud sync
+### Capabilities and signing
 
-The store is built with `cloudKitDatabase: .automatic`, so sync turns on the
-moment the entitlement exists and quietly stays local until then. The
-app-group entitlement is already wired (`config/PlatedApp.entitlements`);
-iCloud is not, so the project compiles without a signing team. To enable:
+The full capability set is wired: `config/PlatedApp.entitlements` carries
+Sign in with Apple, iCloud (CloudKit, container `iCloud.com.natemeadows.plated`),
+WeatherKit, push (`aps-environment`), and the app group; both targets sign
+under team `JA9M6TYXYL` with automatic signing, and the app target sets the
+`PLATED_CLOUDKIT` compile flag that arms `TableSync` (account checks, and
+eventually CKShare Tables). The store is built with
+`cloudKitDatabase: .automatic`, so sync is live wherever the entitlement is
+honored.
 
-1. Select a team for both targets in Signing & Capabilities.
-2. Add the iCloud capability (CloudKit) with container
-   `iCloud.com.natemeadows.plated` — `config/Plated.entitlements` is the
-   reference for the final shape.
-3. Add `PLATED_CLOUDKIT` to `SWIFT_ACTIVE_COMPILATION_CONDITIONS` — this
-   arms `TableSync` (account checks, and eventually CKShare Tables), which
-   deliberately never touches CloudKit APIs in unentitled builds.
+Two things still happen outside this repo: the first device build must run
+from Xcode while signed into the developer account, so automatic signing can
+register the App ID, app group, iCloud container, and capabilities in the
+portal; and WeatherKit can take up to ~30 minutes after that registration
+before forecast requests stop erroring. Simulator builds don't enforce
+entitlements, so everything compiles and runs there regardless.
 
 ### Widgets, Siri, and the shared container
 
@@ -89,9 +92,8 @@ The `PlatedWidgetsExtension` target ships two home-screen widgets — **Tonight*
 who cooks). The app writes a snapshot (`week-snapshot.json` + `tonight.jpg`)
 into the `group.com.natemeadows.plated` app group whenever the scene changes;
 the widget reads it from the other side. Both targets carry the app-group
-entitlement (`config/PlatedApp.entitlements`, `config/PlatedWidgets.entitlements`),
-which works in the simulator without a signing team; on a device, add the App
-Group capability under your team in Signing & Capabilities.
+entitlement (`config/PlatedApp.entitlements`, `config/PlatedWidgets.entitlements`);
+the group registers under the team on the first Xcode device build.
 
 Siri and Shortcuts get two App Intents with zero setup: "What's for dinner in
 Plated" answers with tonight's plan, and "Plate a Dish Tonight" drops a
@@ -154,7 +156,9 @@ Plated/
     └── SampleData.swift
 
 config/
-└── Plated.entitlements     Reference only — see "Turning on iCloud sync"
+├── PlatedApp.entitlements      App target — full set, see "Capabilities and signing"
+├── PlatedWidgets.entitlements  Widget extension — app group only
+└── Plated.entitlements         Historical reference; superseded by PlatedApp.entitlements
 ```
 
 ### Notes on the data model
