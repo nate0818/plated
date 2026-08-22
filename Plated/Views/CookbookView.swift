@@ -84,6 +84,7 @@ struct CookbookView: View {
     @State private var selected: Recipe?
     @State private var filter = RecipeFilter()
     @State private var filterSheetShown = false
+    @State private var activityShown = false
 
     private var shown: [Recipe] { filter.apply(to: recipes) }
 
@@ -99,6 +100,9 @@ struct CookbookView: View {
                             .foregroundStyle(Color.ink)
                     }
                     Spacer()
+                    ActivityBellButton {
+                        activityShown = true
+                    }
                 }
                 .padding(.horizontal, 24)
                 .padding(.top, 6)
@@ -178,6 +182,9 @@ struct CookbookView: View {
             .background(Color.canvas)
             .navigationDestination(item: $selected) { recipe in
                 RecipeDetailView(recipe: recipe)
+            }
+            .navigationDestination(isPresented: $activityShown) {
+                NotificationsView()
             }
             .toolbar(.hidden, for: .navigationBar)
         }

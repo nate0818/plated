@@ -28,6 +28,7 @@ struct TableFeedView: View {
     @State private var savedToast: String?
     @State private var toastToken = 0
     @State private var discoverPresented = false
+    @State private var activityShown = false
     @AppStorage("pendingSeats") private var pendingSeatsRaw = ""
 
     private var seatCount: Int {
@@ -93,6 +94,9 @@ struct TableFeedView: View {
             .navigationDestination(item: $personShown) { person in
                 PersonProfileView(personName: person.name, colorHex: person.colorHex)
             }
+            .navigationDestination(isPresented: $activityShown) {
+                NotificationsView()
+            }
         }
         .sheet(isPresented: $seatsPresented) {
             TableSeatsSheet()
@@ -157,6 +161,9 @@ struct TableFeedView: View {
             }
             .layoutPriority(1)
             Spacer(minLength: 8)
+            ActivityBellButton {
+                activityShown = true
+            }
             Button {
                 Haptic.tap()
                 discoverPresented = true

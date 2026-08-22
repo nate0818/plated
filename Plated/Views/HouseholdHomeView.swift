@@ -21,8 +21,20 @@ struct HouseholdHomeView: View {
     @State private var settingsPresented = false
     @State private var turnsTipShown = false
     @State private var bannerItem: PhotosPickerItem?
+    @State private var activityShown = false
 
     var body: some View {
+        // The stack exists for one push: the bell rings everywhere now.
+        NavigationStack {
+            page
+                .navigationDestination(isPresented: $activityShown) {
+                    NotificationsView()
+                }
+                .toolbar(.hidden, for: .navigationBar)
+        }
+    }
+
+    private var page: some View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 20) {
 
@@ -37,6 +49,9 @@ struct HouseholdHomeView: View {
                             .foregroundStyle(Color.ink)
                     }
                     Spacer()
+                    ActivityBellButton {
+                        activityShown = true
+                    }
                     Button {
                         Haptic.tap()
                         settingsPresented = true

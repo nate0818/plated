@@ -57,10 +57,10 @@ private struct SmileShape: Shape {
 
 /// The chat. Grounded in this household's cookbook via ProngsbyBrain —
 /// on-device rules today, the doorway for the real model later. The thread
-/// persists like any DM.
+/// persists like any DM. Lives in the tab bar now — a seat at the table,
+/// not a page behind one.
 struct ProngsbyView: View {
     @Environment(\.modelContext) private var context
-    @Environment(\.dismiss) private var dismiss
     @Query private var recipes: [Recipe]
     @Query(sort: \HouseholdMember.createdAt) private var members: [HouseholdMember]
     @Query(
@@ -70,6 +70,7 @@ struct ProngsbyView: View {
 
     @State private var draft = ""
     @State private var thinking = false
+    @State private var activityShown = false
 
     private let starters = [
         "What should we make tonight?",
@@ -79,6 +80,15 @@ struct ProngsbyView: View {
     ]
 
     var body: some View {
+        NavigationStack {
+            chat
+                .navigationDestination(isPresented: $activityShown) {
+                    NotificationsView()
+                }
+        }
+    }
+
+    private var chat: some View {
         VStack(spacing: 0) {
             header
             Divider().overlay(Color.hairlineSoft)
@@ -175,22 +185,6 @@ struct ProngsbyView: View {
 
     private var header: some View {
         HStack(spacing: 10) {
-            Button {
-                Haptic.tap()
-                dismiss()
-            } label: {
-                Circle()
-                    .strokeBorder(Color.hairline, lineWidth: 1.5)
-                    .frame(width: 38, height: 38)
-                    .overlay {
-                        Image(systemName: "chevron.left")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(Color.ink)
-                    }
-                    .frame(minWidth: 44, minHeight: 44)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
             ProngsbyGlyph(size: 30)
             VStack(alignment: .leading, spacing: 0) {
                 Text("Prongsby")
@@ -201,6 +195,9 @@ struct ProngsbyView: View {
                     .foregroundStyle(Color.inkSecondary)
             }
             Spacer()
+            ActivityBellButton {
+                activityShown = true
+            }
         }
         .padding(.horizontal, 24)
         .padding(.top, 6)
