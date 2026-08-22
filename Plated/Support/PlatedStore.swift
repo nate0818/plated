@@ -188,7 +188,7 @@ enum PlatedStore {
         }
         defer { sqlite3_close(db) }
 
-        let tables = ["ZHOUSEHOLDMEMBER", "ZRECIPE", "ZPLANNEDMEAL", "ZTABLEPOST"]
+        let tables = ["ZHOUSEHOLDMEMBER", "ZRECIPE", "ZPLANNEDMEAL", "ZTABLEPOST", "ZDIRECTMESSAGE"]
         var anyReadable = false
         for table in tables {
             var statement: OpaquePointer?
