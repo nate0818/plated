@@ -281,6 +281,7 @@
 				CODE_SIGN_ENTITLEMENTS = config/PlatedApp.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = JA9M6TYXYL;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Plated adds your gatherings and dinner parties to your calendar.";
@@ -300,6 +301,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.natemeadows.plated;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTS_MACCATALYST = NO;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "PLATED_CLOUDKIT $(inherited)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -314,6 +316,7 @@
 				CODE_SIGN_ENTITLEMENTS = config/PlatedApp.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = JA9M6TYXYL;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Plated adds your gatherings and dinner parties to your calendar.";
@@ -333,6 +336,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.natemeadows.plated;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTS_MACCATALYST = NO;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "PLATED_CLOUDKIT $(inherited)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -345,6 +349,7 @@
 				CODE_SIGN_ENTITLEMENTS = config/PlatedWidgets.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = JA9M6TYXYL;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = PlatedWidgets/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Plated Widgets";
@@ -370,6 +375,7 @@
 				CODE_SIGN_ENTITLEMENTS = config/PlatedWidgets.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = JA9M6TYXYL;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = PlatedWidgets/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Plated Widgets";
