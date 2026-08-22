@@ -35,9 +35,11 @@ struct PlateTonightIntent: AppIntent {
         }
 
         let members = try context.fetch(FetchDescriptor<HouseholdMember>())
-        let weekday = Calendar.current.component(.weekday, from: today)
-        let cook = members.first { $0.cookWeekdays.contains(weekday) }
-            ?? members.first(where: { $0.role == "owner" })
+        // Same rotation the app uses: standing weekday first, then the
+        // take-turns toggle's fewest-dinners pick, then the head of table —
+        // so plating by voice respects auto-rotate like plating by touch.
+        let meals = try context.fetch(FetchDescriptor<PlannedMeal>())
+        let cook = CookRotation.cook(for: today, members: members, meals: meals)
 
         context.insert(PlannedMeal(
             date: today, slot: .dinner, recipe: recipe,

@@ -29,6 +29,11 @@ enum SampleData {
 
     @MainActor
     static func seed(into context: ModelContext) {
+        // Store-level guard: the caller's AppStorage flag can race a second
+        // scene's task or a CloudKit import, and seeding twice doubles every
+        // row. A failed count reads as "occupied" — never seed on doubt.
+        guard let occupants = try? context.fetchCount(FetchDescriptor<HouseholdMember>()),
+              occupants == 0 else { return }
         // People — Nate owns the account; Sam and Riley have standing nights.
         let nate = HouseholdMember(
             name: "Nate", colorHex: "FF5A3C", isPrimaryCook: true,
