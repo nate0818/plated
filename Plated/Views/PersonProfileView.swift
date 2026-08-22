@@ -15,7 +15,10 @@ struct PersonProfileView: View {
     @Query(filter: #Predicate<TablePost> { !$0.isDiscover }, sort: \TablePost.createdAt, order: .reverse)
     private var allPosts: [TablePost]
     @Query private var recipes: [Recipe]
-    @Query private var profiles: [HouseholdProfile]
+    // Oldest first: two devices racing a first banner before sync merges
+    // both insert a row, and an unsorted `.first` flips arbitrarily between
+    // them per device. The oldest row is the household's one true profile.
+    @Query(sort: \HouseholdProfile.createdAt) private var profiles: [HouseholdProfile]
 
     @AppStorage("userBio") private var myBio = ""
     @AppStorage("userFamilyName") private var userFamilyName = ""

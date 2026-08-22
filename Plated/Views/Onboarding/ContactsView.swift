@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 import Contacts
 
 /// "Set a place" — inviting someone is laying a place setting for them.
@@ -17,11 +18,31 @@ struct ContactsView: View {
     }
 
     @AppStorage("userFirstName") private var userFirstName = ""
+    @Environment(\.modelContext) private var context
     @State private var candidates: [Candidate] = []
     @State private var accessState: AccessState = .notAsked
     @State private var arrived = false
 
     enum AccessState { case notAsked, granted, denied }
+
+    /// Every table has a host. Simulators get one from the sample seed;
+    /// a real device lays the owner's own place here, once, from the
+    /// sign-in name — without it the user's profile, posts, and the cook
+    /// rotation all point at nobody.
+    private func finish() {
+        let owners = try? context.fetchCount(
+            FetchDescriptor<HouseholdMember>(predicate: #Predicate { $0.role == "owner" })
+        )
+        if (owners ?? 0) == 0 {
+            context.insert(HouseholdMember(
+                name: userFirstName.isEmpty ? "Me" : userFirstName,
+                colorHex: "FF5A3C", isPrimaryCook: true,
+                role: "owner", roleLine: "Head of table", cookWeekdays: []
+            ))
+            try? context.save()
+        }
+        onDone()
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -90,7 +111,7 @@ struct ContactsView: View {
                             .overlay(Capsule().strokeBorder(Color.hairline, lineWidth: 1.5))
                         }
                     }
-                    TomatoPillButton(title: "To my table") { onDone() }
+                    TomatoPillButton(title: "To my table") { finish() }
                 } else {
                     TomatoPillButton(title: "Find my people") { requestContacts() }
                     if accessState == .denied {
@@ -102,7 +123,7 @@ struct ContactsView: View {
                 }
                 Button {
                     Haptic.tap()
-                    onDone()
+                    finish()
                 } label: {
                     Text("Start with an empty table")
                         .font(.jakarta(14, .semibold))

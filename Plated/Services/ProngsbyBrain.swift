@@ -180,7 +180,12 @@ struct ProngsbyBrain {
         guard text.contains("swap") || text.contains("replace") || text.contains("instead of") else { return nil }
         guard let recipe = recipeMatch(in: text) else { return nil }
         let proteins = ["chicken", "beef", "steak", "pork", "salmon", "fish", "tuna", "shrimp", "turkey", "tofu", "lamb", "sausage"]
-        let mentioned = proteins.filter { text.contains($0) }
+        // Utterance order decides direction — "swap the salmon for beef"
+        // must read salmon→beef even though beef sits earlier in the list.
+        let mentioned = proteins
+            .compactMap { p in text.range(of: p).map { (p, $0.lowerBound) } }
+            .sorted { $0.1 < $1.1 }
+            .map(\.0)
         guard mentioned.count >= 2 else {
             return "Swap what for what in \(recipe.title)? Give me both — \"swap the chicken for shrimp\" — and I'll adjust the plan."
         }

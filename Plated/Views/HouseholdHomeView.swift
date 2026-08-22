@@ -11,7 +11,9 @@ struct HouseholdHomeView: View {
     @Query(sort: \HouseholdMember.createdAt) private var members: [HouseholdMember]
     @Query private var recipes: [Recipe]
     @Query(filter: #Predicate<TablePost> { !$0.isDiscover }) private var posts: [TablePost]
-    @Query private var profiles: [HouseholdProfile]
+    // Oldest first — see PersonProfileView: the oldest row is the
+    // household's one true profile when a sync race left more than one.
+    @Query(sort: \HouseholdProfile.createdAt) private var profiles: [HouseholdProfile]
 
     @Environment(\.colorScheme) private var colorScheme
     @AppStorage("autoRotateOpenNights") private var autoRotate = true

@@ -33,12 +33,22 @@ struct GroceryListBuilder {
             )
         )
 
+        // Auto lines left over from earlier windows get swept below, but
+        // their state carries: the window rolls forward every day, and
+        // yesterday's checked-off rice is still today's rice.
+        let stale = try context.fetch(
+            FetchDescriptor<GroceryItem>(
+                predicate: #Predicate { $0.weekStart < weekStart && !$0.isManual }
+            )
+        )
+
         // Preserve what people checked off so a rebuild mid-shop is not
         // destructive, and keep Reminders links so re-exporting updates in
         // place instead of duplicating.
-        let checkedNames = Set(existing.filter(\.isChecked).map { Self.key(name: $0.name, unit: $0.unit) })
+        let carried = existing + stale
+        let checkedNames = Set(carried.filter(\.isChecked).map { Self.key(name: $0.name, unit: $0.unit) })
         let reminderIDs = Dictionary(
-            existing.compactMap { item in
+            carried.compactMap { item in
                 item.reminderID.map { (Self.key(name: item.name, unit: item.unit), $0) }
             },
             uniquingKeysWith: { first, _ in first }
@@ -47,14 +57,6 @@ struct GroceryListBuilder {
         for item in existing where !item.isManual {
             context.delete(item)
         }
-
-        // Sweep auto lines left over from earlier windows so the store does
-        // not accumulate invisible rows as the week rolls forward.
-        let stale = try context.fetch(
-            FetchDescriptor<GroceryItem>(
-                predicate: #Predicate { $0.weekStart < weekStart && !$0.isManual }
-            )
-        )
         for item in stale { context.delete(item) }
 
         var created: [GroceryItem] = []
