@@ -1,20 +1,21 @@
 import SwiftUI
 import SwiftData
 
-/// The journey: splash settles in → Sign in with Apple (the only door) →
-/// set your table from contacts → the week. Each stage is remembered, so
-/// returning users land straight on their week after the splash.
+/// The journey: the opener sets the table → Sign in with Apple (the only
+/// door) → set your table from contacts → the week. Each stage is
+/// remembered, so returning users land straight on their week.
 struct RootView: View {
     @AppStorage("didSignIn") private var didSignIn = false
     @AppStorage("didSetTable") private var didSetTable = false
     @State private var splashDone = false
+    @State private var appReady = false
 
     var body: some View {
         ZStack {
             Color.canvas.ignoresSafeArea()
 
             if !splashDone {
-                SplashView()
+                LaunchOpenerView(ready: appReady) { splashDone = true }
                     .transition(.opacity)
             } else if !didSignIn {
                 SignInView { didSignIn = true }
@@ -31,8 +32,12 @@ struct RootView: View {
         .animation(.plSettle, value: didSignIn)
         .animation(.plSettle, value: didSetTable)
         .task {
-            try? await Task.sleep(for: .seconds(1.4))
-            splashDone = true
+            // Stand-in for real wake-up work. The opener holds in its
+            // simmer loop if this ever outlasts the wordmark settling —
+            // `-plated-slow-wake` forces that path for testing.
+            let wake: Double = LaunchFlags.consume("-plated-slow-wake") ? 8 : 1.4
+            try? await Task.sleep(for: .seconds(wake))
+            appReady = true
         }
     }
 }
