@@ -112,7 +112,7 @@ struct HouseholdHomeView: View {
                 Button {
                     Haptic.tap()
                     // One seat is free — the head of table. The rest is Plated+.
-                    if PlatedPlus.isActive || members.count <= 1 {
+                    if !PlatedPlus.gatingEnabled || PlatedPlus.isActive || members.count <= 1 {
                         addPresented = true
                     } else {
                         paywallPresented = true

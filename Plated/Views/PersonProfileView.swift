@@ -397,22 +397,24 @@ struct SettingsSheet: View {
                             }
                     }
 
-                    Button {
-                        Haptic.tap()
-                        paywallShown = true
-                    } label: {
-                        settingRow(
-                            icon: "plus.circle",
-                            title: "Plated+",
-                            caption: plusActive ? "Active — the whole household is seated." : "Seat the whole household and everything next."
-                        ) {
-                            Text(plusActive ? "ACTIVE" : "JOIN")
-                                .font(.jakarta(11, .extraBold))
-                                .tracking(0.5)
-                                .foregroundStyle(plusActive ? Color.basil : Color.tomato)
+                    if PlatedPlus.gatingEnabled {
+                        Button {
+                            Haptic.tap()
+                            paywallShown = true
+                        } label: {
+                            settingRow(
+                                icon: "plus.circle",
+                                title: "Plated+",
+                                caption: plusActive ? "Active — the whole household is seated." : "Seat the whole household and everything next."
+                            ) {
+                                Text(plusActive ? "ACTIVE" : "JOIN")
+                                    .font(.jakarta(11, .extraBold))
+                                    .tracking(0.5)
+                                    .foregroundStyle(plusActive ? Color.basil : Color.tomato)
+                            }
                         }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
 
                     Text("Plated 0.1.0 · Made at the table")
                         .font(.jakarta(11, .medium))

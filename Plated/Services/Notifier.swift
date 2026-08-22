@@ -69,6 +69,11 @@ enum Notifier {
 /// A UserDefaults flag until StoreKit products exist in App Store Connect;
 /// the paywall says so honestly.
 enum PlatedPlus {
+    /// Nate has held the paywall decision — no gate, no Plated+ surfaces
+    /// until he calls it. Flipping this one constant re-arms the seat gate
+    /// and the Settings row; nothing else needs to change.
+    static let gatingEnabled = false
+
     private static let key = "platedPlusActive"
 
     static var isActive: Bool {
