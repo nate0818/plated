@@ -85,13 +85,21 @@ struct SignInView: View {
                         }
                         Haptic.tap()
                         onSignedIn()
-                    case .failure:
-                        // Debug builds still open the door — sync waits for
-                        // a signed build, planning shouldn't. Release keeps
-                        // it shut: cancel means cancel.
+                    case .failure(let error):
+                        // Cancel means cancel — the door stays shut. Any
+                        // other failure (broken auth service, no network to
+                        // Apple) still opens a local table: planning must
+                        // not be hostage to an outage. Debug builds always
+                        // enter — unentitled dev builds fail auth by design.
                         #if DEBUG
+                        _ = error
                         Haptic.tap()
                         onSignedIn()
+                        #else
+                        if (error as? ASAuthorizationError)?.code != .canceled {
+                            Haptic.tap()
+                            onSignedIn()
+                        }
                         #endif
                     }
                 }

@@ -25,15 +25,21 @@ struct ContactsView: View {
 
     enum AccessState { case notAsked, granted, denied }
 
-    /// Every table has a host. Simulators get one from the sample seed;
-    /// a real device lays the owner's own place here, once, from the
-    /// sign-in name — without it the user's profile, posts, and the cook
-    /// rotation all point at nobody.
+    /// Every table has a host. Simulators get theirs from the sample seed
+    /// (inserting here would defeat the seed's members.isEmpty check); a
+    /// real device lays the owner's own place from the sign-in name —
+    /// without it the user's profile, posts, and the cook rotation all
+    /// point at nobody. A fetch FAILURE aborts rather than inserting: only
+    /// a confirmed zero earns a new row. The delete-and-reinstall race —
+    /// zero local owners while the first CloudKit import is still inbound —
+    /// can't be closed here; MainShellView collapses duplicate owners
+    /// whenever they appear.
     private func finish() {
+        #if !targetEnvironment(simulator)
         let owners = try? context.fetchCount(
             FetchDescriptor<HouseholdMember>(predicate: #Predicate { $0.role == "owner" })
         )
-        if (owners ?? 0) == 0 {
+        if owners == 0 {
             context.insert(HouseholdMember(
                 name: userFirstName.isEmpty ? "Me" : userFirstName,
                 colorHex: "FF5A3C", isPrimaryCook: true,
@@ -41,6 +47,7 @@ struct ContactsView: View {
             ))
             try? context.save()
         }
+        #endif
         onDone()
     }
 

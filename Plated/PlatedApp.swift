@@ -47,7 +47,7 @@ struct PlatedApp: App {
                     if LaunchFlags.consume("-plated-purge-cloud") {
                         do {
                             try await TableSync.purgeMirroredData()
-                            print("PLATED PURGE: zone deleted, private database is clean")
+                            print("PLATED PURGE: zone deleted, local store cleared — clean slate")
                         } catch {
                             print("PLATED PURGE FAILED: \(error)")
                         }
