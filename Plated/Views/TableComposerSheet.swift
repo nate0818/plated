@@ -107,7 +107,14 @@ struct TableComposerSheet: View {
         .presentationBackground(Color.canvas)
         .presentationCornerRadius(Radius.sheet)
         .onChange(of: photoItem) { _, item in
-            guard let item else { return }
+            guard let item else {
+                // Un-checking the photo inside the system picker lands here —
+                // a bare return would latch photoLoading true forever (the
+                // in-flight task's own guard can never clear it against nil).
+                withAnimation(.plSnap) { photoData = nil }
+                photoLoading = false
+                return
+            }
             photoLoading = true
             Task {
                 let raw = try? await item.loadTransferable(type: Data.self)

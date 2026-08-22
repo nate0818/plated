@@ -294,7 +294,7 @@ struct DMThreadView: View {
                         .overlay {
                             Image(systemName: "arrow.up")
                                 .font(.system(size: 15, weight: .bold))
-                                .foregroundStyle(draft.isEmpty ? Color.inkFaint : .white)
+                                .foregroundStyle(draft.isEmpty ? Color.inkFaint : Color.onTomato)
                         }
                         .frame(minWidth: 44, minHeight: 44)
                 }

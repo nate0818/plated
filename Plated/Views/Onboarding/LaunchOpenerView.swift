@@ -34,7 +34,8 @@ struct LaunchOpenerView: View {
             TimelineView(.animation) { ctx in
                 let t = ctx.date.timeIntervalSince(start)
                 let (T, _) = cue.authoredTime(t, readyAt: readyAt)
-                let f = OpenerFrame(T: T, cue: cue, reduced: reduceMotion)
+                let f = OpenerFrame(T: T, cue: cue, reduced: reduceMotion,
+                                    darkRoom: colorScheme == .dark)
                 let dotD = 32 * k
 
                 ZStack {
@@ -254,7 +255,7 @@ private struct OpenerFrame {
 
     static let settledLetters = [Letter](repeating: Letter(o: 1, b: 0, y: 0), count: 6)
 
-    init(T: Double, cue: OpenerCue, reduced: Bool) {
+    init(T: Double, cue: OpenerCue, reduced: Bool, darkRoom: Bool = false) {
         let S = cue.simmer, O = cue.out
 
         if reduced {
@@ -262,9 +263,11 @@ private struct OpenerFrame {
             // which is doubly right now that the reduced path can exit
             // mid-cycle the moment the app is ready.
             glow = 0
-            // Starts after the dark room's espresso has fully arrived (0.35)
-            // so the mark always fades in on its final ground.
-            let lockO = glide(0, 1, 0.35, 0.9, T) * glide(1, 0, O + 0.1, O + 0.6, T)
+            // In the dark room the mark waits for the espresso to fully
+            // arrive (0.35) so it fades in on its final ground; light has
+            // no crossfade to wait for and starts straight away.
+            let lockIn: Double = darkRoom ? 0.35 : 0.15
+            let lockO = glide(0, 1, lockIn, lockIn + 0.55, T) * glide(1, 0, O + 0.1, O + 0.6, T)
             letters = (0..<6).map { _ in Letter(o: lockO, b: 0, y: 0) }
             trackingExtra = 0
             breatheScale = 1
