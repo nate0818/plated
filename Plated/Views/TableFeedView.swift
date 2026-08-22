@@ -59,9 +59,31 @@ struct TableFeedView: View {
                     .padding(.top, 6)
                     .padding(.bottom, 10)
 
-                scopePicker
-                    .padding(.horizontal, 24)
-                    .padding(.bottom, 12)
+                // Search sits beside the scope, the way it does on Recipes:
+                // scoping the feed and searching it are the same kind of act,
+                // and the header has a host to seat instead.
+                HStack(spacing: 8) {
+                    scopePicker
+                    Button {
+                        Haptic.tap()
+                        discoverPresented = true
+                    } label: {
+                        Circle()
+                            .strokeBorder(Color.hairline, lineWidth: 1.5)
+                            .frame(width: 38, height: 38)
+                            .overlay {
+                                Image(systemName: "magnifyingglass")
+                                    .font(.system(size: 15, weight: .semibold))
+                                    .foregroundStyle(Color.ink)
+                            }
+                            .frame(minWidth: 44, minHeight: 44)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.pressable)
+                    .accessibilityLabel("Discover other tables")
+                }
+                .padding(.horizontal, 24)
+                .padding(.bottom, 12)
                 Divider().overlay(Color.hairlineSoft)
 
                 ScrollView(showsIndicators: false) {
@@ -154,7 +176,7 @@ struct TableFeedView: View {
                         .foregroundStyle(Color.inkFaint)
                     MicroLabel("\(seatCount) seats · Invite only")
                         .lineLimit(1)
-                        .minimumScaleFactor(0.8)
+                        .minimumScaleFactor(0.7)
                 }
                 Text("The Table")
                     .font(.gabarito(25, .semibold))
@@ -166,22 +188,6 @@ struct TableFeedView: View {
             ActivityBellButton {
                 activityShown = true
             }
-            Button {
-                Haptic.tap()
-                discoverPresented = true
-            } label: {
-                Circle()
-                    .strokeBorder(Color.hairline, lineWidth: 1.5)
-                    .frame(width: 38, height: 38)
-                    .overlay {
-                        Image(systemName: "magnifyingglass")
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundStyle(Color.ink)
-                    }
-                    .frame(minWidth: 44, minHeight: 44)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.pressable)
             // The seats at your table — tap to see, message, and manage them.
             Button {
                 Haptic.tap()
@@ -199,7 +205,34 @@ struct TableFeedView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.pressable)
+            .accessibilityLabel("Seats at your table")
+
+            // The host's own door, the same one the plan and home offer.
+            Button {
+                Haptic.tap()
+                openOwnProfile()
+            } label: {
+                VStack(spacing: 2) {
+                    AvatarCircle(initials: hostInitial, tone: .neutralPair, size: 38)
+                    Text("HOST")
+                        .font(.jakarta(8, .bold))
+                        .tracking(0.7)
+                        .foregroundStyle(Color.inkFaint)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.pressable)
+            .accessibilityLabel("Your profile")
         }
+    }
+
+    private var hostInitial: String {
+        String(members.first(where: \.isOwner)?.name.first ?? "Y").uppercased()
+    }
+
+    private func openOwnProfile() {
+        let me = members.first(where: \.isOwner)
+        personShown = PersonRef(name: me?.name ?? "You", colorHex: me?.colorHex ?? "")
     }
 
     /// Everyone or just the household — the X-style split, quiet edition.
