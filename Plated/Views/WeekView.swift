@@ -4,8 +4,8 @@ import UniformTypeIdentifiers
 
 /// Home. The next seven nights, tonight on top — planned nights are plated
 /// photos, open nights are dashed placemats waiting. The ring fills as the
-/// week does, and the weeks after scroll on below so planning ahead is just
-/// more scrolling. Sideways, the plan becomes a month.
+/// week does, and the weeks after scroll on below. Tapping an open night
+/// opens the planning page; sideways, the plan becomes a month.
 struct WeekView: View {
     var askTheTable: () -> Void = {}
 
@@ -14,16 +14,23 @@ struct WeekView: View {
     @Query private var meals: [PlannedMeal]
     @Query private var recipes: [Recipe]
     @Query(sort: \HouseholdMember.createdAt) private var members: [HouseholdMember]
+    @Query(filter: #Predicate<PlatedNotification> { !$0.isRead })
+    private var unread: [PlatedNotification]
 
     @AppStorage("showCalendarEvents") private var showCalendarEvents = false
 
-    @State private var expandedDay: Date?
     @State private var bounceDay: Date?
     @State private var groceryPresented = false
-    @State private var pickerDay: Date?
-    @State private var profilePresented = false
+    @State private var planDay: Date?
     @State private var actionDay: Date?
     @State private var swipedDay: Date?
+    @State private var personShown: PersonRef?
+    @State private var pushed: PlanDestination?
+
+    enum PlanDestination: String, Identifiable {
+        case activity, prongsby
+        var id: String { rawValue }
+    }
     @State private var forecast = ForecastProvider.shared
     @State private var events = DayEventsProvider.shared
 
@@ -58,19 +65,29 @@ struct WeekView: View {
     }
 
     var body: some View {
-        Group {
-            if verticalSizeClass == .compact || forceMonth {
-                MonthPlannerView()
-            } else {
-                portraitPlan
+        NavigationStack {
+            Group {
+                if verticalSizeClass == .compact || forceMonth {
+                    MonthPlannerView()
+                } else {
+                    portraitPlan
+                }
+            }
+            .background(Color.canvas)
+            .toolbar(.hidden, for: .navigationBar)
+            .navigationDestination(item: $personShown) { person in
+                PersonProfileView(personName: person.name, colorHex: person.colorHex)
+            }
+            .navigationDestination(item: $pushed) { destination in
+                switch destination {
+                case .activity: NotificationsView()
+                case .prongsby: ProngsbyView()
+                }
             }
         }
         .sheet(isPresented: $groceryPresented) { GrocerySheet() }
-        .sheet(isPresented: $profilePresented) { ProfileSheet() }
-        .sheet(item: $pickerDay) { date in
-            RecipePickerSheet(date: date) { recipe in
-                plate(recipe, on: date, tagline: "")
-            }
+        .sheet(item: $planDay) { date in
+            PlanNightSheet(date: date, askTheTable: askTheTable)
         }
         .confirmationDialog(
             actionDay.map { "Dinner on \(dayName($0))" } ?? "",
@@ -78,7 +95,7 @@ struct WeekView: View {
             titleVisibility: .visible
         ) {
             if let date = actionDay {
-                Button("Swap the dish") { pickerDay = date }
+                Button("Swap or re-plan") { planDay = date }
                 Button("Remove from \(dayName(date))", role: .destructive) { remove(on: date) }
                 Button("Cancel", role: .cancel) {}
             }
@@ -86,16 +103,31 @@ struct WeekView: View {
         .task {
             await forecast.refresh(days: 10)
             if showCalendarEvents { events.refresh() }
+            Notifier.nudgeTurnIfNeeded(meals: meals, members: members, into: context)
         }
         .onAppear {
             #if DEBUG
-            // UI-test hook: `simctl launch … -plated-open-grocery` lands here.
-            // One-shot on purpose — it must never replay on tab reselect.
+            // UI-test hooks — one-shot on purpose, they must never replay
+            // on tab reselect.
             if LaunchFlags.consume("-plated-open-grocery") {
                 groceryPresented = true
             }
             if LaunchFlags.consume("-plated-open-profile") {
-                profilePresented = true
+                openOwnProfile()
+            }
+            if LaunchFlags.consume("-plated-open-activity") {
+                pushed = .activity
+            }
+            if LaunchFlags.consume("-plated-open-prongsby") {
+                // Pushed after the splash cross-fade settles — pushing into a
+                // mid-transition NavigationStack wedges the update cycle.
+                Task { @MainActor in
+                    try? await Task.sleep(for: .seconds(1))
+                    pushed = .prongsby
+                }
+            }
+            if let planFlag = LaunchFlags.consume("-plated-open-plan-day") ? weekDates.first(where: { dinner(on: $0) == nil }) : nil {
+                planDay = planFlag
             }
             #endif
         }
@@ -148,57 +180,83 @@ struct WeekView: View {
     // MARK: Header
 
     private var header: some View {
-        HStack(alignment: .center) {
+        HStack(alignment: .center, spacing: 10) {
             VStack(alignment: .leading, spacing: 2) {
                 MicroLabel(weekRangeLabel)
                 Text("Your week")
                     .font(.gabarito(25, .bold))
                     .tracking(-0.3)
                     .foregroundStyle(Color.ink)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
             }
-            Spacer()
-            HStack(spacing: 12) {
-                Button {
-                    Haptic.tap()
-                    groceryPresented = true
-                } label: {
-                    Circle()
-                        .strokeBorder(Color.hairline, lineWidth: 1.5)
-                        .frame(width: 38, height: 38)
-                        .overlay {
-                            Image(systemName: "basket")
-                                .font(.system(size: 15, weight: .semibold))
-                                .foregroundStyle(Color.ink)
-                        }
-                        .frame(minWidth: 44, minHeight: 44)
-                }
-                .buttonStyle(.plain)
+            .layoutPriority(1)
+            Spacer(minLength: 6)
 
-                HStack(spacing: 7) {
-                    progressRing
-                    Text("of 7\nplated")
-                        .font(.jakarta(11, .bold))
-                        .foregroundStyle(Color.inkSecondary)
-                        .lineSpacing(0)
-                        .fixedSize()
-                }
-
-                Button {
-                    Haptic.tap()
-                    profilePresented = true
-                } label: {
-                    VStack(spacing: 2) {
-                        AvatarCircle(initials: hostInitial, tone: .neutralPair, size: 44)
-                        Text("HOST")
-                            .font(.jakarta(9, .bold))
-                            .tracking(0.7)
-                            .foregroundStyle(Color.inkFaint)
-                    }
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
+            headerIcon {
+                pushed = .prongsby
+            } content: {
+                ProngsbyGlyph(size: 20)
             }
+
+            headerIcon {
+                groceryPresented = true
+            } content: {
+                Image(systemName: "basket")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(Color.ink)
+            }
+
+            headerIcon {
+                pushed = .activity
+            } content: {
+                Image(systemName: "bell")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(Color.ink)
+            }
+            .overlay(alignment: .topTrailing) {
+                if !unread.isEmpty {
+                    Text("\(min(unread.count, 9))")
+                        .font(.jakarta(9, .extraBold))
+                        .foregroundStyle(.white)
+                        .frame(width: 16, height: 16)
+                        .background(Color.tomato, in: Circle())
+                        .offset(x: -1, y: 3)
+                }
+            }
+
+            progressRing
+
+            Button {
+                Haptic.tap()
+                openOwnProfile()
+            } label: {
+                VStack(spacing: 2) {
+                    AvatarCircle(initials: hostInitial, tone: .neutralPair, size: 42)
+                    Text("HOST")
+                        .font(.jakarta(8, .bold))
+                        .tracking(0.7)
+                        .foregroundStyle(Color.inkFaint)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
         }
+    }
+
+    private func headerIcon(action: @escaping () -> Void, @ViewBuilder content: () -> some View) -> some View {
+        Button {
+            Haptic.tap()
+            action()
+        } label: {
+            Circle()
+                .strokeBorder(Color.hairline, lineWidth: 1.5)
+                .frame(width: 36, height: 36)
+                .overlay { content() }
+                .frame(minWidth: 40, minHeight: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
     private var progressRing: some View {
@@ -228,11 +286,23 @@ struct WeekView: View {
 
     private func plannedRow(_ meal: PlannedMeal, date: Date) -> some View {
         let today = Calendar.current.isDateInToday(date)
+        let eatingOut = meal.recipe == nil && meal.customTitle.localizedCaseInsensitiveContains("eating out")
         return SwipeToRemove(isOpen: swipeBinding(date), onRemove: { remove(on: date) }) {
             HStack(spacing: 12) {
                 dayColumn(date, dimmed: false)
 
-                dishCircle(for: meal)
+                if eatingOut {
+                    Circle()
+                        .strokeBorder(Color.hairline, lineWidth: 2)
+                        .frame(width: 52, height: 52)
+                        .overlay {
+                            Image(systemName: "fork.knife.circle")
+                                .font(.system(size: 22, weight: .medium))
+                                .foregroundStyle(Color.inkSecondary)
+                        }
+                } else {
+                    dishCircle(for: meal)
+                }
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(meal.title)
@@ -245,7 +315,7 @@ struct WeekView: View {
                         .lineLimit(1)
                 }
                 Spacer(minLength: 8)
-                if let cook = meal.cook {
+                if let cook = meal.cook, !eatingOut {
                     AvatarCircle(initials: cook.firstInitial, tone: cook.tone, size: 30)
                 }
             }
@@ -274,49 +344,35 @@ struct WeekView: View {
     }
 
     private func emptyRow(date: Date) -> some View {
-        let expanded = expandedDay == date
-        return VStack(spacing: 0) {
-            Button {
-                Haptic.tap()
-                withAnimation(.plSnap) { expandedDay = expanded ? nil : date }
-            } label: {
-                HStack(spacing: 12) {
-                    dayColumn(date, dimmed: true)
-                    Circle()
-                        .strokeBorder(Color.hairlineDashed, style: StrokeStyle(lineWidth: 2, dash: [5, 5]))
-                        .frame(width: 52, height: 52)
-                        .overlay {
-                            Image(systemName: "plus")
-                                .font(.system(size: 15, weight: .bold))
-                                .foregroundStyle(Color.inkFaint)
-                        }
-                    Text("Nothing plated yet")
-                        .font(.jakarta(14, .semibold))
-                        .foregroundStyle(Color.inkSecondary)
-                    Spacer()
-                }
-                .frame(minHeight: 56)
-                .contentShape(Rectangle())
+        Button {
+            Haptic.tap()
+            planDay = date
+        } label: {
+            HStack(spacing: 12) {
+                dayColumn(date, dimmed: true)
+                Circle()
+                    .strokeBorder(Color.hairlineDashed, style: StrokeStyle(lineWidth: 2, dash: [5, 5]))
+                    .frame(width: 52, height: 52)
+                    .overlay {
+                        Image(systemName: "plus")
+                            .font(.system(size: 15, weight: .bold))
+                            .foregroundStyle(Color.inkFaint)
+                    }
+                Text("Nothing plated yet")
+                    .font(.jakarta(14, .semibold))
+                    .foregroundStyle(Color.inkSecondary)
+                Spacer()
             }
-            .buttonStyle(.plain)
-
-            if expanded {
-                ViewThatFits(in: .horizontal) {
-                    quickChips(date)
-                    ScrollView(.horizontal, showsIndicators: false) { quickChips(date) }
-                }
-                .padding(.top, 12)
-                .padding(.bottom, 4)
-                .transition(.opacity.combined(with: .move(edge: .top)))
+            .padding(.vertical, 8)
+            .padding(.horizontal, 14)
+            .frame(minHeight: 72)
+            .overlay {
+                RoundedRectangle(cornerRadius: Radius.card)
+                    .strokeBorder(Color.hairlineDashed, style: StrokeStyle(lineWidth: 2, dash: [7, 6]))
             }
+            .contentShape(Rectangle())
         }
-        .padding(.vertical, 8)
-        .padding(.horizontal, 14)
-        .frame(minHeight: 72)
-        .overlay {
-            RoundedRectangle(cornerRadius: Radius.card)
-                .strokeBorder(Color.hairlineDashed, style: StrokeStyle(lineWidth: 2, dash: [7, 6]))
-        }
+        .buttonStyle(.plain)
         .dropDestination(for: String.self) { tokens, _ in
             moveMeal(from: tokens.first, to: date)
         }
@@ -366,35 +422,6 @@ struct WeekView: View {
             }
         }
         .plDishShadow()
-    }
-
-    private func quickChips(_ date: Date) -> some View {
-        HStack(spacing: 8) {
-            quickChip("Pick for me", filled: true) { pickForMe(date) }
-            quickChip("Cookbook") { pickerDay = date }
-            quickChip("Ask the table") { ask(date) }
-        }
-    }
-
-    private func quickChip(_ title: String, filled: Bool = false, action: @escaping () -> Void) -> some View {
-        Button {
-            action()
-        } label: {
-            Text(title)
-                .font(.jakarta(13, .bold))
-                .fixedSize()
-                .foregroundStyle(filled ? Color.canvas : Color.ink)
-                .padding(.horizontal, 14)
-                .frame(height: 44)
-                .background {
-                    if filled {
-                        Capsule().fill(Color.ink)
-                    } else {
-                        Capsule().strokeBorder(Color.hairline)
-                    }
-                }
-        }
-        .buttonStyle(.plain)
     }
 
     private var cooksFooter: some View {
@@ -492,54 +519,16 @@ struct WeekView: View {
 
     // MARK: Actions
 
+    private func openOwnProfile() {
+        guard let owner = members.first(where: \.isOwner) else { return }
+        personShown = PersonRef(name: owner.name, colorHex: owner.colorHex)
+    }
+
     private func swipeBinding(_ date: Date) -> Binding<Bool> {
         Binding(
             get: { swipedDay == date },
             set: { open in swipedDay = open ? date : (swipedDay == date ? nil : swipedDay) }
         )
-    }
-
-    private func pickForMe(_ date: Date) {
-        let engine = SuggestionEngine(recipes: recipes, members: members)
-        // Avoid repeating a dish within the visible week only — history is
-        // fair game (that is the point of resurfacing old favorites).
-        let thisWeek = Set(weekDates.compactMap { dinner(on: $0)?.recipe?.persistentModelID })
-        let ranked = engine.suggestions(for: date, forecast: nil, limit: recipes.count)
-        // Prefer something not already on the week; if the whole cookbook is
-        // plated, repeating the top pick is honest. Never bypass the engine —
-        // it is what enforces everyone's dietary hard-no's.
-        guard let recipe = (ranked.first { !thisWeek.contains($0.recipe.persistentModelID) } ?? ranked.first)?.recipe
-        else { return }
-        let minutes = recipe.totalMinutes
-        plate(recipe, on: date, tagline: minutes > 0 ? "Picked for you · \(minutes) min" : "Picked for you")
-    }
-
-    /// Lands a recipe on a night — or, when the night is already planned,
-    /// swaps the dish in place so "change my mind" is one pick, not
-    /// delete-then-add.
-    private func plate(_ recipe: Recipe, on date: Date, tagline: String) {
-        Haptic.plate()
-        let cook = members.first { $0.cookWeekdays.contains(Calendar.current.component(.weekday, from: date)) }
-            ?? members.first(where: \.isOwner)
-        withAnimation(.plPop) {
-            if let existing = dinner(on: date) {
-                existing.recipe = recipe
-                existing.customTitle = ""
-                existing.servings = recipe.servings
-                existing.tagline = tagline
-            } else {
-                context.insert(PlannedMeal(
-                    date: date, slot: .dinner, recipe: recipe,
-                    servings: recipe.servings, cook: cook, tagline: tagline
-                ))
-            }
-            expandedDay = nil
-            bounceDay = date
-        }
-        Task {
-            try? await Task.sleep(for: .milliseconds(320))
-            if bounceDay == date { bounceDay = nil }
-        }
     }
 
     private func remove(on date: Date) {
@@ -572,27 +561,11 @@ struct WeekView: View {
         }
         return true
     }
-
-    private func ask(_ date: Date) {
-        Haptic.plate()
-        let dayName = DateFormatter()
-        dayName.dateFormat = "EEEE"
-        let owner = members.first(where: \.isOwner)
-        let post = TablePost(
-            authorName: owner?.name ?? "Me",
-            authorColorHex: owner?.colorHex ?? "FF5A3C",
-            caption: "What should we plate \(Calendar.current.isDateInToday(date) ? "tonight" : dayName.string(from: date))? Open to ideas.",
-            kind: "ask"
-        )
-        context.insert(post)
-        expandedDay = nil
-        askTheTable()
-    }
 }
 
 /// Encodes a day as a drag payload — plain date tokens, no model IDs, so a
 /// drop can never dangle if the store changes mid-drag.
-private enum DayTransfer {
+enum DayTransfer {
     static func token(for date: Date) -> String {
         "plated-day:\(Int(date.startOfDay.timeIntervalSince1970))"
     }

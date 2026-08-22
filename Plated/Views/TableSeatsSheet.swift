@@ -256,30 +256,23 @@ struct DMThreadView: View {
             .padding(.bottom, 10)
             Divider().overlay(Color.hairlineSoft)
 
-            ScrollViewReader { proxy in
-                ScrollView(showsIndicators: false) {
-                    VStack(spacing: 8) {
-                        Text("Messages live on your devices for now — they'll deliver when \(peerName.split(separator: " ").first.map(String.init) ?? peerName) is on Plated's network.")
-                            .font(.jakarta(11, .medium))
-                            .foregroundStyle(Color.inkFaint)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal, 30)
-                            .padding(.vertical, 12)
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 8) {
+                    Text("Messages live on your devices for now — they'll deliver when \(peerName.split(separator: " ").first.map(String.init) ?? peerName) is on Plated's network.")
+                        .font(.jakarta(11, .medium))
+                        .foregroundStyle(Color.inkFaint)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 30)
+                        .padding(.vertical, 12)
 
-                        ForEach(messages, id: \.persistentModelID) { message in
-                            bubble(message)
-                                .id(message.persistentModelID)
-                        }
-                    }
-                    .padding(.horizontal, 24)
-                    .padding(.bottom, 12)
-                }
-                .onChange(of: messages.count) { _, _ in
-                    if let last = messages.last {
-                        withAnimation(.plSnap) { proxy.scrollTo(last.persistentModelID, anchor: .bottom) }
+                    ForEach(messages, id: \.persistentModelID) { message in
+                        bubble(message)
                     }
                 }
+                .padding(.horizontal, 24)
+                .padding(.bottom, 12)
             }
+            .defaultScrollAnchor(messages.isEmpty ? .top : .bottom)
 
             HStack(spacing: 10) {
                 TextField("Message \(peerName.split(separator: " ").first.map(String.init) ?? peerName)…", text: $draft, axis: .vertical)

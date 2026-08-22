@@ -11,7 +11,8 @@ enum SampleData {
         let schema = Schema([
             Recipe.self, Ingredient.self, PlannedMeal.self,
             HouseholdMember.self, Gathering.self, GroceryItem.self,
-            TablePost.self, TableComment.self, DirectMessage.self
+            TablePost.self, TableComment.self, DirectMessage.self,
+            RecipePhoto.self, PlatedNotification.self, HouseholdProfile.self
         ])
         let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
         // swiftlint:disable:next force_try

@@ -1,30 +1,58 @@
 import SwiftUI
 import SwiftData
+import PhotosUI
 
 /// Home — the household itself. One head of table owns the account;
-/// everyone else gets a seat, a color, and maybe a night to cook.
+/// everyone else gets a seat, a color, and maybe a night to cook. The
+/// banner up top is theirs to hang; the light switch moved to Settings
+/// where switches live.
 struct HouseholdHomeView: View {
     @Environment(\.modelContext) private var context
     @Query(sort: \HouseholdMember.createdAt) private var members: [HouseholdMember]
     @Query private var recipes: [Recipe]
     @Query(filter: #Predicate<TablePost> { !$0.isDiscover }) private var posts: [TablePost]
+    @Query private var profiles: [HouseholdProfile]
 
     @Environment(\.colorScheme) private var colorScheme
     @AppStorage("autoRotateOpenNights") private var autoRotate = true
-    @AppStorage("afterDark") private var afterDark = false
     @AppStorage("userFamilyName") private var userFamilyName = ""
     @State private var addPresented = false
+    @State private var paywallPresented = false
+    @State private var settingsPresented = false
+    @State private var turnsTipShown = false
+    @State private var bannerItem: PhotosPickerItem?
 
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 20) {
 
-                VStack(alignment: .leading, spacing: 2) {
-                    MicroLabel(familyLabel)
-                    Text("Your household")
-                        .font(.gabarito(28, .extraBold))
-                        .tracking(-0.6)
-                        .foregroundStyle(Color.ink)
+                bannerWell
+
+                HStack(alignment: .top) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        MicroLabel(familyLabel)
+                        Text("Your household")
+                            .font(.gabarito(28, .extraBold))
+                            .tracking(-0.6)
+                            .foregroundStyle(Color.ink)
+                    }
+                    Spacer()
+                    Button {
+                        Haptic.tap()
+                        settingsPresented = true
+                    } label: {
+                        Circle()
+                            .strokeBorder(Color.hairline, lineWidth: 1.5)
+                            .frame(width: 38, height: 38)
+                            .overlay {
+                                Image(systemName: "gearshape")
+                                    .font(.system(size: 15, weight: .semibold))
+                                    .foregroundStyle(Color.ink)
+                            }
+                            .frame(minWidth: 44, minHeight: 44)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
                 }
 
                 membersCard
@@ -32,7 +60,20 @@ struct HouseholdHomeView: View {
                 insightsSection
 
                 VStack(alignment: .leading, spacing: 10) {
-                    MicroLabel("Who cooks when")
+                    HStack(spacing: 6) {
+                        MicroLabel("Who cooks when")
+                        Button {
+                            Haptic.tap()
+                            withAnimation(.plSnap) { turnsTipShown.toggle() }
+                        } label: {
+                            Image(systemName: "info.circle")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(Color.inkFaint)
+                                .frame(minWidth: 32, minHeight: 32)
+                        }
+                        .buttonStyle(.plain)
+                        Spacer()
+                    }
                     cookGrid
                     Text("Tap a day to pass it around. Open days ask the household for ideas.")
                         .font(.jakarta(12, .medium))
@@ -43,7 +84,7 @@ struct HouseholdHomeView: View {
                             Text("Take turns automatically")
                                 .font(.jakarta(14, .bold))
                                 .foregroundStyle(Color.ink)
-                            Text("Rotate open days between everyone")
+                            Text("Open nights go to whoever has cooked least")
                                 .font(.jakarta(12, .medium))
                                 .foregroundStyle(Color.inkSecondary)
                         }
@@ -56,41 +97,26 @@ struct HouseholdHomeView: View {
                     .padding(.vertical, 14)
                     .overlay(RoundedRectangle(cornerRadius: Radius.card).strokeBorder(Color.hairline))
                     .padding(.top, 8)
-                }
 
-                VStack(alignment: .leading, spacing: 10) {
-                    MicroLabel("The room")
-                    HStack(spacing: 12) {
-                        Circle()
-                            .fill(Color.fill)
-                            .frame(width: 40, height: 40)
-                            .overlay {
-                                Image(systemName: afterDark ? "moon.stars.fill" : "moon")
-                                    .font(.system(size: 16, weight: .medium))
-                                    .foregroundStyle(afterDark ? Color.ink : Color.inkSecondary)
-                            }
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("After Dark")
-                                .font(.jakarta(14, .bold))
-                                .foregroundStyle(Color.ink)
-                            Text("The warm room. Photos glow, chrome sleeps.")
-                                .font(.jakarta(12, .medium))
-                                .foregroundStyle(Color.inkSecondary)
-                        }
-                        Spacer()
-                        Toggle("", isOn: $afterDark.animation(.plSettle))
-                            .labelsHidden()
-                            .tint(Color.basil)
-                            .onChange(of: afterDark) { _, _ in Haptic.plate() }
+                    if turnsTipShown {
+                        Text("How turns work: a day with a standing cook (the grid above) always goes to them. When you plate an open night with this on, it's assigned to whoever has cooked the fewest dinners that week — so nobody quietly ends up doing every Tuesday. Turn it off and open nights default to you.")
+                            .font(.jakarta(12, .medium))
+                            .foregroundStyle(Color.inkSecondary)
+                            .lineSpacing(3)
+                            .padding(14)
+                            .background(Color.hairlineSoft, in: RoundedRectangle(cornerRadius: Radius.card))
+                            .transition(.opacity.combined(with: .move(edge: .top)))
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 14)
-                    .overlay(RoundedRectangle(cornerRadius: Radius.card).strokeBorder(Color.hairline))
                 }
 
                 Button {
                     Haptic.tap()
-                    addPresented = true
+                    // One seat is free — the head of table. The rest is Plated+.
+                    if PlatedPlus.isActive || members.count <= 1 {
+                        addPresented = true
+                    } else {
+                        paywallPresented = true
+                    }
                 } label: {
                     HStack(spacing: 8) {
                         Image(systemName: "plus")
@@ -122,6 +148,74 @@ struct HouseholdHomeView: View {
         }
         .sheet(isPresented: $addPresented) {
             AddMemberSheet()
+        }
+        .sheet(isPresented: $paywallPresented) {
+            PaywallSheet()
+        }
+        .sheet(isPresented: $settingsPresented) {
+            SettingsSheet()
+        }
+        .onChange(of: bannerItem) { _, item in
+            guard let item else { return }
+            Task {
+                if let raw = try? await item.loadTransferable(type: Data.self) {
+                    setBanner(raw)
+                }
+            }
+        }
+    }
+
+    /// The household's own photo over the door — tap to hang a new one.
+    private var bannerWell: some View {
+        PhotosPicker(selection: $bannerItem, matching: .images) {
+            ZStack(alignment: .bottomTrailing) {
+                if let data = profiles.first?.bannerPhotoData, let image = UIImage(data: data) {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 120)
+                        .clipShape(RoundedRectangle(cornerRadius: Radius.hero))
+                        .plCardShadow()
+                } else {
+                    RoundedRectangle(cornerRadius: Radius.hero)
+                        .strokeBorder(Color.hairlineDashed, style: StrokeStyle(lineWidth: 2, dash: [8, 7]))
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 78)
+                        .overlay {
+                            HStack(spacing: 8) {
+                                Image(systemName: "photo")
+                                    .font(.system(size: 15, weight: .medium))
+                                Text("Hang a photo of your table")
+                                    .font(.jakarta(13, .bold))
+                            }
+                            .foregroundStyle(Color.inkFaint)
+                        }
+                }
+                if profiles.first?.bannerPhotoData != nil {
+                    HStack(spacing: 5) {
+                        Image(systemName: "camera")
+                            .font(.system(size: 11, weight: .semibold))
+                        Text("Change")
+                            .font(.jakarta(11, .bold))
+                    }
+                    .foregroundStyle(Color.ink)
+                    .padding(.horizontal, 12)
+                    .frame(height: 30)
+                    .background(.ultraThinMaterial, in: Capsule())
+                    .padding(10)
+                }
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func setBanner(_ raw: Data) {
+        let processed = PersonProfileView.downscale(raw)
+        if let profile = profiles.first {
+            profile.bannerPhotoData = processed
+        } else {
+            context.insert(HouseholdProfile(bannerPhotoData: processed))
         }
     }
 

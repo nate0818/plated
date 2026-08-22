@@ -19,6 +19,12 @@ final class Recipe {
     /// One of `RecipeDifficulty`'s raw values. Stored explicitly so the cook
     /// can overrule the minutes-based guess ("90 minutes but braindead easy").
     var difficulty: String = ""
+    /// One of `RecipeMealType`'s raw values. Dinner is the default because
+    /// Plated is a dinner app first; everything else is the exception.
+    var mealType: String = RecipeMealType.dinner.rawValue
+    /// The actual method, one step per line — NYT-cooking style numbered
+    /// steps, not a wall of prose.
+    var steps: [String] = []
     /// "private", "household", or "table" — who can see this recipe.
     var visibility: String = "household"
     /// When true, household members can tweak it. Only the creator deletes.
@@ -36,6 +42,10 @@ final class Recipe {
 
     @Relationship(deleteRule: .cascade, inverse: \Ingredient.recipe)
     var ingredients: [Ingredient]? = []
+
+    /// Photos beyond the hero — process shots, the plated result, the mess.
+    @Relationship(deleteRule: .cascade, inverse: \RecipePhoto.recipe)
+    var extraPhotos: [RecipePhoto]? = []
 
     @Relationship(deleteRule: .nullify, inverse: \PlannedMeal.recipe)
     var plannedMeals: [PlannedMeal]? = []
@@ -75,6 +85,21 @@ final class Recipe {
         get { RecipeDifficulty(rawValue: difficulty) ?? RecipeDifficulty.from(minutes: totalMinutes) }
         set { difficulty = newValue.rawValue }
     }
+
+    var mealTypeValue: RecipeMealType {
+        get { RecipeMealType(rawValue: mealType) ?? .dinner }
+        set { mealType = newValue.rawValue }
+    }
+
+    /// True when this came from someone else's table rather than this kitchen.
+    var isImported: Bool { !originID.isEmpty }
+
+    var sortedExtraPhotos: [RecipePhoto] {
+        (extraPhotos ?? []).sorted { $0.sortIndex < $1.sortIndex }
+    }
+
+    /// Favorite hearts plus times actually cooked — the "most loved" rank.
+    var loveScore: Int { (isFavorite ? 3 : 0) + timesCooked }
 
     var sortedIngredients: [Ingredient] {
         (ingredients ?? []).sorted { $0.sortIndex < $1.sortIndex }
@@ -151,5 +176,47 @@ enum RecipeDifficulty: String, Codable, CaseIterable, Identifiable {
         case ..<60: return .weekend
         default: return .project
         }
+    }
+}
+
+/// Which meal of the day (or part of the meal) a recipe is for. Dinner
+/// carries the app; the rest make the cookbook a real cookbook.
+enum RecipeMealType: String, Codable, CaseIterable, Identifiable {
+    case dinner = "Dinner"
+    case lunch = "Lunch"
+    case sideDish = "Side dish"
+    case appetizer = "Appetizer"
+    case dessert = "Dessert"
+    case cocktail = "Cocktail"
+
+    var id: String { rawValue }
+
+    var symbolName: String {
+        switch self {
+        case .dinner: return "fork.knife"
+        case .lunch: return "sun.max"
+        case .sideDish: return "circle.grid.2x1"
+        case .appetizer: return "hand.raised"
+        case .dessert: return "birthday.cake"
+        case .cocktail: return "wineglass"
+        }
+    }
+}
+
+/// One extra photo on a recipe. The hero stays on the recipe itself.
+@Model
+final class RecipePhoto {
+    var sortIndex: Int = 0
+    var caption: String = ""
+    var createdAt: Date = Date.now
+    @Attribute(.externalStorage) var photoData: Data?
+
+    var recipe: Recipe?
+
+    init(photoData: Data? = nil, sortIndex: Int = 0, caption: String = "") {
+        self.photoData = photoData
+        self.sortIndex = sortIndex
+        self.caption = caption
+        self.createdAt = .now
     }
 }

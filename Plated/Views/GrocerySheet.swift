@@ -157,9 +157,15 @@ struct GrocerySheet: View {
     /// site otherwise) ready for a paste-and-search run.
     private func orderWithInstacart() {
         Haptic.plate()
-        let list = currentItems.filter { !$0.isChecked }.map(\.displayText).joined(separator: "\n")
+        let unchecked = currentItems.filter { !$0.isChecked }
+        let list = unchecked.map(\.displayText).joined(separator: "\n")
         UIPasteboard.general.string = list
         exportResult = "List copied — paste items into your Instacart cart"
+        Notifier.post(
+            .groceriesOrdered, actor: "",
+            body: "A delivery run started — \(unchecked.count) items headed to Instacart.",
+            into: context
+        )
         if let url = URL(string: "https://www.instacart.com/store") {
             openURL(url)
         }
