@@ -10,6 +10,7 @@ struct MonthPlannerView: View {
 
     @AppStorage("showCalendarEvents") private var showCalendarEvents = false
     @State private var monthAnchor: Date = Calendar.current.startOfDay(for: .now)
+    @State private var planDay: Date?
     @State private var events = DayEventsProvider.shared
     @State private var forecast = ForecastProvider.shared
 
@@ -26,9 +27,7 @@ struct MonthPlannerView: View {
                         dayCell(date)
                     }
                 }
-                legend
-                    .padding(.top, 12)
-                    .padding(.bottom, 90)
+                .padding(.bottom, 90)
             }
         }
         .padding(.horizontal, 24)
@@ -36,18 +35,22 @@ struct MonthPlannerView: View {
         .onAppear {
             if showCalendarEvents { events.refresh() }
         }
+        .sheet(item: $planDay) { date in
+            PlanNightSheet(date: date)
+        }
     }
 
     // MARK: Header
 
     private var header: some View {
         HStack(spacing: 14) {
-            VStack(alignment: .leading, spacing: 2) {
-                MicroLabel("The month")
+            VStack(alignment: .leading, spacing: 3) {
                 Text(monthTitle)
                     .font(.gabarito(25, .bold))
                     .tracking(-0.3)
                     .foregroundStyle(Color.ink)
+                // Legend rides the header — visible before you scroll an inch.
+                legend
             }
             Spacer()
             monthArrow("chevron.left") { shiftMonth(-1) }
@@ -92,7 +95,19 @@ struct MonthPlannerView: View {
         let today = calendar.isDateInToday(date)
         let meal = dinner(on: date)
         let past = date < calendar.startOfDay(for: .now) && !today
-        return VStack(spacing: 3) {
+        return Button {
+            guard !past else { return }
+            Haptic.tap()
+            planDay = date
+        } label: {
+            dayCellContent(date, today: today, meal: meal, past: past)
+        }
+        .buttonStyle(.plain)
+        .disabled(past)
+    }
+
+    private func dayCellContent(_ date: Date, today: Bool, meal: PlannedMeal?, past: Bool) -> some View {
+        VStack(spacing: 3) {
             HStack(spacing: 3) {
                 Text(date.formattedDayNumber())
                     .font(.gabarito(13, .extraBold))
@@ -175,6 +190,7 @@ struct MonthPlannerView: View {
             Text(label)
                 .font(.jakarta(11, .semibold))
                 .foregroundStyle(Color.inkSecondary)
+                .fixedSize()
         }
     }
 

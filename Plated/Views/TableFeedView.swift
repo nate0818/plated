@@ -2,8 +2,9 @@ import SwiftUI
 import SwiftData
 
 /// The Table — the private feed. Reactions are plates; ten plates and the
-/// dish earns its chef's kiss. Comments carry links because recipes live
-/// all over the internet.
+/// dish earns its chef's kiss. Split like a good timeline: Everyone at
+/// your table, or just the household. Posts open into pages, names open
+/// into profiles, and saving a dish lets you make it yours first.
 struct TableFeedView: View {
     @Environment(\.modelContext) private var context
     @Query(
@@ -13,9 +14,17 @@ struct TableFeedView: View {
     @Query(sort: \HouseholdMember.createdAt) private var members: [HouseholdMember]
     @Query private var recipes: [Recipe]
 
+    enum FeedScope: String, CaseIterable {
+        case everyone = "Everyone"
+        case household = "Household"
+    }
+
+    @State private var scope: FeedScope = .everyone
     @State private var bouncePost: PersistentIdentifier?
     @State private var threadPost: TablePost?
+    @State private var personShown: PersonRef?
     @State private var seatsPresented = false
+    @State private var editingSave: TablePost?
     @State private var savedToast: String?
     @State private var toastToken = 0
     @State private var discoverPresented = false
@@ -34,33 +43,69 @@ struct TableFeedView: View {
         return max(members.count + guests.count + pending, 1)
     }
 
-    var body: some View {
-        VStack(spacing: 0) {
-            header
-                .padding(.horizontal, 24)
-                .padding(.top, 6)
-                .padding(.bottom, 12)
-            Divider().overlay(Color.hairlineSoft)
+    private var shownPosts: [TablePost] {
+        guard scope == .household else { return posts }
+        let names = Set(members.map(\.name))
+        return posts.filter { names.contains($0.firstName) || names.contains($0.authorName) }
+    }
 
-            ScrollView(showsIndicators: false) {
-                LazyVStack(spacing: 0) {
-                    ForEach(posts) { post in
-                        if post.kind == "ask" {
-                            askCard(post)
-                        } else {
-                            postCard(post)
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                header
+                    .padding(.horizontal, 24)
+                    .padding(.top, 6)
+                    .padding(.bottom, 10)
+
+                scopePicker
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 12)
+                Divider().overlay(Color.hairlineSoft)
+
+                ScrollView(showsIndicators: false) {
+                    LazyVStack(spacing: 0) {
+                        ForEach(shownPosts, id: \.persistentModelID) { post in
+                            if post.kind == "ask" {
+                                askCard(post)
+                            } else {
+                                postCard(post)
+                            }
+                            Divider().overlay(Color.hairlineSoft)
                         }
-                        Divider().overlay(Color.hairlineSoft)
+                        if shownPosts.isEmpty {
+                            VStack(spacing: 8) {
+                                PlateReactionGlyph(filled: false)
+                                Text(scope == .household ? "The household hasn't posted yet." : "Nothing on the table yet.")
+                                    .font(.jakarta(14, .bold))
+                                    .foregroundStyle(Color.inkSecondary)
+                            }
+                            .padding(.top, 60)
+                        }
                     }
+                    .padding(.bottom, 110)
                 }
-                .padding(.bottom, 110)
             }
-        }
-        .sheet(item: $threadPost) { post in
-            PostThreadView(post: post) { saveToCookbook($0) }
+            .background(Color.canvas)
+            .toolbar(.hidden, for: .navigationBar)
+            .navigationDestination(item: $threadPost) { post in
+                PostThreadView(post: post) { beginSave($0) }
+            }
+            .navigationDestination(item: $personShown) { person in
+                PersonProfileView(personName: person.name, colorHex: person.colorHex)
+            }
         }
         .sheet(isPresented: $seatsPresented) {
             TableSeatsSheet()
+        }
+        .sheet(item: $editingSave) { post in
+            RecipeEditorView(prefill: (
+                title: post.dishTitle.isEmpty ? "From \(post.firstName)'s table" : post.dishTitle,
+                summary: post.caption,
+                photo: post.photoData,
+                originID: post.originKey
+            )) { _ in
+                finishSave(post)
+            }
         }
         .fullScreenCover(isPresented: $discoverPresented) {
             DiscoverView()
@@ -148,23 +193,62 @@ struct TableFeedView: View {
         }
     }
 
+    /// Everyone or just the household — the X-style split, quiet edition.
+    private var scopePicker: some View {
+        HStack(spacing: 0) {
+            ForEach(FeedScope.allCases, id: \.self) { option in
+                let active = scope == option
+                Button {
+                    Haptic.tap()
+                    withAnimation(.plSnap) { scope = option }
+                } label: {
+                    Text(option.rawValue)
+                        .font(.jakarta(13, .bold))
+                        .foregroundStyle(active ? Color.ink : Color.inkSecondary)
+                        .frame(maxWidth: .infinity)
+                        .frame(minHeight: 40)
+                        .contentShape(Capsule())
+                        .background {
+                            if active {
+                                Capsule()
+                                    .fill(Color.raisedFill)
+                                    .overlay(Capsule().strokeBorder(Color.navHairline))
+                                    .shadow(color: Color.shadowWarm.opacity(0.12), radius: 4, y: 2)
+                            }
+                        }
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(2)
+        .background(Color.hairlineSoft, in: Capsule())
+    }
+
     // MARK: Cards
 
     private func postCard(_ post: TablePost) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 10) {
-                AvatarCircle(initials: post.initials, tone: PersonTone.from(hex: post.authorColorHex), size: 38)
-                VStack(alignment: .leading, spacing: 0) {
-                    Text(post.authorName)
-                        .font(.jakarta(14, .bold))
-                        .foregroundStyle(Color.ink)
-                    Text(postWhen(post.createdAt))
-                        .font(.jakarta(11, .semibold))
-                        .foregroundStyle(Color.inkFaint)
+                Button {
+                    openProfile(post)
+                } label: {
+                    HStack(spacing: 10) {
+                        AvatarCircle(initials: post.initials, tone: PersonTone.from(hex: post.authorColorHex), size: 38)
+                        VStack(alignment: .leading, spacing: 0) {
+                            Text(post.authorName)
+                                .font(.jakarta(14, .bold))
+                                .foregroundStyle(Color.ink)
+                            Text(postWhen(post.createdAt))
+                                .font(.jakarta(11, .semibold))
+                                .foregroundStyle(Color.inkFaint)
+                        }
+                    }
+                    .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
                 Spacer()
                 Button {
-                    saveToCookbook(post)
+                    beginSave(post)
                 } label: {
                     Text("Save")
                         .font(.jakarta(13, .bold))
@@ -233,9 +317,12 @@ struct TableFeedView: View {
             }
 
             Button {
+                Haptic.tap()
                 threadPost = post
             } label: {
-                Text("Add a comment for \(post.firstName)…")
+                Text(post.sortedComments.count > 2
+                     ? "See all \(post.sortedComments.count) comments"
+                     : "Add a comment for \(post.firstName)…")
                     .font(.jakarta(12, .semibold))
                     .foregroundStyle(Color.inkFaint)
                     .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
@@ -253,32 +340,60 @@ struct TableFeedView: View {
     private func askCard(_ post: TablePost) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 10) {
-                AvatarCircle(initials: post.initials, tone: PersonTone.from(hex: post.authorColorHex), size: 38)
-                VStack(alignment: .leading, spacing: 0) {
-                    Text(post.authorName)
-                        .font(.jakarta(14, .bold))
-                        .foregroundStyle(Color.ink)
-                    Text(postWhen(post.createdAt))
-                        .font(.jakarta(11, .semibold))
-                        .foregroundStyle(Color.inkFaint)
+                Button {
+                    openProfile(post)
+                } label: {
+                    HStack(spacing: 10) {
+                        AvatarCircle(initials: post.initials, tone: PersonTone.from(hex: post.authorColorHex), size: 38)
+                        VStack(alignment: .leading, spacing: 0) {
+                            Text(post.authorName)
+                                .font(.jakarta(14, .bold))
+                                .foregroundStyle(Color.ink)
+                            Text(postWhen(post.createdAt))
+                                .font(.jakarta(11, .semibold))
+                                .foregroundStyle(Color.inkFaint)
+                        }
+                    }
+                    .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
                 Spacer()
-                MicroLabel("Open ask")
+                MicroLabel(post.hasPoll ? "Poll" : "Open ask")
             }
-            Text(post.caption)
-                .font(.jakarta(15, .semibold))
-                .foregroundStyle(Color.ink)
-                .lineSpacing(3)
+            Button {
+                Haptic.tap()
+                threadPost = post
+            } label: {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(post.caption)
+                        .font(.jakarta(15, .semibold))
+                        .foregroundStyle(Color.ink)
+                        .lineSpacing(3)
+                        .multilineTextAlignment(.leading)
+                    if post.hasPoll {
+                        HStack(spacing: 6) {
+                            Image(systemName: "chart.bar.xaxis")
+                                .font(.system(size: 11, weight: .bold))
+                            Text("\(post.pollOptions.count) choices · \(post.totalPollVotes) votes — tap to vote")
+                                .font(.jakarta(12, .bold))
+                        }
+                        .foregroundStyle(Color.basil)
+                    }
+                }
                 .padding(14)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .overlay {
                     RoundedRectangle(cornerRadius: Radius.row)
                         .strokeBorder(Color.hairlineDashed, style: StrokeStyle(lineWidth: 2, dash: [6, 5]))
                 }
-            ForEach(post.sortedComments, id: \.persistentModelID) { comment in
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            ForEach(post.sortedComments.prefix(2), id: \.persistentModelID) { comment in
                 commentLine(comment)
             }
             Button {
+                Haptic.tap()
                 threadPost = post
             } label: {
                 Text("Suggest a dish…")
@@ -363,6 +478,16 @@ struct TableFeedView: View {
         }
         if turningOn {
             post.hasChefsKiss ? Haptic.kiss() : Haptic.plate()
+            let me = members.first(where: \.isOwner)?.name ?? "You"
+            if post.firstName != me && post.authorName != me {
+                // Once per post, ever — plate/unplate/plate must not spam.
+                Notifier.postOnce(
+                    key: "plate:\(post.originKey)|\(Int(post.createdAt.timeIntervalSince1970))",
+                    .plateReaction, actor: me,
+                    body: "\(me) plated \(post.firstName)'s \(post.dishTitle.isEmpty ? "post" : post.dishTitle).",
+                    into: context
+                )
+            }
         } else {
             Haptic.tap()
         }
@@ -374,31 +499,46 @@ struct TableFeedView: View {
         }
     }
 
-    /// "Plate it" pulls the dish home: the post becomes a cookbook recipe,
-    /// photo and all, ready to land on a night. The author gets the credit —
-    /// a save is the sincerest form of dinner flattery.
-    private func saveToCookbook(_ post: TablePost) {
-        Haptic.plate()
-        let title = post.dishTitle.isEmpty ? "From \(post.firstName)'s table" : post.dishTitle
-        if !recipes.contains(where: { $0.originID == post.originKey }) {
-            let recipe = Recipe(title: title, summary: post.caption)
-            recipe.photoData = post.photoData
-            recipe.tags = ["From the Table"]
-            recipe.originID = post.originKey
-            context.insert(recipe)
-            // Local ledger today; becomes a real push to the author when the
-            // network arrives. Counted once per dish, like the save itself.
-            Awards.recordSaveReceived(by: post.authorName)
+    /// Save now opens the editor prefilled — tweak the category, fix the
+    /// ingredients, then it joins your cookbook. Already-saved dishes skip
+    /// straight to the toast.
+    private func beginSave(_ post: TablePost) {
+        Haptic.tap()
+        if recipes.contains(where: { $0.originID == post.originKey }) {
+            showToast("Already in your cookbook")
+            return
         }
+        editingSave = post
+    }
+
+    private func finishSave(_ post: TablePost) {
+        // The author gets the credit — a save is the sincerest form of
+        // dinner flattery. Local ledger today, real push later.
+        Awards.recordSaveReceived(by: post.authorName)
+        let me = members.first(where: \.isOwner)?.name ?? "Someone"
+        Notifier.post(
+            .saveReceived, actor: me,
+            body: "\(me) saved \(post.firstName)'s \(post.dishTitle.isEmpty ? "dish" : post.dishTitle) — they get the credit.",
+            into: context
+        )
+        showToast("Saved — \(post.firstName) gets the credit")
+    }
+
+    private func showToast(_ message: String) {
         toastToken += 1
         let token = toastToken
-        withAnimation(.plSnap) { savedToast = "Saved — \(post.firstName) gets the credit" }
+        withAnimation(.plSnap) { savedToast = message }
         Task {
             try? await Task.sleep(for: .seconds(2))
             if toastToken == token {
                 withAnimation(.plSnap) { savedToast = nil }
             }
         }
+    }
+
+    private func openProfile(_ post: TablePost) {
+        Haptic.tap()
+        personShown = PersonRef(name: post.authorName, colorHex: post.authorColorHex)
     }
 
     private func postWhen(_ date: Date) -> String {
@@ -447,6 +587,9 @@ struct PlateReactionButton: View {
     let post: TablePost
     @Binding var bounce: Bool
 
+    @Environment(\.modelContext) private var context
+    @Query(sort: \HouseholdMember.createdAt) private var members: [HouseholdMember]
+
     var body: some View {
         Button {
             let turningOn = !post.platedByMe
@@ -456,6 +599,15 @@ struct PlateReactionButton: View {
             }
             if turningOn {
                 post.hasChefsKiss ? Haptic.kiss() : Haptic.plate()
+                let me = members.first(where: \.isOwner)?.name ?? "You"
+                if post.firstName != me && post.authorName != me {
+                    Notifier.postOnce(
+                        key: "plate:\(post.originKey)|\(Int(post.createdAt.timeIntervalSince1970))",
+                        .plateReaction, actor: me,
+                        body: "\(me) plated \(post.firstName)'s \(post.dishTitle.isEmpty ? "post" : post.dishTitle).",
+                        into: context
+                    )
+                }
             } else {
                 Haptic.tap()
             }
