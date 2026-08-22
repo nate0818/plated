@@ -46,7 +46,7 @@ struct MainShellView: View {
             .padding(.bottom, 4)
         }
         .sheet(isPresented: $createPresented) {
-            NewRecipeView()
+            RecipeEditorView()
         }
         .task {
             if !didSeedSampleData && recipes.isEmpty && members.isEmpty {

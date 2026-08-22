@@ -15,6 +15,14 @@ final class TablePost {
     /// True for posts from open tables shown in Discover, never in your feed.
     var isDiscover: Bool = false
     var createdAt: Date = Date.now
+    /// Household members called out in the caption ("@Riley made the sauce").
+    var taggedNames: [String] = []
+    /// Ask posts can carry a poll: the choices, the counts, and my pick.
+    /// Counts are the rest of the table; mine is tracked separately so a
+    /// changed vote can't drift the totals — same trick as plates.
+    var pollOptions: [String] = []
+    var pollCounts: [Int] = []
+    var myPollChoice: Int = -1
     /// Plates from the rest of the table. Mine is tracked separately so the
     /// toggle can't drift the count.
     var plateCount: Int = 0
@@ -66,6 +74,18 @@ final class TablePost {
     var sortedComments: [TableComment] {
         (comments ?? []).sorted { $0.createdAt < $1.createdAt }
     }
+
+    var hasPoll: Bool { !pollOptions.isEmpty }
+
+    /// Total votes for an option, my ballot included.
+    func votes(for option: Int) -> Int {
+        let base = pollCounts.indices.contains(option) ? pollCounts[option] : 0
+        return base + (myPollChoice == option ? 1 : 0)
+    }
+
+    var totalPollVotes: Int {
+        pollOptions.indices.reduce(0) { $0 + votes(for: $1) }
+    }
 }
 
 /// Comments allow URLs on purpose — recipes live all over the internet and
@@ -76,14 +96,28 @@ final class TableComment {
     var text: String = ""
     var linkURL: String = ""
     var createdAt: Date = Date.now
+    /// Name of the person this comment answers — threads stay flat, replies
+    /// read as "↩︎ Grandma" the way IG keeps one level.
+    var replyToName: String = ""
+    /// Household members @-mentioned in the text.
+    var mentions: [String] = []
+    /// A photo in the comments — the "I made it and here's proof" move.
+    @Attribute(.externalStorage) var photoData: Data?
 
     var post: TablePost?
 
-    init(authorName: String = "", text: String = "", linkURL: String = "", createdAt: Date = .now) {
+    init(
+        authorName: String = "", text: String = "", linkURL: String = "",
+        createdAt: Date = .now, replyToName: String = "",
+        mentions: [String] = [], photoData: Data? = nil
+    ) {
         self.authorName = authorName
         self.text = text
         self.linkURL = linkURL
         self.createdAt = createdAt
+        self.replyToName = replyToName
+        self.mentions = mentions
+        self.photoData = photoData
     }
 
     /// Host shown in the link chip: "cooking.nytimes.com".
