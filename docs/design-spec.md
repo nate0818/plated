@@ -51,12 +51,16 @@ Three springs, defined once: `.plPop` (0.32/0.55 — icon and reaction bounce, t
 
 ## 5. Structure
 
-- Tab IA: **Week · Table · + · Recipes · Home** in a floating 68pt capsule; active item ink, others faint; + is tomato, 54pt, rotates 90° on press.
+- Tab IA: **Plan · Table · + · Recipes · Home** in a floating 68pt capsule; active item ink, others faint; + is tomato, 54pt, rotates 90° on press.
 - Week (home): rolling next-7-nights, tonight first with 1.5pt ink border; open nights are dashed rows that expand into Pick for me / Cookbook / Ask the table; conic progress ring "N of 7 plated"; grocery is a basket in the header (of the plan, not a destination).
 - Table: private invite-only feed; plate reactions; **10 plates = chef's kiss**; comments allow URLs (link chips).
 - Discover: behind the search glass in the Table header — a 2-col rounded-rect grid of dinners from tables that chose to be open. View-only from outside; plating and "save to cookbook" work; nothing about your table leaks outward. Kiss badges (sparkle-in-circle) mark ≥10-plate dishes.
 - All tap targets ≥ 44pt. Sheets use `presentationCornerRadius(28)` and solid canvas backgrounds.
 
-## 6. Roadmap register notes
+## 6. Widgets
 
-Phase 2 (Discover + After Dark) shipped. Phase 3 is the connective tissue: CloudKit sharing for real multi-household Tables, real seat invites from the pending-seats list, "what's for dinner" widgets, and App Intents.
+Home-screen widgets are the register at postage-stamp size: canvas background, micro-label ("TONIGHT"), the dish photo as a circle, person-tinted cook dots, dashed circles for open nights. No tomato *accents* on the home screen — the widget's only job is the photo and the facts; person tints are identity, not accent, so a tomato-person's cook dot is fine. Type is Plus Jakarta Sans (bundled in the appex); Gabarito stays in the app — nothing in a widget reaches display scale. Widgets follow the *system* appearance (the home screen is the system's room); the pocket palette in `PlatedWidgets.swift` mirrors the app tokens light and dark. A snapshot older than its written day rolls forward honestly: passed days drop off, tonight goes empty rather than stale.
+
+## 7. Roadmap register notes
+
+Phase 3 (widgets, App Intents, app-group bridge, CloudKit sharing scaffold, onboarding invites) shipped. Next: live CKShare Tables once a signing team is wired, seat management UI (in flight on the week-tab UX branch), and the gamification/insights surface.

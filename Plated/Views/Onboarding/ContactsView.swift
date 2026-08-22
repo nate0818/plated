@@ -16,6 +16,7 @@ struct ContactsView: View {
         var seated: Bool = false
     }
 
+    @AppStorage("userFirstName") private var userFirstName = ""
     @State private var candidates: [Candidate] = []
     @State private var accessState: AccessState = .notAsked
     @State private var arrived = false
@@ -73,10 +74,23 @@ struct ContactsView: View {
 
             VStack(spacing: 12) {
                 if accessState == .granted {
-                    TomatoPillButton(title: "To my table") {
-                        pendingSeatsRaw = candidates.filter(\.seated).map(\.name).joined(separator: "\n")
-                        onDone()
+                    if seatedCount > 0 {
+                        // One share sheet, one message — the label says what
+                        // actually happens.
+                        ShareLink(item: TableSync.inviteMessage(hostName: userFirstName)) {
+                            HStack(spacing: 6) {
+                                Image(systemName: "paperplane")
+                                    .font(.system(size: 13, weight: .semibold))
+                                Text("Send the invite")
+                                    .font(.jakarta(14, .bold))
+                            }
+                            .foregroundStyle(Color.ink)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 48)
+                            .overlay(Capsule().strokeBorder(Color.hairline, lineWidth: 1.5))
+                        }
                     }
+                    TomatoPillButton(title: "To my table") { onDone() }
                 } else {
                     TomatoPillButton(title: "Find my people") { requestContacts() }
                     if accessState == .denied {
@@ -118,6 +132,8 @@ struct ContactsView: View {
         .animation(.plSettle, value: accessState == .granted)
     }
 
+    private var seatedCount: Int { candidates.filter(\.seated).count }
+
     private func seatBubble(_ letter: String, tone: PersonTone) -> some View {
         Circle()
             .fill(tone.tint)
@@ -155,6 +171,9 @@ struct ContactsView: View {
                 Button {
                     Haptic.plate()
                     withAnimation(.plPop) { candidate.wrappedValue.seated = true }
+                    // Persist immediately — every exit from this screen keeps
+                    // the places the user set, not just "To my table".
+                    pendingSeatsRaw = candidates.filter(\.seated).map(\.name).joined(separator: "\n")
                 } label: {
                     Text("Set a place")
                         .font(.jakarta(13, .bold))

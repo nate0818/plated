@@ -69,17 +69,39 @@ on first launch so there is something to look at.
 
 ### Turning on iCloud sync
 
-A reference entitlements file lives at `config/Plated.entitlements`. It is not wired into the build, so it builds and runs
-for anyone without a signing team. To enable family sharing across devices:
+The store is built with `cloudKitDatabase: .automatic`, so sync turns on the
+moment the entitlement exists and quietly stays local until then. The
+app-group entitlement is already wired (`config/PlatedApp.entitlements`);
+iCloud is not, so the project compiles without a signing team. To enable:
 
-1. Select the **Plated** target → **Signing & Capabilities**
-2. Set your team, then add the **iCloud** capability
-3. Check **CloudKit** and create a container (`iCloud.com.yourname.plated`)
-4. Add the **Background Modes** capability and check **Remote notifications**
+1. Select a team for both targets in Signing & Capabilities.
+2. Add the iCloud capability (CloudKit) with container
+   `iCloud.com.natemeadows.plated` — `config/Plated.entitlements` is the
+   reference for the final shape.
+3. Add `PLATED_CLOUDKIT` to `SWIFT_ACTIVE_COMPILATION_CONDITIONS` — this
+   arms `TableSync` (account checks, and eventually CKShare Tables), which
+   deliberately never touches CloudKit APIs in unentitled builds.
 
-`PlatedApp` already configures its `ModelConfiguration` with
-`cloudKitDatabase: .automatic`, which picks up the entitlement when present and
-falls back to local-only storage when it is not. No code change needed.
+### Widgets, Siri, and the shared container
+
+The `PlatedWidgetsExtension` target ships two home-screen widgets — **Tonight**
+(small: what's on the plate) and **Your Week** (medium: the seven nights and
+who cooks). The app writes a snapshot (`week-snapshot.json` + `tonight.jpg`)
+into the `group.com.natemeadows.plated` app group whenever the scene changes;
+the widget reads it from the other side. Both targets carry the app-group
+entitlement (`config/PlatedApp.entitlements`, `config/PlatedWidgets.entitlements`),
+which works in the simulator without a signing team; on a device, add the App
+Group capability under your team in Signing & Capabilities.
+
+Siri and Shortcuts get two App Intents with zero setup: "What's for dinner in
+Plated" answers with tonight's plan, and "Plate a Dish Tonight" drops a
+cookbook dish onto an open tonight. Widgets follow the system light/dark
+appearance (the home screen is the system's room, not the app's).
+
+`Services/TableSync.swift` is the Phase 3 scaffolding for real multi-household
+Tables over CloudKit sharing (CKShare per Table). It reports capability
+honestly — without the iCloud entitlement it composes the invite message the
+host sends by hand from onboarding's "Send the invite".
 
 ### Turning on weather suggestions
 
