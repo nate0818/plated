@@ -29,6 +29,7 @@ struct PostThreadView: View {
     @State private var personShown: PersonRef?
     @State private var localSave: TablePost?
     @State private var saveToast: String?
+    @State private var saveToastToken = 0
     @FocusState private var composerFocused: Bool
 
     var body: some View {
@@ -344,7 +345,7 @@ struct PostThreadView: View {
         .padding(.vertical, 4)
     }
 
-    /// Renders @mentions in tomato so they read as the links they are.
+    /// Renders @mentions ink-bold so they read as names, not alarms.
     private func mentionedText(_ comment: TableComment) -> Text {
         var result = Text("")
         for word in comment.text.split(separator: " ", omittingEmptySubsequences: false) {
@@ -378,7 +379,8 @@ struct PostThreadView: View {
                         Image(systemName: "xmark")
                             .font(.system(size: 11, weight: .bold))
                             .foregroundStyle(Color.inkFaint)
-                            .frame(minWidth: 32, minHeight: 32)
+                            .frame(minWidth: 44, minHeight: 44)
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                 }
@@ -459,16 +461,18 @@ struct PostThreadView: View {
                 } label: {
                     Image(systemName: "at")
                         .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(mentionBarShown ? Color.tomato : Color.inkSecondary)
-                        .frame(minWidth: 36, minHeight: 44)
+                        .foregroundStyle(mentionBarShown ? Color.ink : Color.inkFaint)
+                        .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
 
                 PhotosPicker(selection: $photoItem, matching: .images) {
                     Image(systemName: "photo")
                         .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(commentPhoto == nil ? Color.inkSecondary : Color.tomato)
-                        .frame(minWidth: 36, minHeight: 44)
+                        .foregroundStyle(commentPhoto == nil ? Color.inkFaint : Color.ink)
+                        .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
 
@@ -478,8 +482,9 @@ struct PostThreadView: View {
                 } label: {
                     Image(systemName: "link")
                         .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(linkFieldShown ? Color.tomato : Color.inkSecondary)
-                        .frame(minWidth: 36, minHeight: 44)
+                        .foregroundStyle(linkFieldShown ? Color.ink : Color.inkFaint)
+                        .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
 
@@ -490,6 +495,10 @@ struct PostThreadView: View {
                     .padding(.horizontal, 14)
                     .padding(.vertical, 10)
                     .overlay(RoundedRectangle(cornerRadius: Radius.chip).strokeBorder(Color.hairline))
+                    // The padding is part of the pill but not of the text
+                    // field — without this, taps on it go nowhere.
+                    .contentShape(RoundedRectangle(cornerRadius: Radius.chip))
+                    .onTapGesture { composerFocused = true }
                     .onChange(of: draft) { _, text in
                         if text.hasSuffix("@") {
                             withAnimation(.plSnap) { mentionBarShown = true }
@@ -560,10 +569,14 @@ struct PostThreadView: View {
     }
 
     private func showSaveToast(_ message: String) {
+        saveToastToken += 1
+        let token = saveToastToken
         withAnimation(.plSnap) { saveToast = message }
         Task {
             try? await Task.sleep(for: .seconds(2))
-            withAnimation(.plSnap) { saveToast = nil }
+            if saveToastToken == token {
+                withAnimation(.plSnap) { saveToast = nil }
+            }
         }
     }
 

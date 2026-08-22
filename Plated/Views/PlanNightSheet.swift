@@ -164,6 +164,7 @@ struct PlanNightSheet: View {
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(Color.inkSecondary)
                     .frame(minWidth: 44, minHeight: 44)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
         }
@@ -344,6 +345,7 @@ struct AskComposerSheet: View {
                                         .font(.system(size: 11, weight: .bold))
                                         .foregroundStyle(Color.inkFaint)
                                         .frame(minWidth: 44, minHeight: 44)
+                                        .contentShape(Rectangle())
                                 }
                                 .buttonStyle(.plain)
                             }
