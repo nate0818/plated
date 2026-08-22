@@ -40,7 +40,7 @@ struct DiscoverView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     MicroLabel("From open tables")
                     Text("Discover")
-                        .font(.gabarito(25, .bold))
+                        .font(.gabarito(25, .semibold))
                         .tracking(-0.3)
                         .foregroundStyle(Color.ink)
                 }
@@ -253,7 +253,7 @@ struct DiscoverPostSheet: View {
                 }
 
                 Text(post.dishTitle)
-                    .font(.gabarito(27, .extraBold))
+                    .font(.gabarito(27, .semibold))
                     .tracking(-0.5)
                     .foregroundStyle(Color.ink)
 

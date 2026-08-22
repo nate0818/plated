@@ -157,7 +157,7 @@ struct TableFeedView: View {
                         .minimumScaleFactor(0.8)
                 }
                 Text("The Table")
-                    .font(.gabarito(25, .bold))
+                    .font(.gabarito(25, .semibold))
                     .tracking(-0.3)
                     .foregroundStyle(Color.ink)
             }

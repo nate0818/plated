@@ -64,7 +64,7 @@ struct RecipeEditorView: View {
                     extraPhotoStrip
 
                     TextField("Name the dish", text: $title)
-                        .font(.gabarito(27, .extraBold))
+                        .font(.gabarito(27, .semibold))
                         .tracking(-0.5)
                         .foregroundStyle(Color.ink)
                         .tint(Color.tomato)
@@ -256,7 +256,7 @@ struct RecipeEditorView: View {
             .buttonStyle(.pressable)
             Spacer()
             Text(isEditing ? "Edit recipe" : (prefill == nil ? "New recipe" : "Make it yours"))
-                .font(.gabarito(19, .extraBold))
+                .font(.gabarito(19, .bold))
                 .foregroundStyle(Color.ink)
             Spacer()
             Color.clear.frame(width: 48, height: 1)

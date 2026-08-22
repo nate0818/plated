@@ -95,7 +95,7 @@ struct CookbookView: View {
                     VStack(alignment: .leading, spacing: 2) {
                         MicroLabel(countLabel)
                         Text("Recipes")
-                            .font(.gabarito(25, .bold))
+                            .font(.gabarito(25, .semibold))
                             .tracking(-0.3)
                             .foregroundStyle(Color.ink)
                     }
@@ -280,7 +280,7 @@ struct RecipeFilterSheet: View {
             VStack(spacing: 2) {
                 MicroLabel("Find a dish")
                 Text("Filter & sort")
-                    .font(.gabarito(22, .extraBold))
+                    .font(.gabarito(22, .semibold))
                     .foregroundStyle(Color.ink)
             }
             .padding(.top, 22)
@@ -456,7 +456,7 @@ struct RecipeDetailView: View {
 
                 VStack(alignment: .leading, spacing: 6) {
                     Text(recipe.title)
-                        .font(.gabarito(27, .extraBold))
+                        .font(.gabarito(27, .semibold))
                         .tracking(-0.5)
                         .foregroundStyle(Color.ink)
                     Text(byline)
@@ -502,7 +502,7 @@ struct RecipeDetailView: View {
                         ForEach(Array(recipe.steps.enumerated()), id: \.offset) { index, step in
                             HStack(alignment: .top, spacing: 12) {
                                 Text("\(index + 1)")
-                                    .font(.gabarito(17, .extraBold))
+                                    .font(.gabarito(17, .bold))
                                     .foregroundStyle(Color.inkFaint)
                                     .frame(width: 22, alignment: .trailing)
                                 Text(step)
@@ -776,7 +776,7 @@ struct PlateAssignSheet: View {
             VStack(spacing: 2) {
                 MicroLabel("Plate it")
                 Text(recipe.title)
-                    .font(.gabarito(22, .extraBold))
+                    .font(.gabarito(22, .semibold))
                     .foregroundStyle(Color.ink)
                     .lineLimit(1)
             }
@@ -947,7 +947,7 @@ struct RecipePickerSheet: View {
     var body: some View {
         VStack(spacing: 0) {
             Text(titleLine)
-                .font(.gabarito(19, .extraBold))
+                .font(.gabarito(19, .bold))
                 .foregroundStyle(Color.ink)
                 .padding(.top, 22)
                 .padding(.bottom, 6)

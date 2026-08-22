@@ -36,7 +36,7 @@ struct TableSeatsSheet: View {
             VStack(spacing: 2) {
                 MicroLabel("\(members.count + guestSeats.count + pendingSeats.count) seats")
                 Text("Your table")
-                    .font(.gabarito(22, .extraBold))
+                    .font(.gabarito(22, .semibold))
                     .foregroundStyle(Color.ink)
             }
             .padding(.top, 22)
@@ -250,7 +250,7 @@ struct DMThreadView: View {
             VStack(spacing: 2) {
                 MicroLabel("Direct")
                 Text(peerName)
-                    .font(.gabarito(22, .extraBold))
+                    .font(.gabarito(22, .semibold))
                     .foregroundStyle(Color.ink)
             }
             .padding(.top, 22)

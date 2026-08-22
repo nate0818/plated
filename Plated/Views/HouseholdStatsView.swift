@@ -142,7 +142,7 @@ struct HouseholdStatsView: View {
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(accent ? Color.mango : Color.inkFaint)
             Text("\(value)")
-                .font(.gabarito(21, .bold))
+                .font(.gabarito(21, .semibold))
                 .foregroundStyle(Color.ink)
                 .contentTransition(.numericText())
                 .animation(.plSnap, value: value)

@@ -298,7 +298,7 @@ struct ProngsbyView: View {
             ProngsbyIdleGlyph(size: 56)
                 .padding(.top, 24)
             Text("Well hello. I'm Prongsby.")
-                .font(.gabarito(19, .extraBold))
+                .font(.gabarito(19, .bold))
                 .foregroundStyle(Color.ink)
             Text("Your sous chef and planning department. I know your \(recipes.count) recipes, the week's plan, and who's cooking when — ask me to resize a dish, make it vegetarian, swap a protein, or plan the whole party.")
                 .font(.jakarta(13, .medium))

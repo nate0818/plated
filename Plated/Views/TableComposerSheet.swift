@@ -28,7 +28,7 @@ struct TableComposerSheet: View {
             VStack(spacing: 2) {
                 MicroLabel("Post to the Table")
                 Text("What did you plate?")
-                    .font(.gabarito(22, .extraBold))
+                    .font(.gabarito(22, .semibold))
                     .foregroundStyle(Color.ink)
             }
             .padding(.top, 22)

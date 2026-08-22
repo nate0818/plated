@@ -72,7 +72,7 @@ struct PersonProfileView: View {
 
                     VStack(alignment: .leading, spacing: 3) {
                         Text(displayName)
-                            .font(.gabarito(24, .extraBold))
+                            .font(.gabarito(24, .semibold))
                             .tracking(-0.4)
                             .foregroundStyle(Color.ink)
                         MicroLabel(roleLine)
@@ -246,7 +246,7 @@ struct PersonProfileView: View {
     private func statBlock(_ value: String, _ label: String, accent: Bool = false) -> some View {
         VStack(spacing: 1) {
             Text(value)
-                .font(.gabarito(19, .extraBold))
+                .font(.gabarito(19, .bold))
                 .foregroundStyle(accent ? Color.mango : Color.ink)
             Text(label.uppercased())
                 .font(.jakarta(8.5, .extraBold))
@@ -321,7 +321,7 @@ struct EditProfileSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Edit profile")
-                .font(.gabarito(19, .extraBold))
+                .font(.gabarito(19, .bold))
                 .foregroundStyle(Color.ink)
                 .frame(maxWidth: .infinity)
                 .padding(.top, 18)
@@ -366,7 +366,7 @@ struct SettingsSheet: View {
             VStack(spacing: 2) {
                 MicroLabel("The back of house")
                 Text("Settings")
-                    .font(.gabarito(22, .extraBold))
+                    .font(.gabarito(22, .semibold))
                     .foregroundStyle(Color.ink)
             }
             .padding(.top, 22)
@@ -509,7 +509,7 @@ struct PaywallSheet: View {
                         .foregroundStyle(Color.ink)
                 }
                 Text("Plated+")
-                    .font(.gabarito(26, .extraBold))
+                    .font(.gabarito(26, .semibold))
                     .tracking(-0.4)
                     .foregroundStyle(Color.ink)
                 Text("One seat is free — the head of table. Plated+ seats everyone else.")

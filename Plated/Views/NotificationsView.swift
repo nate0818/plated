@@ -31,7 +31,7 @@ struct NotificationsView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     MicroLabel("What happened")
                     Text("Activity")
-                        .font(.gabarito(25, .bold))
+                        .font(.gabarito(25, .semibold))
                         .tracking(-0.3)
                         .foregroundStyle(Color.ink)
                 }

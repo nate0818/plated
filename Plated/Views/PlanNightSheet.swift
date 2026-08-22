@@ -32,7 +32,7 @@ struct PlanNightSheet: View {
             VStack(spacing: 4) {
                 MicroLabel(meal == nil ? "Plan the night" : "The plan so far")
                 Text(dayTitle)
-                    .font(.gabarito(22, .extraBold))
+                    .font(.gabarito(22, .semibold))
                     .foregroundStyle(Color.ink)
                 if let context = contextLine {
                     Text(context)
@@ -314,7 +314,7 @@ struct AskComposerSheet: View {
             VStack(spacing: 2) {
                 MicroLabel("Ask the table")
                 Text(dayName)
-                    .font(.gabarito(22, .extraBold))
+                    .font(.gabarito(22, .semibold))
                     .foregroundStyle(Color.ink)
             }
             .padding(.top, 22)
@@ -506,7 +506,7 @@ struct GatheringSheet: View {
             VStack(spacing: 2) {
                 MicroLabel("Plan a gathering")
                 Text(dayLabel)
-                    .font(.gabarito(22, .extraBold))
+                    .font(.gabarito(22, .semibold))
                     .foregroundStyle(Color.ink)
             }
             .padding(.top, 22)
@@ -532,7 +532,7 @@ struct GatheringSheet: View {
                         HStack(spacing: 14) {
                             stepperButton("minus") { if guests > 1 { guests -= 1 } }
                             Text("\(guests)")
-                                .font(.gabarito(19, .extraBold))
+                                .font(.gabarito(19, .bold))
                                 .foregroundStyle(Color.ink)
                                 .frame(minWidth: 30)
                                 .contentTransition(.numericText())

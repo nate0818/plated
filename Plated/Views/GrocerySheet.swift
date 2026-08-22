@@ -35,7 +35,7 @@ struct GrocerySheet: View {
             VStack(spacing: 2) {
                 MicroLabel("This week")
                 Text("Grocery")
-                    .font(.gabarito(22, .extraBold))
+                    .font(.gabarito(22, .semibold))
                     .foregroundStyle(Color.ink)
             }
             .padding(.top, 22)

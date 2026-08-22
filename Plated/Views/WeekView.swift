@@ -175,7 +175,7 @@ struct WeekView: View {
             VStack(alignment: .leading, spacing: 2) {
                 MicroLabel(weekRangeLabel)
                 Text("Your week")
-                    .font(.gabarito(25, .bold))
+                    .font(.gabarito(25, .semibold))
                     .tracking(-0.3)
                     .foregroundStyle(Color.ink)
                     .lineLimit(1)
@@ -380,7 +380,7 @@ struct WeekView: View {
                 }
             }
             Text(date.formattedDayNumber())
-                .font(.gabarito(19, .extraBold))
+                .font(.gabarito(19, .bold))
                 .foregroundStyle(dimmed ? Color.inkFaint : Color.ink)
             if let day = forecast.forecast(for: date) {
                 HStack(spacing: 2) {

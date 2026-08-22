@@ -321,7 +321,7 @@ struct CreateMenuSheet: View {
             VStack(spacing: 2) {
                 MicroLabel("Create")
                 Text("What are you adding?")
-                    .font(.gabarito(22, .extraBold))
+                    .font(.gabarito(22, .semibold))
                     .foregroundStyle(Color.ink)
             }
             .padding(.top, 22)

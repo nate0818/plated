@@ -46,7 +46,7 @@ struct MonthPlannerView: View {
         HStack(spacing: 14) {
             VStack(alignment: .leading, spacing: 3) {
                 Text(monthTitle)
-                    .font(.gabarito(25, .bold))
+                    .font(.gabarito(25, .semibold))
                     .tracking(-0.3)
                     .foregroundStyle(Color.ink)
                 // Legend rides the header — visible before you scroll an inch.
