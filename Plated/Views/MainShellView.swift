@@ -24,7 +24,7 @@ struct MainShellView: View {
     /// Prongsby's draft and in-flight reply outlive the sheet he lives in.
     @State private var prongsbySession = ProngsbySession()
     @State private var prongsbyPresented = false
-    @State private var perchHidden = false
+    @State private var perchVisibility = PerchVisibility()
     @State private var createPresented = false
     /// The pick made inside the menu; presented only after the menu is
     /// fully down — two sheets can't stand on the same view at once.
@@ -54,9 +54,8 @@ struct MainShellView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .onPreferenceChange(HidesProngsbyPerchKey.self) { perchHidden = $0 }
 
-            if !perchHidden {
+            if !perchVisibility.isHidden {
                 ProngsbyPerch(session: prongsbySession) {
                     // SwiftUI stands up one sheet at a time; the create
                     // hand-off already owns a two-step, so don't race it.
@@ -68,7 +67,7 @@ struct MainShellView: View {
                 // it (4 bottom pad + 68 bar height), so the two float as one
                 // cluster instead of two loose objects.
                 .padding(.trailing, 20)
-                .padding(.bottom, 84)
+                .padding(.bottom, Layout.perchBottom)
                 .transition(.scale(scale: 0.8).combined(with: .opacity))
             }
 
@@ -78,6 +77,8 @@ struct MainShellView: View {
             .padding(.horizontal, 20)
             .padding(.bottom, 4)
         }
+        .environment(\.perchVisibility, perchVisibility)
+        .animation(.plSnap, value: perchVisibility.isHidden)
         .sheet(isPresented: $createPresented, onDismiss: {
             if let choice = createChoice {
                 createChoice = nil

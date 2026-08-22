@@ -16,12 +16,14 @@ struct HouseholdHomeView: View {
     @Query(sort: \HouseholdProfile.createdAt) private var profiles: [HouseholdProfile]
 
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.dynamicTypeSize) private var typeSize
     @AppStorage("autoRotateOpenNights") private var autoRotate = true
     @AppStorage("userFamilyName") private var userFamilyName = ""
     @AppStorage("householdName") private var householdName = ""
     @State private var addPresented = false
     @State private var paywallPresented = false
     @State private var settingsPresented = false
+    @State private var namingFromMasthead = false
     @State private var turnsTipShown = false
     @State private var bannerItem: PhotosPickerItem?
     /// Item-based, not two `isPresented` booleans: a binding set
@@ -105,8 +107,8 @@ struct HouseholdHomeView: View {
         .sheet(isPresented: $paywallPresented) {
             PaywallSheet()
         }
-        .sheet(isPresented: $settingsPresented) {
-            SettingsSheet()
+        .sheet(isPresented: $settingsPresented, onDismiss: { namingFromMasthead = false }) {
+            SettingsSheet(focusHouseholdName: namingFromMasthead)
         }
         .sheet(item: $dmPeer) { peer in
             DMThreadView(peerName: peer)
@@ -127,8 +129,11 @@ struct HouseholdHomeView: View {
                         context.delete(member)
                     }
                 }
-                Button("Cancel", role: .cancel) {}
+                Button("Cancel", role: .cancel) { swipedMember = nil }
             }
+        }
+        .task {
+            await reframeStoredBannerIfNeeded()
         }
         .onAppear {
             #if DEBUG
@@ -159,12 +164,35 @@ struct HouseholdHomeView: View {
 
     // MARK: Masthead
 
+    /// Past this, the trailing cluster and a 26pt title cannot share a
+    /// line — the row becomes two.
+    private var hugeType: Bool { typeSize >= .accessibility1 }
+
+    @ViewBuilder
     private var masthead: some View {
-        HStack(alignment: .center, spacing: 10) {
+        if hugeType {
+            VStack(alignment: .leading, spacing: 12) {
+                mastheadTitle
+                HStack(spacing: 10) {
+                    Spacer(minLength: 0)
+                    mastheadControls
+                }
+            }
+        } else {
+            HStack(alignment: .center, spacing: 10) {
+                mastheadTitle
+                Spacer(minLength: 6)
+                mastheadControls
+            }
+        }
+    }
+
+    private var mastheadTitle: some View {
             // An unnamed house is a house Apple never told us the name of.
             // The title is the way to fix that — tap it and go name it.
             Button {
                 Haptic.tap()
+                namingFromMasthead = true
                 settingsPresented = true
             } label: {
                 VStack(alignment: .leading, spacing: 2) {
@@ -174,8 +202,9 @@ struct HouseholdHomeView: View {
                             .font(.gabarito(26, .semibold))
                             .tracking(-0.3)
                             .foregroundStyle(Color.ink)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.65)
+                            .lineLimit(2)
+                            .minimumScaleFactor(hugeType ? 1 : 0.8)
+                            .fixedSize(horizontal: false, vertical: true)
                         if !isNamed {
                             Image(systemName: "pencil")
                                 .font(.system(size: 12, weight: .semibold))
@@ -188,8 +217,10 @@ struct HouseholdHomeView: View {
             .buttonStyle(.pressable)
             .accessibilityLabel(isNamed ? householdTitle : "Name your household")
             .layoutPriority(1)
-            Spacer(minLength: 6)
+    }
 
+    @ViewBuilder
+    private var mastheadControls: some View {
             ActivityBellButton(size: 36) {
                 pushed = .activity
             }
@@ -225,11 +256,11 @@ struct HouseholdHomeView: View {
                         .tracking(0.7)
                         .foregroundStyle(Color.inkFaint)
                 }
+                .frame(minWidth: 44, minHeight: 44)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.pressable)
             .accessibilityLabel("Your profile")
-        }
     }
 
     private var ownerInitial: String {
@@ -299,6 +330,23 @@ struct HouseholdHomeView: View {
                 .foregroundStyle(Color.inkFaint)
                 .padding(.horizontal, 2)
         }
+    }
+
+    /// A banner hung before the crop existed is still whatever shape it
+    /// was picked at, and the well is 16:9 now — so a portrait group shot
+    /// gets centre-cropped and the people at the edges walk out of frame.
+    /// Re-aim it once, in the background, and write it back.
+    private func reframeStoredBannerIfNeeded() async {
+        guard let profile = profiles.first, let data = profile.bannerPhotoData else { return }
+        guard let image = UIImage(data: data), image.size.height > 0 else { return }
+        let ratio = image.size.width / image.size.height
+        // Already the right shape (within a hair) — leave it alone.
+        guard abs(ratio - BannerFocus.aspect) > 0.02 else { return }
+
+        let framed = await Task.detached(priority: .utility) {
+            BannerFocus.framed(data)
+        }.value
+        if let framed { profile.bannerPhotoData = framed }
     }
 
     private func setBanner(_ framed: Data?) {
@@ -441,7 +489,10 @@ struct HouseholdHomeView: View {
     private func swipeActions(for member: HouseholdMember) -> [SwipeAction] {
         guard !member.isOwner else { return [] }
         return [
-            .message { dmPeer = member.name },
+            .message {
+                swipedMember = nil
+                dmPeer = member.name
+            },
             .remove { removingMember = member }
         ]
     }
@@ -494,7 +545,7 @@ struct HouseholdHomeView: View {
                     Image(systemName: "info.circle")
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(Color.inkFaint)
-                        .frame(minWidth: 32, minHeight: 32)
+                        .frame(minWidth: 44, minHeight: 44)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.pressable)

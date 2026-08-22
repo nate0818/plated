@@ -3,7 +3,9 @@ import SwiftUI
 /// One thing a swipe can reveal. Tomato is reserved for the destructive
 /// one — everything else stays ink, per the house rule about earned colour.
 struct SwipeAction: Identifiable {
-    let id = UUID()
+    /// Stable across body passes — a fresh UUID each time would rebuild
+    /// the revealed buttons under the user's finger.
+    var id: String { label }
     let symbol: String
     let label: String
     var destructive = false
@@ -59,6 +61,14 @@ struct SwipeRow<Content: View>: View {
             }
 
             content()
+                // The swipe is an accelerator, never the only door: the
+                // same actions hang off the row for VoiceOver and for
+                // anyone who can't manage the gesture.
+                .accessibilityActions {
+                    ForEach(actions) { action in
+                        Button(action.label) { action.perform() }
+                    }
+                }
                 .offset(x: (isOpen ? -revealWidth : 0) + dragOffset)
                 .simultaneousGesture(
                     DragGesture(minimumDistance: 24)

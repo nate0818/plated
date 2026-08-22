@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import UIKit
 
 /// Prongsby — the house fork. Drawn by hand so he's ours: three tines of
 /// hair, a long friendly face on the handle, permanently pleased to talk
@@ -55,15 +56,24 @@ struct ProngsbyIdleGlyph: View {
     var tone: Color = .ink
     var face: Color = .canvas
 
+    // phaseAnimator does not consult Reduce Motion on its own, and this
+    // glyph bobs forever wherever it appears — the guard belongs here,
+    // once, rather than at each call site that remembers to add it.
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     var body: some View {
-        ProngsbyGlyph(size: size, tone: tone, face: face)
-            .phaseAnimator([0, 1, 2]) { view, phase in
-                view
-                    .offset(y: phase == 1 ? -4 : 1)
-                    .rotationEffect(.degrees(phase == 0 ? -3 : (phase == 2 ? 3 : 0)))
-            } animation: { _ in
-                .easeInOut(duration: 1.4)
-            }
+        if reduceMotion {
+            ProngsbyGlyph(size: size, tone: tone, face: face)
+        } else {
+            ProngsbyGlyph(size: size, tone: tone, face: face)
+                .phaseAnimator([0, 1, 2]) { view, phase in
+                    view
+                        .offset(y: phase == 1 ? -4 : 1)
+                        .rotationEffect(.degrees(phase == 0 ? -3 : (phase == 2 ? 3 : 0)))
+                } animation: { _ in
+                    .easeInOut(duration: 1.4)
+                }
+        }
     }
 }
 
@@ -128,6 +138,11 @@ struct ProngsbyView: View {
     /// He opens at a height that leaves your plan visible behind him —
     /// a sous chef standing beside the week, not a place you travel to.
     /// Focusing the composer raises him the rest of the way.
+    ///
+    /// The backdrop is deliberately NOT interactive: every tab header
+    /// behind him owns sheets of its own, and SwiftUI presents one sheet
+    /// at a time — a tap back there would set a flag that never presents
+    /// and never clears.
     @State private var detent: PresentationDetent = .fraction(0.62)
 
     var body: some View {
@@ -138,7 +153,6 @@ struct ProngsbyView: View {
             .presentationDragIndicator(.visible)
             .presentationBackground(Color.canvas)
             .presentationCornerRadius(Radius.sheet)
-            .presentationBackgroundInteraction(.enabled(upThrough: .fraction(0.62)))
             .onChange(of: composerFocused) { _, focused in
                 if focused { withAnimation(.plSnap) { detent = .large } }
             }
@@ -273,7 +287,7 @@ struct ProngsbyView: View {
             ProngsbyGlyph(size: 30)
             VStack(alignment: .leading, spacing: 1) {
                 Text("Prongsby")
-                    .font(.gabarito(20, .extraBold))
+                    .font(.gabarito(20, .semibold))
                     .foregroundStyle(Color.ink)
                 Text("Your AI cooking companion")
                     .font(.jakarta(11, .bold))
@@ -408,7 +422,11 @@ struct ProngsbyView: View {
                 context.insert(DirectMessage(peerName: "Prongsby", text: answer, isMine: false))
                 session.thinking = false
             }
-            if session.isPresented {
+            // Visible means on screen AND in the foreground: a reply that
+            // lands while the app is away would otherwise buzz nothing and
+            // leave no trace at all.
+            let visible = session.isPresented && UIApplication.shared.applicationState == .active
+            if visible {
                 Haptic.plate()
             } else {
                 // He answered an empty room: let the bell carry it.

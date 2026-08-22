@@ -169,11 +169,15 @@ extension ButtonStyle where Self == PressableStyle {
 // MARK: - Floating chrome
 
 enum Layout {
-    /// How much room the floating chrome needs at the bottom of a scroll:
-    /// the tab bar plus Prongsby's perch riding above it. Every scrolling
-    /// surface pads by this, so the next piece of floating chrome is a
-    /// one-line change instead of a hunt through six files.
-    static let floatingChromeInset: CGFloat = 128
+    /// Where the perch sits and how big it is — the tab bar's own bottom
+    /// padding (4) plus its height (68) plus a 12pt gap.
+    static let perchBottom: CGFloat = 84
+    static let perchHeight: CGFloat = 50
+
+    /// How much room the floating chrome needs at the bottom of a scroll.
+    /// Derived, not typed: a hand-written constant drifted 6pt short of
+    /// the chrome it was supposed to clear the first time.
+    static let floatingChromeInset: CGFloat = perchBottom + perchHeight + 8
 }
 
 /// A slow ambient breath for empty-state glyphs — the room is set and

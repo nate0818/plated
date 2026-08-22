@@ -31,6 +31,7 @@ struct Badge: Identifiable {
 /// stat tiles so the main page can stay about the people.
 struct HouseholdStatsView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var typeSize
     @Query private var recipes: [Recipe]
     @Query(filter: #Predicate<TablePost> { !$0.isDiscover }) private var posts: [TablePost]
     @Query(sort: \HouseholdMember.createdAt) private var members: [HouseholdMember]
@@ -40,6 +41,17 @@ struct HouseholdStatsView: View {
     private var kissCount: Int { posts.filter(\.hasChefsKiss).count }
     private var platesEarned: Int { posts.reduce(0) { $0 + $1.totalPlates } }
     private var nightsPlated: Int { meals.count }
+
+    /// The most nights ever planned inside one calendar week — the badge
+    /// says "a week, plated", so counting every dinner ever would be a
+    /// different claim entirely.
+    private var bestWeek: Int {
+        let calendar = Calendar.current
+        let weeks = Dictionary(grouping: meals) { meal in
+            calendar.dateInterval(of: .weekOfYear, for: meal.date)?.start ?? meal.date
+        }
+        return weeks.values.map(\.count).max() ?? 0
+    }
 
     private var badges: [Badge] {
         [
@@ -65,8 +77,8 @@ struct HouseholdStatsView: View {
                   detail: "Three seats filled at your household.",
                   symbol: "person.3", have: members.count, need: 3),
             Badge(id: "week-planned", title: "A week, plated",
-                  detail: "Seven nights planned in one go.",
-                  symbol: "calendar", have: nightsPlated, need: 7)
+                  detail: "Seven nights planned inside one week.",
+                  symbol: "calendar", have: bestWeek, need: 7)
         ]
     }
 
@@ -105,6 +117,7 @@ struct HouseholdStatsView: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.pressable)
+            .accessibilityLabel("Back")
 
             VStack(alignment: .leading, spacing: 1) {
                 MicroLabel("\(earnedCount) of \(badges.count) earned")
@@ -123,7 +136,7 @@ struct HouseholdStatsView: View {
         VStack(alignment: .leading, spacing: 10) {
             MicroLabel("The count")
             LazyVGrid(
-                columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 3),
+                columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: typeSize >= .accessibility1 ? 2 : 3),
                 spacing: 10
             ) {
                 statTile("Kisses", kissCount, "sparkles", accent: kissCount > 0)
@@ -152,8 +165,10 @@ struct HouseholdStatsView: View {
                 .foregroundStyle(Color.inkFaint)
         }
         .frame(maxWidth: .infinity)
-        .frame(height: 82)
+        .padding(.vertical, 14)
+        .frame(minHeight: 82)
         .overlay(RoundedRectangle(cornerRadius: Radius.chip).strokeBorder(Color.hairline))
+        .accessibilityElement(children: .combine)
     }
 
     private var badgeShelf: some View {
@@ -220,11 +235,18 @@ struct HouseholdStatsView: View {
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(Color.basil)
                     .contentTransition(.symbolEffect(.replace))
+                    .accessibilityHidden(true)
             }
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
         .background(Color.canvas)
         .overlay(RoundedRectangle(cornerRadius: Radius.card).strokeBorder(Color.hairline))
+        // Earned is a green tick and a green circle — state that a
+        // screen reader can't see unless it's said out loud.
+        .accessibilityElement(children: .combine)
+        .accessibilityValue(
+            badge.earned ? "Earned" : (badge.progressLabel.map { "Not earned yet, \($0)" } ?? "Not earned yet")
+        )
     }
 }

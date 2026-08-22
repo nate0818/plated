@@ -1,18 +1,49 @@
 import SwiftUI
 
-/// A page can ask the shell to retire the perch for its duration — a
-/// pushed page that docks its own bottom CTA (RecipeDetailView's "Plate
-/// it") would otherwise have a fork sitting on it.
-struct HidesProngsbyPerchKey: PreferenceKey {
-    static let defaultValue = false
-    static func reduce(value: inout Bool, nextValue: () -> Bool) {
-        value = value || nextValue()
+/// Whether the perch is currently welcome on screen. A pushed page that
+/// docks its own bottom CTA (RecipeDetailView's "Plate it") would
+/// otherwise have a fork sitting on it.
+///
+/// Deliberately NOT a PreferenceKey: preferences do not reliably
+/// propagate out of a NavigationStack's pushed destination, so the
+/// shell never heard the request. Shared observable state does.
+@Observable
+final class PerchVisibility {
+    /// Counted, not toggled: two pages can ask for quiet at once (a push
+    /// arriving while another is leaving) and the last one to finish must
+    /// not un-hide it for the one still on screen.
+    private(set) var hiddenRequests = 0
+    var isHidden: Bool { hiddenRequests > 0 }
+
+    func retain() { hiddenRequests += 1 }
+    func release() { hiddenRequests = max(0, hiddenRequests - 1) }
+}
+
+private struct PerchVisibilityKey: EnvironmentKey {
+    static let defaultValue = PerchVisibility()
+}
+
+extension EnvironmentValues {
+    var perchVisibility: PerchVisibility {
+        get { self[PerchVisibilityKey.self] }
+        set { self[PerchVisibilityKey.self] = newValue }
+    }
+}
+
+private struct HidesProngsbyPerch: ViewModifier {
+    @Environment(\.perchVisibility) private var visibility
+
+    func body(content: Content) -> some View {
+        content
+            .onAppear { visibility.retain() }
+            .onDisappear { visibility.release() }
     }
 }
 
 extension View {
-    func hidesProngsbyPerch(_ hidden: Bool = true) -> some View {
-        preference(key: HidesProngsbyPerchKey.self, value: hidden)
+    /// Retire the perch for as long as this view is on screen.
+    func hidesProngsbyPerch() -> some View {
+        modifier(HidesProngsbyPerch())
     }
 }
 
@@ -33,7 +64,6 @@ struct ProngsbyPerch: View {
 
     /// He arrives wearing his name and gives it up once you've met him.
     @AppStorage("prongsbyPerchNamed") private var showsName = true
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         Button {
@@ -54,7 +84,7 @@ struct ProngsbyPerch: View {
                 }
             }
             .padding(.horizontal, showsName ? 14 : 0)
-            .frame(width: showsName ? nil : 50, height: 50)
+            .frame(width: showsName ? nil : Layout.perchHeight, height: Layout.perchHeight)
             .background {
                 Capsule()
                     .fill(Color.canvas.opacity(0.94))
@@ -85,10 +115,8 @@ struct ProngsbyPerch: View {
 
     @ViewBuilder
     private var glyph: some View {
-        // phaseAnimator does not consult Reduce Motion on its own, and a
-        // puck that wiggles forever in the corner of every screen is an
-        // accessibility failure, not a flourish.
-        if session.thinking, !reduceMotion {
+        // ProngsbyIdleGlyph sits still under Reduce Motion on its own now.
+        if session.thinking {
             ProngsbyIdleGlyph(size: 24, tone: .ink)
         } else {
             ProngsbyGlyph(size: 24, tone: .ink)

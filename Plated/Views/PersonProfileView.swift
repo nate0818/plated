@@ -353,6 +353,10 @@ struct EditProfileSheet: View {
 /// The settings drawer — where the light switch actually belongs. Quiet
 /// controls, one card each: the room, the calendar, the subscription.
 struct SettingsSheet: View {
+    /// Set when Settings is opened from Home's "Your Household" title —
+    /// the user asked to name the house, so put them in the field.
+    var focusHouseholdName = false
+
     @Environment(\.dismiss) private var dismiss
     @AppStorage("afterDark") private var afterDark = false
     @AppStorage("showCalendarEvents") private var showCalendarEvents = false
@@ -387,6 +391,13 @@ struct SettingsSheet: View {
                             .foregroundStyle(Color.ink)
                             .multilineTextAlignment(.trailing)
                             .frame(width: 110)
+                            .padding(.horizontal, 10)
+                            .frame(minHeight: 44)
+                            .overlay(Capsule().strokeBorder(Color.hairline))
+                            // Padding alone isn't hit-testable — the field
+                            // was a ~19pt strip you had to aim at.
+                            .contentShape(Capsule())
+                            .onTapGesture { namingHousehold = true }
                             .focused($namingHousehold)
                             .submitLabel(.done)
                             .onSubmit { namingHousehold = false }
@@ -451,10 +462,13 @@ struct SettingsSheet: View {
                 .padding(.bottom, 24)
             }
         }
-        .presentationDetents([.medium])
+        .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
         .presentationBackground(Color.canvas)
         .presentationCornerRadius(Radius.sheet)
+        .onAppear {
+            if focusHouseholdName { namingHousehold = true }
+        }
         .sheet(isPresented: $paywallShown, onDismiss: { plusActive = PlatedPlus.isActive }) {
             PaywallSheet()
         }
