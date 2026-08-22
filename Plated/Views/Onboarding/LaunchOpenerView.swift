@@ -39,8 +39,14 @@ struct LaunchOpenerView: View {
 
                 ZStack {
                     // Ground — one flat persimmon, no gradient or vignette:
-                    // the field stays a solid color edge to edge.
-                    th.ground
+                    // the field stays a solid color edge to edge. The static
+                    // launch plate is always persimmon (it can't know about
+                    // After Dark), so the dark room's espresso ground is
+                    // arrived at here, on camera, before the mark appears.
+                    OpenerTheme.light.ground
+                    if colorScheme == .dark {
+                        th.ground.opacity(glide(0, 1, 0.15, 0.75, T))
+                    }
 
                     // Ground ripple from the set-down, at true screen center
                     if !reduceMotion, f.rippleP > 0.001, f.rippleP < 0.999 {
@@ -89,12 +95,15 @@ struct LaunchOpenerView: View {
             while !Task.isCancelled {
                 try? await Task.sleep(for: .milliseconds(50))
                 let t = Date.now.timeIntervalSince(start)
-                if !reduceMotion, !plateLanded, t >= 1.3 {
+                // Authored time, not wall time — the hurried clock must not
+                // drift the haptic away from the visible touch-down.
+                let T = cue.authoredTime(t, readyAt: readyAt).T
+                if !reduceMotion, !plateLanded, T >= 1.3 {
                     // The period touches the table — a plate lands.
                     plateLanded = true
                     Haptic.plate()
                 }
-                if cue.authoredTime(t, readyAt: readyAt).T >= cue.total {
+                if T >= cue.total {
                     if !finished { finished = true; onFinished() }
                     break
                 }
@@ -114,7 +123,7 @@ struct LaunchOpenerView: View {
                 ForEach(Array("plated".enumerated()), id: \.offset) { i, ch in
                     let l = letters[i]
                     Text(String(ch))
-                        .font(.custom("HelveticaNeue-Medium", size: fs))
+                        .font(.gabarito(fs, .medium))
                         .tracking(-0.022 * fs)
                         .foregroundStyle(th.ink)
                         .shadow(color: th.typeShadow, radius: 6 * k, y: 4 * k)
@@ -179,20 +188,31 @@ struct LaunchOpenerView: View {
 private struct OpenerCue {
     let simmer: Double
     let outDur: Double
+    /// Clock multiplier once the app is awake before the simmer — nothing
+    /// is left to cover, so the remaining choreography plays faster with
+    /// the same eased shapes. A slow wake still simmers at 1:1.
+    let hurry: Double
+    /// Full mode rounds the simmer to whole cycles so a pulse never cuts
+    /// mid-breath; reduced mode has no pulse and exits the moment it can.
+    let quantizesSimmer: Bool
     let cycle = 2.2
 
     var out: Double { simmer + cycle }
     var total: Double { out + outDur }
 
     /// Field 0.8 · Mark 1.1 · Word 1.5 · Simmer 2.2 · Out 0.9
-    static let full = OpenerCue(simmer: 3.4, outDur: 0.9)
-    /// Reduce Motion: fade the finished lockup in, keep the glow pulse.
-    static let reduced = OpenerCue(simmer: 1.2, outDur: 0.7)
+    static let full = OpenerCue(simmer: 3.4, outDur: 0.9, hurry: 1.5, quantizesSimmer: true)
+    /// Reduce Motion: fade the finished lockup in, no pulse, leave early.
+    static let reduced = OpenerCue(simmer: 1.2, outDur: 0.7, hurry: 1, quantizesSimmer: false)
 
-    /// Wall clock → authored time. Before the simmer they agree; then the
-    /// simmer repeats whole cycles until the wake-up seam that follows
-    /// `readyAt`, after which the Out scene plays.
+    /// Wall clock → authored time. Before the simmer they agree (hurried
+    /// once the app is ready); then the simmer repeats whole cycles until
+    /// the wake-up seam that follows `readyAt`, after which Out plays.
     func authoredTime(_ t: Double, readyAt: Double?) -> (T: Double, simmerEnd: Double) {
+        var t = t
+        if let readyAt, readyAt < simmer, t > readyAt {
+            t = readyAt + (t - readyAt) * hurry
+        }
         if t < simmer { return (t, simmerEndWall(readyAt: readyAt)) }
         let end = simmerEndWall(readyAt: readyAt)
         if t < end {
@@ -203,6 +223,7 @@ private struct OpenerCue {
 
     private func simmerEndWall(readyAt: Double?) -> Double {
         guard let readyAt else { return .infinity }
+        guard quantizesSimmer else { return max(simmer, readyAt) }
         let cycles = max(0, ((readyAt - simmer) / cycle).rounded(.up))
         return simmer + cycles * cycle
     }
@@ -225,10 +246,12 @@ private struct OpenerFrame {
 
     init(T: Double, cue: OpenerCue, reduced: Bool) {
         let S = cue.simmer, O = cue.out
-        let b1 = bump(T, S + 0.25, 0.85), b2 = bump(T, S + 1.25, 0.85)
-        glow = b1 + b2
 
         if reduced {
+            // Every animated channel stays flat — the glow pulse included,
+            // which is doubly right now that the reduced path can exit
+            // mid-cycle the moment the app is ready.
+            glow = 0
             let lockO = glide(0, 1, 0.15, 0.75, T) * glide(1, 0, O + 0.1, O + 0.6, T)
             letters = (0..<6).map { _ in Letter(o: lockO, b: 0, y: 0) }
             trackingExtra = 0
@@ -240,6 +263,9 @@ private struct OpenerFrame {
             contactSpread = 1; contactIn = 1
             return
         }
+
+        let b1 = bump(T, S + 0.25, 0.85), b2 = bump(T, S + 1.25, 0.85)
+        glow = b1 + b2
 
         let M = 0.8, W = 1.9
 

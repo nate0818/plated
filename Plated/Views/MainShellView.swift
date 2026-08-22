@@ -20,6 +20,8 @@ struct MainShellView: View {
     @Query private var members: [HouseholdMember]
 
     @State private var selection: AppTab = .week
+    /// Prongsby's draft and in-flight reply outlive his tab's view.
+    @State private var prongsbySession = ProngsbySession()
     @State private var createPresented = false
     /// The pick made inside the menu; presented only after the menu is
     /// fully down — two sheets can't stand on the same view at once.
@@ -43,7 +45,7 @@ struct MainShellView: View {
                 case .table:
                     TableFeedView()
                 case .prongsby:
-                    ProngsbyView()
+                    ProngsbyView(session: prongsbySession)
                 case .cookbook:
                     CookbookView()
                 case .home:
@@ -147,6 +149,12 @@ struct MainShellView: View {
             }
             if LaunchFlags.consume("-plated-open-table-post") {
                 activeCreate = .tablePost
+            }
+            if LaunchFlags.consume("-plated-open-recipe") {
+                activeCreate = .recipe
+            }
+            if LaunchFlags.consume("-plated-open-ask") {
+                activeCreate = .ask
             }
             // Prongsby graduated from a pushed page to a tab; the old flag
             // still lands where it says.
@@ -272,28 +280,30 @@ struct CreateMenuSheet: View {
             .padding(.top, 22)
             .padding(.bottom, 16)
 
-            VStack(spacing: 8) {
-                row(
-                    .tablePost, icon: "camera",
-                    title: "Post to the Table",
-                    detail: "A plated moment for the household feed"
-                )
-                row(
-                    .recipe, icon: "book.closed",
-                    title: "Recipe",
-                    detail: "A dish for the cookbook"
-                )
-                row(
-                    .ask, icon: "hand.raised",
-                    title: "Ask the table",
-                    detail: "A question or a poll — what should we plate?"
-                )
+            // Large type outgrows the fixed detent — the rows scroll, and
+            // the grabber offers the full-height detent as a way out.
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 8) {
+                    row(
+                        .tablePost, icon: "camera",
+                        title: "Post to the Table",
+                        detail: "A plated moment for the household feed"
+                    )
+                    row(
+                        .recipe, icon: "book.closed",
+                        title: "Recipe",
+                        detail: "A dish for the cookbook"
+                    )
+                    row(
+                        .ask, icon: "hand.raised",
+                        title: "Ask the table",
+                        detail: "A question or a poll — what should we plate?"
+                    )
+                }
+                .padding(.horizontal, 24)
             }
-            .padding(.horizontal, 24)
-
-            Spacer(minLength: 0)
         }
-        .presentationDetents([.height(330)])
+        .presentationDetents([.height(330), .large])
         .presentationDragIndicator(.visible)
         .presentationBackground(Color.canvas)
         .presentationCornerRadius(Radius.sheet)

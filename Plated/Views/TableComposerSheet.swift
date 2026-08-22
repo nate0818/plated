@@ -11,12 +11,16 @@ struct TableComposerSheet: View {
 
     @State private var photoItem: PhotosPickerItem?
     @State private var photoData: Data?
+    @State private var photoLoading = false
     @State private var dishTitle = ""
     @State private var caption = ""
     @State private var tagged: Set<String> = []
 
+    /// A picked photo that is still resolving holds the post — a fast tap
+    /// on the pill must never silently ship without it.
     private var canPost: Bool {
-        photoData != nil || !dishTitle.trimmingCharacters(in: .whitespaces).isEmpty
+        !photoLoading &&
+            (photoData != nil || !dishTitle.trimmingCharacters(in: .whitespaces).isEmpty)
     }
 
     var body: some View {
@@ -49,32 +53,38 @@ struct TableComposerSheet: View {
                     if members.count > 1 {
                         VStack(alignment: .leading, spacing: 8) {
                             MicroLabel("Who helped")
-                            HStack(spacing: 8) {
-                                ForEach(members.filter { !$0.isOwner }, id: \.persistentModelID) { member in
-                                    let active = tagged.contains(member.name)
-                                    Button {
-                                        Haptic.tap()
-                                        withAnimation(.plSnap) {
-                                            if active { tagged.remove(member.name) } else { tagged.insert(member.name) }
-                                        }
-                                    } label: {
-                                        HStack(spacing: 5) {
-                                            AvatarCircle(initials: member.firstInitial, tone: member.tone, size: 22)
-                                            Text("@\(member.name)")
-                                                .font(.jakarta(12, .bold))
-                                        }
-                                        .foregroundStyle(active ? Color.canvas : Color.ink)
-                                        .padding(.horizontal, 10)
-                                        .frame(height: 36)
-                                        .background {
-                                            if active {
-                                                Capsule().fill(Color.ink)
-                                            } else {
-                                                Capsule().strokeBorder(Color.hairline)
+                            // A big table overflows a plain row — the chips
+                            // scroll sideways instead of walking off-screen.
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 8) {
+                                    ForEach(members.filter { !$0.isOwner }, id: \.persistentModelID) { member in
+                                        let active = tagged.contains(member.name)
+                                        Button {
+                                            Haptic.tap()
+                                            withAnimation(.plSnap) {
+                                                if active { tagged.remove(member.name) } else { tagged.insert(member.name) }
                                             }
+                                        } label: {
+                                            HStack(spacing: 5) {
+                                                AvatarCircle(initials: member.firstInitial, tone: member.tone, size: 22)
+                                                Text("@\(member.name)")
+                                                    .font(.jakarta(12, .bold))
+                                            }
+                                            .foregroundStyle(active ? Color.canvas : Color.ink)
+                                            .padding(.horizontal, 10)
+                                            .frame(height: 36)
+                                            .background {
+                                                if active {
+                                                    Capsule().fill(Color.ink)
+                                                } else {
+                                                    Capsule().strokeBorder(Color.hairline)
+                                                }
+                                            }
+                                            .frame(minHeight: 44)
+                                            .contentShape(Capsule())
                                         }
+                                        .buttonStyle(.plain)
                                     }
-                                    .buttonStyle(.plain)
                                 }
                             }
                         }
@@ -98,10 +108,12 @@ struct TableComposerSheet: View {
         .presentationCornerRadius(Radius.sheet)
         .onChange(of: photoItem) { _, item in
             guard let item else { return }
+            photoLoading = true
             Task {
                 if let raw = try? await item.loadTransferable(type: Data.self) {
                     withAnimation(.plSnap) { photoData = RecipeEditorView.processed(raw) }
                 }
+                photoLoading = false
             }
         }
     }

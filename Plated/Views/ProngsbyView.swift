@@ -73,6 +73,17 @@ private struct SmileShape: Shape {
     }
 }
 
+/// What the fork is holding right now — the draft in the composer and the
+/// in-flight reply. Owned by the shell so switching tabs (which tears the
+/// chat view down) never eats a half-typed question or drops the thinking
+/// indicator while a reply is cooking.
+@Observable
+final class ProngsbySession {
+    var draft = ""
+    var thinking = false
+    var thinkingLine = ProngsbyBrain.thinkingLines[0]
+}
+
 /// The chat. Grounded in this household's cookbook, plan, and people via
 /// ProngsbyBrain — on-device rules today, the doorway for the real model
 /// later. The thread persists like any DM, so the history is always there.
@@ -87,10 +98,11 @@ struct ProngsbyView: View {
         sort: \DirectMessage.createdAt
     ) private var messages: [DirectMessage]
 
-    @State private var draft = ""
-    @State private var thinking = false
+    /// Draft, thinking state, and the rotating status line live above the
+    /// view — the tab switch tears ProngsbyView down, and a half-typed
+    /// question must survive a peek at another tab.
+    @Bindable var session: ProngsbySession
     @State private var activityShown = false
-    @State private var thinkingLine = ProngsbyBrain.thinkingLines[0]
     @State private var clearConfirmShown = false
     @FocusState private var composerFocused: Bool
 
@@ -125,7 +137,7 @@ struct ProngsbyView: View {
                     ForEach(messages, id: \.persistentModelID) { message in
                         bubble(message)
                     }
-                    if thinking {
+                    if session.thinking {
                         thinkingBubble
                     }
                 }
@@ -156,7 +168,7 @@ struct ProngsbyView: View {
                                     .contentShape(Capsule())
                             }
                             .buttonStyle(.plain)
-                            .disabled(thinking)
+                            .disabled(session.thinking)
                         }
                     }
                     .padding(.horizontal, 24)
@@ -165,7 +177,7 @@ struct ProngsbyView: View {
             }
 
             HStack(spacing: 10) {
-                TextField("Ask Prongsby…", text: $draft, axis: .vertical)
+                TextField("Ask Prongsby…", text: $session.draft, axis: .vertical)
                     .font(.jakarta(14, .medium))
                     .lineLimit(1...4)
                     .focused($composerFocused)
@@ -178,20 +190,20 @@ struct ProngsbyView: View {
                     .contentShape(RoundedRectangle(cornerRadius: Radius.chip))
                     .onTapGesture { composerFocused = true }
                 Button {
-                    send(draft)
+                    send(session.draft)
                 } label: {
                     Circle()
-                        .fill(draft.isEmpty ? Color.fill : Color.tomato)
+                        .fill(session.draft.isEmpty ? Color.fill : Color.tomato)
                         .frame(width: 40, height: 40)
                         .overlay {
                             Image(systemName: "arrow.up")
                                 .font(.system(size: 15, weight: .bold))
-                                .foregroundStyle(draft.isEmpty ? Color.inkFaint : .white)
+                                .foregroundStyle(session.draft.isEmpty ? Color.inkFaint : .white)
                         }
                         .frame(minWidth: 44, minHeight: 44)
                 }
                 .buttonStyle(.plain)
-                .disabled(draft.isEmpty || thinking)
+                .disabled(session.draft.isEmpty || session.thinking)
             }
             .padding(.horizontal, 24)
             .padding(.top, 10)
@@ -294,11 +306,11 @@ struct ProngsbyView: View {
         HStack {
             HStack(spacing: 8) {
                 ProngsbyIdleGlyph(size: 20, tone: .inkSecondary)
-                Text(thinkingLine)
+                Text(session.thinkingLine)
                     .font(.jakarta(12, .semibold))
                     .foregroundStyle(Color.inkSecondary)
                     .contentTransition(.opacity)
-                    .id(thinkingLine)
+                    .id(session.thinkingLine)
                     .transition(.opacity)
             }
             .padding(.horizontal, 14)
@@ -308,11 +320,11 @@ struct ProngsbyView: View {
         }
         .task {
             // Rotate the status line while the fork thinks.
-            while thinking {
+            while session.thinking {
                 try? await Task.sleep(for: .milliseconds(900))
-                guard thinking else { break }
+                guard session.thinking else { break }
                 withAnimation(.plSnap) {
-                    thinkingLine = ProngsbyBrain.thinkingLines.filter { $0 != thinkingLine }.randomElement()
+                    session.thinkingLine = ProngsbyBrain.thinkingLines.filter { $0 != session.thinkingLine }.randomElement()
                         ?? ProngsbyBrain.thinkingLines[0]
                 }
             }
@@ -343,14 +355,14 @@ struct ProngsbyView: View {
 
     private func send(_ text: String) {
         // One question at a time — parallel sends would interleave replies.
-        guard !thinking else { return }
+        guard !session.thinking else { return }
         let question = text.trimmingCharacters(in: .whitespaces)
         guard !question.isEmpty else { return }
         Haptic.tap()
         context.insert(DirectMessage(peerName: "Prongsby", text: question, isMine: true))
-        draft = ""
-        thinkingLine = ProngsbyBrain.thinkingLines.randomElement() ?? ProngsbyBrain.thinkingLines[0]
-        withAnimation(.plSnap) { thinking = true }
+        session.draft = ""
+        session.thinkingLine = ProngsbyBrain.thinkingLines.randomElement() ?? ProngsbyBrain.thinkingLines[0]
+        withAnimation(.plSnap) { session.thinking = true }
         let brain = ProngsbyBrain(recipes: recipes, members: members, meals: meals)
         Task {
             // A beat of "cooking" so the reply feels made, not vended.
@@ -358,7 +370,7 @@ struct ProngsbyView: View {
             let answer = brain.reply(to: question)
             withAnimation(.plSnap) {
                 context.insert(DirectMessage(peerName: "Prongsby", text: answer, isMine: false))
-                thinking = false
+                session.thinking = false
             }
             Haptic.plate()
         }

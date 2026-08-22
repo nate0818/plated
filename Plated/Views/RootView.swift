@@ -35,7 +35,11 @@ struct RootView: View {
             // Stand-in for real wake-up work. The opener holds in its
             // simmer loop if this ever outlasts the wordmark settling —
             // `-plated-slow-wake` forces that path for testing.
+            #if DEBUG
             let wake: Double = LaunchFlags.consume("-plated-slow-wake") ? 8 : 1.4
+            #else
+            let wake: Double = 1.4
+            #endif
             try? await Task.sleep(for: .seconds(wake))
             appReady = true
         }
