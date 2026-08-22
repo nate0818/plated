@@ -177,7 +177,7 @@ struct ContactsView: View {
                 } label: {
                     Text("Set a place")
                         .font(.jakarta(13, .bold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color.onTomato)
                         .padding(.horizontal, 16)
                         .frame(height: 36)
                         .background(Color.tomato, in: Capsule())

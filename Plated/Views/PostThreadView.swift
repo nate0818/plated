@@ -514,7 +514,7 @@ struct PostThreadView: View {
                         .overlay {
                             Image(systemName: "arrow.up")
                                 .font(.system(size: 15, weight: .bold))
-                                .foregroundStyle(canSend ? .white : Color.inkFaint)
+                                .foregroundStyle(canSend ? Color.onTomato : Color.inkFaint)
                         }
                         .frame(minWidth: 44, minHeight: 44)
                 }

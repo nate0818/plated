@@ -198,7 +198,7 @@ struct ProngsbyView: View {
                         .overlay {
                             Image(systemName: "arrow.up")
                                 .font(.system(size: 15, weight: .bold))
-                                .foregroundStyle(session.draft.isEmpty ? Color.inkFaint : Color.canvas)
+                                .foregroundStyle(session.draft.isEmpty ? Color.inkFaint : Color.onTomato)
                         }
                         .frame(minWidth: 44, minHeight: 44)
                         .contentShape(Rectangle())

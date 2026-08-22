@@ -25,11 +25,9 @@ struct ActivityBellButton: View {
                 }
                 .overlay(alignment: .topTrailing) {
                     if !unread.isEmpty {
-                        // Canvas on tomato — the same pairing as the pills,
-                        // so the badge reads in the dark room too.
                         Text(unread.count > 9 ? "9+" : "\(unread.count)")
                             .font(.jakarta(9, .extraBold))
-                            .foregroundStyle(Color.canvas)
+                            .foregroundStyle(Color.onTomato)
                             .padding(.horizontal, 4)
                             .frame(minWidth: 16)
                             .frame(height: 16)

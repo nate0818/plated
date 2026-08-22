@@ -43,6 +43,9 @@ extension Color {
 
     // Earned color — lifted a touch after dark so it still lands
     static let tomato         = Color(light: 0xFF5A3C, dark: 0xF75434)   // dark value keeps white labels ≥3:1
+    /// THE label color on tomato, both rooms — tomato's dark value is tuned
+    /// for white (≥3:1, above). Never canvas, never a bare .white literal.
+    static let onTomato       = Color(light: 0xFFFFFF, dark: 0xFFFFFF)
     static let tomatoPressed  = Color(light: 0xD6401F, dark: 0xD6401F)   // pressed always darkens
     static let mango          = Color(light: 0xFFB020, dark: 0xFFB63A)   // the chef's kiss only
     static let basil          = Color(light: 0x3DA35D, dark: 0x55BE76)   // progress, "seated"
@@ -221,7 +224,7 @@ struct TomatoPillButton: View {
                 }
                 Text(title).font(.jakarta(17, .bold))
             }
-            .foregroundStyle(.white)
+            .foregroundStyle(Color.onTomato)
             .frame(maxWidth: .infinity)
             .frame(height: 56)
         }

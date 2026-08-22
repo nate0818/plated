@@ -568,7 +568,7 @@ private struct SwipeToRemove<Content: View>: View {
                         .overlay {
                             Image(systemName: "trash")
                                 .font(.system(size: 16, weight: .semibold))
-                                .foregroundStyle(.white)
+                                .foregroundStyle(Color.onTomato)
                         }
                 }
                 .buttonStyle(.plain)
