@@ -16,7 +16,9 @@ enum Notifier {
     }
 
     /// Posts at most once per `key`, ever — for reactions that can toggle
-    /// (plate/unplate/plate must not spam the poster).
+    /// (plate/unplate/plate must not spam the poster). Storage is a rolling
+    /// window: old keys age out, which is fine — a re-notification months
+    /// later reads as news, not spam.
     static func postOnce(
         key: String,
         _ kind: PlatedNotificationKind,
@@ -28,6 +30,7 @@ enum Notifier {
         var seen = UserDefaults.standard.stringArray(forKey: defaultsKey) ?? []
         guard !seen.contains(key) else { return }
         seen.append(key)
+        if seen.count > 200 { seen.removeFirst(seen.count - 200) }
         UserDefaults.standard.set(seen, forKey: defaultsKey)
         post(kind, actor: actor, body: body, into: context)
     }

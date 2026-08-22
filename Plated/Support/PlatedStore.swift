@@ -67,12 +67,40 @@ enum PlatedStore {
         let legacyStore = URL.applicationSupportDirectory.appending(path: "default.store")
         let supportDirName = ".default_SUPPORT"
 
+        let marker = groupSupport.appending(path: ".plated-migration-complete")
+
+        // Once disarmed, forever disarmed — the destructive replace branch
+        // below must never re-arm on a later launch, no matter what a
+        // transient probe says about the live store.
+        if fm.fileExists(atPath: marker.path) { return }
         guard fm.fileExists(atPath: legacyStore.path) else { return }
-        // A group store with real user data wins; an empty auto-created one
-        // does not count as migrated.
-        if fm.fileExists(atPath: newStore.path), storeHasUserData(at: newStore) { return }
+
+        if fm.fileExists(atPath: newStore.path) {
+            switch probeUserData(at: newStore) {
+            case .hasData:
+                // Real data lives in the group store; record that verdict so
+                // the live store is never probed (or replaced) again.
+                try? fm.createDirectory(at: groupSupport, withIntermediateDirectories: true)
+                fm.createFile(atPath: marker.path, contents: Data())
+                return
+            case .unreadable:
+                // An unreadable store is precious, not disposable — a
+                // transient SQLITE_BUSY months from now must not roll the
+                // user back to migration day. No marker, no destruction:
+                // just try the probe again next launch.
+                return
+            case .empty:
+                // The auto-created shell from the intermediate build —
+                // replacing it is the whole point.
+                break
+            }
+        }
 
         let staging = group.appending(path: "store-migration-staging")
+        // Nothing at the destination is touched until this flips — so a
+        // staging-phase failure (disk full, most likely) must clean up
+        // nothing but the staging directory itself.
+        var destructionBegan = false
         do {
             try? fm.removeItem(at: staging)
             try fm.createDirectory(at: staging, withIntermediateDirectories: true)
@@ -101,6 +129,7 @@ enum PlatedStore {
             // same-volume renames are atomic, and until the main file (last
             // in the list) lands, the guard above still allows a retry.
             try fm.createDirectory(at: groupSupport, withIntermediateDirectories: true)
+            destructionBegan = true
             for suffix in ["", "-wal", "-shm"] {
                 let stale = URL(fileURLWithPath: newStore.path + suffix)
                 if fm.fileExists(atPath: stale.path) { try fm.removeItem(at: stale) }
@@ -110,35 +139,67 @@ enum PlatedStore {
             for (from, to) in moves {
                 try fm.moveItem(at: from, to: to)
             }
-        } catch {
-            // Leave no partial store behind — a clean absence lets the next
-            // launch retry; a partial one would open corrupt and fatalError
-            // forever.
+
+            // Success: disarm forever, and retire the legacy files to a
+            // named backup so even a lost marker can't re-arm this branch.
+            fm.createFile(atPath: marker.path, contents: Data())
             for suffix in ["", "-wal", "-shm"] {
-                try? fm.removeItem(at: URL(fileURLWithPath: newStore.path + suffix))
+                let src = URL(fileURLWithPath: legacyStore.path + suffix)
+                if fm.fileExists(atPath: src.path) {
+                    try? fm.moveItem(at: src, to: URL(fileURLWithPath: legacyStore.path + suffix + ".migrated-backup"))
+                }
             }
-            try? fm.removeItem(at: groupSupport.appending(path: supportDirName))
+            if fm.fileExists(atPath: legacySupport.path) {
+                try? fm.moveItem(
+                    at: legacySupport,
+                    to: legacyStore.deletingLastPathComponent().appending(path: supportDirName + ".migrated-backup")
+                )
+            }
+        } catch {
+            // Unwind only what this attempt actually wrote. A staging-phase
+            // failure never touched the live store — deleting the
+            // destination there would turn "failed, unchanged" into
+            // "failed, store gone".
+            if destructionBegan {
+                for suffix in ["", "-wal", "-shm"] {
+                    try? fm.removeItem(at: URL(fileURLWithPath: newStore.path + suffix))
+                }
+                try? fm.removeItem(at: groupSupport.appending(path: supportDirName))
+            }
             assertionFailure("Legacy store migration failed: \(error)")
         }
     }
 
-    /// True when the store at `url` holds at least one household member —
-    /// the row every real install has and an auto-created store never does.
-    /// Raw sqlite on purpose: opening a second ModelContainer to peek would
-    /// spin up a second CloudKit mirror.
-    private static func storeHasUserData(at url: URL) -> Bool {
+    private enum StoreProbe {
+        case hasData, empty, unreadable
+    }
+
+    /// What the store at `url` holds. Raw sqlite on purpose: a second
+    /// ModelContainer to peek would spin up a second CloudKit mirror.
+    /// Checks every user-content table, not just members — a store that was
+    /// wiped and then refilled with recipes must still count as data. Any
+    /// store that cannot be read confidently is `.unreadable`, and the
+    /// caller must treat that as precious.
+    private static func probeUserData(at url: URL) -> StoreProbe {
         var db: OpaquePointer?
         guard sqlite3_open_v2(url.path, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else {
             sqlite3_close(db)
-            return false
+            return .unreadable
         }
         defer { sqlite3_close(db) }
-        var statement: OpaquePointer?
-        guard sqlite3_prepare_v2(db, "SELECT COUNT(*) FROM ZHOUSEHOLDMEMBER", -1, &statement, nil) == SQLITE_OK else {
-            return false
+
+        let tables = ["ZHOUSEHOLDMEMBER", "ZRECIPE", "ZPLANNEDMEAL", "ZTABLEPOST"]
+        var anyReadable = false
+        for table in tables {
+            var statement: OpaquePointer?
+            guard sqlite3_prepare_v2(db, "SELECT COUNT(*) FROM \(table)", -1, &statement, nil) == SQLITE_OK else {
+                continue
+            }
+            defer { sqlite3_finalize(statement) }
+            guard sqlite3_step(statement) == SQLITE_ROW else { continue }
+            anyReadable = true
+            if sqlite3_column_int(statement, 0) > 0 { return .hasData }
         }
-        defer { sqlite3_finalize(statement) }
-        guard sqlite3_step(statement) == SQLITE_ROW else { return false }
-        return sqlite3_column_int(statement, 0) > 0
+        return anyReadable ? .empty : .unreadable
     }
 }

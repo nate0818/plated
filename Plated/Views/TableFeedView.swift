@@ -482,7 +482,7 @@ struct TableFeedView: View {
             if post.firstName != me && post.authorName != me {
                 // Once per post, ever — plate/unplate/plate must not spam.
                 Notifier.postOnce(
-                    key: "plate:\(post.originKey)",
+                    key: "plate:\(post.originKey)|\(Int(post.createdAt.timeIntervalSince1970))",
                     .plateReaction, actor: me,
                     body: "\(me) plated \(post.firstName)'s \(post.dishTitle.isEmpty ? "post" : post.dishTitle).",
                     into: context
@@ -602,7 +602,7 @@ struct PlateReactionButton: View {
                 let me = members.first(where: \.isOwner)?.name ?? "You"
                 if post.firstName != me && post.authorName != me {
                     Notifier.postOnce(
-                        key: "plate:\(post.originKey)",
+                        key: "plate:\(post.originKey)|\(Int(post.createdAt.timeIntervalSince1970))",
                         .plateReaction, actor: me,
                         body: "\(me) plated \(post.firstName)'s \(post.dishTitle.isEmpty ? "post" : post.dishTitle).",
                         into: context

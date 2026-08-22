@@ -43,6 +43,24 @@ struct ProngsbyGlyph: View {
     }
 }
 
+/// The living version — a slow contented bob with a little lean, like a
+/// fork listening to a good story.
+struct ProngsbyIdleGlyph: View {
+    var size: CGFloat = 56
+    var tone: Color = .ink
+
+    var body: some View {
+        ProngsbyGlyph(size: size, tone: tone)
+            .phaseAnimator([0, 1, 2]) { view, phase in
+                view
+                    .offset(y: phase == 1 ? -4 : 1)
+                    .rotationEffect(.degrees(phase == 0 ? -3 : (phase == 2 ? 3 : 0)))
+            } animation: { _ in
+                .easeInOut(duration: 1.4)
+            }
+    }
+}
+
 private struct SmileShape: Shape {
     func path(in rect: CGRect) -> Path {
         var path = Path()
@@ -55,14 +73,15 @@ private struct SmileShape: Shape {
     }
 }
 
-/// The chat. Grounded in this household's cookbook via ProngsbyBrain —
-/// on-device rules today, the doorway for the real model later. The thread
-/// persists like any DM.
+/// The chat. Grounded in this household's cookbook, plan, and people via
+/// ProngsbyBrain — on-device rules today, the doorway for the real model
+/// later. The thread persists like any DM, so the history is always there.
 struct ProngsbyView: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
     @Query private var recipes: [Recipe]
     @Query(sort: \HouseholdMember.createdAt) private var members: [HouseholdMember]
+    @Query private var meals: [PlannedMeal]
     @Query(
         filter: #Predicate<DirectMessage> { $0.peerName == "Prongsby" },
         sort: \DirectMessage.createdAt
@@ -70,12 +89,17 @@ struct ProngsbyView: View {
 
     @State private var draft = ""
     @State private var thinking = false
+    @State private var thinkingLine = ProngsbyBrain.thinkingLines[0]
+    @State private var clearConfirmShown = false
+    @FocusState private var composerFocused: Bool
 
     private let starters = [
         "What should we make tonight?",
-        "Substitute for buttermilk?",
-        "Give me a cooking tip",
-        "How do I make Pizza Night?"
+        "Make Pizza Night vegetarian",
+        "Scale BBQ Skewers for 10",
+        "Who's cooking Sunday?",
+        "Plan a gathering for 8",
+        "Substitute for buttermilk?"
     ]
 
     var body: some View {
@@ -92,18 +116,7 @@ struct ProngsbyView: View {
                         bubble(message)
                     }
                     if thinking {
-                        HStack {
-                            HStack(spacing: 6) {
-                                ProngsbyGlyph(size: 18, tone: .inkSecondary)
-                                Text("thinking…")
-                                    .font(.jakarta(12, .semibold))
-                                    .foregroundStyle(Color.inkFaint)
-                            }
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 9)
-                            .background(Color.fill, in: RoundedRectangle(cornerRadius: Radius.chip))
-                            Spacer(minLength: 60)
-                        }
+                        thinkingBubble
                     }
                 }
                 .padding(.horizontal, 24)
@@ -115,7 +128,7 @@ struct ProngsbyView: View {
             // the job instead.
             .defaultScrollAnchor(messages.isEmpty ? .top : .bottom)
 
-            if messages.isEmpty {
+            if messages.isEmpty || messages.count < 4 {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
                         ForEach(starters, id: \.self) { starter in
@@ -133,6 +146,7 @@ struct ProngsbyView: View {
                                     .contentShape(Capsule())
                             }
                             .buttonStyle(.plain)
+                            .disabled(thinking)
                         }
                     }
                     .padding(.horizontal, 24)
@@ -141,12 +155,18 @@ struct ProngsbyView: View {
             }
 
             HStack(spacing: 10) {
-                TextField("Ask the fork…", text: $draft, axis: .vertical)
+                TextField("Ask Prongsby…", text: $draft, axis: .vertical)
                     .font(.jakarta(14, .medium))
                     .lineLimit(1...4)
+                    .focused($composerFocused)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 10)
                     .overlay(RoundedRectangle(cornerRadius: Radius.chip).strokeBorder(Color.hairline))
+                    // The padding is part of the pill but not of the text
+                    // field — without this, taps on it go nowhere and the
+                    // keyboard never shows.
+                    .contentShape(RoundedRectangle(cornerRadius: Radius.chip))
+                    .onTapGesture { composerFocused = true }
                 Button {
                     send(draft)
                 } label: {
@@ -171,6 +191,30 @@ struct ProngsbyView: View {
         }
         .background(Color.canvas)
         .toolbar(.hidden, for: .navigationBar)
+        .confirmationDialog(
+            "Clear your chat with Prongsby?",
+            isPresented: $clearConfirmShown,
+            titleVisibility: .visible
+        ) {
+            Button("Clear it all", role: .destructive) {
+                withAnimation(.plSnap) {
+                    for message in messages { context.delete(message) }
+                }
+            }
+            Button("Keep the history", role: .cancel) {}
+        }
+        .onAppear {
+            #if DEBUG
+            // UI-test hook: fires a starter question so the thinking state
+            // and reply flow can be exercised headlessly.
+            if LaunchFlags.consume("-plated-prongsby-demo") {
+                Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(600))
+                    send("What should we make tonight?")
+                }
+            }
+            #endif
+        }
     }
 
     private var header: some View {
@@ -192,29 +236,53 @@ struct ProngsbyView: View {
             }
             .buttonStyle(.plain)
             ProngsbyGlyph(size: 30)
-            VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: 1) {
                 Text("Prongsby")
                     .font(.gabarito(20, .extraBold))
                     .foregroundStyle(Color.ink)
-                Text("The house fork · knows your cookbook")
-                    .font(.jakarta(11, .semibold))
+                Text("Your AI cooking companion")
+                    .font(.jakarta(11, .bold))
                     .foregroundStyle(Color.inkSecondary)
+                // A new joke every day. Quality not guaranteed; frequency is.
+                Text(ProngsbyBrain.taglineOfTheDay)
+                    .font(.jakarta(10, .medium))
+                    .foregroundStyle(Color.inkFaint)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
             }
             Spacer()
+            if !messages.isEmpty {
+                Menu {
+                    Button("Clear chat history", role: .destructive) {
+                        clearConfirmShown = true
+                    }
+                } label: {
+                    Circle()
+                        .strokeBorder(Color.hairline, lineWidth: 1.5)
+                        .frame(width: 38, height: 38)
+                        .overlay {
+                            Image(systemName: "ellipsis")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundStyle(Color.ink)
+                        }
+                        .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(Rectangle())
+                }
+            }
         }
-        .padding(.horizontal, 24)
+        .padding(.horizontal, 20)
         .padding(.top, 6)
         .padding(.bottom, 10)
     }
 
     private var welcome: some View {
         VStack(spacing: 10) {
-            ProngsbyGlyph(size: 56)
+            ProngsbyIdleGlyph(size: 56)
                 .padding(.top, 24)
             Text("Well hello. I'm Prongsby.")
                 .font(.gabarito(19, .extraBold))
                 .foregroundStyle(Color.ink)
-            Text("Dinner ideas from your own cookbook, ingredient swaps, kitchen tips. I'm a young fork — the bigger brain arrives with Plated's network — but I know this table.")
+            Text("Your sous chef and planning department. I know your \(recipes.count) recipes, the week's plan, and who's cooking when — ask me to resize a dish, make it vegetarian, swap a protein, or plan the whole party.")
                 .font(.jakarta(13, .medium))
                 .foregroundStyle(Color.inkSecondary)
                 .multilineTextAlignment(.center)
@@ -222,6 +290,36 @@ struct ProngsbyView: View {
                 .padding(.horizontal, 24)
         }
         .padding(.bottom, 12)
+    }
+
+    /// The fork at work — wiggling glyph, rotating kitchen-status puns.
+    private var thinkingBubble: some View {
+        HStack {
+            HStack(spacing: 8) {
+                ProngsbyIdleGlyph(size: 20, tone: .inkSecondary)
+                Text(thinkingLine)
+                    .font(.jakarta(12, .semibold))
+                    .foregroundStyle(Color.inkSecondary)
+                    .contentTransition(.opacity)
+                    .id(thinkingLine)
+                    .transition(.opacity)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 9)
+            .background(Color.fill, in: RoundedRectangle(cornerRadius: Radius.chip))
+            Spacer(minLength: 60)
+        }
+        .task {
+            // Rotate the status line while the fork thinks.
+            while thinking {
+                try? await Task.sleep(for: .milliseconds(900))
+                guard thinking else { break }
+                withAnimation(.plSnap) {
+                    thinkingLine = ProngsbyBrain.thinkingLines.filter { $0 != thinkingLine }.randomElement()
+                        ?? ProngsbyBrain.thinkingLines[0]
+                }
+            }
+        }
     }
 
     private func bubble(_ message: DirectMessage) -> some View {
@@ -254,13 +352,17 @@ struct ProngsbyView: View {
         Haptic.tap()
         context.insert(DirectMessage(peerName: "Prongsby", text: question, isMine: true))
         draft = ""
-        thinking = true
-        let brain = ProngsbyBrain(recipes: recipes, members: members)
+        thinkingLine = ProngsbyBrain.thinkingLines.randomElement() ?? ProngsbyBrain.thinkingLines[0]
+        withAnimation(.plSnap) { thinking = true }
+        let brain = ProngsbyBrain(recipes: recipes, members: members, meals: meals)
         Task {
-            try? await Task.sleep(for: .milliseconds(700))
+            // A beat of "cooking" so the reply feels made, not vended.
+            try? await Task.sleep(for: .milliseconds(Int.random(in: 900...1600)))
             let answer = brain.reply(to: question)
-            context.insert(DirectMessage(peerName: "Prongsby", text: answer, isMine: false))
-            thinking = false
+            withAnimation(.plSnap) {
+                context.insert(DirectMessage(peerName: "Prongsby", text: answer, isMine: false))
+                thinking = false
+            }
             Haptic.plate()
         }
     }

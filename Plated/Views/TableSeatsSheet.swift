@@ -235,6 +235,7 @@ struct DMThreadView: View {
     @Query private var messages: [DirectMessage]
 
     @State private var draft = ""
+    @FocusState private var composerFocused: Bool
 
     init(peerName: String) {
         self.peerName = peerName
@@ -278,9 +279,12 @@ struct DMThreadView: View {
                 TextField("Message \(peerName.split(separator: " ").first.map(String.init) ?? peerName)…", text: $draft, axis: .vertical)
                     .font(.jakarta(14, .medium))
                     .lineLimit(1...4)
+                    .focused($composerFocused)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 10)
                     .overlay(RoundedRectangle(cornerRadius: Radius.chip).strokeBorder(Color.hairline))
+                    .contentShape(RoundedRectangle(cornerRadius: Radius.chip))
+                    .onTapGesture { composerFocused = true }
                 Button {
                     send()
                 } label: {
