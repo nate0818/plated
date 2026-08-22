@@ -32,7 +32,7 @@ struct HouseholdHomeView: View {
     @State private var pushed: HomeDestination?
     @State private var personShown: PersonRef?
     @State private var dmPeer: String?
-    @State private var swipedMember: String?
+    @State private var swipedMember: PersistentIdentifier?
     @State private var removingMember: HouseholdMember?
 
     enum HomeDestination: String, Identifiable {
@@ -443,48 +443,49 @@ struct HouseholdHomeView: View {
 
     /// Every seat opens its person's profile — the head of table included.
     private func memberRow(_ member: HouseholdMember) -> some View {
-        Button {
+        HStack(spacing: 12) {
+            AvatarCircle(
+                initials: member.firstInitial,
+                tone: member.isOwner ? .neutralPair : member.tone,
+                size: 46
+            )
+            VStack(alignment: .leading, spacing: 1) {
+                Text(member.name)
+                    .font(.jakarta(15, .bold))
+                    .foregroundStyle(Color.ink)
+                if member.isOwner {
+                    Text("HEAD OF TABLE")
+                        .font(.jakarta(12, .bold))
+                        .tracking(0.5)
+                        .foregroundStyle(Color.inkSecondary)
+                } else {
+                    Text(member.roleLine.isEmpty ? member.role.capitalized : member.roleLine)
+                        .font(.jakarta(12, .semibold))
+                        .foregroundStyle(Color.inkSecondary)
+                }
+            }
+            Spacer(minLength: 6)
+            if !member.isOwner, !member.cookWeekdays.isEmpty {
+                Text(dayChipLabel(member))
+                    .font(.jakarta(12, .bold))
+                    .foregroundStyle(member.tone.tone)
+                    .padding(.horizontal, 12)
+                    .frame(height: 30)
+                    .background(member.tone.tint, in: Capsule())
+            }
+            Image(systemName: "chevron.right")
+                .font(.system(size: 11, weight: .bold))
+                .foregroundStyle(Color.inkFaint)
+        }
+        .padding(.vertical, 12)
+        .contentShape(Rectangle())
+        .onTapGesture {
             Haptic.tap()
             personShown = PersonRef(name: member.name, colorHex: member.colorHex)
-        } label: {
-            HStack(spacing: 12) {
-                AvatarCircle(
-                    initials: member.firstInitial,
-                    tone: member.isOwner ? .neutralPair : member.tone,
-                    size: 46
-                )
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(member.name)
-                        .font(.jakarta(15, .bold))
-                        .foregroundStyle(Color.ink)
-                    if member.isOwner {
-                        Text("HEAD OF TABLE")
-                            .font(.jakarta(12, .bold))
-                            .tracking(0.5)
-                            .foregroundStyle(Color.inkSecondary)
-                    } else {
-                        Text(member.roleLine.isEmpty ? member.role.capitalized : member.roleLine)
-                            .font(.jakarta(12, .semibold))
-                            .foregroundStyle(Color.inkSecondary)
-                    }
-                }
-                Spacer(minLength: 6)
-                if !member.isOwner, !member.cookWeekdays.isEmpty {
-                    Text(dayChipLabel(member))
-                        .font(.jakarta(12, .bold))
-                        .foregroundStyle(member.tone.tone)
-                        .padding(.horizontal, 12)
-                        .frame(height: 30)
-                        .background(member.tone.tint, in: Capsule())
-                }
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundStyle(Color.inkFaint)
-            }
-            .padding(.vertical, 12)
-            .contentShape(Rectangle())
         }
-        .buttonStyle(.pressable)
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityHint("Opens \(member.name)'s profile")
     }
 
     /// The head of table keeps their seat — you cannot swipe away the
@@ -500,10 +501,12 @@ struct HouseholdHomeView: View {
         ]
     }
 
+    /// Keyed by identity, not by name — two people called Sam are two
+    /// rows, and swiping one must not open the other.
     private func swipeBinding(_ member: HouseholdMember) -> Binding<Bool> {
         Binding(
-            get: { swipedMember == member.name },
-            set: { swipedMember = $0 ? member.name : nil }
+            get: { swipedMember == member.persistentModelID },
+            set: { swipedMember = $0 ? member.persistentModelID : nil }
         )
     }
 
