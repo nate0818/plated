@@ -104,9 +104,13 @@ struct MainShellView: View {
                 }
             }
             #endif
-            if !didStampSampleCategories {
+            if !didStampSampleCategories, !recipes.isEmpty {
                 // Sample recipes seeded before categories existed get filed
                 // once, so the cookbook filters have something to hold.
+                // Stamps only after judging real rows: a fresh install's
+                // first appear can run before the CloudKit import delivers,
+                // and stamping against an empty store would skip the repair
+                // forever.
                 didStampSampleCategories = true
                 let sampleFiling: [String: RecipeCategory] = [
                     "Lemon Butter Salmon": .quick,
@@ -129,13 +133,18 @@ struct MainShellView: View {
                 // rows with isDiscover == false, so open-table posts bled into
                 // the private feed. Any unstamped post whose author+dish
                 // matches a stamped Discover row is that legacy artifact.
-                didRepairLegacyDiscover = true
-                let all = (try? context.fetch(FetchDescriptor<TablePost>())) ?? []
-                let discoverKeys = Set(all.filter(\.isDiscover).map(\.originKey))
-                for post in all where !post.isDiscover && discoverKeys.contains(post.originKey) {
-                    context.delete(post)
+                // Stamps only after judging real rows (and never on a failed
+                // fetch): a fresh install's first appear can beat the
+                // CloudKit import, and a premature stamp would leave the
+                // imported artifacts unrepaired forever.
+                if let all = try? context.fetch(FetchDescriptor<TablePost>()), !all.isEmpty {
+                    didRepairLegacyDiscover = true
+                    let discoverKeys = Set(all.filter(\.isDiscover).map(\.originKey))
+                    for post in all where !post.isDiscover && discoverKeys.contains(post.originKey) {
+                        context.delete(post)
+                    }
+                    try? context.save()
                 }
-                try? context.save()
             }
             // The table's host, kept honest. The onboarding bootstrap and a
             // first CloudKit import can race a duplicate owner row into

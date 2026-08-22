@@ -28,7 +28,7 @@ enum CookRotation {
             return members.first(where: \.isOwner)
         }
         let counts = Dictionary(
-            meals.filter { $0.date >= weekStart && $0.date < weekEnd }
+            meals.filter { $0.date >= weekStart && $0.date < weekEnd && $0.slotValue == .dinner }
                 .compactMap { $0.cook?.persistentModelID }
                 .map { ($0, 1) },
             uniquingKeysWith: +
