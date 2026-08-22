@@ -18,5 +18,14 @@ struct PlatedShortcuts: AppShortcutsProvider {
             shortTitle: "Plate Tonight",
             systemImageName: "plus.circle"
         )
+        AppShortcut(
+            intent: AskProngsbyIntent(),
+            phrases: [
+                "Ask Prongsby in \(.applicationName)",
+                "Ask the fork in \(.applicationName)"
+            ],
+            shortTitle: "Ask Prongsby",
+            systemImageName: "fork.knife"
+        )
     }
 }

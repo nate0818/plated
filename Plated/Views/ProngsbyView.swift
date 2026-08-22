@@ -369,9 +369,14 @@ struct ProngsbyView: View {
         withAnimation(.plSnap) { session.thinking = true }
         let brain = ProngsbyBrain(recipes: recipes, members: members, meals: meals)
         Task {
-            // A beat of "cooking" so the reply feels made, not vended.
-            try? await Task.sleep(for: .milliseconds(Int.random(in: 900...1600)))
-            let answer = brain.reply(to: question)
+            // The on-device model takes real time; the rule brain is
+            // instant. Either way the reply holds a minimum beat of
+            // "cooking" so it feels made, not vended.
+            let beat = Double.random(in: 0.9...1.6)
+            let started = Date()
+            let answer = await ProngsbyMind.reply(to: question, brain: brain)
+            let remaining = beat - Date().timeIntervalSince(started)
+            if remaining > 0 { try? await Task.sleep(for: .seconds(remaining)) }
             withAnimation(.plSnap) {
                 context.insert(DirectMessage(peerName: "Prongsby", text: answer, isMine: false))
                 session.thinking = false
