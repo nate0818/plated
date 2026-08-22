@@ -14,8 +14,6 @@ struct WeekView: View {
     @Query private var meals: [PlannedMeal]
     @Query private var recipes: [Recipe]
     @Query(sort: \HouseholdMember.createdAt) private var members: [HouseholdMember]
-    @Query(filter: #Predicate<PlatedNotification> { !$0.isRead })
-    private var unread: [PlatedNotification]
 
     @AppStorage("showCalendarEvents") private var showCalendarEvents = false
 
@@ -28,7 +26,7 @@ struct WeekView: View {
     @State private var pushed: PlanDestination?
 
     enum PlanDestination: String, Identifiable {
-        case activity, prongsby
+        case activity
         var id: String { rawValue }
     }
     @State private var forecast = ForecastProvider.shared
@@ -81,7 +79,6 @@ struct WeekView: View {
             .navigationDestination(item: $pushed) { destination in
                 switch destination {
                 case .activity: NotificationsView()
-                case .prongsby: ProngsbyView()
                 }
             }
         }
@@ -117,14 +114,6 @@ struct WeekView: View {
             }
             if LaunchFlags.consume("-plated-open-activity") {
                 pushed = .activity
-            }
-            if LaunchFlags.consume("-plated-open-prongsby") {
-                // Pushed after the splash cross-fade settles — pushing into a
-                // mid-transition NavigationStack wedges the update cycle.
-                Task { @MainActor in
-                    try? await Task.sleep(for: .seconds(1))
-                    pushed = .prongsby
-                }
             }
             if let planFlag = LaunchFlags.consume("-plated-open-plan-day") ? weekDates.first(where: { dinner(on: $0) == nil }) : nil {
                 planDay = planFlag
@@ -194,12 +183,6 @@ struct WeekView: View {
             Spacer(minLength: 6)
 
             headerIcon {
-                pushed = .prongsby
-            } content: {
-                ProngsbyGlyph(size: 20)
-            }
-
-            headerIcon {
                 groceryPresented = true
             } content: {
                 Image(systemName: "basket")
@@ -207,22 +190,8 @@ struct WeekView: View {
                     .foregroundStyle(Color.ink)
             }
 
-            headerIcon {
+            ActivityBellButton(size: 36) {
                 pushed = .activity
-            } content: {
-                Image(systemName: "bell")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(Color.ink)
-            }
-            .overlay(alignment: .topTrailing) {
-                if !unread.isEmpty {
-                    Text("\(min(unread.count, 9))")
-                        .font(.jakarta(9, .extraBold))
-                        .foregroundStyle(.white)
-                        .frame(width: 16, height: 16)
-                        .background(Color.tomato, in: Circle())
-                        .offset(x: -1, y: 3)
-                }
             }
 
             progressRing

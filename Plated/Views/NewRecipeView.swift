@@ -754,7 +754,8 @@ struct RecipeEditorView: View {
     }
 
     /// Downscale to ~1200px and recompress — CloudKit charges by the byte.
-    private static func processed(_ data: Data) -> Data? {
+    /// The Table composer borrows this too; every photo pays the same toll.
+    static func processed(_ data: Data) -> Data? {
         guard let image = UIImage(data: data) else { return nil }
         let maxSide: CGFloat = 1200
         let scale = min(1, maxSide / max(image.size.width, image.size.height))

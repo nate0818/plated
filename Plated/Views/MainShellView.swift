@@ -2,10 +2,17 @@ import SwiftUI
 import SwiftData
 
 enum AppTab: String, CaseIterable {
-    case week, table, cookbook, home
+    case week, table, prongsby, cookbook, home
 }
 
-/// The shell: four quiet destinations and one tomato + floating over
+/// What the + can put into the world. Instagram asks before it assumes;
+/// so do we.
+enum CreateKind: String, Identifiable {
+    case recipe, tablePost, ask
+    var id: String { rawValue }
+}
+
+/// The shell: five quiet destinations and one tomato + floating over
 /// everything. The bar is the only piece of chrome that floats.
 struct MainShellView: View {
     @Environment(\.modelContext) private var context
@@ -14,6 +21,10 @@ struct MainShellView: View {
 
     @State private var selection: AppTab = .week
     @State private var createPresented = false
+    /// The pick made inside the menu; presented only after the menu is
+    /// fully down — two sheets can't stand on the same view at once.
+    @State private var createChoice: CreateKind?
+    @State private var activeCreate: CreateKind?
     /// Guards sample seeding so a slow CloudKit first-import can never race
     /// an "empty" check into duplicating everything.
     @AppStorage("didSeedSampleData") private var didSeedSampleData = false
@@ -31,6 +42,8 @@ struct MainShellView: View {
                     WeekView(askTheTable: { withAnimation(.plSnap) { selection = .table } })
                 case .table:
                     TableFeedView()
+                case .prongsby:
+                    ProngsbyView()
                 case .cookbook:
                     CookbookView()
                 case .home:
@@ -45,8 +58,26 @@ struct MainShellView: View {
             .padding(.horizontal, 20)
             .padding(.bottom, 4)
         }
-        .sheet(isPresented: $createPresented) {
-            RecipeEditorView()
+        .sheet(isPresented: $createPresented, onDismiss: {
+            if let choice = createChoice {
+                createChoice = nil
+                activeCreate = choice
+            }
+        }) {
+            CreateMenuSheet { choice in
+                createChoice = choice
+                createPresented = false
+            }
+        }
+        .sheet(item: $activeCreate) { kind in
+            switch kind {
+            case .recipe:
+                RecipeEditorView()
+            case .tablePost:
+                TableComposerSheet()
+            case .ask:
+                AskComposerSheet(date: Calendar.current.startOfDay(for: .now))
+            }
         }
         .task {
             if !didSeedSampleData && recipes.isEmpty && members.isEmpty {
@@ -109,6 +140,14 @@ struct MainShellView: View {
             if LaunchFlags.consume("-plated-open-create") {
                 createPresented = true
             }
+            if LaunchFlags.consume("-plated-open-table-post") {
+                activeCreate = .tablePost
+            }
+            // Prongsby graduated from a pushed page to a tab; the old flag
+            // still lands where it says.
+            if LaunchFlags.consume("-plated-open-prongsby") {
+                selection = .prongsby
+            }
             #endif
         }
     }
@@ -130,7 +169,8 @@ struct PlateTabBar: View {
                     .font(.system(size: 21, weight: .medium))
             }
             tabItem(.table, label: "Table") {
-                PlateGlyph()
+                Image(systemName: "table.furniture")
+                    .font(.system(size: 20, weight: .medium))
             }
 
             Button {
@@ -152,6 +192,11 @@ struct PlateTabBar: View {
             .buttonStyle(.plain)
             .frame(width: 72)
 
+            tabItem(.prongsby, label: "Prongsby") {
+                // Explicit fills don't hear foregroundStyle — the glyph
+                // takes its tone from the selection directly.
+                ProngsbyGlyph(size: 22, tone: selection == .prongsby ? .ink : .inkFaint)
+            }
             tabItem(.cookbook, label: "Recipes") {
                 Image(systemName: "book.closed")
                     .font(.system(size: 20, weight: .medium))
@@ -184,6 +229,8 @@ struct PlateTabBar: View {
                     .frame(height: 23)
                 Text(label)
                     .font(.jakarta(10, active ? .extraBold : .bold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
             }
             .foregroundStyle(active ? Color.ink : Color.inkFaint)
             .frame(maxWidth: .infinity, minHeight: 66)
@@ -203,18 +250,82 @@ struct PlateTabBar: View {
     }
 }
 
-/// The brand mark as an icon: a plate on a placemat. Circles are dishes;
-/// rounded rectangles are moments.
-struct PlateGlyph: View {
+/// The + asks before it assumes — a recipe for the cookbook, a plated
+/// moment for the Table, or an open ask. Instagram's create menu, our
+/// register: three quiet rows, no color until the choice.
+struct CreateMenuSheet: View {
+    let onChoose: (CreateKind) -> Void
+
     var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 8)
-                .strokeBorder(lineWidth: 2)
-                .frame(width: 17, height: 17)
-            Circle()
-                .strokeBorder(lineWidth: 2)
-                .frame(width: 8.5, height: 8.5)
+        VStack(spacing: 0) {
+            VStack(spacing: 2) {
+                MicroLabel("Create")
+                Text("What are you adding?")
+                    .font(.gabarito(22, .extraBold))
+                    .foregroundStyle(Color.ink)
+            }
+            .padding(.top, 22)
+            .padding(.bottom, 16)
+
+            VStack(spacing: 8) {
+                row(
+                    .tablePost, icon: "camera",
+                    title: "Post to the Table",
+                    detail: "A plated moment for the household feed"
+                )
+                row(
+                    .recipe, icon: "book.closed",
+                    title: "Recipe",
+                    detail: "A dish for the cookbook"
+                )
+                row(
+                    .ask, icon: "hand.raised",
+                    title: "Ask the table",
+                    detail: "A question or a poll — what should we plate?"
+                )
+            }
+            .padding(.horizontal, 24)
+
+            Spacer(minLength: 0)
         }
-        .frame(width: 23, height: 23)
+        .presentationDetents([.height(330)])
+        .presentationDragIndicator(.visible)
+        .presentationBackground(Color.canvas)
+        .presentationCornerRadius(Radius.sheet)
+    }
+
+    private func row(_ kind: CreateKind, icon: String, title: String, detail: String) -> some View {
+        Button {
+            Haptic.tap()
+            onChoose(kind)
+        } label: {
+            HStack(spacing: 12) {
+                Circle()
+                    .strokeBorder(Color.hairline, lineWidth: 1.5)
+                    .frame(width: 42, height: 42)
+                    .overlay {
+                        Image(systemName: icon)
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(Color.ink)
+                    }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.jakarta(15, .bold))
+                        .foregroundStyle(Color.ink)
+                    Text(detail)
+                        .font(.jakarta(12, .medium))
+                        .foregroundStyle(Color.inkSecondary)
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(Color.inkFaint)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 11)
+            .overlay(RoundedRectangle(cornerRadius: Radius.card).strokeBorder(Color.hairline))
+            .contentShape(RoundedRectangle(cornerRadius: Radius.card))
+        }
+        .buttonStyle(.plain)
     }
 }
