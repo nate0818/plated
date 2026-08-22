@@ -198,7 +198,7 @@ struct PlateTabBar: View {
                         .shadow(color: Color.shadowInk.opacity(0.16), radius: 10, y: 8)
                     Image(systemName: "plus")
                         .font(.system(size: 22, weight: .bold))
-                        .foregroundStyle(Color.canvas)
+                        .foregroundStyle(Color.onTomato)
                 }
                 .rotationEffect(.degrees(addSpin ? 90 : 0))
             }

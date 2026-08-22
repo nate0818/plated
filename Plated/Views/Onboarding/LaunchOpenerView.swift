@@ -131,7 +131,9 @@ struct LaunchOpenerView: View {
                 ForEach(Array("plated".enumerated()), id: \.offset) { i, ch in
                     let l = letters[i]
                     Text(String(ch))
-                        .font(.gabarito(fs, .medium))
+                        // Spec §3: splash is 42/800 — the handoff's medium
+                        // belonged to its Helvetica, not to the register.
+                        .font(.gabarito(fs, .extraBold))
                         .tracking(-0.022 * fs)
                         .foregroundStyle(th.ink)
                         .shadow(color: th.typeShadow, radius: 6 * k, y: 4 * k)
