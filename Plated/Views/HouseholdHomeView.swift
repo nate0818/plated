@@ -202,9 +202,12 @@ struct HouseholdHomeView: View {
                             .font(.gabarito(26, .semibold))
                             .tracking(-0.3)
                             .foregroundStyle(Color.ink)
-                            .lineLimit(2)
+                            // One line at ordinary sizes — it wrapped
+                            // "Your / Household" the moment two were
+                            // allowed. Only huge type gets to wrap.
+                            .lineLimit(hugeType ? 3 : 1)
                             .minimumScaleFactor(hugeType ? 1 : 0.8)
-                            .fixedSize(horizontal: false, vertical: true)
+                            .fixedSize(horizontal: false, vertical: hugeType)
                         if !isNamed {
                             Image(systemName: "pencil")
                                 .font(.system(size: 12, weight: .semibold))
