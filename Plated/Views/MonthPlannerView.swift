@@ -74,7 +74,7 @@ struct MonthPlannerView: View {
                 .frame(minWidth: 44, minHeight: 44)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable)
     }
 
     private var weekdayHeader: some View {
@@ -102,7 +102,7 @@ struct MonthPlannerView: View {
         } label: {
             dayCellContent(date, today: today, meal: meal, past: past)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable)
         .disabled(past)
     }
 

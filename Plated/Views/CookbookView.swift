@@ -134,7 +134,7 @@ struct CookbookView: View {
                         .frame(minHeight: 44)
                         .contentShape(Capsule())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.pressable)
 
                     if filter.isFiltering {
                         Button {
@@ -149,7 +149,7 @@ struct CookbookView: View {
                                 .frame(minHeight: 44)
                                 .contentShape(Circle())
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.pressable)
                     }
                     Spacer()
                 }
@@ -229,7 +229,7 @@ struct CookbookView: View {
                 }
             }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable)
     }
 
     private func dishImage(_ recipe: Recipe) -> some View {
@@ -298,7 +298,7 @@ struct RecipeFilterSheet: View {
                                     .font(.system(size: 14))
                                     .foregroundStyle(Color.inkFaint)
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(.pressable)
                         }
                     }
                     .padding(.horizontal, 14)
@@ -348,7 +348,7 @@ struct RecipeFilterSheet: View {
                             .foregroundStyle(Color.inkSecondary)
                             .frame(minHeight: 44)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.pressable)
                 }
             }
             .padding(.horizontal, 24)
@@ -394,7 +394,7 @@ struct RecipeFilterSheet: View {
                     }
                 }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable)
     }
 }
 
@@ -569,7 +569,7 @@ struct RecipeDetailView: View {
                     .frame(minWidth: 44, minHeight: 44)
                     .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.pressable)
             Spacer()
 
             Button {
@@ -583,11 +583,15 @@ struct RecipeDetailView: View {
                         Image(systemName: recipe.isFavorite ? "heart.fill" : "heart")
                             .font(.system(size: 14, weight: .semibold))
                             .foregroundStyle(recipe.isFavorite ? Color.tomato : Color.ink)
+                            // The fill pours in and the heart gives a
+                            // little thump — the plPop finally has a body.
+                            .contentTransition(.symbolEffect(.replace))
+                            .symbolEffect(.bounce, value: recipe.isFavorite)
                     }
                     .frame(minWidth: 44, minHeight: 44)
                     .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.pressable)
 
             ShareLink(item: shareText) {
                 Circle()
@@ -601,7 +605,7 @@ struct RecipeDetailView: View {
                     .frame(minWidth: 44, minHeight: 44)
                     .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.pressable)
 
             Button {
                 Haptic.tap()
@@ -618,7 +622,7 @@ struct RecipeDetailView: View {
                     .frame(minWidth: 44, minHeight: 44)
                     .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.pressable)
         }
         .padding(.horizontal, 24)
         .padding(.vertical, 4)
@@ -672,7 +676,7 @@ struct RecipeDetailView: View {
                                             )
                                     }
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(.pressable)
                         }
                     }
                 }
@@ -852,7 +856,7 @@ struct PlateAssignSheet: View {
             }
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable)
     }
 
     private func cookChip(_ member: HouseholdMember) -> some View {
@@ -873,7 +877,7 @@ struct PlateAssignSheet: View {
                     .foregroundStyle(active ? Color.ink : Color.inkSecondary)
             }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable)
     }
 
     private var plateLabel: String {
@@ -965,7 +969,7 @@ struct RecipePickerSheet: View {
                                     .lineLimit(1)
                             }
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.pressable)
                     }
                 }
                 .padding(.horizontal, 24)

@@ -20,6 +20,7 @@ struct TableFeedView: View {
     }
 
     @State private var scope: FeedScope = .everyone
+    @Namespace private var scopePill
     @State private var bouncePost: PersistentIdentifier?
     @State private var threadPost: TablePost?
     @State private var personShown: PersonRef?
@@ -179,7 +180,7 @@ struct TableFeedView: View {
                     .frame(minWidth: 44, minHeight: 44)
                     .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.pressable)
             // The seats at your table — tap to see, message, and manage them.
             Button {
                 Haptic.tap()
@@ -196,17 +197,19 @@ struct TableFeedView: View {
                 .frame(minHeight: 44)
                 .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.pressable)
         }
     }
 
     /// Everyone or just the household — the X-style split, quiet edition.
+    /// The raised pill SLIDES between options (one shared identity), it
+    /// doesn't blink out and reappear.
     private var scopePicker: some View {
         HStack(spacing: 0) {
             ForEach(FeedScope.allCases, id: \.self) { option in
                 let active = scope == option
                 Button {
-                    Haptic.tap()
+                    Haptic.select()
                     withAnimation(.plSnap) { scope = option }
                 } label: {
                     Text(option.rawValue)
@@ -221,10 +224,11 @@ struct TableFeedView: View {
                                     .fill(Color.raisedFill)
                                     .overlay(Capsule().strokeBorder(Color.navHairline))
                                     .shadow(color: Color.shadowWarm.opacity(0.12), radius: 4, y: 2)
+                                    .matchedGeometryEffect(id: "scopePill", in: scopePill)
                             }
                         }
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.pressable)
             }
         }
         .padding(2)
@@ -252,7 +256,7 @@ struct TableFeedView: View {
                     }
                     .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.pressable)
                 Spacer()
                 Button {
                     beginSave(post)
@@ -262,7 +266,7 @@ struct TableFeedView: View {
                         .foregroundStyle(Color.ink)
                         .frame(minWidth: 44, minHeight: 44)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.pressable)
             }
             .padding(.bottom, 10)
 
@@ -281,7 +285,7 @@ struct TableFeedView: View {
                             .clipShape(RoundedRectangle(cornerRadius: Radius.card))
                             .plCardShadow()
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.pressable)
                 }
                 if post.hasChefsKiss {
                     chefsKissPill
@@ -307,7 +311,7 @@ struct TableFeedView: View {
                     .frame(minHeight: 44)
                     .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.pressable)
                 Spacer()
             }
             .padding(.top, 10)
@@ -335,7 +339,7 @@ struct TableFeedView: View {
                     .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                     .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.pressable)
             .padding(.top, 2)
         }
         .padding(.horizontal, 24)
@@ -363,7 +367,7 @@ struct TableFeedView: View {
                     }
                     .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.pressable)
                 Spacer()
                 MicroLabel(post.hasPoll ? "Poll" : "Open ask")
             }
@@ -395,7 +399,7 @@ struct TableFeedView: View {
                 }
                 .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.pressable)
             ForEach(post.sortedComments.prefix(2), id: \.persistentModelID) { comment in
                 commentLine(comment)
             }
@@ -409,7 +413,7 @@ struct TableFeedView: View {
                     .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                     .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.pressable)
         }
         .padding(.horizontal, 24)
         .padding(.vertical, 16)
@@ -445,7 +449,7 @@ struct TableFeedView: View {
             }
             .frame(minHeight: 44)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable)
     }
 
     private func commentLine(_ comment: TableComment) -> some View {
@@ -627,6 +631,6 @@ struct PlateReactionButton: View {
                 .scaleEffect(bounce ? 1.35 : 1)
                 .frame(minWidth: 44, minHeight: 44)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable)
     }
 }

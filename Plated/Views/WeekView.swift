@@ -18,6 +18,8 @@ struct WeekView: View {
     @AppStorage("showCalendarEvents") private var showCalendarEvents = false
 
     @State private var bounceDay: Date?
+    /// The day a dragged plate is hovering over — it leans in to receive.
+    @State private var dropHoverDay: Date?
     @State private var groceryPresented = false
     @State private var planDay: Date?
     @State private var actionDay: Date?
@@ -209,7 +211,7 @@ struct WeekView: View {
                 }
                 .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.pressable)
         }
     }
 
@@ -225,7 +227,7 @@ struct WeekView: View {
                 .frame(minWidth: 40, minHeight: 44)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable)
     }
 
     private var progressRing: some View {
@@ -247,8 +249,11 @@ struct WeekView: View {
             Text("\(plannedCount)")
                 .font(.jakarta(11, .extraBold))
                 .foregroundStyle(Color.ink)
+                .contentTransition(.numericText())
         }
         .animation(.plSnap, value: plannedCount)
+        // The seventh plate completes the week — that's a kiss.
+        .sensoryFeedback(.success, trigger: plannedCount) { old, new in new == 7 && old < 7 }
     }
 
     // MARK: Rows
@@ -270,7 +275,9 @@ struct WeekView: View {
                                 .foregroundStyle(Color.inkSecondary)
                         }
                 } else {
-                    dishCircle(for: meal)
+                    // Tonight's plate simmers — the one ambient mesh drift
+                    // per screen that DishView was built for.
+                    dishCircle(for: meal, simmering: today)
                 }
 
                 VStack(alignment: .leading, spacing: 2) {
@@ -307,8 +314,11 @@ struct WeekView: View {
         }
         .dropDestination(for: String.self) { tokens, _ in
             moveMeal(from: tokens.first, to: date)
+        } isTargeted: { over in
+            if over { Haptic.select() }
+            withAnimation(.plSnap) { dropHoverDay = over ? date : nil }
         }
-        .scaleEffect(bounceDay == date ? 1.02 : 1)
+        .scaleEffect(bounceDay == date ? 1.02 : (dropHoverDay == date ? 1.015 : 1))
         .animation(.plPop, value: bounceDay)
     }
 
@@ -336,15 +346,25 @@ struct WeekView: View {
             .padding(.horizontal, 14)
             .frame(minHeight: 72)
             .overlay {
-                RoundedRectangle(cornerRadius: Radius.card)
-                    .strokeBorder(Color.hairlineDashed, style: StrokeStyle(lineWidth: 2, dash: [7, 6]))
+                // A hovering plate turns the dashed invitation solid.
+                if dropHoverDay == date {
+                    RoundedRectangle(cornerRadius: Radius.card)
+                        .strokeBorder(Color.ink, lineWidth: 2)
+                } else {
+                    RoundedRectangle(cornerRadius: Radius.card)
+                        .strokeBorder(Color.hairlineDashed, style: StrokeStyle(lineWidth: 2, dash: [7, 6]))
+                }
             }
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable)
         .dropDestination(for: String.self) { tokens, _ in
             moveMeal(from: tokens.first, to: date)
+        } isTargeted: { over in
+            if over { Haptic.select() }
+            withAnimation(.plSnap) { dropHoverDay = over ? date : nil }
         }
+        .scaleEffect(dropHoverDay == date ? 1.015 : 1)
     }
 
     private func dayColumn(_ date: Date, dimmed: Bool) -> some View {
@@ -376,7 +396,7 @@ struct WeekView: View {
         .frame(width: 44)
     }
 
-    private func dishCircle(for meal: PlannedMeal) -> some View {
+    private func dishCircle(for meal: PlannedMeal, simmering: Bool = false) -> some View {
         Group {
             if let data = meal.recipe?.photoData, let image = UIImage(data: data) {
                 Image(uiImage: image)
@@ -385,7 +405,7 @@ struct WeekView: View {
                     .frame(width: 52, height: 52)
                     .clipShape(Circle())
             } else if let recipe = meal.recipe {
-                DishView(recipe: recipe, diameter: 52)
+                DishView(recipe: recipe, diameter: 52, animated: simmering)
             } else {
                 DishView(title: meal.title, diameter: 52)
             }
@@ -571,7 +591,7 @@ private struct SwipeToRemove<Content: View>: View {
                                 .foregroundStyle(Color.onTomato)
                         }
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.pressable)
                 .padding(.trailing, 10)
             }
 

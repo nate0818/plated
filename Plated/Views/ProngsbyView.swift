@@ -136,11 +136,16 @@ struct ProngsbyView: View {
                     }
                     ForEach(messages, id: \.persistentModelID) { message in
                         bubble(message)
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
                     if session.thinking {
                         thinkingBubble
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
                 }
+                // New lines rise into the thread instead of appearing in it.
+                .animation(.plSnap, value: messages.count)
+                .animation(.plSnap, value: session.thinking)
                 .padding(.horizontal, 24)
                 .padding(.top, 14)
                 .padding(.bottom, 12)
@@ -167,7 +172,7 @@ struct ProngsbyView: View {
                                     .frame(minHeight: 44)
                                     .contentShape(Capsule())
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(.pressable)
                             .disabled(session.thinking)
                         }
                     }
@@ -202,8 +207,11 @@ struct ProngsbyView: View {
                         }
                         .frame(minWidth: 44, minHeight: 44)
                         .contentShape(Rectangle())
+                        // The arrow warms to tomato as the first character
+                        // lands — armed, not flipped.
+                        .animation(.plSnap, value: session.draft.isEmpty)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.pressable)
                 .disabled(session.draft.isEmpty || session.thinking)
             }
             .padding(.horizontal, 24)

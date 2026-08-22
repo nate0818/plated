@@ -156,7 +156,7 @@ struct TableSeatsSheet: View {
                         .frame(minWidth: 44, minHeight: 44)
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.pressable)
             }
             if canRemove {
                 Button {
@@ -169,7 +169,7 @@ struct TableSeatsSheet: View {
                         .frame(minWidth: 44, minHeight: 44)
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.pressable)
             }
         }
         .padding(.vertical, 10)
@@ -193,7 +193,7 @@ struct TableSeatsSheet: View {
                     .frame(height: 44)
                     .background(Color.ink, in: Capsule())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.pressable)
             .disabled(inviteName.trimmingCharacters(in: .whitespaces).isEmpty)
             .opacity(inviteName.trimmingCharacters(in: .whitespaces).isEmpty ? 0.4 : 1)
         }
@@ -268,8 +268,10 @@ struct DMThreadView: View {
 
                     ForEach(messages, id: \.persistentModelID) { message in
                         bubble(message)
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
                 }
+                .animation(.plSnap, value: messages.count)
                 .padding(.horizontal, 24)
                 .padding(.bottom, 12)
             }
@@ -297,8 +299,10 @@ struct DMThreadView: View {
                                 .foregroundStyle(draft.isEmpty ? Color.inkFaint : Color.onTomato)
                         }
                         .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(Rectangle())
+                        .animation(.plSnap, value: draft.isEmpty)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.pressable)
                 .disabled(draft.isEmpty)
             }
             .padding(.horizontal, 24)

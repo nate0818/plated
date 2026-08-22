@@ -26,6 +26,7 @@ struct RecipeEditorView: View {
     @State private var minutes = 25
     @State private var serves = 4
     @State private var visibility = "household"
+    @Namespace private var visibilityPill
     @State private var householdCanEdit = true
     @State private var photoItem: PhotosPickerItem?
     @State private var photoData: Data?
@@ -141,6 +142,7 @@ struct RecipeEditorView: View {
                             Spacer()
                             Toggle("", isOn: $householdCanEdit)
                                 .labelsHidden()
+                                .sensoryFeedback(.selection, trigger: householdCanEdit)
                                 .tint(Color.basil)
                         }
                         .padding(.horizontal, 4)
@@ -172,7 +174,7 @@ struct RecipeEditorView: View {
                             .frame(minHeight: 44)
                             .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.pressable)
                     .disabled(!canSave)
                     .opacity(canSave ? 1 : 0.4)
                 }
@@ -251,7 +253,7 @@ struct RecipeEditorView: View {
                     .foregroundStyle(Color.inkSecondary)
                     .frame(minHeight: 44)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.pressable)
             Spacer()
             Text(isEditing ? "Edit recipe" : (prefill == nil ? "New recipe" : "Make it yours"))
                 .font(.gabarito(19, .extraBold))
@@ -290,7 +292,7 @@ struct RecipeEditorView: View {
                 }
             }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable)
     }
 
     /// Quick ingredient capture — "2 lb chicken thighs" in one line, parsed
@@ -320,7 +322,7 @@ struct RecipeEditorView: View {
                             .frame(minWidth: 44, minHeight: 44)
                             .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.pressable)
                 }
                 .padding(.horizontal, 4)
             }
@@ -348,6 +350,7 @@ struct RecipeEditorView: View {
                     Spacer()
                     Toggle("", isOn: $addToGroceries)
                         .labelsHidden()
+                        .sensoryFeedback(.selection, trigger: addToGroceries)
                         .tint(Color.basil)
                 }
                 .padding(.horizontal, 16)
@@ -387,7 +390,7 @@ struct RecipeEditorView: View {
                             .frame(minWidth: 44, minHeight: 44)
                             .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.pressable)
                 }
                 .padding(.horizontal, 4)
             }
@@ -420,7 +423,7 @@ struct RecipeEditorView: View {
                 }
                 .frame(minWidth: 44, minHeight: 44)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable)
         .disabled(disabled)
     }
 
@@ -513,7 +516,7 @@ struct RecipeEditorView: View {
                 }
             }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable)
     }
 
     /// The extra shots — process, plating, chaos. Up to five.
@@ -545,7 +548,7 @@ struct RecipeEditorView: View {
                                         .frame(width: 44, height: 44, alignment: .topTrailing)
                                         .contentShape(Rectangle())
                                 }
-                                .buttonStyle(.plain)
+                                .buttonStyle(.pressable)
                             }
                     }
                 }
@@ -564,7 +567,7 @@ struct RecipeEditorView: View {
                                 .foregroundStyle(Color.inkFaint)
                             }
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.pressable)
                 }
             }
         }
@@ -600,7 +603,7 @@ struct RecipeEditorView: View {
     private func visibilitySegment(_ value: String, label: String, icon: String?) -> some View {
         let active = visibility == value
         return Button {
-            Haptic.tap()
+            Haptic.select()
             withAnimation(.plSnap) { visibility = value }
         } label: {
             HStack(spacing: 5) {
@@ -619,10 +622,12 @@ struct RecipeEditorView: View {
                         .fill(Color.raisedFill)
                         .overlay(Capsule().strokeBorder(Color.navHairline))
                         .shadow(color: Color.shadowWarm.opacity(0.12), radius: 4, y: 2)
+                        // One pill, three seats — it slides, never blinks.
+                        .matchedGeometryEffect(id: "visibilityPill", in: visibilityPill)
                 }
             }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable)
     }
 
     /// Saving waits for the photo to finish processing so a picked photo is

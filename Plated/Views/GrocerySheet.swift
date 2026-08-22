@@ -90,7 +90,7 @@ struct GrocerySheet: View {
                         .overlay(Capsule().strokeBorder(Color.hairline, lineWidth: 1.5))
                         .contentShape(Capsule())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.pressable)
                     if let exportResult {
                         Text(exportResult)
                             .font(.jakarta(12, .semibold))
@@ -126,9 +126,11 @@ struct GrocerySheet: View {
                         .background(Circle().fill(item.isChecked ? Color.basil : Color.clear))
                         .frame(width: 24, height: 24)
                     if item.isChecked {
+                        // The check lands like a pen stroke, not a repaint.
                         Image(systemName: "checkmark")
                             .font(.system(size: 11, weight: .heavy))
                             .foregroundStyle(Color.canvas)
+                            .transition(.scale(scale: 0.4).combined(with: .opacity))
                     }
                 }
                 Text(item.name)
@@ -142,7 +144,7 @@ struct GrocerySheet: View {
             }
             .frame(minHeight: 44)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable)
     }
 
     private func quantityText(_ item: GroceryItem) -> String {
@@ -177,9 +179,11 @@ struct GrocerySheet: View {
             do {
                 let unchecked = currentItems.filter { !$0.isChecked }
                 let count = try await RemindersExporter.shared.export(unchecked)
-                exportResult = "\(count) items sent to Reminders"
+                withAnimation(.plSnap) { exportResult = "\(count) items sent to Reminders" }
+                Haptic.kiss()
             } catch {
-                exportResult = "Reminders access is off in Settings"
+                withAnimation(.plSnap) { exportResult = "Reminders access is off in Settings" }
+                Haptic.warn()
             }
             exporting = false
         }

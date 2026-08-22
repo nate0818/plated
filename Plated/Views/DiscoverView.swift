@@ -36,7 +36,7 @@ struct DiscoverView: View {
                         .frame(width: 44, height: 44)
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.pressable)
                 VStack(alignment: .leading, spacing: 2) {
                     MicroLabel("From open tables")
                     Text("Discover")
@@ -68,7 +68,7 @@ struct DiscoverView: View {
                             .foregroundStyle(Color.inkFaint)
                             .frame(minWidth: 44, minHeight: 44)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.pressable)
                 }
             }
             .padding(.horizontal, 16)
@@ -165,7 +165,7 @@ struct DiscoverView: View {
             }
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable)
     }
 }
 
@@ -248,7 +248,7 @@ struct DiscoverPostSheet: View {
                         }
                         .frame(minWidth: 44, minHeight: 44)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.pressable)
                 }
 
                 Text(post.dishTitle)

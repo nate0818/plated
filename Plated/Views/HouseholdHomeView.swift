@@ -69,7 +69,7 @@ struct HouseholdHomeView: View {
                             .frame(minWidth: 44, minHeight: 44)
                             .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.pressable)
                 }
 
                 membersCard
@@ -88,7 +88,7 @@ struct HouseholdHomeView: View {
                                 .foregroundStyle(Color.inkFaint)
                                 .frame(minWidth: 32, minHeight: 32)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.pressable)
                         Spacer()
                     }
                     cookGrid
@@ -108,6 +108,7 @@ struct HouseholdHomeView: View {
                         Spacer()
                         Toggle("", isOn: $autoRotate)
                             .labelsHidden()
+                            .sensoryFeedback(.selection, trigger: autoRotate)
                             .tint(Color.basil)
                     }
                     .padding(.horizontal, 16)
@@ -148,7 +149,7 @@ struct HouseholdHomeView: View {
                         Capsule().strokeBorder(Color.hairlineDashed, style: StrokeStyle(lineWidth: 2, dash: [7, 6]))
                     }
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.pressable)
             }
             .padding(.horizontal, 24)
             .padding(.top, 6)
@@ -224,7 +225,7 @@ struct HouseholdHomeView: View {
                 }
             }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable)
     }
 
     private func setBanner(_ raw: Data) {
@@ -249,6 +250,16 @@ struct HouseholdHomeView: View {
 
     private var kissCount: Int { posts.filter(\.hasChefsKiss).count }
 
+    /// How many milestones this table has earned — watched so the moment
+    /// one flips, the shelf celebrates instead of silently restyling.
+    private var earnedMilestones: Int {
+        [!recipes.isEmpty,
+         posts.contains { $0.kind == "dish" },
+         kissCount > 0,
+         members.count >= 3,
+         Awards.totalSavesRecorded > 0].filter { $0 }.count
+    }
+
     private var insightsSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             MicroLabel("Your table, counted")
@@ -267,6 +278,8 @@ struct HouseholdHomeView: View {
                     milestoneChip("First save", earned: Awards.totalSavesRecorded > 0)
                 }
             }
+            .animation(.plPop, value: earnedMilestones)
+            .sensoryFeedback(.success, trigger: earnedMilestones) { old, new in new > old }
         }
     }
 
@@ -278,6 +291,8 @@ struct HouseholdHomeView: View {
             Text(value)
                 .font(.gabarito(19, .extraBold))
                 .foregroundStyle(Color.ink)
+                .contentTransition(.numericText())
+                .animation(.plSnap, value: value)
             Text(label.uppercased())
                 .font(.jakarta(9, .extraBold))
                 .tracking(0.5)
@@ -293,6 +308,9 @@ struct HouseholdHomeView: View {
             Image(systemName: earned ? "checkmark.circle.fill" : "circle.dashed")
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(earned ? Color.basil : Color.inkFaint)
+                // The dashed circle becomes a check with a little flourish
+                // when the milestone lands — earned, not restyled.
+                .contentTransition(.symbolEffect(.replace))
             Text(label)
                 .font(.jakarta(12, .bold))
                 .foregroundStyle(earned ? Color.ink : Color.inkFaint)
@@ -383,12 +401,19 @@ struct HouseholdHomeView: View {
                     .font(.jakarta(10, .extraBold))
                     .tracking(0.4)
                     .foregroundStyle(isToday ? Color.tomato : Color.inkFaint)
-                if let cook {
-                    AvatarCircle(initials: cook.firstInitial, tone: cook.tone, size: 28)
-                } else {
-                    Circle()
-                        .strokeBorder(Color.hairlineDashed, style: StrokeStyle(lineWidth: 2, dash: [4, 4]))
-                        .frame(width: 28, height: 28)
+                // The seat swap animates — a new cook scales in rather than
+                // hard-cutting inside the spring.
+                ZStack {
+                    if let cook {
+                        AvatarCircle(initials: cook.firstInitial, tone: cook.tone, size: 28)
+                            .id(cook.name)
+                            .transition(.scale(scale: 0.5).combined(with: .opacity))
+                    } else {
+                        Circle()
+                            .strokeBorder(Color.hairlineDashed, style: StrokeStyle(lineWidth: 2, dash: [4, 4]))
+                            .frame(width: 28, height: 28)
+                            .transition(.opacity)
+                    }
                 }
             }
             .frame(maxWidth: .infinity)
@@ -400,7 +425,7 @@ struct HouseholdHomeView: View {
                     .strokeBorder(isToday ? Color.tomato : Color.hairline, lineWidth: isToday ? 2 : 1)
             }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable)
     }
 
     /// Cook grid runs today-first, matching the week screen.
@@ -473,6 +498,8 @@ struct AddMemberSheet: View {
             }
 
             TomatoPillButton(title: "Set their place") {
+                // A new seat at the table is a plate-weight moment.
+                Haptic.plate()
                 let color = PersonTone.rotation[members.count % PersonTone.rotation.count]
                 let line = role == "partner" ? "Partner · plans & cooks"
                     : role == "kid" ? "Kid · ideas & helping" : "Guest of the table"
@@ -512,6 +539,6 @@ struct AddMemberSheet: View {
                     }
                 }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable)
     }
 }

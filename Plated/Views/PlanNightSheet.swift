@@ -166,7 +166,7 @@ struct PlanNightSheet: View {
                     .frame(minWidth: 44, minHeight: 44)
                     .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.pressable)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
@@ -209,7 +209,7 @@ struct PlanNightSheet: View {
             .overlay(RoundedRectangle(cornerRadius: Radius.card).strokeBorder(Color.hairline))
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable)
     }
 
     private var dayTitle: String {
@@ -245,6 +245,8 @@ struct PlanNightSheet: View {
         guard let recipe = (ranked.first { !thisWeek.contains($0.recipe.persistentModelID) } ?? ranked.first)?.recipe
         else { return }
         let minutes = recipe.totalMinutes
+        // The magic move earns the plate-weight thump, not a chrome tick.
+        Haptic.plate()
         plate(recipe, tagline: minutes > 0 ? "Picked for you · \(minutes) min" : "Picked for you")
         dismiss()
     }
@@ -347,7 +349,7 @@ struct AskComposerSheet: View {
                                         .frame(minWidth: 44, minHeight: 44)
                                         .contentShape(Rectangle())
                                 }
-                                .buttonStyle(.plain)
+                                .buttonStyle(.pressable)
                             }
                             .padding(.horizontal, 4)
                         }
@@ -372,7 +374,7 @@ struct AskComposerSheet: View {
                                         }
                                         .frame(minWidth: 44, minHeight: 44)
                                 }
-                                .buttonStyle(.plain)
+                                .buttonStyle(.pressable)
                                 .disabled(optionEntry.trimmingCharacters(in: .whitespaces).isEmpty)
                             }
                         }
@@ -406,7 +408,7 @@ struct AskComposerSheet: View {
                                             }
                                         }
                                     }
-                                    .buttonStyle(.plain)
+                                    .buttonStyle(.pressable)
                                 }
                             }
                         }
@@ -568,6 +570,7 @@ struct GatheringSheet: View {
                         Spacer()
                         Toggle("", isOn: $syncToCalendar)
                             .labelsHidden()
+                            .sensoryFeedback(.selection, trigger: syncToCalendar)
                             .tint(Color.basil)
                     }
                     .padding(.horizontal, 16)
@@ -614,7 +617,7 @@ struct GatheringSheet: View {
                 .frame(minWidth: 44, minHeight: 44)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable)
     }
 
     private var dayLabel: String {

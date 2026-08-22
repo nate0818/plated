@@ -28,16 +28,20 @@ struct ActivityBellButton: View {
                         Text(unread.count > 9 ? "9+" : "\(unread.count)")
                             .font(.jakarta(9, .extraBold))
                             .foregroundStyle(Color.onTomato)
+                            .contentTransition(.numericText())
                             .padding(.horizontal, 4)
                             .frame(minWidth: 16)
                             .frame(height: 16)
                             .background(Color.tomato, in: Capsule())
                             .offset(x: -1, y: 3)
+                            .transition(.scale(scale: 0.4).combined(with: .opacity))
                     }
                 }
+                // News lands with a pop, counts tick, read-all fades out.
+                .animation(.plPop, value: unread.count)
                 .frame(minWidth: 44, minHeight: 44)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable)
     }
 }

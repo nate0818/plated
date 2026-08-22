@@ -249,7 +249,7 @@ struct PlateTabBar: View {
                 }
                 .rotationEffect(.degrees(addSpin ? 90 : 0))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.pressable)
             .frame(width: 72)
 
             tabItem(.prongsby, label: "Prongsby") {
@@ -296,7 +296,7 @@ struct PlateTabBar: View {
             .frame(maxWidth: .infinity, minHeight: 66)
             .scaleEffect(bouncing == tab.rawValue ? 1.25 : 1)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable)
     }
 
     private func bounce(_ key: String) {
@@ -389,6 +389,6 @@ struct CreateMenuSheet: View {
             .overlay(RoundedRectangle(cornerRadius: Radius.card).strokeBorder(Color.hairline))
             .contentShape(RoundedRectangle(cornerRadius: Radius.card))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable)
     }
 }

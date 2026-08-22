@@ -157,7 +157,7 @@ struct PersonProfileView: View {
                     .frame(minWidth: 44, minHeight: 44)
                     .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.pressable)
             Spacer()
             if isMe {
                 Button {
@@ -176,7 +176,7 @@ struct PersonProfileView: View {
                         .frame(minWidth: 44, minHeight: 44)
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.pressable)
             }
         }
         .padding(.horizontal, 20)
@@ -213,7 +213,7 @@ struct PersonProfileView: View {
                     .background(.ultraThinMaterial, in: Capsule())
                     .padding(10)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.pressable)
             }
         }
     }
@@ -239,7 +239,7 @@ struct PersonProfileView: View {
             }
             .aspectRatio(1, contentMode: .fit)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable)
     }
 
     private func statBlock(_ value: String, _ label: String, accent: Bool = false) -> some View {
@@ -269,7 +269,7 @@ struct PersonProfileView: View {
                 .frame(minHeight: 44)
                 .contentShape(Capsule())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable)
     }
 
     private var initials: String {
@@ -389,6 +389,7 @@ struct SettingsSheet: View {
                     ) {
                         Toggle("", isOn: $showCalendarEvents)
                             .labelsHidden()
+                            .sensoryFeedback(.selection, trigger: showCalendarEvents)
                             .tint(Color.basil)
                             .onChange(of: showCalendarEvents) { _, on in
                                 if on {
@@ -416,7 +417,7 @@ struct SettingsSheet: View {
                                     .foregroundStyle(plusActive ? Color.basil : Color.tomato)
                             }
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.pressable)
                     }
 
                     Text("Plated 0.1.0 · Made at the table")

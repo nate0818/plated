@@ -83,7 +83,7 @@ struct TableComposerSheet: View {
                                             .frame(minHeight: 44)
                                             .contentShape(Capsule())
                                         }
-                                        .buttonStyle(.plain)
+                                        .buttonStyle(.pressable)
                                     }
                                 }
                             }
@@ -169,7 +169,7 @@ struct TableComposerSheet: View {
                     }
             }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable)
     }
 
     private func post() {

@@ -136,9 +136,11 @@ struct DishView: View {
             .compositingGroup()
     }
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     @ViewBuilder
     private var food: some View {
-        if animated {
+        if animated, !reduceMotion {
             TimelineView(.animation(minimumInterval: 1 / 20)) { timeline in
                 mesh(driftPhase: timeline.date.timeIntervalSinceReferenceDate)
             }

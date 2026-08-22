@@ -27,7 +27,7 @@ struct NotificationsView: View {
                         .frame(minWidth: 44, minHeight: 44)
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.pressable)
                 VStack(alignment: .leading, spacing: 2) {
                     MicroLabel("What happened")
                     Text("Activity")

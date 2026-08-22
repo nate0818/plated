@@ -129,9 +129,41 @@ extension Animation {
 // success tap when the kiss is earned.
 
 enum Haptic {
-    static func tap() { UIImpactFeedbackGenerator(style: .light).impactOccurred() }
-    static func plate() { UIImpactFeedbackGenerator(style: .medium).impactOccurred() }
-    static func kiss() { UINotificationFeedbackGenerator().notificationOccurred(.success) }
+    // Stored generators stay warm — a fresh generator per call pays
+    // first-fire latency on every single tap.
+    private static let light = UIImpactFeedbackGenerator(style: .light)
+    private static let medium = UIImpactFeedbackGenerator(style: .medium)
+    private static let notice = UINotificationFeedbackGenerator()
+    private static let selector = UISelectionFeedbackGenerator()
+
+    static func tap() { light.impactOccurred() }
+    static func plate() { medium.impactOccurred() }
+    static func kiss() { notice.notificationOccurred(.success) }
+    /// The tick of moving between options — chips, toggles, segments,
+    /// drag targets. Quieter than a tap; it marks position, not action.
+    static func select() { selector.selectionChanged() }
+    /// Something didn't take — a denied permission, a failed export.
+    static func warn() { notice.notificationOccurred(.warning) }
+}
+
+// MARK: - Press feedback
+
+/// The house press state: everything tappable gives a little under the
+/// finger. Quiet by design — no color, no shadow change, just the object
+/// yielding — so it layers safely under any label, bounce, or spin the
+/// button already owns. This replaces `.plain` as the default dress for
+/// custom buttons; `.plain` alone is a dead surface.
+struct PressableStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.965 : 1)
+            .opacity(configuration.isPressed ? 0.85 : 1)
+            .animation(.plSnap, value: configuration.isPressed)
+    }
+}
+
+extension ButtonStyle where Self == PressableStyle {
+    static var pressable: PressableStyle { PressableStyle() }
 }
 
 // MARK: - Shadows

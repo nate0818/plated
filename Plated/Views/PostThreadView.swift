@@ -78,7 +78,7 @@ struct PostThreadView: View {
                                         .font(.jakarta(12, .bold))
                                         .foregroundStyle(Color.ink)
                                 }
-                                .buttonStyle(.plain)
+                                .buttonStyle(.pressable)
                             }
                             Spacer()
                         }
@@ -99,8 +99,10 @@ struct PostThreadView: View {
 
                     ForEach(post.sortedComments, id: \.persistentModelID) { comment in
                         threadComment(comment)
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
                 }
+                .animation(.plSnap, value: post.sortedComments.count)
                 .padding(.horizontal, 24)
                 .padding(.top, 16)
                 .padding(.bottom, 20)
@@ -171,7 +173,7 @@ struct PostThreadView: View {
                     .frame(minWidth: 44, minHeight: 44)
                     .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.pressable)
 
             Button {
                 openProfile(post.authorName, colorHex: post.authorColorHex)
@@ -189,7 +191,7 @@ struct PostThreadView: View {
                 }
                 .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.pressable)
             Spacer()
             if post.kind == "dish" {
                 Button {
@@ -204,7 +206,7 @@ struct PostThreadView: View {
                         .frame(minHeight: 44)
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.pressable)
             }
         }
         .padding(.horizontal, 20)
@@ -266,7 +268,7 @@ struct PostThreadView: View {
             .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(mine ? Color.basil.opacity(0.4) : Color.hairline))
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable)
     }
 
     private func threadComment(_ comment: TableComment) -> some View {
@@ -276,7 +278,7 @@ struct PostThreadView: View {
             } label: {
                 AvatarCircle(initials: initials(for: comment.authorName), tone: tone(for: comment.authorName), size: 30)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.pressable)
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
                     Button {
@@ -286,7 +288,7 @@ struct PostThreadView: View {
                             .font(.jakarta(13, .bold))
                             .foregroundStyle(Color.ink)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.pressable)
                     if !comment.replyToName.isEmpty {
                         HStack(spacing: 3) {
                             Image(systemName: "arrowshape.turn.up.left.fill")
@@ -338,7 +340,7 @@ struct PostThreadView: View {
                         .frame(minWidth: 44, minHeight: 44, alignment: .leading)
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.pressable)
             }
             Spacer(minLength: 0)
         }
@@ -382,7 +384,7 @@ struct PostThreadView: View {
                             .frame(minWidth: 44, minHeight: 44)
                             .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.pressable)
                 }
                 .padding(.horizontal, 24)
             }
@@ -406,11 +408,12 @@ struct PostThreadView: View {
                                 .frame(height: 34)
                                 .overlay(Capsule().strokeBorder(Color.hairline))
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(.pressable)
                         }
                     }
                     .padding(.horizontal, 24)
                 }
+                .transition(.move(edge: .bottom).combined(with: .opacity))
             }
 
             if linkFieldShown {
@@ -447,7 +450,7 @@ struct PostThreadView: View {
                                     .frame(width: 44, height: 44, alignment: .topTrailing)
                                     .contentShape(Rectangle())
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(.pressable)
                         }
                     Spacer()
                 }
@@ -465,7 +468,7 @@ struct PostThreadView: View {
                         .frame(minWidth: 44, minHeight: 44)
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.pressable)
 
                 PhotosPicker(selection: $photoItem, matching: .images) {
                     Image(systemName: "photo")
@@ -474,7 +477,7 @@ struct PostThreadView: View {
                         .frame(minWidth: 44, minHeight: 44)
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.pressable)
 
                 Button {
                     Haptic.tap()
@@ -486,7 +489,7 @@ struct PostThreadView: View {
                         .frame(minWidth: 44, minHeight: 44)
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.pressable)
 
                 TextField(placeholder, text: $draft, axis: .vertical)
                     .font(.jakarta(14, .medium))
@@ -518,7 +521,7 @@ struct PostThreadView: View {
                         }
                         .frame(minWidth: 44, minHeight: 44)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.pressable)
                 .disabled(!canSend)
             }
             .padding(.horizontal, 20)

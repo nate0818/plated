@@ -137,7 +137,7 @@ struct ContactsView: View {
                         .foregroundStyle(Color.inkSecondary)
                         .frame(minHeight: 44)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.pressable)
                 HStack(spacing: 6) {
                     Image(systemName: "lock")
                         .font(.system(size: 12, weight: .semibold))
@@ -211,7 +211,7 @@ struct ContactsView: View {
                         .background(Color.tomato, in: Capsule())
                         .shadow(color: Color.shadowInk.opacity(0.14), radius: 7, y: 6)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.pressable)
             }
         }
         .padding(.vertical, 12)
