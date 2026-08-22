@@ -261,7 +261,7 @@ struct WeekView: View {
     private func plannedRow(_ meal: PlannedMeal, date: Date) -> some View {
         let today = Calendar.current.isDateInToday(date)
         let eatingOut = meal.recipe == nil && meal.customTitle.localizedCaseInsensitiveContains("eating out")
-        return SwipeToRemove(isOpen: swipeBinding(date), onRemove: { remove(on: date) }) {
+        return SwipeRow(isOpen: swipeBinding(date), actions: [.remove { remove(on: date) }]) {
             HStack(spacing: 12) {
                 dayColumn(date, dimmed: false)
 
@@ -563,58 +563,6 @@ enum DayTransfer {
         guard let token, token.hasPrefix("plated-day:"),
               let seconds = TimeInterval(token.dropFirst("plated-day:".count)) else { return nil }
         return Date(timeIntervalSince1970: seconds)
-    }
-}
-
-/// Swipe a planned night left to reveal Remove — the standard gesture,
-/// rebuilt for rows that live outside a List.
-private struct SwipeToRemove<Content: View>: View {
-    @Binding var isOpen: Bool
-    let onRemove: () -> Void
-    @ViewBuilder let content: () -> Content
-
-    @State private var dragOffset: CGFloat = 0
-    private let revealWidth: CGFloat = 76
-
-    var body: some View {
-        ZStack(alignment: .trailing) {
-            if isOpen || dragOffset < 0 {
-                Button {
-                    onRemove()
-                } label: {
-                    Circle()
-                        .fill(Color.tomato)
-                        .frame(width: 44, height: 44)
-                        .overlay {
-                            Image(systemName: "trash")
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundStyle(Color.onTomato)
-                        }
-                }
-                .buttonStyle(.pressable)
-                .padding(.trailing, 10)
-            }
-
-            content()
-                .offset(x: (isOpen ? -revealWidth : 0) + dragOffset)
-                .simultaneousGesture(
-                    DragGesture(minimumDistance: 24)
-                        .onChanged { value in
-                            // Horizontal-dominant only, so the plan still scrolls.
-                            guard abs(value.translation.width) > abs(value.translation.height) else { return }
-                            let base: CGFloat = isOpen ? -revealWidth : 0
-                            dragOffset = min(max(value.translation.width, -revealWidth - base), -base)
-                        }
-                        .onEnded { value in
-                            let projected = (isOpen ? -revealWidth : 0) + value.translation.width
-                            withAnimation(.plSnap) {
-                                isOpen = projected < -revealWidth / 2
-                                dragOffset = 0
-                            }
-                        }
-                )
-        }
-        .animation(.plSnap, value: isOpen)
     }
 }
 

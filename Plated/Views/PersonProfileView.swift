@@ -356,8 +356,10 @@ struct SettingsSheet: View {
     @Environment(\.dismiss) private var dismiss
     @AppStorage("afterDark") private var afterDark = false
     @AppStorage("showCalendarEvents") private var showCalendarEvents = false
+    @AppStorage("householdName") private var householdName = ""
     @State private var paywallShown = false
     @State private var plusActive = PlatedPlus.isActive
+    @FocusState private var namingHousehold: Bool
 
     var body: some View {
         VStack(spacing: 0) {
@@ -372,6 +374,24 @@ struct SettingsSheet: View {
 
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 10) {
+                    // Apple hands over a family name once, at first sign-in,
+                    // and only with permission — so the house has to be
+                    // nameable by hand or it stays "Your Household" forever.
+                    settingRow(
+                        icon: "house",
+                        title: "Household name",
+                        caption: "The family name on your Home page."
+                    ) {
+                        TextField("Meadows", text: $householdName)
+                            .font(.jakarta(14, .bold))
+                            .foregroundStyle(Color.ink)
+                            .multilineTextAlignment(.trailing)
+                            .frame(width: 110)
+                            .focused($namingHousehold)
+                            .submitLabel(.done)
+                            .onSubmit { namingHousehold = false }
+                    }
+
                     settingRow(
                         icon: afterDark ? "moon.stars.fill" : "moon",
                         title: "After Dark",
