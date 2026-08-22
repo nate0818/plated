@@ -52,7 +52,7 @@ Three springs, defined once: `.plPop` (0.32/0.55 — icon and reaction bounce, t
 ## 5. Structure
 
 - Tab IA: **Plan · Table · + · Recipes · Home** in a floating 68pt capsule; active item ink, others faint; + is tomato, 54pt, rotates 90° on press.
-- Week (home): rolling next-7-nights, tonight first with 1.5pt ink border; open nights are dashed rows that expand into Pick for me / Cookbook / Ask the table; conic progress ring "N of 7 plated"; grocery is a basket in the header (of the plan, not a destination).
+- Plan (home): rolling next-7-nights, tonight first with 1.5pt ink border; open nights are dashed rows that expand into Pick for me / Cookbook / Ask the table; conic progress ring "N of 7 plated"; grocery is a basket in the header (of the plan, not a destination).
 - Table: private invite-only feed; plate reactions; **10 plates = chef's kiss**; comments allow URLs (link chips).
 - Discover: behind the search glass in the Table header — a 2-col rounded-rect grid of dinners from tables that chose to be open. View-only from outside; plating and "save to cookbook" work; nothing about your table leaks outward. Kiss badges (sparkle-in-circle) mark ≥10-plate dishes.
 - All tap targets ≥ 44pt. Sheets use `presentationCornerRadius(28)` and solid canvas backgrounds.
