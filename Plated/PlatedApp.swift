@@ -38,6 +38,20 @@ struct PlatedApp: App {
                     Self.applyRoomLighting(dark: dark)
                 }
                 .onAppear { Self.applyRoomLighting(dark: afterDark) }
+                .task {
+                    // Maintenance: wipe the private CloudKit database, print
+                    // a verdict for the console, and quit. PlatedStore ran
+                    // local-only this launch, so nothing re-exports.
+                    if LaunchFlags.consume("-plated-purge-cloud") {
+                        do {
+                            try await TableSync.purgeMirroredData()
+                            print("PLATED PURGE: zone deleted, private database is clean")
+                        } catch {
+                            print("PLATED PURGE FAILED: \(error)")
+                        }
+                        exit(0)
+                    }
+                }
         }
         .modelContainer(container)
         .onChange(of: scenePhase) { _, phase in

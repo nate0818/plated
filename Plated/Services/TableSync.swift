@@ -25,6 +25,22 @@ enum TableSync {
         #endif
     }
 
+    /// Deletes every mirrored record from the private database by dropping
+    /// Core Data's mirror zone. Maintenance path for the `-plated-purge-cloud`
+    /// launch flag, which also forces the store local-only for the run (see
+    /// PlatedStore) so nothing re-exports while the zone falls. The caller
+    /// reinstalls afterward; the next armed launch starts a fresh mirror.
+    static func purgeMirroredData() async throws {
+        #if PLATED_CLOUDKIT
+        let zoneID = CKRecordZone.ID(
+            zoneName: "com.apple.coredata.cloudkit.zone",
+            ownerName: CKCurrentUserDefaultName
+        )
+        _ = try await CKContainer.default().privateCloudDatabase
+            .deleteRecordZone(withID: zoneID)
+        #endif
+    }
+
     /// The message a host sends with an invitation. Once CloudKit sharing is
     /// live this carries the CKShare URL; today it sets expectations honestly.
     static func inviteMessage(hostName: String) -> String {
