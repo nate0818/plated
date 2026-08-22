@@ -129,6 +129,8 @@ struct ProngsbyView: View {
                                     .padding(.horizontal, 13)
                                     .frame(height: 36)
                                     .overlay(Capsule().strokeBorder(Color.hairline))
+                                    .frame(minHeight: 44)
+                                    .contentShape(Capsule())
                             }
                             .buttonStyle(.plain)
                         }
@@ -159,7 +161,7 @@ struct ProngsbyView: View {
                         .frame(minWidth: 44, minHeight: 44)
                 }
                 .buttonStyle(.plain)
-                .disabled(draft.isEmpty)
+                .disabled(draft.isEmpty || thinking)
             }
             .padding(.horizontal, 24)
             .padding(.top, 10)
@@ -245,6 +247,8 @@ struct ProngsbyView: View {
     }
 
     private func send(_ text: String) {
+        // One question at a time — parallel sends would interleave replies.
+        guard !thinking else { return }
         let question = text.trimmingCharacters(in: .whitespaces)
         guard !question.isEmpty else { return }
         Haptic.tap()

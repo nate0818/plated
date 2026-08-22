@@ -480,7 +480,9 @@ struct TableFeedView: View {
             post.hasChefsKiss ? Haptic.kiss() : Haptic.plate()
             let me = members.first(where: \.isOwner)?.name ?? "You"
             if post.firstName != me && post.authorName != me {
-                Notifier.post(
+                // Once per post, ever — plate/unplate/plate must not spam.
+                Notifier.postOnce(
+                    key: "plate:\(post.originKey)",
                     .plateReaction, actor: me,
                     body: "\(me) plated \(post.firstName)'s \(post.dishTitle.isEmpty ? "post" : post.dishTitle).",
                     into: context
@@ -585,6 +587,9 @@ struct PlateReactionButton: View {
     let post: TablePost
     @Binding var bounce: Bool
 
+    @Environment(\.modelContext) private var context
+    @Query(sort: \HouseholdMember.createdAt) private var members: [HouseholdMember]
+
     var body: some View {
         Button {
             let turningOn = !post.platedByMe
@@ -594,6 +599,15 @@ struct PlateReactionButton: View {
             }
             if turningOn {
                 post.hasChefsKiss ? Haptic.kiss() : Haptic.plate()
+                let me = members.first(where: \.isOwner)?.name ?? "You"
+                if post.firstName != me && post.authorName != me {
+                    Notifier.postOnce(
+                        key: "plate:\(post.originKey)",
+                        .plateReaction, actor: me,
+                        body: "\(me) plated \(post.firstName)'s \(post.dishTitle.isEmpty ? "post" : post.dishTitle).",
+                        into: context
+                    )
+                }
             } else {
                 Haptic.tap()
             }

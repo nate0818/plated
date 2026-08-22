@@ -8,12 +8,15 @@ import PhotosUI
 /// profile. The back chevron is always top-left; no sheet to guess at.
 struct PostThreadView: View {
     let post: TablePost
-    var onSave: (TablePost) -> Void = { _ in }
+    /// Provided by the feed (which owns its toast); when nil — a thread
+    /// opened from a profile page — the thread runs the save flow itself.
+    var onSave: ((TablePost) -> Void)?
 
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
     @AppStorage("userFirstName") private var userFirstName = ""
     @Query(sort: \HouseholdMember.createdAt) private var members: [HouseholdMember]
+    @Query private var recipes: [Recipe]
 
     @State private var draft = ""
     @State private var link = ""
@@ -24,6 +27,8 @@ struct PostThreadView: View {
     @State private var commentPhoto: Data?
     @State private var bounce = false
     @State private var personShown: PersonRef?
+    @State private var localSave: TablePost?
+    @State private var saveToast: String?
     @FocusState private var composerFocused: Bool
 
     var body: some View {
@@ -70,7 +75,7 @@ struct PostThreadView: View {
                                 } label: {
                                     Text("@\(name)")
                                         .font(.jakarta(12, .bold))
-                                        .foregroundStyle(Color.tomato)
+                                        .foregroundStyle(Color.ink)
                                 }
                                 .buttonStyle(.plain)
                             }
@@ -106,6 +111,35 @@ struct PostThreadView: View {
         .toolbar(.hidden, for: .navigationBar)
         .navigationDestination(item: $personShown) { person in
             PersonProfileView(personName: person.name, colorHex: person.colorHex)
+        }
+        .sheet(item: $localSave) { post in
+            RecipeEditorView(prefill: (
+                title: post.dishTitle.isEmpty ? "From \(post.firstName)'s table" : post.dishTitle,
+                summary: post.caption,
+                photo: post.photoData,
+                originID: post.originKey
+            )) { _ in
+                Awards.recordSaveReceived(by: post.authorName)
+                let me = members.first(where: \.isOwner)?.name ?? "Someone"
+                Notifier.post(
+                    .saveReceived, actor: me,
+                    body: "\(me) saved \(post.firstName)'s \(post.dishTitle.isEmpty ? "dish" : post.dishTitle) — they get the credit.",
+                    into: context
+                )
+                showSaveToast("Saved — \(post.firstName) gets the credit")
+            }
+        }
+        .overlay(alignment: .bottom) {
+            if let toast = saveToast {
+                Text(toast)
+                    .font(.jakarta(13, .bold))
+                    .foregroundStyle(Color.canvas)
+                    .padding(.horizontal, 18)
+                    .frame(height: 40)
+                    .background(Color.ink, in: Capsule())
+                    .padding(.bottom, 150)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
         }
         .onChange(of: photoItem) { _, item in
             guard let item else { return }
@@ -158,7 +192,7 @@ struct PostThreadView: View {
             Spacer()
             if post.kind == "dish" {
                 Button {
-                    onSave(post)
+                    save()
                 } label: {
                     Text("Save")
                         .font(.jakarta(13, .bold))
@@ -300,7 +334,7 @@ struct PostThreadView: View {
                     Text("Reply")
                         .font(.jakarta(11, .bold))
                         .foregroundStyle(Color.inkFaint)
-                        .frame(minHeight: 28)
+                        .frame(minWidth: 44, minHeight: 44, alignment: .leading)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
@@ -316,7 +350,7 @@ struct PostThreadView: View {
         for word in comment.text.split(separator: " ", omittingEmptySubsequences: false) {
             let piece = String(word)
             if piece.hasPrefix("@"), comment.mentions.contains(where: { piece.dropFirst().hasPrefix($0) }) {
-                result = result + Text(piece).font(.jakarta(14, .bold)).foregroundStyle(Color.tomato)
+                result = result + Text(piece).font(.jakarta(14, .bold)).foregroundStyle(Color.ink)
             } else {
                 result = result + Text(piece).font(.jakarta(14)).foregroundStyle(Color.ink)
             }
@@ -408,7 +442,8 @@ struct PostThreadView: View {
                                             .font(.system(size: 8, weight: .bold))
                                             .foregroundStyle(.white)
                                     }
-                                    .padding(2)
+                                    .frame(width: 44, height: 44, alignment: .topTrailing)
+                                    .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
                         }
@@ -508,6 +543,29 @@ struct PostThreadView: View {
     }
 
     // MARK: Actions
+
+    /// Feed threads delegate to the feed's flow; profile-opened threads run
+    /// their own — same editor, same credit, never a dead button.
+    private func save() {
+        if let onSave {
+            onSave(post)
+            return
+        }
+        Haptic.tap()
+        if recipes.contains(where: { $0.originID == post.originKey }) {
+            showSaveToast("Already in your cookbook")
+            return
+        }
+        localSave = post
+    }
+
+    private func showSaveToast(_ message: String) {
+        withAnimation(.plSnap) { saveToast = message }
+        Task {
+            try? await Task.sleep(for: .seconds(2))
+            withAnimation(.plSnap) { saveToast = nil }
+        }
+    }
 
     private func send() {
         let author = userFirstName.isEmpty

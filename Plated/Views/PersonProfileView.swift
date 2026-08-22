@@ -475,11 +475,11 @@ struct PaywallSheet: View {
             VStack(spacing: 8) {
                 ZStack {
                     Circle()
-                        .fill(Color.tomatoTint)
+                        .fill(Color.fill)
                         .frame(width: 64, height: 64)
                     Image(systemName: "plus")
                         .font(.system(size: 24, weight: .bold))
-                        .foregroundStyle(Color.tomato)
+                        .foregroundStyle(Color.ink)
                 }
                 Text("Plated+")
                     .font(.gabarito(26, .extraBold))
@@ -543,7 +543,7 @@ struct PaywallSheet: View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: icon)
                 .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(Color.tomato)
+                .foregroundStyle(Color.ink)
                 .frame(width: 26)
             VStack(alignment: .leading, spacing: 1) {
                 Text(title)

@@ -1,7 +1,7 @@
 import SwiftUI
 import SwiftData
 
-/// The activity feed — who plated, who liked, who's turn it is. Opened
+/// The activity feed — who plated, who commented, whose turn it is. Opened
 /// from the bell on the plan; entries mark themselves read on the way out.
 struct NotificationsView: View {
     @Environment(\.modelContext) private var context
@@ -54,7 +54,7 @@ struct NotificationsView: View {
                     Text("All quiet at the table")
                         .font(.jakarta(15, .bold))
                         .foregroundStyle(Color.inkSecondary)
-                    Text("Plates, likes, comments, and turn reminders land here.")
+                    Text("Plates, comments, saves, and turn reminders land here.")
                         .font(.jakarta(13, .medium))
                         .foregroundStyle(Color.inkFaint)
                         .multilineTextAlignment(.center)
@@ -87,11 +87,11 @@ struct NotificationsView: View {
         HStack(alignment: .top, spacing: 12) {
             ZStack {
                 Circle()
-                    .fill(note.isRead ? Color.fill : Color.tomatoTint)
+                    .fill(Color.fill)
                     .frame(width: 40, height: 40)
                 Image(systemName: note.kindValue.symbolName)
                     .font(.system(size: 15, weight: .medium))
-                    .foregroundStyle(note.isRead ? Color.inkSecondary : Color.tomato)
+                    .foregroundStyle(note.isRead ? Color.inkSecondary : Color.ink)
             }
             VStack(alignment: .leading, spacing: 3) {
                 Text(note.body)
@@ -103,9 +103,11 @@ struct NotificationsView: View {
                     .foregroundStyle(Color.inkFaint)
             }
             Spacer()
+            // Quiet unread: weight and an ink dot — the tomato budget is
+            // spent on the bell badge.
             if !note.isRead {
-                Circle().fill(Color.tomato).frame(width: 7, height: 7)
-                    .padding(.top, 6)
+                Circle().fill(Color.ink).frame(width: 6, height: 6)
+                    .padding(.top, 7)
             }
         }
         .padding(.horizontal, 24)

@@ -41,6 +41,11 @@ struct PlatedApp: App {
         }
         .modelContainer(container)
         .onChange(of: scenePhase) { _, phase in
+            // Re-assert the room's lighting on every activation — a push
+            // that lands during launch can otherwise flash the wrong room.
+            if phase == .active {
+                Self.applyRoomLighting(dark: afterDark)
+            }
             // The home screen learns the week whenever the app breathes.
             if phase == .background || phase == .active {
                 Task { @MainActor in

@@ -11,6 +11,9 @@ struct RecipeEditorView: View {
     var editing: Recipe?
     /// Prefill for save-from-table: (title, summary, heroPhoto, originID).
     var prefill: (title: String, summary: String, photo: Data?, originID: String)?
+    /// Set when the caller plates the recipe itself (PlanNightSheet) — the
+    /// editor's own "Save & plate it" shortcut would double-plate.
+    var hidePlateShortcut = false
     var onSaved: (Recipe) -> Void = { _ in }
 
     @Environment(\.modelContext) private var context
@@ -159,7 +162,7 @@ struct RecipeEditorView: View {
                 }
                 .disabled(!canSave)
                 .opacity(canSave ? 1 : 0.4)
-                if !isEditing, let night = nextOpenNight {
+                if !isEditing, !hidePlateShortcut, let night = nextOpenNight {
                     Button {
                         save(plating: night)
                     } label: {
@@ -314,7 +317,7 @@ struct RecipeEditorView: View {
                         Image(systemName: "xmark")
                             .font(.system(size: 11, weight: .bold))
                             .foregroundStyle(Color.inkFaint)
-                            .frame(minWidth: 32, minHeight: 32)
+                            .frame(minWidth: 44, minHeight: 44)
                     }
                     .buttonStyle(.plain)
                 }
@@ -380,7 +383,7 @@ struct RecipeEditorView: View {
                         Image(systemName: "xmark")
                             .font(.system(size: 11, weight: .bold))
                             .foregroundStyle(Color.inkFaint)
-                            .frame(minWidth: 32, minHeight: 32)
+                            .frame(minWidth: 44, minHeight: 44)
                     }
                     .buttonStyle(.plain)
                 }
@@ -537,7 +540,8 @@ struct RecipeEditorView: View {
                                                 .font(.system(size: 9, weight: .bold))
                                                 .foregroundStyle(.white)
                                         }
-                                        .padding(3)
+                                        .frame(width: 44, height: 44, alignment: .topTrailing)
+                                        .contentShape(Rectangle())
                                 }
                                 .buttonStyle(.plain)
                             }
@@ -678,12 +682,17 @@ struct RecipeEditorView: View {
 
         if !isEditing {
             context.insert(recipe)
-            let owner = members.first(where: \.isOwner)?.name ?? "Someone"
-            Notifier.post(
-                .recipeAdded, actor: owner,
-                body: "\(recipe.title) joined the cookbook.",
-                into: context
-            )
+            // Save-from-table announces via .saveReceived in the feed's
+            // finishSave — a second "joined the cookbook" line would double
+            // the bell for one action.
+            if prefill == nil {
+                let owner = members.first(where: \.isOwner)?.name ?? "Someone"
+                Notifier.post(
+                    .recipeAdded, actor: owner,
+                    body: "\(recipe.title) joined the cookbook.",
+                    into: context
+                )
+            }
         }
 
         // The ask that used to be a surprise: new ingredients go straight to

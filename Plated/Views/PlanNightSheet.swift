@@ -70,7 +70,7 @@ struct PlanNightSheet: View {
                     ) { newRecipeShown = true }
 
                     actionRow(
-                        icon: "fork.knife.circle", tint: Color.basil,
+                        icon: "fork.knife.circle", tint: Color.ink,
                         title: "Eating out",
                         caption: "A night off is a plan too. The ring agrees."
                     ) { markEatingOut() }
@@ -82,7 +82,7 @@ struct PlanNightSheet: View {
                     ) { askShown = true }
 
                     actionRow(
-                        icon: "party.popper", tint: Color.mango,
+                        icon: "party.popper", tint: Color.ink,
                         title: "Plan a gathering",
                         caption: "Guests, a menu, and a spot on the Apple Calendar."
                     ) { gatheringShown = true }
@@ -102,7 +102,7 @@ struct PlanNightSheet: View {
             }
         }
         .sheet(isPresented: $newRecipeShown) {
-            RecipeEditorView { recipe in
+            RecipeEditorView(hidePlateShortcut: true) { recipe in
                 plate(recipe, tagline: "")
                 dismiss()
             }
@@ -343,7 +343,7 @@ struct AskComposerSheet: View {
                                     Image(systemName: "xmark")
                                         .font(.system(size: 11, weight: .bold))
                                         .foregroundStyle(Color.inkFaint)
-                                        .frame(minWidth: 32, minHeight: 32)
+                                        .frame(minWidth: 44, minHeight: 44)
                                 }
                                 .buttonStyle(.plain)
                             }

@@ -15,6 +15,23 @@ enum Notifier {
         context.insert(PlatedNotification(kind: kind, actorName: actor, body: body))
     }
 
+    /// Posts at most once per `key`, ever — for reactions that can toggle
+    /// (plate/unplate/plate must not spam the poster).
+    static func postOnce(
+        key: String,
+        _ kind: PlatedNotificationKind,
+        actor: String,
+        body: String,
+        into context: ModelContext
+    ) {
+        let defaultsKey = "notifier.onceKeys"
+        var seen = UserDefaults.standard.stringArray(forKey: defaultsKey) ?? []
+        guard !seen.contains(key) else { return }
+        seen.append(key)
+        UserDefaults.standard.set(seen, forKey: defaultsKey)
+        post(kind, actor: actor, body: body, into: context)
+    }
+
     /// Nudges once per day when tonight is somebody's turn and nothing is
     /// plated yet. Called on Plan appear; the AppStorage stamp stops nagging.
     static func nudgeTurnIfNeeded(
