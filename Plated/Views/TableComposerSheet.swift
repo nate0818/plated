@@ -110,7 +110,13 @@ struct TableComposerSheet: View {
             guard let item else { return }
             photoLoading = true
             Task {
-                if let raw = try? await item.loadTransferable(type: Data.self) {
+                let raw = try? await item.loadTransferable(type: Data.self)
+                // A re-pick starts a second task against the same fields —
+                // only the task for the CURRENT pick may write, or a slow
+                // first photo overwrites (or unlocks the post before) the
+                // one actually chosen.
+                guard photoItem == item else { return }
+                if let raw {
                     withAnimation(.plSnap) { photoData = RecipeEditorView.processed(raw) }
                 }
                 photoLoading = false

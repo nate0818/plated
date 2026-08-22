@@ -198,9 +198,10 @@ struct ProngsbyView: View {
                         .overlay {
                             Image(systemName: "arrow.up")
                                 .font(.system(size: 15, weight: .bold))
-                                .foregroundStyle(session.draft.isEmpty ? Color.inkFaint : .white)
+                                .foregroundStyle(session.draft.isEmpty ? Color.inkFaint : Color.canvas)
                         }
                         .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .disabled(session.draft.isEmpty || session.thinking)
@@ -319,10 +320,13 @@ struct ProngsbyView: View {
             Spacer(minLength: 60)
         }
         .task {
-            // Rotate the status line while the fork thinks.
-            while session.thinking {
+            // Rotate the status line while the fork thinks. The cancellation
+            // check matters: `try?` swallows the CancellationError a torn-down
+            // view's sleep throws, and without the guard this loop degenerates
+            // into a zero-delay spin against the shared session.
+            while session.thinking, !Task.isCancelled {
                 try? await Task.sleep(for: .milliseconds(900))
-                guard session.thinking else { break }
+                guard session.thinking, !Task.isCancelled else { break }
                 withAnimation(.plSnap) {
                     session.thinkingLine = ProngsbyBrain.thinkingLines.filter { $0 != session.thinkingLine }.randomElement()
                         ?? ProngsbyBrain.thinkingLines[0]

@@ -198,7 +198,7 @@ struct PlateTabBar: View {
                         .shadow(color: Color.shadowInk.opacity(0.16), radius: 10, y: 8)
                     Image(systemName: "plus")
                         .font(.system(size: 22, weight: .bold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color.canvas)
                 }
                 .rotationEffect(.degrees(addSpin ? 90 : 0))
             }
@@ -301,6 +301,7 @@ struct CreateMenuSheet: View {
                     )
                 }
                 .padding(.horizontal, 24)
+                .padding(.bottom, 16)
             }
         }
         .presentationDetents([.height(330), .large])

@@ -45,7 +45,15 @@ struct LaunchOpenerView: View {
                     // arrived at here, on camera, before the mark appears.
                     OpenerTheme.light.ground
                     if colorScheme == .dark {
-                        th.ground.opacity(glide(0, 1, 0.15, 0.75, T))
+                        // Reduced motion fades the lockup in over the same
+                        // window the espresso used to occupy — the ground
+                        // must land first or the peach mark spends half a
+                        // second nearly invisible on persimmon.
+                        th.ground.opacity(
+                            reduceMotion
+                                ? glide(0, 1, 0.0, 0.35, T)
+                                : glide(0, 1, 0.15, 0.75, T)
+                        )
                     }
 
                     // Ground ripple from the set-down, at true screen center
@@ -252,7 +260,9 @@ private struct OpenerFrame {
             // which is doubly right now that the reduced path can exit
             // mid-cycle the moment the app is ready.
             glow = 0
-            let lockO = glide(0, 1, 0.15, 0.75, T) * glide(1, 0, O + 0.1, O + 0.6, T)
+            // Starts after the dark room's espresso has fully arrived (0.35)
+            // so the mark always fades in on its final ground.
+            let lockO = glide(0, 1, 0.35, 0.9, T) * glide(1, 0, O + 0.1, O + 0.6, T)
             letters = (0..<6).map { _ in Letter(o: lockO, b: 0, y: 0) }
             trackingExtra = 0
             breatheScale = 1
