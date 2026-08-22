@@ -2,7 +2,7 @@ import SwiftUI
 import SwiftData
 
 enum AppTab: String, CaseIterable {
-    case week, table, prongsby, cookbook, home
+    case week, table, cookbook, home
 }
 
 /// What the + can put into the world. Instagram asks before it assumes;
@@ -12,16 +12,19 @@ enum CreateKind: String, Identifiable {
     var id: String { rawValue }
 }
 
-/// The shell: five quiet destinations and one tomato + floating over
-/// everything. The bar is the only piece of chrome that floats.
+/// The shell: four quiet destinations either side of one tomato +, with
+/// Prongsby perched above the bar. Those two are the only chrome that
+/// floats, and they float together.
 struct MainShellView: View {
     @Environment(\.modelContext) private var context
     @Query private var recipes: [Recipe]
     @Query private var members: [HouseholdMember]
 
     @State private var selection: AppTab = .week
-    /// Prongsby's draft and in-flight reply outlive his tab's view.
+    /// Prongsby's draft and in-flight reply outlive the sheet he lives in.
     @State private var prongsbySession = ProngsbySession()
+    @State private var prongsbyPresented = false
+    @State private var perchHidden = false
     @State private var createPresented = false
     /// The pick made inside the menu; presented only after the menu is
     /// fully down — two sheets can't stand on the same view at once.
@@ -44,8 +47,6 @@ struct MainShellView: View {
                     WeekView(askTheTable: { withAnimation(.plSnap) { selection = .table } })
                 case .table:
                     TableFeedView()
-                case .prongsby:
-                    ProngsbyView(session: prongsbySession)
                 case .cookbook:
                     CookbookView()
                 case .home:
@@ -53,6 +54,23 @@ struct MainShellView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .onPreferenceChange(HidesProngsbyPerchKey.self) { perchHidden = $0 }
+
+            if !perchHidden {
+                ProngsbyPerch(session: prongsbySession) {
+                    // SwiftUI stands up one sheet at a time; the create
+                    // hand-off already owns a two-step, so don't race it.
+                    guard !createPresented, activeCreate == nil else { return }
+                    prongsbyPresented = true
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+                // Flush with the bar's own chrome inset (20) and 12pt above
+                // it (4 bottom pad + 68 bar height), so the two float as one
+                // cluster instead of two loose objects.
+                .padding(.trailing, 20)
+                .padding(.bottom, 84)
+                .transition(.scale(scale: 0.8).combined(with: .opacity))
+            }
 
             PlateTabBar(selection: $selection) {
                 createPresented = true
@@ -70,6 +88,9 @@ struct MainShellView: View {
                 createChoice = choice
                 createPresented = false
             }
+        }
+        .sheet(isPresented: $prongsbyPresented) {
+            ProngsbyView(session: prongsbySession)
         }
         .sheet(item: $activeCreate) { kind in
             switch kind {
@@ -187,9 +208,14 @@ struct MainShellView: View {
             #if DEBUG
             // UI-test hook: `simctl launch … -plated-tab table` lands here.
             let args = ProcessInfo.processInfo.arguments
-            if let flag = args.firstIndex(of: "-plated-tab"), args.indices.contains(flag + 1),
-               let tab = AppTab(rawValue: args[flag + 1]) {
-                selection = tab
+            if let flag = args.firstIndex(of: "-plated-tab"), args.indices.contains(flag + 1) {
+                let name = args[flag + 1]
+                if let tab = AppTab(rawValue: name) {
+                    selection = tab
+                } else if name == "prongsby" {
+                    // He is no longer a tab; the harness keeps its old word.
+                    prongsbyPresented = true
+                }
             }
             if LaunchFlags.consume("-plated-open-create") {
                 createPresented = true
@@ -203,10 +229,10 @@ struct MainShellView: View {
             if LaunchFlags.consume("-plated-open-ask") {
                 activeCreate = .ask
             }
-            // Prongsby graduated from a pushed page to a tab; the old flag
-            // still lands where it says.
+            // Prongsby has been a pushed page and a tab; he is a sheet off
+            // the perch now. The flag keeps its name and still opens him.
             if LaunchFlags.consume("-plated-open-prongsby") {
-                selection = .prongsby
+                prongsbyPresented = true
             }
             #endif
         }
@@ -252,11 +278,6 @@ struct PlateTabBar: View {
             .buttonStyle(.pressable)
             .frame(width: 72)
 
-            tabItem(.prongsby, label: "Prongsby") {
-                // Explicit fills don't hear foregroundStyle — the glyph
-                // takes its tone from the selection directly.
-                ProngsbyGlyph(size: 22, tone: selection == .prongsby ? .ink : .inkFaint)
-            }
             tabItem(.cookbook, label: "Recipes") {
                 Image(systemName: "book.closed")
                     .font(.system(size: 20, weight: .medium))

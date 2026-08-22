@@ -154,7 +154,7 @@ struct WeekView: View {
                 }
                 .padding(.horizontal, 24)
                 .padding(.top, 14)
-                .padding(.bottom, 110)
+                .padding(.bottom, Layout.floatingChromeInset)
             }
         }
     }

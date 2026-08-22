@@ -35,6 +35,15 @@ struct HouseholdHomeView: View {
     private var dishPosts: [TablePost] { posts.filter { $0.kind == "dish" } }
     private var kissCount: Int { posts.filter(\.hasChefsKiss).count }
 
+    /// Whether the house has a name at all, or is still "Your Household".
+    private var isNamed: Bool {
+        !HouseholdIdentity.familyName(
+            typed: householdName,
+            appleFamilyName: userFamilyName,
+            ownerName: owner?.name ?? ""
+        ).isEmpty
+    }
+
     /// "Meadows' Household" — the name the user typed, else the one Apple
     /// handed over at sign-in, else the head of table's own surname.
     private var householdTitle: String {
@@ -72,7 +81,7 @@ struct HouseholdHomeView: View {
             }
             .padding(.horizontal, 24)
             .padding(.top, 6)
-            .padding(.bottom, 110)
+            .padding(.bottom, Layout.floatingChromeInset)
         }
         .background(alignment: .topTrailing) {
             // After Dark lets the chrome sleep — no ambient glow in the dark room.
@@ -131,15 +140,32 @@ struct HouseholdHomeView: View {
 
     private var masthead: some View {
         HStack(alignment: .center, spacing: 10) {
-            VStack(alignment: .leading, spacing: 2) {
-                MicroLabel("Household")
-                Text(householdTitle)
-                    .font(.gabarito(26, .semibold))
-                    .tracking(-0.3)
-                    .foregroundStyle(Color.ink)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.65)
+            // An unnamed house is a house Apple never told us the name of.
+            // The title is the way to fix that — tap it and go name it.
+            Button {
+                Haptic.tap()
+                settingsPresented = true
+            } label: {
+                VStack(alignment: .leading, spacing: 2) {
+                    MicroLabel("Household")
+                    HStack(spacing: 5) {
+                        Text(householdTitle)
+                            .font(.gabarito(26, .semibold))
+                            .tracking(-0.3)
+                            .foregroundStyle(Color.ink)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.65)
+                        if !isNamed {
+                            Image(systemName: "pencil")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(Color.inkFaint)
+                        }
+                    }
+                }
+                .contentShape(Rectangle())
             }
+            .buttonStyle(.pressable)
+            .accessibilityLabel(isNamed ? householdTitle : "Name your household")
             .layoutPriority(1)
             Spacer(minLength: 6)
 

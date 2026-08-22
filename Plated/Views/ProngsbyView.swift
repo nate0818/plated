@@ -7,6 +7,11 @@ import SwiftData
 struct ProngsbyGlyph: View {
     var size: CGFloat = 28
     var tone: Color = .ink
+    /// His eyes and smile are cut OUT of the head, so they have to be
+    /// painted in whatever is actually behind him. Canvas is right on
+    /// every surface in the app today; anything sitting on tomato or on a
+    /// photo must say so.
+    var face: Color = .canvas
 
     var body: some View {
         let s = size / 28
@@ -26,11 +31,11 @@ struct ProngsbyGlyph: View {
                 .overlay {
                     VStack(spacing: 1.6 * s) {
                         HStack(spacing: 3.4 * s) {
-                            Circle().fill(Color.canvas).frame(width: 2.2 * s, height: 2.2 * s)
-                            Circle().fill(Color.canvas).frame(width: 2.2 * s, height: 2.2 * s)
+                            Circle().fill(face).frame(width: 2.2 * s, height: 2.2 * s)
+                            Circle().fill(face).frame(width: 2.2 * s, height: 2.2 * s)
                         }
                         SmileShape()
-                            .stroke(Color.canvas, style: StrokeStyle(lineWidth: 1.4 * s, lineCap: .round))
+                            .stroke(face, style: StrokeStyle(lineWidth: 1.4 * s, lineCap: .round))
                             .frame(width: 5.5 * s, height: 2.6 * s)
                     }
                 }
@@ -48,9 +53,10 @@ struct ProngsbyGlyph: View {
 struct ProngsbyIdleGlyph: View {
     var size: CGFloat = 56
     var tone: Color = .ink
+    var face: Color = .canvas
 
     var body: some View {
-        ProngsbyGlyph(size: size, tone: tone)
+        ProngsbyGlyph(size: size, tone: tone, face: face)
             .phaseAnimator([0, 1, 2]) { view, phase in
                 view
                     .offset(y: phase == 1 ? -4 : 1)
@@ -82,12 +88,17 @@ final class ProngsbySession {
     var draft = ""
     var thinking = false
     var thinkingLine = ProngsbyBrain.thinkingLines[0]
+    /// Whether the chat is actually on screen. A reply that lands after
+    /// you've dismissed him must not buzz your hand with no visible
+    /// cause — it goes to the bell instead.
+    var isPresented = false
 }
 
 /// The chat. Grounded in this household's cookbook, plan, and people via
 /// ProngsbyBrain — on-device rules today, the doorway for the real model
 /// later. The thread persists like any DM, so the history is always there.
-/// Lives in the tab bar now — a seat at the table, not a page behind one.
+/// He opens as a sheet off the perch, over whatever you were looking at —
+/// a sous chef beside the plan, not a place you travel to.
 struct ProngsbyView: View {
     @Environment(\.modelContext) private var context
     @Query private var recipes: [Recipe]
@@ -102,7 +113,6 @@ struct ProngsbyView: View {
     /// view — the tab switch tears ProngsbyView down, and a half-typed
     /// question must survive a peek at another tab.
     @Bindable var session: ProngsbySession
-    @State private var activityShown = false
     @State private var clearConfirmShown = false
     @FocusState private var composerFocused: Bool
 
@@ -115,13 +125,23 @@ struct ProngsbyView: View {
         "Substitute for buttermilk?"
     ]
 
+    /// He opens at a height that leaves your plan visible behind him —
+    /// a sous chef standing beside the week, not a place you travel to.
+    /// Focusing the composer raises him the rest of the way.
+    @State private var detent: PresentationDetent = .fraction(0.62)
+
     var body: some View {
-        NavigationStack {
-            chat
-                .navigationDestination(isPresented: $activityShown) {
-                    NotificationsView()
-                }
-        }
+        chat
+            .onAppear { session.isPresented = true }
+            .onDisappear { session.isPresented = false }
+            .presentationDetents([.fraction(0.62), .large], selection: $detent)
+            .presentationDragIndicator(.visible)
+            .presentationBackground(Color.canvas)
+            .presentationCornerRadius(Radius.sheet)
+            .presentationBackgroundInteraction(.enabled(upThrough: .fraction(0.62)))
+            .onChange(of: composerFocused) { _, focused in
+                if focused { withAnimation(.plSnap) { detent = .large } }
+            }
     }
 
     private var chat: some View {
@@ -216,9 +236,9 @@ struct ProngsbyView: View {
             }
             .padding(.horizontal, 24)
             .padding(.top, 10)
-            // The floating tab bar rides over pushed pages — the composer
-            // clears it.
-            .padding(.bottom, 92)
+            // He is a sheet now: the tab bar is behind him, not over him,
+            // so the old 92pt of clearance would just be a dead hole.
+            .padding(.bottom, 12)
         }
         .background(Color.canvas)
         .toolbar(.hidden, for: .navigationBar)
@@ -266,9 +286,6 @@ struct ProngsbyView: View {
                     .minimumScaleFactor(0.85)
             }
             Spacer()
-            ActivityBellButton {
-                activityShown = true
-            }
             if !messages.isEmpty {
                 Menu {
                     Button("Clear chat history", role: .destructive) {
@@ -289,7 +306,7 @@ struct ProngsbyView: View {
             }
         }
         .padding(.horizontal, 20)
-        .padding(.top, 6)
+        .padding(.top, 14)
         .padding(.bottom, 10)
     }
 
@@ -376,6 +393,8 @@ struct ProngsbyView: View {
         session.thinkingLine = ProngsbyBrain.thinkingLines.randomElement() ?? ProngsbyBrain.thinkingLines[0]
         withAnimation(.plSnap) { session.thinking = true }
         let brain = ProngsbyBrain(recipes: recipes, members: members, meals: meals)
+        // Unstructured on purpose, and load-bearing: this Task must outlive
+        // the view so dismissing him mid-answer never eats the reply.
         Task {
             // The on-device model takes real time; the rule brain is
             // instant. Either way the reply holds a minimum beat of
@@ -389,7 +408,16 @@ struct ProngsbyView: View {
                 context.insert(DirectMessage(peerName: "Prongsby", text: answer, isMine: false))
                 session.thinking = false
             }
-            Haptic.plate()
+            if session.isPresented {
+                Haptic.plate()
+            } else {
+                // He answered an empty room: let the bell carry it.
+                Notifier.post(
+                    .prongsbyReplied, actor: "Prongsby",
+                    body: String(answer.prefix(120)),
+                    into: context
+                )
+            }
         }
     }
 }

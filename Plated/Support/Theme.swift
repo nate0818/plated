@@ -166,6 +166,16 @@ extension ButtonStyle where Self == PressableStyle {
     static var pressable: PressableStyle { PressableStyle() }
 }
 
+// MARK: - Floating chrome
+
+enum Layout {
+    /// How much room the floating chrome needs at the bottom of a scroll:
+    /// the tab bar plus Prongsby's perch riding above it. Every scrolling
+    /// surface pads by this, so the next piece of floating chrome is a
+    /// one-line change instead of a hunt through six files.
+    static let floatingChromeInset: CGFloat = 128
+}
+
 /// A slow ambient breath for empty-state glyphs — the room is set and
 /// waiting, not dead. Sits out under Reduce Motion.
 private struct PLBreathing: ViewModifier {

@@ -168,7 +168,7 @@ struct CookbookView: View {
                     .animation(.plSnap, value: shown.map(\.persistentModelID))
                     .padding(.horizontal, 24)
                     .padding(.top, 20)
-                    .padding(.bottom, 110)
+                    .padding(.bottom, Layout.floatingChromeInset)
 
                     if shown.isEmpty {
                         VStack(spacing: 8) {
@@ -549,6 +549,9 @@ struct RecipeDetailView: View {
             .padding(.bottom, 6)
             .background(Color.canvas.opacity(0.94))
         }
+        // This page docks its own tomato CTA across the bottom; the perch
+        // would sit right on top of it.
+        .hidesProngsbyPerch()
         .sheet(isPresented: $editorShown) {
             RecipeEditorView(editing: recipe)
         }

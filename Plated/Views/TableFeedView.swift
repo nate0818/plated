@@ -85,7 +85,7 @@ struct TableFeedView: View {
                             .padding(.top, 60)
                         }
                     }
-                    .padding(.bottom, 110)
+                    .padding(.bottom, Layout.floatingChromeInset)
                 }
             }
             .background(Color.canvas)

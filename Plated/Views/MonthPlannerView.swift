@@ -27,7 +27,7 @@ struct MonthPlannerView: View {
                         dayCell(date)
                     }
                 }
-                .padding(.bottom, 90)
+                .padding(.bottom, Layout.floatingChromeInset)
             }
         }
         .padding(.horizontal, 24)

@@ -37,6 +37,7 @@ enum PlatedNotificationKind: String, Codable, CaseIterable {
     case commentAdded     // comment or reply on a post
     case recipeAdded      // a new recipe joined the cookbook
     case askPosted        // someone asked the table for ideas
+    case prongsbyReplied  // the fork answered while you were elsewhere
     case general
 
     var symbolName: String {
@@ -47,6 +48,7 @@ enum PlatedNotificationKind: String, Codable, CaseIterable {
         case .groceriesOrdered: return "shippingbox"
         case .plateReaction: return "circle.circle"
         case .saveReceived: return "arrow.down.heart"
+        case .prongsbyReplied: return "fork.knife"
         case .commentAdded: return "bubble.right"
         case .recipeAdded: return "book.closed"
         case .askPosted: return "hand.raised"

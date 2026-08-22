@@ -117,7 +117,7 @@ struct PersonProfileView: View {
                     .padding(.top, 20)
                 }
             }
-            .padding(.bottom, 110)
+            .padding(.bottom, Layout.floatingChromeInset)
         }
         .background(Color.canvas)
         .toolbar(.hidden, for: .navigationBar)

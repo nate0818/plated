@@ -80,7 +80,7 @@ struct HouseholdStatsView: View {
             }
             .padding(.horizontal, 24)
             .padding(.top, 12)
-            .padding(.bottom, 110)
+            .padding(.bottom, Layout.floatingChromeInset)
         }
         .background(Color.canvas)
         .toolbar(.hidden, for: .navigationBar)

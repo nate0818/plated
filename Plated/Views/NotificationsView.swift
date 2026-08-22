@@ -70,7 +70,7 @@ struct NotificationsView: View {
                             Divider().overlay(Color.hairlineSoft)
                         }
                     }
-                    .padding(.bottom, 110)
+                    .padding(.bottom, Layout.floatingChromeInset)
                 }
             }
         }
