@@ -24,12 +24,19 @@ struct HouseholdHomeView: View {
     @State private var settingsPresented = false
     @State private var turnsTipShown = false
     @State private var bannerItem: PhotosPickerItem?
-    @State private var activityShown = false
-    @State private var statsShown = false
+    /// Item-based, not two `isPresented` booleans: a binding set
+    /// asynchronously (the launch harness does exactly that) pops an
+    /// isPresented destination straight back off.
+    @State private var pushed: HomeDestination?
     @State private var personShown: PersonRef?
     @State private var dmPeer: String?
     @State private var swipedMember: String?
     @State private var removingMember: HouseholdMember?
+
+    enum HomeDestination: String, Identifiable {
+        case activity, stats
+        var id: String { rawValue }
+    }
 
     private var owner: HouseholdMember? { members.first(where: \.isOwner) }
     private var dishPosts: [TablePost] { posts.filter { $0.kind == "dish" } }
@@ -57,11 +64,11 @@ struct HouseholdHomeView: View {
     var body: some View {
         NavigationStack {
             page
-                .navigationDestination(isPresented: $activityShown) {
-                    NotificationsView()
-                }
-                .navigationDestination(isPresented: $statsShown) {
-                    HouseholdStatsView()
+                .navigationDestination(item: $pushed) { destination in
+                    switch destination {
+                    case .activity: NotificationsView()
+                    case .stats: HouseholdStatsView()
+                    }
                 }
                 .navigationDestination(item: $personShown) { person in
                     PersonProfileView(personName: person.name, colorHex: person.colorHex)
@@ -123,6 +130,20 @@ struct HouseholdHomeView: View {
                 Button("Cancel", role: .cancel) {}
             }
         }
+        .onAppear {
+            #if DEBUG
+            // UI-test hook, one-shot: `simctl launch … -plated-open-stats`.
+            if LaunchFlags.consume("-plated-open-stats") {
+                // After the opener has lifted: pushing a destination while
+                // the launch animation is still running wedges the update
+                // cycle (the splash's repeatForever + a fresh push).
+                Task {
+                    try? await Task.sleep(for: .milliseconds(1200))
+                    pushed = .stats
+                }
+            }
+            #endif
+        }
         .onChange(of: bannerItem) { _, item in
             guard let item else { return }
             Task {
@@ -170,7 +191,7 @@ struct HouseholdHomeView: View {
             Spacer(minLength: 6)
 
             ActivityBellButton(size: 36) {
-                activityShown = true
+                pushed = .activity
             }
 
             Button {
@@ -304,7 +325,7 @@ struct HouseholdHomeView: View {
 
             Button {
                 Haptic.tap()
-                statsShown = true
+                pushed = .stats
             } label: {
                 HStack(spacing: 6) {
                     Text("See all stats")
