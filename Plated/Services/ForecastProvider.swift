@@ -66,9 +66,15 @@ final class ForecastProvider: NSObject {
                 )
             }
             lastError = nil
+        } catch is CancellationError {
+            // A superseded refresh (tab switch mid-fix) must not blank
+            // forecasts already on screen.
         } catch {
             dailyForecasts = []
             lastError = error.localizedDescription
+            // The banner hides on failure by design, so the console is the
+            // only place a WeatherKit or location failure is visible at all.
+            print("PLATED WEATHER: refresh failed — \(error)")
         }
     }
 
@@ -80,15 +86,29 @@ final class ForecastProvider: NSObject {
     private func currentLocation() async throws -> CLLocation {
         if let cached = locationManager.location { return cached }
 
-        let status = locationManager.authorizationStatus
-        if status == .notDetermined {
-            locationManager.requestWhenInUseAuthorization()
+        // While the permission prompt is up, requestLocation fails
+        // immediately with kCLErrorDenied — so ask first, and let the
+        // authorization callback fire the actual fix request once the
+        // user has answered.
+        if locationManager.authorizationStatus == .notDetermined {
+            return try await withCheckedThrowingContinuation { continuation in
+                store(continuation)
+                locationManager.requestWhenInUseAuthorization()
+            }
         }
 
         return try await withCheckedThrowingContinuation { continuation in
-            locationContinuation = continuation
+            store(continuation)
             locationManager.requestLocation()
         }
+    }
+
+    /// A newer request supersedes an in-flight one: the old caller gets a
+    /// cancellation instead of a continuation leaked forever — WeekView is
+    /// rebuilt on every tab switch, so overlap is routine, not exceptional.
+    private func store(_ continuation: CheckedContinuation<CLLocation, Error>) {
+        locationContinuation?.resume(throwing: CancellationError())
+        locationContinuation = continuation
     }
 }
 
@@ -105,6 +125,26 @@ extension ForecastProvider: CLLocationManagerDelegate {
         Task { @MainActor in
             locationContinuation?.resume(throwing: error)
             locationContinuation = nil
+        }
+    }
+
+    nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        let status = manager.authorizationStatus
+        Task { @MainActor in
+            guard locationContinuation != nil else { return }
+            switch status {
+            case .authorizedWhenInUse, .authorizedAlways:
+                // The continuation waiting on the permission answer gets its
+                // fix via the normal didUpdateLocations path.
+                locationManager.requestLocation()
+            case .denied, .restricted:
+                locationContinuation?.resume(throwing: CLError(.denied))
+                locationContinuation = nil
+            case .notDetermined:
+                break // Prompt still up; keep waiting.
+            @unknown default:
+                break
+            }
         }
     }
 }

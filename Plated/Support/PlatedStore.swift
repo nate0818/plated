@@ -30,10 +30,18 @@ enum PlatedStore {
     /// when it is not, so the app runs without a signing team configured.
     static let shared: ModelContainer = {
         migrateLegacyStoreIfNeeded()
+        // Purge mode runs without a mirror: deleting the server zone while
+        // a live mirror still holds local rows would re-export them right
+        // back. TableSync.purgeMirroredData is the other half.
+        #if DEBUG
+        let purging = ProcessInfo.processInfo.arguments.contains("-plated-purge-cloud")
+        #else
+        let purging = false
+        #endif
         let configuration = ModelConfiguration(
             schema: schema,
             isStoredInMemoryOnly: false,
-            cloudKitDatabase: .automatic
+            cloudKitDatabase: purging ? .none : .automatic
         )
         do {
             return try ModelContainer(for: schema, configurations: [configuration])

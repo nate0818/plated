@@ -76,16 +76,32 @@ struct SignInView: View {
                 SignInWithAppleButton(.signIn) { request in
                     request.requestedScopes = [.fullName]
                 } onCompletion: { result in
-                    if case .success(let auth) = result,
-                       let credential = auth.credential as? ASAuthorizationAppleIDCredential {
-                        userFirstName = credential.fullName?.givenName ?? userFirstName
-                        userFamilyName = credential.fullName?.familyName ?? userFamilyName
+                    switch result {
+                    case .success(let auth):
+                        if let credential = auth.credential as? ASAuthorizationAppleIDCredential {
+                            AppleIdentity.save(credential.user)
+                            userFirstName = credential.fullName?.givenName ?? userFirstName
+                            userFamilyName = credential.fullName?.familyName ?? userFamilyName
+                        }
+                        Haptic.tap()
+                        onSignedIn()
+                    case .failure(let error):
+                        // Cancel means cancel — the door stays shut. Any
+                        // other failure (broken auth service, no network to
+                        // Apple) still opens a local table: planning must
+                        // not be hostage to an outage. Debug builds always
+                        // enter — unentitled dev builds fail auth by design.
+                        #if DEBUG
+                        _ = error
+                        Haptic.tap()
+                        onSignedIn()
+                        #else
+                        if (error as? ASAuthorizationError)?.code != .canceled {
+                            Haptic.tap()
+                            onSignedIn()
+                        }
+                        #endif
                     }
-                    // Auth errors (no entitlement in dev, user cancel) still
-                    // open the door to a local table — sync waits for a
-                    // signed build, planning shouldn't.
-                    Haptic.tap()
-                    onSignedIn()
                 }
                 .signInWithAppleButtonStyle(colorScheme == .dark ? .white : .black)
                 .frame(height: 56)

@@ -310,7 +310,7 @@ struct PostThreadView: View {
                         .clipShape(RoundedRectangle(cornerRadius: Radius.chip))
                         .padding(.top, 2)
                 }
-                if !comment.linkURL.isEmpty, let url = URL(string: comment.linkURL) {
+                if let url = URL.webLink(comment.linkURL) {
                     Link(destination: url) {
                         HStack(spacing: 6) {
                             Image(systemName: "link")

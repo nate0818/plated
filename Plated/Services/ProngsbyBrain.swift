@@ -180,11 +180,27 @@ struct ProngsbyBrain {
         guard text.contains("swap") || text.contains("replace") || text.contains("instead of") else { return nil }
         guard let recipe = recipeMatch(in: text) else { return nil }
         let proteins = ["chicken", "beef", "steak", "pork", "salmon", "fish", "tuna", "shrimp", "turkey", "tofu", "lamb", "sausage"]
-        let mentioned = proteins.filter { text.contains($0) }
-        guard mentioned.count >= 2 else {
+        // Utterance order decides direction — "swap the salmon for beef"
+        // must read salmon→beef even though beef sits earlier in the list.
+        let hits = proteins
+            .compactMap { p in text.range(of: p).map { (p, $0.lowerBound) } }
+            .sorted { $0.1 < $1.1 }
+        guard hits.count >= 2 else {
             return "Swap what for what in \(recipe.title)? Give me both — \"swap the chicken for shrimp\" — and I'll adjust the plan."
         }
-        let from = mentioned[0], to = mentioned[1]
+        // …except "make tofu instead of chicken", where the replacement
+        // comes FIRST: whatever follows "instead of" is what leaves the
+        // plan. ("Instead of chicken, make tofu" keeps first-is-from.)
+        let from: String, to: String
+        if let marker = text.range(of: "instead of"),
+           let source = hits.first(where: { $0.1 >= marker.upperBound }),
+           let dest = hits.last(where: { $0.1 < marker.lowerBound }) {
+            from = source.0
+            to = dest.0
+        } else {
+            from = hits[0].0
+            to = hits[1].0
+        }
         var notes = "\(recipe.title) with \(to) instead of \(from) — done."
         if ["shrimp", "fish", "salmon", "tuna"].contains(to) {
             notes += " Seafood cooks fast: pull the time down to a third and take it off the heat the moment it turns opaque."

@@ -137,6 +137,44 @@ struct MainShellView: View {
                 }
                 try? context.save()
             }
+            // The table's host, kept honest. The onboarding bootstrap and a
+            // first CloudKit import can race a duplicate owner row into
+            // being, and installs that onboarded before the bootstrap
+            // existed have none at all. Runs on every shell appear (a
+            // count is cheap; sync can deliver a dupe weeks later): extras
+            // collapse onto the oldest row, meals rehomed; a host-shaped
+            // hole gets the sign-in member promoted, or a fresh place
+            // laid. A failed fetch does nothing — only confirmed states
+            // are acted on.
+            if let owners = try? context.fetch(
+                FetchDescriptor<HouseholdMember>(
+                    predicate: #Predicate { $0.role == "owner" },
+                    sortBy: [SortDescriptor(\.createdAt)]
+                )
+            ) {
+                if owners.count > 1, let kept = owners.first {
+                    for dupe in owners.dropFirst() {
+                        for meal in dupe.assignedMeals ?? [] { meal.cook = kept }
+                        context.delete(dupe)
+                    }
+                    try? context.save()
+                } else if owners.isEmpty {
+                    let name = UserDefaults.standard.string(forKey: "userFirstName") ?? ""
+                    if let match = members.first(where: {
+                        !name.isEmpty && $0.name.caseInsensitiveCompare(name) == .orderedSame
+                    }) {
+                        match.role = "owner"
+                        match.roleLine = "Head of table"
+                    } else {
+                        context.insert(HouseholdMember(
+                            name: name.isEmpty ? "Me" : name,
+                            colorHex: "FF5A3C", isPrimaryCook: true,
+                            role: "owner", roleLine: "Head of table", cookWeekdays: []
+                        ))
+                    }
+                    try? context.save()
+                }
+            }
             #if DEBUG
             // UI-test hook: `simctl launch … -plated-tab table` lands here.
             let args = ProcessInfo.processInfo.arguments

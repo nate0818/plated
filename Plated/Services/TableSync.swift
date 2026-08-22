@@ -25,6 +25,50 @@ enum TableSync {
         #endif
     }
 
+    #if DEBUG
+    /// Deletes every mirrored record from the private database by dropping
+    /// Core Data's mirror zone, then removes the local group store — the
+    /// zone tombstone would wipe it on the next armed launch anyway, so the
+    /// purge leaves a true clean slate rather than trusting the operator to
+    /// reinstall. Maintenance path for the `-plated-purge-cloud` launch
+    /// flag, which also forces the store local-only for the run (see
+    /// PlatedStore) so nothing re-exports while the zone falls. Debug-only
+    /// structurally: a shipped binary must not contain this path at all.
+    static func purgeMirroredData() async throws {
+        #if PLATED_CLOUDKIT
+        let zoneID = CKRecordZone.ID(
+            zoneName: "com.apple.coredata.cloudkit.zone",
+            ownerName: CKCurrentUserDefaultName
+        )
+        _ = try await CKContainer.default().privateCloudDatabase
+            .deleteRecordZone(withID: zoneID)
+        removeLocalStore()
+        #else
+        throw NSError(
+            domain: "Plated", code: 1, userInfo: [
+                NSLocalizedDescriptionKey:
+                    "This build is not armed with PLATED_CLOUDKIT — nothing was purged."
+            ]
+        )
+        #endif
+    }
+
+    /// The group store and its sidecars, gone. The app exits immediately
+    /// after the purge, so deleting under the open local-only container is
+    /// a closing act, not a live mutation.
+    private static func removeLocalStore() {
+        let fm = FileManager.default
+        guard let group = fm.containerURL(
+            forSecurityApplicationGroupIdentifier: WidgetBridge.appGroupID
+        ) else { return }
+        let support = group.appending(path: "Library/Application Support")
+        for name in ["default.store", "default.store-wal", "default.store-shm",
+                     ".default_SUPPORT", "default_ckAssets"] {
+            try? fm.removeItem(at: support.appending(path: name))
+        }
+    }
+    #endif
+
     /// The message a host sends with an invitation. Once CloudKit sharing is
     /// live this carries the CKShare URL; today it sets expectations honestly.
     static func inviteMessage(hostName: String) -> String {

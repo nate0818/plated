@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import AuthenticationServices
 
 /// The journey: the opener sets the table → Sign in with Apple (the only
 /// door) → set your table from contacts → the week. Each stage is
@@ -7,8 +8,26 @@ import SwiftData
 struct RootView: View {
     @AppStorage("didSignIn") private var didSignIn = false
     @AppStorage("didSetTable") private var didSetTable = false
+    @Environment(\.scenePhase) private var scenePhase
     @State private var splashDone = false
     @State private var appReady = false
+
+    /// A dead Apple credential — revoked in Settings, or unknown to the
+    /// signed-in iCloud account (a handed-down device) — closes the door
+    /// again. Checked at launch, on every return to foreground (apps sit
+    /// suspended for weeks), and on Apple's revocation notification.
+    ///
+    /// Scope, decided: signing out clears only the Keychain identity and
+    /// the door flag. The table itself — recipes, weeks, household — stays:
+    /// it belongs to the household on this device, not to the credential,
+    /// and the next sign-in walks back into it. Wiping data on revocation
+    /// would turn "I reset my Apple ID permissions" into "dinner is gone."
+    private func recheckCredential() async {
+        if didSignIn, await AppleIdentity.credentialInvalid() {
+            AppleIdentity.clear()
+            didSignIn = false
+        }
+    }
 
     var body: some View {
         ZStack {
@@ -42,6 +61,17 @@ struct RootView: View {
             #endif
             try? await Task.sleep(for: .seconds(wake))
             appReady = true
+        }
+        .task { await recheckCredential() }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active {
+                Task { await recheckCredential() }
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(
+            for: ASAuthorizationAppleIDProvider.credentialRevokedNotification
+        )) { _ in
+            Task { await recheckCredential() }
         }
     }
 }

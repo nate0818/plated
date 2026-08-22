@@ -454,7 +454,7 @@ struct TableFeedView: View {
              + Text("  ").font(.jakarta(13))
              + Text(comment.text).font(.jakarta(13)).foregroundStyle(Color.inkSecondary))
                 .lineSpacing(2)
-            if !comment.linkURL.isEmpty, let url = URL(string: comment.linkURL) {
+            if let url = URL.webLink(comment.linkURL) {
                 Link(destination: url) {
                     HStack(spacing: 6) {
                         Image(systemName: "link")
