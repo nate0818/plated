@@ -82,10 +82,14 @@ enum HouseholdIdentity {
         ) {
             for comment in comments { comment.authorName = new }
         }
-        // SEVEN fields key off a person's name as a string. The previous
-        // comment here said five and declared the class closed, which is
-        // the same instance-not-class error one level up — inside the
-        // sentence claiming to have fixed it. Reachable on the ordinary
+        // NINE places carry a person's name — and this comment has now
+        // said three, five, and seven, each time declaring the class
+        // closed. It was wrong every time, which is the instance-not-class
+        // error one level up: inside the sentence claiming to have fixed
+        // it. The count came from enumerating every stored String and
+        // [String] across every @Model, not from listing what came to
+        // mind — and even that missed the last one, because a derived key
+        // hides a name inside a value that isn't a name. Reachable on the ordinary
         // first-session path: the owner is "Me", somebody replies to them
         // or @-mentions them, then they accept "Add your name" — and
         // afterwards the reply chevron still reads "Me" and the mention
@@ -116,6 +120,35 @@ enum HouseholdIdentity {
                 comment.mentions = comment.mentions.map { $0 == old ? new : $0 }
             }
         }
+        // Eighth: the @-tags on a POST, not just in a comment. Same shape,
+        // different model — and these are tappable doors to a profile.
+        if let tagged = try? context.fetch(FetchDescriptor<TablePost>()) {
+            for post in tagged where post.taggedNames.contains(old) {
+                post.taggedNames = post.taggedNames.map { $0 == old ? new : $0 }
+            }
+        }
+
+        // Ninth, and a different kind: a name baked into a DERIVED key that
+        // was then stored somewhere else. `TablePost.originKey` is computed
+        // as "post:<authorName>|<dishTitle>", and `Recipe.originID` holds a
+        // SNAPSHOT of it taken at save time. Rename the author and the
+        // computed key moves while the snapshot doesn't, so
+        // `originID == post.originKey` stops matching: a dish you saved
+        // from the table quietly stops counting as saved, Discover's
+        // "Saved" state reverts, and the duplicate-save guard in
+        // PostThreadView stops guarding.
+        //
+        // Worth naming as a category, because a grep for name-holding
+        // properties does NOT find this one — the field is a key, and the
+        // name is inside it.
+        let oldKeyPrefix = "post:\(old)|"
+        let newKeyPrefix = "post:\(new)|"
+        if let saved = try? context.fetch(FetchDescriptor<Recipe>()) {
+            for recipe in saved where recipe.originID.hasPrefix(oldKeyPrefix) {
+                recipe.originID = newKeyPrefix + recipe.originID.dropFirst(oldKeyPrefix.count)
+            }
+        }
+
         Awards.rekey(from: old, to: new)
 
         member.name = new
