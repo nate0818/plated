@@ -49,7 +49,11 @@ extension Color {
     static let tomatoPressed  = Color(light: 0xD6401F, dark: 0xD6401F)   // pressed always darkens
     static let mango          = Color(light: 0xFFB020, dark: 0xFFB63A)   // the chef's kiss only
     static let basil          = Color(light: 0x3DA35D, dark: 0x55BE76)   // progress, "seated"
-    static let amber          = Color(light: 0xC88A00, dark: 0xE3A83C)
+    /// Light value darkened from 0xC88A00 (2.96:1 on canvas — a hair under
+    /// the 3.0 floor for large text) to 3.25:1. Also lifts the person-tone
+    /// pairing on mangoTint rather than harming it. Dark value already
+    /// measured 8.81:1.
+    static let amber          = Color(light: 0xBF8300, dark: 0xE3A83C)
     static let grape          = Color(light: 0xB95CF4, dark: 0xC98BF7)
 
     // Tints — avatar and chip washes, one per person color
@@ -357,13 +361,21 @@ struct AvatarCircle: View {
                     .foregroundStyle(tone.tone)
                     // The circle is a fixed size but `Font.custom` scales
                     // with Dynamic Type, so at accessibility sizes the
-                    // glyph outgrows its own container — the seat chip's
-                    // "+2" truncated to "…" inside a 34pt circle, which
-                    // reads as a bug rather than as large type. Shrink to
-                    // fit instead: the circle is the shape that carries
-                    // the meaning, and a legible small "+2" beats an
-                    // ellipsis.
+                    // glyph outgrows its own container.
+                    //
+                    // `minimumScaleFactor` alone was not enough, and the
+                    // reason is geometric: it shrinks text to the bounding
+                    // SQUARE, while the visible shape is the inscribed
+                    // circle. Two-letter initials — the default for a full
+                    // name — measured 33.67pt wide in a 34pt circle and
+                    // spilled out of the round edge on both sides. Single
+                    // letters were fine, which is why it read as fixed.
+                    //
+                    // So constrain to the inscribed square first
+                    // (size / √2 ≈ 0.707), and let the scale factor work
+                    // inside that.
                     .lineLimit(1)
+                    .frame(width: size * 0.707)
                     .minimumScaleFactor(0.4)
             }
     }

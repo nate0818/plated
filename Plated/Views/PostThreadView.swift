@@ -33,6 +33,13 @@ struct PostThreadView: View {
     @FocusState private var composerFocused: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
+    /// One arrival for every rising element on this page — the comment, the
+    /// composer's two, and the toast. Guarding only the first left three
+    /// siblings sliding under Reduce Motion.
+    private var arrival: AnyTransition {
+        reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity)
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             topBar
@@ -147,7 +154,7 @@ struct PostThreadView: View {
                     .frame(height: 40)
                     .background(Color.ink, in: Capsule())
                     .padding(.bottom, 150)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .transition(arrival)
             }
         }
         .onChange(of: photoItem) { _, item in
@@ -393,7 +400,7 @@ struct PostThreadView: View {
                     .buttonStyle(.pressable)
                 }
                 .padding(.horizontal, 24)
-                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .transition(arrival)
             }
 
             if mentionBarShown {
@@ -420,7 +427,7 @@ struct PostThreadView: View {
                     }
                     .padding(.horizontal, 24)
                 }
-                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .transition(arrival)
             }
 
             if linkFieldShown {
