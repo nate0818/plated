@@ -355,6 +355,9 @@ struct EditProfileSheet: View {
     @AppStorage("userBio") private var bio = ""
     @AppStorage("userFirstName") private var firstName = ""
     @State private var draftName = ""
+    /// Why the last Done didn't take. A refusal that only buzzes is a
+    /// refusal the user can't act on.
+    @State private var nameError: String?
     @FocusState private var namingSelf: Bool
 
     var body: some View {
@@ -376,6 +379,12 @@ struct EditProfileSheet: View {
                     .onTapGesture { namingSelf = true }
                     .focused($namingSelf)
                     .submitLabel(.done)
+                if let nameError {
+                    Text(nameError)
+                        .font(.jakarta(12, .semibold))
+                        .foregroundStyle(Color.tomato)
+                        .transition(.opacity)
+                }
             }
 
             VStack(alignment: .leading, spacing: 8) {
@@ -392,8 +401,9 @@ struct EditProfileSheet: View {
                 .foregroundStyle(Color.inkFaint)
 
             InkPillButton(title: "Done") {
-                saveName()
-                dismiss()
+                // Only leave if it took. Dismissing regardless is how a
+                // refusal became invisible.
+                if saveName() { dismiss() }
             }
             Spacer()
         }
@@ -410,9 +420,12 @@ struct EditProfileSheet: View {
 
     /// The name lives in two places — the preference the app reads for
     /// authorship and the owner's own row at the table. Both or neither.
-    private func saveName() {
+    @discardableResult
+    private func saveName() -> Bool {
         let name = draftName.trimmingCharacters(in: .whitespaces)
-        guard !name.isEmpty else { return }
+        // An empty field means "I didn't touch the name" — the bio is the
+        // other control on this sheet, so that has to stay a clean exit.
+        guard !name.isEmpty else { return true }
 
         // The model side FIRST, and `userFirstName` only once it stuck.
         // This used to write the AppStorage name before renaming, so a
@@ -424,13 +437,27 @@ struct EditProfileSheet: View {
         if let owner = members.first(where: \.isOwner) {
             // Through the one door: a bare `owner.name = name` orphans
             // every dish they have posted and their whole awards ledger.
-            guard HouseholdIdentity.rename(owner, to: name, in: context) else {
+            switch HouseholdIdentity.rename(owner, to: name, in: context) {
+            case .renamed, .unchanged:
+                break
+            case .nameTaken(let who):
                 Haptic.warn()
-                return
+                withAnimation(.plSnap) {
+                    nameError = "\(who) already answers to that name at this table."
+                }
+                return false
+            case .invalid, .failed:
+                Haptic.warn()
+                withAnimation(.plSnap) {
+                    nameError = "That didn't save. Try again."
+                }
+                return false
             }
         }
+        nameError = nil
         firstName = name
         Haptic.plate()
+        return true
     }
 }
 

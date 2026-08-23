@@ -60,15 +60,56 @@ enum HouseholdIdentity {
     ///
     /// Moving authorship to a relationship is the real fix and a larger
     /// change; until then, this is the one door renames go through.
+    /// Why a rename did or didn't happen. A Bool collapsed "nothing to do",
+    /// "that name is taken" and "the save failed" into one answer the
+    /// caller then had to guess at — and it guessed wrong twice.
+    enum RenameOutcome: Equatable {
+        case renamed
+        /// Already the desired state. Not a failure.
+        case unchanged
+        /// Somebody else at this table already answers to that name.
+        case nameTaken(String)
+        case invalid
+        case failed
+    }
+
     @discardableResult
     static func rename(
         _ member: HouseholdMember,
         to newName: String,
         in context: ModelContext
-    ) -> Bool {
+    ) -> RenameOutcome {
         let new = newName.trimmingCharacters(in: .whitespaces)
         let old = member.name
-        guard !new.isEmpty else { return false }
+        guard !new.isEmpty else { return .invalid }
+
+        // REFUSE A COLLISION, and refuse it here because `rename` is the
+        // only thing that can create one.
+        //
+        // Every name-keyed path in this app — the profile aggregate, the
+        // awards ledger, the Household feed scope — treats two members
+        // with the same name as one person. Renaming the owner onto a
+        // seated member's name merges them: both people's posts answer to
+        // the same string, and `Awards.rekey` folds the real member's
+        // earned saves into the owner's ledger.
+        //
+        // And the correction makes it worse. Renaming away afterwards
+        // drags the OTHER person's posts along, because by then nothing in
+        // the data distinguishes them — they are orphaned from everything
+        // they ever made, permanently. There is no sequence of renames
+        // that undoes it; the information was spent at the collision.
+        //
+        // The doc below says exact matching protects a guest who shares a
+        // first name. True of matching, and no help at all here: exact
+        // matching cannot separate names that are exactly equal. The guard
+        // has to be upstream of the matching, which is here.
+        let seated = (try? context.fetch(FetchDescriptor<HouseholdMember>())) ?? []
+        if let clash = seated.first(where: {
+            $0.persistentModelID != member.persistentModelID
+                && $0.name.localizedCaseInsensitiveCompare(new) == .orderedSame
+        }) {
+            return .nameTaken(clash.name)
+        }
         // Already the desired state, which is NOT a failure. The caller
         // reads false as "the save failed" and warns — and the sheet
         // prefills the name field, so its other control is Bio. Collapsing
@@ -76,7 +117,7 @@ enum HouseholdIdentity {
         // ended on a warning buzz with the name write and the success
         // haptic both skipped. "Nothing to do" and "it didn't work" are
         // different answers to a different question.
-        guard new != old else { return true }
+        guard new != old else { return .unchanged }
 
         // Exact match on the stored string: that is what was stamped, and
         // matching loosely would rewrite a guest who shares a first name.
@@ -201,14 +242,17 @@ enum HouseholdIdentity {
             // model side without the AppStorage name or the rekey. Which
             // is precisely the state this ordering exists to prevent.
             context.rollback()
-            return false
+            return .failed
         }
 
         // Only once the model side is durable. Ordering is the cheap half
         // of atomicity here: if the save fails, nothing outside the context
         // has moved, so the two stores cannot disagree.
+        // Safe to merge because the collision guard above proved no living
+        // member answers to `new` — merging is right for a rename and wrong
+        // for a collision, and those are indistinguishable to `rekey`.
         Awards.rekey(from: old, to: new)
-        return true
+        return .renamed
     }
 
     /// Who sits here, for the banner's caption: real names while the table
