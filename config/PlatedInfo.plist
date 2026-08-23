@@ -12,6 +12,12 @@
 	<!-- CloudKit silent pushes. Kept here because Xcode accepts
 	     INFOPLIST_KEY_UIBackgroundModes as a setting but never emits it
 	     into the generated Info.plist. -->
+	<!-- Plated ships no encryption of its own: everything on the wire is
+	     Apple's (CloudKit, WeatherKit, Sign in with Apple) over HTTPS, which
+	     is exempt. Declared here so every TestFlight build skips the
+	     "Missing Compliance" hold instead of waiting on a manual answer. -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>remote-notification</string>
