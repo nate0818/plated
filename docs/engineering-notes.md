@@ -39,6 +39,21 @@ side: a before/after screenshot of the top of a feed standing in for "the
 layout is fixed", when the row that mattered was in a lazy container and
 was never built. Same substitution.
 
+### It applies to decisions, not just values
+
+The subtlest instance today came from the reviewer, about its own advice.
+It priced two failure modes correctly — a phantom costs a slow spinner, a
+miss costs a dropped import — and then reasoned about the *remedy* from
+the nearest convenient summary of that finding, "bounded cost", instead of
+from the mechanism. The mechanism was reinstating a dropped import, which
+is not a cost to be bounded at all. Correct analysis, then a proxy for the
+analysis when deciding what to do about it.
+
+So the check isn't only "is this value the thing I mean?" but **"am I
+acting on the finding, or on my summary of the finding?"** A summary is a
+proxy like any other, and the more sensible it sounds the less likely
+anyone is to go back and re-read what it was summarising.
+
 ## An undefended constant is a value standing in for a reason
 
 Same family. A number picked by feel carries no argument, so nobody can
