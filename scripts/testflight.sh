@@ -1,17 +1,23 @@
 #!/bin/bash
-# Cut a TestFlight build: bump the build number, archive, upload.
+# Cut a TestFlight build: bump the build number, archive, export, upload.
 #
-# App Store Connect authentication comes from an API key you create once at
-# App Store Connect › Users and Access › Integrations. Export its identifiers
-# and leave the .p8 where Xcode looks for it:
+# Two steps rather than one on purpose. `xcodebuild -exportArchive` switches
+# to cloud signing the moment an authentication key is passed, and a key with
+# the App Manager role is not permitted to touch signing certificates —
+# "Cloud signing permission error / No signing certificate iOS Distribution
+# found". So the export signs locally with the Apple Distribution certificate
+# in the keychain, and altool does the upload, which App Manager may do.
 #
-#   export ASC_KEY_ID=XXXXXXXXXX
-#   export ASC_ISSUER_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-#   # key file at ~/.appstoreconnect/private_keys/AuthKey_$ASC_KEY_ID.p8
+# Needs the private key at ~/.appstoreconnect/private_keys/AuthKey_<ID>.p8.
+# The two identifiers below are not secrets — useless without that file.
 #
 # Usage: scripts/testflight.sh [--no-bump] [--archive-only]
 set -euo pipefail
 cd "$(dirname "$0")/.."
+
+ASC_KEY_ID="${ASC_KEY_ID:-PHQC2AV3TY}"
+ASC_ISSUER_ID="${ASC_ISSUER_ID:-dcfbb9f3-5699-4044-a26a-f3c7c98fbd29}"
+KEY_PATH="${ASC_KEY_PATH:-$HOME/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8}"
 
 BUMP=1
 UPLOAD=1
@@ -25,7 +31,7 @@ done
 
 PROJECT=Plated.xcodeproj
 ARCHIVE=build/Plated.xcarchive
-KEY_PATH="${ASC_KEY_PATH:-$HOME/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID:-unset}.p8}"
+EXPORT=build/export
 
 # The app and its widget extension must carry the same build number — App
 # Store Connect rejects a mismatch — so every config gets bumped together.
@@ -39,34 +45,40 @@ else
   echo "▸ build $next (unchanged)"
 fi
 
-rm -rf "$ARCHIVE"
+rm -rf "$ARCHIVE" "$EXPORT"
+echo "▸ archiving…"
 xcodebuild archive \
   -project "$PROJECT" \
   -scheme Plated \
   -configuration Release \
   -destination 'generic/platform=iOS' \
   -archivePath "$ARCHIVE" \
-  -allowProvisioningUpdates
+  -allowProvisioningUpdates \
+  -quiet
 
-if [ "$UPLOAD" = 0 ]; then
-  echo "▸ archived at $ARCHIVE (upload skipped)"
-  exit 0
-fi
-
-if [ -z "${ASC_KEY_ID:-}" ] || [ -z "${ASC_ISSUER_ID:-}" ] || [ ! -f "$KEY_PATH" ]; then
-  echo "▸ archived at $ARCHIVE" >&2
-  echo "No App Store Connect API key configured — set ASC_KEY_ID and ASC_ISSUER_ID" >&2
-  echo "with the key at $KEY_PATH, or upload from Xcode's Organizer." >&2
-  exit 1
-fi
-
+echo "▸ exporting (signed locally, no auth key — see note at top)…"
 xcodebuild -exportArchive \
   -archivePath "$ARCHIVE" \
   -exportOptionsPlist config/ExportOptions.plist \
-  -exportPath build/export \
-  -allowProvisioningUpdates \
-  -authenticationKeyPath "$KEY_PATH" \
-  -authenticationKeyID "$ASC_KEY_ID" \
-  -authenticationKeyIssuerID "$ASC_ISSUER_ID"
+  -exportPath "$EXPORT" \
+  -allowProvisioningUpdates
 
-echo "▸ build $next uploaded — it appears in TestFlight after processing (usually 5–15 min)"
+if [ "$UPLOAD" = 0 ]; then
+  echo "▸ exported to $EXPORT/Plated.ipa (upload skipped)"
+  exit 0
+fi
+
+if [ ! -f "$KEY_PATH" ]; then
+  echo "▸ exported to $EXPORT/Plated.ipa" >&2
+  echo "No API key at $KEY_PATH — upload skipped." >&2
+  echo "Download it from App Store Connect › Users and Access › Integrations." >&2
+  exit 1
+fi
+
+echo "▸ uploading build $next…"
+xcrun altool --upload-app --type ios \
+  --file "$EXPORT/Plated.ipa" \
+  --apiKey "$ASC_KEY_ID" \
+  --apiIssuer "$ASC_ISSUER_ID"
+
+echo "▸ build $next uploaded — it reaches TestFlight after processing (usually 5–15 min)"
