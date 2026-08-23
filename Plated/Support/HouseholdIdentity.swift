@@ -113,15 +113,35 @@ enum HouseholdIdentity {
         ) {
             for reply in replies { reply.replyToName = new }
         }
-        // `mentions` is an array, so it needs rewriting element-wise rather
-        // than matched on.
-        if let mentioning = try? context.fetch(FetchDescriptor<TableComment>()) {
-            for comment in mentioning where comment.mentions.contains(old) {
-                comment.mentions = comment.mentions.map { $0 == old ? new : $0 }
-            }
-        }
-        // Eighth: the @-tags on a POST, not just in a comment. Same shape,
-        // different model — and these are tappable doors to a profile.
+        // `TableComment.mentions` is deliberately NOT rewritten, and the
+        // difference from `taggedNames` below is the whole point.
+        //
+        // `mentions` is DERIVED from `comment.text` and exists only to
+        // decide which "@token" gets bolded — `mentionedText` matches the
+        // text against this array. Rewriting the array without the text it
+        // came from desyncs them: "@Me" in the text no longer matches
+        // ["Nate"], so the mention loses its bolding AND still reads "@Me".
+        // That is strictly worse than leaving it stale, which at least
+        // renders as a name. This rewrite shipped for one commit and was a
+        // net regression.
+        //
+        // And the text cannot be rewritten instead: substring replacement
+        // on prose is unfixable, not merely risky — a name has no word
+        // boundary you can trust across a household's vocabulary.
+        //
+        // The real fix is to stop freezing the token: render mentions
+        // through the member lookup at display time, the way
+        // `PersonRef.author` resolves a name to a seat. Until then, stale
+        // and correctly styled beats fresh and broken.
+        // The @-tags on a POST are rewritten, unlike a comment's `mentions`
+        // above, and the difference is that these are stored STANDALONE —
+        // they are rendered directly as chips and tapped to open a profile,
+        // with no copy inside the caption to fall out of step with. A stale
+        // tag here would open a profile for somebody who no longer exists.
+        // (`TablePost.caption` has the same latent exposure if anything ever
+        // starts matching caption tokens against this array. Nothing does
+        // today; if something starts, this rewrite has to go the same way
+        // `mentions` did.)
         if let tagged = try? context.fetch(FetchDescriptor<TablePost>()) {
             for post in tagged where post.taggedNames.contains(old) {
                 post.taggedNames = post.taggedNames.map { $0 == old ? new : $0 }
@@ -149,10 +169,26 @@ enum HouseholdIdentity {
             }
         }
 
-        Awards.rekey(from: old, to: new)
-
         member.name = new
-        try? context.save()
+
+        // Report honestly. `try?` here swallowed the error and returned
+        // true regardless, which mattered because the caller writes
+        // `userFirstName` — durable, outside this transaction — and
+        // `Awards.rekey` writes UserDefaults immediately. A failed save
+        // used to leave every model row back at the old name while the
+        // ledger and the AppStorage name had moved: identity split across
+        // two stores, silently. That IS a torn write; it is just torn
+        // across stores rather than within one.
+        do {
+            try context.save()
+        } catch {
+            return false
+        }
+
+        // Only once the model side is durable. Ordering is the cheap half
+        // of atomicity here: if the save fails, nothing outside the context
+        // has moved, so the two stores cannot disagree.
+        Awards.rekey(from: old, to: new)
         return true
     }
 

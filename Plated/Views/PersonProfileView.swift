@@ -413,12 +413,23 @@ struct EditProfileSheet: View {
     private func saveName() {
         let name = draftName.trimmingCharacters(in: .whitespaces)
         guard !name.isEmpty else { return }
-        firstName = name
+
+        // The model side FIRST, and `userFirstName` only once it stuck.
+        // This used to write the AppStorage name before renaming, so a
+        // failed save left the models back at "Me" while the stored first
+        // name and the awards ledger had moved on — the profile reading
+        // "Me" with no saves, while every new comment was stamped with the
+        // new name. Identity split across two stores, and nothing told
+        // anyone.
         if let owner = members.first(where: \.isOwner) {
             // Through the one door: a bare `owner.name = name` orphans
             // every dish they have posted and their whole awards ledger.
-            HouseholdIdentity.rename(owner, to: name, in: context)
+            guard HouseholdIdentity.rename(owner, to: name, in: context) else {
+                Haptic.warn()
+                return
+            }
         }
+        firstName = name
         Haptic.plate()
     }
 }
