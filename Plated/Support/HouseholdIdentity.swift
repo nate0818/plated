@@ -68,7 +68,15 @@ enum HouseholdIdentity {
     ) -> Bool {
         let new = newName.trimmingCharacters(in: .whitespaces)
         let old = member.name
-        guard !new.isEmpty, new != old else { return false }
+        guard !new.isEmpty else { return false }
+        // Already the desired state, which is NOT a failure. The caller
+        // reads false as "the save failed" and warns — and the sheet
+        // prefills the name field, so its other control is Bio. Collapsing
+        // these two meant editing your bio and leaving your name alone
+        // ended on a warning buzz with the name write and the success
+        // haptic both skipped. "Nothing to do" and "it didn't work" are
+        // different answers to a different question.
+        guard new != old else { return true }
 
         // Exact match on the stored string: that is what was stamped, and
         // matching loosely would rewrite a guest who shares a first name.
@@ -182,6 +190,17 @@ enum HouseholdIdentity {
         do {
             try context.save()
         } catch {
+            // ROLL BACK, or this is the same split with the order flipped.
+            // Every mutation above stays live in the context otherwise, so
+            // @Query views show the new name everywhere while
+            // `userFirstName` and the awards ledger still hold the old one
+            // — the two on-disk stores agree and the running app agrees
+            // with neither. Worse, mainContext autosave is enabled
+            // (PlatedApp attaches with `.modelContainer`), so a transient
+            // failure can be committed by a later autosave and land the
+            // model side without the AppStorage name or the rekey. Which
+            // is precisely the state this ordering exists to prevent.
+            context.rollback()
             return false
         }
 
