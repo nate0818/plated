@@ -44,7 +44,16 @@ enum PlatedStore {
             cloudKitDatabase: purging ? .none : .automatic
         )
         do {
-            return try ModelContainer(for: schema, configurations: [configuration])
+            let container = try ModelContainer(for: schema, configurations: [configuration])
+            // Here, and not in the scene. The mirror can only start work
+            // once this container exists, so a watcher registered on this
+            // line cannot miss a start — which is the load-bearing claim
+            // in CloudSync's whole design. Hanging it off `PlatedApp`'s
+            // scene body was only approximately true: this is a lazy
+            // static and App Intents reach it directly, in processes where
+            // that scene may never run at all.
+            CloudSync.startMonitoring()
+            return container
         } catch {
             // A schema mismatch during development should be loud, not silent.
             fatalError("Could not create ModelContainer: \(error)")

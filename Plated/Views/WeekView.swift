@@ -381,7 +381,18 @@ struct WeekView: View {
             moveMeal(from: tokens.first, to: date)
         } isTargeted: { over in
             if over { Haptic.select() }
-            withAnimation(.plSnap) { dropHoverDay = over ? date : nil }
+            withAnimation(.plSnap) {
+                // Same guard as plannedRow, and open nights are the common
+                // drop target — a bare `else -> nil` here wiped the lean
+                // belonging to the row the finger had already moved onto,
+                // so indication died for the rest of any drag that crossed
+                // one open night. It also strands the lean when a drop
+                // turns this row into a planned one and tears down its drop
+                // interaction mid-gesture; clearing only your own makes a
+                // stranded value harmless the moment the next row is entered.
+                if over { dropHoverDay = date }
+                else if dropHoverDay == date { dropHoverDay = nil }
+            }
         }
         .scaleEffect(dropHoverDay == date ? 1.015 : 1)
     }

@@ -39,44 +39,83 @@ enum CloudSync {
     /// completion when it arrives. Worse, it drops a *failure* the same
     /// way and taps success over a broken sync.
     ///
-    /// So one long-lived observer runs from launch and counts. A pull
-    /// samples it instead of guessing.
+    /// So one long-lived observer registers as early as the container
+    /// exists and tracks what is in flight. A pull samples it instead of
+    /// guessing.
     actor Monitor {
         static let shared = Monitor()
 
-        private var inFlight = 0
-        private var watcher: Task<Void, Never>?
+        /// Identities, not a tally.
+        ///
+        /// A counter fails in both directions and neither is visible: stuck
+        /// above zero puts every pull on the long deadline forever (the
+        /// slow-common-path regression, permanently), and wrongly zero puts
+        /// the dropped-import bug back. Because absorption hops to this
+        /// actor, two events can arrive out of order, and `max(0, n - 1)`
+        /// on an end whose start hasn't landed yet leaves a permanent
+        /// phantom. Tracking identities is order-independent: an end that
+        /// arrives first is remembered, and the start it belongs to is then
+        /// refused rather than resurrecting it.
+        private var running: [UUID: ContinuousClock.Instant] = [:]
+        /// Ordered so the oldest can be dropped; `Set` has no bounded
+        /// prune. At this size a linear `contains` is free.
+        private var finished: [UUID] = []
+
+        /// An import abandoned mid-flight — app suspended, process killed,
+        /// iCloud signed out underneath it — never posts a terminal event.
+        /// Without an expiry its identifier sits in `running` for the life
+        /// of the process and every later pull pays the long deadline.
+        private static let staleAfter: Duration = .seconds(60)
+        /// Enough to reconcile out-of-order delivery without growing for
+        /// the life of the process.
+        private static let rememberedEndings = 64
 
         /// Is CloudKit doing something right now?
-        var isBusy: Bool { inFlight > 0 }
+        var isBusy: Bool {
+            let now = ContinuousClock.now
+            return running.values.contains { now - $0 < Self.staleAfter }
+        }
 
-        /// Idempotent; call it as early as the container exists. Starting
-        /// later than that is what reintroduces the missed-edge bug, since
-        /// an import can only begin once the mirror is up.
-        func start() {
-            guard watcher == nil else { return }
-            watcher = Task { [weak self] in
-                let stream = NotificationCenter.default.notifications(
-                    named: NSPersistentCloudKitContainer.eventChangedNotification
-                )
-                for await note in stream {
-                    guard let event = event(from: note) else { continue }
-                    await self?.absorb(event)
+        fileprivate func absorb(_ event: NSPersistentCloudKitContainer.Event) {
+            guard counts(event.type) else { return }
+            let now = ContinuousClock.now
+            running = running.filter { now - $0.value < Self.staleAfter }
+
+            if event.endDate == nil {
+                // Out-of-order: if this event's ending already landed, the
+                // work is over — don't put it back in flight.
+                guard !finished.contains(event.identifier) else { return }
+                running[event.identifier] = now
+            } else {
+                if !finished.contains(event.identifier) {
+                    finished.append(event.identifier)
+                }
+                running[event.identifier] = nil
+                if finished.count > Self.rememberedEndings {
+                    finished.removeFirst(finished.count - Self.rememberedEndings)
                 }
             }
         }
-
-        private func absorb(_ event: NSPersistentCloudKitContainer.Event) {
-            guard counts(event.type) else { return }
-            if event.endDate == nil {
-                inFlight += 1
-            } else {
-                // Never below zero: starting to watch mid-flight means
-                // seeing an end whose start we missed.
-                inFlight = max(0, inFlight - 1)
-            }
-        }
     }
+
+    /// Registered **synchronously**, so there is no window between the
+    /// mirror coming up and the watcher existing. An `AsyncSequence` over
+    /// notifications only subscribes once its task gets scheduled, which
+    /// reopens by microseconds exactly the gap this design exists to close.
+    /// Idempotent: the token is a lazy static, so repeat calls are free.
+    private static let watcher: NSObjectProtocol = {
+        NotificationCenter.default.addObserver(
+            forName: NSPersistentCloudKitContainer.eventChangedNotification,
+            object: nil,
+            queue: nil
+        ) { note in
+            guard let event = event(from: note) else { return }
+            Task { await Monitor.shared.absorb(event) }
+        }
+    }()
+
+    /// Call as early as the container exists — see `PlatedStore.shared`.
+    static func startMonitoring() { _ = watcher }
 
     /// Setup counts, exports do not, and the asymmetry is load-bearing.
     ///

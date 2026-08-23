@@ -39,14 +39,6 @@ struct PlatedApp: App {
                 }
                 .onAppear { Self.applyRoomLighting(dark: afterDark) }
                 .task {
-                    // As early as the mirror exists. An import can only
-                    // begin once the container is up, so a watcher started
-                    // here cannot miss a start — which is the whole point:
-                    // a pull samples this rather than trying to catch an
-                    // edge that may already have gone past.
-                    await CloudSync.Monitor.shared.start()
-                }
-                .task {
                     // Maintenance: wipe the private CloudKit database, print
                     // a verdict for the console, and quit. PlatedStore ran
                     // local-only this launch, so nothing re-exports. Debug
