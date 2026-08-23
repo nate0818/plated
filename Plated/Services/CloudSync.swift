@@ -26,6 +26,18 @@ enum CloudSync {
         case failed
     }
 
+    /// The three windows, named so the monitor's expiry can derive from
+    /// them instead of restating a number by hand.
+    enum Defaults {
+        /// Keeps the refresh control from flashing and snapping back.
+        static let floor: Duration = .milliseconds(450)
+        /// Long enough to ask "is the mirror doing anything", short enough
+        /// that a current table doesn't pay for the answer.
+        static let quietWindow: Duration = .milliseconds(700)
+        /// The longest wait we will ever give real work.
+        static let activeTimeout: Duration = .seconds(3)
+    }
+
     // MARK: The monitor
 
     /// Whether CloudKit is mid-flight, kept as **state you can sample**
@@ -45,6 +57,17 @@ enum CloudSync {
     actor Monitor {
         static let shared = Monitor()
 
+        /// **A hint, not a ledger.** Its only consumer is a choice between
+        /// two wait lengths, so being occasionally wrong is a designed
+        /// property with a bounded cost — not a bug to be "fixed" into a
+        /// state machine that is exactly right and impossible to reason
+        /// about. But the two ways of being wrong are not symmetric, and
+        /// that asymmetry decides the expiry below: a phantom entry costs
+        /// one slow spinner per pull, while a missing entry costs a
+        /// DROPPED IMPORT — the app telling the household its data arrived
+        /// when it didn't, which is the correctness bug that has bitten
+        /// this file twice. So err toward keeping entries.
+        ///
         /// Identities, not a tally.
         ///
         /// A counter fails in both directions and neither is visible: stuck
@@ -65,7 +88,16 @@ enum CloudSync {
         /// iCloud signed out underneath it — never posts a terminal event.
         /// Without an expiry its identifier sits in `running` for the life
         /// of the process and every later pull pays the long deadline.
-        private static let staleAfter: Duration = .seconds(60)
+        ///
+        /// Derived from the long deadline rather than picked: it moves when
+        /// the deadlines move, and a reader can see where it came from. The
+        /// multiple is deliberately large because of the asymmetry above —
+        /// expiring a slow-but-real import out from under a wait is the
+        /// expensive mistake, and a first sync on a bad connection can
+        /// legitimately run for minutes. Past this, promotion buys nothing
+        /// anyway: work still unfinished after a hundred times the longest
+        /// wait we will ever give it is not going to land inside one.
+        private static let staleAfter: Duration = Defaults.activeTimeout * 100
         /// Enough to reconcile out-of-order delivery without growing for
         /// the life of the process.
         private static let rememberedEndings = 64
@@ -163,9 +195,9 @@ enum CloudSync {
     /// Untangling that needs per-event identity; naming it here because
     /// `.failed` drives a different haptic.
     static func waitForImport(
-        floor: Duration = .milliseconds(450),
-        quietWindow: Duration = .milliseconds(700),
-        activeTimeout: Duration = .seconds(3)
+        floor: Duration = Defaults.floor,
+        quietWindow: Duration = Defaults.quietWindow,
+        activeTimeout: Duration = Defaults.activeTimeout
     ) async -> RefreshOutcome {
         // A deadline shorter than the floor isn't a deadline. Ordering the
         // three keeps the caps meaningful whatever a caller passes.
