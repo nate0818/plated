@@ -8,6 +8,10 @@ import UniformTypeIdentifiers
 /// opens the planning page; sideways, the plan becomes a month.
 struct WeekView: View {
     var askTheTable: () -> Void = {}
+    /// Set by the shell when a widget deep-links to the grocery list. The
+    /// week owns the basket, so the request has to arrive here rather than
+    /// the shell reaching into another screen's state.
+    var openGrocery: Binding<Bool> = .constant(false)
 
     @Environment(\.modelContext) private var context
     @Environment(\.verticalSizeClass) private var verticalSizeClass
@@ -75,6 +79,7 @@ struct WeekView: View {
             }
             .background(Color.canvas)
             .toolbar(.hidden, for: .navigationBar)
+            .plSwipeBack()
             .navigationDestination(item: $personShown) { person in
                 PersonProfileView(personName: person.name, colorHex: person.colorHex, memberID: person.memberID)
             }
@@ -85,6 +90,11 @@ struct WeekView: View {
             }
         }
         .sheet(isPresented: $groceryPresented) { GrocerySheet() }
+        .onChange(of: openGrocery.wrappedValue, initial: true) { _, requested in
+            guard requested else { return }
+            openGrocery.wrappedValue = false
+            groceryPresented = true
+        }
         .sheet(item: $planDay) { date in
             PlanNightSheet(date: date, askTheTable: askTheTable)
         }

@@ -80,11 +80,17 @@ struct RecipeFilter: Equatable {
 /// table. The "All dishes" chip is the whole control surface: tap it for
 /// search, filters, and sort in one sheet.
 struct CookbookView: View {
+    @Environment(\.modelContext) private var context
     @Query(sort: \Recipe.createdAt) private var recipes: [Recipe]
     @State private var selected: Recipe?
     @State private var filter = RecipeFilter()
     @State private var filterSheetShown = false
     @State private var activityShown = false
+    /// Long-press destinations. A grid of plates can't be swiped — the rows
+    /// are two wide — so the menu is where a tile's actions live.
+    @State private var plating: Recipe?
+    @State private var editing: Recipe?
+    @State private var pendingDelete: Recipe?
 
     private var shown: [Recipe] { filter.apply(to: recipes) }
 
@@ -199,9 +205,28 @@ struct CookbookView: View {
                 NotificationsView()
             }
             .toolbar(.hidden, for: .navigationBar)
+            .plSwipeBack()
         }
         .sheet(isPresented: $filterSheetShown) {
             RecipeFilterSheet(filter: $filter, recipes: recipes)
+        }
+        .sheet(item: $plating) { recipe in
+            PlateAssignSheet(recipe: recipe)
+        }
+        .sheet(item: $editing) { recipe in
+            RecipeEditorView(editing: recipe)
+        }
+        .confirmationDialog(
+            pendingDelete.map { "Delete \($0.title)?" } ?? "",
+            isPresented: Binding(get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } }),
+            titleVisibility: .visible
+        ) {
+            if let recipe = pendingDelete {
+                Button("Delete", role: .destructive) { delete(recipe) }
+                Button("Cancel", role: .cancel) {}
+            }
+        } message: {
+            Text("This takes the dish out of the cookbook for the whole household.")
         }
     }
 
@@ -242,6 +267,46 @@ struct CookbookView: View {
             }
         }
         .buttonStyle(.pressable)
+        .contextMenu {
+            Button {
+                plating = recipe
+            } label: {
+                Label("Plate it", systemImage: "circle.circle")
+            }
+            Button {
+                Haptic.tap()
+                withAnimation(.plSnap) { recipe.isFavorite.toggle() }
+            } label: {
+                Label(
+                    recipe.isFavorite ? "Remove from favorites" : "Add to favorites",
+                    systemImage: recipe.isFavorite ? "heart.slash" : "heart"
+                )
+            }
+            Button {
+                editing = recipe
+            } label: {
+                Label("Edit", systemImage: "pencil")
+            }
+            Button(role: .destructive) {
+                pendingDelete = recipe
+            } label: {
+                Label("Delete", systemImage: "trash")
+            }
+        }
+    }
+
+    /// Planned nights keep a nullify rule, so a deleted dish would leave a
+    /// blank row on the week. Stamp its name down first — the plan still
+    /// says what everyone ate, it just stops linking to a dish that's gone.
+    private func delete(_ recipe: Recipe) {
+        Haptic.plate()
+        for meal in recipe.plannedMeals ?? [] where meal.customTitle.isEmpty {
+            meal.customTitle = recipe.title
+        }
+        withAnimation(.plSnap) {
+            pendingDelete = nil
+            context.delete(recipe)
+        }
     }
 
     private func dishImage(_ recipe: Recipe) -> some View {
@@ -545,6 +610,7 @@ struct RecipeDetailView: View {
         }
         .background(Color.canvas)
         .toolbar(.hidden, for: .navigationBar)
+        .plSwipeBack()
         .safeAreaInset(edge: .top) { topBar }
         .safeAreaInset(edge: .bottom) {
             // Flush to the bottom, every screen size, never scrolled away.

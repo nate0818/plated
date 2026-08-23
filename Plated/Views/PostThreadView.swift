@@ -118,6 +118,7 @@ struct PostThreadView: View {
         // This page docks its own composer at the bottom-trailing corner,
         // exactly where the perch lives.
         .hidesProngsbyPerch()
+        .plSwipeBack()
         .navigationDestination(item: $personShown) { person in
             PersonProfileView(personName: person.name, colorHex: person.colorHex, memberID: person.memberID)
         }

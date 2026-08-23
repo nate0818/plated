@@ -19,6 +19,14 @@ struct SwipeAction: Identifiable {
     static func message(_ perform: @escaping () -> Void) -> SwipeAction {
         SwipeAction(symbol: "bubble.right", label: "Message", perform: perform)
     }
+
+    /// Taking a line off a screen, not out of the household. Deliberately
+    /// not destructive: an activity entry clears, but the plate, the comment
+    /// and the save it describes all still happened, and giving that the
+    /// same weight as removing a person overstates it.
+    static func clear(_ perform: @escaping () -> Void) -> SwipeAction {
+        SwipeAction(symbol: "xmark", label: "Clear", perform: perform)
+    }
 }
 
 /// Swipe a row left to reveal its actions — the standard gesture, rebuilt

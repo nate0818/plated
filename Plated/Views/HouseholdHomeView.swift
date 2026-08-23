@@ -84,6 +84,7 @@ struct HouseholdHomeView: View {
                     PersonProfileView(personName: person.name, colorHex: person.colorHex, memberID: person.memberID)
                 }
                 .toolbar(.hidden, for: .navigationBar)
+                .plSwipeBack()
         }
     }
 

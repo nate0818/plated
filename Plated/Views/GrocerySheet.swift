@@ -11,6 +11,8 @@ struct GrocerySheet: View {
 
     @State private var exportResult: String?
     @State private var exporting = false
+    /// One row open at a time, same contract as the week's plan rows.
+    @State private var swipedItem: PersistentIdentifier?
 
     private var currentItems: [GroceryItem] {
         let windowStart = Calendar.current.startOfDay(for: .now)
@@ -18,7 +20,8 @@ struct GrocerySheet: View {
         // them a week of life so they don't vanish as the window rolls.
         let manualHorizon = Calendar.current.date(byAdding: .day, value: -7, to: windowStart) ?? windowStart
         return items.filter {
-            $0.isManual
+            guard !$0.isDismissed else { return false }
+            return $0.isManual
                 ? $0.weekStart >= manualHorizon
                 : Calendar.current.isSameDay($0.weekStart, windowStart)
         }
@@ -116,6 +119,38 @@ struct GrocerySheet: View {
     }
 
     private func itemRow(_ item: GroceryItem) -> some View {
+        SwipeRow(isOpen: swipeBinding(item), actions: [.remove { remove(item) }]) {
+            checkRow(item)
+        }
+    }
+
+    private func swipeBinding(_ item: GroceryItem) -> Binding<Bool> {
+        Binding(
+            get: { swipedItem == item.persistentModelID },
+            set: { open in
+                swipedItem = open
+                    ? item.persistentModelID
+                    : (swipedItem == item.persistentModelID ? nil : swipedItem)
+            }
+        )
+    }
+
+    /// A struck line has to stay struck. Auto lines are regenerated from the
+    /// plan on every open, so they carry a flag; a hand-typed line has nothing
+    /// behind it and can simply go.
+    private func remove(_ item: GroceryItem) {
+        Haptic.plate()
+        withAnimation(.plSnap) {
+            swipedItem = nil
+            if item.isManual {
+                context.delete(item)
+            } else {
+                item.isDismissed = true
+            }
+        }
+    }
+
+    private func checkRow(_ item: GroceryItem) -> some View {
         Button {
             Haptic.tap()
             withAnimation(.plSnap) { item.isChecked.toggle() }

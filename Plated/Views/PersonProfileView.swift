@@ -173,6 +173,7 @@ struct PersonProfileView: View {
         }
         .background(Color.canvas)
         .toolbar(.hidden, for: .navigationBar)
+        .plSwipeBack()
         .safeAreaInset(edge: .top) { topBar }
         .sheet(isPresented: $dmShown) { DMThreadView(peerName: name) }
         .sheet(isPresented: $settingsShown) { SettingsSheet() }
