@@ -82,7 +82,14 @@ enum HouseholdIdentity {
         ) {
             for comment in comments { comment.authorName = new }
         }
-        // Five fields key off a person's name as a string, not three.
+        // SEVEN fields key off a person's name as a string. The previous
+        // comment here said five and declared the class closed, which is
+        // the same instance-not-class error one level up — inside the
+        // sentence claiming to have fixed it. Reachable on the ordinary
+        // first-session path: the owner is "Me", somebody replies to them
+        // or @-mentions them, then they accept "Add your name" — and
+        // afterwards the reply chevron still reads "Me" and the mention
+        // stops resolving.
         // Missing these two is the same "fixed the instance, not the class"
         // shape as everything else this branch has had to correct: latent
         // today because only the owner can be renamed, wrong the moment
@@ -96,6 +103,18 @@ enum HouseholdIdentity {
             FetchDescriptor<PlatedNotification>(predicate: #Predicate { $0.actorName == old })
         ) {
             for notice in notices { notice.actorName = new }
+        }
+        if let replies = try? context.fetch(
+            FetchDescriptor<TableComment>(predicate: #Predicate { $0.replyToName == old })
+        ) {
+            for reply in replies { reply.replyToName = new }
+        }
+        // `mentions` is an array, so it needs rewriting element-wise rather
+        // than matched on.
+        if let mentioning = try? context.fetch(FetchDescriptor<TableComment>()) {
+            for comment in mentioning where comment.mentions.contains(old) {
+                comment.mentions = comment.mentions.map { $0 == old ? new : $0 }
+            }
         }
         Awards.rekey(from: old, to: new)
 

@@ -27,6 +27,7 @@ struct PersonProfileView: View {
     // them per device. The oldest row is the household's one true profile.
     @Query(sort: \HouseholdProfile.createdAt) private var profiles: [HouseholdProfile]
 
+    @Environment(\.dynamicTypeSize) private var typeSize
     @AppStorage("userBio") private var myBio = ""
     @AppStorage("userFamilyName") private var userFamilyName = ""
     @State private var dmShown = false
@@ -127,13 +128,21 @@ struct PersonProfileView: View {
                     // Same count, same words, same lack of a box as Home
                     // and the stats shelf — a person's numbers and their
                     // household's numbers shouldn't be two dialects.
-                    HStack(spacing: 0) {
+                    // Four across truncates from AX3 and collides at AX5
+                    // ("On theHappy", "Chef's Saved", dividers no longer
+                    // between columns). HouseholdStatsView already drops
+                    // 3 columns to 2 at .accessibility1; this is the
+                    // sibling that didn't, so it wraps to 2×2 instead.
+                    LazyVGrid(
+                        columns: Array(
+                            repeating: GridItem(.flexible(), spacing: 0),
+                            count: typeSize >= .accessibility1 ? 2 : 4
+                        ),
+                        spacing: typeSize >= .accessibility1 ? 16 : 0
+                    ) {
                         CountBlock(value: "\(posts.count)", label: "On the table")
-                        CountDivider()
                         CountBlock(value: "\(plateCount)", label: "Happy plates")
-                        CountDivider()
                         CountBlock(value: "\(kissCount)", label: "Chef's kisses", accent: kissCount > 0)
-                        CountDivider()
                         CountBlock(value: "\(Awards.savesReceived(by: name))", label: "Saved by others")
                     }
                     .padding(.vertical, 12)

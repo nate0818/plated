@@ -278,8 +278,12 @@ struct CountBlock: View {
     var body: some View {
         VStack(spacing: 3) {
             Text(value)
+                // Amber, not mango: mango on canvas measures 1.83:1, which
+                // is unreadable for a numeral this size. Amber is the same
+                // family two steps darker and is already the app's token
+                // for "mango, but as text".
                 .font(.gabarito(24, .semibold))
-                .foregroundStyle(accent ? Color.mango : Color.ink)
+                .foregroundStyle(accent ? Color.amber : Color.ink)
                 .contentTransition(.numericText())
             Text(label)
                 .font(.jakarta(11, .semibold))
@@ -351,6 +355,16 @@ struct AvatarCircle: View {
                 Text(initials)
                     .font(.jakarta(size * 0.38, .bold))
                     .foregroundStyle(tone.tone)
+                    // The circle is a fixed size but `Font.custom` scales
+                    // with Dynamic Type, so at accessibility sizes the
+                    // glyph outgrows its own container — the seat chip's
+                    // "+2" truncated to "…" inside a 34pt circle, which
+                    // reads as a bug rather than as large type. Shrink to
+                    // fit instead: the circle is the shape that carries
+                    // the meaning, and a legible small "+2" beats an
+                    // ellipsis.
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.4)
             }
     }
 }

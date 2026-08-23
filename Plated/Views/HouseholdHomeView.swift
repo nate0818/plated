@@ -159,6 +159,12 @@ struct HouseholdHomeView: View {
         .onAppear {
             #if DEBUG
             // UI-test hook, one-shot: `simctl launch … -plated-open-stats`.
+            // Works standalone — MainShellView routes to this tab first (see
+            // `flagHomes`). ALWAYS `simctl terminate` before a flag-carrying
+            // launch: a second launch on a running process re-uses the
+            // original argv and the already-spent `consumed` set, so it is
+            // completely inert while still printing a pid and reporting
+            // success.
             //
             // `consume` fires once per PROCESS, and Home's onAppear runs
             // before the launch opener lifts — so on its own the flag was

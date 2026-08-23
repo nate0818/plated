@@ -25,6 +25,23 @@ struct MainShellView: View {
     @State private var prongsbySession = ProngsbySession()
     @State private var prongsbyPresented = false
     @State private var perchVisibility = PerchVisibility()
+
+    #if DEBUG
+    /// Which tab has to be on screen for a launch flag to be consumed.
+    /// Keep this in step with every `LaunchFlags.consume` that lives inside
+    /// a tab body — a flag missing here is a flag that silently does
+    /// nothing, which is worse than one that errors.
+    private static let flagHomes: [(String, AppTab)] = [
+        ("-plated-open-stats", .home),
+        ("-plated-open-discover", .table),
+        ("-plated-open-seats", .table),
+        ("-plated-open-thread", .table),
+        ("-plated-open-grocery", .week),
+        ("-plated-open-profile", .week),
+        ("-plated-open-activity", .week),
+        ("-plated-open-plan-day", .week)
+    ]
+    #endif
     @State private var createPresented = false
     /// The pick made inside the menu; presented only after the menu is
     /// fully down — two sheets can't stand on the same view at once.
@@ -208,6 +225,11 @@ struct MainShellView: View {
             }
             #if DEBUG
             // UI-test hook: `simctl launch … -plated-tab table` lands here.
+            //
+            // Accepted names are the AppTab raw values — `week`, `table`,
+            // `cookbook`, `home` — which are NOT the words on the tab bar
+            // ("Plan", "Recipes"). An unknown name is ignored silently, so
+            // `-plated-tab plan` looks exactly like a plain launch.
             let args = ProcessInfo.processInfo.arguments
             if let flag = args.firstIndex(of: "-plated-tab"), args.indices.contains(flag + 1) {
                 let name = args[flag + 1]
@@ -216,7 +238,19 @@ struct MainShellView: View {
                 } else if name == "prongsby" {
                     // He is no longer a tab; the harness keeps its old word.
                     prongsbyPresented = true
+                } else {
+                    print("PLATED FLAG: unknown -plated-tab '\(name)' — expected one of \(AppTab.allCases.map(\.rawValue).joined(separator: ", ")) or prongsby")
                 }
+            }
+
+            // Flags whose `consume()` lives inside a tab body only fire once
+            // that tab is on screen, so standalone they silently no-op and
+            // the screenshot is indistinguishable from a plain launch. Rather
+            // than make every caller remember to compose `-plated-tab` first
+            // — the old comment on `-plated-open-stats` actually prescribed
+            // the form that fails — the shell sends you to the owning tab.
+            for (flag, tab) in Self.flagHomes where args.contains(flag) {
+                selection = tab
             }
             if LaunchFlags.consume("-plated-open-create") {
                 createPresented = true

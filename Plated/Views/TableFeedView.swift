@@ -13,6 +13,7 @@ struct TableFeedView: View {
     ) private var posts: [TablePost]
     @Query(sort: \HouseholdMember.createdAt) private var members: [HouseholdMember]
     @Query private var recipes: [Recipe]
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     enum FeedScope: String, CaseIterable {
         case everyone = "Everyone"
@@ -199,8 +200,33 @@ struct TableFeedView: View {
 
     // MARK: Header
 
+    /// Past this the title and three trailing controls cannot share a line
+    /// — measured at AX3 the title broke mid-word ("The / Tabl / e"), HOST
+    /// wrapped to "HO / ST", and the seat chip collapsed to "…". Home's
+    /// masthead grew this same fallback on this branch; the Table has three
+    /// trailing controls to Home's three and needed it just as much.
+    private var hugeType: Bool { typeSize >= .accessibility1 }
+
+    @ViewBuilder
     private var header: some View {
-        HStack(spacing: 12) {
+        if hugeType {
+            VStack(alignment: .leading, spacing: 12) {
+                headerTitle
+                HStack(spacing: 12) {
+                    Spacer(minLength: 0)
+                    headerControls
+                }
+            }
+        } else {
+            HStack(spacing: 12) {
+                headerTitle
+                Spacer(minLength: 8)
+                headerControls
+            }
+        }
+    }
+
+    private var headerTitle: some View {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
                     Image(systemName: "lock")
@@ -214,9 +240,17 @@ struct TableFeedView: View {
                     .font(.gabarito(25, .semibold))
                     .tracking(-0.3)
                     .foregroundStyle(Color.ink)
+                    // One line at ordinary sizes; only huge type may wrap,
+                    // and never mid-word.
+                    .lineLimit(hugeType ? 2 : 1)
+                    .minimumScaleFactor(hugeType ? 1 : 0.8)
+                    .fixedSize(horizontal: false, vertical: hugeType)
             }
             .layoutPriority(1)
-            Spacer(minLength: 8)
+    }
+
+    @ViewBuilder
+    private var headerControls: some View {
             ActivityBellButton {
                 activityShown = true
             }
@@ -258,7 +292,6 @@ struct TableFeedView: View {
             }
             .buttonStyle(.pressable)
             .accessibilityLabel("Your profile")
-        }
     }
 
     private var hostInitial: String {

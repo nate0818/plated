@@ -31,6 +31,7 @@ struct PostThreadView: View {
     @State private var saveToast: String?
     @State private var saveToastToken = 0
     @FocusState private var composerFocused: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         VStack(spacing: 0) {
@@ -94,7 +95,14 @@ struct PostThreadView: View {
 
                     ForEach(post.sortedComments, id: \.persistentModelID) { comment in
                         threadComment(comment)
-                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                            // Guarded, like the identical arrival in
+                            // ProngsbyView — the two were written days apart
+                            // and only one of them asked the room.
+                            .transition(
+                                reduceMotion
+                                    ? .opacity
+                                    : .move(edge: .bottom).combined(with: .opacity)
+                            )
                     }
                 }
                 .animation(.plSnap, value: post.sortedComments.count)

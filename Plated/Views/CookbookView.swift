@@ -165,10 +165,14 @@ struct CookbookView: View {
                     }
                     // Filtering resettles the shelf — dishes fade and slide
                     // to their new seats instead of teleporting.
-                    // Keyed on the count, not a fresh map of every id: the
-                    // map re-ran `filter.apply` over the whole cookbook a
-                    // third time per body pass purely to feed this.
-                    .animation(.plSnap, value: shown.count)
+                    // Keyed on the FILTER, not on the result. Measured:
+                    // `shown.count` re-ran the whole filter-and-sort exactly
+                    // as `shown.map(\.persistentModelID)` did — three full
+                    // passes per body pass on both — because `shown` is
+                    // computed. The filter is the thing that actually
+                    // changes when the shelf should resettle, and it is a
+                    // cheap Equatable value.
+                    .animation(.plSnap, value: filter)
                     .padding(.horizontal, 24)
                     .padding(.top, 20)
                     .padding(.bottom, Layout.floatingChromeInset)
