@@ -60,6 +60,15 @@ enum PlatedStore {
             return try ModelContainer(for: schema, configurations: [configuration])
         } catch {
             // A schema mismatch during development should be loud, not silent.
+            //
+            // Load-bearing beyond that, and not obviously: because this
+            // never returns, a failed construction can leave no CloudKit
+            // work behind for the watcher registered above to have heard.
+            // Soften this to a fallback container and that stops being
+            // true — the monitor would already hold setup entries from the
+            // container that died, and with no store-identifier filter
+            // (see CloudSync.watcher) they would pin the long deadline on
+            // the fallback's first pull.
             fatalError("Could not create ModelContainer: \(error)")
         }
     }()

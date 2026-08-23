@@ -1,5 +1,6 @@
 import Foundation
 import CoreData
+import UIKit
 
 /// What the mirror is doing, for the one gesture that asks.
 ///
@@ -79,7 +80,13 @@ enum CloudSync {
         /// phantom. Tracking identities is order-independent: an end that
         /// arrives first is remembered, and the start it belongs to is then
         /// refused rather than resurrecting it.
-        private var running: [UUID: ContinuousClock.Instant] = [:]
+        /// An open piece of work, and how many pulls it has already sent
+        /// down the long deadline without ever confirming itself.
+        private struct Entry {
+            let began: ContinuousClock.Instant
+            var promotions = 0
+        }
+        private var running: [UUID: Entry] = [:]
         /// Ordered so the oldest can be dropped; `Set` has no bounded
         /// prune. At this size a linear `contains` is free.
         private var finished: [UUID] = []
@@ -89,42 +96,78 @@ enum CloudSync {
         /// Without an expiry its identifier sits in `running` for the life
         /// of the process and every later pull pays the long deadline.
         ///
-        /// **Longer than any real import we expect.** Erring long is the
-        /// safe direction, per the asymmetry above: too long costs one slow
-        /// spinner per pull until it clears, too short costs a dropped
-        /// import. A first sync on a bad connection can legitimately run
-        /// for minutes, so this is minutes.
+        /// A **backstop**, deliberately not the mechanism.
         ///
-        /// Standalone on purpose. This was briefly `activeTimeout * 100`,
-        /// which looked derived but wasn't: "how long can a real import
-        /// plausibly take" has no causal link to "how long are we willing
-        /// to wait for one", so the multiple was doing all the work and the
-        /// arithmetic was standing in for the reason. It also coupled two
-        /// unrelated numbers — dropping `activeTimeout` to 30s for a UX
-        /// reason would have silently made this fifty minutes. The sentence
-        /// above IS the justification; it belongs in words, not in a
-        /// multiplication.
+        /// No threshold on elapsed-since-start can do this job, and it took
+        /// three attempts to see why: a phantom *is* a live import that
+        /// stopped being live. Both start the same clock by the same
+        /// mechanism, so elapsed time has the same distribution under both
+        /// hypotheses — a threshold cannot separate them, it can only swap
+        /// one error for the other. 60s wasn't sitting between two
+        /// distributions, it was sitting inside one, and `activeTimeout *
+        /// 100` was the same felt number with a formula painted on it.
+        ///
+        /// Worse, the failure correlated with the users who need this most.
+        /// `isBusy` is sampled once per wait, so an aged-out entry doesn't
+        /// end one wait early — it makes *every later pull* take the short
+        /// deadline, which is the dropped-import bug reinstated. And the
+        /// imports that outlive any threshold are first syncs on bad
+        /// networks pulling RecipePhoto blobs as CKAssets: precisely the
+        /// households whose imports are likeliest to fail.
+        ///
+        /// So the real mechanisms are causal — `clearOnForeground` below,
+        /// and the promotion budget — and this only catches whatever they
+        /// both miss. Its exact value is no longer load-bearing, which is
+        /// what finally makes it defensible.
         private static let staleAfter: Duration = .seconds(300)
+
+        /// How many pulls one unconfirmed entry may send down the long
+        /// deadline before it stops counting. Bounds the cost in the
+        /// currency the user actually pays — "three slow pulls, ever" —
+        /// and costs a real import nothing, because live work keeps
+        /// producing events that reset the budget.
+        private static let promotionBudget = 3
         /// Enough to reconcile out-of-order delivery without growing for
         /// the life of the process.
         private static let rememberedEndings = 64
 
-        /// Is CloudKit doing something right now?
-        var isBusy: Bool {
+        /// Is CloudKit doing something right now — and is that claim still
+        /// worth acting on? Spends a promotion from every entry it answers
+        /// `true` on, so an entry that never confirms itself goes quiet
+        /// after `promotionBudget` pulls instead of forever.
+        func isBusy() -> Bool {
             let now = ContinuousClock.now
-            return running.values.contains { now - $0 < Self.staleAfter }
+            running = running.filter { now - $0.value.began < Self.staleAfter }
+            let live = running.filter { $0.value.promotions < Self.promotionBudget }
+            guard !live.isEmpty else { return false }
+            for id in live.keys { running[id]?.promotions += 1 }
+            return true
+        }
+
+        /// **The dominant phantom source, killed causally.** A suspend stops
+        /// the process mid-import; the work dies and no terminal event ever
+        /// arrives. Coming back to the foreground is direct evidence that
+        /// anything still open is gone — faster and more reliable than any
+        /// timer, and it handles the case the timer never did: background
+        /// for twenty seconds, return, pull, and the clock-based expiry
+        /// still had the phantom. If CloudKit restarts the work it posts a
+        /// fresh start, which the observer catches and the quiet window
+        /// promotes on.
+        func clearOpenWork() {
+            running.removeAll()
         }
 
         fileprivate func absorb(_ event: NSPersistentCloudKitContainer.Event) {
             guard counts(event.type) else { return }
             let now = ContinuousClock.now
-            running = running.filter { now - $0.value < Self.staleAfter }
+            running = running.filter { now - $0.value.began < Self.staleAfter }
 
             if event.endDate == nil {
                 // Out-of-order: if this event's ending already landed, the
                 // work is over — don't put it back in flight.
                 guard !finished.contains(event.identifier) else { return }
-                running[event.identifier] = now
+                // A fresh start is fresh evidence: it resets the budget.
+                running[event.identifier] = Entry(began: now)
             } else {
                 if !finished.contains(event.identifier) {
                     finished.append(event.identifier)
@@ -142,7 +185,27 @@ enum CloudSync {
     /// notifications only subscribes once its task gets scheduled, which
     /// reopens by microseconds exactly the gap this design exists to close.
     /// Idempotent: the token is a lazy static, so repeat calls are free.
-    private static let watcher: NSObjectProtocol = {
+    /// Two registrations, both synchronous.
+    ///
+    /// `object: nil` accepts every poster, and `absorb` never checks
+    /// `storeIdentifier` — so register-first trades a closed ordering
+    /// question for an open identity one. Harmless today: the only other
+    /// container in the process is `SampleData.previewContainer`, in-memory
+    /// and reachable only from `#Preview` bodies that never run shipped,
+    /// and the widget touches neither PlatedStore nor CloudSync.
+    ///
+    /// **Do not "fix" that by looking up our own store identifier here.**
+    /// What makes register-first safe is precisely that nothing on this
+    /// path reaches `PlatedStore.shared`. Touching it from a notification
+    /// posted synchronously during `ModelContainer.init` would land on the
+    /// thread already inside PlatedStore's `swift_once` and stall the
+    /// launch until init returns.
+    ///
+    /// Swift 6 note: `Event` is not `Sendable` and crosses into the actor,
+    /// and this stored `NSObjectProtocol` is itself an error under strict
+    /// concurrency. Both compile silently at SWIFT_VERSION 5 and both need
+    /// solving the day this project moves.
+    private static let watcher: [NSObjectProtocol] = [
         NotificationCenter.default.addObserver(
             forName: NSPersistentCloudKitContainer.eventChangedNotification,
             object: nil,
@@ -150,8 +213,19 @@ enum CloudSync {
         ) { note in
             guard let event = event(from: note) else { return }
             Task { await Monitor.shared.absorb(event) }
+        },
+        // Foreground is evidence, not a guess — see `clearOpenWork`. Lives
+        // here rather than on PlatedApp's scenePhase so CloudSync stays
+        // self-contained, and so it simply never fires in the App Intents
+        // process, which has no pull to serve and doesn't need it.
+        NotificationCenter.default.addObserver(
+            forName: UIApplication.willEnterForegroundNotification,
+            object: nil,
+            queue: nil
+        ) { _ in
+            Task { await Monitor.shared.clearOpenWork() }
         }
-    }()
+    ]
 
     /// Call as early as the container exists — see `PlatedStore.shared`.
     static func startMonitoring() { _ = watcher }
@@ -231,7 +305,7 @@ enum CloudSync {
             group.addTask {
                 // Sample first: an import that began before this wait did
                 // is exactly the case the edge cannot tell us about.
-                if await Monitor.shared.isBusy { await activity.mark() }
+                if await Monitor.shared.isBusy() { await activity.mark() }
                 await sleep(quietWindow)
                 // Idle mirror: nothing has begun and nothing is running, so
                 // nothing is coming. Holding the spinner past here would be
