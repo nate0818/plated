@@ -48,10 +48,10 @@ struct TableFeedView: View {
     /// Pull to refresh. `@Query` is live, so anything CloudKit has already
     /// delivered is on screen before the user pulls — "already" being the
     /// operative word. So the gesture pushes this device's own pending work
-    /// out, then actually waits on the mirror — see CloudSync for the two
-    /// deadlines and why one wasn't enough. A feed you can't pull reads as
-    /// stuck even when it's current, but a pull that only pretends is
-    /// worse than none.
+    /// out, then waits on the mirror — see CloudSync for the two deadlines,
+    /// why one wasn't enough, and what it can and cannot observe. A feed
+    /// you can't pull reads as stuck even when it's current, but a pull
+    /// that only pretends is worse than none.
     /// Why only here, and not on the week or on Home: this is the one
     /// surface showing OTHER households' content, so it is the only one
     /// where "there might be something new on a server" is a true thought.

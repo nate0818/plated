@@ -15,7 +15,9 @@ enum CloudSync {
     /// broke. Collapsing the third into the first is how a refresh ends up
     /// reporting success at the exact moment iCloud failed.
     enum RefreshOutcome {
-        /// An import finished and brought records with it.
+        /// An import finished and reported success. Note this is any
+        /// successful import, including one that turned out to carry no
+        /// records — CloudKit does not distinguish, so neither can we.
         case arrived
         /// Nothing came — either the mirror was idle, or what it was doing
         /// didn't finish in time. The ordinary answer on a current device.
@@ -24,25 +26,103 @@ enum CloudSync {
         case failed
     }
 
+    // MARK: The monitor
+
+    /// Whether CloudKit is mid-flight, kept as **state you can sample**
+    /// rather than an edge you have to be listening for.
+    ///
+    /// This is the whole reason it exists. A start is posted exactly once,
+    /// when the work begins. A pull that subscribes afterwards — right
+    /// after foregrounding, right after a push, which is the common shape —
+    /// never sees that edge, so it can't tell "an import is running" from
+    /// "nothing is happening", concludes early, and then drops the
+    /// completion when it arrives. Worse, it drops a *failure* the same
+    /// way and taps success over a broken sync.
+    ///
+    /// So one long-lived observer runs from launch and counts. A pull
+    /// samples it instead of guessing.
+    actor Monitor {
+        static let shared = Monitor()
+
+        private var inFlight = 0
+        private var watcher: Task<Void, Never>?
+
+        /// Is CloudKit doing something right now?
+        var isBusy: Bool { inFlight > 0 }
+
+        /// Idempotent; call it as early as the container exists. Starting
+        /// later than that is what reintroduces the missed-edge bug, since
+        /// an import can only begin once the mirror is up.
+        func start() {
+            guard watcher == nil else { return }
+            watcher = Task { [weak self] in
+                let stream = NotificationCenter.default.notifications(
+                    named: NSPersistentCloudKitContainer.eventChangedNotification
+                )
+                for await note in stream {
+                    guard let event = event(from: note) else { continue }
+                    await self?.absorb(event)
+                }
+            }
+        }
+
+        private func absorb(_ event: NSPersistentCloudKitContainer.Event) {
+            guard counts(event.type) else { return }
+            if event.endDate == nil {
+                inFlight += 1
+            } else {
+                // Never below zero: starting to watch mid-flight means
+                // seeing an end whose start we missed.
+                inFlight = max(0, inFlight - 1)
+            }
+        }
+    }
+
+    /// Setup counts, exports do not, and the asymmetry is load-bearing.
+    ///
+    /// Setup runs on first launch and after sign-in with the first import
+    /// behind it, so a pull during setup should wait for what follows.
+    ///
+    /// **Exports must stay out.** `refreshFeed()` calls `context.save()`
+    /// immediately before waiting, which frequently kicks off an export —
+    /// so counting exports would put nearly every pull on the long
+    /// deadline and reinstate the exact "2 seconds for nothing new"
+    /// regression the two windows exist to fix. Do not "fix" the setup gap
+    /// by widening this to every event type.
+    private static func counts(_ type: NSPersistentCloudKitContainer.EventType) -> Bool {
+        type == .import || type == .setup
+    }
+
+    private static func event(from note: Notification) -> NSPersistentCloudKitContainer.Event? {
+        note.userInfo?[
+            NSPersistentCloudKitContainer.eventNotificationUserInfoKey
+        ] as? NSPersistentCloudKitContainer.Event
+    }
+
+    // MARK: The wait
+
     /// Wait for CloudKit to finish pulling, so a pull-to-refresh means
     /// something.
     ///
-    /// Two deadlines, not one, and that is the whole design. Nothing here
-    /// can *ask* CloudKit to sync — no such API is exposed — so this
-    /// listens, and a healthy already-current table produces no import at
-    /// all. A single cap makes that common case pay the rare case's price:
-    /// every ordinary "nothing new" pull rides to the ceiling. So the first
-    /// deadline is short and only asks *is the mirror doing anything*; if
-    /// it isn't, nothing is coming and we stop. The long deadline is
-    /// spent only once we've seen work actually in flight.
+    /// Two deadlines, not one. Nothing here can *ask* CloudKit to sync —
+    /// no such API is exposed — so this listens, and a healthy
+    /// already-current table produces no import at all. A single cap makes
+    /// that common case pay the rare case's price: every ordinary "nothing
+    /// new" pull rides to the ceiling. So the short deadline asks only
+    /// *is the mirror doing anything*, answered by sampling `Monitor`
+    /// rather than by catching an edge; the long deadline is spent only
+    /// once there is work to wait for.
     ///
-    /// `floor` keeps the control from flashing and snapping back in a way
-    /// that reads as a no-op.
+    /// `floor` keeps the control from flashing. Note it also raises the
+    /// quiet window when set above it (the windows are ordered), so a
+    /// cosmetic change to the spinner's minimum does move detection
+    /// semantics.
     ///
-    /// Note it can only observe imports that finish *after* the observer is
-    /// registered — one landing in the moment between the pull starting and
-    /// this call subscribing is missed, and that pull runs to a deadline.
-    /// Inherent to listening rather than polling.
+    /// Two imports overlapping resolve first-ended-wins, which is
+    /// arbitrary with respect to the one the user cares about: A failing
+    /// while B succeeds reports `.failed` even though records arrived.
+    /// Untangling that needs per-event identity; naming it here because
+    /// `.failed` drives a different haptic.
     static func waitForImport(
         floor: Duration = .milliseconds(450),
         quietWindow: Duration = .milliseconds(700),
@@ -59,8 +139,7 @@ enum CloudSync {
         return outcome
     }
 
-    /// Tracks whether the mirror ever started work, so the deadline can
-    /// grow to fit real activity instead of being guessed up front.
+    /// Whether this wait has seen work worth staying for.
     private actor Activity {
         private(set) var started = false
         func mark() { started = true }
@@ -72,9 +151,13 @@ enum CloudSync {
 
             group.addTask { await observeImports(noting: activity) }
             group.addTask {
+                // Sample first: an import that began before this wait did
+                // is exactly the case the edge cannot tell us about.
+                if await Monitor.shared.isBusy { await activity.mark() }
                 await sleep(quietWindow)
-                // Idle mirror: no import has even begun, so none is coming.
-                // Holding the spinner past here would be hoping, not waiting.
+                // Idle mirror: nothing has begun and nothing is running, so
+                // nothing is coming. Holding the spinner past here would be
+                // hoping rather than waiting.
                 if await activity.started {
                     await sleep(activeTimeout - quietWindow)
                 }
@@ -88,7 +171,7 @@ enum CloudSync {
     }
 
     /// Returns when CloudKit reports an import that has actually ended,
-    /// noting along the way whether one ever began.
+    /// noting along the way whether anything began.
     ///
     /// `endDate` and `succeeded` are two separate facts and the API exposes
     /// both for a reason: the first says the attempt is over, the second
@@ -98,40 +181,41 @@ enum CloudSync {
     /// know it didn't.
     ///
     /// **Deliberate gap, decided rather than overlooked:** only `.import`
-    /// events are inspected, so a household whose CloudKit *setup* is
+    /// events become an *outcome*, so a household whose CloudKit setup is
     /// broken — signed in, but misconfigured — reads as `.quiet` on every
     /// pull, forever, with no warning. That is the wrong thing to fix here.
     /// Broken sync is persistent state and wants a persistent affordance; a
     /// gesture the user made for an unrelated reason, reported through a
     /// buzz that cannot distinguish "nothing new" from "your account is
     /// misconfigured", is not one. When a sync-status affordance exists,
-    /// this is the comment that should send you to it.
+    /// this is the comment that should send you to it. (A running `.setup`
+    /// does buy the long window — that is internal and adds no outcome.)
     private static func observeImports(noting activity: Activity) async -> RefreshOutcome {
         let stream = NotificationCenter.default.notifications(
             named: NSPersistentCloudKitContainer.eventChangedNotification
         )
         for await note in stream {
-            let event = note.userInfo?[
-                NSPersistentCloudKitContainer.eventNotificationUserInfoKey
-            ] as? NSPersistentCloudKitContainer.Event
-            guard let event, event.type == .import else { continue }
+            guard let event = event(from: note) else { continue }
             guard event.endDate != nil else {
-                // Started but not finished — this is the signal that buys
-                // the long deadline.
-                await activity.mark()
+                if counts(event.type) { await activity.mark() }
                 continue
             }
+            guard event.type == .import else { continue }
             return event.succeeded ? .arrived : .failed
         }
-        // The stream only ends when this task is cancelled.
+        // The stream only ends when this task is cancelled. The caller
+        // cannot tell that from a real quiet — TableFeedView's
+        // `Task.isCancelled` guard is what actually distinguishes them.
         return .quiet
     }
 
-    /// Cancellation here is ordinary — the user let go and walked away —
-    /// so it is swallowed at the one place that knows it is harmless,
-    /// rather than by a `try?` at a call site that then can't tell a
-    /// finished wait from an abandoned one.
+    /// Cancellation here is ordinary — the user let go and walked away.
+    ///
+    /// `tolerance: .zero` because the default leeway is generous enough to
+    /// matter: it pushed the 700ms wake to 701–745ms and past 760ms under
+    /// load, which turned promotion into a coin flip for imports starting
+    /// anywhere in that band. Zero tolerance collapses the spread to ~2ms.
     private static func sleep(_ duration: Duration) async {
-        try? await Task.sleep(for: duration)
+        try? await Task.sleep(for: duration, tolerance: .zero)
     }
 }
