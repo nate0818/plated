@@ -76,7 +76,7 @@ struct HouseholdHomeView: View {
                     }
                 }
                 .navigationDestination(item: $personShown) { person in
-                    PersonProfileView(personName: person.name, colorHex: person.colorHex)
+                    PersonProfileView(personName: person.name, colorHex: person.colorHex, memberID: person.memberID)
                 }
                 .toolbar(.hidden, for: .navigationBar)
         }
@@ -289,7 +289,8 @@ struct HouseholdHomeView: View {
     private func openOwnProfile() {
         personShown = PersonRef(
             name: owner?.name ?? "You",
-            colorHex: owner?.colorHex ?? ""
+            colorHex: owner?.colorHex ?? "",
+            memberID: owner?.persistentModelID
         )
     }
 
@@ -488,7 +489,7 @@ struct HouseholdHomeView: View {
         .contentShape(Rectangle())
         .onTapGesture {
             Haptic.tap()
-            personShown = PersonRef(name: member.name, colorHex: member.colorHex)
+            personShown = PersonRef(name: member.name, colorHex: member.colorHex, memberID: member.persistentModelID)
         }
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isButton)

@@ -111,7 +111,7 @@ struct PostThreadView: View {
         // exactly where the perch lives.
         .hidesProngsbyPerch()
         .navigationDestination(item: $personShown) { person in
-            PersonProfileView(personName: person.name, colorHex: person.colorHex)
+            PersonProfileView(personName: person.name, colorHex: person.colorHex, memberID: person.memberID)
         }
         .sheet(item: $localSave) { post in
             RecipeEditorView(prefill: (

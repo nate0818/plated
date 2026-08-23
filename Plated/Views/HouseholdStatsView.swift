@@ -309,6 +309,8 @@ struct BadgeMedal: View {
     let badge: Badge
     var size: CGFloat = 68
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     var body: some View {
         ZStack {
             Circle()
@@ -330,7 +332,11 @@ struct BadgeMedal: View {
             )
         }
         .frame(width: size, height: size)
-        .animation(.plSettle, value: badge.fraction)
+        // The ring genuinely SWEEPS — a trim animating is motion, not a
+        // crossfade — and the closest-badge card animates on scroll-into-
+        // view, which makes it ambient rather than an earned moment. Under
+        // Reduce Motion it lands at its value instead of travelling there.
+        .animation(reduceMotion ? nil : .plSettle, value: badge.fraction)
     }
 }
 
@@ -341,46 +347,53 @@ struct BadgeDetailSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        VStack(spacing: 14) {
-            BadgeMedal(badge: badge, size: 104)
-                .padding(.top, 30)
+        ScrollView(showsIndicators: false) {
+            VStack(spacing: 14) {
+                BadgeMedal(badge: badge, size: 104)
+                    .padding(.top, 30)
 
-            Text(badge.title)
-                .font(.gabarito(22, .semibold))
-                .foregroundStyle(Color.ink)
-                .multilineTextAlignment(.center)
+                Text(badge.title)
+                    .font(.gabarito(22, .semibold))
+                    .foregroundStyle(Color.ink)
+                    .multilineTextAlignment(.center)
 
-            Text(badge.detail)
-                .font(.jakarta(14, .medium))
-                .foregroundStyle(Color.inkSecondary)
-                .multilineTextAlignment(.center)
-                .lineSpacing(3)
-                .padding(.horizontal, 28)
-
-            if badge.earned {
-                HStack(spacing: 6) {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 13, weight: .semibold))
-                    Text("Earned")
-                        .font(.jakarta(13, .bold))
-                }
-                .foregroundStyle(Color.basil)
-                .padding(.horizontal, 14)
-                .frame(height: 34)
-                .background(Color.basilTint, in: Capsule())
-            } else if let label = badge.progressLabel {
-                Text("\(label) · \(badge.remainingLine)")
-                    .font(.jakarta(13, .bold))
+                Text(badge.detail)
+                    .font(.jakarta(14, .medium))
                     .foregroundStyle(Color.inkSecondary)
-                    .padding(.horizontal, 14)
-                    .frame(height: 34)
-                    .overlay(Capsule().strokeBorder(Color.hairline))
-            }
+                    .multilineTextAlignment(.center)
+                    .lineSpacing(3)
+                    .padding(.horizontal, 28)
 
-            Spacer(minLength: 0)
+                if badge.earned {
+                    HStack(spacing: 6) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 13, weight: .semibold))
+                        Text("Earned")
+                            .font(.jakarta(13, .bold))
+                    }
+                    .foregroundStyle(Color.basil)
+                    .padding(.horizontal, 14)
+                    .frame(minHeight: 34)
+                    .background(Color.basilTint, in: Capsule())
+                } else if let label = badge.progressLabel {
+                    Text("\(label) · \(badge.remainingLine)")
+                        .font(.jakarta(13, .bold))
+                        .foregroundStyle(Color.inkSecondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 14)
+                        .frame(minHeight: 34)
+                        .overlay(Capsule().strokeBorder(Color.hairline))
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.bottom, 30)
         }
-        .frame(maxWidth: .infinity)
-        .presentationDetents([.height(340)])
+        // Large type outgrows a fixed detent — at AX1 this stack wants
+        // ~445pt against 340, and the detail line and the progress capsule
+        // are the only place the sheet says what the badge IS and how far
+        // off it is. A second detent plus the scroll keeps them reachable;
+        // CreateMenuSheet solved this same case the same way.
+        .presentationDetents([.height(340), .large])
         .presentationDragIndicator(.visible)
         .presentationBackground(Color.canvas)
         .presentationCornerRadius(Radius.sheet)

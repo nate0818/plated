@@ -48,10 +48,9 @@ struct TableFeedView: View {
     /// Pull to refresh. `@Query` is live, so anything CloudKit has already
     /// delivered is on screen before the user pulls — "already" being the
     /// operative word. So the gesture pushes this device's own pending work
-    /// out, then actually waits on the mirror: it finishes the moment an
-    /// import lands and gives up after two seconds, rather than sleeping a
-    /// fixed beat and calling that a refresh. A feed you can't pull reads
-    /// as stuck even when it's current, but a pull that only pretends is
+    /// out, then actually waits on the mirror — see CloudSync for the two
+    /// deadlines and why one wasn't enough. A feed you can't pull reads as
+    /// stuck even when it's current, but a pull that only pretends is
     /// worse than none.
     /// Why only here, and not on the week or on Home: this is the one
     /// surface showing OTHER households' content, so it is the only one
@@ -145,7 +144,7 @@ struct TableFeedView: View {
                 PostThreadView(post: post) { beginSave($0) }
             }
             .navigationDestination(item: $personShown) { person in
-                PersonProfileView(personName: person.name, colorHex: person.colorHex)
+                PersonProfileView(personName: person.name, colorHex: person.colorHex, memberID: person.memberID)
             }
             .navigationDestination(isPresented: $activityShown) {
                 NotificationsView()
@@ -261,7 +260,7 @@ struct TableFeedView: View {
 
     private func openOwnProfile() {
         let me = members.first(where: \.isOwner)
-        personShown = PersonRef(name: me?.name ?? "You", colorHex: me?.colorHex ?? "")
+        personShown = PersonRef(name: me?.name ?? "You", colorHex: me?.colorHex ?? "", memberID: me?.persistentModelID)
     }
 
     /// Everyone or just the household — the X-style split, quiet edition.

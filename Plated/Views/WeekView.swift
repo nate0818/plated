@@ -76,7 +76,7 @@ struct WeekView: View {
             .background(Color.canvas)
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(item: $personShown) { person in
-                PersonProfileView(personName: person.name, colorHex: person.colorHex)
+                PersonProfileView(personName: person.name, colorHex: person.colorHex, memberID: person.memberID)
             }
             .navigationDestination(item: $pushed) { destination in
                 switch destination {
@@ -522,7 +522,7 @@ struct WeekView: View {
 
     private func openOwnProfile() {
         guard let owner = members.first(where: \.isOwner) else { return }
-        personShown = PersonRef(name: owner.name, colorHex: owner.colorHex)
+        personShown = PersonRef(name: owner.name, colorHex: owner.colorHex, memberID: owner.persistentModelID)
     }
 
     private func swipeBinding(_ date: Date) -> Binding<Bool> {

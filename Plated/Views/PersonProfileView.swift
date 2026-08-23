@@ -6,8 +6,15 @@ import PhotosUI
 /// grid of their plates. Pushed as a page — the back chevron is always
 /// there, no sheet to guess at. Your own card adds Edit and Settings.
 struct PersonProfileView: View {
+    /// The name this page was pushed with. Read `name` instead of this
+    /// anywhere the answer must stay current — see below.
     let personName: String
     let colorHex: String
+    /// Identity, when the person is a seat here. A page keyed only on a
+    /// name string goes stale the moment that name changes underneath it:
+    /// the title reverts to "Me", the gear disappears, and "Edit profile"
+    /// turns into "Message" pointing at a DM thread with yourself.
+    var memberID: PersistentIdentifier?
 
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
@@ -28,18 +35,27 @@ struct PersonProfileView: View {
     @State private var bannerItem: PhotosPickerItem?
     @State private var openedPost: TablePost?
 
+    /// Who this page is about, right now. Identity first, and only then
+    /// the name it was pushed with.
+    private var name: String { member?.name ?? personName }
+
     private var firstName: String {
-        personName.split(separator: " ").first.map(String.init) ?? personName
+        name.split(separator: " ").first.map(String.init) ?? name
     }
 
     private var member: HouseholdMember? {
-        members.first { $0.name == personName || $0.name == firstName }
+        if let memberID, let seated = members.first(where: { $0.persistentModelID == memberID }) {
+            return seated
+        }
+        // Guests at the table have no seat to match — fall back to the name.
+        let pushedFirst = personName.split(separator: " ").first.map(String.init) ?? personName
+        return members.first { $0.name == personName || $0.name == pushedFirst }
     }
 
     private var isMe: Bool { member?.isOwner ?? false }
 
     private var posts: [TablePost] {
-        allPosts.filter { $0.kind == "dish" && ($0.authorName == personName || $0.firstName == firstName) }
+        allPosts.filter { $0.kind == "dish" && ($0.authorName == name || $0.firstName == firstName) }
     }
 
     private var kissCount: Int { posts.filter(\.hasChefsKiss).count }
@@ -73,7 +89,7 @@ struct PersonProfileView: View {
                     VStack(alignment: .leading, spacing: 3) {
                         // "Me" is what the bootstrap wrote when Apple gave
                         // us nothing — it's a prompt, not a name.
-                        if isMe && HouseholdIdentity.isPlaceholder(personName) {
+                        if isMe && HouseholdIdentity.isPlaceholder(name) {
                             Button {
                                 Haptic.tap()
                                 editShown = true
@@ -118,7 +134,7 @@ struct PersonProfileView: View {
                         CountDivider()
                         CountBlock(value: "\(kissCount)", label: "Chef's kisses", accent: kissCount > 0)
                         CountDivider()
-                        CountBlock(value: "\(Awards.savesReceived(by: personName))", label: "Saved by others")
+                        CountBlock(value: "\(Awards.savesReceived(by: name))", label: "Saved by others")
                     }
                     .padding(.vertical, 12)
                 }
@@ -149,7 +165,7 @@ struct PersonProfileView: View {
         .background(Color.canvas)
         .toolbar(.hidden, for: .navigationBar)
         .safeAreaInset(edge: .top) { topBar }
-        .sheet(isPresented: $dmShown) { DMThreadView(peerName: personName) }
+        .sheet(isPresented: $dmShown) { DMThreadView(peerName: name) }
         .sheet(isPresented: $settingsShown) { SettingsSheet() }
         .sheet(isPresented: $editShown) { EditProfileSheet() }
         .navigationDestination(item: $openedPost) { post in
@@ -283,17 +299,17 @@ struct PersonProfileView: View {
     }
 
     private var initials: String {
-        let parts = personName.split(separator: " ")
+        let parts = name.split(separator: " ")
             .filter { $0.first?.isLetter == true }
             .prefix(2)
         return parts.compactMap { $0.first }.map(String.init).joined().uppercased()
     }
 
     private var displayName: String {
-        if isMe && !userFamilyName.isEmpty && !personName.contains(" ") {
-            return "\(personName) \(userFamilyName)"
+        if isMe && !userFamilyName.isEmpty && !name.contains(" ") {
+            return "\(name) \(userFamilyName)"
         }
-        return personName
+        return name
     }
 
     private var roleLine: String {
@@ -390,7 +406,9 @@ struct EditProfileSheet: View {
         guard !name.isEmpty else { return }
         firstName = name
         if let owner = members.first(where: \.isOwner) {
-            owner.name = name
+            // Through the one door: a bare `owner.name = name` orphans
+            // every dish they have posted and their whole awards ledger.
+            HouseholdIdentity.rename(owner, to: name, in: context)
         }
         Haptic.plate()
     }
@@ -648,5 +666,10 @@ struct PaywallSheet: View {
 struct PersonRef: Identifiable, Hashable {
     let name: String
     let colorHex: String
-    var id: String { name }
+    /// Set whenever the person is a seat at this household. A name is a
+    /// label and labels change; the page follows the identity so a rename
+    /// while you are looking at your own profile updates it instead of
+    /// stranding you on a stale stranger.
+    var memberID: PersistentIdentifier?
+    var id: String { memberID.map { "\($0.hashValue)" } ?? name }
 }

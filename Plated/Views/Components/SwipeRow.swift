@@ -34,6 +34,10 @@ struct SwipeRow<Content: View>: View {
     /// drift as a swipe and popped the row open after ordinary scrolling
     /// — the row never moved during the drag, then jumped at the end.
     @State private var isHorizontal = false
+    /// Where the drag currently being tracked began — the only reliable way
+    /// to tell a fresh gesture from a continuing one, since a cancelled
+    /// gesture never announces itself.
+    @State private var gestureStart: CGPoint?
 
     private var revealWidth: CGFloat {
         guard !actions.isEmpty else { return 0 }
@@ -74,7 +78,15 @@ struct SwipeRow<Content: View>: View {
                         Button(action.label) { action.perform() }
                     }
                 }
-                .offset(x: (isOpen ? -revealWidth : 0) + dragOffset)
+                // BEFORE the offset, and that ordering is the whole point.
+                // `.offset` is a geometry effect: it moves the rendering of
+                // what it wraps and does not move anything composed on top
+                // afterwards. Attached after, this catcher stayed at the
+                // row's unshifted full-width frame and sat directly over the
+                // strip the buttons had just been revealed in — so every tap
+                // on Message or Remove hit `Color.clear` and merely closed
+                // the row. Attached here it travels with the content, and
+                // the revealed strip stays the buttons'.
                 .overlay {
                     // An open row closes on a tap anywhere in it, the way
                     // every list on this platform behaves. Without this the
@@ -87,6 +99,7 @@ struct SwipeRow<Content: View>: View {
                             .accessibilityHidden(true)
                     }
                 }
+                .offset(x: (isOpen ? -revealWidth : 0) + dragOffset)
                 .simultaneousGesture(
                     DragGesture(minimumDistance: 24)
                         .onChanged { value in
@@ -94,6 +107,17 @@ struct SwipeRow<Content: View>: View {
                             // scrolls. Once proven, the drag keeps the
                             // row even if the finger curves upward.
                             guard !actions.isEmpty else { return }
+                            // Re-arm on a NEW gesture, keyed by where it
+                            // started. A cancelled drag — app backgrounded
+                            // mid-swipe, a system edge gesture, WeekView's
+                            // `.draggable` lift stealing the touch — never
+                            // reaches `onEnded`, so a latch reset only there
+                            // can strand true and let the next vertical
+                            // flick through.
+                            if gestureStart != value.startLocation {
+                                gestureStart = value.startLocation
+                                isHorizontal = false
+                            }
                             if !isHorizontal {
                                 guard abs(value.translation.width) > abs(value.translation.height) else { return }
                                 isHorizontal = true
