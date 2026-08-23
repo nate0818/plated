@@ -131,6 +131,13 @@ struct SwipeRow<Content: View>: View {
                             if gestureStart != value.startLocation {
                                 gestureStart = value.startLocation
                                 isHorizontal = false
+                                // The offset needs the same amnesty as the
+                                // latch, and for the same reason: a drag past
+                                // the threshold that is then cancelled clears
+                                // neither, so the row keeps an offset nobody
+                                // asked for — buttons showing (they hang off
+                                // `dragOffset < 0`) on a row that isn't open.
+                                dragOffset = 0
                             }
                             if !isHorizontal {
                                 guard abs(value.translation.width) > abs(value.translation.height) else { return }

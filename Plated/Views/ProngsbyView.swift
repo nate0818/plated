@@ -263,7 +263,6 @@ struct ProngsbyView: View {
         }
         .background(Color.canvas)
         .toolbar(.hidden, for: .navigationBar)
-        .plSwipeBack()
         .confirmationDialog(
             "Clear your chat with Prongsby?",
             isPresented: $clearConfirmShown,
