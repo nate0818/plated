@@ -64,8 +64,35 @@ it, favorite status, and whether it fits a weeknight. No network call, no model.
 open Plated.xcodeproj
 ```
 
-Pick a simulator and run. The app seeds a few recipes and some cooking history
-on first launch so there is something to look at.
+Pick a simulator and run. On a simulator the app seeds a few recipes and some
+cooking history on first launch so there is something to look at; a real device
+deliberately starts empty, so no sample rows ever reach the owner's CloudKit
+database.
+
+### Running on a real device
+
+Merging to `main` does not touch the phone. Installing is a manual step, so a
+device silently stays at whatever commit was last built to it — which reads,
+convincingly, as "the new work isn't live." One command closes that gap:
+
+```bash
+make phone
+```
+
+It builds the working tree, installs it on the paired iPhone, and relaunches
+the app, printing the commit it just shipped. It finds the device itself (set
+`PLATED_DEVICE` to a UDID to override) and warns when `main` is ahead of the
+tree you are shipping or when the tree is dirty.
+
+| Command | What it does |
+| --- | --- |
+| `make phone` | Build, install, launch |
+| `make phone-install` | Install without launching |
+| `make phone-purge` | Launch with `-plated-purge-cloud`, wiping the CloudKit zone and local store (Debug only) |
+
+Anything after `--` is passed to the app as a launch argument, so
+`scripts/phone -- -plated-tab table` opens straight to the Table. The phone
+must be unlocked, and either on the cable or on the same network.
 
 ### Capabilities and signing
 
