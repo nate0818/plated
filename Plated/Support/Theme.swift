@@ -49,7 +49,11 @@ extension Color {
     static let tomatoPressed  = Color(light: 0xD6401F, dark: 0xD6401F)   // pressed always darkens
     static let mango          = Color(light: 0xFFB020, dark: 0xFFB63A)   // the chef's kiss only
     static let basil          = Color(light: 0x3DA35D, dark: 0x55BE76)   // progress, "seated"
-    static let amber          = Color(light: 0xC88A00, dark: 0xE3A83C)
+    /// Light value darkened from 0xC88A00 (2.96:1 on canvas — a hair under
+    /// the 3.0 floor for large text) to 3.25:1. Also lifts the person-tone
+    /// pairing on mangoTint rather than harming it. Dark value already
+    /// measured 8.81:1.
+    static let amber          = Color(light: 0xBF8300, dark: 0xE3A83C)
     static let grape          = Color(light: 0xB95CF4, dark: 0xC98BF7)
 
     // Tints — avatar and chip washes, one per person color
@@ -357,12 +361,28 @@ struct AvatarCircle: View {
                     .foregroundStyle(tone.tone)
                     // The circle is a fixed size but `Font.custom` scales
                     // with Dynamic Type, so at accessibility sizes the
-                    // glyph outgrows its own container — the seat chip's
-                    // "+2" truncated to "…" inside a 34pt circle, which
-                    // reads as a bug rather than as large type. Shrink to
-                    // fit instead: the circle is the shape that carries
-                    // the meaning, and a legible small "+2" beats an
-                    // ellipsis.
+                    // glyph can outgrow its container: two-letter initials
+                    // put about 0.2pt of ink outside the disc at AX3.
+                    //
+                    // **The bound is a CHORD, not the inscribed square**,
+                    // and getting that wrong cost a whole round. Text is not
+                    // a square — it is a wide, short band, and a band of
+                    // half-height h fits a width of 2√(r²−h²), which is
+                    // ≈0.96·size here against the inscribed square's 0.707.
+                    // Constraining to the square was 26% tighter than the
+                    // real limit, which made `minimumScaleFactor`'s floor
+                    // binding and reinstated the ellipsis at AX5 — for
+                    // "MC", a name in our own sample data — while shrinking
+                    // wide pairs ~10% at default size for no containment
+                    // gain, and leaving "+2" 30% smaller than "S" beside it
+                    // in the same stack.
+                    //
+                    // The version that would work fits the ink box's
+                    // CORNERS to the circle, or sizes the font as a
+                    // fraction of the circle instead of scaling a fixed
+                    // one. Deliberately not attempted here: this is the
+                    // third pass at this component in a day, and 0.2pt of
+                    // overflow is a smaller defect than an ellipsis.
                     .lineLimit(1)
                     .minimumScaleFactor(0.4)
             }

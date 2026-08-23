@@ -123,7 +123,9 @@ enum Plate {
     static func person(_ hex: String) -> (tint: Color, tone: Color) {
         switch hex.uppercased() {
         case "3DA35D": return (color(0xEDF5EF, 0x1F2E24), color(0x3DA35D, 0x55BE76))
-        case "C88A00": return (color(0xFFF4DC, 0x332A15), color(0xC88A00, 0xE3A83C))
+        // Amber darkened to clear 3:1 on canvas — see Color.amber. The key
+        // stays "C88A00" because it is the stored `colorHex`, not a colour.
+        case "C88A00": return (color(0xFFF4DC, 0x332A15), color(0xBF8300, 0xE3A83C))
         case "B95CF4": return (color(0xF5EDFB, 0x2E2138), color(0xB95CF4, 0xC98BF7))
         case "FF5A3C": return (color(0xFFEDE3, 0x39241C), color(0xFF5A3C, 0xF75434))
         default:       return (color(0xF4F1EC, 0x282119), color(0x221B14, 0xF4EDE3))

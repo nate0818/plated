@@ -269,6 +269,14 @@ struct MainShellView: View {
             if LaunchFlags.consume("-plated-open-prongsby") {
                 prongsbyPresented = true
             }
+            // `-plated-prongsby-demo` consumes itself inside ProngsbyView,
+            // which is a SHEET rather than a tab — so `flagHomes` above
+            // structurally cannot reach it, and it was the one of the five
+            // that stayed a silent no-op standalone. Open him; the sheet
+            // then consumes its own flag.
+            if ProcessInfo.processInfo.arguments.contains("-plated-prongsby-demo") {
+                prongsbyPresented = true
+            }
             #endif
         }
     }

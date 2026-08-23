@@ -76,6 +76,13 @@ struct RecipeFilter: Equatable {
     }
 }
 
+/// What the shelf's resettle animation keys on: the filter, and how many
+/// dishes exist at all. Both change the layout; neither costs a filter pass.
+private struct FilterKey: Equatable {
+    let filter: RecipeFilter
+    let total: Int
+}
+
 /// The cookbook — every dish the household knows, as plates on a white
 /// table. The "All dishes" chip is the whole control surface: tap it for
 /// search, filters, and sort in one sheet.
@@ -172,7 +179,13 @@ struct CookbookView: View {
                     // computed. The filter is the thing that actually
                     // changes when the shelf should resettle, and it is a
                     // cheap Equatable value.
-                    .animation(.plSnap, value: filter)
+                    // Filter AND the unfiltered count. Keying on `filter`
+                    // alone removed a full filter-and-sort pass per body and
+                    // fixed the same-count-different-dishes swap, but stopped
+                    // animating add/delete/import — the shelf teleported.
+                    // `recipes.count` is the @Query array's own count, so it
+                    // costs nothing: it never runs `filter.apply`.
+                    .animation(.plSnap, value: FilterKey(filter: filter, total: recipes.count))
                     .padding(.horizontal, 24)
                     .padding(.top, 20)
                     .padding(.bottom, Layout.floatingChromeInset)
