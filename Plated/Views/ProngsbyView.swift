@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import UIKit
 
 /// Prongsby — the house fork. Drawn by hand so he's ours: three tines of
 /// hair, a long friendly face on the handle, permanently pleased to talk
@@ -7,6 +8,11 @@ import SwiftData
 struct ProngsbyGlyph: View {
     var size: CGFloat = 28
     var tone: Color = .ink
+    /// His eyes and smile are cut OUT of the head, so they have to be
+    /// painted in whatever is actually behind him. Canvas is right on
+    /// every surface in the app today; anything sitting on tomato or on a
+    /// photo must say so.
+    var face: Color = .canvas
 
     var body: some View {
         let s = size / 28
@@ -26,11 +32,11 @@ struct ProngsbyGlyph: View {
                 .overlay {
                     VStack(spacing: 1.6 * s) {
                         HStack(spacing: 3.4 * s) {
-                            Circle().fill(Color.canvas).frame(width: 2.2 * s, height: 2.2 * s)
-                            Circle().fill(Color.canvas).frame(width: 2.2 * s, height: 2.2 * s)
+                            Circle().fill(face).frame(width: 2.2 * s, height: 2.2 * s)
+                            Circle().fill(face).frame(width: 2.2 * s, height: 2.2 * s)
                         }
                         SmileShape()
-                            .stroke(Color.canvas, style: StrokeStyle(lineWidth: 1.4 * s, lineCap: .round))
+                            .stroke(face, style: StrokeStyle(lineWidth: 1.4 * s, lineCap: .round))
                             .frame(width: 5.5 * s, height: 2.6 * s)
                     }
                 }
@@ -48,16 +54,26 @@ struct ProngsbyGlyph: View {
 struct ProngsbyIdleGlyph: View {
     var size: CGFloat = 56
     var tone: Color = .ink
+    var face: Color = .canvas
+
+    // phaseAnimator does not consult Reduce Motion on its own, and this
+    // glyph bobs forever wherever it appears — the guard belongs here,
+    // once, rather than at each call site that remembers to add it.
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        ProngsbyGlyph(size: size, tone: tone)
-            .phaseAnimator([0, 1, 2]) { view, phase in
-                view
-                    .offset(y: phase == 1 ? -4 : 1)
-                    .rotationEffect(.degrees(phase == 0 ? -3 : (phase == 2 ? 3 : 0)))
-            } animation: { _ in
-                .easeInOut(duration: 1.4)
-            }
+        if reduceMotion {
+            ProngsbyGlyph(size: size, tone: tone, face: face)
+        } else {
+            ProngsbyGlyph(size: size, tone: tone, face: face)
+                .phaseAnimator([0, 1, 2]) { view, phase in
+                    view
+                        .offset(y: phase == 1 ? -4 : 1)
+                        .rotationEffect(.degrees(phase == 0 ? -3 : (phase == 2 ? 3 : 0)))
+                } animation: { _ in
+                    .easeInOut(duration: 1.4)
+                }
+        }
     }
 }
 
@@ -82,12 +98,17 @@ final class ProngsbySession {
     var draft = ""
     var thinking = false
     var thinkingLine = ProngsbyBrain.thinkingLines[0]
+    /// Whether the chat is actually on screen. A reply that lands after
+    /// you've dismissed him must not buzz your hand with no visible
+    /// cause — it goes to the bell instead.
+    var isPresented = false
 }
 
 /// The chat. Grounded in this household's cookbook, plan, and people via
 /// ProngsbyBrain — on-device rules today, the doorway for the real model
 /// later. The thread persists like any DM, so the history is always there.
-/// Lives in the tab bar now — a seat at the table, not a page behind one.
+/// He opens as a sheet off the perch, over whatever you were looking at —
+/// a sous chef beside the plan, not a place you travel to.
 struct ProngsbyView: View {
     @Environment(\.modelContext) private var context
     @Query private var recipes: [Recipe]
@@ -102,8 +123,14 @@ struct ProngsbyView: View {
     /// view — the tab switch tears ProngsbyView down, and a half-typed
     /// question must survive a peek at another tab.
     @Bindable var session: ProngsbySession
-    @State private var activityShown = false
     @State private var clearConfirmShown = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    /// Lines rise into the thread — unless the room asked them not to.
+    /// The glyph in this same file was guarded and the bubbles were not.
+    private var arrival: AnyTransition {
+        reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity)
+    }
     @FocusState private var composerFocused: Bool
 
     private let starters = [
@@ -115,13 +142,27 @@ struct ProngsbyView: View {
         "Substitute for buttermilk?"
     ]
 
+    /// He opens at a height that leaves your plan visible behind him —
+    /// a sous chef standing beside the week, not a place you travel to.
+    /// Focusing the composer raises him the rest of the way.
+    ///
+    /// The backdrop is deliberately NOT interactive: every tab header
+    /// behind him owns sheets of its own, and SwiftUI presents one sheet
+    /// at a time — a tap back there would set a flag that never presents
+    /// and never clears.
+    @State private var detent: PresentationDetent = .fraction(0.62)
+
     var body: some View {
-        NavigationStack {
-            chat
-                .navigationDestination(isPresented: $activityShown) {
-                    NotificationsView()
-                }
-        }
+        chat
+            .onAppear { session.isPresented = true }
+            .onDisappear { session.isPresented = false }
+            .presentationDetents([.fraction(0.62), .large], selection: $detent)
+            .presentationDragIndicator(.visible)
+            .presentationBackground(Color.canvas)
+            .presentationCornerRadius(Radius.sheet)
+            .onChange(of: composerFocused) { _, focused in
+                if focused { withAnimation(.plSnap) { detent = .large } }
+            }
     }
 
     private var chat: some View {
@@ -136,11 +177,16 @@ struct ProngsbyView: View {
                     }
                     ForEach(messages, id: \.persistentModelID) { message in
                         bubble(message)
+                            .transition(arrival)
                     }
                     if session.thinking {
                         thinkingBubble
+                            .transition(arrival)
                     }
                 }
+                // New lines rise into the thread instead of appearing in it.
+                .animation(.plSnap, value: messages.count)
+                .animation(.plSnap, value: session.thinking)
                 .padding(.horizontal, 24)
                 .padding(.top, 14)
                 .padding(.bottom, 12)
@@ -167,7 +213,7 @@ struct ProngsbyView: View {
                                     .frame(minHeight: 44)
                                     .contentShape(Capsule())
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(.pressable)
                             .disabled(session.thinking)
                         }
                     }
@@ -202,15 +248,18 @@ struct ProngsbyView: View {
                         }
                         .frame(minWidth: 44, minHeight: 44)
                         .contentShape(Rectangle())
+                        // The arrow warms to tomato as the first character
+                        // lands — armed, not flipped.
+                        .animation(.plSnap, value: session.draft.isEmpty)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.pressable)
                 .disabled(session.draft.isEmpty || session.thinking)
             }
             .padding(.horizontal, 24)
             .padding(.top, 10)
-            // The floating tab bar rides over pushed pages — the composer
-            // clears it.
-            .padding(.bottom, 92)
+            // He is a sheet now: the tab bar is behind him, not over him,
+            // so the old 92pt of clearance would just be a dead hole.
+            .padding(.bottom, 12)
         }
         .background(Color.canvas)
         .toolbar(.hidden, for: .navigationBar)
@@ -245,7 +294,7 @@ struct ProngsbyView: View {
             ProngsbyGlyph(size: 30)
             VStack(alignment: .leading, spacing: 1) {
                 Text("Prongsby")
-                    .font(.gabarito(20, .extraBold))
+                    .font(.gabarito(20, .semibold))
                     .foregroundStyle(Color.ink)
                 Text("Your AI cooking companion")
                     .font(.jakarta(11, .bold))
@@ -258,9 +307,6 @@ struct ProngsbyView: View {
                     .minimumScaleFactor(0.85)
             }
             Spacer()
-            ActivityBellButton {
-                activityShown = true
-            }
             if !messages.isEmpty {
                 Menu {
                     Button("Clear chat history", role: .destructive) {
@@ -281,7 +327,7 @@ struct ProngsbyView: View {
             }
         }
         .padding(.horizontal, 20)
-        .padding(.top, 6)
+        .padding(.top, 14)
         .padding(.bottom, 10)
     }
 
@@ -290,7 +336,7 @@ struct ProngsbyView: View {
             ProngsbyIdleGlyph(size: 56)
                 .padding(.top, 24)
             Text("Well hello. I'm Prongsby.")
-                .font(.gabarito(19, .extraBold))
+                .font(.gabarito(19, .bold))
                 .foregroundStyle(Color.ink)
             Text("Your sous chef and planning department. I know your \(recipes.count) recipes, the week's plan, and who's cooking when — ask me to resize a dish, make it vegetarian, swap a protein, or plan the whole party.")
                 .font(.jakarta(13, .medium))
@@ -368,15 +414,39 @@ struct ProngsbyView: View {
         session.thinkingLine = ProngsbyBrain.thinkingLines.randomElement() ?? ProngsbyBrain.thinkingLines[0]
         withAnimation(.plSnap) { session.thinking = true }
         let brain = ProngsbyBrain(recipes: recipes, members: members, meals: meals)
+        // Unstructured on purpose, and load-bearing: this Task must outlive
+        // the view so dismissing him mid-answer never eats the reply.
         Task {
-            // A beat of "cooking" so the reply feels made, not vended.
-            try? await Task.sleep(for: .milliseconds(Int.random(in: 900...1600)))
-            let answer = brain.reply(to: question)
+            // The on-device model takes real time; the rule brain is
+            // instant. Either way the reply holds a minimum beat of
+            // "cooking" so it feels made, not vended.
+            let beat = Double.random(in: 0.9...1.6)
+            let started = Date()
+            let answer = await ProngsbyMind.reply(to: question, brain: brain)
+            let remaining = beat - Date().timeIntervalSince(started)
+            if remaining > 0 { try? await Task.sleep(for: .seconds(remaining)) }
             withAnimation(.plSnap) {
                 context.insert(DirectMessage(peerName: "Prongsby", text: answer, isMine: false))
                 session.thinking = false
             }
-            Haptic.plate()
+            // Visible means on screen AND in the foreground: a reply that
+            // lands while the app is away would otherwise buzz nothing and
+            // leave no trace at all.
+            let visible = session.isPresented && UIApplication.shared.applicationState == .active
+            if visible {
+                Haptic.plate()
+                // A buzz is not an answer. Everything else on this path
+                // announces itself; the reply — the only part anyone came
+                // for — landed silently for VoiceOver.
+                AccessibilityNotification.Announcement("Prongsby replied. \(answer)").post()
+            } else {
+                // He answered an empty room: let the bell carry it.
+                Notifier.post(
+                    .prongsbyReplied, actor: "Prongsby",
+                    body: String(answer.prefix(120)),
+                    into: context
+                )
+            }
         }
     }
 }

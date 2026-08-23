@@ -18,6 +18,8 @@ struct WeekView: View {
     @AppStorage("showCalendarEvents") private var showCalendarEvents = false
 
     @State private var bounceDay: Date?
+    /// The day a dragged plate is hovering over — it leans in to receive.
+    @State private var dropHoverDay: Date?
     @State private var groceryPresented = false
     @State private var planDay: Date?
     @State private var actionDay: Date?
@@ -74,7 +76,7 @@ struct WeekView: View {
             .background(Color.canvas)
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(item: $personShown) { person in
-                PersonProfileView(personName: person.name, colorHex: person.colorHex)
+                PersonProfileView(personName: person.name, colorHex: person.colorHex, memberID: person.memberID)
             }
             .navigationDestination(item: $pushed) { destination in
                 switch destination {
@@ -152,7 +154,13 @@ struct WeekView: View {
                 }
                 .padding(.horizontal, 24)
                 .padding(.top, 14)
-                .padding(.bottom, 110)
+                .padding(.bottom, Layout.floatingChromeInset)
+            }
+            // Scrolling puts an open row away, the way a list does.
+            .onScrollPhaseChange { _, phase in
+                if phase == .interacting, swipedDay != nil {
+                    withAnimation(.plSnap) { swipedDay = nil }
+                }
             }
         }
     }
@@ -173,7 +181,7 @@ struct WeekView: View {
             VStack(alignment: .leading, spacing: 2) {
                 MicroLabel(weekRangeLabel)
                 Text("Your week")
-                    .font(.gabarito(25, .bold))
+                    .font(.gabarito(25, .semibold))
                     .tracking(-0.3)
                     .foregroundStyle(Color.ink)
                     .lineLimit(1)
@@ -203,13 +211,13 @@ struct WeekView: View {
                 VStack(spacing: 2) {
                     AvatarCircle(initials: hostInitial, tone: .neutralPair, size: 42)
                     Text("HOST")
-                        .font(.jakarta(8, .bold))
+                        .font(.jakarta(10, .bold))
                         .tracking(0.7)
                         .foregroundStyle(Color.inkFaint)
                 }
                 .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.pressable)
         }
     }
 
@@ -225,7 +233,7 @@ struct WeekView: View {
                 .frame(minWidth: 40, minHeight: 44)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable)
     }
 
     private var progressRing: some View {
@@ -247,8 +255,11 @@ struct WeekView: View {
             Text("\(plannedCount)")
                 .font(.jakarta(11, .extraBold))
                 .foregroundStyle(Color.ink)
+                .contentTransition(.numericText())
         }
         .animation(.plSnap, value: plannedCount)
+        // The seventh plate completes the week — that's a kiss.
+        .sensoryFeedback(.success, trigger: plannedCount) { old, new in new == 7 && old < 7 }
     }
 
     // MARK: Rows
@@ -256,7 +267,7 @@ struct WeekView: View {
     private func plannedRow(_ meal: PlannedMeal, date: Date) -> some View {
         let today = Calendar.current.isDateInToday(date)
         let eatingOut = meal.recipe == nil && meal.customTitle.localizedCaseInsensitiveContains("eating out")
-        return SwipeToRemove(isOpen: swipeBinding(date), onRemove: { remove(on: date) }) {
+        return SwipeRow(isOpen: swipeBinding(date), actions: [.remove { remove(on: date) }]) {
             HStack(spacing: 12) {
                 dayColumn(date, dimmed: false)
 
@@ -270,7 +281,9 @@ struct WeekView: View {
                                 .foregroundStyle(Color.inkSecondary)
                         }
                 } else {
-                    dishCircle(for: meal)
+                    // Tonight's plate simmers — the one ambient mesh drift
+                    // per screen that DishView was built for.
+                    dishCircle(for: meal, simmering: today)
                 }
 
                 VStack(alignment: .leading, spacing: 2) {
@@ -301,14 +314,30 @@ struct WeekView: View {
                 Haptic.tap()
                 actionDay = date
             }
+            // A gesture announces nothing: without this the row's swipe
+            // actions scattered onto each child text and the tap itself
+            // was invisible to VoiceOver. Home's member rows do the same.
+            .accessibilityElement(children: .combine)
+            .accessibilityAddTraits(.isButton)
+            .accessibilityHint("Opens what you can do with this night")
         }
         .draggable(DayTransfer.token(for: date)) {
             dishCircle(for: meal)
         }
         .dropDestination(for: String.self) { tokens, _ in
             moveMeal(from: tokens.first, to: date)
+        } isTargeted: { over in
+            if over { Haptic.select() }
+            withAnimation(.plSnap) {
+                // Dragging from one row to the next fires `true` on the new
+                // row before `false` on the old one, so clearing
+                // unconditionally wiped the lean on the row you were
+                // actually over. Only ever clear your own.
+                if over { dropHoverDay = date }
+                else if dropHoverDay == date { dropHoverDay = nil }
+            }
         }
-        .scaleEffect(bounceDay == date ? 1.02 : 1)
+        .scaleEffect(bounceDay == date ? 1.02 : (dropHoverDay == date ? 1.015 : 1))
         .animation(.plPop, value: bounceDay)
     }
 
@@ -336,15 +365,36 @@ struct WeekView: View {
             .padding(.horizontal, 14)
             .frame(minHeight: 72)
             .overlay {
-                RoundedRectangle(cornerRadius: Radius.card)
-                    .strokeBorder(Color.hairlineDashed, style: StrokeStyle(lineWidth: 2, dash: [7, 6]))
+                // A hovering plate turns the dashed invitation solid.
+                if dropHoverDay == date {
+                    RoundedRectangle(cornerRadius: Radius.card)
+                        .strokeBorder(Color.ink, lineWidth: 2)
+                } else {
+                    RoundedRectangle(cornerRadius: Radius.card)
+                        .strokeBorder(Color.hairlineDashed, style: StrokeStyle(lineWidth: 2, dash: [7, 6]))
+                }
             }
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable)
         .dropDestination(for: String.self) { tokens, _ in
             moveMeal(from: tokens.first, to: date)
+        } isTargeted: { over in
+            if over { Haptic.select() }
+            withAnimation(.plSnap) {
+                // Same guard as plannedRow, and open nights are the common
+                // drop target — a bare `else -> nil` here wiped the lean
+                // belonging to the row the finger had already moved onto,
+                // so indication died for the rest of any drag that crossed
+                // one open night. It also strands the lean when a drop
+                // turns this row into a planned one and tears down its drop
+                // interaction mid-gesture; clearing only your own makes a
+                // stranded value harmless the moment the next row is entered.
+                if over { dropHoverDay = date }
+                else if dropHoverDay == date { dropHoverDay = nil }
+            }
         }
+        .scaleEffect(dropHoverDay == date ? 1.015 : 1)
     }
 
     private func dayColumn(_ date: Date, dimmed: Bool) -> some View {
@@ -360,7 +410,7 @@ struct WeekView: View {
                 }
             }
             Text(date.formattedDayNumber())
-                .font(.gabarito(19, .extraBold))
+                .font(.gabarito(19, .bold))
                 .foregroundStyle(dimmed ? Color.inkFaint : Color.ink)
             if let day = forecast.forecast(for: date) {
                 HStack(spacing: 2) {
@@ -376,7 +426,7 @@ struct WeekView: View {
         .frame(width: 44)
     }
 
-    private func dishCircle(for meal: PlannedMeal) -> some View {
+    private func dishCircle(for meal: PlannedMeal, simmering: Bool = false) -> some View {
         Group {
             if let data = meal.recipe?.photoData, let image = UIImage(data: data) {
                 Image(uiImage: image)
@@ -385,7 +435,7 @@ struct WeekView: View {
                     .frame(width: 52, height: 52)
                     .clipShape(Circle())
             } else if let recipe = meal.recipe {
-                DishView(recipe: recipe, diameter: 52)
+                DishView(recipe: recipe, diameter: 52, animated: simmering)
             } else {
                 DishView(title: meal.title, diameter: 52)
             }
@@ -490,7 +540,7 @@ struct WeekView: View {
 
     private func openOwnProfile() {
         guard let owner = members.first(where: \.isOwner) else { return }
-        personShown = PersonRef(name: owner.name, colorHex: owner.colorHex)
+        personShown = PersonRef(name: owner.name, colorHex: owner.colorHex, memberID: owner.persistentModelID)
     }
 
     private func swipeBinding(_ date: Date) -> Binding<Bool> {
@@ -543,58 +593,6 @@ enum DayTransfer {
         guard let token, token.hasPrefix("plated-day:"),
               let seconds = TimeInterval(token.dropFirst("plated-day:".count)) else { return nil }
         return Date(timeIntervalSince1970: seconds)
-    }
-}
-
-/// Swipe a planned night left to reveal Remove — the standard gesture,
-/// rebuilt for rows that live outside a List.
-private struct SwipeToRemove<Content: View>: View {
-    @Binding var isOpen: Bool
-    let onRemove: () -> Void
-    @ViewBuilder let content: () -> Content
-
-    @State private var dragOffset: CGFloat = 0
-    private let revealWidth: CGFloat = 76
-
-    var body: some View {
-        ZStack(alignment: .trailing) {
-            if isOpen || dragOffset < 0 {
-                Button {
-                    onRemove()
-                } label: {
-                    Circle()
-                        .fill(Color.tomato)
-                        .frame(width: 44, height: 44)
-                        .overlay {
-                            Image(systemName: "trash")
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundStyle(Color.onTomato)
-                        }
-                }
-                .buttonStyle(.plain)
-                .padding(.trailing, 10)
-            }
-
-            content()
-                .offset(x: (isOpen ? -revealWidth : 0) + dragOffset)
-                .simultaneousGesture(
-                    DragGesture(minimumDistance: 24)
-                        .onChanged { value in
-                            // Horizontal-dominant only, so the plan still scrolls.
-                            guard abs(value.translation.width) > abs(value.translation.height) else { return }
-                            let base: CGFloat = isOpen ? -revealWidth : 0
-                            dragOffset = min(max(value.translation.width, -revealWidth - base), -base)
-                        }
-                        .onEnded { value in
-                            let projected = (isOpen ? -revealWidth : 0) + value.translation.width
-                            withAnimation(.plSnap) {
-                                isOpen = projected < -revealWidth / 2
-                                dragOffset = 0
-                            }
-                        }
-                )
-        }
-        .animation(.plSnap, value: isOpen)
     }
 }
 

@@ -48,4 +48,22 @@ enum Awards {
         let counts = UserDefaults.standard.dictionary(forKey: savesKey) as? [String: Int] ?? [:]
         return counts.values.reduce(0, +)
     }
+
+    /// Carry a ledger line to a new name. The ledger is keyed by first
+    /// name, so someone renaming themselves would otherwise walk away from
+    /// every save they had earned — the counter silently resets to zero and
+    /// looks like the awards were never recorded.
+    ///
+    /// Merges rather than overwrites: if the new key already has a line
+    /// (a rename onto a name that once belonged to someone else here), the
+    /// totals add rather than one erasing the other.
+    static func rekey(from oldName: String, to newName: String) {
+        rekeyIfNeeded()
+        let from = normalize(oldName), to = normalize(newName)
+        guard from != to else { return }
+        var counts = UserDefaults.standard.dictionary(forKey: savesKey) as? [String: Int] ?? [:]
+        guard let moving = counts.removeValue(forKey: from), moving > 0 else { return }
+        counts[to, default: 0] += moving
+        UserDefaults.standard.set(counts, forKey: savesKey)
+    }
 }

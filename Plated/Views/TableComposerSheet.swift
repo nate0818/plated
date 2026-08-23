@@ -28,7 +28,7 @@ struct TableComposerSheet: View {
             VStack(spacing: 2) {
                 MicroLabel("Post to the Table")
                 Text("What did you plate?")
-                    .font(.gabarito(22, .extraBold))
+                    .font(.gabarito(22, .semibold))
                     .foregroundStyle(Color.ink)
             }
             .padding(.top, 22)
@@ -83,7 +83,7 @@ struct TableComposerSheet: View {
                                             .frame(minHeight: 44)
                                             .contentShape(Capsule())
                                         }
-                                        .buttonStyle(.plain)
+                                        .buttonStyle(.pressable)
                                     }
                                 }
                             }
@@ -134,12 +134,7 @@ struct TableComposerSheet: View {
     private var photoWell: some View {
         PhotosPicker(selection: $photoItem, matching: .images) {
             if let data = photoData, let image = UIImage(data: data) {
-                Image(uiImage: image)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 220)
-                    .clipShape(RoundedRectangle(cornerRadius: Radius.hero))
+                PhotoWell(image: image, height: 220, cornerRadius: Radius.hero)
                     .overlay(alignment: .bottomTrailing) {
                         HStack(spacing: 5) {
                             Image(systemName: "camera")
@@ -169,7 +164,7 @@ struct TableComposerSheet: View {
                     }
             }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable)
     }
 
     private func post() {

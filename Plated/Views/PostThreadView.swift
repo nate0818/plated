@@ -31,6 +31,7 @@ struct PostThreadView: View {
     @State private var saveToast: String?
     @State private var saveToastToken = 0
     @FocusState private var composerFocused: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         VStack(spacing: 0) {
@@ -41,12 +42,7 @@ struct PostThreadView: View {
                 VStack(alignment: .leading, spacing: 14) {
                     if let data = post.photoData, let image = UIImage(data: data) {
                         ZStack(alignment: .topTrailing) {
-                            Image(uiImage: image)
-                                .resizable()
-                                .scaledToFill()
-                                .frame(maxWidth: .infinity)
-                                .frame(height: 320)
-                                .clipShape(RoundedRectangle(cornerRadius: Radius.card))
+                            PhotoWell(image: image, height: 320)
                                 .plCardShadow()
                             if post.hasChefsKiss {
                                 chefsKissPill.offset(x: 6, y: -10)
@@ -78,7 +74,7 @@ struct PostThreadView: View {
                                         .font(.jakarta(12, .bold))
                                         .foregroundStyle(Color.ink)
                                 }
-                                .buttonStyle(.plain)
+                                .buttonStyle(.pressable)
                             }
                             Spacer()
                         }
@@ -99,8 +95,17 @@ struct PostThreadView: View {
 
                     ForEach(post.sortedComments, id: \.persistentModelID) { comment in
                         threadComment(comment)
+                            // Guarded, like the identical arrival in
+                            // ProngsbyView — the two were written days apart
+                            // and only one of them asked the room.
+                            .transition(
+                                reduceMotion
+                                    ? .opacity
+                                    : .move(edge: .bottom).combined(with: .opacity)
+                            )
                     }
                 }
+                .animation(.plSnap, value: post.sortedComments.count)
                 .padding(.horizontal, 24)
                 .padding(.top, 16)
                 .padding(.bottom, 20)
@@ -110,8 +115,11 @@ struct PostThreadView: View {
         }
         .background(Color.canvas)
         .toolbar(.hidden, for: .navigationBar)
+        // This page docks its own composer at the bottom-trailing corner,
+        // exactly where the perch lives.
+        .hidesProngsbyPerch()
         .navigationDestination(item: $personShown) { person in
-            PersonProfileView(personName: person.name, colorHex: person.colorHex)
+            PersonProfileView(personName: person.name, colorHex: person.colorHex, memberID: person.memberID)
         }
         .sheet(item: $localSave) { post in
             RecipeEditorView(prefill: (
@@ -171,7 +179,7 @@ struct PostThreadView: View {
                     .frame(minWidth: 44, minHeight: 44)
                     .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.pressable)
 
             Button {
                 openProfile(post.authorName, colorHex: post.authorColorHex)
@@ -189,7 +197,7 @@ struct PostThreadView: View {
                 }
                 .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.pressable)
             Spacer()
             if post.kind == "dish" {
                 Button {
@@ -204,7 +212,7 @@ struct PostThreadView: View {
                         .frame(minHeight: 44)
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.pressable)
             }
         }
         .padding(.horizontal, 20)
@@ -266,7 +274,7 @@ struct PostThreadView: View {
             .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(mine ? Color.basil.opacity(0.4) : Color.hairline))
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable)
     }
 
     private func threadComment(_ comment: TableComment) -> some View {
@@ -276,7 +284,7 @@ struct PostThreadView: View {
             } label: {
                 AvatarCircle(initials: initials(for: comment.authorName), tone: tone(for: comment.authorName), size: 30)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.pressable)
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
                     Button {
@@ -286,7 +294,7 @@ struct PostThreadView: View {
                             .font(.jakarta(13, .bold))
                             .foregroundStyle(Color.ink)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.pressable)
                     if !comment.replyToName.isEmpty {
                         HStack(spacing: 3) {
                             Image(systemName: "arrowshape.turn.up.left.fill")
@@ -338,7 +346,7 @@ struct PostThreadView: View {
                         .frame(minWidth: 44, minHeight: 44, alignment: .leading)
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.pressable)
             }
             Spacer(minLength: 0)
         }
@@ -382,9 +390,10 @@ struct PostThreadView: View {
                             .frame(minWidth: 44, minHeight: 44)
                             .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.pressable)
                 }
                 .padding(.horizontal, 24)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
             }
 
             if mentionBarShown {
@@ -406,11 +415,12 @@ struct PostThreadView: View {
                                 .frame(height: 34)
                                 .overlay(Capsule().strokeBorder(Color.hairline))
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(.pressable)
                         }
                     }
                     .padding(.horizontal, 24)
                 }
+                .transition(.move(edge: .bottom).combined(with: .opacity))
             }
 
             if linkFieldShown {
@@ -447,7 +457,7 @@ struct PostThreadView: View {
                                     .frame(width: 44, height: 44, alignment: .topTrailing)
                                     .contentShape(Rectangle())
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(.pressable)
                         }
                     Spacer()
                 }
@@ -465,7 +475,7 @@ struct PostThreadView: View {
                         .frame(minWidth: 44, minHeight: 44)
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.pressable)
 
                 PhotosPicker(selection: $photoItem, matching: .images) {
                     Image(systemName: "photo")
@@ -474,7 +484,7 @@ struct PostThreadView: View {
                         .frame(minWidth: 44, minHeight: 44)
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.pressable)
 
                 Button {
                     Haptic.tap()
@@ -486,7 +496,7 @@ struct PostThreadView: View {
                         .frame(minWidth: 44, minHeight: 44)
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.pressable)
 
                 TextField(placeholder, text: $draft, axis: .vertical)
                     .font(.jakarta(14, .medium))
@@ -518,13 +528,15 @@ struct PostThreadView: View {
                         }
                         .frame(minWidth: 44, minHeight: 44)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.pressable)
                 .disabled(!canSend)
             }
             .padding(.horizontal, 20)
             // The floating tab bar rides over pushed pages — the composer
-            // clears it.
-            .padding(.bottom, 92)
+            // clears it. Derived, not hand-typed: the 92 that used to sit
+            // here put the send button squarely under Prongsby's perch,
+            // so tapping send opened him instead of posting the comment.
+            .padding(.bottom, Layout.tabBarInset)
         }
     }
 
@@ -569,6 +581,8 @@ struct PostThreadView: View {
     }
 
     private func showSaveToast(_ message: String) {
+        // The confirmation reaches the hand as well as the eye.
+        Haptic.tap()
         saveToastToken += 1
         let token = saveToastToken
         withAnimation(.plSnap) { saveToast = message }
@@ -619,7 +633,7 @@ struct PostThreadView: View {
         let hex = colorHex
             ?? members.first { $0.name == name || name.hasPrefix($0.name) }?.colorHex
             ?? "FF5A3C"
-        personShown = PersonRef(name: name, colorHex: hex)
+        personShown = PersonRef.author(name, colorHex: hex, in: members)
     }
 
     private func tone(for name: String) -> PersonTone {

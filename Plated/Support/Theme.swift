@@ -129,9 +129,83 @@ extension Animation {
 // success tap when the kiss is earned.
 
 enum Haptic {
-    static func tap() { UIImpactFeedbackGenerator(style: .light).impactOccurred() }
-    static func plate() { UIImpactFeedbackGenerator(style: .medium).impactOccurred() }
-    static func kiss() { UINotificationFeedbackGenerator().notificationOccurred(.success) }
+    // Stored generators stay warm — a fresh generator per call pays
+    // first-fire latency on every single tap.
+    private static let light = UIImpactFeedbackGenerator(style: .light)
+    private static let medium = UIImpactFeedbackGenerator(style: .medium)
+    private static let notice = UINotificationFeedbackGenerator()
+    private static let selector = UISelectionFeedbackGenerator()
+
+    static func tap() { light.impactOccurred() }
+    static func plate() { medium.impactOccurred() }
+    static func kiss() { notice.notificationOccurred(.success) }
+    /// The tick of moving between options — chips, toggles, segments,
+    /// drag targets. Quieter than a tap; it marks position, not action.
+    static func select() { selector.selectionChanged() }
+    /// Something didn't take — a denied permission, a failed export.
+    static func warn() { notice.notificationOccurred(.warning) }
+}
+
+// MARK: - Press feedback
+
+/// The house press state: everything tappable gives a little under the
+/// finger. Quiet by design — no color, no shadow change, just the object
+/// yielding — so it layers safely under any label, bounce, or spin the
+/// button already owns. This replaces `.plain` as the default dress for
+/// custom buttons; `.plain` alone is a dead surface.
+struct PressableStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.965 : 1)
+            .opacity(configuration.isPressed ? 0.85 : 1)
+            .animation(.plSnap, value: configuration.isPressed)
+    }
+}
+
+extension ButtonStyle where Self == PressableStyle {
+    static var pressable: PressableStyle { PressableStyle() }
+}
+
+// MARK: - Floating chrome
+
+enum Layout {
+    /// What a control docked to the bottom of a pushed page needs to clear
+    /// the floating tab bar: the bar's own bottom padding (4) plus its
+    /// height (68) plus a 12pt gap. A page that docks something here also
+    /// owes the perch a `.hidesProngsbyPerch()`.
+    static let tabBarInset: CGFloat = 84
+
+    /// Where the perch sits and how big it is — directly on top of the
+    /// bar's clearance.
+    static let perchBottom: CGFloat = tabBarInset
+    static let perchHeight: CGFloat = 50
+
+    /// How much room the floating chrome needs at the bottom of a scroll.
+    /// Derived, not typed: a hand-written constant drifted 6pt short of
+    /// the chrome it was supposed to clear the first time.
+    static let floatingChromeInset: CGFloat = perchBottom + perchHeight + 8
+}
+
+/// A slow ambient breath for empty-state glyphs — the room is set and
+/// waiting, not dead. Sits out under Reduce Motion.
+private struct PLBreathing: ViewModifier {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func body(content: Content) -> some View {
+        if reduceMotion {
+            content
+        } else {
+            content.phaseAnimator([false, true]) { view, up in
+                view
+                    .scaleEffect(up ? 1.05 : 1)
+                    .opacity(up ? 1 : 0.9)
+            } animation: { _ in .easeInOut(duration: 2.4) }
+        }
+    }
+}
+
+extension View {
+    func plBreathing() -> some View { modifier(PLBreathing()) }
 }
 
 // MARK: - Shadows
@@ -188,6 +262,85 @@ struct MicroLabel: View {
     }
 }
 
+/// A number and the thing it counts. No glyph, no box.
+///
+/// Instagram's profile triad and X's metric row agree on this: a count
+/// that needs an icon to be legible has the wrong label, and a hairline
+/// box around a number reads as a button that isn't one. So the label
+/// carries the meaning and the chrome goes away. Sentence case, not the
+/// all-caps micro-type — a household is not a dashboard.
+struct CountBlock: View {
+    let value: String
+    let label: String
+    /// Mango, for the one count that is a compliment.
+    var accent: Bool = false
+
+    var body: some View {
+        VStack(spacing: 3) {
+            Text(value)
+                // Amber, not mango: mango on canvas measures 1.83:1, which
+                // is unreadable for a numeral this size. Amber is the same
+                // family two steps darker and is already the app's token
+                // for "mango, but as text".
+                .font(.gabarito(24, .semibold))
+                .foregroundStyle(accent ? Color.amber : Color.ink)
+                .contentTransition(.numericText())
+            Text(label)
+                .font(.jakarta(11, .semibold))
+                .foregroundStyle(Color.inkSecondary)
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
+                .minimumScaleFactor(0.85)
+        }
+        .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(value) \(label)")
+    }
+}
+
+/// The rule between two counts — a hairline, since the boxes are gone.
+struct CountDivider: View {
+    var body: some View {
+        Rectangle()
+            .fill(Color.hairline)
+            .frame(width: 1, height: 28)
+            .accessibilityHidden(true)
+    }
+}
+
+/// A photo filling a fixed-height well, which never makes its row wider
+/// than the row was offered.
+///
+/// `.scaledToFill().frame(maxWidth: .infinity).frame(height: h)` looks
+/// like it does this, and doesn't. `maxWidth: .infinity` is a ceiling, not
+/// a clamp: `scaledToFill` sizes a landscape photo to cover the height, so
+/// the image reports a width wider than the screen and the frame happily
+/// accepts it. One of those inside a feed card made the whole card wider
+/// than the viewport, and a vertical ScrollView centres content it can't
+/// fit — so every row shunted left with its avatar, plate count and
+/// caption half off the screen.
+///
+/// An overlay never affects its parent's layout size, so the well stays
+/// exactly as wide as it was offered and the overflow is clipped instead
+/// of measured.
+struct PhotoWell: View {
+    let image: UIImage
+    let height: CGFloat
+    var cornerRadius: CGFloat = Radius.card
+
+    var body: some View {
+        Color.clear
+            .frame(maxWidth: .infinity)
+            .frame(height: height)
+            .overlay {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+            }
+            .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
+    }
+}
+
 /// Initials in a tinted circle — people are circles, like dishes.
 struct AvatarCircle: View {
     let initials: String
@@ -202,6 +355,16 @@ struct AvatarCircle: View {
                 Text(initials)
                     .font(.jakarta(size * 0.38, .bold))
                     .foregroundStyle(tone.tone)
+                    // The circle is a fixed size but `Font.custom` scales
+                    // with Dynamic Type, so at accessibility sizes the
+                    // glyph outgrows its own container — the seat chip's
+                    // "+2" truncated to "…" inside a 34pt circle, which
+                    // reads as a bug rather than as large type. Shrink to
+                    // fit instead: the circle is the shape that carries
+                    // the meaning, and a legible small "+2" beats an
+                    // ellipsis.
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.4)
             }
     }
 }

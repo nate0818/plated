@@ -6,8 +6,15 @@ import PhotosUI
 /// grid of their plates. Pushed as a page — the back chevron is always
 /// there, no sheet to guess at. Your own card adds Edit and Settings.
 struct PersonProfileView: View {
+    /// The name this page was pushed with. Read `name` instead of this
+    /// anywhere the answer must stay current — see below.
     let personName: String
     let colorHex: String
+    /// Identity, when the person is a seat here. A page keyed only on a
+    /// name string goes stale the moment that name changes underneath it:
+    /// the title reverts to "Me", the gear disappears, and "Edit profile"
+    /// turns into "Message" pointing at a DM thread with yourself.
+    var memberID: PersistentIdentifier?
 
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
@@ -20,6 +27,7 @@ struct PersonProfileView: View {
     // them per device. The oldest row is the household's one true profile.
     @Query(sort: \HouseholdProfile.createdAt) private var profiles: [HouseholdProfile]
 
+    @Environment(\.dynamicTypeSize) private var typeSize
     @AppStorage("userBio") private var myBio = ""
     @AppStorage("userFamilyName") private var userFamilyName = ""
     @State private var dmShown = false
@@ -28,18 +36,27 @@ struct PersonProfileView: View {
     @State private var bannerItem: PhotosPickerItem?
     @State private var openedPost: TablePost?
 
+    /// Who this page is about, right now. Identity first, and only then
+    /// the name it was pushed with.
+    private var name: String { member?.name ?? personName }
+
     private var firstName: String {
-        personName.split(separator: " ").first.map(String.init) ?? personName
+        name.split(separator: " ").first.map(String.init) ?? name
     }
 
     private var member: HouseholdMember? {
-        members.first { $0.name == personName || $0.name == firstName }
+        if let memberID, let seated = members.first(where: { $0.persistentModelID == memberID }) {
+            return seated
+        }
+        // Guests at the table have no seat to match — fall back to the name.
+        let pushedFirst = personName.split(separator: " ").first.map(String.init) ?? personName
+        return members.first { $0.name == personName || $0.name == pushedFirst }
     }
 
     private var isMe: Bool { member?.isOwner ?? false }
 
     private var posts: [TablePost] {
-        allPosts.filter { $0.kind == "dish" && ($0.authorName == personName || $0.firstName == firstName) }
+        allPosts.filter { $0.kind == "dish" && ($0.authorName == name || $0.firstName == firstName) }
     }
 
     private var kissCount: Int { posts.filter(\.hasChefsKiss).count }
@@ -71,10 +88,32 @@ struct PersonProfileView: View {
                     .padding(.top, 8)
 
                     VStack(alignment: .leading, spacing: 3) {
-                        Text(displayName)
-                            .font(.gabarito(24, .extraBold))
-                            .tracking(-0.4)
-                            .foregroundStyle(Color.ink)
+                        // "Me" is what the bootstrap wrote when Apple gave
+                        // us nothing — it's a prompt, not a name.
+                        if isMe && HouseholdIdentity.isPlaceholder(name) {
+                            Button {
+                                Haptic.tap()
+                                editShown = true
+                            } label: {
+                                HStack(spacing: 6) {
+                                    Text("Add your name")
+                                        .font(.gabarito(24, .semibold))
+                                        .tracking(-0.4)
+                                        .foregroundStyle(Color.ink)
+                                    Image(systemName: "pencil")
+                                        .font(.system(size: 13, weight: .semibold))
+                                        .foregroundStyle(Color.inkFaint)
+                                }
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.pressable)
+                            .accessibilityLabel("Add your name")
+                        } else {
+                            Text(displayName)
+                                .font(.gabarito(24, .semibold))
+                                .tracking(-0.4)
+                                .foregroundStyle(Color.ink)
+                        }
                         MicroLabel(roleLine)
                         if isMe && !myBio.isEmpty {
                             Text(myBio)
@@ -86,20 +125,34 @@ struct PersonProfileView: View {
                     }
                     .padding(.top, 26)
 
-                    HStack(spacing: 0) {
-                        statBlock("\(posts.count)", "Plates shared")
-                        statBlock("\(plateCount)", "Plates earned")
-                        statBlock("\(kissCount)", "Kisses", accent: kissCount > 0)
-                        statBlock("\(Awards.savesReceived(by: personName))", "Saves")
+                    // Same count, same words, same lack of a box as Home
+                    // and the stats shelf — a person's numbers and their
+                    // household's numbers shouldn't be two dialects.
+                    // Four across truncates from AX3 and collides at AX5
+                    // ("On theHappy", "Chef's Saved", dividers no longer
+                    // between columns). HouseholdStatsView already drops
+                    // 3 columns to 2 at .accessibility1; this is the
+                    // sibling that didn't, so it wraps to 2×2 instead.
+                    LazyVGrid(
+                        columns: Array(
+                            repeating: GridItem(.flexible(), spacing: 0),
+                            count: typeSize >= .accessibility1 ? 2 : 4
+                        ),
+                        spacing: typeSize >= .accessibility1 ? 16 : 0
+                    ) {
+                        CountBlock(value: "\(posts.count)", label: "On the table")
+                        CountBlock(value: "\(plateCount)", label: "Happy plates")
+                        CountBlock(value: "\(kissCount)", label: "Chef's kisses", accent: kissCount > 0)
+                        CountBlock(value: "\(Awards.savesReceived(by: name))", label: "Saved by others")
                     }
-                    .padding(.vertical, 10)
-                    .overlay(RoundedRectangle(cornerRadius: Radius.card).strokeBorder(Color.hairline))
+                    .padding(.vertical, 12)
                 }
                 .padding(.horizontal, 24)
 
                 if posts.isEmpty {
                     VStack(spacing: 8) {
                         PlateReactionGlyph(filled: false)
+                            .plBreathing()
                         Text(isMe ? "Nothing shared yet — plate something for the table." : "\(firstName) hasn't shared a plate yet.")
                             .font(.jakarta(13, .medium))
                             .foregroundStyle(Color.inkFaint)
@@ -116,12 +169,12 @@ struct PersonProfileView: View {
                     .padding(.top, 20)
                 }
             }
-            .padding(.bottom, 110)
+            .padding(.bottom, Layout.floatingChromeInset)
         }
         .background(Color.canvas)
         .toolbar(.hidden, for: .navigationBar)
         .safeAreaInset(edge: .top) { topBar }
-        .sheet(isPresented: $dmShown) { DMThreadView(peerName: personName) }
+        .sheet(isPresented: $dmShown) { DMThreadView(peerName: name) }
         .sheet(isPresented: $settingsShown) { SettingsSheet() }
         .sheet(isPresented: $editShown) { EditProfileSheet() }
         .navigationDestination(item: $openedPost) { post in
@@ -157,7 +210,7 @@ struct PersonProfileView: View {
                     .frame(minWidth: 44, minHeight: 44)
                     .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.pressable)
             Spacer()
             if isMe {
                 Button {
@@ -176,7 +229,7 @@ struct PersonProfileView: View {
                         .frame(minWidth: 44, minHeight: 44)
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.pressable)
             }
         }
         .padding(.horizontal, 20)
@@ -186,12 +239,7 @@ struct PersonProfileView: View {
     private var banner: some View {
         ZStack(alignment: .bottomTrailing) {
             if let data = profiles.first?.bannerPhotoData, let image = UIImage(data: data), isMe {
-                Image(uiImage: image)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(height: 150)
-                    .frame(maxWidth: .infinity)
-                    .clipped()
+                PhotoWell(image: image, height: 150, cornerRadius: 0)
             } else {
                 LinearGradient(
                     colors: [PersonTone.from(hex: colorHex).tint, Color.canvas],
@@ -213,7 +261,7 @@ struct PersonProfileView: View {
                     .background(.ultraThinMaterial, in: Capsule())
                     .padding(10)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.pressable)
             }
         }
     }
@@ -239,20 +287,7 @@ struct PersonProfileView: View {
             }
             .aspectRatio(1, contentMode: .fit)
         }
-        .buttonStyle(.plain)
-    }
-
-    private func statBlock(_ value: String, _ label: String, accent: Bool = false) -> some View {
-        VStack(spacing: 1) {
-            Text(value)
-                .font(.gabarito(19, .extraBold))
-                .foregroundStyle(accent ? Color.mango : Color.ink)
-            Text(label.uppercased())
-                .font(.jakarta(8.5, .extraBold))
-                .tracking(0.4)
-                .foregroundStyle(Color.inkFaint)
-        }
-        .frame(maxWidth: .infinity)
+        .buttonStyle(.pressable)
     }
 
     private func outlineAction(_ label: String, action: @escaping () -> Void) -> some View {
@@ -269,21 +304,21 @@ struct PersonProfileView: View {
                 .frame(minHeight: 44)
                 .contentShape(Capsule())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable)
     }
 
     private var initials: String {
-        let parts = personName.split(separator: " ")
+        let parts = name.split(separator: " ")
             .filter { $0.first?.isLetter == true }
             .prefix(2)
         return parts.compactMap { $0.first }.map(String.init).joined().uppercased()
     }
 
     private var displayName: String {
-        if isMe && !userFamilyName.isEmpty && !personName.contains(" ") {
-            return "\(personName) \(userFamilyName)"
+        if isMe && !userFamilyName.isEmpty && !name.contains(" ") {
+            return "\(name) \(userFamilyName)"
         }
-        return personName
+        return name
     }
 
     private var roleLine: String {
@@ -315,15 +350,42 @@ struct PersonProfileView: View {
 /// Name and bio, nothing else — the profile stays light.
 struct EditProfileSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var context
+    @Query(sort: \HouseholdMember.createdAt) private var members: [HouseholdMember]
     @AppStorage("userBio") private var bio = ""
+    @AppStorage("userFirstName") private var firstName = ""
+    @State private var draftName = ""
+    /// Why the last Done didn't take. A refusal that only buzzes is a
+    /// refusal the user can't act on.
+    @State private var nameError: String?
+    @FocusState private var namingSelf: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Edit profile")
-                .font(.gabarito(19, .extraBold))
+                .font(.gabarito(19, .bold))
                 .foregroundStyle(Color.ink)
                 .frame(maxWidth: .infinity)
                 .padding(.top, 18)
+
+            VStack(alignment: .leading, spacing: 8) {
+                MicroLabel("Your name")
+                TextField("Nate", text: $draftName)
+                    .font(.jakarta(14, .semibold))
+                    .padding(.horizontal, 14)
+                    .frame(minHeight: 48)
+                    .overlay(RoundedRectangle(cornerRadius: Radius.chip).strokeBorder(Color.hairline))
+                    .contentShape(RoundedRectangle(cornerRadius: Radius.chip))
+                    .onTapGesture { namingSelf = true }
+                    .focused($namingSelf)
+                    .submitLabel(.done)
+                if let nameError {
+                    Text(nameError)
+                        .font(.jakarta(12, .semibold))
+                        .foregroundStyle(Color.tomato)
+                        .transition(.opacity)
+                }
+            }
 
             VStack(alignment: .leading, spacing: 8) {
                 MicroLabel("Bio")
@@ -334,36 +396,92 @@ struct EditProfileSheet: View {
                     .overlay(RoundedRectangle(cornerRadius: Radius.chip).strokeBorder(Color.hairline))
             }
 
-            Text("Your photo comes from your table's eyes only for now — Apple doesn't share Apple ID pictures with apps, so profile photos arrive with Plated's own network.")
+            Text("Apple shares your name once, when you first sign in, and never again — so if Plated is calling you \"Me\", this is where you fix it. Photos aren't shared by Apple at all; they arrive with Plated's own network.")
                 .font(.jakarta(11, .medium))
                 .foregroundStyle(Color.inkFaint)
 
-            InkPillButton(title: "Done") { dismiss() }
+            InkPillButton(title: "Done") {
+                // Only leave if it took. Dismissing regardless is how a
+                // refusal became invisible.
+                if saveName() { dismiss() }
+            }
             Spacer()
         }
+        .onAppear {
+            let owner = members.first(where: \.isOwner)?.name ?? firstName
+            draftName = HouseholdIdentity.isPlaceholder(owner) ? "" : owner
+        }
         .padding(.horizontal, 24)
-        .presentationDetents([.height(320)])
+        .presentationDetents([.height(430), .large])
         .presentationDragIndicator(.visible)
         .presentationBackground(Color.canvas)
         .presentationCornerRadius(Radius.sheet)
+    }
+
+    /// The name lives in two places — the preference the app reads for
+    /// authorship and the owner's own row at the table. Both or neither.
+    @discardableResult
+    private func saveName() -> Bool {
+        let name = draftName.trimmingCharacters(in: .whitespaces)
+        // An empty field means "I didn't touch the name" — the bio is the
+        // other control on this sheet, so that has to stay a clean exit.
+        guard !name.isEmpty else { return true }
+
+        // The model side FIRST, and `userFirstName` only once it stuck.
+        // This used to write the AppStorage name before renaming, so a
+        // failed save left the models back at "Me" while the stored first
+        // name and the awards ledger had moved on — the profile reading
+        // "Me" with no saves, while every new comment was stamped with the
+        // new name. Identity split across two stores, and nothing told
+        // anyone.
+        if let owner = members.first(where: \.isOwner) {
+            // Through the one door: a bare `owner.name = name` orphans
+            // every dish they have posted and their whole awards ledger.
+            switch HouseholdIdentity.rename(owner, to: name, in: context) {
+            case .renamed, .unchanged:
+                break
+            case .nameTaken(let who):
+                Haptic.warn()
+                withAnimation(.plSnap) {
+                    nameError = "\(who) already answers to that name at this table."
+                }
+                return false
+            case .invalid, .failed:
+                Haptic.warn()
+                withAnimation(.plSnap) {
+                    nameError = "That didn't save. Try again."
+                }
+                return false
+            }
+        }
+        nameError = nil
+        firstName = name
+        Haptic.plate()
+        return true
     }
 }
 
 /// The settings drawer — where the light switch actually belongs. Quiet
 /// controls, one card each: the room, the calendar, the subscription.
 struct SettingsSheet: View {
+    /// Set when Settings is opened from Home's "Your Household" title —
+    /// the user asked to name the house, so put them in the field.
+    var focusHouseholdName = false
+
     @Environment(\.dismiss) private var dismiss
     @AppStorage("afterDark") private var afterDark = false
     @AppStorage("showCalendarEvents") private var showCalendarEvents = false
+    @AppStorage("householdName") private var householdName = ""
     @State private var paywallShown = false
     @State private var plusActive = PlatedPlus.isActive
+    @FocusState private var namingHousehold: Bool
 
     var body: some View {
         VStack(spacing: 0) {
             VStack(spacing: 2) {
                 MicroLabel("The back of house")
                 Text("Settings")
-                    .font(.gabarito(22, .extraBold))
+                    .font(.gabarito(22, .semibold))
                     .foregroundStyle(Color.ink)
             }
             .padding(.top, 22)
@@ -371,6 +489,31 @@ struct SettingsSheet: View {
 
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 10) {
+                    // Apple hands over a family name once, at first sign-in,
+                    // and only with permission — so the house has to be
+                    // nameable by hand or it stays "Your Household" forever.
+                    settingRow(
+                        icon: "house",
+                        title: "Household name",
+                        caption: "The family name on your Home page."
+                    ) {
+                        TextField("Meadows", text: $householdName)
+                            .font(.jakarta(14, .bold))
+                            .foregroundStyle(Color.ink)
+                            .multilineTextAlignment(.trailing)
+                            .frame(width: 110)
+                            .padding(.horizontal, 10)
+                            .frame(minHeight: 44)
+                            .overlay(Capsule().strokeBorder(Color.hairline))
+                            // Padding alone isn't hit-testable — the field
+                            // was a ~19pt strip you had to aim at.
+                            .contentShape(Capsule())
+                            .onTapGesture { namingHousehold = true }
+                            .focused($namingHousehold)
+                            .submitLabel(.done)
+                            .onSubmit { namingHousehold = false }
+                    }
+
                     settingRow(
                         icon: afterDark ? "moon.stars.fill" : "moon",
                         title: "After Dark",
@@ -389,6 +532,7 @@ struct SettingsSheet: View {
                     ) {
                         Toggle("", isOn: $showCalendarEvents)
                             .labelsHidden()
+                            .sensoryFeedback(.selection, trigger: showCalendarEvents)
                             .tint(Color.basil)
                             .onChange(of: showCalendarEvents) { _, on in
                                 if on {
@@ -416,7 +560,7 @@ struct SettingsSheet: View {
                                     .foregroundStyle(plusActive ? Color.basil : Color.tomato)
                             }
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.pressable)
                     }
 
                     Text("Plated 0.1.0 · Made at the table")
@@ -429,10 +573,13 @@ struct SettingsSheet: View {
                 .padding(.bottom, 24)
             }
         }
-        .presentationDetents([.medium])
+        .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
         .presentationBackground(Color.canvas)
         .presentationCornerRadius(Radius.sheet)
+        .onAppear {
+            if focusHouseholdName { namingHousehold = true }
+        }
         .sheet(isPresented: $paywallShown, onDismiss: { plusActive = PlatedPlus.isActive }) {
             PaywallSheet()
         }
@@ -487,7 +634,7 @@ struct PaywallSheet: View {
                         .foregroundStyle(Color.ink)
                 }
                 Text("Plated+")
-                    .font(.gabarito(26, .extraBold))
+                    .font(.gabarito(26, .semibold))
                     .tracking(-0.4)
                     .foregroundStyle(Color.ink)
                 Text("One seat is free — the head of table. Plated+ seats everyone else.")
@@ -566,5 +713,36 @@ struct PaywallSheet: View {
 struct PersonRef: Identifiable, Hashable {
     let name: String
     let colorHex: String
-    var id: String { name }
+    /// Set whenever the person is a seat at this household. A name is a
+    /// label and labels change; the page follows the identity so a rename
+    /// while you are looking at your own profile updates it instead of
+    /// stranding you on a stale stranger.
+    var memberID: PersistentIdentifier?
+    var id: String { memberID.map { "\($0.hashValue)" } ?? name }
+
+    /// Build a ref for a name that may or may not belong to a seat here —
+    /// a post's author, a comment's, an @mention.
+    ///
+    /// **Always use this rather than the memberwise init when starting
+    /// from a name.** Resolving the seat at construction is the entire
+    /// reason the profile page survives a rename: a ref carrying only a
+    /// string strands the moment that string changes, and the page falls
+    /// back to matching on a name that no longer exists. Two of the six
+    /// construction sites were built by hand and missed the id, which
+    /// reproduced the whole original symptom set — title reverting to
+    /// "Me", the gear vanishing, "Edit profile" becoming a DM with
+    /// yourself — on the most ordinary path in the app.
+    static func author(
+        _ name: String,
+        colorHex: String,
+        in members: [HouseholdMember]
+    ) -> PersonRef {
+        let first = name.split(separator: " ").first.map(String.init) ?? name
+        let seat = members.first { $0.name == name || $0.name == first }
+        return PersonRef(
+            name: name,
+            colorHex: colorHex,
+            memberID: seat?.persistentModelID
+        )
+    }
 }

@@ -13,6 +13,7 @@ struct TableFeedView: View {
     ) private var posts: [TablePost]
     @Query(sort: \HouseholdMember.createdAt) private var members: [HouseholdMember]
     @Query private var recipes: [Recipe]
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     enum FeedScope: String, CaseIterable {
         case everyone = "Everyone"
@@ -20,6 +21,7 @@ struct TableFeedView: View {
     }
 
     @State private var scope: FeedScope = .everyone
+    @Namespace private var scopePill
     @State private var bouncePost: PersistentIdentifier?
     @State private var threadPost: TablePost?
     @State private var personShown: PersonRef?
@@ -44,6 +46,33 @@ struct TableFeedView: View {
         return max(members.count + guests.count + pending, 1)
     }
 
+    /// Pull to refresh. `@Query` is live, so anything CloudKit has already
+    /// delivered is on screen before the user pulls — "already" being the
+    /// operative word. So the gesture pushes this device's own pending work
+    /// out, then waits on the mirror — see CloudSync for the two deadlines,
+    /// why one wasn't enough, and what it can and cannot observe. A feed
+    /// you can't pull reads as stuck even when it's current, but a pull
+    /// that only pretends is worse than none.
+    /// Why only here, and not on the week or on Home: this is the one
+    /// surface showing OTHER households' content, so it is the only one
+    /// where "there might be something new on a server" is a true thought.
+    /// The week and Home are this device's own data — a pull there would
+    /// have no mirror to wait on. The asymmetry is deliberate; please
+    /// don't tidy it into symmetry.
+    private func refreshFeed() async {
+        try? context.save()
+        let outcome = await CloudSync.waitForImport()
+        // Let go mid-pull and there is nothing to confirm — the tick used
+        // to fire anyway, because `try?` around the sleep swallowed the
+        // cancellation and left the call site unable to tell an abandoned
+        // refresh from a finished one.
+        guard !Task.isCancelled else { return }
+        switch outcome {
+        case .arrived, .quiet: Haptic.tap()
+        case .failed: Haptic.warn()
+        }
+    }
+
     private var shownPosts: [TablePost] {
         guard scope == .household else { return posts }
         let names = Set(members.map(\.name))
@@ -58,9 +87,31 @@ struct TableFeedView: View {
                     .padding(.top, 6)
                     .padding(.bottom, 10)
 
-                scopePicker
-                    .padding(.horizontal, 24)
-                    .padding(.bottom, 12)
+                // Search sits beside the scope, the way it does on Recipes:
+                // scoping the feed and searching it are the same kind of act,
+                // and the header has a host to seat instead.
+                HStack(spacing: 8) {
+                    scopePicker
+                    Button {
+                        Haptic.tap()
+                        discoverPresented = true
+                    } label: {
+                        Circle()
+                            .strokeBorder(Color.hairline, lineWidth: 1.5)
+                            .frame(width: 38, height: 38)
+                            .overlay {
+                                Image(systemName: "magnifyingglass")
+                                    .font(.system(size: 15, weight: .semibold))
+                                    .foregroundStyle(Color.ink)
+                            }
+                            .frame(minWidth: 44, minHeight: 44)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.pressable)
+                    .accessibilityLabel("Discover other tables")
+                }
+                .padding(.horizontal, 24)
+                .padding(.bottom, 12)
                 Divider().overlay(Color.hairlineSoft)
 
                 ScrollView(showsIndicators: false) {
@@ -76,6 +127,7 @@ struct TableFeedView: View {
                         if shownPosts.isEmpty {
                             VStack(spacing: 8) {
                                 PlateReactionGlyph(filled: false)
+                                    .plBreathing()
                                 Text(scope == .household ? "The household hasn't posted yet." : "Nothing on the table yet.")
                                     .font(.jakarta(14, .bold))
                                     .foregroundStyle(Color.inkSecondary)
@@ -83,8 +135,9 @@ struct TableFeedView: View {
                             .padding(.top, 60)
                         }
                     }
-                    .padding(.bottom, 110)
+                    .padding(.bottom, Layout.floatingChromeInset)
                 }
+                .refreshable { await refreshFeed() }
             }
             .background(Color.canvas)
             .toolbar(.hidden, for: .navigationBar)
@@ -92,7 +145,7 @@ struct TableFeedView: View {
                 PostThreadView(post: post) { beginSave($0) }
             }
             .navigationDestination(item: $personShown) { person in
-                PersonProfileView(personName: person.name, colorHex: person.colorHex)
+                PersonProfileView(personName: person.name, colorHex: person.colorHex, memberID: person.memberID)
             }
             .navigationDestination(isPresented: $activityShown) {
                 NotificationsView()
@@ -135,7 +188,11 @@ struct TableFeedView: View {
                     .padding(.horizontal, 18)
                     .frame(height: 40)
                     .background(Color.ink, in: Capsule())
-                    .padding(.bottom, 100)
+                    // The perch occupies 84…134; a hand-typed 100 put a long
+                    // toast underneath it. The last bottom inset on the
+                    // branch that hadn't gone through the token family the
+                    // rest of this class was built to fix.
+                    .padding(.bottom, Layout.floatingChromeInset)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
@@ -143,8 +200,33 @@ struct TableFeedView: View {
 
     // MARK: Header
 
+    /// Past this the title and three trailing controls cannot share a line
+    /// — measured at AX3 the title broke mid-word ("The / Tabl / e"), HOST
+    /// wrapped to "HO / ST", and the seat chip collapsed to "…". Home's
+    /// masthead grew this same fallback on this branch; the Table has three
+    /// trailing controls to Home's three and needed it just as much.
+    private var hugeType: Bool { typeSize >= .accessibility1 }
+
+    @ViewBuilder
     private var header: some View {
-        HStack(spacing: 12) {
+        if hugeType {
+            VStack(alignment: .leading, spacing: 12) {
+                headerTitle
+                HStack(spacing: 12) {
+                    Spacer(minLength: 0)
+                    headerControls
+                }
+            }
+        } else {
+            HStack(spacing: 12) {
+                headerTitle
+                Spacer(minLength: 8)
+                headerControls
+            }
+        }
+    }
+
+    private var headerTitle: some View {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
                     Image(systemName: "lock")
@@ -152,34 +234,26 @@ struct TableFeedView: View {
                         .foregroundStyle(Color.inkFaint)
                     MicroLabel("\(seatCount) seats · Invite only")
                         .lineLimit(1)
-                        .minimumScaleFactor(0.8)
+                        .minimumScaleFactor(0.7)
                 }
                 Text("The Table")
-                    .font(.gabarito(25, .bold))
+                    .font(.gabarito(25, .semibold))
                     .tracking(-0.3)
                     .foregroundStyle(Color.ink)
+                    // One line at ordinary sizes; only huge type may wrap,
+                    // and never mid-word.
+                    .lineLimit(hugeType ? 2 : 1)
+                    .minimumScaleFactor(hugeType ? 1 : 0.8)
+                    .fixedSize(horizontal: false, vertical: hugeType)
             }
             .layoutPriority(1)
-            Spacer(minLength: 8)
+    }
+
+    @ViewBuilder
+    private var headerControls: some View {
             ActivityBellButton {
                 activityShown = true
             }
-            Button {
-                Haptic.tap()
-                discoverPresented = true
-            } label: {
-                Circle()
-                    .strokeBorder(Color.hairline, lineWidth: 1.5)
-                    .frame(width: 38, height: 38)
-                    .overlay {
-                        Image(systemName: "magnifyingglass")
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundStyle(Color.ink)
-                    }
-                    .frame(minWidth: 44, minHeight: 44)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
             // The seats at your table — tap to see, message, and manage them.
             Button {
                 Haptic.tap()
@@ -196,17 +270,48 @@ struct TableFeedView: View {
                 .frame(minHeight: 44)
                 .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
-        }
+            .buttonStyle(.pressable)
+            .accessibilityLabel("Seats at your table")
+
+            // The host's own door, the same one the plan and home offer.
+            Button {
+                Haptic.tap()
+                openOwnProfile()
+            } label: {
+                VStack(spacing: 2) {
+                    AvatarCircle(initials: hostInitial, tone: .neutralPair, size: 38)
+                    Text("HOST")
+                        .font(.jakarta(10, .bold))
+                        .tracking(0.7)
+                        .foregroundStyle(Color.inkFaint)
+                }
+                // A 38pt avatar is a 38pt target; the law says 44. Home's
+                // copy of this control already had the frame.
+                .frame(minWidth: 44, minHeight: 44)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.pressable)
+            .accessibilityLabel("Your profile")
+    }
+
+    private var hostInitial: String {
+        String(members.first(where: \.isOwner)?.name.first ?? "Y").uppercased()
+    }
+
+    private func openOwnProfile() {
+        let me = members.first(where: \.isOwner)
+        personShown = PersonRef(name: me?.name ?? "You", colorHex: me?.colorHex ?? "", memberID: me?.persistentModelID)
     }
 
     /// Everyone or just the household — the X-style split, quiet edition.
+    /// The raised pill SLIDES between options (one shared identity), it
+    /// doesn't blink out and reappear.
     private var scopePicker: some View {
         HStack(spacing: 0) {
             ForEach(FeedScope.allCases, id: \.self) { option in
                 let active = scope == option
                 Button {
-                    Haptic.tap()
+                    Haptic.select()
                     withAnimation(.plSnap) { scope = option }
                 } label: {
                     Text(option.rawValue)
@@ -221,10 +326,11 @@ struct TableFeedView: View {
                                     .fill(Color.raisedFill)
                                     .overlay(Capsule().strokeBorder(Color.navHairline))
                                     .shadow(color: Color.shadowWarm.opacity(0.12), radius: 4, y: 2)
+                                    .matchedGeometryEffect(id: "scopePill", in: scopePill)
                             }
                         }
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.pressable)
             }
         }
         .padding(2)
@@ -252,7 +358,7 @@ struct TableFeedView: View {
                     }
                     .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.pressable)
                 Spacer()
                 Button {
                     beginSave(post)
@@ -262,7 +368,7 @@ struct TableFeedView: View {
                         .foregroundStyle(Color.ink)
                         .frame(minWidth: 44, minHeight: 44)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.pressable)
             }
             .padding(.bottom, 10)
 
@@ -273,15 +379,10 @@ struct TableFeedView: View {
                         Haptic.tap()
                         threadPost = post
                     } label: {
-                        Image(uiImage: image)
-                            .resizable()
-                            .scaledToFill()
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 300)
-                            .clipShape(RoundedRectangle(cornerRadius: Radius.card))
+                        PhotoWell(image: image, height: 300)
                             .plCardShadow()
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.pressable)
                 }
                 if post.hasChefsKiss {
                     chefsKissPill
@@ -307,7 +408,7 @@ struct TableFeedView: View {
                     .frame(minHeight: 44)
                     .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.pressable)
                 Spacer()
             }
             .padding(.top, 10)
@@ -335,7 +436,7 @@ struct TableFeedView: View {
                     .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                     .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.pressable)
             .padding(.top, 2)
         }
         .padding(.horizontal, 24)
@@ -363,7 +464,7 @@ struct TableFeedView: View {
                     }
                     .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.pressable)
                 Spacer()
                 MicroLabel(post.hasPoll ? "Poll" : "Open ask")
             }
@@ -395,7 +496,7 @@ struct TableFeedView: View {
                 }
                 .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.pressable)
             ForEach(post.sortedComments.prefix(2), id: \.persistentModelID) { comment in
                 commentLine(comment)
             }
@@ -409,7 +510,7 @@ struct TableFeedView: View {
                     .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                     .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.pressable)
         }
         .padding(.horizontal, 24)
         .padding(.vertical, 16)
@@ -445,7 +546,7 @@ struct TableFeedView: View {
             }
             .frame(minHeight: 44)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable)
     }
 
     private func commentLine(_ comment: TableComment) -> some View {
@@ -532,6 +633,8 @@ struct TableFeedView: View {
     }
 
     private func showToast(_ message: String) {
+        // The confirmation reaches the hand as well as the eye.
+        Haptic.tap()
         toastToken += 1
         let token = toastToken
         withAnimation(.plSnap) { savedToast = message }
@@ -545,7 +648,9 @@ struct TableFeedView: View {
 
     private func openProfile(_ post: TablePost) {
         Haptic.tap()
-        personShown = PersonRef(name: post.authorName, colorHex: post.authorColorHex)
+        personShown = PersonRef.author(
+            post.authorName, colorHex: post.authorColorHex, in: members
+        )
     }
 
     private func postWhen(_ date: Date) -> String {
@@ -569,21 +674,29 @@ struct TableFeedView: View {
 /// it goes tomato with the well knocked out in canvas.
 struct PlateReactionGlyph: View {
     var filled: Bool
+    /// The count and badge shelves borrow this mark rather than reaching
+    /// for a stock symbol — the app already owns a plate, and `hands.clap`
+    /// standing in for one was the loudest wrong note on the stats page.
+    var size: CGFloat = 26
+    /// The rim colour when empty, so the tone can travel with the size.
+    var tone: Color = .inkSecondary
+
+    private var scale: CGFloat { size / 26 }
 
     var body: some View {
         ZStack {
             Circle()
-                .strokeBorder(filled ? Color.tomato : Color.inkSecondary, lineWidth: 2)
+                .strokeBorder(filled ? Color.tomato : tone, lineWidth: 2 * scale)
                 .background(Circle().fill(filled ? Color.tomato : Color.clear))
-                .frame(width: 26, height: 26)
+                .frame(width: size, height: size)
             if filled {
                 Circle()
                     .fill(Color.canvas)
-                    .frame(width: 9, height: 9)
+                    .frame(width: 9 * scale, height: 9 * scale)
             } else {
                 Circle()
-                    .strokeBorder(Color.inkSecondary, lineWidth: 1.5)
-                    .frame(width: 13, height: 13)
+                    .strokeBorder(tone, lineWidth: 1.5 * scale)
+                    .frame(width: 13 * scale, height: 13 * scale)
             }
         }
     }
@@ -627,6 +740,6 @@ struct PlateReactionButton: View {
                 .scaleEffect(bounce ? 1.35 : 1)
                 .frame(minWidth: 44, minHeight: 44)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable)
     }
 }

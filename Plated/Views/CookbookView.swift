@@ -95,7 +95,7 @@ struct CookbookView: View {
                     VStack(alignment: .leading, spacing: 2) {
                         MicroLabel(countLabel)
                         Text("Recipes")
-                            .font(.gabarito(25, .bold))
+                            .font(.gabarito(25, .semibold))
                             .tracking(-0.3)
                             .foregroundStyle(Color.ink)
                     }
@@ -134,7 +134,7 @@ struct CookbookView: View {
                         .frame(minHeight: 44)
                         .contentShape(Capsule())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.pressable)
 
                     if filter.isFiltering {
                         Button {
@@ -149,7 +149,7 @@ struct CookbookView: View {
                                 .frame(minHeight: 44)
                                 .contentShape(Circle())
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.pressable)
                     }
                     Spacer()
                 }
@@ -160,17 +160,29 @@ struct CookbookView: View {
                     LazyVGrid(columns: [GridItem(.flexible(), spacing: 20), GridItem(.flexible())], spacing: 26) {
                         ForEach(shown, id: \.persistentModelID) { recipe in
                             recipeTile(recipe)
+                                .transition(.scale(scale: 0.92).combined(with: .opacity))
                         }
                     }
+                    // Filtering resettles the shelf — dishes fade and slide
+                    // to their new seats instead of teleporting.
+                    // Keyed on the FILTER, not on the result. Measured:
+                    // `shown.count` re-ran the whole filter-and-sort exactly
+                    // as `shown.map(\.persistentModelID)` did — three full
+                    // passes per body pass on both — because `shown` is
+                    // computed. The filter is the thing that actually
+                    // changes when the shelf should resettle, and it is a
+                    // cheap Equatable value.
+                    .animation(.plSnap, value: filter)
                     .padding(.horizontal, 24)
                     .padding(.top, 20)
-                    .padding(.bottom, 110)
+                    .padding(.bottom, Layout.floatingChromeInset)
 
                     if shown.isEmpty {
                         VStack(spacing: 8) {
                             Image(systemName: "line.3.horizontal.decrease")
                                 .font(.system(size: 26, weight: .medium))
                                 .foregroundStyle(Color.inkFaint)
+                                .plBreathing()
                             Text(filter.isFiltering ? "Nothing matches that filter" : "No recipes yet")
                                 .font(.jakarta(15, .bold))
                                 .foregroundStyle(Color.inkSecondary)
@@ -229,7 +241,7 @@ struct CookbookView: View {
                 }
             }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable)
     }
 
     private func dishImage(_ recipe: Recipe) -> some View {
@@ -275,7 +287,7 @@ struct RecipeFilterSheet: View {
             VStack(spacing: 2) {
                 MicroLabel("Find a dish")
                 Text("Filter & sort")
-                    .font(.gabarito(22, .extraBold))
+                    .font(.gabarito(22, .semibold))
                     .foregroundStyle(Color.ink)
             }
             .padding(.top, 22)
@@ -298,7 +310,7 @@ struct RecipeFilterSheet: View {
                                     .font(.system(size: 14))
                                     .foregroundStyle(Color.inkFaint)
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(.pressable)
                         }
                     }
                     .padding(.horizontal, 14)
@@ -348,7 +360,7 @@ struct RecipeFilterSheet: View {
                             .foregroundStyle(Color.inkSecondary)
                             .frame(minHeight: 44)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.pressable)
                 }
             }
             .padding(.horizontal, 24)
@@ -394,7 +406,7 @@ struct RecipeFilterSheet: View {
                     }
                 }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable)
     }
 }
 
@@ -451,7 +463,7 @@ struct RecipeDetailView: View {
 
                 VStack(alignment: .leading, spacing: 6) {
                     Text(recipe.title)
-                        .font(.gabarito(27, .extraBold))
+                        .font(.gabarito(27, .semibold))
                         .tracking(-0.5)
                         .foregroundStyle(Color.ink)
                     Text(byline)
@@ -497,7 +509,7 @@ struct RecipeDetailView: View {
                         ForEach(Array(recipe.steps.enumerated()), id: \.offset) { index, step in
                             HStack(alignment: .top, spacing: 12) {
                                 Text("\(index + 1)")
-                                    .font(.gabarito(17, .extraBold))
+                                    .font(.gabarito(17, .bold))
                                     .foregroundStyle(Color.inkFaint)
                                     .frame(width: 22, alignment: .trailing)
                                 Text(step)
@@ -541,9 +553,17 @@ struct RecipeDetailView: View {
             }
             .padding(.horizontal, 24)
             .padding(.top, 8)
-            .padding(.bottom, 6)
+            // The bar rides over pushed pages and occupies the 4…72pt band;
+            // a 6pt inset put the one committing CTA on this page directly
+            // underneath it. `.hidesProngsbyPerch()` below clears the perch
+            // but never touched the bar. Pre-existing — the last docked
+            // control the token family hadn't reached.
+            .padding(.bottom, Layout.tabBarInset)
             .background(Color.canvas.opacity(0.94))
         }
+        // This page docks its own tomato CTA across the bottom; the perch
+        // would sit right on top of it.
+        .hidesProngsbyPerch()
         .sheet(isPresented: $editorShown) {
             RecipeEditorView(editing: recipe)
         }
@@ -569,7 +589,7 @@ struct RecipeDetailView: View {
                     .frame(minWidth: 44, minHeight: 44)
                     .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.pressable)
             Spacer()
 
             Button {
@@ -583,11 +603,15 @@ struct RecipeDetailView: View {
                         Image(systemName: recipe.isFavorite ? "heart.fill" : "heart")
                             .font(.system(size: 14, weight: .semibold))
                             .foregroundStyle(recipe.isFavorite ? Color.tomato : Color.ink)
+                            // The fill pours in and the heart gives a
+                            // little thump — the plPop finally has a body.
+                            .contentTransition(.symbolEffect(.replace))
+                            .symbolEffect(.bounce, value: recipe.isFavorite)
                     }
                     .frame(minWidth: 44, minHeight: 44)
                     .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.pressable)
 
             ShareLink(item: shareText) {
                 Circle()
@@ -601,7 +625,7 @@ struct RecipeDetailView: View {
                     .frame(minWidth: 44, minHeight: 44)
                     .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.pressable)
 
             Button {
                 Haptic.tap()
@@ -618,7 +642,7 @@ struct RecipeDetailView: View {
                     .frame(minWidth: 44, minHeight: 44)
                     .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.pressable)
         }
         .padding(.horizontal, 24)
         .padding(.vertical, 4)
@@ -629,12 +653,7 @@ struct RecipeDetailView: View {
         Group {
             let data = shownPhoto ?? recipe.photoData
             if let data, let image = UIImage(data: data) {
-                Image(uiImage: image)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 260)
-                    .clipShape(RoundedRectangle(cornerRadius: Radius.hero))
+                PhotoWell(image: image, height: 260, cornerRadius: Radius.hero)
                     .plCardShadow()
             } else {
                 HStack {
@@ -672,7 +691,7 @@ struct RecipeDetailView: View {
                                             )
                                     }
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(.pressable)
                         }
                     }
                 }
@@ -767,7 +786,7 @@ struct PlateAssignSheet: View {
             VStack(spacing: 2) {
                 MicroLabel("Plate it")
                 Text(recipe.title)
-                    .font(.gabarito(22, .extraBold))
+                    .font(.gabarito(22, .semibold))
                     .foregroundStyle(Color.ink)
                     .lineLimit(1)
             }
@@ -799,8 +818,12 @@ struct PlateAssignSheet: View {
             TomatoPillButton(title: confirmation ?? plateLabel) {
                 plate()
             }
+            // "Plate it for Tuesday" → "Plated for Tuesday" morphs in place.
+            .contentTransition(.numericText())
+            .animation(.plSnap, value: confirmation)
             .disabled(chosenDate == nil)
             .opacity(chosenDate == nil ? 0.4 : 1)
+            .animation(.plSnap, value: chosenDate == nil)
             .padding(.horizontal, 24)
             .padding(.bottom, 14)
         }
@@ -852,7 +875,7 @@ struct PlateAssignSheet: View {
             }
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable)
     }
 
     private func cookChip(_ member: HouseholdMember) -> some View {
@@ -873,7 +896,7 @@ struct PlateAssignSheet: View {
                     .foregroundStyle(active ? Color.ink : Color.inkSecondary)
             }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable)
     }
 
     private var plateLabel: String {
@@ -934,7 +957,7 @@ struct RecipePickerSheet: View {
     var body: some View {
         VStack(spacing: 0) {
             Text(titleLine)
-                .font(.gabarito(19, .extraBold))
+                .font(.gabarito(19, .bold))
                 .foregroundStyle(Color.ink)
                 .padding(.top, 22)
                 .padding(.bottom, 6)
@@ -943,6 +966,7 @@ struct RecipePickerSheet: View {
                 LazyVGrid(columns: [GridItem(.flexible(), spacing: 18), GridItem(.flexible()), GridItem(.flexible())], spacing: 20) {
                     ForEach(recipes, id: \.persistentModelID) { recipe in
                         Button {
+                            Haptic.tap()
                             onPick(recipe)
                             dismiss()
                         } label: {
@@ -965,7 +989,7 @@ struct RecipePickerSheet: View {
                                     .lineLimit(1)
                             }
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.pressable)
                     }
                 }
                 .padding(.horizontal, 24)

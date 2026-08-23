@@ -92,21 +92,25 @@ struct DishView: View {
     /// Ambient mesh drift — the Plan hero only. One animated mesh per screen.
     var animated: Bool = false
 
+    /// Resolved once per view rather than once per read. It was a computed
+    /// property, and `body` reads it from a dozen places — so the animated
+    /// hero was re-deriving a palette from strings 10–16 times a frame at
+    /// 20fps for an answer that cannot change while the view exists.
+    private let palette: DishPalette
+
     init(recipe: Recipe, diameter: CGFloat, animated: Bool = false) {
         self.title = recipe.title
         self.tags = recipe.tags
         self.moods = recipe.moods
         self.diameter = diameter
         self.animated = animated
+        self.palette = DishPalette.resolve(title: recipe.title, tags: recipe.tags, moods: recipe.moods)
     }
 
     init(title: String, diameter: CGFloat) {
         self.title = title
         self.diameter = diameter
-    }
-
-    private var palette: DishPalette {
-        DishPalette.resolve(title: title, tags: tags, moods: moods)
+        self.palette = DishPalette.resolve(title: title, tags: [], moods: [])
     }
 
     @Environment(\.colorScheme) private var scheme
@@ -136,9 +140,11 @@ struct DishView: View {
             .compositingGroup()
     }
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     @ViewBuilder
     private var food: some View {
-        if animated {
+        if animated, !reduceMotion {
             TimelineView(.animation(minimumInterval: 1 / 20)) { timeline in
                 mesh(driftPhase: timeline.date.timeIntervalSinceReferenceDate)
             }

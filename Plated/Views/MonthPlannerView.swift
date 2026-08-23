@@ -27,7 +27,7 @@ struct MonthPlannerView: View {
                         dayCell(date)
                     }
                 }
-                .padding(.bottom, 90)
+                .padding(.bottom, Layout.floatingChromeInset)
             }
         }
         .padding(.horizontal, 24)
@@ -46,7 +46,7 @@ struct MonthPlannerView: View {
         HStack(spacing: 14) {
             VStack(alignment: .leading, spacing: 3) {
                 Text(monthTitle)
-                    .font(.gabarito(25, .bold))
+                    .font(.gabarito(25, .semibold))
                     .tracking(-0.3)
                     .foregroundStyle(Color.ink)
                 // Legend rides the header — visible before you scroll an inch.
@@ -74,7 +74,7 @@ struct MonthPlannerView: View {
                 .frame(minWidth: 44, minHeight: 44)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable)
     }
 
     private var weekdayHeader: some View {
@@ -102,7 +102,7 @@ struct MonthPlannerView: View {
         } label: {
             dayCellContent(date, today: today, meal: meal, past: past)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable)
         .disabled(past)
     }
 

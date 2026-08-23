@@ -27,11 +27,11 @@ struct NotificationsView: View {
                         .frame(minWidth: 44, minHeight: 44)
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.pressable)
                 VStack(alignment: .leading, spacing: 2) {
                     MicroLabel("What happened")
                     Text("Activity")
-                        .font(.gabarito(25, .bold))
+                        .font(.gabarito(25, .semibold))
                         .tracking(-0.3)
                         .foregroundStyle(Color.ink)
                 }
@@ -51,6 +51,7 @@ struct NotificationsView: View {
                     Image(systemName: "bell")
                         .font(.system(size: 28, weight: .medium))
                         .foregroundStyle(Color.inkFaint)
+                        .plBreathing()
                     Text("All quiet at the table")
                         .font(.jakarta(15, .bold))
                         .foregroundStyle(Color.inkSecondary)
@@ -69,7 +70,7 @@ struct NotificationsView: View {
                             Divider().overlay(Color.hairlineSoft)
                         }
                     }
-                    .padding(.bottom, 110)
+                    .padding(.bottom, Layout.floatingChromeInset)
                 }
             }
         }
