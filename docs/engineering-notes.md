@@ -235,3 +235,37 @@ count wrap are false at AX3/AX5 — "dividers still separate columns" and
 "default size unchanged". The wrap itself verified correct. Detail hadn't
 landed when the branch froze; check this before trusting either statement
 in the code or in the spec.
+
+## The shape that constrains text in a circle is a chord
+
+Fitting initials inside an avatar circle went wrong twice in one day, both
+times for the same reason: reasoning about the *container* instead of the
+*ink*.
+
+- `minimumScaleFactor` alone shrinks text to its bounding **square**, so
+  two-letter initials spilled out of the round edge at accessibility sizes
+  while single letters were always fine.
+- Constraining to the **inscribed square** (size/√2 ≈ 0.707) then
+  over-corrected by 26%. Text is not a square — it is a wide, short band,
+  and a band of half-height `h` fits a width of `2√(r² − h²)`, which is
+  ≈0.96·size at these proportions. That tightness made the scale-factor
+  floor binding, which made SwiftUI truncate: an ellipsis at AX5 for "MC",
+  a name in our own sample data, plus ~10% smaller type at *default* size
+  for wide pairs, and "+2" rendering 30% smaller than "S" beside it.
+
+**Containment achieved by not drawing the glyph is not containment.** The
+second fix traded 0.2pt of overflow for an ellipsis, which is the same
+lateral move the first one made.
+
+**The version to build:** fit the ink box's *corners* to the circle, or size
+the font as a fraction of the circle rather than scaling a fixed font and
+hoping. Both contain the glyph without truncating and without shrinking the
+common case. Worth doing deliberately with the chord arithmetic written
+next to it — not as a third pass on a tired afternoon.
+
+## A palette token can have a second copy in another target
+
+`Color.amber` was darkened to clear 3:1 on canvas, and `PlatedWidgets`
+carries its own hardcoded pocket palette that kept the old value. A widget
+is a separate target with a separate copy; changing a token in `Theme.swift`
+does not reach it. Grep the widget target whenever a token moves.

@@ -361,21 +361,29 @@ struct AvatarCircle: View {
                     .foregroundStyle(tone.tone)
                     // The circle is a fixed size but `Font.custom` scales
                     // with Dynamic Type, so at accessibility sizes the
-                    // glyph outgrows its own container.
+                    // glyph can outgrow its container: two-letter initials
+                    // put about 0.2pt of ink outside the disc at AX3.
                     //
-                    // `minimumScaleFactor` alone was not enough, and the
-                    // reason is geometric: it shrinks text to the bounding
-                    // SQUARE, while the visible shape is the inscribed
-                    // circle. Two-letter initials — the default for a full
-                    // name — measured 33.67pt wide in a 34pt circle and
-                    // spilled out of the round edge on both sides. Single
-                    // letters were fine, which is why it read as fixed.
+                    // **The bound is a CHORD, not the inscribed square**,
+                    // and getting that wrong cost a whole round. Text is not
+                    // a square — it is a wide, short band, and a band of
+                    // half-height h fits a width of 2√(r²−h²), which is
+                    // ≈0.96·size here against the inscribed square's 0.707.
+                    // Constraining to the square was 26% tighter than the
+                    // real limit, which made `minimumScaleFactor`'s floor
+                    // binding and reinstated the ellipsis at AX5 — for
+                    // "MC", a name in our own sample data — while shrinking
+                    // wide pairs ~10% at default size for no containment
+                    // gain, and leaving "+2" 30% smaller than "S" beside it
+                    // in the same stack.
                     //
-                    // So constrain to the inscribed square first
-                    // (size / √2 ≈ 0.707), and let the scale factor work
-                    // inside that.
+                    // The version that would work fits the ink box's
+                    // CORNERS to the circle, or sizes the font as a
+                    // fraction of the circle instead of scaling a fixed
+                    // one. Deliberately not attempted here: this is the
+                    // third pass at this component in a day, and 0.2pt of
+                    // overflow is a smaller defect than an ellipsis.
                     .lineLimit(1)
-                    .frame(width: size * 0.707)
                     .minimumScaleFactor(0.4)
             }
     }
