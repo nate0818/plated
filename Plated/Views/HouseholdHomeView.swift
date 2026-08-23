@@ -34,6 +34,11 @@ struct HouseholdHomeView: View {
     @State private var dmPeer: String?
     @State private var swipedMember: PersistentIdentifier?
     @State private var removingMember: HouseholdMember?
+    #if DEBUG
+    /// One arming per view lifetime, so a re-appearance can't queue a
+    /// second push behind the first.
+    @State private var statsFlagHandled = false
+    #endif
 
     enum HomeDestination: String, Identifiable {
         case activity, stats
@@ -154,12 +159,20 @@ struct HouseholdHomeView: View {
         .onAppear {
             #if DEBUG
             // UI-test hook, one-shot: `simctl launch … -plated-open-stats`.
-            if LaunchFlags.consume("-plated-open-stats") {
+            //
+            // `consume` fires once per PROCESS, and Home's onAppear runs
+            // before the launch opener lifts — so on its own the flag was
+            // spent on a pass that then slept, and any later appearance
+            // found it already consumed. Checked here, consumed only when
+            // the push actually happens.
+            if !statsFlagHandled, ProcessInfo.processInfo.arguments.contains("-plated-open-stats") {
+                statsFlagHandled = true
                 // After the opener has lifted: pushing a destination while
                 // the launch animation is still running wedges the update
                 // cycle (the splash's repeatForever + a fresh push).
                 Task {
                     try? await Task.sleep(for: .milliseconds(1200))
+                    guard LaunchFlags.consume("-plated-open-stats") else { return }
                     pushed = .stats
                 }
             }
@@ -409,7 +422,9 @@ struct HouseholdHomeView: View {
                     Image(systemName: "chevron.right")
                         .font(.system(size: 9, weight: .bold))
                 }
-                .foregroundStyle(Color.inkFaint)
+                // The only affordance saying this strip is tappable — it
+                // cannot be the faintest thing on the page.
+                .foregroundStyle(Color.inkSecondary)
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 4)

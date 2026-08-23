@@ -165,7 +165,10 @@ struct CookbookView: View {
                     }
                     // Filtering resettles the shelf — dishes fade and slide
                     // to their new seats instead of teleporting.
-                    .animation(.plSnap, value: shown.map(\.persistentModelID))
+                    // Keyed on the count, not a fresh map of every id: the
+                    // map re-ran `filter.apply` over the whole cookbook a
+                    // third time per body pass purely to feed this.
+                    .animation(.plSnap, value: shown.count)
                     .padding(.horizontal, 24)
                     .padding(.top, 20)
                     .padding(.bottom, Layout.floatingChromeInset)
@@ -546,7 +549,12 @@ struct RecipeDetailView: View {
             }
             .padding(.horizontal, 24)
             .padding(.top, 8)
-            .padding(.bottom, 6)
+            // The bar rides over pushed pages and occupies the 4…72pt band;
+            // a 6pt inset put the one committing CTA on this page directly
+            // underneath it. `.hidesProngsbyPerch()` below clears the perch
+            // but never touched the bar. Pre-existing — the last docked
+            // control the token family hadn't reached.
+            .padding(.bottom, Layout.tabBarInset)
             .background(Color.canvas.opacity(0.94))
         }
         // This page docks its own tomato CTA across the bottom; the perch

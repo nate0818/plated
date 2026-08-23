@@ -124,6 +124,13 @@ struct ProngsbyView: View {
     /// question must survive a peek at another tab.
     @Bindable var session: ProngsbySession
     @State private var clearConfirmShown = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    /// Lines rise into the thread — unless the room asked them not to.
+    /// The glyph in this same file was guarded and the bubbles were not.
+    private var arrival: AnyTransition {
+        reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity)
+    }
     @FocusState private var composerFocused: Bool
 
     private let starters = [
@@ -170,11 +177,11 @@ struct ProngsbyView: View {
                     }
                     ForEach(messages, id: \.persistentModelID) { message in
                         bubble(message)
-                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                            .transition(arrival)
                     }
                     if session.thinking {
                         thinkingBubble
-                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                            .transition(arrival)
                     }
                 }
                 // New lines rise into the thread instead of appearing in it.
@@ -428,6 +435,10 @@ struct ProngsbyView: View {
             let visible = session.isPresented && UIApplication.shared.applicationState == .active
             if visible {
                 Haptic.plate()
+                // A buzz is not an answer. Everything else on this path
+                // announces itself; the reply — the only part anyone came
+                // for — landed silently for VoiceOver.
+                AccessibilityNotification.Announcement("Prongsby replied. \(answer)").post()
             } else {
                 // He answered an empty room: let the bell carry it.
                 Notifier.post(

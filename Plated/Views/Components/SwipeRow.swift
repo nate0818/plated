@@ -1,7 +1,8 @@
 import SwiftUI
 
-/// One thing a swipe can reveal. Tomato is reserved for the destructive
-/// one — everything else stays ink, per the house rule about earned colour.
+/// One thing a swipe can reveal. The destructive one wears ink, not
+/// tomato: tomato is earned colour and belongs to good news, so the
+/// weight here comes from fill rather than hue.
 struct SwipeAction: Identifiable {
     /// Stable across body passes — a fresh UUID each time would rebuild
     /// the revealed buttons under the user's finger.
@@ -53,13 +54,18 @@ struct SwipeRow<Content: View>: View {
                             Haptic.tap()
                             action.perform()
                         } label: {
+                            // Destructive reads as weight, not as tomato.
+                            // Tomato is earned colour — the + button, a plate
+                            // landing, a committing CTA — and spending it on
+                            // "remove" puts the loudest thing on the screen
+                            // next to the thing you least want mis-tapped.
                             Circle()
-                                .fill(action.destructive ? Color.tomato : Color.fill)
+                                .fill(action.destructive ? Color.ink : Color.fill)
                                 .frame(width: 44, height: 44)
                                 .overlay {
                                     Image(systemName: action.symbol)
                                         .font(.system(size: 16, weight: .semibold))
-                                        .foregroundStyle(action.destructive ? Color.onTomato : Color.ink)
+                                        .foregroundStyle(action.destructive ? Color.canvas : Color.ink)
                                 }
                         }
                         .buttonStyle(.pressable)

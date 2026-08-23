@@ -54,30 +54,59 @@ enum ProngsbyMind {
     #if canImport(FoundationModels)
     /// The generation itself, off the actor so a slow model never blocks
     /// the main thread — safe because only Strings cross the boundary.
-    /// Raced against a deadline: `catch` covers a request that throws, not
-    /// one that hangs.
+    ///
+    /// **Not a task group, deliberately.** `withTaskGroup` awaits every
+    /// child before it returns, `cancelAll()` included — so if
+    /// `respond(to:)` does not honour cancellation (and nothing promises it
+    /// does), a group-based race gives you a deadline that expires while
+    /// the group sits there waiting for the very call it was meant to
+    /// bound. Same shape as the bug we fixed in CloudSync: a timeout that
+    /// does not bound the thing it guards. Two independent tasks through
+    /// one continuation lets the deadline actually win and leaves the
+    /// model's task to finish unobserved.
     @available(iOS 26.0, *)
     private nonisolated static func generate(_ question: String, grounding: String) async -> String? {
-        await withTaskGroup(of: String?.self) { group in
-            group.addTask {
+        await withCheckedContinuation { (continuation: CheckedContinuation<String?, Never>) in
+            let gate = FirstPast()
+
+            let work = Task {
+                let text: String?
                 do {
+                    // A fresh session per question on purpose: the
+                    // instructions carry a snapshot of this household's
+                    // cookbook and plan, and a reused session would answer
+                    // tonight's question from last week's facts.
                     let session = LanguageModelSession(instructions: grounding)
-                    return try await session.respond(to: question)
+                    text = try await session.respond(to: question)
                         .content.trimmingCharacters(in: .whitespacesAndNewlines)
                 } catch {
                     // Guardrail refusal, context overflow, or the model
                     // being busy — all land on the rule brain, never on
                     // an error string.
-                    return nil
+                    text = nil
+                }
+                if await gate.claim() { continuation.resume(returning: text) }
+            }
+
+            Task {
+                try? await Task.sleep(for: prongsbyModelDeadline)
+                if await gate.claim() {
+                    continuation.resume(returning: nil)
+                    // Ask nicely; the answer above does not depend on it.
+                    work.cancel()
                 }
             }
-            group.addTask {
-                try? await Task.sleep(for: prongsbyModelDeadline)
-                return nil
-            }
-            let first = await group.next() ?? nil
-            group.cancelAll()
-            return first
+        }
+    }
+
+    /// Lets exactly one of two racers resume the continuation. Resuming a
+    /// checked continuation twice is a crash, not a warning.
+    private actor FirstPast {
+        private var taken = false
+        func claim() -> Bool {
+            guard !taken else { return false }
+            taken = true
+            return true
         }
     }
     #endif

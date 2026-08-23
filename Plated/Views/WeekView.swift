@@ -328,7 +328,14 @@ struct WeekView: View {
             moveMeal(from: tokens.first, to: date)
         } isTargeted: { over in
             if over { Haptic.select() }
-            withAnimation(.plSnap) { dropHoverDay = over ? date : nil }
+            withAnimation(.plSnap) {
+                // Dragging from one row to the next fires `true` on the new
+                // row before `false` on the old one, so clearing
+                // unconditionally wiped the lean on the row you were
+                // actually over. Only ever clear your own.
+                if over { dropHoverDay = date }
+                else if dropHoverDay == date { dropHoverDay = nil }
+            }
         }
         .scaleEffect(bounceDay == date ? 1.02 : (dropHoverDay == date ? 1.015 : 1))
         .animation(.plPop, value: bounceDay)

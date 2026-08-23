@@ -1,5 +1,6 @@
 import AppIntents
 import SwiftData
+import UIKit
 
 /// "Ask Prongsby" from Siri — the fork answers by voice, grounded in the
 /// household's cookbook and plan, and the exchange lands in his chat
@@ -26,12 +27,16 @@ struct AskProngsbyIntent: AppIntent {
         context.insert(DirectMessage(peerName: "Prongsby", text: question, isMine: true))
         context.insert(DirectMessage(peerName: "Prongsby", text: answer, isMine: false))
         // A voice exchange leaves a thread entry like any other; without
-        // the bell it sits there unbadged and unmentioned.
-        Notifier.post(
-            .prongsbyReplied, actor: "Prongsby",
-            body: String(answer.prefix(120)),
-            into: context
-        )
+        // the bell it sits there unbadged and unmentioned. But only when
+        // the app is away — Siri already spoke the answer, so belling a
+        // foreground app badges a reply the user is looking at.
+        if UIApplication.shared.applicationState != .active {
+            Notifier.post(
+                .prongsbyReplied, actor: "Prongsby",
+                body: String(answer.prefix(120)),
+                into: context
+            )
+        }
 
         // Explicitly, because Siri cold-launches this with no scene
         // attached and the process suspends the moment perform() returns —

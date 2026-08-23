@@ -117,27 +117,33 @@ struct HouseholdStatsView: View {
         ]
     }
 
-    private var earnedCount: Int { badges.filter(\.earned).count }
-
-    /// The badge this household will get next: furthest along, and among
-    /// ties the one that asks for least. Putting the closest goal at the
-    /// top is the whole of the Starbucks progress effect — a number you
-    /// can see yourself closing is a number you act on.
-    private var nextUp: Badge? {
-        badges
-            .filter { !$0.earned }
-            .sorted { ($0.fraction, Double(-$0.need)) > ($1.fraction, Double(-$1.need)) }
-            .first
-    }
+    /// The closest-badge pick lives in `body` now, resolved once alongside
+    /// the shelf: furthest along, and among ties the one that asks least.
+    /// Putting the nearest goal on top is the whole of the Starbucks
+    /// progress effect — a number you can see yourself closing is a number
+    /// you act on.
 
     private var columns: Int { typeSize >= .accessibility1 ? 2 : 3 }
 
     var body: some View {
-        ScrollView(showsIndicators: false) {
+        // Resolved ONCE per body pass and threaded down. As computed
+        // properties, `badges` / `earnedCount` / `nextUp` / the shelf / the
+        // top bar each rebuilt the whole list, and every rebuild ran a
+        // calendar grouping over every meal this household has ever
+        // planned — six times over, for an answer that cannot change
+        // between the first read and the last.
+        let shelf = badges
+        let earned = shelf.filter(\.earned).count
+        let closest = shelf
+            .filter { !$0.earned }
+            .sorted { ($0.fraction, Double(-$0.need)) > ($1.fraction, Double(-$1.need)) }
+            .first
+
+        return ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 26) {
                 numbers
-                if let nextUp { nextUpCard(nextUp) }
-                badgeShelf
+                if let closest { nextUpCard(closest) }
+                badgeShelf(shelf, earned: earned)
             }
             .padding(.horizontal, 24)
             .padding(.top, 14)
@@ -145,13 +151,13 @@ struct HouseholdStatsView: View {
         }
         .background(Color.canvas)
         .toolbar(.hidden, for: .navigationBar)
-        .safeAreaInset(edge: .top) { topBar }
+        .safeAreaInset(edge: .top) { topBar(earned: earned, total: shelf.count) }
         .sheet(item: $opened) { badge in
             BadgeDetailSheet(badge: badge)
         }
     }
 
-    private var topBar: some View {
+    private func topBar(earned: Int, total: Int) -> some View {
         HStack(spacing: 12) {
             Button {
                 Haptic.tap()
@@ -172,7 +178,7 @@ struct HouseholdStatsView: View {
             .accessibilityLabel("Back")
 
             VStack(alignment: .leading, spacing: 1) {
-                MicroLabel("\(earnedCount) of \(badges.count) earned")
+                MicroLabel("\(earned) of \(total) earned")
                 Text("All stats")
                     .font(.gabarito(20, .semibold))
                     .foregroundStyle(Color.ink)
@@ -254,20 +260,20 @@ struct HouseholdStatsView: View {
     // Nine cards down the page hid that behind a lot of prose, and the
     // prose belongs in the tap, not the shelf.
 
-    private var badgeShelf: some View {
+    private func badgeShelf(_ shelf: [Badge], earned: Int) -> some View {
         VStack(alignment: .leading, spacing: 16) {
             MicroLabel("Badges")
             LazyVGrid(
                 columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: columns),
                 spacing: 24
             ) {
-                ForEach(badges) { badge in
+                ForEach(shelf) { badge in
                     badgeCell(badge)
                 }
             }
         }
-        .animation(.plPop, value: earnedCount)
-        .sensoryFeedback(.success, trigger: earnedCount) { old, new in new > old }
+        .animation(.plPop, value: earned)
+        .sensoryFeedback(.success, trigger: earned) { old, new in new > old }
     }
 
     private func badgeCell(_ badge: Badge) -> some View {
@@ -286,9 +292,12 @@ struct HouseholdStatsView: View {
                 // Earned states carry no chip at all — the full ring says
                 // it, and absence of a nag is the reward.
                 if let label = badge.progressLabel {
+                    // How far off you are is the point of the shelf, so it
+                    // does not get the faint tone — inkFaint on canvas is
+                    // about 2.2:1 and this is content, not chrome.
                     Text(label)
                         .font(.jakarta(10, .semibold))
-                        .foregroundStyle(Color.inkFaint)
+                        .foregroundStyle(Color.inkSecondary)
                 }
             }
             .frame(maxWidth: .infinity)
