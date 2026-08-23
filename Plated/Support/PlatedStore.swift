@@ -43,17 +43,21 @@ enum PlatedStore {
             isStoredInMemoryOnly: false,
             cloudKitDatabase: purging ? .none : .automatic
         )
+        // BEFORE the container, not after it. The claim this supports is
+        // "the watcher cannot miss a start", and "the line after
+        // construction" is only good enough if NSPersistentCloudKitContainer
+        // never schedules setup or an import from inside its own
+        // initialiser — which nothing promises. Registering first makes the
+        // question moot instead of answered: a CloudKit notification
+        // arriving before the container exists is harmless, since the
+        // monitor only records what it hears.
+        //
+        // Here rather than in PlatedApp's scene for the same reason it has
+        // to be early at all: this is a lazy static and App Intents reach
+        // it directly, in processes where that scene never runs.
+        CloudSync.startMonitoring()
         do {
-            let container = try ModelContainer(for: schema, configurations: [configuration])
-            // Here, and not in the scene. The mirror can only start work
-            // once this container exists, so a watcher registered on this
-            // line cannot miss a start — which is the load-bearing claim
-            // in CloudSync's whole design. Hanging it off `PlatedApp`'s
-            // scene body was only approximately true: this is a lazy
-            // static and App Intents reach it directly, in processes where
-            // that scene may never run at all.
-            CloudSync.startMonitoring()
-            return container
+            return try ModelContainer(for: schema, configurations: [configuration])
         } catch {
             // A schema mismatch during development should be loud, not silent.
             fatalError("Could not create ModelContainer: \(error)")
