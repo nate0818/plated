@@ -8,37 +8,79 @@ import FoundationModels
 /// private, free, and offline. Everywhere else (and whenever the model
 /// declines or errors) the rule-based ProngsbyBrain answers, so the fork
 /// never goes silent and never needs a server.
-enum ProngsbyMind {
+/// How long the on-device model gets before the rule brain takes over.
+/// Without a bound, a request that never returns leaves `session.thinking`
+/// stuck true for the life of the app — and that flag is shell-owned, so
+/// the composer's `guard !session.thinking` would wedge the chat for good.
+private let prongsbyModelDeadline: Duration = .seconds(6)
 
-    /// Whether the on-device model can take this question right now.
-    static var languageModelReady: Bool {
-        #if canImport(FoundationModels)
-        if #available(iOS 26.0, *) {
-            return SystemLanguageModel.default.availability == .available
-        }
-        #endif
-        return false
-    }
+/// Main-actor by declaration, not by luck. `ProngsbyBrain` holds `@Model`
+/// objects from the shared main context, and this type reads their
+/// persisted properties and walks their relationships. In Swift 5 mode a
+/// plain `nonisolated async func` awaited from the main actor hops to the
+/// cooperative pool (SE-0338), which put those reads — and the relationship
+/// faults behind `sortedIngredients` and `meal.cook` — on a background
+/// thread while `@Query` refreshed the same context on main.
+@MainActor
+enum ProngsbyMind {
 
     /// One reply, whatever faculty is awake. The brain is both the
     /// grounding (its household snapshot rides in the instructions) and
     /// the fallback (any model trouble lands on its deterministic reply).
     static func reply(to question: String, brain: ProngsbyBrain) async -> String {
         #if canImport(FoundationModels)
-        if #available(iOS 26.0, *), SystemLanguageModel.default.availability == .available {
-            do {
-                let session = LanguageModelSession(instructions: instructions(for: brain))
-                let response = try await session.respond(to: question)
-                let text = response.content.trimmingCharacters(in: .whitespacesAndNewlines)
-                if !text.isEmpty { return text }
-            } catch {
-                // Guardrail refusal, context overflow, or the model being
-                // busy — all land on the rule brain, never on an error string.
+        if #available(iOS 26.0, *), hasFacts(brain),
+           SystemLanguageModel.default.availability == .available {
+            // Built here, on the actor, before any suspension point: what
+            // crosses into the generator is a finished String, never a
+            // model object.
+            let grounding = instructions(for: brain)
+            if let text = await generate(question, grounding: grounding), !text.isEmpty {
+                return text
             }
         }
         #endif
         return brain.reply(to: question)
     }
+
+    /// An empty house has nothing to ground an answer in, and "answer ONLY
+    /// from the facts below" with no facts below invites the model to
+    /// either refuse or invent. The rule brain has real onboarding lines
+    /// for that case.
+    private static func hasFacts(_ brain: ProngsbyBrain) -> Bool {
+        !brain.recipes.isEmpty || !brain.members.isEmpty || !brain.meals.isEmpty
+    }
+
+    #if canImport(FoundationModels)
+    /// The generation itself, off the actor so a slow model never blocks
+    /// the main thread — safe because only Strings cross the boundary.
+    /// Raced against a deadline: `catch` covers a request that throws, not
+    /// one that hangs.
+    @available(iOS 26.0, *)
+    private nonisolated static func generate(_ question: String, grounding: String) async -> String? {
+        await withTaskGroup(of: String?.self) { group in
+            group.addTask {
+                do {
+                    let session = LanguageModelSession(instructions: grounding)
+                    return try await session.respond(to: question)
+                        .content.trimmingCharacters(in: .whitespacesAndNewlines)
+                } catch {
+                    // Guardrail refusal, context overflow, or the model
+                    // being busy — all land on the rule brain, never on
+                    // an error string.
+                    return nil
+                }
+            }
+            group.addTask {
+                try? await Task.sleep(for: prongsbyModelDeadline)
+                return nil
+            }
+            let first = await group.next() ?? nil
+            group.cancelAll()
+            return first
+        }
+    }
+    #endif
 
     /// The persona and the household, compressed for the model. Facts only —
     /// the model must answer from THIS cookbook and THIS week, not invent.
