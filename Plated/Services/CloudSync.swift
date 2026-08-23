@@ -59,6 +59,16 @@ enum CloudSync {
     /// import carries an `endDate` too, so gating on that alone would end
     /// the wait early and hand back a success — telling the user "refreshed"
     /// in the one moment they most need to know it didn't.
+    ///
+    /// **Deliberate gap, decided rather than overlooked:** only `.import`
+    /// events are inspected, so a household whose CloudKit *setup* is
+    /// broken — signed in, but misconfigured — reads as `.quiet` on every
+    /// pull, forever, with no warning. That is the wrong thing to fix here.
+    /// Broken sync is persistent state and wants a persistent affordance; a
+    /// gesture the user made for an unrelated reason, reported through a
+    /// buzz that cannot distinguish "nothing new" from "your account is
+    /// misconfigured", is not one. When a sync-status affordance exists,
+    /// this is the comment that should send you to it.
     private static func nextFinishedImport() async -> RefreshOutcome {
         let stream = NotificationCenter.default.notifications(
             named: NSPersistentCloudKitContainer.eventChangedNotification
