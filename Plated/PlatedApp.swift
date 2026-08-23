@@ -43,6 +43,39 @@ struct PlatedApp: App {
                     // a verdict for the console, and quit. PlatedStore ran
                     // local-only this launch, so nothing re-exports. Debug
                     // only — a shipped binary carries no data-nuking flag.
+                    // Maintenance: write one row of every model so the
+                    // Development schema learns every record type, hold
+                    // while the mirror exports them, and quit. Run this
+                    // before deploying to Production — CloudKit cannot mint
+                    // a type there on demand, so a type never exercised in
+                    // Development is a feature that silently fails to sync
+                    // for everyone. Debug only; `-plated-purge-cloud` clears
+                    // the rows afterwards.
+                    #if DEBUG
+                    if LaunchFlags.consume("-plated-prime-schema") {
+                        do {
+                            try SchemaPrimer.prime(into: container.mainContext)
+                            print("PLATED PRIME: 12 rows saved — holding while CloudKit exports")
+                            try await Task.sleep(for: .seconds(90))
+                            print("PLATED PRIME: done — deploy the schema, then purge")
+                        } catch {
+                            print("PLATED PRIME FAILED: \(error)")
+                        }
+                        exit(0)
+                    }
+                    #endif
+                    #if DEBUG
+                    if LaunchFlags.consume("-plated-unprime-schema") {
+                        do {
+                            try SchemaPrimer.unprime(from: container.mainContext)
+                            try await Task.sleep(for: .seconds(30))
+                            print("PLATED UNPRIME: done — deletions exported")
+                        } catch {
+                            print("PLATED UNPRIME FAILED: \(error)")
+                        }
+                        exit(0)
+                    }
+                    #endif
                     #if DEBUG
                     if LaunchFlags.consume("-plated-purge-cloud") {
                         do {
