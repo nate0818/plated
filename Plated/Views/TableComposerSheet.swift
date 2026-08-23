@@ -134,12 +134,7 @@ struct TableComposerSheet: View {
     private var photoWell: some View {
         PhotosPicker(selection: $photoItem, matching: .images) {
             if let data = photoData, let image = UIImage(data: data) {
-                Image(uiImage: image)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 220)
-                    .clipShape(RoundedRectangle(cornerRadius: Radius.hero))
+                PhotoWell(image: image, height: 220, cornerRadius: Radius.hero)
                     .overlay(alignment: .bottomTrailing) {
                         HStack(spacing: 5) {
                             Image(systemName: "camera")

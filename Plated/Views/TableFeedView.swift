@@ -45,6 +45,19 @@ struct TableFeedView: View {
         return max(members.count + guests.count + pending, 1)
     }
 
+    /// Pull to refresh. Being straight about what this does: `@Query` is
+    /// live, so anything CloudKit has already delivered is on screen
+    /// before the user pulls. What the gesture buys is a push in the other
+    /// direction — flushing anything this device is still holding — plus a
+    /// beat for the mirror to answer, which is what makes it worth having
+    /// rather than theatre. The feed is a social surface; a feed you can't
+    /// pull reads as stuck even when it's current.
+    private func refreshFeed() async {
+        try? context.save()
+        try? await Task.sleep(for: .milliseconds(700))
+        Haptic.tap()
+    }
+
     private var shownPosts: [TablePost] {
         guard scope == .household else { return posts }
         let names = Set(members.map(\.name))
@@ -109,6 +122,7 @@ struct TableFeedView: View {
                     }
                     .padding(.bottom, Layout.floatingChromeInset)
                 }
+                .refreshable { await refreshFeed() }
             }
             .background(Color.canvas)
             .toolbar(.hidden, for: .navigationBar)
@@ -311,12 +325,7 @@ struct TableFeedView: View {
                         Haptic.tap()
                         threadPost = post
                     } label: {
-                        Image(uiImage: image)
-                            .resizable()
-                            .scaledToFill()
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 300)
-                            .clipShape(RoundedRectangle(cornerRadius: Radius.card))
+                        PhotoWell(image: image, height: 300)
                             .plCardShadow()
                     }
                     .buttonStyle(.pressable)

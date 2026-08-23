@@ -477,12 +477,7 @@ struct RecipeEditorView: View {
         PhotosPicker(selection: $photoItem, matching: .images) {
             ZStack(alignment: .bottomTrailing) {
                 if let photoData, let image = UIImage(data: photoData) {
-                    Image(uiImage: image)
-                        .resizable()
-                        .scaledToFill()
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 240)
-                        .clipShape(RoundedRectangle(cornerRadius: Radius.hero))
+                    PhotoWell(image: image, height: 240, cornerRadius: Radius.hero)
                         .plCardShadow()
                     HStack(spacing: 6) {
                         Image(systemName: "camera")

@@ -214,12 +214,7 @@ struct PersonProfileView: View {
     private var banner: some View {
         ZStack(alignment: .bottomTrailing) {
             if let data = profiles.first?.bannerPhotoData, let image = UIImage(data: data), isMe {
-                Image(uiImage: image)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(height: 150)
-                    .frame(maxWidth: .infinity)
-                    .clipped()
+                PhotoWell(image: image, height: 150, cornerRadius: 0)
             } else {
                 LinearGradient(
                     colors: [PersonTone.from(hex: colorHex).tint, Color.canvas],

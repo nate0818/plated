@@ -641,12 +641,7 @@ struct RecipeDetailView: View {
         Group {
             let data = shownPhoto ?? recipe.photoData
             if let data, let image = UIImage(data: data) {
-                Image(uiImage: image)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 260)
-                    .clipShape(RoundedRectangle(cornerRadius: Radius.hero))
+                PhotoWell(image: image, height: 260, cornerRadius: Radius.hero)
                     .plCardShadow()
             } else {
                 HStack {

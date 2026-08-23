@@ -304,6 +304,39 @@ struct CountDivider: View {
     }
 }
 
+/// A photo filling a fixed-height well, which never makes its row wider
+/// than the row was offered.
+///
+/// `.scaledToFill().frame(maxWidth: .infinity).frame(height: h)` looks
+/// like it does this, and doesn't. `maxWidth: .infinity` is a ceiling, not
+/// a clamp: `scaledToFill` sizes a landscape photo to cover the height, so
+/// the image reports a width wider than the screen and the frame happily
+/// accepts it. One of those inside a feed card made the whole card wider
+/// than the viewport, and a vertical ScrollView centres content it can't
+/// fit — so every row shunted left with its avatar, plate count and
+/// caption half off the screen.
+///
+/// An overlay never affects its parent's layout size, so the well stays
+/// exactly as wide as it was offered and the overflow is clipped instead
+/// of measured.
+struct PhotoWell: View {
+    let image: UIImage
+    let height: CGFloat
+    var cornerRadius: CGFloat = Radius.card
+
+    var body: some View {
+        Color.clear
+            .frame(maxWidth: .infinity)
+            .frame(height: height)
+            .overlay {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+            }
+            .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
+    }
+}
+
 /// Initials in a tinted circle — people are circles, like dishes.
 struct AvatarCircle: View {
     let initials: String

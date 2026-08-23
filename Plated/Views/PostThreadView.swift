@@ -41,12 +41,7 @@ struct PostThreadView: View {
                 VStack(alignment: .leading, spacing: 14) {
                     if let data = post.photoData, let image = UIImage(data: data) {
                         ZStack(alignment: .topTrailing) {
-                            Image(uiImage: image)
-                                .resizable()
-                                .scaledToFill()
-                                .frame(maxWidth: .infinity)
-                                .frame(height: 320)
-                                .clipShape(RoundedRectangle(cornerRadius: Radius.card))
+                            PhotoWell(image: image, height: 320)
                                 .plCardShadow()
                             if post.hasChefsKiss {
                                 chefsKissPill.offset(x: 6, y: -10)
