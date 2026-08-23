@@ -156,6 +156,12 @@ struct WeekView: View {
                 .padding(.top, 14)
                 .padding(.bottom, Layout.floatingChromeInset)
             }
+            // Scrolling puts an open row away, the way a list does.
+            .onScrollPhaseChange { _, phase in
+                if phase == .interacting, swipedDay != nil {
+                    withAnimation(.plSnap) { swipedDay = nil }
+                }
+            }
         }
     }
 
@@ -308,6 +314,12 @@ struct WeekView: View {
                 Haptic.tap()
                 actionDay = date
             }
+            // A gesture announces nothing: without this the row's swipe
+            // actions scattered onto each child text and the tap itself
+            // was invisible to VoiceOver. Home's member rows do the same.
+            .accessibilityElement(children: .combine)
+            .accessibilityAddTraits(.isButton)
+            .accessibilityHint("Opens what you can do with this night")
         }
         .draggable(DayTransfer.token(for: date)) {
             dishCircle(for: meal)

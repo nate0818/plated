@@ -169,9 +169,15 @@ extension ButtonStyle where Self == PressableStyle {
 // MARK: - Floating chrome
 
 enum Layout {
-    /// Where the perch sits and how big it is — the tab bar's own bottom
-    /// padding (4) plus its height (68) plus a 12pt gap.
-    static let perchBottom: CGFloat = 84
+    /// What a control docked to the bottom of a pushed page needs to clear
+    /// the floating tab bar: the bar's own bottom padding (4) plus its
+    /// height (68) plus a 12pt gap. A page that docks something here also
+    /// owes the perch a `.hidesProngsbyPerch()`.
+    static let tabBarInset: CGFloat = 84
+
+    /// Where the perch sits and how big it is — directly on top of the
+    /// bar's clearance.
+    static let perchBottom: CGFloat = tabBarInset
     static let perchHeight: CGFloat = 50
 
     /// How much room the floating chrome needs at the bottom of a scroll.
@@ -253,6 +259,48 @@ struct MicroLabel: View {
             .font(.jakarta(12, .bold))
             .tracking(1.0)
             .foregroundStyle(color)
+    }
+}
+
+/// A number and the thing it counts. No glyph, no box.
+///
+/// Instagram's profile triad and X's metric row agree on this: a count
+/// that needs an icon to be legible has the wrong label, and a hairline
+/// box around a number reads as a button that isn't one. So the label
+/// carries the meaning and the chrome goes away. Sentence case, not the
+/// all-caps micro-type — a household is not a dashboard.
+struct CountBlock: View {
+    let value: String
+    let label: String
+    /// Mango, for the one count that is a compliment.
+    var accent: Bool = false
+
+    var body: some View {
+        VStack(spacing: 3) {
+            Text(value)
+                .font(.gabarito(24, .semibold))
+                .foregroundStyle(accent ? Color.mango : Color.ink)
+                .contentTransition(.numericText())
+            Text(label)
+                .font(.jakarta(11, .semibold))
+                .foregroundStyle(Color.inkSecondary)
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
+                .minimumScaleFactor(0.85)
+        }
+        .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(value) \(label)")
+    }
+}
+
+/// The rule between two counts — a hairline, since the boxes are gone.
+struct CountDivider: View {
+    var body: some View {
+        Rectangle()
+            .fill(Color.hairline)
+            .frame(width: 1, height: 28)
+            .accessibilityHidden(true)
     }
 }
 

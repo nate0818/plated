@@ -112,6 +112,9 @@ struct PostThreadView: View {
         }
         .background(Color.canvas)
         .toolbar(.hidden, for: .navigationBar)
+        // This page docks its own composer at the bottom-trailing corner,
+        // exactly where the perch lives.
+        .hidesProngsbyPerch()
         .navigationDestination(item: $personShown) { person in
             PersonProfileView(personName: person.name, colorHex: person.colorHex)
         }
@@ -527,8 +530,10 @@ struct PostThreadView: View {
             }
             .padding(.horizontal, 20)
             // The floating tab bar rides over pushed pages — the composer
-            // clears it.
-            .padding(.bottom, 92)
+            // clears it. Derived, not hand-typed: the 92 that used to sit
+            // here put the send button squarely under Prongsby's perch,
+            // so tapping send opened him instead of posting the comment.
+            .padding(.bottom, Layout.tabBarInset)
         }
     }
 

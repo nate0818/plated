@@ -29,6 +29,11 @@ struct SwipeRow<Content: View>: View {
     @ViewBuilder let content: () -> Content
 
     @State private var dragOffset: CGFloat = 0
+    /// Latched the moment a drag proves itself horizontal. Without it,
+    /// `onEnded` judged a vertical scroll flick with a little sideways
+    /// drift as a swipe and popped the row open after ordinary scrolling
+    /// — the row never moved during the drag, then jumped at the end.
+    @State private var isHorizontal = false
 
     private var revealWidth: CGFloat {
         guard !actions.isEmpty else { return 0 }
@@ -70,18 +75,41 @@ struct SwipeRow<Content: View>: View {
                     }
                 }
                 .offset(x: (isOpen ? -revealWidth : 0) + dragOffset)
+                .overlay {
+                    // An open row closes on a tap anywhere in it, the way
+                    // every list on this platform behaves. Without this the
+                    // tap fell through to the row and pushed a page over
+                    // the actions the user had just revealed.
+                    if isOpen {
+                        Color.clear
+                            .contentShape(Rectangle())
+                            .onTapGesture { close() }
+                            .accessibilityHidden(true)
+                    }
+                }
                 .simultaneousGesture(
                     DragGesture(minimumDistance: 24)
                         .onChanged { value in
-                            // Horizontal-dominant only, so the page still scrolls.
+                            // Horizontal-dominant only, so the page still
+                            // scrolls. Once proven, the drag keeps the
+                            // row even if the finger curves upward.
                             guard !actions.isEmpty else { return }
-                            guard abs(value.translation.width) > abs(value.translation.height) else { return }
+                            if !isHorizontal {
+                                guard abs(value.translation.width) > abs(value.translation.height) else { return }
+                                isHorizontal = true
+                            }
                             let base: CGFloat = isOpen ? -revealWidth : 0
                             dragOffset = min(max(value.translation.width, -revealWidth - base), -base)
                         }
                         .onEnded { value in
-                            guard !actions.isEmpty else { return }
-                            let projected = (isOpen ? -revealWidth : 0) + value.translation.width
+                            defer { isHorizontal = false }
+                            guard !actions.isEmpty, isHorizontal else {
+                                if dragOffset != 0 { withAnimation(.plSnap) { dragOffset = 0 } }
+                                return
+                            }
+                            // Predicted, not raw: a short fast flick is a
+                            // swipe even though the finger barely moved.
+                            let projected = (isOpen ? -revealWidth : 0) + value.predictedEndTranslation.width
                             let opening = projected < -revealWidth / 2
                             // The detent announces itself in the hand.
                             if opening != isOpen { Haptic.select() }
@@ -93,5 +121,12 @@ struct SwipeRow<Content: View>: View {
                 )
         }
         .animation(.plSnap, value: isOpen)
+    }
+
+    private func close() {
+        withAnimation(.plSnap) {
+            isOpen = false
+            dragOffset = 0
+        }
     }
 }

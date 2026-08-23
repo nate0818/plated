@@ -29,20 +29,17 @@ enum HouseholdIdentity {
         return trimmed.isEmpty || trimmed == "me" || trimmed == "you"
     }
 
-    /// "Meadows" → "Meadows'"; "Chen" → "Chen's". A surname already ending
-    /// in s takes the bare apostrophe — "Meadows's Household" reads wrong
-    /// on a wall and wrong on a screen.
-    static func possessive(_ name: String) -> String {
-        guard !name.isEmpty else { return "" }
-        return name.lowercased().hasSuffix("s") ? "\(name)'" : "\(name)'s"
-    }
+    /// What goes under the HOUSEHOLD label on Home — the name itself, and
+    /// only the name. "Meadows' Household" beneath an eyebrow reading
+    /// "HOUSEHOLD" says the word twice; a name a family would actually use
+    /// says it once. A typed name is theirs and is never dressed up.
+    static func displayName(typed: String, appleFamilyName: String, ownerName: String) -> String {
+        let typed = typed.trimmingCharacters(in: .whitespaces)
+        if !typed.isEmpty { return typed }
 
-    /// The Home masthead: "Meadows' Household" — or an honest fallback
-    /// while the house is still nameless.
-    static func title(typed: String, appleFamilyName: String, ownerName: String) -> String {
-        let family = familyName(typed: typed, appleFamilyName: appleFamilyName, ownerName: ownerName)
-        guard !family.isEmpty else { return "Your Household" }
-        return "\(possessive(family)) Household"
+        let family = familyName(typed: "", appleFamilyName: appleFamilyName, ownerName: ownerName)
+        guard !family.isEmpty else { return "Your household" }
+        return "The \(family)"
     }
 
     /// Who sits here, for the banner's caption: real names while the table

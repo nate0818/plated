@@ -9,8 +9,8 @@ import PhotosUI
 struct HouseholdHomeView: View {
     @Environment(\.modelContext) private var context
     @Query(sort: \HouseholdMember.createdAt) private var members: [HouseholdMember]
-    @Query private var recipes: [Recipe]
     @Query(filter: #Predicate<TablePost> { !$0.isDiscover }) private var posts: [TablePost]
+    @Query private var meals: [PlannedMeal]
     // Oldest first — see PersonProfileView: the oldest row is the
     // household's one true profile when a sync race left more than one.
     @Query(sort: \HouseholdProfile.createdAt) private var profiles: [HouseholdProfile]
@@ -41,8 +41,10 @@ struct HouseholdHomeView: View {
     }
 
     private var owner: HouseholdMember? { members.first(where: \.isOwner) }
-    private var dishPosts: [TablePost] { posts.filter { $0.kind == "dish" } }
     private var kissCount: Int { posts.filter(\.hasChefsKiss).count }
+    private var platesEarned: Int { posts.reduce(0) { $0 + $1.totalPlates } }
+    /// Every dinner this household has ever put on the plan.
+    private var nightsPlated: Int { meals.count }
 
     /// Whether the house has a name at all, or is still "Your Household".
     private var isNamed: Bool {
@@ -53,10 +55,11 @@ struct HouseholdHomeView: View {
         ).isEmpty
     }
 
-    /// "Meadows' Household" — the name the user typed, else the one Apple
-    /// handed over at sign-in, else the head of table's own surname.
-    private var householdTitle: String {
-        HouseholdIdentity.title(
+    /// "The Meadows" — the name the user typed, else the one Apple handed
+    /// over at sign-in, else the head of table's own surname. Just the
+    /// name: the word "household" is already the label above it.
+    private var householdDisplayName: String {
+        HouseholdIdentity.displayName(
             typed: householdName,
             appleFamilyName: userFamilyName,
             ownerName: owner?.name ?? ""
@@ -92,6 +95,12 @@ struct HouseholdHomeView: View {
             .padding(.top, 6)
             .padding(.bottom, Layout.floatingChromeInset)
         }
+        // Scrolling puts an open row away, the way a list does.
+        .onScrollPhaseChange { _, phase in
+            if phase == .interacting, swipedMember != nil {
+                withAnimation(.plSnap) { swipedMember = nil }
+            }
+        }
         .background(alignment: .topTrailing) {
             // After Dark lets the chrome sleep — no ambient glow in the dark room.
             if colorScheme == .light {
@@ -117,7 +126,14 @@ struct HouseholdHomeView: View {
             "Remove \(removingMember?.name ?? "") from the household?",
             isPresented: Binding(
                 get: { removingMember != nil },
-                set: { if !$0 { removingMember = nil } }
+                set: {
+                    // Dismissing by tapping outside has to put the row
+                    // back too, or the seat sits open with no dialog.
+                    if !$0 {
+                        removingMember = nil
+                        swipedMember = nil
+                    }
+                }
             ),
             titleVisibility: .visible
         ) {
@@ -198,7 +214,7 @@ struct HouseholdHomeView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     MicroLabel("Household")
                     HStack(spacing: 5) {
-                        Text(householdTitle)
+                        Text(householdDisplayName)
                             .font(.gabarito(26, .semibold))
                             .tracking(-0.3)
                             .foregroundStyle(Color.ink)
@@ -218,7 +234,7 @@ struct HouseholdHomeView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.pressable)
-            .accessibilityLabel(isNamed ? householdTitle : "Name your household")
+            .accessibilityLabel(isNamed ? householdDisplayName : "Name your household")
             .layoutPriority(1)
     }
 
@@ -363,55 +379,43 @@ struct HouseholdHomeView: View {
     }
 
     // MARK: The count
-    // Four numbers under the photo; the shelf of badges lives one tap in.
+    // Three numbers under the photo; everything else lives one tap in.
+    //
+    // Four boxed tiles with a stock glyph each read as a dashboard of
+    // buttons that weren't buttons. Instagram's profile triad is the
+    // shape that works: number over word, three across, no chrome — and
+    // the words are what someone would say out loud, so no glyph has to
+    // explain them. The whole strip is the tap target now, which is both
+    // a bigger target and one fewer capsule on the page.
 
     private var statsStrip: some View {
-        VStack(spacing: 10) {
-            HStack(spacing: 8) {
-                insightTile("Kisses", "\(kissCount)", symbol: "sparkles", accent: kissCount > 0)
-                insightTile("Recipes", "\(recipes.count)", symbol: "book.closed")
-                insightTile("Posts", "\(dishPosts.count)", symbol: "circle.circle")
-                insightTile("Saves", "\(Awards.totalSavesRecorded)", symbol: "arrow.down.heart")
-            }
-
-            Button {
-                Haptic.tap()
-                pushed = .stats
-            } label: {
-                HStack(spacing: 6) {
-                    Text("See all stats")
-                        .font(.jakarta(13, .bold))
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 11, weight: .bold))
+        Button {
+            Haptic.tap()
+            pushed = .stats
+        } label: {
+            VStack(spacing: 12) {
+                HStack(spacing: 0) {
+                    CountBlock(value: "\(nightsPlated)", label: "Dinners")
+                    CountDivider()
+                    CountBlock(value: "\(platesEarned)", label: "Happy plates")
+                    CountDivider()
+                    CountBlock(value: "\(kissCount)", label: "Chef's kisses", accent: kissCount > 0)
                 }
-                .foregroundStyle(Color.ink)
-                .frame(maxWidth: .infinity)
-                .frame(height: 44)
-                .overlay(Capsule().strokeBorder(Color.hairline))
-                .contentShape(Capsule())
-            }
-            .buttonStyle(.pressable)
-        }
-    }
 
-    private func insightTile(_ label: String, _ value: String, symbol: String, accent: Bool = false) -> some View {
-        VStack(spacing: 3) {
-            Image(systemName: symbol)
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(accent ? Color.mango : Color.inkFaint)
-            Text(value)
-                .font(.gabarito(19, .bold))
-                .foregroundStyle(Color.ink)
-                .contentTransition(.numericText())
-                .animation(.plSnap, value: value)
-            Text(label.uppercased())
-                .font(.jakarta(9, .extraBold))
-                .tracking(0.5)
+                HStack(spacing: 4) {
+                    Text("All stats and badges")
+                        .font(.jakarta(12, .semibold))
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 9, weight: .bold))
+                }
                 .foregroundStyle(Color.inkFaint)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 4)
+            .contentShape(Rectangle())
         }
-        .frame(maxWidth: .infinity)
-        .frame(height: 76)
-        .overlay(RoundedRectangle(cornerRadius: Radius.chip).strokeBorder(Color.hairline))
+        .buttonStyle(.pressable)
+        .accessibilityHint("Opens all stats and badges")
     }
 
     // MARK: The people

@@ -108,14 +108,19 @@ struct PersonProfileView: View {
                     }
                     .padding(.top, 26)
 
+                    // Same count, same words, same lack of a box as Home
+                    // and the stats shelf — a person's numbers and their
+                    // household's numbers shouldn't be two dialects.
                     HStack(spacing: 0) {
-                        statBlock("\(posts.count)", "Plates shared")
-                        statBlock("\(plateCount)", "Plates earned")
-                        statBlock("\(kissCount)", "Kisses", accent: kissCount > 0)
-                        statBlock("\(Awards.savesReceived(by: personName))", "Saves")
+                        CountBlock(value: "\(posts.count)", label: "On the table")
+                        CountDivider()
+                        CountBlock(value: "\(plateCount)", label: "Happy plates")
+                        CountDivider()
+                        CountBlock(value: "\(kissCount)", label: "Chef's kisses", accent: kissCount > 0)
+                        CountDivider()
+                        CountBlock(value: "\(Awards.savesReceived(by: personName))", label: "Saved by others")
                     }
-                    .padding(.vertical, 10)
-                    .overlay(RoundedRectangle(cornerRadius: Radius.card).strokeBorder(Color.hairline))
+                    .padding(.vertical, 12)
                 }
                 .padding(.horizontal, 24)
 
@@ -263,19 +268,6 @@ struct PersonProfileView: View {
             .aspectRatio(1, contentMode: .fit)
         }
         .buttonStyle(.pressable)
-    }
-
-    private func statBlock(_ value: String, _ label: String, accent: Bool = false) -> some View {
-        VStack(spacing: 1) {
-            Text(value)
-                .font(.gabarito(19, .bold))
-                .foregroundStyle(accent ? Color.mango : Color.ink)
-            Text(label.uppercased())
-                .font(.jakarta(8.5, .extraBold))
-                .tracking(0.4)
-                .foregroundStyle(Color.inkFaint)
-        }
-        .frame(maxWidth: .infinity)
     }
 
     private func outlineAction(_ label: String, action: @escaping () -> Void) -> some View {

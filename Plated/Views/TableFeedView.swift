@@ -609,21 +609,29 @@ struct TableFeedView: View {
 /// it goes tomato with the well knocked out in canvas.
 struct PlateReactionGlyph: View {
     var filled: Bool
+    /// The count and badge shelves borrow this mark rather than reaching
+    /// for a stock symbol — the app already owns a plate, and `hands.clap`
+    /// standing in for one was the loudest wrong note on the stats page.
+    var size: CGFloat = 26
+    /// The rim colour when empty, so the tone can travel with the size.
+    var tone: Color = .inkSecondary
+
+    private var scale: CGFloat { size / 26 }
 
     var body: some View {
         ZStack {
             Circle()
-                .strokeBorder(filled ? Color.tomato : Color.inkSecondary, lineWidth: 2)
+                .strokeBorder(filled ? Color.tomato : tone, lineWidth: 2 * scale)
                 .background(Circle().fill(filled ? Color.tomato : Color.clear))
-                .frame(width: 26, height: 26)
+                .frame(width: size, height: size)
             if filled {
                 Circle()
                     .fill(Color.canvas)
-                    .frame(width: 9, height: 9)
+                    .frame(width: 9 * scale, height: 9 * scale)
             } else {
                 Circle()
-                    .strokeBorder(Color.inkSecondary, lineWidth: 1.5)
-                    .frame(width: 13, height: 13)
+                    .strokeBorder(tone, lineWidth: 1.5 * scale)
+                    .frame(width: 13 * scale, height: 13 * scale)
             }
         }
     }
