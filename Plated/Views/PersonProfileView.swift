@@ -672,4 +672,30 @@ struct PersonRef: Identifiable, Hashable {
     /// stranding you on a stale stranger.
     var memberID: PersistentIdentifier?
     var id: String { memberID.map { "\($0.hashValue)" } ?? name }
+
+    /// Build a ref for a name that may or may not belong to a seat here —
+    /// a post's author, a comment's, an @mention.
+    ///
+    /// **Always use this rather than the memberwise init when starting
+    /// from a name.** Resolving the seat at construction is the entire
+    /// reason the profile page survives a rename: a ref carrying only a
+    /// string strands the moment that string changes, and the page falls
+    /// back to matching on a name that no longer exists. Two of the six
+    /// construction sites were built by hand and missed the id, which
+    /// reproduced the whole original symptom set — title reverting to
+    /// "Me", the gear vanishing, "Edit profile" becoming a DM with
+    /// yourself — on the most ordinary path in the app.
+    static func author(
+        _ name: String,
+        colorHex: String,
+        in members: [HouseholdMember]
+    ) -> PersonRef {
+        let first = name.split(separator: " ").first.map(String.init) ?? name
+        let seat = members.first { $0.name == name || $0.name == first }
+        return PersonRef(
+            name: name,
+            colorHex: colorHex,
+            memberID: seat?.persistentModelID
+        )
+    }
 }

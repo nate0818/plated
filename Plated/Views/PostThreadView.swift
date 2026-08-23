@@ -625,7 +625,7 @@ struct PostThreadView: View {
         let hex = colorHex
             ?? members.first { $0.name == name || name.hasPrefix($0.name) }?.colorHex
             ?? "FF5A3C"
-        personShown = PersonRef(name: name, colorHex: hex)
+        personShown = PersonRef.author(name, colorHex: hex, in: members)
     }
 
     private func tone(for name: String) -> PersonTone {

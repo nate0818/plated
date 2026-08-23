@@ -41,13 +41,15 @@ People get fixed (tint, tone) pairs via `PersonTone`; the rotation is tomato →
 
 ## 3. Type
 
-- **Gabarito** (display). **Semibold (600) is the working weight** for display type inside the app: screen titles 25–27/600, section and page titles 20–24/600, card titles 22/600. Sheet titles 19/700. Negative tracking on large sizes (−0.3 to −1).
-- **ExtraBold (800) is reserved for the two places outside the daily chrome**: the onboarding heroes (32/800) and the sign-in wordmark (22/800). Nothing in the running app wears it.
+- **Gabarito** (display). **Semibold (600) is the working weight at display sizes** — screen titles 25–27/600, section and page titles 20–24/600, card titles 22/600. Sheet titles 19/700. Negative tracking on large sizes (−0.3 to −1).
+- **ExtraBold (800) survives in three places, all of them small or ceremonial**: the onboarding heroes and sign-in wordmark (32/800, 22/800), the launch wordmark, and small Gabarito *numerals* — the month grid's day numbers (13/800) and the recipe composer's step numbers (14/800), where the weight is doing the work a larger size would otherwise do. It is not used at display sizes in the running app.
 - **Plus Jakarta Sans** (everything else): body 14–15, chips/buttons 13/700, micro-labels 12/700 with +1.0 tracking, uppercase.
-- **Type floors.** 12pt is the floor for tracked uppercase micro-labels. 10pt is the absolute floor for any caption (the "HOST" label under an avatar); nothing renders below it except a numeral inside a badge, where the containing shape carries the meaning.
+- **Type floors — what the code actually does.** `MicroLabel` (12/700, +1.0 tracking) is the standard tracked label and the one to reach for. Hand-rolled emphatic captions run 10–11 in bold or extraBold — the weekday caps in the week and month grids, the tab labels, the HOST caption. **9pt is the absolute floor**, and it is reached exactly once: the numeral inside the activity badge, where the containing shape carries the meaning. Nothing renders below 9.
 - Registered at launch via `CTFontManagerRegisterFontsForURL` from `Resources/Fonts`; use `Font.gabarito(_:_:)` / `Font.jakarta(_:_:)` only.
 
-> **Weight law changed 2026-08-22**, on Nate's call — "reduce the font weights of the headlines, they're too heavy". v2.0 specified 700–800 across display type; that read as shouting once the chrome quietened. Roughly thirty call sites came down a step (22/800→600, 19/800→700, 25/700→600). The onboarding heroes kept their weight deliberately: they are a front door, not a room you live in. Recorded here after a review found the table contradicted by the code and nobody had written the change down — if these disagree again, the code is the bug until this line says otherwise.
+> **Weight law changed 2026-08-22**, on Nate's call — "reduce the font weights of the headlines, they're too heavy" — and confirmed by him as final on 2026-08-23. v2.0 specified 700–800 across display type; that read as shouting once the chrome quietened. Roughly thirty call sites came down a step (22/800→600, 19/800→700, 25/700→600). The onboarding heroes kept their weight deliberately: they are a front door, not a room you live in.
+>
+> **Written down after the fact, and then written down wrong.** The first attempt at this section replaced four false claims with three new ones — asserting that nothing in the running app wears ExtraBold, that 12pt was the micro-label floor, and that 10pt was the absolute floor. All three were contradicted by code this same branch had shipped. A spec that asserts things the code doesn't do is worse than a spec that stays silent, because the next reader "fixes" the code to match it. **Describe what the code does; change the code first if you want a different sentence here.**
 
 ## 4. Motion & haptics
 

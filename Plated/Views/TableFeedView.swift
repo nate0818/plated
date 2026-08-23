@@ -615,7 +615,9 @@ struct TableFeedView: View {
 
     private func openProfile(_ post: TablePost) {
         Haptic.tap()
-        personShown = PersonRef(name: post.authorName, colorHex: post.authorColorHex)
+        personShown = PersonRef.author(
+            post.authorName, colorHex: post.authorColorHex, in: members
+        )
     }
 
     private func postWhen(_ date: Date) -> String {

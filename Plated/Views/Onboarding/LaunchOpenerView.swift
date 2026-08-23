@@ -132,7 +132,8 @@ struct LaunchOpenerView: View {
                 ForEach(Array("plated".enumerated()), id: \.offset) { i, ch in
                     let l = letters[i]
                     Text(String(ch))
-                        // Spec §3: splash is 42/800 — the handoff's medium
+                        // Spec §3: the launch wordmark is one of the three
+                        // places ExtraBold survives — the handoff's medium
                         // belonged to its Helvetica, not to the register.
                         .font(.gabarito(fs, .extraBold))
                         .tracking(-0.022 * fs)
