@@ -17,7 +17,8 @@ enum CloudSync {
     enum RefreshOutcome {
         /// An import finished and brought records with it.
         case arrived
-        /// Nothing came before the deadline — the honest answer offline.
+        /// Nothing came — either the mirror was idle, or what it was doing
+        /// didn't finish in time. The ordinary answer on a current device.
         case quiet
         /// An import ended badly. `endDate` alone cannot tell you this.
         case failed
@@ -26,39 +27,75 @@ enum CloudSync {
     /// Wait for CloudKit to finish pulling, so a pull-to-refresh means
     /// something.
     ///
-    /// Resolves on the first completed import, or at `timeout`, whichever
-    /// comes first — but never before `floor`, so the refresh control
-    /// doesn't flash and snap back in a way that reads as a no-op.
+    /// Two deadlines, not one, and that is the whole design. Nothing here
+    /// can *ask* CloudKit to sync — no such API is exposed — so this
+    /// listens, and a healthy already-current table produces no import at
+    /// all. A single cap makes that common case pay the rare case's price:
+    /// every ordinary "nothing new" pull rides to the ceiling. So the first
+    /// deadline is short and only asks *is the mirror doing anything*; if
+    /// it isn't, nothing is coming and we stop. The long deadline is
+    /// spent only once we've seen work actually in flight.
+    ///
+    /// `floor` keeps the control from flashing and snapping back in a way
+    /// that reads as a no-op.
+    ///
+    /// Note it can only observe imports that finish *after* the observer is
+    /// registered — one landing in the moment between the pull starting and
+    /// this call subscribing is missed, and that pull runs to a deadline.
+    /// Inherent to listening rather than polling.
     static func waitForImport(
         floor: Duration = .milliseconds(450),
-        timeout: Duration = .seconds(2)
+        quietWindow: Duration = .milliseconds(700),
+        activeTimeout: Duration = .seconds(3)
     ) async -> RefreshOutcome {
-        async let settled = raceImportAgainst(timeout)
+        // A deadline shorter than the floor isn't a deadline. Ordering the
+        // three keeps the caps meaningful whatever a caller passes.
+        let quiet = max(quietWindow, floor)
+        let active = max(activeTimeout, quiet)
+
+        async let settled = settle(quietWindow: quiet, activeTimeout: active)
         async let minimumBeat: Void = sleep(floor)
         let (outcome, _) = await (settled, minimumBeat)
         return outcome
     }
 
-    private static func raceImportAgainst(_ timeout: Duration) async -> RefreshOutcome {
+    /// Tracks whether the mirror ever started work, so the deadline can
+    /// grow to fit real activity instead of being guessed up front.
+    private actor Activity {
+        private(set) var started = false
+        func mark() { started = true }
+    }
+
+    private static func settle(quietWindow: Duration, activeTimeout: Duration) async -> RefreshOutcome {
         await withTaskGroup(of: RefreshOutcome.self) { group in
-            group.addTask { await nextFinishedImport() }
+            let activity = Activity()
+
+            group.addTask { await observeImports(noting: activity) }
             group.addTask {
-                await sleep(timeout)
+                await sleep(quietWindow)
+                // Idle mirror: no import has even begun, so none is coming.
+                // Holding the spinner past here would be hoping, not waiting.
+                if await activity.started {
+                    await sleep(activeTimeout - quietWindow)
+                }
                 return .quiet
             }
+
             let first = await group.next() ?? .quiet
             group.cancelAll()
             return first
         }
     }
 
-    /// Returns when CloudKit reports an import that has actually ended.
+    /// Returns when CloudKit reports an import that has actually ended,
+    /// noting along the way whether one ever began.
     ///
-    /// Two separate facts, and the API exposes both for a reason: `endDate`
-    /// says the attempt is over, `succeeded` says it worked. A failed
-    /// import carries an `endDate` too, so gating on that alone would end
-    /// the wait early and hand back a success — telling the user "refreshed"
-    /// in the one moment they most need to know it didn't.
+    /// `endDate` and `succeeded` are two separate facts and the API exposes
+    /// both for a reason: the first says the attempt is over, the second
+    /// says it worked. A failed import carries an `endDate` too, so gating
+    /// on that alone would end the wait early and hand back a success —
+    /// telling the user "refreshed" in the one moment they most need to
+    /// know it didn't.
     ///
     /// **Deliberate gap, decided rather than overlooked:** only `.import`
     /// events are inspected, so a household whose CloudKit *setup* is
@@ -69,7 +106,7 @@ enum CloudSync {
     /// buzz that cannot distinguish "nothing new" from "your account is
     /// misconfigured", is not one. When a sync-status affordance exists,
     /// this is the comment that should send you to it.
-    private static func nextFinishedImport() async -> RefreshOutcome {
+    private static func observeImports(noting activity: Activity) async -> RefreshOutcome {
         let stream = NotificationCenter.default.notifications(
             named: NSPersistentCloudKitContainer.eventChangedNotification
         )
@@ -77,7 +114,13 @@ enum CloudSync {
             let event = note.userInfo?[
                 NSPersistentCloudKitContainer.eventNotificationUserInfoKey
             ] as? NSPersistentCloudKitContainer.Event
-            guard let event, event.type == .import, event.endDate != nil else { continue }
+            guard let event, event.type == .import else { continue }
+            guard event.endDate != nil else {
+                // Started but not finished — this is the signal that buys
+                // the long deadline.
+                await activity.mark()
+                continue
+            }
             return event.succeeded ? .arrived : .failed
         }
         // The stream only ends when this task is cancelled.
