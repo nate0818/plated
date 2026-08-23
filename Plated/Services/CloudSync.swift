@@ -89,15 +89,22 @@ enum CloudSync {
         /// Without an expiry its identifier sits in `running` for the life
         /// of the process and every later pull pays the long deadline.
         ///
-        /// Derived from the long deadline rather than picked: it moves when
-        /// the deadlines move, and a reader can see where it came from. The
-        /// multiple is deliberately large because of the asymmetry above —
-        /// expiring a slow-but-real import out from under a wait is the
-        /// expensive mistake, and a first sync on a bad connection can
-        /// legitimately run for minutes. Past this, promotion buys nothing
-        /// anyway: work still unfinished after a hundred times the longest
-        /// wait we will ever give it is not going to land inside one.
-        private static let staleAfter: Duration = Defaults.activeTimeout * 100
+        /// **Longer than any real import we expect.** Erring long is the
+        /// safe direction, per the asymmetry above: too long costs one slow
+        /// spinner per pull until it clears, too short costs a dropped
+        /// import. A first sync on a bad connection can legitimately run
+        /// for minutes, so this is minutes.
+        ///
+        /// Standalone on purpose. This was briefly `activeTimeout * 100`,
+        /// which looked derived but wasn't: "how long can a real import
+        /// plausibly take" has no causal link to "how long are we willing
+        /// to wait for one", so the multiple was doing all the work and the
+        /// arithmetic was standing in for the reason. It also coupled two
+        /// unrelated numbers — dropping `activeTimeout` to 30s for a UX
+        /// reason would have silently made this fifty minutes. The sentence
+        /// above IS the justification; it belongs in words, not in a
+        /// multiplication.
+        private static let staleAfter: Duration = .seconds(300)
         /// Enough to reconcile out-of-order delivery without growing for
         /// the life of the process.
         private static let rememberedEndings = 64
