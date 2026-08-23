@@ -243,10 +243,13 @@ struct TableFeedView: View {
                 VStack(spacing: 2) {
                     AvatarCircle(initials: hostInitial, tone: .neutralPair, size: 38)
                     Text("HOST")
-                        .font(.jakarta(8, .bold))
+                        .font(.jakarta(10, .bold))
                         .tracking(0.7)
                         .foregroundStyle(Color.inkFaint)
                 }
+                // A 38pt avatar is a 38pt target; the law says 44. Home's
+                // copy of this control already had the frame.
+                .frame(minWidth: 44, minHeight: 44)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.pressable)

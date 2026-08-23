@@ -41,9 +41,13 @@ People get fixed (tint, tone) pairs via `PersonTone`; the rotation is tomato →
 
 ## 3. Type
 
-- **Gabarito** (display): screen titles 25/700, hero lines 32/800, date numerals 19/800, sheet titles 19/800, splash 42/800. Negative tracking on large sizes (−0.3 to −1).
+- **Gabarito** (display). **Semibold (600) is the working weight** for display type inside the app: screen titles 25–27/600, section and page titles 20–24/600, card titles 22/600. Sheet titles 19/700. Negative tracking on large sizes (−0.3 to −1).
+- **ExtraBold (800) is reserved for the two places outside the daily chrome**: the onboarding heroes (32/800) and the sign-in wordmark (22/800). Nothing in the running app wears it.
 - **Plus Jakarta Sans** (everything else): body 14–15, chips/buttons 13/700, micro-labels 12/700 with +1.0 tracking, uppercase.
+- **Type floors.** 12pt is the floor for tracked uppercase micro-labels. 10pt is the absolute floor for any caption (the "HOST" label under an avatar); nothing renders below it except a numeral inside a badge, where the containing shape carries the meaning.
 - Registered at launch via `CTFontManagerRegisterFontsForURL` from `Resources/Fonts`; use `Font.gabarito(_:_:)` / `Font.jakarta(_:_:)` only.
+
+> **Weight law changed 2026-08-22**, on Nate's call — "reduce the font weights of the headlines, they're too heavy". v2.0 specified 700–800 across display type; that read as shouting once the chrome quietened. Roughly thirty call sites came down a step (22/800→600, 19/800→700, 25/700→600). The onboarding heroes kept their weight deliberately: they are a front door, not a room you live in. Recorded here after a review found the table contradicted by the code and nobody had written the change down — if these disagree again, the code is the bug until this line says otherwise.
 
 ## 4. Motion & haptics
 
@@ -51,10 +55,15 @@ Three springs, defined once: `.plPop` (0.32/0.55 — icon and reaction bounce, t
 
 ## 5. Structure
 
-- Tab IA: **Plan · Table · + · Recipes · Home** in a floating 68pt capsule; active item ink, others faint; + is tomato, 54pt, rotates 90° on press.
+- Tab IA: **Plan · Table · + · Recipes · Home** in a floating 68pt capsule; active item ink, others faint; + is tomato, 54pt, rotates 90° on press. Four tabs and the +, symmetric 2 | + | 2.
+- **Two floating objects, not one.** Prongsby is no longer a tab — six footer items was too crowded. He rides as a **perch**: one puck drawn once in the shell above the bar, inherited by every tab and every page pushed inside one, opening him as a sheet. A page that docks its own bottom control calls `.hidesProngsbyPerch()` (PostThreadView, RecipeDetailView) or the perch sits on that control.
+- **Bottom spacing is a token family, never a typed number** (`Layout`, Theme.swift): `tabBarInset` (84) clears the bar alone — what a page that hides the perch needs; `perchBottom` (= tabBarInset) is where the perch sits; `perchHeight` (50); `floatingChromeInset` (perchBottom + perchHeight + 8) is what a scroll owes at its bottom. Derived from each other on purpose: a hand-written copy drifted short of the chrome it was meant to clear, and a hand-written 92 put a send button underneath the perch.
+- Home: the household itself — masthead (HOUSEHOLD / the name), banner photo cropped to faces at pick time, the count, who sits at the table, who cooks when. Stats and badges live one tap in.
+- **The count**: numbers carry no box and no glyph — number over word, hairline rules between, sentence case. A count that needs an icon to be legible has the wrong label, and a box around a number reads as a button that isn't one. One shared atom (`CountBlock`) across Home, the stats shelf and a person's profile.
+- **Badges** are a medal grid, never full-width rows. One ring carries every state: it fills as the household climbs and a closed ring means earned, so nothing draws a lock or a tick. Prose lives in the tap, and a "closest badge" card puts the nearest goal on top.
 - Plan (home): rolling next-7-nights, tonight first with 1.5pt ink border; open nights are dashed rows that expand into Pick for me / Cookbook / Ask the table; conic progress ring "N of 7 plated"; grocery is a basket in the header (of the plan, not a destination).
 - Table: private invite-only feed; plate reactions; **10 plates = chef's kiss**; comments allow URLs (link chips).
-- Discover: behind the search glass in the Table header — a 2-col rounded-rect grid of dinners from tables that chose to be open. View-only from outside; plating and "save to cookbook" work; nothing about your table leaks outward. Kiss badges (sparkle-in-circle) mark ≥10-plate dishes.
+- Discover: behind the search glass, which now sits **beside the feed's scope picker** rather than in the Table header — scoping the feed and searching it are the same kind of act, and the header has the host's own avatar to seat instead. A 2-col rounded-rect grid of dinners from tables that chose to be open. View-only from outside; plating and "save to cookbook" work; nothing about your table leaks outward. Kiss badges (sparkle-in-circle) mark ≥10-plate dishes.
 - All tap targets ≥ 44pt. Sheets use `presentationCornerRadius(28)` and solid canvas backgrounds.
 
 ## 6. Widgets
@@ -63,4 +72,6 @@ Home-screen widgets are the register at postage-stamp size: canvas background, m
 
 ## 7. Roadmap register notes
 
-Phase 3 (widgets, App Intents, app-group bridge, CloudKit sharing scaffold, onboarding invites) shipped. Next: live CKShare Tables once a signing team is wired, seat management UI (in flight on the week-tab UX branch), and the gamification/insights surface.
+Phase 3 (widgets, App Intents, app-group bridge, CloudKit sharing scaffold, onboarding invites) shipped. The gamification/insights surface shipped 2026-08-22 — the count on Home, the stats shelf, and the badge grid. Prongsby's on-device mind (Apple Foundation Models, with a rule-brain fallback) and "Ask Prongsby" via Siri shipped alongside it.
+
+Next: live CKShare Tables once a signing team is wired; seat management UI; in-app purchases (held deliberately — `PlatedPlus.gatingEnabled` is the single constant that re-arms the seat gate and the Settings row when Nate calls it); a **sync-status affordance**, which is where broken CloudKit setup should surface — the pull-to-refresh deliberately does not report it, see `CloudSync.observeImports`; and moving **authorship from a stored name string to a relationship**, which is the real fix for renames orphaning a person's posts (`HouseholdIdentity.rename` is the interim door).

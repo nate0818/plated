@@ -211,7 +211,7 @@ struct WeekView: View {
                 VStack(spacing: 2) {
                     AvatarCircle(initials: hostInitial, tone: .neutralPair, size: 42)
                     Text("HOST")
-                        .font(.jakarta(8, .bold))
+                        .font(.jakarta(10, .bold))
                         .tracking(0.7)
                         .foregroundStyle(Color.inkFaint)
                 }

@@ -271,7 +271,7 @@ struct HouseholdHomeView: View {
                 VStack(spacing: 2) {
                     AvatarCircle(initials: ownerInitial, tone: .neutralPair, size: 40)
                     Text("HOST")
-                        .font(.jakarta(8, .bold))
+                        .font(.jakarta(10, .bold))
                         .tracking(0.7)
                         .foregroundStyle(Color.inkFaint)
                 }
