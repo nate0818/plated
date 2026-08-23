@@ -10,36 +10,56 @@ import CoreData
 /// mirror, which the store law forbids — we only listen.
 enum CloudSync {
 
+    /// How a wait ended. Three outcomes, because a person can tell them
+    /// apart and should: something landed, nothing was there, or the sync
+    /// broke. Collapsing the third into the first is how a refresh ends up
+    /// reporting success at the exact moment iCloud failed.
+    enum RefreshOutcome {
+        /// An import finished and brought records with it.
+        case arrived
+        /// Nothing came before the deadline — the honest answer offline.
+        case quiet
+        /// An import ended badly. `endDate` alone cannot tell you this.
+        case failed
+    }
+
     /// Wait for CloudKit to finish pulling, so a pull-to-refresh means
     /// something.
     ///
     /// Resolves on the first completed import, or at `timeout`, whichever
     /// comes first — but never before `floor`, so the refresh control
-    /// doesn't flash and snap back in a way that reads as a no-op. An
-    /// offline table hits the timeout and that is the correct answer for
-    /// it: waited, nothing came.
+    /// doesn't flash and snap back in a way that reads as a no-op.
     static func waitForImport(
         floor: Duration = .milliseconds(450),
         timeout: Duration = .seconds(2)
-    ) async {
-        async let settled: Void = raceImportAgainst(timeout)
+    ) async -> RefreshOutcome {
+        async let settled = raceImportAgainst(timeout)
         async let minimumBeat: Void = sleep(floor)
-        _ = await (settled, minimumBeat)
+        let (outcome, _) = await (settled, minimumBeat)
+        return outcome
     }
 
-    private static func raceImportAgainst(_ timeout: Duration) async {
-        await withTaskGroup(of: Void.self) { group in
+    private static func raceImportAgainst(_ timeout: Duration) async -> RefreshOutcome {
+        await withTaskGroup(of: RefreshOutcome.self) { group in
             group.addTask { await nextFinishedImport() }
-            group.addTask { await sleep(timeout) }
-            await group.next()
+            group.addTask {
+                await sleep(timeout)
+                return .quiet
+            }
+            let first = await group.next() ?? .quiet
             group.cancelAll()
+            return first
         }
     }
 
     /// Returns when CloudKit reports an import that has actually ended.
-    /// A started-but-unfinished event is not news — `endDate` is the part
-    /// that means the records have landed and `@Query` has seen them.
-    private static func nextFinishedImport() async {
+    ///
+    /// Two separate facts, and the API exposes both for a reason: `endDate`
+    /// says the attempt is over, `succeeded` says it worked. A failed
+    /// import carries an `endDate` too, so gating on that alone would end
+    /// the wait early and hand back a success — telling the user "refreshed"
+    /// in the one moment they most need to know it didn't.
+    private static func nextFinishedImport() async -> RefreshOutcome {
         let stream = NotificationCenter.default.notifications(
             named: NSPersistentCloudKitContainer.eventChangedNotification
         )
@@ -48,8 +68,10 @@ enum CloudSync {
                 NSPersistentCloudKitContainer.eventNotificationUserInfoKey
             ] as? NSPersistentCloudKitContainer.Event
             guard let event, event.type == .import, event.endDate != nil else { continue }
-            return
+            return event.succeeded ? .arrived : .failed
         }
+        // The stream only ends when this task is cancelled.
+        return .quiet
     }
 
     /// Cancellation here is ordinary — the user let go and walked away —

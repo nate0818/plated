@@ -53,15 +53,24 @@ struct TableFeedView: View {
     /// fixed beat and calling that a refresh. A feed you can't pull reads
     /// as stuck even when it's current, but a pull that only pretends is
     /// worse than none.
+    /// Why only here, and not on the week or on Home: this is the one
+    /// surface showing OTHER households' content, so it is the only one
+    /// where "there might be something new on a server" is a true thought.
+    /// The week and Home are this device's own data — a pull there would
+    /// have no mirror to wait on. The asymmetry is deliberate; please
+    /// don't tidy it into symmetry.
     private func refreshFeed() async {
         try? context.save()
-        await CloudSync.waitForImport()
+        let outcome = await CloudSync.waitForImport()
         // Let go mid-pull and there is nothing to confirm — the tick used
         // to fire anyway, because `try?` around the sleep swallowed the
         // cancellation and left the call site unable to tell an abandoned
         // refresh from a finished one.
         guard !Task.isCancelled else { return }
-        Haptic.tap()
+        switch outcome {
+        case .arrived, .quiet: Haptic.tap()
+        case .failed: Haptic.warn()
+        }
     }
 
     private var shownPosts: [TablePost] {
