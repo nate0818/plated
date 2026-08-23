@@ -128,8 +128,42 @@ enum CloudSync {
         /// producing events that reset the budget.
         private static let promotionBudget = 3
         /// Enough to reconcile out-of-order delivery without growing for
-        /// the life of the process.
+        /// the life of the process — and, less obviously, **this number is
+        /// also the phantom threshold.** A tombstone that has been evicted
+        /// can no longer refuse its own late start, so a phantom needs at
+        /// least this many counted operations ending between a stray end
+        /// and the start it belongs to. Measured exactly: 63 intervening
+        /// ends and the refusal still holds, 64 and it doesn't. CloudKit
+        /// does not run 64 concurrent imports, so it isn't reachable — but
+        /// anyone lowering this for tidiness is lowering that too.
         private static let rememberedEndings = 64
+
+        #if DEBUG
+        /// One question has now shaped three versions of this file: does
+        /// CloudKit post progress *during* a long import, or only at its
+        /// start and end? If it re-posts, a live import keeps re-arming its
+        /// own stamp, the expiry can never trip for one, and a whole class
+        /// of worry here disappears — including the residue that a live
+        /// import older than `staleAfter` reads as idle and has its
+        /// completion dropped.
+        ///
+        /// It cannot be answered from a harness or a simulator: it needs a
+        /// CloudKit-entitled run doing a real sync. So launch with
+        /// `-plated-log-sync` and every counted event prints. **A repeated
+        /// identifier carrying a nil endDate is the answer.**
+        private static var logsEvents: Bool {
+            ProcessInfo.processInfo.arguments.contains("-plated-log-sync")
+        }
+
+        private static func label(_ type: NSPersistentCloudKitContainer.EventType) -> String {
+            switch type {
+            case .setup: return "setup"
+            case .import: return "import"
+            case .export: return "export"
+            @unknown default: return "other"
+            }
+        }
+        #endif
 
         /// Is CloudKit doing something right now — and is that claim still
         /// worth acting on? Spends a promotion from every entry it answers
@@ -158,6 +192,14 @@ enum CloudSync {
         }
 
         fileprivate func absorb(_ event: NSPersistentCloudKitContainer.Event) {
+            #if DEBUG
+            if Self.logsEvents {
+                let phase = event.endDate == nil
+                    ? "OPEN "
+                    : (event.succeeded ? "DONE " : "FAIL ")
+                print("PLATED SYNC \(phase)\(Self.label(event.type)) \(event.identifier) open=\(running.count)")
+            }
+            #endif
             guard counts(event.type) else { return }
             let now = ContinuousClock.now
             running = running.filter { now - $0.value.began < Self.staleAfter }
