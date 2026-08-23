@@ -45,16 +45,22 @@ struct TableFeedView: View {
         return max(members.count + guests.count + pending, 1)
     }
 
-    /// Pull to refresh. Being straight about what this does: `@Query` is
-    /// live, so anything CloudKit has already delivered is on screen
-    /// before the user pulls. What the gesture buys is a push in the other
-    /// direction — flushing anything this device is still holding — plus a
-    /// beat for the mirror to answer, which is what makes it worth having
-    /// rather than theatre. The feed is a social surface; a feed you can't
-    /// pull reads as stuck even when it's current.
+    /// Pull to refresh. `@Query` is live, so anything CloudKit has already
+    /// delivered is on screen before the user pulls — "already" being the
+    /// operative word. So the gesture pushes this device's own pending work
+    /// out, then actually waits on the mirror: it finishes the moment an
+    /// import lands and gives up after two seconds, rather than sleeping a
+    /// fixed beat and calling that a refresh. A feed you can't pull reads
+    /// as stuck even when it's current, but a pull that only pretends is
+    /// worse than none.
     private func refreshFeed() async {
         try? context.save()
-        try? await Task.sleep(for: .milliseconds(700))
+        await CloudSync.waitForImport()
+        // Let go mid-pull and there is nothing to confirm — the tick used
+        // to fire anyway, because `try?` around the sleep swallowed the
+        // cancellation and left the call site unable to tell an abandoned
+        // refresh from a finished one.
+        guard !Task.isCancelled else { return }
         Haptic.tap()
     }
 
