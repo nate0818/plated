@@ -36,6 +36,13 @@ struct PostThreadView: View {
     /// One arrival for every rising element on this page — the comment, the
     /// composer's two, and the toast. Guarding only the first left three
     /// siblings sliding under Reduce Motion.
+    ///
+    /// It is a property so a new riser cannot be added unguarded. That only
+    /// works if every site uses it: this shipped with three of four, the
+    /// fourth still carrying a verbatim copy of the expression below —
+    /// behaviourally identical, and exactly the divergence the property
+    /// exists to make impossible. A shared thing used by most call sites is
+    /// the same bug wearing the shape of its own cure.
     private var arrival: AnyTransition {
         reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity)
     }
@@ -102,14 +109,7 @@ struct PostThreadView: View {
 
                     ForEach(post.sortedComments, id: \.persistentModelID) { comment in
                         threadComment(comment)
-                            // Guarded, like the identical arrival in
-                            // ProngsbyView — the two were written days apart
-                            // and only one of them asked the room.
-                            .transition(
-                                reduceMotion
-                                    ? .opacity
-                                    : .move(edge: .bottom).combined(with: .opacity)
-                            )
+                            .transition(arrival)
                     }
                 }
                 .animation(.plSnap, value: post.sortedComments.count)
