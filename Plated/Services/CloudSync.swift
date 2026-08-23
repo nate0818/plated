@@ -147,10 +147,20 @@ enum CloudSync {
         /// import older than `staleAfter` reads as idle and has its
         /// completion dropped.
         ///
-        /// It cannot be answered from a harness or a simulator: it needs a
-        /// CloudKit-entitled run doing a real sync. So launch with
-        /// `-plated-log-sync` and every counted event prints. **A repeated
-        /// identifier carrying a nil endDate is the answer.**
+        /// **Measured on a real device, 2026-08-23: it does NOT re-post.**
+        /// Eight operations across setup, import and export, every one of
+        /// them exactly two events — one open, one close, same identifier,
+        /// nothing in between. So the stamp is never re-armed by a live
+        /// import, the expiry CAN trip for one, and the residue below is
+        /// real rather than hypothetical. Do not design as if progress
+        /// updates will save you.
+        ///
+        /// Honest limit on that measurement: this household is small and
+        /// all eight operations were fast. It shows no re-posting for short
+        /// work; it does not prove a multi-minute import stays silent. But
+        /// there is no evidence for re-arming, so nothing here may depend
+        /// on it. Re-run with `-plated-log-sync` on a large first sync if
+        /// you want the stronger claim.
         private static var logsEvents: Bool {
             ProcessInfo.processInfo.arguments.contains("-plated-log-sync")
         }

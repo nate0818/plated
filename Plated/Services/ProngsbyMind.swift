@@ -143,18 +143,34 @@ enum ProngsbyMind {
             lines.append("Cookbook (\(brain.recipes.count) dishes): " + dishes.joined(separator: " · ") + ".")
         }
 
-        if !brain.meals.isEmpty {
+        // Bounded HERE rather than at the fetch, because both callers pass
+        // everything: the Siri intent fetches PlannedMeal with no predicate
+        // and the chat view uses a bare @Query. Nothing prunes past meals,
+        // so an ascending sort with `prefix(10)` handed the model the ten
+        // OLDEST dinners this household ever planned — and past the
+        // eleventh, the plan block contained no upcoming night at all,
+        // directly under an instruction reading "answer ONLY from the
+        // facts below". Every other PlannedMeal consumer in the app bounds
+        // its window; this was the one that didn't, and it was the one
+        // feeding the model.
+        let today = Calendar.current.startOfDay(for: .now)
+        let upcoming = brain.meals
+            .filter { $0.date >= today }
+            .sorted { $0.date < $1.date }
+            .prefix(10)
+        if !upcoming.isEmpty {
             let formatter = DateFormatter()
-            formatter.dateFormat = "EEEE"
-            let week = brain.meals
-                .sorted { $0.date < $1.date }
-                .prefix(10)
-                .map { meal -> String in
-                    var line = "\(formatter.string(from: meal.date)): \(meal.title)"
-                    if let cook = meal.cook { line += " (\(cook.name) cooks)" }
-                    return line
-                }
-            lines.append("The plan: " + week.joined(separator: "; ") + ".")
+            // A real date, not a bare weekday: "Monday: Chili" from six
+            // weeks ago is indistinguishable from this Monday, and the
+            // model has no way to notice.
+            formatter.dateFormat = "EEEE d MMMM"
+            let week = upcoming.map { meal -> String in
+                var line = "\(formatter.string(from: meal.date)): \(meal.title)"
+                if Calendar.current.isDateInToday(meal.date) { line += " (tonight)" }
+                if let cook = meal.cook { line += " (\(cook.name) cooks)" }
+                return line
+            }
+            lines.append("The plan, from today onward: " + week.joined(separator: "; ") + ".")
         }
 
         return lines.joined(separator: "\n\n")

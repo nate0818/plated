@@ -187,7 +187,11 @@ struct TableFeedView: View {
                     .padding(.horizontal, 18)
                     .frame(height: 40)
                     .background(Color.ink, in: Capsule())
-                    .padding(.bottom, 100)
+                    // The perch occupies 84…134; a hand-typed 100 put a long
+                    // toast underneath it. The last bottom inset on the
+                    // branch that hadn't gone through the token family the
+                    // rest of this class was built to fix.
+                    .padding(.bottom, Layout.floatingChromeInset)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }

@@ -82,6 +82,21 @@ enum HouseholdIdentity {
         ) {
             for comment in comments { comment.authorName = new }
         }
+        // Five fields key off a person's name as a string, not three.
+        // Missing these two is the same "fixed the instance, not the class"
+        // shape as everything else this branch has had to correct: latent
+        // today because only the owner can be renamed, wrong the moment
+        // anyone else can be.
+        if let threads = try? context.fetch(
+            FetchDescriptor<DirectMessage>(predicate: #Predicate { $0.peerName == old })
+        ) {
+            for message in threads { message.peerName = new }
+        }
+        if let notices = try? context.fetch(
+            FetchDescriptor<PlatedNotification>(predicate: #Predicate { $0.actorName == old })
+        ) {
+            for notice in notices { notice.actorName = new }
+        }
         Awards.rekey(from: old, to: new)
 
         member.name = new
