@@ -38,6 +38,15 @@ struct PlatedApp: App {
                     Self.applyRoomLighting(dark: dark)
                 }
                 .onAppear { Self.applyRoomLighting(dark: afterDark) }
+                .task { await SyncStatus.shared.refresh() }
+                .onChange(of: scenePhase) { _, phase in
+                    // Someone who just switched iCloud back on in Settings
+                    // returns here; that is precisely when the warning
+                    // should be re-asked rather than left stale.
+                    if phase == .active {
+                        Task { await SyncStatus.shared.refresh() }
+                    }
+                }
                 .task {
                     // Maintenance: wipe the private CloudKit database, print
                     // a verdict for the console, and quit. PlatedStore ran

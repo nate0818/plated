@@ -257,7 +257,7 @@ struct RecipeImportSheet: View {
             row.recipe = recipe
             context.insert(row)
         }
-        try? context.save()
+        Persist.save(context)
         dismiss()
     }
 }

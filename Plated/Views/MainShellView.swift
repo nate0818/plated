@@ -158,7 +158,7 @@ struct MainShellView: View {
                     for post in all where !post.isDiscover && discoverKeys.contains(post.originKey) {
                         context.delete(post)
                     }
-                    try? context.save()
+                    Persist.save(context)
                 }
             }
             // The table's host, kept honest. The onboarding bootstrap and a
@@ -181,7 +181,7 @@ struct MainShellView: View {
                         for meal in dupe.assignedMeals ?? [] { meal.cook = kept }
                         context.delete(dupe)
                     }
-                    try? context.save()
+                    Persist.save(context)
                 } else if owners.isEmpty {
                     let name = UserDefaults.standard.string(forKey: "userFirstName") ?? ""
                     if let match = members.first(where: {
@@ -196,7 +196,7 @@ struct MainShellView: View {
                             role: "owner", roleLine: "Head of table", cookWeekdays: []
                         ))
                     }
-                    try? context.save()
+                    Persist.save(context)
                 }
             }
             #if DEBUG

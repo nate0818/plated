@@ -46,7 +46,7 @@ struct AskProngsbyIntent: AppIntent {
         // Explicitly, because Siri cold-launches this with no scene
         // attached and the process suspends the moment perform() returns —
         // nothing else would ever flush these inserts to disk.
-        try? context.save()
+        Persist.save(context)
 
         return .result(dialog: "\(answer)")
     }

@@ -478,6 +478,7 @@ struct SettingsSheet: View {
     /// The door flag RootView reads. Signing out flips this one only.
     @AppStorage("didSignIn") private var didSignIn = false
     @State private var signOutAsked = false
+    @State private var sync = SyncStatus.shared
     @State private var paywallShown = false
     @State private var plusActive = PlatedPlus.isActive
     @FocusState private var namingHousehold: Bool
@@ -569,6 +570,36 @@ struct SettingsSheet: View {
                         .buttonStyle(.pressable)
                     }
 
+                    // Where someone who suspects something is wrong comes
+                    // to look. Silent when everything is fine — an always-on
+                    // "synced" badge is chrome bragging.
+                    if let line = sync.account.line {
+                        settingRow(
+                            icon: "icloud.slash",
+                            title: "Not syncing",
+                            caption: line
+                        ) { EmptyView() }
+                    }
+
+                    if sync.saveFailed {
+                        Button {
+                            Haptic.tap()
+                            sync.acknowledgeSaveFailure()
+                        } label: {
+                            settingRow(
+                                icon: "exclamationmark.triangle",
+                                title: "Something didn't save",
+                                caption: "A recent change couldn't be written. It's still on screen — try it again."
+                            ) {
+                                Text("DISMISS")
+                                    .font(.jakarta(11, .extraBold))
+                                    .tracking(0.5)
+                                    .foregroundStyle(Color.tomato)
+                            }
+                        }
+                        .buttonStyle(.pressable)
+                    }
+
                     Button {
                         Haptic.tap()
                         signOutAsked = true
@@ -603,6 +634,7 @@ struct SettingsSheet: View {
         .onAppear {
             if focusHouseholdName { namingHousehold = true }
         }
+        .task { await sync.refresh() }
         .sheet(isPresented: $paywallShown, onDismiss: { plusActive = PlatedPlus.isActive }) {
             PaywallSheet()
         }

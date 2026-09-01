@@ -46,7 +46,7 @@ struct ContactsView: View {
                 colorHex: "FF5A3C", isPrimaryCook: true,
                 role: "owner", roleLine: "Head of table", cookWeekdays: []
             ))
-            try? context.save()
+            Persist.save(context)
         }
         #endif
         onDone()

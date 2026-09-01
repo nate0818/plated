@@ -236,7 +236,7 @@ enum SampleData {
 
         seedDiscover(into: context)
 
-        try? context.save()
+        Persist.save(context)
     }
 
     /// Discover — dinners from tables that chose to be open. Stand-in content

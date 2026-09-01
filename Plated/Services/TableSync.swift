@@ -17,11 +17,57 @@ enum TableSync {
     /// exception `try?` cannot catch. Callers treat `false` as "local
     /// table" — never as an error.
     static func accountAvailable() async -> Bool {
+        await accountState() == .available
+    }
+
+    /// Why the table is or isn't leaving this device. The boolean above
+    /// could only say "no", which is why nothing ever called it — a warning
+    /// a user cannot act on is one you don't show. This says which thing to
+    /// go and fix.
+    enum AccountState: Equatable {
+        case available
+        /// Signed out of iCloud entirely.
+        case noAccount
+        /// Managed device, parental controls, or iCloud Drive switched off.
+        case restricted
+        /// A real account that iCloud could not reach right now. Usually
+        /// the network, and usually temporary — worth saying so, since
+        /// "unavailable" reads as broken when it means "later".
+        case temporarilyUnavailable
+        /// Built without the entitlement. Never shown; the local table is
+        /// the honest and expected state for such a build.
+        case notArmed
+
+        var isSyncing: Bool { self == .available }
+
+        /// Plain, and never alarming: nothing is lost, it just isn't leaving.
+        var line: String? {
+            switch self {
+            case .available, .notArmed: return nil
+            case .noAccount:
+                return "Sign in to iCloud in Settings and your table follows you to every device."
+            case .restricted:
+                return "iCloud is switched off for Plated, so your table stays on this phone."
+            case .temporarilyUnavailable:
+                return "iCloud can't be reached right now. Your table is safe here and will sync when it's back."
+            }
+        }
+    }
+
+    static func accountState() async -> AccountState {
         #if PLATED_CLOUDKIT
-        let status = (try? await CKContainer.default().accountStatus()) ?? .couldNotDetermine
-        return status == .available
+        do {
+            switch try await CKContainer.default().accountStatus() {
+            case .available: return .available
+            case .noAccount: return .noAccount
+            case .restricted: return .restricted
+            default: return .temporarilyUnavailable
+            }
+        } catch {
+            return .temporarilyUnavailable
+        }
         #else
-        return false
+        return .notArmed
         #endif
     }
 

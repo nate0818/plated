@@ -63,7 +63,7 @@ struct TableFeedView: View {
     /// have no mirror to wait on. The asymmetry is deliberate; please
     /// don't tidy it into symmetry.
     private func refreshFeed() async {
-        try? context.save()
+        Persist.save(context)
         let outcome = await CloudSync.waitForImport()
         // Let go mid-pull and there is nothing to confirm — the tick used
         // to fire anyway, because `try?` around the sleep swallowed the
