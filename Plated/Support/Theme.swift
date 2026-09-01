@@ -345,6 +345,28 @@ struct PhotoWell: View {
     }
 }
 
+/// The real mark — lowercase "plated" with its tomato period, the same
+/// lockup the launch opener resolves into (dot ≈ 0.27em seated 0.34em down).
+/// Gabarito medium is the wordmark's register, matching the opener.
+struct PlatedWordmark: View {
+    var size: CGFloat = 26
+
+    var body: some View {
+        HStack(alignment: .top, spacing: size * 0.10) {
+            Text("plated")
+                .font(.gabarito(size, .medium))
+                .tracking(-0.022 * size)
+                .foregroundStyle(Color.ink)
+            Circle()
+                .fill(Color.tomato)
+                .frame(width: size * 0.27, height: size * 0.27)
+                .padding(.top, size * 0.34)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Plated")
+    }
+}
+
 /// Initials in a tinted circle — people are circles, like dishes.
 struct AvatarCircle: View {
     let initials: String

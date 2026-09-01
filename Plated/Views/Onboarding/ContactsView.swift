@@ -14,6 +14,7 @@ struct ContactsView: View {
     struct Candidate: Identifiable {
         let id: String
         let name: String
+        let imageData: Data?
         var seated: Bool = false
     }
 
@@ -56,9 +57,9 @@ struct ContactsView: View {
             VStack(spacing: 10) {
                 // Place settings around the table.
                 HStack(spacing: -12) {
-                    seatBubble("N", tone: .tomatoPair)
-                    seatBubble("S", tone: .basilPair)
-                    seatBubble("R", tone: .amberPair)
+                    seatBubble("😋", tone: .tomatoPair)
+                    seatBubble("🤗", tone: .basilPair)
+                    seatBubble("😄", tone: .amberPair)
                     seatBubble("+", tone: .grapePair)
                 }
                 .padding(.bottom, 8)
@@ -67,11 +68,14 @@ struct ContactsView: View {
                     .font(.gabarito(32, .extraBold))
                     .tracking(-0.8)
                     .foregroundStyle(Color.ink)
-                Text("Plated is invite-only. No one sees your table unless you set a place for them — and you see only the tables that invite you.")
+                Text(accessState == .granted
+                     ? "Invite your friends and family to your table. You can invite people to your household later."
+                     : "Plated is an invite-only experience. No one sees your table or recipes unless you set a place for them.")
                     .font(.jakarta(15, .medium))
                     .foregroundStyle(Color.inkSecondary)
                     .multilineTextAlignment(.center)
                     .lineSpacing(4)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             .padding(.top, 84)
             .padding(.horizontal, 28)
@@ -118,7 +122,7 @@ struct ContactsView: View {
                             .overlay(Capsule().strokeBorder(Color.hairline, lineWidth: 1.5))
                         }
                     }
-                    TomatoPillButton(title: "To my table") { finish() }
+                    TomatoPillButton(title: "Continue") { finish() }
                 } else {
                     TomatoPillButton(title: "Find my people") { requestContacts() }
                     if accessState == .denied {
@@ -150,23 +154,37 @@ struct ContactsView: View {
             .padding(.horizontal, 24)
             .padding(.bottom, 28)
         }
-        .background(alignment: .topLeading) {
-            RadialGradient(colors: [.mangoTint, .mangoTint.opacity(0)], center: .center, startRadius: 0, endRadius: 220)
-                .frame(width: 440, height: 440)
-                .offset(x: -120, y: -180)
-                .ignoresSafeArea()
+        .background {
+            ZStack(alignment: .topLeading) {
+                DriftingFoodPattern()
+                RadialGradient(colors: [.mangoTint, .mangoTint.opacity(0)], center: .center, startRadius: 0, endRadius: 220)
+                    .frame(width: 440, height: 440)
+                    .offset(x: -120, y: -180)
+            }
+            .ignoresSafeArea()
         }
-        .onAppear { withAnimation(.plSettle.delay(0.1)) { arrived = true } }
+        .onAppear {
+            withAnimation(.plSettle.delay(0.1)) { arrived = true }
+            // UI-test hook: jump straight to the granted list when contacts
+            // permission is pre-granted via `simctl privacy`.
+            if LaunchFlags.consume("-plated-find-people") { requestContacts() }
+        }
         .animation(.plSettle, value: accessState == .granted)
     }
 
     private var seatedCount: Int { candidates.filter(\.seated).count }
 
-    private func seatBubble(_ letter: String, tone: PersonTone) -> some View {
+    private func seatBubble(_ symbol: String, tone: PersonTone) -> some View {
         Circle()
             .fill(tone.tint)
             .frame(width: 52, height: 52)
-            .overlay(Text(letter).font(.jakarta(17, .bold)).foregroundStyle(tone.tone))
+            .overlay {
+                if symbol == "+" {
+                    Text(symbol).font(.jakarta(17, .bold)).foregroundStyle(tone.tone)
+                } else {
+                    Text(symbol).font(.system(size: 26))
+                }
+            }
             .overlay(Circle().strokeBorder(Color.canvas, lineWidth: 3))
             .shadow(color: Color.shadowWarm.opacity(0.12), radius: 10, y: 8)
     }
@@ -175,7 +193,15 @@ struct ContactsView: View {
         let person = candidate.wrappedValue
         let tone = PersonTone.from(hex: PersonTone.rotation[abs(person.id.hashValue) % PersonTone.rotation.count])
         return HStack(spacing: 12) {
-            AvatarCircle(initials: initials(of: person.name), tone: tone, size: 44)
+            if let data = person.imageData, let photo = UIImage(data: data) {
+                Image(uiImage: photo)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 44, height: 44)
+                    .clipShape(Circle())
+            } else {
+                AvatarCircle(initials: initials(of: person.name), tone: tone, size: 44)
+            }
             VStack(alignment: .leading, spacing: 1) {
                 Text(person.name)
                     .font(.jakarta(15, .semibold))
@@ -188,7 +214,7 @@ struct ContactsView: View {
             if person.seated {
                 HStack(spacing: 5) {
                     Image(systemName: "checkmark").font(.system(size: 11, weight: .heavy))
-                    Text("Seated").font(.jakarta(13, .bold))
+                    Text("Invited").font(.jakarta(13, .bold))
                 }
                 .foregroundStyle(Color.basil)
                 .padding(.horizontal, 16)
@@ -200,13 +226,13 @@ struct ContactsView: View {
                     Haptic.plate()
                     withAnimation(.plPop) { candidate.wrappedValue.seated = true }
                     // Persist immediately — every exit from this screen keeps
-                    // the places the user set, not just "To my table".
+                    // the places the user set, not just "Continue".
                     pendingSeatsRaw = candidates.filter(\.seated).map(\.name).joined(separator: "\n")
                 } label: {
-                    Text("Set a place")
+                    Text("Invite")
                         .font(.jakarta(13, .bold))
                         .foregroundStyle(Color.onTomato)
-                        .padding(.horizontal, 16)
+                        .padding(.horizontal, 18)
                         .frame(height: 36)
                         .background(Color.tomato, in: Capsule())
                         .shadow(color: Color.shadowInk.opacity(0.14), radius: 7, y: 6)
@@ -228,20 +254,72 @@ struct ContactsView: View {
                 DispatchQueue.main.async { accessState = .denied }
                 return
             }
-            let keys = [CNContactGivenNameKey, CNContactFamilyNameKey] as [CNKeyDescriptor]
+            let keys = [CNContactGivenNameKey, CNContactFamilyNameKey,
+                        CNContactThumbnailImageDataKey, CNContactImageDataAvailableKey,
+                        CNContactPhoneNumbersKey] as [CNKeyDescriptor]
             let request = CNContactFetchRequest(keysToFetch: keys)
-            var found: [Candidate] = []
-            try? store.enumerateContacts(with: request) { contact, stop in
+            // iOS exposes no call/message frequency, so closeness is a proxy:
+            // people you gave a photo and a number are your people — businesses
+            // and stale entries rarely have either.
+            var scored: [(candidate: Candidate, score: Int)] = []
+            try? store.enumerateContacts(with: request) { contact, _ in
                 let name = "\(contact.givenName) \(contact.familyName)".trimmingCharacters(in: .whitespaces)
-                if !name.isEmpty {
-                    found.append(Candidate(id: contact.identifier, name: name))
-                }
-                if found.count >= 8 { stop.pointee = true }
+                guard !name.isEmpty else { return }
+                let score = (contact.imageDataAvailable ? 2 : 0) + (contact.phoneNumbers.isEmpty ? 0 : 1)
+                scored.append((Candidate(id: contact.identifier, name: name,
+                                         imageData: contact.thumbnailImageData), score))
             }
+            scored.sort {
+                $0.score != $1.score ? $0.score > $1.score : $0.candidate.name < $1.candidate.name
+            }
+            let top = scored.prefix(8).map(\.candidate)
             DispatchQueue.main.async {
-                candidates = found
+                candidates = top
                 accessState = .granted
             }
         }
+    }
+}
+
+/// The fun under the quiet: a sparse field of dishes drifting diagonally,
+/// faint enough that the type and the card stay in charge. Fades out before
+/// the CTA stack so the bottom of the screen keeps its calm.
+private struct DriftingFoodPattern: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private static let emojis = ["🍕", "🥗", "🌮", "🍜", "🍳", "🥑", "🍓", "🥐", "🍤", "🫑", "🧀", "🍋"]
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1 / 20, paused: reduceMotion)) { ctx in
+            Canvas { context, size in
+                let tile: CGFloat = 118
+                let t = ctx.date.timeIntervalSinceReferenceDate
+                let drift = CGFloat((t * 6).truncatingRemainder(dividingBy: Double(tile)))
+                let cols = Int(size.width / tile) + 2
+                let rows = Int(size.height / tile) + 2
+                for row in -1..<rows {
+                    for col in -1..<cols {
+                        let seed = abs(row &* 31 &+ col &* 17)
+                        let emoji = Self.emojis[abs(row * 5 + col * 3) % Self.emojis.count]
+                        let jitterX = CGFloat(seed &* 37 % 52) - 26
+                        let jitterY = CGFloat(seed &* 53 % 44) - 22
+                        var layer = context
+                        layer.translateBy(x: CGFloat(col) * tile + jitterX + drift,
+                                          y: CGFloat(row) * tile + jitterY + drift)
+                        layer.rotate(by: .degrees(Double(seed % 30) - 15))
+                        layer.opacity = 0.18
+                        layer.draw(Text(verbatim: emoji).font(.system(size: 25)), at: .zero)
+                    }
+                }
+            }
+        }
+        .mask(
+            LinearGradient(stops: [.init(color: .white, location: 0),
+                                   .init(color: .white, location: 0.55),
+                                   .init(color: .clear, location: 0.92)],
+                           startPoint: .top, endPoint: .bottom)
+        )
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 }
