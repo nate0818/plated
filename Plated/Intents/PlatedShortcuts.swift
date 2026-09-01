@@ -18,14 +18,19 @@ struct PlatedShortcuts: AppShortcutsProvider {
             shortTitle: "Plate Tonight",
             systemImageName: "plus.circle"
         )
-        AppShortcut(
-            intent: AskProngsbyIntent(),
-            phrases: [
-                "Ask Prongsby in \(.applicationName)",
-                "Ask the fork in \(.applicationName)"
-            ],
-            shortTitle: "Ask Prongsby",
-            systemImageName: "fork.knife"
-        )
+        // Parked with the rest of Prongsby — see ProngsbyFeature. This is a
+        // literal comment rather than an `if ProngsbyFeature.isEnabled`
+        // because AppShortcutsBuilder does not take conditionals; restoring
+        // him means uncommenting this block and flipping the flag.
+        //
+        // AppShortcut(
+        //     intent: AskProngsbyIntent(),
+        //     phrases: [
+        //         "Ask Prongsby in \(.applicationName)",
+        //         "Ask the fork in \(.applicationName)"
+        //     ],
+        //     shortTitle: "Ask Prongsby",
+        //     systemImageName: "fork.knife"
+        // )
     }
 }

@@ -21,6 +21,9 @@ struct LaunchOpenerView: View {
     @State private var seatFrame = CGRect.zero
     @State private var finished = false
     @State private var plateLanded = false
+    /// The other two beats of the opener's haptic line. Each fires once.
+    @State private var markSet = false
+    @State private var liftedAway = false
 
     private var cue: OpenerCue { reduceMotion ? .reduced : .full }
 
@@ -107,10 +110,29 @@ struct LaunchOpenerView: View {
                 // Authored time, not wall time — the hurried clock must not
                 // drift the haptic away from the visible touch-down.
                 let T = cue.authoredTime(t, readyAt: readyAt).T
+                // Three beats, matched to what the eye already sees: the
+                // mark is set down, the plate lands, the table lifts away.
+                // Light either side of the one medium, so the landing stays
+                // the loudest thing that happens — a run of equal taps reads
+                // as a stutter, not as choreography.
+                //
+                // Reduce Motion silences all three rather than re-timing
+                // them: the cue they annotate is the motion itself, and a
+                // haptic marking a beat the user cannot see is just a buzz.
+                if !reduceMotion, !markSet, T >= 0.8 {
+                    // The period is set down at center, like a plate on cloth.
+                    markSet = true
+                    Haptic.tap()
+                }
                 if !reduceMotion, !plateLanded, T >= 1.3 {
                     // The period touches the table — a plate lands.
                     plateLanded = true
                     Haptic.plate()
+                }
+                if !reduceMotion, !liftedAway, T >= cue.out {
+                    // Everything lifts into the first screen — the handoff.
+                    liftedAway = true
+                    Haptic.tap()
                 }
                 if T >= cue.total {
                     if !finished { finished = true; onFinished() }

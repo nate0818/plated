@@ -76,6 +76,59 @@ struct TableFeedView: View {
         }
     }
 
+    /// The people you granted and invited when you set your table.
+    ///
+    /// An invite is not an account, so these people have no posts — which
+    /// meant "Everyone" quietly showed everyone who had *posted*, and the
+    /// contacts you had just handed over appeared nowhere. Same storage the
+    /// seats sheet reads, so cancelling an invite there empties it here.
+    private var invitedSeats: [String] {
+        pendingSeatsRaw.split(separator: "\n").map(String.init).filter { !$0.isEmpty }
+    }
+
+    private func initials(for name: String) -> String {
+        let parts = name.split(separator: " ")
+            .filter { $0.first?.isLetter == true }
+            .prefix(2)
+        return parts.compactMap { $0.first }.map(String.init).joined().uppercased()
+    }
+
+    /// Faces before posts: who is at the table reads ahead of what they
+    /// cooked. Neutral tone, matching the seats sheet — an invited person
+    /// has not earned a color yet.
+    private var invitedStrip: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            MicroLabel("You invited")
+                .padding(.horizontal, 24)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 16) {
+                    ForEach(invitedSeats, id: \.self) { name in
+                        Button {
+                            Haptic.tap()
+                            seatsPresented = true
+                        } label: {
+                            VStack(spacing: 6) {
+                                AvatarCircle(
+                                    initials: initials(for: name),
+                                    tone: .neutralPair, size: 48
+                                )
+                                Text(name.split(separator: " ").first.map(String.init) ?? name)
+                                    .font(.jakarta(11, .semibold))
+                                    .foregroundStyle(Color.inkSecondary)
+                                    .lineLimit(1)
+                            }
+                            .frame(width: 62)
+                        }
+                        .buttonStyle(.pressable)
+                        .accessibilityLabel("\(name), invited")
+                    }
+                }
+                .padding(.horizontal, 24)
+            }
+        }
+        .padding(.vertical, 14)
+    }
+
     private var shownPosts: [TablePost] {
         guard scope == .household else { return posts }
         let names = Set(members.map(\.name))
@@ -119,6 +172,10 @@ struct TableFeedView: View {
 
                 ScrollView(showsIndicators: false) {
                     LazyVStack(spacing: 0) {
+                        if scope == .everyone, !invitedSeats.isEmpty {
+                            invitedStrip
+                            Divider().overlay(Color.hairlineSoft)
+                        }
                         ForEach(shownPosts, id: \.persistentModelID) { post in
                             if post.kind == "ask" {
                                 askCard(post)

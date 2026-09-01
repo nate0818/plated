@@ -9,6 +9,11 @@ struct AskProngsbyIntent: AppIntent {
     static let title: LocalizedStringResource = "Ask Prongsby"
     static let description = IntentDescription("Ask your cooking companion anything — dinner ideas, swaps, the week's plan.")
 
+    /// Parked: keeps the fork out of the Shortcuts app and out of Siri's
+    /// suggestions while ProngsbyFeature is off. The intent still compiles
+    /// and still works if something already holds a shortcut to it.
+    static var isDiscoverable: Bool { ProngsbyFeature.isEnabled }
+
     @Parameter(title: "Question", requestValueDialog: "What should I ask the fork?")
     var question: String
 

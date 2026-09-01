@@ -12,9 +12,9 @@ enum CreateKind: String, Identifiable {
     var id: String { rawValue }
 }
 
-/// The shell: four quiet destinations either side of one tomato +, with
-/// Prongsby perched above the bar. Those two are the only chrome that
-/// floats, and they float together.
+/// The shell: four quiet destinations either side of one tomato +. The bar
+/// is the only chrome that floats — Prongsby's perch floated beside it
+/// until he was parked (see ProngsbyFeature), and returns with him.
 struct MainShellView: View {
     @Environment(\.modelContext) private var context
     @Query private var members: [HouseholdMember]
@@ -77,7 +77,7 @@ struct MainShellView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-            if !perchVisibility.isHidden {
+            if ProngsbyFeature.isEnabled, !perchVisibility.isHidden {
                 ProngsbyPerch(session: prongsbySession) {
                     // SwiftUI stands up one sheet at a time; the create
                     // hand-off already owns a two-step, so don't race it.
@@ -242,7 +242,7 @@ struct MainShellView: View {
             }
             // Prongsby has been a pushed page and a tab; he is a sheet off
             // the perch now. The flag keeps its name and still opens him.
-            if LaunchFlags.consume("-plated-open-prongsby") {
+            if LaunchFlags.consume("-plated-open-prongsby"), ProngsbyFeature.isEnabled {
                 prongsbyPresented = true
             }
             // `-plated-prongsby-demo` consumes itself inside ProngsbyView,

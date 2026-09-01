@@ -473,6 +473,11 @@ struct SettingsSheet: View {
     @AppStorage("afterDark") private var afterDark = false
     @AppStorage("showCalendarEvents") private var showCalendarEvents = false
     @AppStorage("householdName") private var householdName = ""
+    /// The two door flags RootView reads. Signing out flips both, which is
+    /// what replays the opener → sign in → set your table journey.
+    @AppStorage("didSignIn") private var didSignIn = false
+    @AppStorage("didSetTable") private var didSetTable = false
+    @State private var signOutAsked = false
     @State private var paywallShown = false
     @State private var plusActive = PlatedPlus.isActive
     @FocusState private var namingHousehold: Bool
@@ -564,6 +569,23 @@ struct SettingsSheet: View {
                         .buttonStyle(.pressable)
                     }
 
+                    Button {
+                        Haptic.tap()
+                        signOutAsked = true
+                    } label: {
+                        settingRow(
+                            icon: "rectangle.portrait.and.arrow.right",
+                            title: "Sign out",
+                            caption: "Ends this Apple sign-in. Your table stays."
+                        ) {
+                            Text("SIGN OUT")
+                                .font(.jakarta(11, .extraBold))
+                                .tracking(0.5)
+                                .foregroundStyle(Color.tomato)
+                        }
+                    }
+                    .buttonStyle(.pressable)
+
                     Text("Plated 0.1.0 · Made at the table")
                         .font(.jakarta(11, .medium))
                         .foregroundStyle(Color.inkFaint)
@@ -583,6 +605,31 @@ struct SettingsSheet: View {
         }
         .sheet(isPresented: $paywallShown, onDismiss: { plusActive = PlatedPlus.isActive }) {
             PaywallSheet()
+        }
+        .confirmationDialog(
+            "Sign out of Plated?", isPresented: $signOutAsked, titleVisibility: .visible
+        ) {
+            Button("Sign out", role: .destructive) { signOut() }
+            Button("Stay", role: .cancel) {}
+        } message: {
+            Text("Your recipes, your week and your household stay on this device. You'll set your table again when you sign back in.")
+        }
+    }
+
+    /// The same scope RootView documents for a revoked credential: clear the
+    /// Keychain identity and the door flags, leave the table alone. Nothing
+    /// here deletes a recipe, a week or a member.
+    private func signOut() {
+        AppleIdentity.clear()
+        Haptic.plate()
+        dismiss()
+        // Let the sheet finish leaving before the root swaps underneath it.
+        // Flipping the door flag while this sheet is still up strands it on
+        // a view that no longer exists.
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(300))
+            didSetTable = false
+            didSignIn = false
         }
     }
 
