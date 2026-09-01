@@ -462,7 +462,9 @@ struct TableFeedView: View {
                 if post.hasChefsKiss {
                     chefsKissPill
                         .offset(x: 6, y: -10)
-                        .transition(.scale(scale: 0.01).combined(with: .opacity))
+                        // Appears; does not launch. 0.01 threw it in from
+                        // a point, which is the fly-in note again.
+                        .transition(.scale(scale: 0.92).combined(with: .opacity))
                 }
             }
 

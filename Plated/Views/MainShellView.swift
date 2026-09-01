@@ -264,8 +264,6 @@ struct PlateTabBar: View {
     @Binding var selection: AppTab
     let onCreate: () -> Void
 
-    @State private var bouncing: String?
-    @State private var addSpin = false
 
     var body: some View {
         HStack(spacing: 0) {
@@ -280,7 +278,6 @@ struct PlateTabBar: View {
 
             Button {
                 Haptic.plate()
-                withAnimation(.plPop) { addSpin.toggle() }
                 onCreate()
             } label: {
                 ZStack {
@@ -292,7 +289,6 @@ struct PlateTabBar: View {
                         .font(.system(size: 22, weight: .bold))
                         .foregroundStyle(Color.onTomato)
                 }
-                .rotationEffect(.degrees(addSpin ? 90 : 0))
             }
             .buttonStyle(.pressable)
             .frame(width: 72)
@@ -308,21 +304,39 @@ struct PlateTabBar: View {
         }
         .padding(.horizontal, 8)
         .frame(height: 68)
-        .background {
+        .background { barSurface }
+        .plFloatShadow()
+    }
+
+    /// Liquid Glass where the OS has it, the hand-rolled twin where it
+    /// doesn't. The deployment target is iOS 18, so the material below is
+    /// not dead code — it is what most of the fleet actually renders.
+    ///
+    /// Glass is left un-tinted on purpose. The system material already
+    /// samples and bends what scrolls beneath it; painting canvas over the
+    /// top is what made the old bar read as a flat capsule with a blur
+    /// behind it rather than as a layer of the OS.
+    @ViewBuilder
+    private var barSurface: some View {
+        if #available(iOS 26.0, *) {
+            Capsule()
+                .fill(.clear)
+                .glassEffect(.regular, in: .capsule)
+        } else {
             Capsule()
                 .fill(Color.canvas.opacity(0.94))
                 .background(.ultraThinMaterial, in: Capsule())
                 .overlay(Capsule().strokeBorder(Color.navHairline))
         }
-        .plFloatShadow()
     }
 
     private func tabItem(_ tab: AppTab, label: String, @ViewBuilder icon: () -> some View) -> some View {
         let active = selection == tab
         return Button {
-            Haptic.tap()
+            // Selection is the state change; the tick that marks position
+            // is `select`, not the `tap` that marks an action.
+            Haptic.select()
             selection = tab
-            bounce(tab.rawValue)
         } label: {
             VStack(spacing: 2) {
                 icon()
@@ -334,19 +348,8 @@ struct PlateTabBar: View {
             }
             .foregroundStyle(active ? Color.ink : Color.inkFaint)
             .frame(maxWidth: .infinity, minHeight: 66)
-            .scaleEffect(bouncing == tab.rawValue ? 1.25 : 1)
         }
         .buttonStyle(.pressable)
-    }
-
-    private func bounce(_ key: String) {
-        withAnimation(.plPop) { bouncing = key }
-        Task {
-            try? await Task.sleep(for: .milliseconds(300))
-            if bouncing == key {
-                withAnimation(.plSnap) { bouncing = nil }
-            }
-        }
     }
 }
 

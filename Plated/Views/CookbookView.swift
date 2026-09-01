@@ -92,6 +92,7 @@ struct CookbookView: View {
     @State private var selected: Recipe?
     @State private var filter = RecipeFilter()
     @State private var filterSheetShown = false
+    @State private var importShown = false
     @State private var activityShown = false
     /// Long-press destinations. A grid of plates can't be swiped — the rows
     /// are two wide — so the menu is where a tile's actions live.
@@ -165,6 +166,29 @@ struct CookbookView: View {
                         .buttonStyle(.pressable)
                     }
                     Spacer()
+
+                    // Paste beats retype. Sits beside the filter because
+                    // both are things you do TO the shelf; creating from
+                    // scratch stays on the + where every other create lives.
+                    Button {
+                        Haptic.tap()
+                        importShown = true
+                    } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "doc.on.clipboard")
+                                .font(.system(size: 12, weight: .bold))
+                            Text("Paste")
+                                .font(.jakarta(13, .bold))
+                        }
+                        .foregroundStyle(Color.ink)
+                        .padding(.horizontal, 14)
+                        .frame(height: 38)
+                        .overlay(Capsule().strokeBorder(Color.hairline, lineWidth: 1.5))
+                        .frame(minHeight: 44)
+                        .contentShape(Capsule())
+                    }
+                    .buttonStyle(.pressable)
+                    .accessibilityLabel("Paste a recipe")
                 }
                 .padding(.horizontal, 24)
                 .padding(.top, 12)
@@ -220,6 +244,7 @@ struct CookbookView: View {
             .toolbar(.hidden, for: .navigationBar)
             .plSwipeBack()
         }
+        .sheet(isPresented: $importShown) { RecipeImportSheet() }
         .sheet(isPresented: $filterSheetShown) {
             RecipeFilterSheet(filter: $filter, recipes: recipes)
         }
@@ -682,10 +707,12 @@ struct RecipeDetailView: View {
                         Image(systemName: recipe.isFavorite ? "heart.fill" : "heart")
                             .font(.system(size: 14, weight: .semibold))
                             .foregroundStyle(recipe.isFavorite ? Color.tomato : Color.ink)
-                            // The fill pours in and the heart gives a
-                            // little thump — the plPop finally has a body.
+                            // The fill pours in. It does NOT thump: an
+                            // icon that performs its own state change is
+                            // the same note as the tab bounce and the perch,
+                            // and we are done playing it. The color carries
+                            // the meaning, the haptic carries the feedback.
                             .contentTransition(.symbolEffect(.replace))
-                            .symbolEffect(.bounce, value: recipe.isFavorite)
                     }
                     .frame(minWidth: 44, minHeight: 44)
                     .contentShape(Rectangle())

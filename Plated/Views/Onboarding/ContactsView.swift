@@ -255,24 +255,55 @@ struct ContactsView: View {
                 return
             }
             let keys = [CNContactGivenNameKey, CNContactFamilyNameKey,
+                        CNContactNicknameKey, CNContactOrganizationNameKey,
                         CNContactThumbnailImageDataKey, CNContactImageDataAvailableKey,
-                        CNContactPhoneNumbersKey] as [CNKeyDescriptor]
+                        CNContactPhoneNumbersKey, CNContactEmailAddressesKey,
+                        CNContactBirthdayKey, CNContactTypeKey] as [CNKeyDescriptor]
             let request = CNContactFetchRequest(keysToFetch: keys)
-            // iOS exposes no call/message frequency, so closeness is a proxy:
-            // people you gave a photo and a number are your people — businesses
-            // and stale entries rarely have either.
+
+            // "Most contacted" is not a thing iOS will tell a third-party
+            // app. There is no public API for call, message or FaceTime
+            // frequency — not in Contacts, not in CallKit, not in Intents.
+            // Anything claiming to rank your top five by usage is either
+            // guessing or using something we can't ship.
+            //
+            // So this ranks by EFFORT INVESTED, which is the honest signal
+            // sitting in the database: the card you gave a photo, a
+            // nickname and a birthday is a card you maintain, and you only
+            // maintain cards for people you actually deal with. Businesses
+            // and stale imports have a name, a number, and nothing else.
+            //
+            // Ordered by how deliberate the act is, not by how common the
+            // field is — a saved birthday is a much stronger claim on
+            // "this is my person" than an email address.
             var scored: [(candidate: Candidate, score: Int)] = []
             try? store.enumerateContacts(with: request) { contact, _ in
                 let name = "\(contact.givenName) \(contact.familyName)".trimmingCharacters(in: .whitespaces)
                 guard !name.isEmpty else { return }
-                let score = (contact.imageDataAvailable ? 2 : 0) + (contact.phoneNumbers.isEmpty ? 0 : 1)
+                // A company is never a seat at a household table.
+                guard contact.contactType == .person,
+                      contact.organizationName.isEmpty else { return }
+                // No way to reach them is no way to invite them.
+                guard !contact.phoneNumbers.isEmpty else { return }
+
+                var score = 2
+                if contact.imageDataAvailable { score += 3 }
+                if contact.birthday != nil { score += 3 }
+                if !contact.nickname.isEmpty { score += 2 }
+                if contact.phoneNumbers.count > 1 { score += 1 }
+                if !contact.emailAddresses.isEmpty { score += 1 }
+                // A full name beats a first name alone: "Mum" is dear but
+                // "Sarah Okafor" is a card someone actually filled in.
+                if !contact.familyName.isEmpty { score += 1 }
+
                 scored.append((Candidate(id: contact.identifier, name: name,
                                          imageData: contact.thumbnailImageData), score))
             }
             scored.sort {
                 $0.score != $1.score ? $0.score > $1.score : $0.candidate.name < $1.candidate.name
             }
-            let top = scored.prefix(8).map(\.candidate)
+            // Five. A wall of contacts is a chore; five is a decision.
+            let top = scored.prefix(5).map(\.candidate)
             DispatchQueue.main.async {
                 candidates = top
                 accessState = .granted

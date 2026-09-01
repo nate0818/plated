@@ -162,11 +162,12 @@ struct GrocerySheet: View {
                         .background(Circle().fill(item.isChecked ? Color.basil : Color.clear))
                         .frame(width: 24, height: 24)
                     if item.isChecked {
-                        // The check lands like a pen stroke, not a repaint.
+                        // The check lands like a pen stroke, not a repaint —
+                        // but a stroke, not a pop. 0.4 was a fly-in.
                         Image(systemName: "checkmark")
                             .font(.system(size: 11, weight: .heavy))
                             .foregroundStyle(Color.canvas)
-                            .transition(.scale(scale: 0.4).combined(with: .opacity))
+                            .transition(.scale(scale: 0.86).combined(with: .opacity))
                     }
                 }
                 Text(item.name)

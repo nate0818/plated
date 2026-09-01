@@ -473,10 +473,8 @@ struct SettingsSheet: View {
     @AppStorage("afterDark") private var afterDark = false
     @AppStorage("showCalendarEvents") private var showCalendarEvents = false
     @AppStorage("householdName") private var householdName = ""
-    /// The two door flags RootView reads. Signing out flips both, which is
-    /// what replays the opener → sign in → set your table journey.
+    /// The door flag RootView reads. Signing out flips this one only.
     @AppStorage("didSignIn") private var didSignIn = false
-    @AppStorage("didSetTable") private var didSetTable = false
     @State private var signOutAsked = false
     @State private var paywallShown = false
     @State private var plusActive = PlatedPlus.isActive
@@ -617,8 +615,14 @@ struct SettingsSheet: View {
     }
 
     /// The same scope RootView documents for a revoked credential: clear the
-    /// Keychain identity and the door flags, leave the table alone. Nothing
+    /// Keychain identity and the door flag, leave the table alone. Nothing
     /// here deletes a recipe, a week or a member.
+    ///
+    /// `didSetTable` deliberately survives. Signing out is not starting
+    /// over — the table is already set, the household already exists, and
+    /// making someone re-pick their people every time they sign back in
+    /// would punish them for using the door. Sign in returns you straight
+    /// to your week.
     private func signOut() {
         AppleIdentity.clear()
         Haptic.plate()
@@ -628,7 +632,6 @@ struct SettingsSheet: View {
         // a view that no longer exists.
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(300))
-            didSetTable = false
             didSignIn = false
         }
     }
