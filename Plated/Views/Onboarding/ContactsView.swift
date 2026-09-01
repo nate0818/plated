@@ -118,7 +118,7 @@ struct ContactsView: View {
                             }
                             .foregroundStyle(Color.ink)
                             .frame(maxWidth: .infinity)
-                            .frame(height: 48)
+                            .frame(minHeight: 48)
                             .overlay(Capsule().strokeBorder(Color.hairline, lineWidth: 1.5))
                         }
                     }
@@ -218,7 +218,7 @@ struct ContactsView: View {
                 }
                 .foregroundStyle(Color.basil)
                 .padding(.horizontal, 16)
-                .frame(height: 36)
+                .frame(minHeight: 36)
                 .background(Color.basilTint, in: Capsule())
                 .transition(.scale(scale: 0.8).combined(with: .opacity))
             } else {
@@ -233,7 +233,7 @@ struct ContactsView: View {
                         .font(.jakarta(13, .bold))
                         .foregroundStyle(Color.onTomato)
                         .padding(.horizontal, 18)
-                        .frame(height: 36)
+                        .frame(minHeight: 36)
                         .background(Color.tomato, in: Capsule())
                         .shadow(color: Color.shadowInk.opacity(0.14), radius: 7, y: 6)
                 }

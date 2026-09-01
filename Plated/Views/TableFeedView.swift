@@ -261,7 +261,7 @@ struct TableFeedView: View {
                     .font(.jakarta(13, .bold))
                     .foregroundStyle(Color.canvas)
                     .padding(.horizontal, 18)
-                    .frame(height: 40)
+                    .frame(minHeight: 40)
                     .background(Color.ink, in: Capsule())
                     // The perch occupies 84…134; a hand-typed 100 put a long
                     // toast underneath it. The last bottom inset on the
@@ -649,7 +649,7 @@ struct TableFeedView: View {
                 .foregroundStyle(Color.ink)
         }
         .padding(.horizontal, 14)
-        .frame(height: 36)
+        .frame(minHeight: 36)
         .background(Color.canvas, in: Capsule())
         .overlay(Capsule().strokeBorder(Color.navHairline))
         .shadow(color: Color.shadowInk.opacity(0.14), radius: 10, y: 8)
@@ -688,7 +688,7 @@ struct TableFeedView: View {
                     }
                     .foregroundStyle(Color.tomato)
                     .padding(.horizontal, 12)
-                    .frame(height: 30)
+                    .frame(minHeight: 30)
                     .background(Color.chipFill, in: Capsule())
                     .overlay(Capsule().strokeBorder(Color.navHairline))
                     .frame(minHeight: 44)

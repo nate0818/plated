@@ -152,7 +152,7 @@ struct PostThreadView: View {
                     .font(.jakarta(13, .bold))
                     .foregroundStyle(Color.canvas)
                     .padding(.horizontal, 18)
-                    .frame(height: 40)
+                    .frame(minHeight: 40)
                     .background(Color.ink, in: Capsule())
                     .padding(.bottom, 150)
                     .transition(arrival)
@@ -181,6 +181,7 @@ struct PostThreadView: View {
                     .frame(width: 38, height: 38)
                     .overlay {
                         Image(systemName: "chevron.left")
+                            .accessibilityLabel("Back")
                             .font(.system(size: 14, weight: .semibold))
                             .foregroundStyle(Color.ink)
                     }
@@ -215,7 +216,7 @@ struct PostThreadView: View {
                         .font(.jakarta(13, .bold))
                         .foregroundStyle(Color.ink)
                         .padding(.horizontal, 14)
-                        .frame(height: 36)
+                        .frame(minHeight: 36)
                         .overlay(Capsule().strokeBorder(Color.hairline, lineWidth: 1.5))
                         .frame(minHeight: 44)
                         .contentShape(Rectangle())
@@ -269,7 +270,7 @@ struct PostThreadView: View {
                     .contentTransition(.numericText())
             }
             .padding(.horizontal, 12)
-            .frame(height: 44)
+            .frame(minHeight: 44)
             .background(alignment: .leading) {
                 GeometryReader { proxy in
                     RoundedRectangle(cornerRadius: 12)
@@ -336,7 +337,7 @@ struct PostThreadView: View {
                         }
                         .foregroundStyle(Color.tomato)
                         .padding(.horizontal, 12)
-                        .frame(height: 30)
+                        .frame(minHeight: 30)
                         .background(Color.chipFill, in: Capsule())
                         .overlay(Capsule().strokeBorder(Color.navHairline))
                     }
@@ -393,6 +394,7 @@ struct PostThreadView: View {
                         withAnimation(.plSnap) { self.replyTo = nil }
                     } label: {
                         Image(systemName: "xmark")
+                            .accessibilityLabel("Cancel reply")
                             .font(.system(size: 11, weight: .bold))
                             .foregroundStyle(Color.inkFaint)
                             .frame(minWidth: 44, minHeight: 44)
@@ -420,7 +422,7 @@ struct PostThreadView: View {
                                         .foregroundStyle(Color.ink)
                                 }
                                 .padding(.horizontal, 10)
-                                .frame(height: 34)
+                                .frame(minHeight: 34)
                                 .overlay(Capsule().strokeBorder(Color.hairline))
                             }
                             .buttonStyle(.pressable)
@@ -459,6 +461,7 @@ struct PostThreadView: View {
                                     .frame(width: 18, height: 18)
                                     .overlay {
                                         Image(systemName: "xmark")
+                                            .accessibilityLabel("Remove photo")
                                             .font(.system(size: 8, weight: .bold))
                                             .foregroundStyle(.white)
                                     }
@@ -478,6 +481,7 @@ struct PostThreadView: View {
                     withAnimation(.plSnap) { mentionBarShown.toggle() }
                 } label: {
                     Image(systemName: "at")
+                        .accessibilityLabel("Mention someone")
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundStyle(mentionBarShown ? Color.ink : Color.inkFaint)
                         .frame(minWidth: 44, minHeight: 44)
@@ -487,6 +491,7 @@ struct PostThreadView: View {
 
                 PhotosPicker(selection: $photoItem, matching: .images) {
                     Image(systemName: "photo")
+                        .accessibilityLabel("Add a photo")
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundStyle(commentPhoto == nil ? Color.inkFaint : Color.ink)
                         .frame(minWidth: 44, minHeight: 44)
@@ -499,6 +504,7 @@ struct PostThreadView: View {
                     withAnimation(.plSnap) { linkFieldShown.toggle() }
                 } label: {
                     Image(systemName: "link")
+                        .accessibilityLabel("Add a link")
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundStyle(linkFieldShown ? Color.ink : Color.inkFaint)
                         .frame(minWidth: 44, minHeight: 44)
@@ -531,6 +537,7 @@ struct PostThreadView: View {
                         .frame(width: 40, height: 40)
                         .overlay {
                             Image(systemName: "arrow.up")
+                                .accessibilityLabel("Send")
                                 .font(.system(size: 15, weight: .bold))
                                 .foregroundStyle(canSend ? Color.onTomato : Color.inkFaint)
                         }
@@ -565,7 +572,7 @@ struct PostThreadView: View {
                 .foregroundStyle(Color.ink)
         }
         .padding(.horizontal, 14)
-        .frame(height: 36)
+        .frame(minHeight: 36)
         .background(Color.canvas, in: Capsule())
         .overlay(Capsule().strokeBorder(Color.navHairline))
         .shadow(color: Color.shadowInk.opacity(0.14), radius: 10, y: 8)

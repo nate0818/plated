@@ -208,7 +208,7 @@ struct ProngsbyView: View {
                                     .fixedSize()
                                     .foregroundStyle(Color.ink)
                                     .padding(.horizontal, 13)
-                                    .frame(height: 36)
+                                    .frame(minHeight: 36)
                                     .overlay(Capsule().strokeBorder(Color.hairline))
                                     .frame(minHeight: 44)
                                     .contentShape(Capsule())
@@ -243,6 +243,7 @@ struct ProngsbyView: View {
                         .frame(width: 40, height: 40)
                         .overlay {
                             Image(systemName: "arrow.up")
+                                .accessibilityLabel("Send")
                                 .font(.system(size: 15, weight: .bold))
                                 .foregroundStyle(session.draft.isEmpty ? Color.inkFaint : Color.onTomato)
                         }

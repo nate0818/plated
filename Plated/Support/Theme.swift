@@ -431,7 +431,7 @@ struct TomatoPillButton: View {
             }
             .foregroundStyle(Color.onTomato)
             .frame(maxWidth: .infinity)
-            .frame(height: 56)
+            .frame(minHeight: 56)
         }
         .buttonStyle(TomatoPillStyle())
     }
@@ -457,7 +457,7 @@ struct InkPillButton: View {
             }
             .foregroundStyle(Color.canvas)
             .frame(maxWidth: .infinity)
-            .frame(height: 56)
+            .frame(minHeight: 56)
         }
         .buttonStyle(InkPillStyle())
     }

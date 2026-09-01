@@ -82,7 +82,7 @@ struct RecipeImportSheet: View {
                         .font(.jakarta(14, .bold))
                         .foregroundStyle(Color.ink)
                         .frame(maxWidth: .infinity)
-                        .frame(height: 48)
+                        .frame(minHeight: 48)
                         .overlay(Capsule().strokeBorder(Color.hairline, lineWidth: 1.5))
                 }
                 .buttonStyle(.pressable)
@@ -99,7 +99,7 @@ struct RecipeImportSheet: View {
                     }
                     .foregroundStyle(Color.onTomato)
                     .frame(maxWidth: .infinity)
-                    .frame(height: 48)
+                    .frame(minHeight: 48)
                     .background(Color.tomato, in: Capsule())
                 }
                 .buttonStyle(.pressable)
@@ -187,7 +187,7 @@ struct RecipeImportSheet: View {
                         .font(.jakarta(14, .bold))
                         .foregroundStyle(Color.ink)
                         .frame(maxWidth: .infinity)
-                        .frame(height: 48)
+                        .frame(minHeight: 48)
                         .overlay(Capsule().strokeBorder(Color.hairline, lineWidth: 1.5))
                 }
                 .buttonStyle(.pressable)
@@ -200,7 +200,7 @@ struct RecipeImportSheet: View {
                         .font(.jakarta(14, .bold))
                         .foregroundStyle(Color.onTomato)
                         .frame(maxWidth: .infinity)
-                        .frame(height: 48)
+                        .frame(minHeight: 48)
                         .background(Color.tomato, in: Capsule())
                 }
                 .buttonStyle(.pressable)

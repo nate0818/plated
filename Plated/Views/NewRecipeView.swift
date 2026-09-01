@@ -85,21 +85,21 @@ struct RecipeEditorView: View {
                                 Button("\(choice) min") { minutes = choice }
                             }
                         } label: {
-                            factCard("Time", "\(minutes) min")
+                            factPicker("Time", "\(minutes) min")
                         }
                         Menu {
                             ForEach(1...12, id: \.self) { count in
                                 Button("\(count)") { serves = count }
                             }
                         } label: {
-                            factCard("Serves", "\(serves)")
+                            factPicker("Serves", "\(serves)")
                         }
                         Menu {
                             ForEach(RecipeDifficulty.allCases) { level in
                                 Button(level.rawValue) { difficultyOverride = level }
                             }
                         } label: {
-                            factCard("Effort", effectiveDifficulty.rawValue)
+                            factPicker("Effort", effectiveDifficulty.rawValue)
                         }
                     }
 
@@ -283,7 +283,7 @@ struct RecipeEditorView: View {
             .fixedSize()
             .foregroundStyle(active ? Color.canvas : Color.ink)
             .padding(.horizontal, 13)
-            .frame(height: 38)
+            .frame(minHeight: 38)
             .background {
                 if active {
                     Capsule().fill(Color.ink)
@@ -317,6 +317,7 @@ struct RecipeEditorView: View {
                         }
                     } label: {
                         Image(systemName: "xmark")
+                            .accessibilityLabel("Remove ingredient")
                             .font(.system(size: 11, weight: .bold))
                             .foregroundStyle(Color.inkFaint)
                             .frame(minWidth: 44, minHeight: 44)
@@ -334,7 +335,7 @@ struct RecipeEditorView: View {
                     .frame(height: 44)
                     .overlay(RoundedRectangle(cornerRadius: Radius.chip).strokeBorder(Color.hairline))
                     .onSubmit(addIngredient)
-                addRoundButton(disabled: ingredientEntry.trimmingCharacters(in: .whitespaces).isEmpty, action: addIngredient)
+                addRoundButton(disabled: ingredientEntry.trimmingCharacters(in: .whitespaces).isEmpty, label: "Add ingredient", action: addIngredient)
             }
 
             if !isEditing && !draftIngredients.isEmpty {
@@ -385,6 +386,7 @@ struct RecipeEditorView: View {
                         }
                     } label: {
                         Image(systemName: "xmark")
+                            .accessibilityLabel("Remove step")
                             .font(.system(size: 11, weight: .bold))
                             .foregroundStyle(Color.inkFaint)
                             .frame(minWidth: 44, minHeight: 44)
@@ -403,13 +405,13 @@ struct RecipeEditorView: View {
                     .padding(.vertical, 11)
                     .overlay(RoundedRectangle(cornerRadius: Radius.chip).strokeBorder(Color.hairline))
                     .onSubmit(addStep)
-                addRoundButton(disabled: stepEntry.trimmingCharacters(in: .whitespaces).isEmpty, action: addStep)
+                addRoundButton(disabled: stepEntry.trimmingCharacters(in: .whitespaces).isEmpty, label: "Add step", action: addStep)
             }
         }
         .animation(.plSnap, value: steps.count)
     }
 
-    private func addRoundButton(disabled: Bool, action: @escaping () -> Void) -> some View {
+    private func addRoundButton(disabled: Bool, label: String, action: @escaping () -> Void) -> some View {
         Button {
             action()
         } label: {
@@ -418,6 +420,7 @@ struct RecipeEditorView: View {
                 .frame(width: 40, height: 40)
                 .overlay {
                     Image(systemName: "plus")
+                        .accessibilityLabel(label)
                         .font(.system(size: 14, weight: .bold))
                         .foregroundStyle(Color.ink)
                 }
@@ -494,7 +497,7 @@ struct RecipeEditorView: View {
                     RoundedRectangle(cornerRadius: Radius.hero)
                         .strokeBorder(Color.hairlineDashed, style: StrokeStyle(lineWidth: 2, dash: [8, 7]))
                         .frame(maxWidth: .infinity)
-                        .frame(height: 240)
+                        .frame(minHeight: 240)
                         .overlay {
                             VStack(spacing: 8) {
                                 Image(systemName: "camera")
@@ -537,6 +540,7 @@ struct RecipeEditorView: View {
                                         .frame(width: 20, height: 20)
                                         .overlay {
                                             Image(systemName: "xmark")
+                                                .accessibilityLabel("Remove photo")
                                                 .font(.system(size: 9, weight: .bold))
                                                 .foregroundStyle(.white)
                                         }
@@ -569,18 +573,25 @@ struct RecipeEditorView: View {
         .animation(.plSnap, value: extraPhotoData.count)
     }
 
-    private func factCard(_ label: String, _ value: String) -> some View {
-        VStack(spacing: 1) {
-            Text(label.uppercased())
-                .font(.jakarta(10, .extraBold))
-                .tracking(0.6)
-                .foregroundStyle(Color.inkFaint)
+    /// A picker wearing a fact, NOT a count atom — the box is here because
+    /// this one is genuinely tappable, which is the whole distinction the
+    /// count law draws. Read-only facts use CountBlock/CountDivider; copying
+    /// this for a display number would put a border round something that
+    /// isn't a button. Named for what it is so that mistake is harder.
+    private func factPicker(_ label: String, _ value: String) -> some View {
+        VStack(spacing: 2) {
             Text(value)
-                .font(.jakarta(15, .bold))
+                .font(.gabarito(17, .semibold))
                 .foregroundStyle(Color.ink)
+            // Sentence case, matching CountBlock. The all-caps tracked
+            // micro-type this used to wear is dashboard voice, and a
+            // household is not a dashboard.
+            Text(label)
+                .font(.jakarta(11, .semibold))
+                .foregroundStyle(Color.inkSecondary)
         }
         .frame(maxWidth: .infinity)
-        .frame(height: 52)
+        .frame(minHeight: 52)
         .overlay(RoundedRectangle(cornerRadius: Radius.chip).strokeBorder(Color.hairline))
         .contentShape(Rectangle())
     }

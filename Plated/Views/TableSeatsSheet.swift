@@ -150,6 +150,7 @@ struct TableSeatsSheet: View {
                         .frame(width: 34, height: 34)
                         .overlay {
                             Image(systemName: "bubble.right")
+                                .accessibilityLabel("Message \(name)")
                                 .font(.system(size: 13, weight: .semibold))
                                 .foregroundStyle(Color.ink)
                         }
@@ -164,6 +165,7 @@ struct TableSeatsSheet: View {
                     onRemove()
                 } label: {
                     Image(systemName: "minus.circle")
+                        .accessibilityLabel("Remove \(name)")
                         .font(.system(size: 17, weight: .medium))
                         .foregroundStyle(Color.inkFaint)
                         .frame(minWidth: 44, minHeight: 44)
@@ -190,7 +192,7 @@ struct TableSeatsSheet: View {
                     .font(.jakarta(14, .bold))
                     .foregroundStyle(Color.canvas)
                     .padding(.horizontal, 18)
-                    .frame(height: 44)
+                    .frame(minHeight: 44)
                     .background(Color.ink, in: Capsule())
             }
             .buttonStyle(.pressable)
@@ -295,6 +297,7 @@ struct DMThreadView: View {
                         .frame(width: 40, height: 40)
                         .overlay {
                             Image(systemName: "arrow.up")
+                                .accessibilityLabel("Send")
                                 .font(.system(size: 15, weight: .bold))
                                 .foregroundStyle(draft.isEmpty ? Color.inkFaint : Color.onTomato)
                         }

@@ -500,7 +500,7 @@ struct HouseholdHomeView: View {
                     .font(.jakarta(12, .bold))
                     .foregroundStyle(member.tone.tone)
                     .padding(.horizontal, 12)
-                    .frame(height: 30)
+                    .frame(minHeight: 30)
                     .background(member.tone.tint, in: Capsule())
             }
             Image(systemName: "chevron.right")
@@ -558,7 +558,7 @@ struct HouseholdHomeView: View {
             }
             .foregroundStyle(Color.inkSecondary)
             .frame(maxWidth: .infinity)
-            .frame(height: 54)
+            .frame(minHeight: 54)
             .overlay {
                 Capsule().strokeBorder(Color.hairlineDashed, style: StrokeStyle(lineWidth: 2, dash: [7, 6]))
             }
@@ -652,7 +652,7 @@ struct HouseholdHomeView: View {
                     if let cook {
                         AvatarCircle(initials: cook.firstInitial, tone: cook.tone, size: 28)
                             .id(cook.name)
-                            .transition(.scale(scale: 0.5).combined(with: .opacity))
+                            .transition(.scale(scale: 0.92).combined(with: .opacity))
                     } else {
                         Circle()
                             .strokeBorder(Color.hairlineDashed, style: StrokeStyle(lineWidth: 2, dash: [4, 4]))
@@ -775,7 +775,7 @@ struct AddMemberSheet: View {
                 .font(.jakarta(13, .bold))
                 .foregroundStyle(active ? Color.canvas : Color.ink)
                 .frame(maxWidth: .infinity)
-                .frame(height: 40)
+                .frame(minHeight: 40)
                 .background {
                     if active {
                         Capsule().fill(Color.ink)

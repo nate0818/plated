@@ -161,6 +161,7 @@ struct PlanNightSheet: View {
                 withAnimation(.plSnap) { context.delete(meal) }
             } label: {
                 Image(systemName: "trash")
+                    .accessibilityLabel("Remove this meal")
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(Color.inkSecondary)
                     .frame(minWidth: 44, minHeight: 44)
@@ -344,6 +345,7 @@ struct AskComposerSheet: View {
                                     withAnimation(.plSnap) { options.remove(at: index) }
                                 } label: {
                                     Image(systemName: "xmark")
+                                        .accessibilityLabel("Remove option")
                                         .font(.system(size: 11, weight: .bold))
                                         .foregroundStyle(Color.inkFaint)
                                         .frame(minWidth: 44, minHeight: 44)
@@ -369,6 +371,7 @@ struct AskComposerSheet: View {
                                         .frame(width: 40, height: 40)
                                         .overlay {
                                             Image(systemName: "plus")
+                                                .accessibilityLabel("Add option")
                                                 .font(.system(size: 14, weight: .bold))
                                                 .foregroundStyle(Color.ink)
                                         }
@@ -399,7 +402,7 @@ struct AskComposerSheet: View {
                                         }
                                         .foregroundStyle(active ? Color.canvas : Color.ink)
                                         .padding(.horizontal, 10)
-                                        .frame(height: 36)
+                                        .frame(minHeight: 36)
                                         .background {
                                             if active {
                                                 Capsule().fill(Color.ink)
@@ -530,13 +533,13 @@ struct GatheringSheet: View {
                             .foregroundStyle(Color.ink)
                         Spacer()
                         HStack(spacing: 14) {
-                            stepperButton("minus") { if guests > 1 { guests -= 1 } }
+                            stepperButton("minus", "One fewer guest") { if guests > 1 { guests -= 1 } }
                             Text("\(guests)")
                                 .font(.gabarito(19, .bold))
                                 .foregroundStyle(Color.ink)
                                 .frame(minWidth: 30)
                                 .contentTransition(.numericText())
-                            stepperButton("plus") { guests += 1 }
+                            stepperButton("plus", "One more guest") { guests += 1 }
                         }
                     }
                     .padding(.horizontal, 16)
@@ -601,7 +604,7 @@ struct GatheringSheet: View {
         .presentationCornerRadius(Radius.sheet)
     }
 
-    private func stepperButton(_ symbol: String, action: @escaping () -> Void) -> some View {
+    private func stepperButton(_ symbol: String, _ label: String, action: @escaping () -> Void) -> some View {
         Button {
             Haptic.tap()
             withAnimation(.plSnap) { action() }
@@ -611,6 +614,7 @@ struct GatheringSheet: View {
                 .frame(width: 32, height: 32)
                 .overlay {
                     Image(systemName: symbol)
+                        .accessibilityLabel(label)
                         .font(.system(size: 12, weight: .bold))
                         .foregroundStyle(Color.ink)
                 }

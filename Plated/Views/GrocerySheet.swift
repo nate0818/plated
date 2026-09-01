@@ -90,7 +90,7 @@ struct GrocerySheet: View {
                         }
                         .foregroundStyle(Color.ink)
                         .frame(maxWidth: .infinity)
-                        .frame(height: 50)
+                        .frame(minHeight: 50)
                         .overlay(Capsule().strokeBorder(Color.hairline, lineWidth: 1.5))
                         .contentShape(Capsule())
                     }

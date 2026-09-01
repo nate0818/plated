@@ -34,7 +34,7 @@ struct ActivityBellButton: View {
                             .frame(height: 16)
                             .background(Color.tomato, in: Capsule())
                             .offset(x: -1, y: 3)
-                            .transition(.scale(scale: 0.4).combined(with: .opacity))
+                            .transition(.scale(scale: 0.9).combined(with: .opacity))
                     }
                 }
                 // News lands with a pop, counts tick, read-all fades out.

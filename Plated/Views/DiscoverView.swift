@@ -64,6 +64,7 @@ struct DiscoverView: View {
                         query = ""
                     } label: {
                         Image(systemName: "xmark.circle.fill")
+                            .accessibilityLabel("Clear search")
                             .font(.system(size: 16))
                             .foregroundStyle(Color.inkFaint)
                             .frame(minWidth: 44, minHeight: 44)
@@ -211,7 +212,7 @@ struct DiscoverPostSheet: View {
                                 .foregroundStyle(Color.ink)
                         }
                         .padding(.horizontal, 14)
-                        .frame(height: 36)
+                        .frame(minHeight: 36)
                         .background(Color.canvas, in: Capsule())
                         .overlay(Capsule().strokeBorder(Color.navHairline))
                         .shadow(color: Color.shadowInk.opacity(0.14), radius: 10, y: 8)
@@ -274,7 +275,7 @@ struct DiscoverPostSheet: View {
                     }
                     .foregroundStyle(Color.inkSecondary)
                     .frame(maxWidth: .infinity)
-                    .frame(height: 56)
+                    .frame(minHeight: 56)
                     .overlay(Capsule().strokeBorder(Color.hairline, lineWidth: 1.5))
                     .padding(.top, 6)
                     .transition(.scale(scale: 0.94).combined(with: .opacity))

@@ -72,7 +72,7 @@ struct TableComposerSheet: View {
                                             }
                                             .foregroundStyle(active ? Color.canvas : Color.ink)
                                             .padding(.horizontal, 10)
-                                            .frame(height: 36)
+                                            .frame(minHeight: 36)
                                             .background {
                                                 if active {
                                                     Capsule().fill(Color.ink)
@@ -152,7 +152,7 @@ struct TableComposerSheet: View {
                 RoundedRectangle(cornerRadius: Radius.hero)
                     .strokeBorder(Color.hairlineDashed, style: StrokeStyle(lineWidth: 2, dash: [8, 7]))
                     .frame(maxWidth: .infinity)
-                    .frame(height: 150)
+                    .frame(minHeight: 150)
                     .overlay {
                         VStack(spacing: 6) {
                             Image(systemName: "camera")

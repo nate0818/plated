@@ -286,6 +286,7 @@ struct PlateTabBar: View {
                         .frame(width: 54, height: 54)
                         .shadow(color: Color.shadowInk.opacity(0.16), radius: 10, y: 8)
                     Image(systemName: "plus")
+                        .accessibilityLabel("Create")
                         .font(.system(size: 22, weight: .bold))
                         .foregroundStyle(Color.onTomato)
                 }

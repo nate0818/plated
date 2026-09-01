@@ -205,6 +205,7 @@ struct PersonProfileView: View {
                     .frame(width: 38, height: 38)
                     .overlay {
                         Image(systemName: "chevron.left")
+                            .accessibilityLabel("Back")
                             .font(.system(size: 14, weight: .semibold))
                             .foregroundStyle(Color.ink)
                     }
@@ -224,6 +225,7 @@ struct PersonProfileView: View {
                         .frame(width: 38, height: 38)
                         .overlay {
                             Image(systemName: "gearshape")
+                                .accessibilityLabel("Settings")
                                 .font(.system(size: 14, weight: .semibold))
                                 .foregroundStyle(Color.ink)
                         }
@@ -258,7 +260,7 @@ struct PersonProfileView: View {
                     }
                     .foregroundStyle(Color.ink)
                     .padding(.horizontal, 12)
-                    .frame(height: 30)
+                    .frame(minHeight: 30)
                     .background(.ultraThinMaterial, in: Capsule())
                     .padding(10)
                 }
@@ -300,7 +302,7 @@ struct PersonProfileView: View {
                 .font(.jakarta(13, .bold))
                 .foregroundStyle(Color.ink)
                 .padding(.horizontal, 16)
-                .frame(height: 36)
+                .frame(minHeight: 36)
                 .overlay(Capsule().strokeBorder(Color.hairline, lineWidth: 1.5))
                 .frame(minHeight: 44)
                 .contentShape(Capsule())
@@ -716,7 +718,7 @@ struct PaywallSheet: View {
                             .font(.jakarta(14, .bold))
                             .foregroundStyle(Color.ink)
                     }
-                    .frame(height: 56)
+                    .frame(minHeight: 56)
                 } else {
                     TomatoPillButton(title: "Start Plated+ · $2.99/mo") {
                         PlatedPlus.isActive = true

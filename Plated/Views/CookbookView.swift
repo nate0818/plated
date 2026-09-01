@@ -133,11 +133,12 @@ struct CookbookView: View {
                                 .font(.jakarta(13, .bold))
                                 .lineLimit(1)
                             Image(systemName: "chevron.down")
+                                .accessibilityHidden(true)
                                 .font(.system(size: 10, weight: .bold))
                         }
                         .foregroundStyle(filter.isFiltering ? Color.canvas : Color.ink)
                         .padding(.horizontal, 14)
-                        .frame(height: 38)
+                        .frame(minHeight: 38)
                         .background {
                             if filter.isFiltering {
                                 Capsule().fill(Color.ink)
@@ -156,6 +157,7 @@ struct CookbookView: View {
                             withAnimation(.plSnap) { filter = RecipeFilter() }
                         } label: {
                             Image(systemName: "xmark")
+                                .accessibilityLabel("Clear filters")
                                 .font(.system(size: 12, weight: .bold))
                                 .foregroundStyle(Color.inkSecondary)
                                 .frame(width: 38, height: 38)
@@ -182,7 +184,7 @@ struct CookbookView: View {
                         }
                         .foregroundStyle(Color.ink)
                         .padding(.horizontal, 14)
-                        .frame(height: 38)
+                        .frame(minHeight: 38)
                         .overlay(Capsule().strokeBorder(Color.hairline, lineWidth: 1.5))
                         .frame(minHeight: 44)
                         .contentShape(Capsule())
@@ -410,6 +412,7 @@ struct RecipeFilterSheet: View {
                                 filter.searchText = ""
                             } label: {
                                 Image(systemName: "xmark.circle.fill")
+                                    .accessibilityLabel("Clear search")
                                     .font(.system(size: 14))
                                     .foregroundStyle(Color.inkFaint)
                             }
@@ -500,7 +503,7 @@ struct RecipeFilterSheet: View {
                 .fixedSize()
                 .foregroundStyle(active ? Color.canvas : Color.ink)
                 .padding(.horizontal, 13)
-                .frame(height: 36)
+                .frame(minHeight: 36)
                 .background {
                     if active {
                         Capsule().fill(Color.ink)
@@ -574,10 +577,18 @@ struct RecipeDetailView: View {
                         .foregroundStyle(Color.inkSecondary)
                 }
 
-                HStack(spacing: 8) {
-                    factCard("Time", recipe.totalMinutes > 0 ? "\(recipe.totalMinutes) min" : "—")
-                    factCard("Serves", "\(recipe.servings)")
-                    factCard("Effort", recipe.difficultyValue.rawValue)
+                // The shared atoms, not a fourth dialect. A hairline box
+                // around a number reads as a button that isn't one, and the
+                // all-caps micro-type this used to wear is dashboard voice.
+                HStack(spacing: 0) {
+                    CountBlock(
+                        value: recipe.totalMinutes > 0 ? "\(recipe.totalMinutes) min" : "—",
+                        label: "Time"
+                    )
+                    CountDivider()
+                    CountBlock(value: "\(recipe.servings)", label: "Serves")
+                    CountDivider()
+                    CountBlock(value: recipe.difficultyValue.rawValue, label: "Effort")
                 }
 
                 if !recipe.summary.isEmpty {
@@ -687,6 +698,7 @@ struct RecipeDetailView: View {
                     .frame(width: 38, height: 38)
                     .overlay {
                         Image(systemName: "chevron.left")
+                            .accessibilityLabel("Back")
                             .font(.system(size: 14, weight: .semibold))
                             .foregroundStyle(Color.ink)
                     }
@@ -705,6 +717,7 @@ struct RecipeDetailView: View {
                     .frame(width: 38, height: 38)
                     .overlay {
                         Image(systemName: recipe.isFavorite ? "heart.fill" : "heart")
+                            .accessibilityLabel(recipe.isFavorite ? "Remove from favorites" : "Add to favorites")
                             .font(.system(size: 14, weight: .semibold))
                             .foregroundStyle(recipe.isFavorite ? Color.tomato : Color.ink)
                             // The fill pours in. It does NOT thump: an
@@ -742,6 +755,7 @@ struct RecipeDetailView: View {
                     .frame(width: 38, height: 38)
                     .overlay {
                         Image(systemName: "pencil")
+                            .accessibilityLabel("Edit recipe")
                             .font(.system(size: 14, weight: .semibold))
                             .foregroundStyle(Color.ink)
                     }
@@ -828,21 +842,6 @@ struct RecipeDetailView: View {
             lines.append(contentsOf: recipe.steps.enumerated().map { "\($0 + 1). \($1)" })
         }
         return lines.joined(separator: "\n")
-    }
-
-    private func factCard(_ label: String, _ value: String) -> some View {
-        VStack(spacing: 1) {
-            Text(label.uppercased())
-                .font(.jakarta(10, .extraBold))
-                .tracking(0.6)
-                .foregroundStyle(Color.inkFaint)
-            Text(value)
-                .font(.jakarta(15, .bold))
-                .foregroundStyle(Color.ink)
-        }
-        .frame(maxWidth: .infinity)
-        .frame(height: 52)
-        .overlay(RoundedRectangle(cornerRadius: Radius.chip).strokeBorder(Color.hairline))
     }
 
     private var visibilityIcon: String {
@@ -971,7 +970,7 @@ struct PlateAssignSheet: View {
                 }
             }
             .padding(.horizontal, 16)
-            .frame(height: 46)
+            .frame(minHeight: 46)
             .background {
                 if active {
                     RoundedRectangle(cornerRadius: Radius.chip).fill(Color.ink)

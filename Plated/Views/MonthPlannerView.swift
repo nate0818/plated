@@ -53,12 +53,12 @@ struct MonthPlannerView: View {
                 legend
             }
             Spacer()
-            monthArrow("chevron.left") { shiftMonth(-1) }
-            monthArrow("chevron.right") { shiftMonth(1) }
+            monthArrow("chevron.left", "Previous month") { shiftMonth(-1) }
+            monthArrow("chevron.right", "Next month") { shiftMonth(1) }
         }
     }
 
-    private func monthArrow(_ symbol: String, action: @escaping () -> Void) -> some View {
+    private func monthArrow(_ symbol: String, _ label: String, action: @escaping () -> Void) -> some View {
         Button {
             Haptic.tap()
             withAnimation(.plSnap) { action() }
@@ -68,6 +68,7 @@ struct MonthPlannerView: View {
                 .frame(width: 38, height: 38)
                 .overlay {
                     Image(systemName: symbol)
+                        .accessibilityLabel(label)
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(Color.ink)
                 }
