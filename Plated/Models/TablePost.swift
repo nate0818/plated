@@ -14,6 +14,16 @@ final class TablePost {
     var kind: String = "dish"
     /// True for posts from open tables shown in Discover, never in your feed.
     var isDiscover: Bool = false
+    /// The CloudKit record this post is, once it has left the device.
+    ///
+    /// Empty means "mine and not yet published". Non-empty is the identity
+    /// a merge keys on — without it, every fetch would insert a second copy
+    /// of every post, since nothing else about a dish is reliably unique
+    /// (two people can plate the same title on the same evening).
+    var shareRecordName: String = ""
+    /// True when this arrived from somebody else's table. Guests may plate
+    /// and comment; they may not edit or delete what isn't theirs.
+    var isRemote: Bool = false
     var createdAt: Date = Date.now
     /// Household members called out in the caption ("@Riley made the sauce").
     var taggedNames: [String] = []

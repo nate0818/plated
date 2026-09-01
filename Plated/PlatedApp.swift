@@ -8,6 +8,9 @@ struct PlatedApp: App {
     /// follows the system appearance; the table decides its own lighting.
     @AppStorage("afterDark") private var afterDark = false
     @Environment(\.scenePhase) private var scenePhase
+    /// Only for `userDidAcceptCloudKitShareWith`, which has no SwiftUI
+    /// equivalent — see ShareAcceptor.
+    @UIApplicationDelegateAdaptor(ShareAcceptor.self) private var shareAcceptor
 
     /// See PlatedStore — the app and App Intents share this one container.
     let container = PlatedStore.shared

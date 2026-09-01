@@ -180,6 +180,18 @@ struct TableComposerSheet: View {
         )
         post.taggedNames = Array(tagged)
         context.insert(post)
+        // Out to the table's zone, if there is one. Deliberately not awaited:
+        // the post is already on screen and already saved locally, and a
+        // slow upload must never hold the sheet open. A failure leaves
+        // shareRecordName empty, which is exactly the state the next publish
+        // attempt looks for.
+        let hostName = owner?.name ?? ""
+        Task { @MainActor in
+            if let name = await TableShare.publish(post, hostName: hostName) {
+                post.shareRecordName = name
+                Persist.save(context, "publish table post")
+            }
+        }
         Notifier.post(
             .general, actor: owner?.name ?? "Me",
             body: "\(owner?.name ?? "Someone") set \(post.dishTitle.isEmpty ? "a dish" : post.dishTitle) on the Table.",

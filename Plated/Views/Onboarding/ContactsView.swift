@@ -22,6 +22,10 @@ struct ContactsView: View {
     @Environment(\.modelContext) private var context
     @State private var candidates: [Candidate] = []
     @State private var accessState: AccessState = .notAsked
+    /// The live CKShare link, once CloudKit has minted one. Nil means the
+    /// invite goes out as words alone — still worth sending, and exactly
+    /// what shipped before sharing existed.
+    @State private var inviteLink: URL?
     @State private var arrived = false
 
     enum AccessState { case notAsked, granted, denied }
@@ -109,7 +113,10 @@ struct ContactsView: View {
                     if seatedCount > 0 {
                         // One share sheet, one message — the label says what
                         // actually happens.
-                        ShareLink(item: TableSync.inviteMessage(hostName: userFirstName)) {
+                        ShareLink(
+                            item: inviteLink ?? URL(string: "https://plated.app")!,
+                            message: Text(TableSync.inviteMessage(hostName: userFirstName))
+                        ) {
                             HStack(spacing: 6) {
                                 Image(systemName: "paperplane")
                                     .font(.system(size: 13, weight: .semibold))
@@ -170,6 +177,10 @@ struct ContactsView: View {
             if LaunchFlags.consume("-plated-find-people") { requestContacts() }
         }
         .animation(.plSettle, value: accessState == .granted)
+        .task(id: seatedCount) {
+            guard seatedCount > 0, inviteLink == nil else { return }
+            inviteLink = await TableShare.invitationURL(hostName: userFirstName)
+        }
     }
 
     private var seatedCount: Int { candidates.filter(\.seated).count }

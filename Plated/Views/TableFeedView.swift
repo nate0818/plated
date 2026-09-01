@@ -64,7 +64,12 @@ struct TableFeedView: View {
     /// don't tidy it into symmetry.
     private func refreshFeed() async {
         Persist.save(context)
+        // Two different pipes, pulled together because the user pulled once.
+        // The mirror carries this household's own devices; TableShare
+        // carries everybody else's table. Neither knows about the other.
+        async let remote = TableShare.fetchRemote()
         let outcome = await CloudSync.waitForImport()
+        TableShare.merge(await remote, into: context)
         // Let go mid-pull and there is nothing to confirm — the tick used
         // to fire anyway, because `try?` around the sleep swallowed the
         // cancellation and left the call site unable to tell an abandoned
@@ -198,6 +203,11 @@ struct TableFeedView: View {
                     .padding(.bottom, Layout.floatingChromeInset)
                 }
                 .refreshable { await refreshFeed() }
+                // A seat accepted from Messages while the Table is already
+                // open would otherwise sit invisible until the next pull.
+                .onReceive(NotificationCenter.default.publisher(for: ShareAcceptor.didAccept)) { _ in
+                    Task { TableShare.merge(await TableShare.fetchRemote(), into: context) }
+                }
             }
             .background(Color.canvas)
             .toolbar(.hidden, for: .navigationBar)
