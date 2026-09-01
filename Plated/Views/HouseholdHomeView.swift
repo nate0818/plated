@@ -353,7 +353,6 @@ struct HouseholdHomeView: View {
                                 VStack(spacing: 6) {
                                     Image(systemName: "photo")
                                         .font(.system(size: 18, weight: .medium))
-                                        .plBreathing()
                                     Text("Hang a photo of your household")
                                         .font(.jakarta(13, .bold))
                                 }

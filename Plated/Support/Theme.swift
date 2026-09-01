@@ -190,27 +190,11 @@ enum Layout {
     static let floatingChromeInset: CGFloat = perchBottom + perchHeight + 8
 }
 
-/// A slow ambient breath for empty-state glyphs — the room is set and
-/// waiting, not dead. Sits out under Reduce Motion.
-private struct PLBreathing: ViewModifier {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    func body(content: Content) -> some View {
-        if reduceMotion {
-            content
-        } else {
-            content.phaseAnimator([false, true]) { view, up in
-                view
-                    .scaleEffect(up ? 1.05 : 1)
-                    .opacity(up ? 1 : 0.9)
-            } animation: { _ in .easeInOut(duration: 2.4) }
-        }
-    }
-}
-
-extension View {
-    func plBreathing() -> some View { modifier(PLBreathing()) }
-}
+// PLBreathing lived here: a 2.4s pulse on every empty-state glyph. Deleted
+// rather than left unused, because an unused modifier is an invitation. An
+// icon does not perform — not a bounce, not a spin, not a breath. A glyph
+// that pulses while you read the sentence next to it is the app fidgeting
+// for attention in the one moment it has nothing to say.
 
 // MARK: - Shadows
 

@@ -49,7 +49,6 @@ struct GrocerySheet: View {
                     Image(systemName: "basket")
                         .font(.system(size: 30, weight: .medium))
                         .foregroundStyle(Color.inkFaint)
-                        .plBreathing()
                     Text("Nothing to shop for yet")
                         .font(.jakarta(15, .bold))
                         .foregroundStyle(Color.inkSecondary)

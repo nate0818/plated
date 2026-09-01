@@ -192,7 +192,6 @@ struct TableFeedView: View {
                         if shownPosts.isEmpty {
                             VStack(spacing: 8) {
                                 PlateReactionGlyph(filled: false)
-                                    .plBreathing()
                                 Text(scope == .household ? "The household hasn't posted yet." : "Nothing on the table yet.")
                                     .font(.jakarta(14, .bold))
                                     .foregroundStyle(Color.inkSecondary)
@@ -701,7 +700,6 @@ struct TableFeedView: View {
         } label: {
             HStack(spacing: 7) {
                 PlateReactionGlyph(filled: post.platedByMe)
-                    .scaleEffect(bouncePost == post.persistentModelID ? 1.35 : 1)
                 Text("\(post.totalPlates)")
                     .font(.jakarta(14, .bold))
                     .foregroundStyle(post.platedByMe ? Color.tomato : Color.inkSecondary)
@@ -900,7 +898,6 @@ struct PlateReactionButton: View {
             }
         } label: {
             PlateReactionGlyph(filled: post.platedByMe)
-                .scaleEffect(bounce ? 1.35 : 1)
                 .frame(minWidth: 44, minHeight: 44)
         }
         .buttonStyle(.pressable)

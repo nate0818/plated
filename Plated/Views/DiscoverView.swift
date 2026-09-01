@@ -85,7 +85,6 @@ struct DiscoverView: View {
                     Image(systemName: "magnifyingglass")
                         .font(.system(size: 28, weight: .medium))
                         .foregroundStyle(Color.inkFaint)
-                        .plBreathing()
                     Text("No table is serving that")
                         .font(.jakarta(15, .bold))
                         .foregroundStyle(Color.inkSecondary)
@@ -244,7 +243,6 @@ struct DiscoverPostSheet: View {
                                     Circle().fill(Color.canvas).frame(width: 9, height: 9)
                                 }
                             }
-                            .scaleEffect(bounce ? 1.35 : 1)
                             Text("\(post.totalPlates)")
                                 .font(.jakarta(14, .bold))
                                 .foregroundStyle(post.platedByMe ? Color.tomato : Color.inkSecondary)
