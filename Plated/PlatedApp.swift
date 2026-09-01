@@ -64,6 +64,13 @@ struct PlatedApp: App {
                     // for everyone. Debug only; `-plated-purge-cloud` clears
                     // the rows afterwards.
                     #if DEBUG
+                    if LaunchFlags.consume("-plated-prime-share") {
+                        print(await TableShare.primeSchema())
+                        try? await Task.sleep(for: .seconds(20))
+                        exit(0)
+                    }
+                    #endif
+                    #if DEBUG
                     if LaunchFlags.consume("-plated-prime-schema") {
                         do {
                             try SchemaPrimer.prime(into: container.mainContext)

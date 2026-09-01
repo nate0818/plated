@@ -152,6 +152,16 @@ enum TableShare {
         var photoData: Data?
     }
 
+    /// Everything other people have put on tables this user can see.
+    ///
+    /// Zone CHANGES, not a CKQuery, and that is the whole point. A query
+    /// needs its record type marked Queryable and every sorted field marked
+    /// Sortable in the CloudKit dashboard — none of which Development
+    /// creates for you. Get it wrong and `records(matching:)` returns an
+    /// empty set with no error, which is the worst possible failure: it
+    /// looks exactly like "nobody has posted". `recordZoneChanges` needs no
+    /// index at all, and is incremental into the bargain — the change token
+    /// means the second pull costs the delta rather than the whole table.
     static func fetchRemote() async -> [RemotePost] {
         guard await TableSync.accountAvailable() else { return [] }
         let db = container.sharedCloudDatabase
@@ -159,23 +169,86 @@ enum TableShare {
         do {
             let zones = try await db.allRecordZones()
             for zone in zones where zone.zoneID.zoneName == zoneName {
-                let query = CKQuery(
-                    recordType: postType,
-                    predicate: NSPredicate(value: true)
+                let changes = try await db.recordZoneChanges(
+                    inZoneWith: zone.zoneID, since: token(for: zone.zoneID)
                 )
-                query.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: false)]
-                let (results, _) = try await db.records(
-                    matching: query, inZoneWith: zone.zoneID, resultsLimit: 200
-                )
-                for (_, result) in results {
-                    guard let record = try? result.get() else { continue }
+                for (_, result) in changes.modificationResultsByID {
+                    guard let record = try? result.get().record,
+                          record.recordType == postType else { continue }
                     found.append(remotePost(from: record))
                 }
+                store(changes.changeToken, for: zone.zoneID)
             }
         } catch {
+            // A stale token after a zone is re-shared is the common case.
+            // Forget it and the next pull re-reads the zone whole.
+            forgetTokens()
             return found
         }
         return found
+    }
+
+    #if DEBUG
+    /// Write one of everything so CloudKit's Development schema learns the
+    /// record types, then read it back and say whether the round trip
+    /// worked. Run before deploying the schema to Production: CloudKit
+    /// cannot mint a type there on demand, so a type never exercised in
+    /// Development is a feature that silently fails for everyone.
+    ///
+    /// Same reasoning as SchemaPrimer, which primes the SwiftData mirror's
+    /// types — these are different types on a different path, and that
+    /// primer does not cover them.
+    static func primeSchema() async -> String {
+        guard await TableSync.accountAvailable() else {
+            return "PRIME SHARE: no iCloud account — nothing primed."
+        }
+        guard let url = await invitationURL(hostName: "Prime") else {
+            return "PRIME SHARE FAILED: could not create the zone, root or share."
+        }
+        let probe = TablePost(
+            authorName: "Prime", authorColorHex: "FF5A3C",
+            dishTitle: "Schema probe", caption: "Written to teach CloudKit the type.",
+            kind: "dish", createdAt: .now
+        )
+        guard let name = await publish(probe, hostName: "Prime") else {
+            return "PRIME SHARE FAILED: zone exists, but the post would not save.\nShare URL: \(url)"
+        }
+        return """
+        PRIME SHARE OK
+          share URL : \(url)
+          post record: \(name)
+        Both record types now exist in Development. Deploy the schema to \
+        Production in the CloudKit console before shipping.
+        """
+    }
+    #endif
+
+    // MARK: Change tokens
+
+    private static func tokenKey(_ id: CKRecordZone.ID) -> String {
+        "plated.zonetoken.\(id.zoneName).\(id.ownerName)"
+    }
+
+    private static func token(for id: CKRecordZone.ID) -> CKServerChangeToken? {
+        guard let data = UserDefaults.standard.data(forKey: tokenKey(id)) else { return nil }
+        return try? NSKeyedUnarchiver.unarchivedObject(
+            ofClass: CKServerChangeToken.self, from: data
+        )
+    }
+
+    private static func store(_ token: CKServerChangeToken?, for id: CKRecordZone.ID) {
+        guard let token,
+              let data = try? NSKeyedArchiver.archivedData(
+                withRootObject: token, requiringSecureCoding: true
+              ) else { return }
+        UserDefaults.standard.set(data, forKey: tokenKey(id))
+    }
+
+    private static func forgetTokens() {
+        for key in UserDefaults.standard.dictionaryRepresentation().keys
+        where key.hasPrefix("plated.zonetoken.") {
+            UserDefaults.standard.removeObject(forKey: key)
+        }
     }
 
     private static func remotePost(from record: CKRecord) -> RemotePost {
