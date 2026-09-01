@@ -17,7 +17,6 @@ enum CreateKind: String, Identifiable {
 /// floats, and they float together.
 struct MainShellView: View {
     @Environment(\.modelContext) private var context
-    @Query private var recipes: [Recipe]
     @Query private var members: [HouseholdMember]
 
     @State private var selection: AppTab = .week
@@ -53,8 +52,9 @@ struct MainShellView: View {
     /// an "empty" check into duplicating everything.
     @AppStorage("didSeedSampleData") private var didSeedSampleData = false
     @AppStorage("didSeedDiscover") private var didSeedDiscover = false
+    /// Guards the legacy Discover repair so a slow CloudKit first-import can
+    /// never race an "empty" check into skipping it forever.
     @AppStorage("didRepairLegacyDiscover") private var didRepairLegacyDiscover = false
-    @AppStorage("didStampSampleCategories") private var didStampSampleCategories = false
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -143,52 +143,6 @@ struct MainShellView: View {
             }
         }
         .task {
-            // Sample data is a simulator-only furnishing: a real device
-            // starts empty and stays truthful (and never uploads fake
-            // rows to the owner's CloudKit database).
-            #if targetEnvironment(simulator)
-            if !didSeedSampleData && recipes.isEmpty && members.isEmpty {
-                didSeedSampleData = true
-                didSeedDiscover = true
-                SampleData.seed(into: context)
-            } else if !didSeedDiscover {
-                // Installs seeded before Discover existed get its open tables
-                // once — guarded at the store too, so a CloudKit import that
-                // already carries them can never be double-seeded.
-                didSeedDiscover = true
-                let existing = try? context.fetchCount(
-                    FetchDescriptor<TablePost>(predicate: #Predicate { $0.isDiscover })
-                )
-                if (existing ?? 0) == 0 {
-                    SampleData.seedDiscover(into: context)
-                    try? context.save()
-                }
-            }
-            #endif
-            if !didStampSampleCategories, !recipes.isEmpty {
-                // Sample recipes seeded before categories existed get filed
-                // once, so the cookbook filters have something to hold.
-                // Stamps only after judging real rows: a fresh install's
-                // first appear can run before the CloudKit import delivers,
-                // and stamping against an empty store would skip the repair
-                // forever.
-                didStampSampleCategories = true
-                let sampleFiling: [String: RecipeCategory] = [
-                    "Lemon Butter Salmon": .quick,
-                    "Pizza Night": .kidsPick,
-                    "BBQ Skewers": .grill,
-                    "Rainbow Bowls": .bowls,
-                    "Steak Bowls": .bowls,
-                    "Poke Night": .healthy,
-                    "Pancake Dinner": .comfort
-                ]
-                for recipe in recipes where recipe.category.isEmpty {
-                    if let filed = sampleFiling[recipe.title] {
-                        recipe.categoryValue = filed
-                    }
-                }
-                try? context.save()
-            }
             if !didRepairLegacyDiscover {
                 // Stores seeded before Discover posts were stamped left those
                 // rows with isDiscover == false, so open-table posts bled into
