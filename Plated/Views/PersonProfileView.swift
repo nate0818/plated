@@ -479,6 +479,8 @@ struct SettingsSheet: View {
     @AppStorage("didSignIn") private var didSignIn = false
     @State private var signOutAsked = false
     @State private var sync = SyncStatus.shared
+    @AppStorage("remindersOn") private var remindersOn = true
+    @State private var remindersAllowed = false
     @State private var paywallShown = false
     @State private var plusActive = PlatedPlus.isActive
     @FocusState private var namingHousehold: Bool
@@ -530,6 +532,23 @@ struct SettingsSheet: View {
                             .labelsHidden()
                             .tint(Color.basil)
                             .onChange(of: afterDark) { _, _ in Haptic.plate() }
+                    }
+
+                    settingRow(
+                        icon: "bell",
+                        title: "Whose night it is",
+                        caption: remindersAllowed
+                            ? "The evening before someone cooks, and Sundays when the week's still open."
+                            : "Turn notifications on for Plated in Settings first."
+                    ) {
+                        Toggle("", isOn: $remindersOn)
+                            .labelsHidden()
+                            .tint(Color.basil)
+                            .disabled(!remindersAllowed)
+                            .sensoryFeedback(.selection, trigger: remindersOn)
+                            .onChange(of: remindersOn) { _, on in
+                                Task { if !on { await NotificationScheduler.cancelAll() } }
+                            }
                     }
 
                     settingRow(
@@ -634,7 +653,10 @@ struct SettingsSheet: View {
         .onAppear {
             if focusHouseholdName { namingHousehold = true }
         }
-        .task { await sync.refresh() }
+        .task {
+            await sync.refresh()
+            remindersAllowed = await NotificationScheduler.authorized()
+        }
         .sheet(isPresented: $paywallShown, onDismiss: { plusActive = PlatedPlus.isActive }) {
             PaywallSheet()
         }

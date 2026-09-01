@@ -292,6 +292,17 @@ struct PlanNightSheet: View {
             body: "\(recipe.title) is plated for \(dayTitle.lowercased()) — \(cookName) cook\(cookName == "you" ? "" : "s").",
             into: context
         )
+        // The moment to ask, and the only one. They have just said they
+        // intend to cook on a given night, so "shall I remind you" continues
+        // their own thought instead of interrupting it. iOS grants exactly
+        // one prompt, and one spent at launch is one spent before the app
+        // has done anything worth being reminded about.
+        Task {
+            await NotificationScheduler.askOnceAfterFirstPlan()
+            await NotificationScheduler.rebuild(
+                meals: meals, ownerName: members.first(where: \.isOwner)?.name ?? ""
+            )
+        }
     }
 }
 

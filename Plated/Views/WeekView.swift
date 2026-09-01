@@ -113,6 +113,13 @@ struct WeekView: View {
             await forecast.refresh(days: 10)
             if showCalendarEvents { events.refresh() }
             Notifier.nudgeTurnIfNeeded(meals: meals, members: members, into: context)
+            // Rebuilt here too, not only where a night is planned: meals get
+            // moved and cooks get swapped from several places, and a
+            // reminder for a dish nobody is making any more is worse than
+            // no reminder. No-ops when notifications aren't authorised.
+            await NotificationScheduler.rebuild(
+                meals: meals, ownerName: members.first(where: \.isOwner)?.name ?? ""
+            )
         }
         .onAppear {
             #if DEBUG
