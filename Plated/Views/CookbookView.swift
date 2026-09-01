@@ -93,6 +93,7 @@ struct CookbookView: View {
     @State private var filter = RecipeFilter()
     @State private var filterSheetShown = false
     @State private var importShown = false
+    @State private var newRecipeShown = false
     @State private var activityShown = false
     /// Long-press destinations. A grid of plates can't be swiped — the rows
     /// are two wide — so the menu is where a tile's actions live.
@@ -168,29 +169,6 @@ struct CookbookView: View {
                         .buttonStyle(.pressable)
                     }
                     Spacer()
-
-                    // Paste beats retype. Sits beside the filter because
-                    // both are things you do TO the shelf; creating from
-                    // scratch stays on the + where every other create lives.
-                    Button {
-                        Haptic.tap()
-                        importShown = true
-                    } label: {
-                        HStack(spacing: 6) {
-                            Image(systemName: "doc.on.clipboard")
-                                .font(.system(size: 12, weight: .bold))
-                            Text("Paste")
-                                .font(.jakarta(13, .bold))
-                        }
-                        .foregroundStyle(Color.ink)
-                        .padding(.horizontal, 14)
-                        .frame(minHeight: 38)
-                        .overlay(Capsule().strokeBorder(Color.hairline, lineWidth: 1.5))
-                        .frame(minHeight: 44)
-                        .contentShape(Capsule())
-                    }
-                    .buttonStyle(.pressable)
-                    .accessibilityLabel("Paste a recipe")
                 }
                 .padding(.horizontal, 24)
                 .padding(.top, 12)
@@ -223,16 +201,16 @@ struct CookbookView: View {
                     .padding(.bottom, Layout.floatingChromeInset)
 
                     if shown.isEmpty {
-                        VStack(spacing: 8) {
-                            Image(systemName: "line.3.horizontal.decrease")
-                                .font(.system(size: 26, weight: .medium))
-                                .foregroundStyle(Color.inkFaint)
-                                .plBreathing()
-                            Text(filter.isFiltering ? "Nothing matches that filter" : "No recipes yet")
-                                .font(.jakarta(15, .bold))
-                                .foregroundStyle(Color.inkSecondary)
+                        // Two different nothings. A filter that matched
+                        // nothing is a dead end you back out of; a cookbook
+                        // with nothing in it is an invitation — and the old
+                        // state answered both with one line and a filter
+                        // glyph, the wrong icon for "you own no recipes".
+                        if filter.isFiltering {
+                            noMatches
+                        } else {
+                            emptyCookbook
                         }
-                        .padding(.top, 40)
                     }
                 }
             }
@@ -247,6 +225,7 @@ struct CookbookView: View {
             .plSwipeBack()
         }
         .sheet(isPresented: $importShown) { RecipeImportSheet() }
+        .sheet(isPresented: $newRecipeShown) { RecipeEditorView() }
         .sheet(isPresented: $filterSheetShown) {
             RecipeFilterSheet(filter: $filter, recipes: recipes)
         }
@@ -268,6 +247,74 @@ struct CookbookView: View {
         } message: {
             Text("This takes the dish out of the cookbook for the whole household.")
         }
+    }
+
+    private var noMatches: some View {
+        VStack(spacing: 10) {
+            Image(systemName: "line.3.horizontal.decrease")
+                .font(.system(size: 26, weight: .medium))
+                .foregroundStyle(Color.inkFaint)
+                .plBreathing()
+            Text("Nothing matches that filter")
+                .font(.jakarta(15, .bold))
+                .foregroundStyle(Color.inkSecondary)
+            Button {
+                Haptic.tap()
+                withAnimation(.plSnap) { filter = RecipeFilter() }
+            } label: {
+                Text("Clear filters")
+                    .font(.jakarta(13, .bold))
+                    .foregroundStyle(Color.ink)
+                    .padding(.horizontal, 18)
+                    .frame(minHeight: 44)
+                    .overlay(Capsule().strokeBorder(Color.hairline, lineWidth: 1.5))
+                    .contentShape(Capsule())
+            }
+            .buttonStyle(.pressable)
+        }
+        .padding(.top, 40)
+    }
+
+    /// An empty cookbook is the first thing a new household sees here, and
+    /// "No recipes yet" only told them what they already knew. It now says
+    /// what to do, why it's worth doing, and offers both ways in — the paste
+    /// route included, which is why that no longer needs a button loitering
+    /// in the header on every screen, full or empty.
+    private var emptyCookbook: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "book.closed")
+                .font(.system(size: 30, weight: .medium))
+                .foregroundStyle(Color.inkFaint)
+                .plBreathing()
+            Text("Nothing in the cookbook yet")
+                .font(.gabarito(20, .semibold))
+                .foregroundStyle(Color.ink)
+                .multilineTextAlignment(.center)
+            Text("Start with the one your household asks for most. Photograph it, paste it in from a website or a text, or write it out — once it's here, it's one tap onto any night.")
+                .font(.jakarta(14, .medium))
+                .foregroundStyle(Color.inkSecondary)
+                .multilineTextAlignment(.center)
+                .lineSpacing(3)
+            VStack(spacing: 10) {
+                TomatoPillButton(title: "Add a recipe") { newRecipeShown = true }
+                Button {
+                    Haptic.tap()
+                    importShown = true
+                } label: {
+                    Text("Paste one in")
+                        .font(.jakarta(14, .bold))
+                        .foregroundStyle(Color.ink)
+                        .frame(maxWidth: .infinity)
+                        .frame(minHeight: 48)
+                        .overlay(Capsule().strokeBorder(Color.hairline, lineWidth: 1.5))
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(.pressable)
+            }
+            .padding(.top, 8)
+        }
+        .padding(.horizontal, 34)
+        .padding(.top, 44)
     }
 
     private var countLabel: String {

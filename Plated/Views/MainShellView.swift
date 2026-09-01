@@ -8,7 +8,7 @@ enum AppTab: String, CaseIterable {
 /// What the + can put into the world. Instagram asks before it assumes;
 /// so do we.
 enum CreateKind: String, Identifiable {
-    case recipe, tablePost, ask
+    case recipe, pasteRecipe, tablePost, ask
     var id: String { rawValue }
 }
 
@@ -121,6 +121,8 @@ struct MainShellView: View {
                 RecipeEditorView()
             case .tablePost:
                 TableComposerSheet()
+            case .pasteRecipe:
+                RecipeImportSheet()
             case .ask:
                 AskComposerSheet(date: Calendar.current.startOfDay(for: .now))
             }
@@ -384,6 +386,14 @@ struct CreateMenuSheet: View {
                         .recipe, icon: "book.closed",
                         title: "Recipe",
                         detail: "A dish for the cookbook"
+                    )
+                    // The empty cookbook offers this too, but that state
+                    // disappears the moment there's one recipe in it — and
+                    // pasting the second is exactly as useful as the first.
+                    row(
+                        .pasteRecipe, icon: "doc.on.clipboard",
+                        title: "Paste a recipe",
+                        detail: "From a website, a note, or a text"
                     )
                     row(
                         .ask, icon: "hand.raised",
