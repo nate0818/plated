@@ -9,6 +9,9 @@ struct NotificationsView: View {
     @Query(sort: \PlatedNotification.createdAt, order: .reverse)
     private var notifications: [PlatedNotification]
 
+    /// One row open at a time, same contract as the week's plan rows.
+    @State private var swipedNote: PersistentIdentifier?
+
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 10) {
@@ -76,6 +79,7 @@ struct NotificationsView: View {
         }
         .background(Color.canvas)
         .toolbar(.hidden, for: .navigationBar)
+        .plSwipeBack()
         .onDisappear {
             // Leaving the feed reads it — same contract as every inbox.
             for note in notifications where !note.isRead {
@@ -85,6 +89,33 @@ struct NotificationsView: View {
     }
 
     private func row(_ note: PlatedNotification) -> some View {
+        // Clearing an inbox entry is not deleting the thing it describes —
+        // the plate, the comment, the save all still happened — so it wears
+        // an xmark rather than the trash SwipeAction.remove hands out.
+        SwipeRow(isOpen: swipeBinding(note), actions: [.clear { clear(note) }]) {
+            noteRow(note)
+        }
+    }
+
+    private func swipeBinding(_ note: PlatedNotification) -> Binding<Bool> {
+        Binding(
+            get: { swipedNote == note.persistentModelID },
+            set: { open in
+                swipedNote = open
+                    ? note.persistentModelID
+                    : (swipedNote == note.persistentModelID ? nil : swipedNote)
+            }
+        )
+    }
+
+    private func clear(_ note: PlatedNotification) {
+        withAnimation(.plSnap) {
+            swipedNote = nil
+            context.delete(note)
+        }
+    }
+
+    private func noteRow(_ note: PlatedNotification) -> some View {
         HStack(alignment: .top, spacing: 12) {
             ZStack {
                 Circle()

@@ -116,6 +116,8 @@ struct DiscoverView: View {
             }
         }
         .background(Color.canvas.ignoresSafeArea())
+        .toolbar(.hidden, for: .navigationBar)
+        .plSwipeBack()
         .sheet(item: $selected) { post in
             DiscoverPostSheet(post: post)
         }

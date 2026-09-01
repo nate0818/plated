@@ -11,7 +11,8 @@ struct GroceryListBuilder {
 
     /// Regenerates the auto-derived portion of the list for the rolling
     /// 7-night window starting on `date` — the same window the Week screen
-    /// renders. Hand-added lines, checkmarks, and Reminders links survive.
+    /// renders. Hand-added lines, checkmarks, hand-struck lines, and
+    /// Reminders links survive.
     @discardableResult
     func rebuild(weekOf date: Date, includePantryStaples: Bool = false) throws -> [GroceryItem] {
         let weekStart = Calendar.current.startOfDay(for: date)
@@ -47,6 +48,7 @@ struct GroceryListBuilder {
         // place instead of duplicating.
         let carried = existing + stale
         let checkedNames = Set(carried.filter(\.isChecked).map { Self.key(name: $0.name, unit: $0.unit) })
+        let dismissedNames = Set(carried.filter(\.isDismissed).map { Self.key(name: $0.name, unit: $0.unit) })
         let reminderIDs = Dictionary(
             carried.compactMap { item in
                 item.reminderID.map { (Self.key(name: item.name, unit: item.unit), $0) }
@@ -69,6 +71,7 @@ struct GroceryListBuilder {
                 weekStart: weekStart
             )
             item.isChecked = checkedNames.contains(Self.key(name: line.name, unit: line.unit))
+            item.isDismissed = dismissedNames.contains(Self.key(name: line.name, unit: line.unit))
             item.reminderID = reminderIDs[Self.key(name: line.name, unit: line.unit)]
             item.originTitle = line.origin
             context.insert(item)

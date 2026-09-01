@@ -14,6 +14,9 @@ final class GroceryItem {
     var weekStart: Date = Date.now
     /// True when a person typed it in, which protects it from regeneration.
     var isManual: Bool = false
+    /// Struck off by hand. Auto lines are rebuilt from the plan every time the
+    /// sheet opens, so a swipe has to be remembered or the item walks back in.
+    var isDismissed: Bool = false
     /// Title of the recipe this line came from, for the origin suffix.
     var originTitle: String = ""
     /// Reminders identifier once exported, to avoid duplicate reminders.

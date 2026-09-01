@@ -151,6 +151,7 @@ struct HouseholdStatsView: View {
         }
         .background(Color.canvas)
         .toolbar(.hidden, for: .navigationBar)
+        .plSwipeBack()
         .safeAreaInset(edge: .top) { topBar(earned: earned, total: shelf.count) }
         .sheet(item: $opened) { badge in
             BadgeDetailSheet(badge: badge)

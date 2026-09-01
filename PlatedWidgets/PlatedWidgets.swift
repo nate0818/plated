@@ -2,9 +2,13 @@ import WidgetKit
 import SwiftUI
 import CoreText
 
-// The week on the home screen — quiet chrome, the photo does the talking.
-// Reads the snapshot the app writes into the shared app-group container;
-// JSON keys are the contract with WidgetBridge.swift, change both or neither.
+// The household on the home screen — quiet chrome, the photo does the
+// talking. Reads the snapshot the app writes into the shared app-group
+// container; JSON keys are the contract with WidgetBridge.swift, change both
+// or neither.
+//
+// This file holds the plumbing every widget shares. The widgets themselves
+// live one per file alongside it.
 
 // MARK: - Snapshot (reader side)
 
@@ -14,6 +18,8 @@ struct WeekSnapshot: Codable {
         var planned: Bool
         var cookInitial: String
         var cookHex: String
+        var cookName: String?
+        var title: String?
     }
     struct Tonight: Codable {
         var title: String
@@ -21,36 +27,82 @@ struct WeekSnapshot: Codable {
         var cookHex: String
         var minutes: Int
         var hasPhoto: Bool
+        var cookName: String?
+    }
+    struct Grocery: Codable {
+        var openCount: Int
+        var totalCount: Int
+        var sample: [String]
+    }
+    struct TableCard: Codable {
+        var authorName: String
+        var authorInitial: String
+        var authorHex: String
+        var dishTitle: String
+        var caption: String
+        var plates: Int
+        var commentCount: Int
+        var hasPhoto: Bool
+        var postedAt: Date
+
+        var firstName: String {
+            authorName.split(separator: " ").first.map(String.init) ?? authorName
+        }
     }
     var generatedAt: Date
     var plannedCount: Int
     var tonight: Tonight?
     var days: [Day]
+    var grocery: Grocery?
+    var table: TableCard?
 
     static let appGroupID = "group.com.natemeadows.plated"
 
-    static func load() -> (WeekSnapshot, UIImage?)? {
+    /// Everything one read off disk produces: the snapshot plus the two
+    /// photos that ride alongside it.
+    struct Loaded {
+        var snapshot: WeekSnapshot
+        var dishPhoto: UIImage?
+        var tablePhoto: UIImage?
+    }
+
+    static func load() -> Loaded? {
         guard let container = FileManager.default
             .containerURL(forSecurityApplicationGroupIdentifier: appGroupID) else { return nil }
         guard let data = try? Data(contentsOf: container.appendingPathComponent("week-snapshot.json")),
               let snapshot = try? JSONDecoder().decode(WeekSnapshot.self, from: data) else { return nil }
-        let photo = (try? Data(contentsOf: container.appendingPathComponent("tonight.jpg")))
+        let dish = (try? Data(contentsOf: container.appendingPathComponent("tonight.jpg")))
             .flatMap(UIImage.init(data:))
-        return snapshot.aged(photo: photo)
+        let table = (try? Data(contentsOf: container.appendingPathComponent("table.jpg")))
+            .flatMap(UIImage.init(data:))
+        return snapshot.aged(dishPhoto: dish, tablePhoto: table)
     }
 
     /// The snapshot describes the day it was written. If the app hasn't run
     /// since, roll the window forward so a widget never calls yesterday's
     /// dinner TONIGHT: drop the days that have passed, pad the tail as open,
     /// and only keep tonight's plate on the day it was true.
-    func aged(photo: UIImage?) -> (WeekSnapshot, UIImage?) {
+    ///
+    /// The table card is exempt — it carries its own timestamp and stays true
+    /// however long it sits there.
+    func aged(dishPhoto: UIImage?, tablePhoto: UIImage?) -> Loaded {
         let calendar = Calendar.current
         let written = calendar.startOfDay(for: generatedAt)
         let today = calendar.startOfDay(for: .now)
         let delta = calendar.dateComponents([.day], from: written, to: today).day ?? 0
-        guard delta > 0 else { return (self, photo) }
+        guard delta > 0 else {
+            return Loaded(snapshot: self, dishPhoto: dishPhoto, tablePhoto: tablePhoto)
+        }
         guard delta < 7 else {
-            return (WeekSnapshot(generatedAt: generatedAt, plannedCount: 0, tonight: nil, days: Self.openWeek(from: today)), nil)
+            let empty = WeekSnapshot(
+                generatedAt: generatedAt,
+                plannedCount: 0,
+                tonight: nil,
+                days: Self.openWeek(from: today),
+                grocery: nil,
+                table: table
+            )
+            return Loaded(snapshot: empty, dishPhoto: nil, tablePhoto: tablePhoto)
         }
         var rolled = Array(days.dropFirst(delta))
         let formatter = DateFormatter()
@@ -63,9 +115,11 @@ struct WeekSnapshot: Codable {
             generatedAt: generatedAt,
             plannedCount: rolled.filter(\.planned).count,
             tonight: nil, // the app knows tonight; a stale snapshot doesn't
-            days: rolled
+            days: rolled,
+            grocery: grocery,
+            table: table
         )
-        return (aged, nil)
+        return Loaded(snapshot: aged, dishPhoto: nil, tablePhoto: tablePhoto)
     }
 
     static func openWeek(from start: Date) -> [Day] {
@@ -76,6 +130,29 @@ struct WeekSnapshot: Codable {
             return Day(day: formatter.string(from: date).uppercased(), planned: false, cookInitial: "", cookHex: "")
         }
     }
+
+    /// Tonight's cook if there is one, otherwise the next night that has one —
+    /// the answer to "whose turn is it", which is rarely about tonight.
+    var nextTurn: (name: String, hex: String, initial: String, when: String)? {
+        for (offset, day) in days.enumerated() {
+            guard day.planned, let name = day.cookName, !name.isEmpty else { continue }
+            return (name, day.cookHex, day.cookInitial, offset == 0 ? "Tonight" : day.day.capitalized)
+        }
+        return nil
+    }
+}
+
+// MARK: - Deep links
+// A widget that doesn't land you in the right place is a poster.
+
+enum PlatedLink {
+    static func url(_ destination: String) -> URL {
+        URL(string: "plated://\(destination)") ?? URL(string: "plated://plan")!
+    }
+    static let plan = url("plan")
+    static let table = url("table")
+    static let grocery = url("grocery")
+    static let cookbook = url("cookbook")
 }
 
 // MARK: - Brand type
@@ -118,7 +195,9 @@ enum Plate {
     static let inkSecondary = color(0x8A8074, 0xA79B8B)
     static let inkFaint = color(0xB5AC9E, 0x6B6157)
     static let hairlineDashed = color(0xEFE7DD, 0x342C22)
+    static let fill = color(0xF4F1EC, 0x282119)
     static let basil = color(0x3DA35D, 0x55BE76)
+    static let tomato = color(0xFF5A3C, 0xF75434)
 
     static func person(_ hex: String) -> (tint: Color, tone: Color) {
         switch hex.uppercased() {
@@ -139,11 +218,12 @@ struct WeekEntry: TimelineEntry {
     var date: Date
     var snapshot: WeekSnapshot?
     var photo: UIImage?
+    var tablePhoto: UIImage?
 }
 
 struct WeekProvider: TimelineProvider {
     func placeholder(in context: Context) -> WeekEntry {
-        WeekEntry(date: .now, snapshot: .sample, photo: nil)
+        WeekEntry(date: .now, snapshot: .sample, photo: nil, tablePhoto: nil)
     }
 
     func getSnapshot(in context: Context, completion: @escaping (WeekEntry) -> Void) {
@@ -151,12 +231,22 @@ struct WeekProvider: TimelineProvider {
         // Sample content belongs to the gallery only — a real home screen with
         // no snapshot gets the honest open week.
         let fallback: WeekSnapshot? = context.isPreview ? .sample : nil
-        completion(WeekEntry(date: .now, snapshot: loaded?.0 ?? fallback, photo: loaded?.1))
+        completion(WeekEntry(
+            date: .now,
+            snapshot: loaded?.snapshot ?? fallback,
+            photo: loaded?.dishPhoto,
+            tablePhoto: loaded?.tablePhoto
+        ))
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<WeekEntry>) -> Void) {
         let loaded = WeekSnapshot.load()
-        let entry = WeekEntry(date: .now, snapshot: loaded?.0, photo: loaded?.1)
+        let entry = WeekEntry(
+            date: .now,
+            snapshot: loaded?.snapshot,
+            photo: loaded?.dishPhoto,
+            tablePhoto: loaded?.tablePhoto
+        )
         // The app pushes reloads on data changes; midnight rolls the week.
         let midnight = Calendar.current.startOfDay(
             for: Calendar.current.date(byAdding: .day, value: 1, to: .now) ?? .now
@@ -170,16 +260,28 @@ extension WeekSnapshot {
     static let sample = WeekSnapshot(
         generatedAt: .now,
         plannedCount: 5,
-        tonight: Tonight(title: "Salmon Night", cookInitial: "N", cookHex: "FF5A3C", minutes: 25, hasPhoto: false),
+        tonight: Tonight(title: "Salmon Night", cookInitial: "N", cookHex: "FF5A3C", minutes: 25, hasPhoto: false, cookName: "Nate"),
         days: [
-            Day(day: "FRI", planned: true, cookInitial: "N", cookHex: "FF5A3C"),
-            Day(day: "SAT", planned: true, cookInitial: "S", cookHex: "3DA35D"),
-            Day(day: "SUN", planned: true, cookInitial: "S", cookHex: "3DA35D"),
+            Day(day: "FRI", planned: true, cookInitial: "N", cookHex: "FF5A3C", cookName: "Nate", title: "Salmon Night"),
+            Day(day: "SAT", planned: true, cookInitial: "S", cookHex: "3DA35D", cookName: "Sam", title: "Pizza Night"),
+            Day(day: "SUN", planned: true, cookInitial: "S", cookHex: "3DA35D", cookName: "Sam", title: "BBQ Skewers"),
             Day(day: "MON", planned: false, cookInitial: "", cookHex: ""),
-            Day(day: "TUE", planned: true, cookInitial: "R", cookHex: "C88A00"),
-            Day(day: "WED", planned: true, cookInitial: "N", cookHex: "FF5A3C"),
+            Day(day: "TUE", planned: true, cookInitial: "R", cookHex: "C88A00", cookName: "Riley", title: "Steak Bowls"),
+            Day(day: "WED", planned: true, cookInitial: "N", cookHex: "FF5A3C", cookName: "Nate", title: "Poke Night"),
             Day(day: "THU", planned: false, cookInitial: "", cookHex: "")
-        ]
+        ],
+        grocery: Grocery(openCount: 7, totalCount: 12, sample: ["Salmon fillets", "Jasmine rice", "Green beans", "Limes"]),
+        table: TableCard(
+            authorName: "Sam Meadows",
+            authorInitial: "SM",
+            authorHex: "3DA35D",
+            dishTitle: "Pizza Night",
+            caption: "Kids picked the toppings. No regrets.",
+            plates: 8,
+            commentCount: 3,
+            hasPhoto: false,
+            postedAt: .now
+        )
     )
 }
 
@@ -199,7 +301,7 @@ struct DishCircle: View {
                 .clipShape(Circle())
         } else if planned {
             Circle()
-                .fill(Plate.color(0xF4F1EC, 0x282119))
+                .fill(Plate.fill)
                 .frame(width: size, height: size)
                 .overlay {
                     Image(systemName: "fork.knife")
@@ -219,146 +321,32 @@ struct DishCircle: View {
     }
 }
 
-// MARK: - Tonight (small)
-
-struct TonightWidgetView: View {
-    var entry: WeekEntry
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("TONIGHT")
-                .font(.jakarta(10))
-                .tracking(1.0)
-                .foregroundStyle(Plate.inkFaint)
-            Spacer(minLength: 0)
-            DishCircle(
-                photo: entry.photo,
-                planned: entry.snapshot?.tonight != nil,
-                size: 58
-            )
-            Spacer(minLength: 0)
-            if let tonight = entry.snapshot?.tonight {
-                Text(tonight.title)
-                    .font(.jakarta(14))
-                    .foregroundStyle(Plate.ink)
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.9)
-                HStack(spacing: 5) {
-                    if !tonight.cookInitial.isEmpty {
-                        let tone = Plate.person(tonight.cookHex)
-                        Circle().fill(tone.tint)
-                            .frame(width: 14, height: 14)
-                            .overlay {
-                                Text(tonight.cookInitial)
-                                    .font(.jakarta(8))
-                                    .foregroundStyle(tone.tone)
-                            }
-                    }
-                    Text(tonight.minutes > 0 ? "\(tonight.minutes) min" : "Plated")
-                        .font(.jakarta(11, "SemiBold"))
-                        .foregroundStyle(Plate.inkSecondary)
-                }
-            } else {
-                Text("Nothing plated yet")
-                    .font(.jakarta(13))
-                    .foregroundStyle(Plate.ink)
-                Text("Tap to pick")
-                    .font(.jakarta(11, "SemiBold"))
-                    .foregroundStyle(Plate.inkSecondary)
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-        .containerBackground(Plate.canvas, for: .widget)
-    }
-}
-
-struct TonightWidget: Widget {
-    var body: some WidgetConfiguration {
-        StaticConfiguration(kind: "TonightWidget", provider: WeekProvider()) { entry in
-            TonightWidgetView(entry: entry)
-        }
-        .configurationDisplayName("Tonight")
-        .description("What's on the plate tonight.")
-        .supportedFamilies([.systemSmall])
-    }
-}
-
-// MARK: - The Week (medium)
-
-struct WeekWidgetView: View {
-    var entry: WeekEntry
+/// A cook's initial in their colour — the app's avatar, shrunk.
+struct CookDot: View {
+    let initial: String
+    let hex: String
+    var size: CGFloat = 18
 
     var body: some View {
-        HStack(spacing: 14) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text("TONIGHT")
-                    .font(.jakarta(10))
-                    .tracking(1.0)
-                    .foregroundStyle(Plate.inkFaint)
-                DishCircle(
-                    photo: entry.photo,
-                    planned: entry.snapshot?.tonight != nil,
-                    size: 54
-                )
-                if let tonight = entry.snapshot?.tonight {
-                    Text(tonight.title)
-                        .font(.jakarta(13))
-                        .foregroundStyle(Plate.ink)
-                        .lineLimit(2)
-                        .minimumScaleFactor(0.85)
-                } else {
-                    Text("Open night")
-                        .font(.jakarta(13))
-                        .foregroundStyle(Plate.ink)
-                }
+        let tone = Plate.person(hex)
+        Circle()
+            .fill(tone.tint)
+            .frame(width: size, height: size)
+            .overlay {
+                Text(initial)
+                    .font(.jakarta(size * 0.5))
+                    .foregroundStyle(tone.tone)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-
-            VStack(alignment: .leading, spacing: 10) {
-                HStack(spacing: 5) {
-                    ForEach(Array((entry.snapshot?.days ?? WeekSnapshot.openWeek(from: .now)).enumerated()), id: \.offset) { _, day in
-                        VStack(spacing: 4) {
-                            Text(String(day.day.prefix(1)))
-                                .font(.jakarta(9, "ExtraBold"))
-                                .foregroundStyle(Plate.inkFaint)
-                            if day.planned {
-                                let tone = Plate.person(day.cookHex)
-                                Circle().fill(tone.tint)
-                                    .frame(width: 18, height: 18)
-                                    .overlay {
-                                        Text(day.cookInitial)
-                                            .font(.jakarta(9))
-                                            .foregroundStyle(tone.tone)
-                                    }
-                            } else {
-                                Circle()
-                                    .strokeBorder(Plate.hairlineDashed, style: StrokeStyle(lineWidth: 1.5, dash: [3, 3]))
-                                    .frame(width: 18, height: 18)
-                            }
-                        }
-                    }
-                }
-                HStack(spacing: 6) {
-                    Circle().fill(Plate.basil).frame(width: 7, height: 7)
-                    Text("\(entry.snapshot?.plannedCount ?? 0) of 7 plated")
-                        .font(.jakarta(12))
-                        .foregroundStyle(Plate.inkSecondary)
-                }
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-        .containerBackground(Plate.canvas, for: .widget)
     }
 }
 
-struct WeekWidget: Widget {
-    var body: some WidgetConfiguration {
-        StaticConfiguration(kind: "WeekWidget", provider: WeekProvider()) { entry in
-            WeekWidgetView(entry: entry)
-        }
-        .configurationDisplayName("Your Week")
-        .description("The week at a glance — who cooks, what's open.")
-        .supportedFamilies([.systemMedium])
+struct MicroCap: View {
+    let text: String
+    var body: some View {
+        Text(text)
+            .font(.jakarta(10))
+            .tracking(1.0)
+            .foregroundStyle(Plate.inkFaint)
     }
 }
 
@@ -369,5 +357,9 @@ struct PlatedWidgetsBundle: WidgetBundle {
     var body: some Widget {
         TonightWidget()
         WeekWidget()
+        GroceryWidget()
+        TableWidget()
+        CookTurnWidget()
+        TonightLockWidget()
     }
 }

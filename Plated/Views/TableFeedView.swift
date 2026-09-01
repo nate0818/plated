@@ -31,6 +31,9 @@ struct TableFeedView: View {
     @State private var toastToken = 0
     @State private var discoverPresented = false
     @State private var activityShown = false
+    /// Long-press on a post. Feed cards aren't swipeable — a plate is a tap
+    /// and the photo is a door — so the menu carries the rest.
+    @State private var pendingDelete: TablePost?
     @AppStorage("pendingSeats") private var pendingSeatsRaw = ""
 
     private var seatCount: Int {
@@ -141,6 +144,7 @@ struct TableFeedView: View {
             }
             .background(Color.canvas)
             .toolbar(.hidden, for: .navigationBar)
+            .plSwipeBack()
             .navigationDestination(item: $threadPost) { post in
                 PostThreadView(post: post) { beginSave($0) }
             }
@@ -150,9 +154,26 @@ struct TableFeedView: View {
             .navigationDestination(isPresented: $activityShown) {
                 NotificationsView()
             }
+            // Discover reads as a pushed screen — it wears the back chevron —
+            // so it is one, and it inherits the edge swipe with the rest.
+            .navigationDestination(isPresented: $discoverPresented) {
+                DiscoverView()
+            }
         }
         .sheet(isPresented: $seatsPresented) {
             TableSeatsSheet()
+        }
+        .confirmationDialog(
+            "Delete this post?",
+            isPresented: Binding(get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } }),
+            titleVisibility: .visible
+        ) {
+            if let post = pendingDelete {
+                Button("Delete", role: .destructive) { deletePost(post) }
+                Button("Cancel", role: .cancel) {}
+            }
+        } message: {
+            Text("The photo and every comment on it go with it.")
         }
         .sheet(item: $editingSave) { post in
             RecipeEditorView(prefill: (
@@ -163,9 +184,6 @@ struct TableFeedView: View {
             )) { _ in
                 finishSave(post)
             }
-        }
-        .fullScreenCover(isPresented: $discoverPresented) {
-            DiscoverView()
         }
         .onAppear {
             #if DEBUG
@@ -443,6 +461,51 @@ struct TableFeedView: View {
         .padding(.top, 16)
         .padding(.bottom, 6)
         .animation(.plPop, value: post.hasChefsKiss)
+        .contextMenu { postMenu(post, canSave: true) }
+    }
+
+    @ViewBuilder
+    private func postMenu(_ post: TablePost, canSave: Bool) -> some View {
+        Button {
+            Haptic.tap()
+            threadPost = post
+        } label: {
+            Label("Open the thread", systemImage: "bubble.right")
+        }
+        if canSave {
+            Button {
+                beginSave(post)
+            } label: {
+                Label("Save to cookbook", systemImage: "book")
+            }
+        }
+        Button {
+            openProfile(post)
+        } label: {
+            Label("See \(post.firstName)'s table", systemImage: "person")
+        }
+        if isMine(post) {
+            Button(role: .destructive) {
+                pendingDelete = post
+            } label: {
+                Label("Delete post", systemImage: "trash")
+            }
+        }
+    }
+
+    /// First names bridge authors and household members until real user IDs
+    /// exist — the same rule `seatCount` uses.
+    private func isMine(_ post: TablePost) -> Bool {
+        guard let me = members.first(where: \.isOwner)?.name else { return false }
+        return post.authorName == me || post.firstName == me
+    }
+
+    private func deletePost(_ post: TablePost) {
+        Haptic.plate()
+        withAnimation(.plSnap) {
+            pendingDelete = nil
+            context.delete(post)
+        }
     }
 
     private func askCard(_ post: TablePost) -> some View {
@@ -514,6 +577,7 @@ struct TableFeedView: View {
         }
         .padding(.horizontal, 24)
         .padding(.vertical, 16)
+        .contextMenu { postMenu(post, canSave: false) }
     }
 
     private var chefsKissPill: some View {

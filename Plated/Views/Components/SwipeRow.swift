@@ -19,6 +19,14 @@ struct SwipeAction: Identifiable {
     static func message(_ perform: @escaping () -> Void) -> SwipeAction {
         SwipeAction(symbol: "bubble.right", label: "Message", perform: perform)
     }
+
+    /// Taking a line off a screen, not out of the household. Deliberately
+    /// not destructive: an activity entry clears, but the plate, the comment
+    /// and the save it describes all still happened, and giving that the
+    /// same weight as removing a person overstates it.
+    static func clear(_ perform: @escaping () -> Void) -> SwipeAction {
+        SwipeAction(symbol: "xmark", label: "Clear", perform: perform)
+    }
 }
 
 /// Swipe a row left to reveal its actions — the standard gesture, rebuilt
@@ -123,6 +131,13 @@ struct SwipeRow<Content: View>: View {
                             if gestureStart != value.startLocation {
                                 gestureStart = value.startLocation
                                 isHorizontal = false
+                                // The offset needs the same amnesty as the
+                                // latch, and for the same reason: a drag past
+                                // the threshold that is then cancelled clears
+                                // neither, so the row keeps an offset nobody
+                                // asked for — buttons showing (they hang off
+                                // `dragOffset < 0`) on a row that isn't open.
+                                dragOffset = 0
                             }
                             if !isHorizontal {
                                 guard abs(value.translation.width) > abs(value.translation.height) else { return }

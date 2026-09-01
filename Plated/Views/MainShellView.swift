@@ -47,6 +47,8 @@ struct MainShellView: View {
     /// fully down — two sheets can't stand on the same view at once.
     @State private var createChoice: CreateKind?
     @State private var activeCreate: CreateKind?
+    /// A widget asked for the grocery list; the week picks it up on arrival.
+    @State private var groceryRequested = false
     /// Guards sample seeding so a slow CloudKit first-import can never race
     /// an "empty" check into duplicating everything.
     @AppStorage("didSeedSampleData") private var didSeedSampleData = false
@@ -61,7 +63,10 @@ struct MainShellView: View {
             Group {
                 switch selection {
                 case .week:
-                    WeekView(askTheTable: { withAnimation(.plSnap) { selection = .table } })
+                    WeekView(
+                        askTheTable: { withAnimation(.plSnap) { selection = .table } },
+                        openGrocery: $groceryRequested
+                    )
                 case .table:
                     TableFeedView()
                 case .cookbook:
@@ -118,6 +123,23 @@ struct MainShellView: View {
                 TableComposerSheet()
             case .ask:
                 AskComposerSheet(date: Calendar.current.startOfDay(for: .now))
+            }
+        }
+        .onOpenURL { url in
+            guard let destination = DeepLink.destination(for: url) else { return }
+            withAnimation(.plSnap) {
+                switch destination {
+                case .plan: selection = .week
+                case .table: selection = .table
+                case .cookbook: selection = .cookbook
+                // Prongsby left the bar in the elevation pass — he's a sheet
+                // off the perch now, not a destination to select.
+                case .prongsby: prongsbyPresented = true
+                case .home: selection = .home
+                case .grocery:
+                    selection = .week
+                    groceryRequested = true
+                }
             }
         }
         .task {
