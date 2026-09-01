@@ -13,6 +13,9 @@ import CoreText
 // MARK: - Snapshot (reader side)
 
 struct WeekSnapshot: Codable {
+    /// Who is holding the phone. Optional: a snapshot written by an older
+    /// build has no such field, and the widget must not go blank over it.
+    var ownerName: String?
     struct Day: Codable {
         var day: String
         var planned: Bool
@@ -133,10 +136,12 @@ struct WeekSnapshot: Codable {
 
     /// Tonight's cook if there is one, otherwise the next night that has one —
     /// the answer to "whose turn is it", which is rarely about tonight.
-    var nextTurn: (name: String, hex: String, initial: String, when: String)? {
+    var nextTurn: (name: String, hex: String, initial: String, when: String, isMine: Bool)? {
         for (offset, day) in days.enumerated() {
             guard day.planned, let name = day.cookName, !name.isEmpty else { continue }
-            return (name, day.cookHex, day.cookInitial, offset == 0 ? "Tonight" : day.day.capitalized)
+            let mine = ownerName.map { !$0.isEmpty && $0 == name } ?? false
+            return (name, day.cookHex, day.cookInitial,
+                    offset == 0 ? "Tonight" : day.day.capitalized, mine)
         }
         return nil
     }

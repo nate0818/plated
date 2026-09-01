@@ -17,6 +17,10 @@ enum WidgetBridge {
     static let appGroupID = "group.com.natemeadows.plated"
 
     struct Snapshot: Codable {
+        /// Who is holding the phone, so the widget can say "You cook
+        /// tonight" instead of reading the owner their own name. Optional
+        /// because an older snapshot on disk won't carry it.
+        var ownerName: String?
         struct Day: Codable {
             var day: String
             var planned: Bool
@@ -113,7 +117,10 @@ enum WidgetBridge {
         let grocery = groceryLine(from: context, windowStart: today)
         let (table, tablePhoto) = latestTablePost(from: context)
 
+        let owner = (try? context.fetch(FetchDescriptor<HouseholdMember>()))?
+            .first(where: \.isOwner)?.name
         let snapshot = Snapshot(
+            ownerName: owner,
             generatedAt: .now,
             plannedCount: days.filter(\.planned).count,
             tonight: tonight,

@@ -5,10 +5,17 @@ import SwiftUI
 /// with tonight's cook when there is one, and otherwise with the next night
 /// that has a name against it.
 
+/// "You cook tonight" / "Riley cooks Thursday" — built outside the body so
+/// the ViewBuilder never has to type-check string work.
+private func turnLine(_ turn: (name: String, hex: String, initial: String, when: String, isMine: Bool)) -> String {
+    let when = turn.when == "Tonight" ? "tonight" : turn.when.lowercased()
+    return turn.isMine ? "cook \(when)" : "cooks \(when)"
+}
+
 struct CookTurnWidgetView: View {
     var entry: WeekEntry
 
-    private var turn: (name: String, hex: String, initial: String, when: String)? {
+    private var turn: (name: String, hex: String, initial: String, when: String, isMine: Bool)? {
         entry.snapshot?.nextTurn
     }
 
@@ -18,12 +25,15 @@ struct CookTurnWidgetView: View {
             Spacer(minLength: 0)
             if let turn {
                 CookDot(initial: turn.initial, hex: turn.hex, size: 52)
-                Text(turn.name)
+                // Your own turn is addressed to you. Reading the owner
+                // their own name is how a database talks; the notifications
+                // already say "you", and the home screen should agree.
+                Text(turn.isMine ? "You" : turn.name)
                     .font(.jakarta(17))
                     .foregroundStyle(Plate.ink)
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
-                Text(turn.when == "Tonight" ? "cooks tonight" : "cooks \(turn.when.lowercased())")
+                Text(turnLine(turn))
                     .font(.jakarta(12, "SemiBold"))
                     .foregroundStyle(Plate.inkSecondary)
                     .lineLimit(1)
