@@ -13,6 +13,11 @@ struct TableSeatsSheet: View {
     @State private var inviteName = ""
     @State private var dmPeer: String?
     @State private var removingMember: HouseholdMember?
+    /// Real CloudKit seats — people who accepted a share, as opposed to the
+    /// household members and the invites that haven't landed yet.
+    @State private var sharedSeats: [TableShare.Seat] = []
+    @State private var amGuest = false
+    @State private var leaveAsked = false
 
     /// A friend at the table: someone who posts here but isn't in the household.
     private var guestSeats: [(name: String, colorHex: String)] {
@@ -88,6 +93,44 @@ struct TableSeatsSheet: View {
                         }
                     }
 
+                    if !sharedSeats.isEmpty {
+                        seatGroup("Joined") {
+                            ForEach(sharedSeats) { seat in
+                                seatRow(
+                                    name: seat.isMe ? "\(seat.name) (you)" : seat.name,
+                                    subtitle: seat.isOwner ? "Host" : "At the table",
+                                    tone: .basilPair,
+                                    canRemove: !seat.isOwner && !seat.isMe,
+                                    canMessage: false
+                                ) {
+                                    Task {
+                                        if await TableShare.remove(seatID: seat.id) {
+                                            Haptic.plate()
+                                            sharedSeats = await TableShare.participants()
+                                        } else {
+                                            Haptic.warn()
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if amGuest {
+                        Button {
+                            Haptic.tap()
+                            leaveAsked = true
+                        } label: {
+                            Text("Leave this table")
+                                .font(.jakarta(14, .bold))
+                                .foregroundStyle(Color.tomato)
+                                .frame(maxWidth: .infinity)
+                                .frame(minHeight: 48)
+                                .overlay(Capsule().strokeBorder(Color.hairline, lineWidth: 1.5))
+                        }
+                        .buttonStyle(.pressable)
+                    }
+
                     inviteRow
                 }
                 .padding(.horizontal, 24)
@@ -101,6 +144,25 @@ struct TableSeatsSheet: View {
         .presentationCornerRadius(Radius.sheet)
         .sheet(item: $dmPeer) { peer in
             DMThreadView(peerName: peer)
+        }
+        .task {
+            sharedSeats = await TableShare.participants()
+            amGuest = await TableShare.isGuest()
+        }
+        .confirmationDialog(
+            "Leave this table?", isPresented: $leaveAsked, titleVisibility: .visible
+        ) {
+            Button("Leave", role: .destructive) {
+                Task {
+                    if await TableShare.leaveTable() { Haptic.plate(); amGuest = false }
+                    else { Haptic.warn() }
+                }
+            }
+            Button("Stay", role: .cancel) {}
+        } message: {
+            // True, and worth saying: leaving deletes only this user's copy
+            // of the zone. Nothing the host owns is touched.
+            Text("You'll stop seeing their dishes. Nothing you've cooked is deleted, and the host keeps their table.")
         }
         .confirmationDialog(
             "Remove \(removingMember?.name ?? "") from the table?",

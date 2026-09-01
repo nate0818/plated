@@ -436,9 +436,21 @@ struct TableFeedView: View {
                             Text(post.authorName)
                                 .font(.jakarta(14, .bold))
                                 .foregroundStyle(Color.ink)
-                            Text(postWhen(post.createdAt))
-                                .font(.jakarta(11, .semibold))
-                                .foregroundStyle(Color.inkFaint)
+                            HStack(spacing: 5) {
+                                Text(postWhen(post.createdAt))
+                                    .font(.jakarta(11, .semibold))
+                                    .foregroundStyle(Color.inkFaint)
+                                // Whose table this came from, said once and
+                                // quietly. No badge, no tint: a guest's dish
+                                // is not a lesser dish, it just isn't from
+                                // this house, and the feed says so without
+                                // ranking it.
+                                if post.isRemote {
+                                    Text("· another table")
+                                        .font(.jakarta(11, .semibold))
+                                        .foregroundStyle(Color.inkFaint)
+                                }
+                            }
                         }
                     }
                     .contentShape(Rectangle())
@@ -565,6 +577,12 @@ struct TableFeedView: View {
     /// First names bridge authors and household members until real user IDs
     /// exist — the same rule `seatCount` uses.
     private func isMine(_ post: TablePost) -> Bool {
+        // Anything that arrived over the share belongs to whoever wrote it,
+        // whatever they are called. Without this a guest who happens to share
+        // the host's first name is offered Delete on the host's own dish —
+        // the same name-keying trap the swipe rows hit, and the reason posts
+        // now carry an origin and not just a byline.
+        guard !post.isRemote else { return false }
         guard let me = members.first(where: \.isOwner)?.name else { return false }
         return post.authorName == me || post.firstName == me
     }
@@ -589,9 +607,21 @@ struct TableFeedView: View {
                             Text(post.authorName)
                                 .font(.jakarta(14, .bold))
                                 .foregroundStyle(Color.ink)
-                            Text(postWhen(post.createdAt))
-                                .font(.jakarta(11, .semibold))
-                                .foregroundStyle(Color.inkFaint)
+                            HStack(spacing: 5) {
+                                Text(postWhen(post.createdAt))
+                                    .font(.jakarta(11, .semibold))
+                                    .foregroundStyle(Color.inkFaint)
+                                // Whose table this came from, said once and
+                                // quietly. No badge, no tint: a guest's dish
+                                // is not a lesser dish, it just isn't from
+                                // this house, and the feed says so without
+                                // ranking it.
+                                if post.isRemote {
+                                    Text("· another table")
+                                        .font(.jakarta(11, .semibold))
+                                        .foregroundStyle(Color.inkFaint)
+                                }
+                            }
                         }
                     }
                     .contentShape(Rectangle())

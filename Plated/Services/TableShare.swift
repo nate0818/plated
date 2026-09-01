@@ -188,6 +188,82 @@ enum TableShare {
         return found
     }
 
+    // MARK: Who is at the table
+
+    struct Seat: Identifiable {
+        var id: String
+        var name: String
+        var isOwner: Bool
+        var isMe: Bool
+    }
+
+    /// The people on the share. Empty for a table that has never been
+    /// shared, which is not an error — it is most tables, most of the time.
+    static func participants() async -> [Seat] {
+        guard await TableSync.accountAvailable() else { return [] }
+        guard let share = await currentShare() else { return [] }
+        let me = share.currentUserParticipant
+        return share.participants.map { p in
+            let name = [p.userIdentity.nameComponents?.givenName,
+                        p.userIdentity.nameComponents?.familyName]
+                .compactMap { $0 }.joined(separator: " ")
+            return Seat(
+                id: p.userIdentity.userRecordID?.recordName ?? UUID().uuidString,
+                name: name.isEmpty ? "Someone" : name,
+                isOwner: p.role == .owner,
+                isMe: p == me
+            )
+        }
+    }
+
+    /// Host removes a seat. The guest keeps nothing: CloudKit drops the zone
+    /// from their shared database on their next sync.
+    static func remove(seatID: String) async -> Bool {
+        guard let share = await currentShare(),
+              let victim = share.participants.first(where: {
+                  $0.userIdentity.userRecordID?.recordName == seatID
+              }), victim.role != .owner else { return false }
+        share.removeParticipant(victim)
+        do {
+            _ = try await container.privateCloudDatabase.modifyRecords(
+                saving: [share], deleting: []
+            )
+            return true
+        } catch { return false }
+    }
+
+    /// A guest leaves. Deleting the zone from one's OWN shared database
+    /// removes only this user's copy — it cannot touch the host's table,
+    /// which is why leaving is safe to offer without a scary warning.
+    static func leaveTable() async -> Bool {
+        let db = container.sharedCloudDatabase
+        guard let zones = try? await db.allRecordZones(),
+              let zone = zones.first(where: { $0.zoneID.zoneName == zoneName })
+        else { return false }
+        do {
+            _ = try await db.deleteRecordZone(withID: zone.zoneID)
+            forgetTokens()
+            return true
+        } catch { return false }
+    }
+
+    /// True when this user is a guest somewhere rather than a host.
+    static func isGuest() async -> Bool {
+        let mine = CKRecordZone.ID(zoneName: zoneName, ownerName: CKCurrentUserDefaultName)
+        if (try? await container.privateCloudDatabase.recordZone(for: mine)) != nil { return false }
+        let zones = try? await container.sharedCloudDatabase.allRecordZones()
+        return zones?.contains { $0.zoneID.zoneName == zoneName } ?? false
+    }
+
+    private static func currentShare() async -> CKShare? {
+        let db = container.privateCloudDatabase
+        let zoneID = CKRecordZone.ID(zoneName: zoneName, ownerName: CKCurrentUserDefaultName)
+        guard let root = try? await db.record(
+            for: CKRecord.ID(recordName: "table-root", zoneID: zoneID)
+        ), let ref = root.share else { return nil }
+        return try? await db.record(for: ref.recordID) as? CKShare
+    }
+
     #if DEBUG
     /// Write one of everything so CloudKit's Development schema learns the
     /// record types, then read it back and say whether the round trip
@@ -299,6 +375,11 @@ enum TableShare {
                         var dishTitle = ""; var caption = ""; var kind = "dish"
                         var createdAt = Date.now; var photoData: Data? }
     static func fetchRemote() async -> [RemotePost] { [] }
+    struct Seat: Identifiable { var id = ""; var name = ""; var isOwner = false; var isMe = false }
+    static func participants() async -> [Seat] { [] }
+    static func remove(seatID: String) async -> Bool { false }
+    static func leaveTable() async -> Bool { false }
+    static func isGuest() async -> Bool { false }
     #endif
 
     /// Fold what came back into the local store, keyed on the record name so
