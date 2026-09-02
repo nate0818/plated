@@ -784,8 +784,19 @@ struct HouseholdHomeView: View {
         return (0..<7).map { (first - 1 + $0) % 7 + 1 }
     }
 
+    /// One letter, the way every seven-across weekday row in this app
+    /// already does it: the month grid reads `veryShortWeekdaySymbols` and
+    /// the week widget takes `prefix(1)`. This row was the only one asking
+    /// for three letters, and seven cells split a 393pt page into about 44pt
+    /// each — 32pt of content — which has to hold the label AND a 28pt
+    /// avatar. It was tight at the default size and crowded above it.
+    ///
+    /// A single letter is ambiguous read alone and completely unambiguous in
+    /// an ordered row of seven, which is why every calendar on the platform
+    /// does this. VoiceOver is unaffected: the cell ignores its children and
+    /// announces the full weekday name.
     private func shortDay(_ weekday: Int) -> String {
-        Calendar.current.shortWeekdaySymbols[weekday - 1]
+        Calendar.current.veryShortWeekdaySymbols[weekday - 1]
     }
 
     private func dayChipLabel(_ member: HouseholdMember) -> String {
@@ -797,8 +808,12 @@ struct HouseholdHomeView: View {
         // shows Wednesday to the left of Saturday.
         let order = weekdaysInOrder
         return member.cookWeekdays
+            // Three letters, not the grid's one. `shortDay` is a calendar
+            // header, where an ordered row of seven makes "S" unambiguous;
+            // this chip is a sentence about a person and reads "Sun + Mon".
+            // It borrowed shortDay and briefly became "S + M".
             .sorted { (order.firstIndex(of: $0) ?? 0) < (order.firstIndex(of: $1) ?? 0) }
-            .map { shortDay($0) }
+            .map { Calendar.current.shortWeekdaySymbols[$0 - 1] }
             .joined(separator: " + ")
     }
 
