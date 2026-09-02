@@ -62,7 +62,7 @@ enum Invitation {
 
     static func body(hostName: String, link: URL?) -> String {
         var text = TableSync.inviteMessage(hostName: hostName)
-        if let link { text += "\n\n\(wrapped(link).absoluteString)" }
+        if let link { text += "\n\n\(wrapped(link, hostName: hostName).absoluteString)" }
         return text
     }
 
@@ -76,12 +76,18 @@ enum Invitation {
     ///
     /// Falls back to the raw iCloud link if the wrap can't be built, since
     /// a link that works for some people beats no link at all.
-    static func wrapped(_ share: URL) -> URL {
+    static func wrapped(_ share: URL, hostName: String = "") -> URL {
         var components = URLComponents()
         components.scheme = "https"
         components.host = "plated.food"
         components.path = "/join"
-        components.queryItems = [URLQueryItem(name: "s", value: share.absoluteString)]
+        var items = [URLQueryItem(name: "s", value: share.absoluteString)]
+        // The host's first name, so the page reads as a person keeping you a
+        // seat rather than a product announcing itself. Omitted rather than
+        // faked when we don't have one.
+        let who = hostName.trimmingCharacters(in: .whitespaces)
+        if !who.isEmpty { items.append(URLQueryItem(name: "h", value: who)) }
+        components.queryItems = items
         return components.url ?? share
     }
 }

@@ -2,77 +2,162 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>You're invited to a table on Plated</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>A seat at the table — Plated</title>
 <meta name="description" content="Someone kept you a seat at their table on Plated.">
-<meta property="og:title" content="You're invited to a table on Plated">
+<meta name="theme-color" content="#FFFFFF">
+<meta property="og:title" content="A seat at the table">
 <meta property="og:description" content="Someone kept you a seat at their table on Plated.">
 <meta property="og:type" content="website">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Gabarito:wght@500;600&family=Plus+Jakarta+Sans:wght@500;600;700&display=swap" rel="stylesheet">
 <style>
-  :root { --ink:#221B14; --soft:#8A8074; --faint:#B5AC9E; --line:#F0EBE4;
-          --bg:#FFFFFF; --tomato:#FF5A3C; }
-  @media (prefers-color-scheme: dark) {
-    :root { --ink:#F4EDE3; --soft:#A79B8B; --faint:#6B6157; --line:#2B241C;
-            --bg:#16120E; --tomato:#F75434; }
+  /* The app's own tokens, not an approximation of them. Theme.swift is the
+     source: canvas, ink, inkSecondary, hairline, tomato.
+     Light only, deliberately: the app has After Dark, but this page is the
+     first thing a stranger ever sees of Plated and it should look the same
+     for every one of them. */
+  html { color-scheme: light; }
+  :root {
+    --canvas:#FFFFFF; --ink:#221B14; --soft:#8A8074; --faint:#B5AC9E;
+    --line:#F0EBE4; --tomato:#FF5A3C; --tomato-press:#D6401F;
   }
   * { box-sizing: border-box; }
-  html, body { margin:0; padding:0; }
+  html { -webkit-text-size-adjust: 100%; }
   body {
-    background: var(--bg); color: var(--ink); min-height: 100vh;
-    font: 400 17px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    display: flex; align-items: center; justify-content: center; padding: 32px 24px;
+    margin: 0; background: var(--canvas); color: var(--ink);
+    font-family: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+    font-weight: 500; -webkit-font-smoothing: antialiased;
+    min-height: 100svh; display: flex; flex-direction: column;
+    padding: max(28px, env(safe-area-inset-top)) 28px max(28px, env(safe-area-inset-bottom));
   }
-  main { width: 100%; max-width: 420px; text-align: center; }
-  .mark {
-    width: 72px; height: 72px; margin: 0 auto 28px; border-radius: 18px;
-    background: var(--tomato); display: flex; align-items: center;
-    justify-content: center; color: #fff; font-size: 34px; font-weight: 700;
+
+  /* The wordmark, to the same rule the app draws it by: lowercase Gabarito
+     medium, tracking -0.022em, and the tomato dot at 0.27em seated 0.34em
+     down. Not a logo badge — Plated doesn't have one. */
+  .wordmark { display: flex; align-items: flex-start; gap: 0.10em; font-size: 26px; }
+  .wordmark span {
+    font-family: Gabarito, sans-serif; font-weight: 500;
+    letter-spacing: -0.022em; line-height: 1;
   }
-  h1 { font-size: 28px; line-height: 1.2; letter-spacing: -0.02em; margin: 0 0 12px; }
-  p { color: var(--soft); margin: 0 0 28px; }
-  .btn {
-    display: block; width: 100%; padding: 16px 20px; border-radius: 999px;
-    background: var(--tomato); color: #fff; font-weight: 700; font-size: 17px;
-    text-decoration: none; margin-bottom: 12px;
+  .wordmark i {
+    width: 0.27em; height: 0.27em; margin-top: 0.34em;
+    border-radius: 50%; background: var(--tomato); display: block;
   }
-  .btn.quiet { background: transparent; color: var(--ink); border: 1.5px solid var(--line); }
-  .note { font-size: 13px; color: var(--faint); margin: 20px 0 0; }
-  code {
-    display: block; word-break: break-all; font-size: 12px; color: var(--faint);
-    margin-top: 10px;
+
+  main { flex: 1; display: flex; flex-direction: column; justify-content: center;
+         max-width: 34rem; margin: 0 auto; width: 100%; padding: 48px 0; }
+
+  h1 {
+    font-family: Gabarito, sans-serif; font-weight: 600;
+    font-size: clamp(2.5rem, 11vw, 4rem); line-height: 1.02;
+    letter-spacing: -0.03em; margin: 0 0 20px;
   }
+  h1 .who { color: var(--tomato); }
+
+  .lede { font-size: 1.0625rem; line-height: 1.55; color: var(--soft); margin: 0; max-width: 30rem; }
+
+  /* One committing action. Everything else is a hairline or a whisper —
+     the app's rule is that colour is earned, and this page earns it once. */
+  .actions { margin-top: 40px; }
+  .cta {
+    display: inline-flex; align-items: center; justify-content: center;
+    background: var(--tomato); color: #FFFFFF; text-decoration: none;
+    font-weight: 700; font-size: 1.0625rem; letter-spacing: -0.01em;
+    padding: 18px 32px; border-radius: 999px; min-width: 15rem;
+    transition: background .15s ease, transform .15s ease;
+  }
+  .cta:active { background: var(--tomato-press); transform: scale(.985); }
+  .quiet {
+    display: inline-block; margin-top: 18px; color: var(--soft);
+    font-size: 0.9375rem; text-decoration: none; border-bottom: 1px solid var(--line);
+    padding-bottom: 2px;
+  }
+  .quiet:hover { color: var(--ink); }
+
+  /* What they're actually joining. Three facts, not a feature list. */
+  .facts { margin-top: 56px; border-top: 1px solid var(--line); padding-top: 24px;
+           display: grid; gap: 14px; }
+  .fact { display: flex; gap: 12px; align-items: baseline;
+          font-size: 0.9375rem; line-height: 1.5; color: var(--soft); }
+  .fact b { color: var(--ink); font-weight: 600; }
+  .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--faint);
+         flex: none; transform: translateY(-2px); }
+
+  footer { font-size: 0.8125rem; color: var(--faint); max-width: 34rem;
+           margin: 0 auto; width: 100%; }
+  footer a { color: var(--faint); }
 </style>
 </head>
 <body>
-<main>
-  <div class="mark">P</div>
-  <h1>Someone kept you a seat</h1>
-  <p id="lede">Plated is a private feed of what a household is actually cooking. Only invited people can see it.</p>
+  <div class="wordmark"><span>plated</span><i></i></div>
 
-  <!-- Filled in from ?s= by the script below. On a phone that has Plated,
-       this page is never reached: iOS opens the app straight from the link. -->
-  <a class="btn" id="open" href="#" hidden>Open in Plated</a>
-  <a class="btn" id="store" href="https://apps.apple.com/app/id0000000000">Get Plated</a>
-  <a class="btn quiet" id="raw" href="#" hidden>Open the invitation directly</a>
+  <main>
+    <h1 id="headline">Someone kept<br>you a seat.</h1>
+    <p class="lede" id="lede">
+      Plated is where a household keeps track of what it's actually cooking —
+      the week ahead, who's at the stove, and the dishes worth making again.
+    </p>
+    <script>
+      // Inline and immediate, not at the end of the document: this rewrites
+      // the two lines directly above it, and running later would paint
+      // "Someone" first and then swap it for a name.
+      //
+      // ?h= is the host's first name, ?s= the share URL. A phone that has
+      // Plated never gets here — iOS opens the app straight from the link —
+      // so the single action on this page is getting the app.
+      (function () {
+        var host = (new URLSearchParams(location.search).get('h') || '')
+          .trim().slice(0, 40);
+        if (!host) return;
+        var who = document.createElement('span');
+        who.className = 'who';
+        who.appendChild(document.createTextNode(host));
 
-  <p class="note" id="note">
-    Install Plated, then tap the invitation link again from your message.
-  </p>
-</main>
+        var headline = document.getElementById('headline');
+        headline.textContent = '';
+        headline.appendChild(who);
+        headline.appendChild(document.createTextNode(' kept'));
+        headline.appendChild(document.createElement('br'));
+        headline.appendChild(document.createTextNode('you a seat.'));
+
+        document.getElementById('lede').textContent =
+          host + ' is planning dinners on Plated \u2014 the week ahead, ' +
+          'who\u2019s at the stove, and the dishes worth making again. ' +
+          'Your place is set.';
+      })();
+    </script>
+
+    <div class="actions">
+      <a class="cta" id="store" href="https://apps.apple.com/app/plated/id0000000000">Get Plated</a>
+      <br>
+      <a class="quiet" id="raw" href="#" hidden>Already have it? Open the invitation</a>
+    </div>
+
+    <div class="facts">
+      <p class="fact"><i class="dot"></i><span><b>Invite only.</b> Nothing here is public, and nobody sees a table they weren't given a seat at.</span></p>
+      <p class="fact"><i class="dot"></i><span><b>Your seat is held.</b> Install Plated, tap this link again, and you're in.</span></p>
+      <p class="fact"><i class="dot"></i><span><b>No account to make.</b> Sign in with Apple, and that's the whole setup.</span></p>
+    </div>
+  </main>
+
+  <footer>
+    <a href="/">Privacy</a>
+  </footer>
+
 <script>
-  // The iCloud share URL rides in ?s=. Without it this is just the page
-  // somebody landed on by hand, so it stays a plain description.
-  var share = new URLSearchParams(location.search).get('s');
-  if (share) {
+  // The direct-open fallback, for the window before Apple has fetched the
+  // association file and begun routing the link into the app. Only ever an
+  // iCloud share URL — this link is handed to the reader, so it does not
+  // forward wherever a query string points.
+  (function () {
+    var share = new URLSearchParams(location.search).get('s');
+    if (!share || !/^https:\/\/(www\.)?icloud\.com\//.test(share)) return;
     var raw = document.getElementById('raw');
     raw.href = share;
     raw.hidden = false;
-    var open = document.getElementById('open');
-    open.href = 'plated://join?s=' + encodeURIComponent(share);
-    open.hidden = false;
-    document.getElementById('note').textContent =
-      'Already have Plated? "Open in Plated" takes you straight to the table.';
-  }
+  })();
 </script>
 </body>
 </html>
