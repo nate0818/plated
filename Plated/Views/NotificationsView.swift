@@ -24,6 +24,7 @@ struct NotificationsView: View {
                         .frame(width: 38, height: 38)
                         .overlay {
                             Image(systemName: "chevron.left")
+                                .accessibilityLabel("Back")
                                 .font(.system(size: 14, weight: .semibold))
                                 .foregroundStyle(Color.ink)
                         }

@@ -111,7 +111,7 @@ enum NotificationScheduler {
             content.title = mine ? "Your night tomorrow" : "\(who) cooks tomorrow"
             content.body = mine
                 ? "\(dish). Everything you need is in the list."
-                : "\(dish). Nothing for you to do — just turn up."
+                : "\(dish). Nothing for you to do, just turn up."
             content.sound = .default
 
             let request = UNNotificationRequest(

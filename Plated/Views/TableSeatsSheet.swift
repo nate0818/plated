@@ -10,7 +10,10 @@ struct TableSeatsSheet: View {
     @Query(filter: #Predicate<TablePost> { !$0.isDiscover }) private var posts: [TablePost]
 
     @AppStorage("pendingSeats") private var pendingSeatsRaw = ""
-    @State private var inviteName = ""
+    @AppStorage("userFirstName") private var userFirstName = ""
+    @State private var invite: Invitation.Ready?
+    @State private var inviteTarget: InviteTarget?
+    @State private var pickingContact = false
     @State private var dmPeer: String?
     @State private var removingMember: HouseholdMember?
     /// Real CloudKit seats — people who accepted a share, as opposed to the
@@ -40,7 +43,7 @@ struct TableSeatsSheet: View {
         VStack(spacing: 0) {
             VStack(spacing: 2) {
                 MicroLabel("\(members.count + guestSeats.count + pendingSeats.count) seats")
-                Text("Your table")
+                Text(amGuest ? "This table" : "Your table")
                     .font(.gabarito(22, .semibold))
                     .foregroundStyle(Color.ink)
             }
@@ -49,11 +52,21 @@ struct TableSeatsSheet: View {
 
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 16) {
-                    seatGroup("Household") {
+                    // "Household" and "table" are different things, and the
+                    // difference only becomes visible when you are a guest
+                    // somewhere: you are still head of YOUR household while
+                    // sitting at somebody else's table, and the sheet used
+                    // to print "Head of table" next to their "Host" as
+                    // though the two of you were disputing the same chair.
+                    // One household per iCloud account is the model; the
+                    // labels now say so.
+                    seatGroup(amGuest ? "Your household" : "Household") {
                         ForEach(members, id: \.persistentModelID) { member in
                             seatRow(
                                 name: member.name,
-                                subtitle: member.isOwner ? "Head of table" : (member.roleLine.isEmpty ? member.role.capitalized : member.roleLine),
+                                subtitle: member.isOwner
+                                    ? (amGuest ? "Head of your household" : "Head of table")
+                                    : (member.roleLine.isEmpty ? member.role.capitalized : member.roleLine),
                                 tone: member.isOwner ? .neutralPair : member.tone,
                                 canRemove: !member.isOwner,
                                 canMessage: !member.isOwner
@@ -94,11 +107,13 @@ struct TableSeatsSheet: View {
                     }
 
                     if !sharedSeats.isEmpty {
-                        seatGroup("Joined") {
+                        seatGroup(amGuest ? "You're a guest here" : "Joined") {
                             ForEach(sharedSeats) { seat in
                                 seatRow(
                                     name: seat.isMe ? "\(seat.name) (you)" : seat.name,
-                                    subtitle: seat.isOwner ? "Host" : "At the table",
+                                    subtitle: seat.isOwner
+                                        ? (seat.isMe ? "You host this table" : "Hosts this table")
+                                        : "At the table",
                                     tone: .basilPair,
                                     canRemove: !seat.isOwner && !seat.isMe,
                                     canMessage: false
@@ -148,6 +163,29 @@ struct TableSeatsSheet: View {
         .task {
             sharedSeats = await TableShare.participants()
             amGuest = await TableShare.isGuest()
+            invite = await Invitation.prepare(hostName: userFirstName)
+        }
+        .sheet(isPresented: $pickingContact) {
+            ContactPicker(
+                onPick: { name, phone in
+                    pickingContact = false
+                    inviteTarget = InviteTarget(name: name, phone: phone)
+                },
+                onCancel: { pickingContact = false }
+            )
+            .ignoresSafeArea()
+        }
+        .sheet(item: $inviteTarget) { target in
+            InviteComposer(
+                recipients: [target.phone].compactMap { $0 },
+                body: invite?.body ?? Invitation.body(hostName: userFirstName, link: nil)
+            ) { sent in
+                inviteTarget = nil
+                guard sent else { return }
+                Haptic.plate()
+                withAnimation(.plSnap) { seat(target.name) }
+            }
+            .ignoresSafeArea()
         }
         .confirmationDialog(
             "Leave this table?", isPresented: $leaveAsked, titleVisibility: .visible
@@ -192,9 +230,11 @@ struct TableSeatsSheet: View {
         canRemove: Bool, canMessage: Bool, onRemove: @escaping () -> Void
     ) -> some View {
         HStack(spacing: 12) {
-            AvatarCircle(initials: initials(for: name), tone: tone, size: 40)
+            AvatarCircle(initials: initials(for: name), tone: tone, size: 40,
+                         photo: members.photo(forAuthor: name))
             VStack(alignment: .leading, spacing: 1) {
                 Text(name)
+                    .plName()
                     .font(.jakarta(14, .bold))
                     .foregroundStyle(Color.ink)
                 Text(subtitle)
@@ -239,38 +279,67 @@ struct TableSeatsSheet: View {
         .padding(.vertical, 10)
     }
 
+    /// The one control that actually invites somebody.
+    ///
+    /// It used to be a text field: type a name, tap Invite, and the name
+    /// appeared under "Invited · Waiting on them" having been written to a
+    /// local string and nowhere else. Nobody was contacted. Now the two
+    /// real doors are here — pick a contact and send them the link, or hand
+    /// the link to anybody else however you like — and a seat only reads as
+    /// invited once a message has genuinely gone.
     private var inviteRow: some View {
-        HStack(spacing: 8) {
-            TextField("Invite someone by name", text: $inviteName)
-                .font(.jakarta(14, .medium))
-                .padding(.horizontal, 14)
-                .frame(height: 44)
-                .overlay(RoundedRectangle(cornerRadius: Radius.chip).strokeBorder(Color.hairline))
-                .onSubmit(invite)
-            Button {
-                invite()
-            } label: {
-                Text("Invite")
-                    .font(.jakarta(14, .bold))
+        VStack(spacing: 10) {
+            if InviteComposer.isAvailable {
+                Button {
+                    Haptic.tap()
+                    pickingContact = true
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "person.badge.plus")
+                            .font(.system(size: 13, weight: .semibold))
+                        Text("Invite someone")
+                            .font(.jakarta(14, .bold))
+                    }
                     .foregroundStyle(Color.canvas)
-                    .padding(.horizontal, 18)
-                    .frame(minHeight: 44)
+                    .frame(maxWidth: .infinity)
+                    .frame(minHeight: 48)
                     .background(Color.ink, in: Capsule())
+                }
+                .buttonStyle(.pressable)
             }
-            .buttonStyle(.pressable)
-            .disabled(inviteName.trimmingCharacters(in: .whitespaces).isEmpty)
-            .opacity(inviteName.trimmingCharacters(in: .whitespaces).isEmpty ? 0.4 : 1)
+
+            ShareLink(
+                item: invite?.url ?? URL(string: "https://plated.app")!,
+                message: Text(TableSync.inviteMessage(hostName: userFirstName))
+            ) {
+                HStack(spacing: 6) {
+                    Image(systemName: "square.and.arrow.up")
+                        .font(.system(size: 13, weight: .semibold))
+                    Text("Share the invite link")
+                        .font(.jakarta(14, .bold))
+                }
+                .foregroundStyle(Color.ink)
+                .frame(maxWidth: .infinity)
+                .frame(minHeight: 48)
+                .overlay(Capsule().strokeBorder(Color.hairline, lineWidth: 1.5))
+            }
+
+            // Said plainly, because the alternative is someone wondering why
+            // their sister never turned up at the table.
+            Text(invite?.hasLink == true
+                 ? "They'll get a link. It opens Plated if they have it, and the App Store if they don't. Either way their seat is waiting."
+                 : "Your table is only on this phone for now. Sign in to iCloud to send a link that seats them.")
+                .font(.jakarta(11, .medium))
+                .foregroundStyle(Color.inkFaint)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
-    private func invite() {
-        let name = inviteName.trimmingCharacters(in: .whitespaces)
-        guard !name.isEmpty else { return }
-        Haptic.plate()
+    private func seat(_ name: String) {
         var seats = pendingSeats
         if !seats.contains(name) { seats.append(name) }
         pendingSeatsRaw = seats.joined(separator: "\n")
-        inviteName = ""
     }
 
     private func cancelInvite(_ name: String) {
@@ -314,6 +383,7 @@ struct DMThreadView: View {
             VStack(spacing: 2) {
                 MicroLabel("Direct")
                 Text(peerName)
+                    .plName()
                     .font(.gabarito(22, .semibold))
                     .foregroundStyle(Color.ink)
             }
@@ -323,7 +393,7 @@ struct DMThreadView: View {
 
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 8) {
-                    Text("Messages live on your devices for now — they'll deliver when \(peerName.split(separator: " ").first.map(String.init) ?? peerName) is on Plated's network.")
+                    Text("Messages stay on your devices for now. They'll deliver once \(peerName.split(separator: " ").first.map(String.init) ?? peerName) is on Plated.")
                         .font(.jakarta(11, .medium))
                         .foregroundStyle(Color.inkFaint)
                         .multilineTextAlignment(.center)

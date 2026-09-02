@@ -26,6 +26,10 @@ struct TableFeedView: View {
     @State private var threadPost: TablePost?
     @State private var personShown: PersonRef?
     @State private var seatsPresented = false
+    /// The composer, opened straight from the empty state. The + in the tab
+    /// bar owns the same sheet, but an empty screen that can only be
+    /// answered by a control somewhere else is a dead end.
+    @State private var composerShown = false
     @State private var editingSave: TablePost?
     @State private var savedToast: String?
     @State private var toastToken = 0
@@ -115,7 +119,8 @@ struct TableFeedView: View {
                             VStack(spacing: 6) {
                                 AvatarCircle(
                                     initials: initials(for: name),
-                                    tone: .neutralPair, size: 48
+                                    tone: .neutralPair, size: 48,
+                                    photo: members.photo(forAuthor: name)
                                 )
                                 Text(name.split(separator: " ").first.map(String.init) ?? name)
                                     .font(.jakarta(11, .semibold))
@@ -190,11 +195,30 @@ struct TableFeedView: View {
                             Divider().overlay(Color.hairlineSoft)
                         }
                         if shownPosts.isEmpty {
-                            VStack(spacing: 8) {
+                            VStack(spacing: 10) {
                                 PlateReactionGlyph(filled: false)
-                                Text(scope == .household ? "The household hasn't posted yet." : "Nothing on the table yet.")
-                                    .font(.jakarta(14, .bold))
+                                Text(scope == .household ? "Your household hasn't posted yet" : "Nothing on the table yet")
+                                    .font(.jakarta(15, .bold))
+                                    .foregroundStyle(Color.ink)
+                                Text("Post what you cooked tonight and everyone at your table sees it.")
+                                    .font(.jakarta(13, .medium))
                                     .foregroundStyle(Color.inkSecondary)
+                                    .multilineTextAlignment(.center)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                    .padding(.horizontal, 40)
+                                Button {
+                                    Haptic.tap()
+                                    composerShown = true
+                                } label: {
+                                    Text("Post a dish")
+                                        .font(.jakarta(14, .bold))
+                                        .foregroundStyle(Color.onTomato)
+                                        .padding(.horizontal, 24)
+                                        .frame(minHeight: 44)
+                                        .background(Color.tomato, in: Capsule())
+                                }
+                                .buttonStyle(.pressable)
+                                .padding(.top, 4)
                             }
                             .padding(.top, 60)
                         }
@@ -211,6 +235,7 @@ struct TableFeedView: View {
             .background(Color.canvas)
             .toolbar(.hidden, for: .navigationBar)
             .plSwipeBack()
+            .sheet(isPresented: $composerShown) { TableComposerSheet() }
             .navigationDestination(item: $threadPost) { post in
                 PostThreadView(post: post) { beginSave($0) }
             }
@@ -316,7 +341,7 @@ struct TableFeedView: View {
                     Image(systemName: "lock")
                         .font(.system(size: 11, weight: .bold))
                         .foregroundStyle(Color.inkFaint)
-                    MicroLabel("\(seatCount) seats · Invite only")
+                    MicroLabel("\(seatCount) \(seatCount == 1 ? "seat" : "seats") · Invite only")
                         .lineLimit(1)
                         .minimumScaleFactor(0.7)
                 }
@@ -344,12 +369,34 @@ struct TableFeedView: View {
                 seatsPresented = true
             } label: {
                 HStack(spacing: -8) {
-                    ForEach(Array(members.filter { !$0.isOwner }.prefix(2)), id: \.persistentModelID) { member in
-                        AvatarCircle(initials: member.firstInitial, tone: member.tone, size: 34)
+                    // The "+N" chip was drawn unconditionally with a
+                    // `max(..., 1)` floor, so a table of one showed a tomato
+                    // "+1" beside the host: a badge announcing a person who
+                    // does not exist, on the first screen every new user
+                    // sees. It is an overflow marker, so it appears only
+                    // when something has actually overflowed.
+                    let others = Array(members.filter { !$0.isOwner }.prefix(2))
+                    ForEach(others, id: \.persistentModelID) { member in
+                        AvatarCircle(member: member, size: 34)
                             .overlay(Circle().strokeBorder(Color.canvas, lineWidth: 2))
                     }
-                    AvatarCircle(initials: "+\(max(seatCount - 3, 1))", tone: .tomatoPair, size: 34)
-                        .overlay(Circle().strokeBorder(Color.canvas, lineWidth: 2))
+                    let hidden = seatCount - 1 - others.count
+                    if hidden > 0 {
+                        AvatarCircle(initials: "+\(hidden)", tone: .tomatoPair, size: 34)
+                            .overlay(Circle().strokeBorder(Color.canvas, lineWidth: 2))
+                    } else if others.isEmpty {
+                        // Nobody else yet. An empty cluster would leave the
+                        // control invisible, and the thing you want here is
+                        // not a count, it is a way to ask somebody.
+                        Circle()
+                            .strokeBorder(Color.hairlineDashed, style: StrokeStyle(lineWidth: 1.5, dash: [4, 4]))
+                            .frame(width: 34, height: 34)
+                            .overlay {
+                                Image(systemName: "plus")
+                                    .font(.system(size: 13, weight: .bold))
+                                    .foregroundStyle(Color.inkFaint)
+                            }
+                    }
                 }
                 .frame(minHeight: 44)
                 .contentShape(Rectangle())
@@ -363,7 +410,8 @@ struct TableFeedView: View {
                 openOwnProfile()
             } label: {
                 VStack(spacing: 2) {
-                    AvatarCircle(initials: hostInitial, tone: .neutralPair, size: 38)
+                    AvatarCircle(initials: hostInitial, tone: .neutralPair, size: 38,
+                                 photo: members.first(where: \.isOwner)?.photoData)
                     Text("HOST")
                         .font(.jakarta(10, .bold))
                         .tracking(0.7)
@@ -430,9 +478,11 @@ struct TableFeedView: View {
                     openProfile(post)
                 } label: {
                     HStack(spacing: 10) {
-                        AvatarCircle(initials: post.initials, tone: PersonTone.from(hex: post.authorColorHex), size: 38)
+                        AvatarCircle(initials: post.initials, tone: PersonTone.from(hex: post.authorColorHex), size: 38,
+                                     photo: members.photo(forAuthor: post.authorName))
                         VStack(alignment: .leading, spacing: 0) {
                             Text(post.authorName)
+                                .plName()
                                 .font(.jakarta(14, .bold))
                                 .foregroundStyle(Color.ink)
                             HStack(spacing: 5) {
@@ -497,6 +547,7 @@ struct TableFeedView: View {
                 } label: {
                     HStack(spacing: 7) {
                         Image(systemName: "bubble.right")
+                            .accessibilityLabel("Comments")
                             .font(.system(size: 18, weight: .medium))
                             .foregroundStyle(Color.inkSecondary)
                         Text("\(post.sortedComments.count)")
@@ -601,9 +652,11 @@ struct TableFeedView: View {
                     openProfile(post)
                 } label: {
                     HStack(spacing: 10) {
-                        AvatarCircle(initials: post.initials, tone: PersonTone.from(hex: post.authorColorHex), size: 38)
+                        AvatarCircle(initials: post.initials, tone: PersonTone.from(hex: post.authorColorHex), size: 38,
+                                     photo: members.photo(forAuthor: post.authorName))
                         VStack(alignment: .leading, spacing: 0) {
                             Text(post.authorName)
+                                .plName()
                                 .font(.jakarta(14, .bold))
                                 .foregroundStyle(Color.ink)
                             HStack(spacing: 5) {
@@ -643,7 +696,7 @@ struct TableFeedView: View {
                         HStack(spacing: 6) {
                             Image(systemName: "chart.bar.xaxis")
                                 .font(.system(size: 11, weight: .bold))
-                            Text("\(post.pollOptions.count) choices · \(post.totalPollVotes) votes — tap to vote")
+                            Text("\(post.pollOptions.count) choices · \(post.totalPollVotes) votes · tap to vote")
                                 .font(.jakarta(12, .bold))
                         }
                         .foregroundStyle(Color.basil)
@@ -787,10 +840,10 @@ struct TableFeedView: View {
         let me = members.first(where: \.isOwner)?.name ?? "Someone"
         Notifier.post(
             .saveReceived, actor: me,
-            body: "\(me) saved \(post.firstName)'s \(post.dishTitle.isEmpty ? "dish" : post.dishTitle) — they get the credit.",
+            body: "\(me) saved \(post.firstName)'s \(post.dishTitle.isEmpty ? "dish" : post.dishTitle). They get the credit.",
             into: context
         )
-        showToast("Saved — \(post.firstName) gets the credit")
+        showToast("Saved. \(post.firstName) gets the credit")
     }
 
     private func showToast(_ message: String) {

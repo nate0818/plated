@@ -7,7 +7,7 @@ import UIKit
 /// thread so the conversation is waiting when the app opens.
 struct AskProngsbyIntent: AppIntent {
     static let title: LocalizedStringResource = "Ask Prongsby"
-    static let description = IntentDescription("Ask your cooking companion anything — dinner ideas, swaps, the week's plan.")
+    static let description = IntentDescription("Ask your cooking companion anything: dinner ideas, swaps, the week's plan.")
 
     /// Parked: keeps the fork out of the Shortcuts app and out of Siri's
     /// suggestions while ProngsbyFeature is off. The intent still compiles

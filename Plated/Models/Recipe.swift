@@ -14,6 +14,11 @@ final class Recipe {
     var cookMinutes: Int = 0
     var tags: [String] = []
     var isFavorite: Bool = false
+    /// Kept at the top of the cookbook, the way a pinned conversation stays
+    /// at the top of Messages. Separate from `isFavorite` on purpose: a
+    /// favourite is a judgement about the dish that lasts, a pin is about
+    /// what you are cooking this week and is meant to be moved.
+    var isPinned: Bool = false
     /// One of `RecipeCategory`'s raw values — "" until the cook files it.
     var category: String = ""
     /// One of `RecipeDifficulty`'s raw values. Stored explicitly so the cook

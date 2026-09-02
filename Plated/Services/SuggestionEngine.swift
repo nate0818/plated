@@ -77,6 +77,6 @@ struct SuggestionEngine {
         let condition = forecast.conditionDescription.lowercased()
         let opener = "It's going to be \(temp)° and \(condition)"
         let closer = name.map { "great day for your \(dish), \($0)." } ?? "great day for your \(dish)."
-        return "\(opener) — \(closer)"
+        return "\(opener). \(closer)"
     }
 }

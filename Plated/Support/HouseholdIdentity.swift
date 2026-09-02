@@ -40,7 +40,12 @@ enum HouseholdIdentity {
 
         let family = familyName(typed: "", appleFamilyName: appleFamilyName, ownerName: ownerName)
         guard !family.isEmpty else { return "Your household" }
-        return "The \(family)"
+        // The name, and only the name. "The Meadows" is a thing an app
+        // decided to call a family, not a thing the family calls itself,
+        // and it reads worse the less English the surname is: "The
+        // Nguyen", "The Okafor". A typed name was already returned bare
+        // above, so the prefix also made the two paths disagree.
+        return family
     }
 
     /// Rename someone at this table, carrying their work with them.

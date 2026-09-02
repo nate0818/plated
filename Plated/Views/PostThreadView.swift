@@ -102,7 +102,7 @@ struct PostThreadView: View {
                         .padding(.top, 8)
 
                     if post.sortedComments.isEmpty {
-                        Text(post.kind == "ask" ? "No suggestions yet — be the first." : "Nobody has said anything yet. Go on.")
+                        Text(post.kind == "ask" ? "No suggestions yet. Be the first." : "Nobody has said anything yet. Go on.")
                             .font(.jakarta(13, .medium))
                             .foregroundStyle(Color.inkFaint)
                     }
@@ -140,10 +140,10 @@ struct PostThreadView: View {
                 let me = members.first(where: \.isOwner)?.name ?? "Someone"
                 Notifier.post(
                     .saveReceived, actor: me,
-                    body: "\(me) saved \(post.firstName)'s \(post.dishTitle.isEmpty ? "dish" : post.dishTitle) — they get the credit.",
+                    body: "\(me) saved \(post.firstName)'s \(post.dishTitle.isEmpty ? "dish" : post.dishTitle). They get the credit.",
                     into: context
                 )
-                showSaveToast("Saved — \(post.firstName) gets the credit")
+                showSaveToast("Saved. \(post.firstName) gets the credit")
             }
         }
         .overlay(alignment: .bottom) {
@@ -194,9 +194,11 @@ struct PostThreadView: View {
                 openProfile(post.authorName, colorHex: post.authorColorHex)
             } label: {
                 HStack(spacing: 10) {
-                    AvatarCircle(initials: post.initials, tone: PersonTone.from(hex: post.authorColorHex), size: 38)
+                    AvatarCircle(initials: post.initials, tone: PersonTone.from(hex: post.authorColorHex), size: 38,
+                                 photo: members.photo(forAuthor: post.authorName))
                     VStack(alignment: .leading, spacing: 0) {
                         Text(post.authorName)
+                            .plName()
                             .font(.jakarta(15, .bold))
                             .foregroundStyle(Color.ink)
                         Text(post.dishTitle.isEmpty ? "Open ask" : post.dishTitle)
@@ -291,7 +293,8 @@ struct PostThreadView: View {
             Button {
                 openProfile(comment.authorName)
             } label: {
-                AvatarCircle(initials: initials(for: comment.authorName), tone: tone(for: comment.authorName), size: 30)
+                AvatarCircle(initials: initials(for: comment.authorName), tone: tone(for: comment.authorName), size: 30,
+                             photo: members.photo(forAuthor: comment.authorName))
             }
             .buttonStyle(.pressable)
             VStack(alignment: .leading, spacing: 3) {
@@ -300,6 +303,7 @@ struct PostThreadView: View {
                         openProfile(comment.authorName)
                     } label: {
                         Text(comment.authorName)
+                            .plName()
                             .font(.jakarta(13, .bold))
                             .foregroundStyle(Color.ink)
                     }
@@ -416,8 +420,9 @@ struct PostThreadView: View {
                                 mentionBarShown = false
                             } label: {
                                 HStack(spacing: 5) {
-                                    AvatarCircle(initials: member.firstInitial, tone: member.tone, size: 22)
+                                    AvatarCircle(member: member, size: 22)
                                     Text(member.name)
+                                        .plName()
                                         .font(.jakarta(12, .bold))
                                         .foregroundStyle(Color.ink)
                                 }
@@ -443,6 +448,7 @@ struct PostThreadView: View {
                     .frame(height: 40)
                     .overlay(RoundedRectangle(cornerRadius: Radius.chip).strokeBorder(Color.hairline))
                     .padding(.horizontal, 24)
+                    .plTappableField()
             }
 
             if let commentPhoto, let image = UIImage(data: commentPhoto) {
@@ -519,6 +525,7 @@ struct PostThreadView: View {
                     .padding(.horizontal, 14)
                     .padding(.vertical, 10)
                     .overlay(RoundedRectangle(cornerRadius: Radius.chip).strokeBorder(Color.hairline))
+                    .plTapToFocus { composerFocused = true }
                     // The padding is part of the pill but not of the text
                     // field — without this, taps on it go nowhere.
                     .contentShape(RoundedRectangle(cornerRadius: Radius.chip))
@@ -560,7 +567,12 @@ struct PostThreadView: View {
         return post.kind == "ask" ? "Suggest a dish…" : "Say something nice…"
     }
 
-    private var canSend: Bool { !draft.isEmpty || commentPhoto != nil }
+    private var canSend: Bool {
+        // The link field is there so a comment can BE a link. Requiring
+        // text as well made it decoration.
+        !draft.isEmpty || commentPhoto != nil
+            || !link.trimmingCharacters(in: .whitespaces).isEmpty
+    }
 
     private var chefsKissPill: some View {
         HStack(spacing: 6) {

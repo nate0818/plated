@@ -105,6 +105,76 @@ extension HouseholdMember {
     var tone: PersonTone { PersonTone.from(hex: colorHex) }
 }
 
+/// Makes a text field's whole drawn box focus it, not just the text inside.
+///
+/// `.padding()` around a `TextField` is dead space. The field's hit area is
+/// its own bounds, so a 48pt box holding a 20pt line of text leaves 28pt
+/// that looks exactly like a control and does nothing when tapped. Aiming
+/// at it feels like the app is ignoring you, and on "Add to the household"
+/// it stopped the flow dead: the box is the only thing on screen to press.
+///
+/// The modifier owns its own `@FocusState`, which is what lets one line fix
+/// a field without threading a focus binding through every screen. Fields
+/// that already own a focus binding use `plTapToFocus` instead, because two
+/// bindings on one field is undefined behaviour rather than two chances.
+private struct TappableField: ViewModifier {
+    @FocusState private var focused: Bool
+    let radius: CGFloat
+
+    func body(content: Content) -> some View {
+        content
+            .focused($focused)
+            .contentShape(RoundedRectangle(cornerRadius: radius))
+            .onTapGesture { focused = true }
+    }
+}
+
+extension View {
+    func plTappableField(radius: CGFloat = Radius.chip) -> some View {
+        modifier(TappableField(radius: radius))
+    }
+
+    /// The same target, for a field whose focus somebody else already owns.
+    func plTapToFocus(radius: CGFloat = Radius.chip, _ focus: @escaping () -> Void) -> some View {
+        contentShape(RoundedRectangle(cornerRadius: radius))
+            .onTapGesture(perform: focus)
+    }
+}
+
+extension View {
+    /// A person's or a household's name: one line, shrinking rather than
+    /// breaking.
+    ///
+    /// SwiftUI hyphenates nothing and will break anywhere when a single
+    /// word is wider than its column, so "Alessandra" in a member row whose
+    /// right side is taken by a day chip came back as "Alessand" over "ra".
+    /// A name is not prose. It never reads better across two lines, and an
+    /// orphaned syllable is worse than small type, so this shrinks first
+    /// and truncates at the tail only when shrinking runs out.
+    ///
+    /// One modifier rather than a fix at each call site, because there are
+    /// sixteen places a name is drawn and the next one added would have had
+    /// the same bug.
+    func plName(_ minScale: CGFloat = 0.7) -> some View {
+        self.lineLimit(1)
+            .minimumScaleFactor(minScale)
+            .truncationMode(.tail)
+            .allowsTightening(true)
+    }
+}
+
+extension Collection where Element == HouseholdMember {
+    /// The face belonging to a name stamped on a post or a comment.
+    ///
+    /// Authorship is a stored string rather than a relationship, so a post
+    /// knows a name and nothing else. Matching is EXACT and deliberately so:
+    /// a first-name match would put your sister's face on a guest who shares
+    /// her name, and a wrong face is worse than initials.
+    func photo(forAuthor name: String) -> Data? {
+        first { $0.name == name }?.photoData
+    }
+}
+
 // MARK: - Scales
 
 enum Radius {
@@ -273,6 +343,11 @@ struct CountBlock: View {
                 .font(.gabarito(24, .semibold))
                 .foregroundStyle(accent ? Color.amber : Color.ink)
                 .contentTransition(.numericText())
+                // Most values here are a numeral or two, but not all: the
+                // recipe page shows "Not set" when a dish has no time on it.
+                // Shrink rather than truncate.
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
             Text(label)
                 .font(.jakarta(11, .semibold))
                 .foregroundStyle(Color.inkSecondary)
@@ -356,8 +431,38 @@ struct AvatarCircle: View {
     let initials: String
     let tone: PersonTone
     var size: CGFloat = 34
+    /// Their actual face, when we have one. The initials are what we fall
+    /// back to, not what we lead with.
+    var photo: Data?
+
+    /// The common case: draw a household member, face first.
+    init(member: HouseholdMember, size: CGFloat = 34) {
+        self.initials = member.initials.isEmpty ? member.firstInitial : member.initials
+        self.tone = member.tone
+        self.size = size
+        self.photo = member.photoData
+    }
+
+    init(initials: String, tone: PersonTone, size: CGFloat = 34, photo: Data? = nil) {
+        self.initials = initials
+        self.tone = tone
+        self.size = size
+        self.photo = photo
+    }
 
     var body: some View {
+        if let photo, let image = UIImage(data: photo) {
+            Image(uiImage: image)
+                .resizable()
+                .scaledToFill()
+                .frame(width: size, height: size)
+                .clipShape(Circle())
+        } else {
+            monogram
+        }
+    }
+
+    private var monogram: some View {
         Circle()
             .fill(tone.tint)
             .frame(width: size, height: size)

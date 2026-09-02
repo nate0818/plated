@@ -48,10 +48,6 @@ final class GroceryItem {
     }
 
     var displayText: String {
-        var parts: [String] = []
-        if quantity > 0 { parts.append(Ingredient.format(quantity)) }
-        if !unit.isEmpty { parts.append(unit) }
-        parts.append(name)
-        return parts.joined(separator: " ")
+        Ingredient.line(quantity: quantity, unit: unit, name: name)
     }
 }

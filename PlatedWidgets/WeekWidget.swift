@@ -136,7 +136,7 @@ struct WeekWidget: Widget {
             WeekWidgetView(entry: entry)
         }
         .configurationDisplayName("Your Week")
-        .description("The week at a glance — who cooks, what's open.")
+        .description("The week at a glance: who cooks, what's open.")
         .supportedFamilies([.systemMedium, .systemLarge])
     }
 }

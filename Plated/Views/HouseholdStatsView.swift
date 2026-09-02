@@ -97,11 +97,12 @@ struct HouseholdStatsView: View {
                   detail: "Bring something you cooked to the table.",
                   mark: .symbol("table.furniture"), have: dishPosts.count, need: 1),
             Badge(id: "first-kiss", title: "First chef's kiss",
-                  detail: "Ten plates on one dish — the table's highest compliment.",
+                  detail: "Ten plates on one dish. The table's highest compliment.",
                   mark: .symbol("sparkles"), have: kissCount, need: 1),
             Badge(id: "first-save", title: "Cooked elsewhere",
                   detail: "Someone cooked your dish at their own table.",
-                  mark: .symbol("bookmark"), have: Awards.totalSavesRecorded, need: 1),
+                  mark: .symbol("bookmark"),
+                  have: members.reduce(0) { $0 + Awards.savesReceived(by: $1.name) }, need: 1),
             Badge(id: "full-table", title: "Full table",
                   detail: "Three seats filled at your household.",
                   mark: .symbol("person.3"), have: members.count, need: 3),
@@ -209,7 +210,9 @@ struct HouseholdStatsView: View {
                 countCell("Chef's kisses", kissCount, .symbol("sparkles"), accent: kissCount > 0)
                 countCell("Recipes", recipes.count, .symbol("text.book.closed"))
                 countCell("On the table", dishPosts.count, .symbol("table.furniture"))
-                countCell("Saved by others", Awards.totalSavesRecorded, .symbol("bookmark"))
+                countCell("Saved by others",
+                          members.reduce(0) { $0 + Awards.savesReceived(by: $1.name) },
+                          .symbol("bookmark"))
             }
         }
     }

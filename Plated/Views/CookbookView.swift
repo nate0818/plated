@@ -57,6 +57,10 @@ struct RecipeFilter: Equatable {
             }
         }
         return result.sorted { lhs, rhs in
+            // A pin outranks the sort. Choosing "A to Z" and finding your
+            // pinned dish somewhere under S would defeat the point of
+            // pinning it, so this sits outside the switch.
+            if lhs.isPinned != rhs.isPinned { return lhs.isPinned }
             switch sort {
             case .favoritesFirst:
                 if lhs.isFavorite != rhs.isFavorite { return lhs.isFavorite }
@@ -288,7 +292,7 @@ struct CookbookView: View {
                 .font(.gabarito(20, .semibold))
                 .foregroundStyle(Color.ink)
                 .multilineTextAlignment(.center)
-            Text("Start with the one your household asks for most. Photograph it, paste it in from a website or a text, or write it out — once it's here, it's one tap onto any night.")
+            Text("Start with the one your household asks for most. Photograph it, paste it in from a website or a text, or write it out. Once it's here, it's one tap onto any night.")
                 .font(.jakarta(14, .medium))
                 .foregroundStyle(Color.inkSecondary)
                 .multilineTextAlignment(.center)
@@ -316,7 +320,9 @@ struct CookbookView: View {
     }
 
     private var countLabel: String {
-        filter.isFiltering ? "\(shown.count) of \(recipes.count) dishes" : "\(recipes.count) dishes"
+        filter.isFiltering
+            ? "\(shown.count) of \(recipes.count) \(recipes.count == 1 ? "dish" : "dishes")"
+            : "\(recipes.count) \(recipes.count == 1 ? "dish" : "dishes")"
     }
 
     private func recipeTile(_ recipe: Recipe) -> some View {
@@ -327,6 +333,21 @@ struct CookbookView: View {
             VStack(spacing: 10) {
                 ZStack(alignment: .topTrailing) {
                     dishImage(recipe)
+                        .overlay(alignment: .topLeading) {
+                            if recipe.isPinned {
+                                Circle()
+                                    .fill(Color.canvas)
+                                    .frame(width: 30, height: 30)
+                                    .overlay {
+                                        Image(systemName: "pin.fill")
+                                            .font(.system(size: 12))
+                                            .foregroundStyle(Color.ink)
+                                            .rotationEffect(.degrees(45))
+                                    }
+                                    .plDishShadow()
+                                    .offset(x: 4, y: 2)
+                            }
+                        }
                     if recipe.isFavorite {
                         Circle()
                             .fill(Color.canvas)
@@ -353,6 +374,16 @@ struct CookbookView: View {
         }
         .buttonStyle(.pressable)
         .contextMenu {
+            Button {
+                Haptic.plate()
+                withAnimation(.plSnap) { recipe.isPinned.toggle() }
+                Persist.save(context)
+            } label: {
+                Label(
+                    recipe.isPinned ? "Unpin" : "Pin to top",
+                    systemImage: recipe.isPinned ? "pin.slash" : "pin"
+                )
+            }
             Button {
                 plating = recipe
             } label: {
@@ -627,7 +658,7 @@ struct RecipeDetailView: View {
                 // all-caps micro-type this used to wear is dashboard voice.
                 HStack(spacing: 0) {
                     CountBlock(
-                        value: recipe.totalMinutes > 0 ? "\(recipe.totalMinutes) min" : "—",
+                        value: recipe.totalMinutes > 0 ? "\(recipe.totalMinutes) min" : "Not set",
                         label: "Time"
                     )
                     CountDivider()
@@ -783,6 +814,7 @@ struct RecipeDetailView: View {
                     .frame(width: 38, height: 38)
                     .overlay {
                         Image(systemName: "square.and.arrow.up")
+                            .accessibilityLabel("Share this recipe")
                             .font(.system(size: 14, weight: .semibold))
                             .foregroundStyle(Color.ink)
                     }
@@ -791,29 +823,56 @@ struct RecipeDetailView: View {
             }
             .buttonStyle(.pressable)
 
+            // Labelled, not a lone pencil in a circle.
+            //
+            // It sat fourth in a row of four identical discs, so the only
+            // thing distinguishing "change this recipe" from "share this
+            // recipe" was a 14pt glyph, and a bare pencil is read as
+            // "draw", "annotate" or "write a note" at least as often as
+            // "edit". The other three are back, favourite and share, which
+            // every phone has taught everybody. Edit had not earned the
+            // same shorthand, so it says the word.
             Button {
                 Haptic.tap()
                 editorShown = true
             } label: {
-                Circle()
-                    .strokeBorder(Color.hairline, lineWidth: 1.5)
-                    .frame(width: 38, height: 38)
-                    .overlay {
-                        Image(systemName: "pencil")
-                            .accessibilityLabel("Edit recipe")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(Color.ink)
-                    }
-                    .frame(minWidth: 44, minHeight: 44)
-                    .contentShape(Rectangle())
+                HStack(spacing: 5) {
+                    Image(systemName: "pencil")
+                        .font(.system(size: 13, weight: .semibold))
+                    Text("Edit")
+                        .font(.jakarta(13, .bold))
+                }
+                .foregroundStyle(Color.ink)
+                .padding(.horizontal, 14)
+                .frame(height: 38)
+                .overlay(Capsule().strokeBorder(Color.hairline, lineWidth: 1.5))
+                .frame(minHeight: 44)
+                .contentShape(Capsule())
             }
             .buttonStyle(.pressable)
+            .accessibilityLabel("Edit recipe")
+
         }
         .padding(.horizontal, 24)
         .padding(.vertical, 4)
         .background(Color.canvas.opacity(0.94))
     }
 
+    /// The photo, or an invitation to take one.
+    ///
+    /// A 200pt generated plate used to stand in for a missing photo, and at
+    /// that size it is the page's whole first impression: a big abstract
+    /// disc of colour derived from a hash of the title, which reads as an
+    /// image of nothing. That is fine at thumbnail size in a list, where it
+    /// is a marker distinguishing one row from the next — and it is exactly
+    /// what a freshly imported recipe gets, because a recipe pasted from
+    /// text has no photo by definition.
+    ///
+    /// So the empty state says what it is instead of pretending. The plate
+    /// stays, small, as the mark; the well is hero-shaped so the page keeps
+    /// its proportions whether or not there is a picture; and the whole
+    /// thing is a button, because "there's no photo" and "add a photo" are
+    /// the same thought.
     private var heroImage: some View {
         Group {
             let data = shownPhoto ?? recipe.photoData
@@ -821,11 +880,29 @@ struct RecipeDetailView: View {
                 PhotoWell(image: image, height: 260, cornerRadius: Radius.hero)
                     .plCardShadow()
             } else {
-                HStack {
-                    Spacer()
-                    DishView(recipe: recipe, diameter: 200)
-                    Spacer()
+                Button {
+                    Haptic.tap()
+                    editorShown = true
+                } label: {
+                    RoundedRectangle(cornerRadius: Radius.hero)
+                        .strokeBorder(Color.hairlineDashed, style: StrokeStyle(lineWidth: 2, dash: [8, 7]))
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 210)
+                        .overlay {
+                            VStack(spacing: 12) {
+                                DishView(recipe: recipe, diameter: 92)
+                                VStack(spacing: 3) {
+                                    Text("Add a photo of the plate")
+                                        .font(.jakarta(14, .bold))
+                                        .foregroundStyle(Color.inkSecondary)
+                                    Text("Your photo, your dish. No stock food here.")
+                                        .font(.jakarta(12, .medium))
+                                        .foregroundStyle(Color.inkFaint)
+                                }
+                            }
+                        }
                 }
+                .buttonStyle(.pressable)
             }
         }
     }
@@ -872,7 +949,7 @@ struct RecipeDetailView: View {
     }
 
     private var shareText: String {
-        var lines: [String] = ["\(recipe.title) — from our Plated cookbook"]
+        var lines: [String] = ["\(recipe.title), from our Plated cookbook"]
         if !recipe.summary.isEmpty { lines.append(recipe.summary) }
         lines.append("Time: \(recipe.totalMinutes) min · Serves \(recipe.servings)")
         let ingredients = recipe.sortedIngredients
@@ -905,10 +982,11 @@ struct RecipeDetailView: View {
     }
 
     private func quantityText(_ ingredient: Ingredient) -> String {
-        let qty = ingredient.quantity == ingredient.quantity.rounded()
-            ? String(Int(ingredient.quantity))
-            : String(format: "%.1f", ingredient.quantity)
-        return ingredient.unit.isEmpty ? qty : "\(qty) \(ingredient.unit)"
+        var parts: [String] = []
+        if ingredient.quantity > 0 { parts.append(Ingredient.format(ingredient.quantity)) }
+        let unit = Ingredient.unitText(ingredient.unit, for: ingredient.quantity)
+        if !unit.isEmpty { parts.append(unit) }
+        return parts.joined(separator: " ")
     }
 }
 
@@ -1035,7 +1113,8 @@ struct PlateAssignSheet: View {
             withAnimation(.plSnap) { chosenCook = member }
         } label: {
             VStack(spacing: 4) {
-                AvatarCircle(initials: member.firstInitial, tone: member.isOwner ? .neutralPair : member.tone, size: 44)
+                AvatarCircle(initials: member.firstInitial, tone: member.isOwner ? .neutralPair : member.tone, size: 44,
+                             photo: member.photoData)
                     .overlay {
                         if active {
                             Circle().strokeBorder(Color.ink, lineWidth: 2)
@@ -1085,7 +1164,7 @@ struct PlateAssignSheet: View {
         let cookName = (cook?.isOwner ?? true) ? "you" : (cook?.name ?? "someone")
         Notifier.post(
             .mealPlanned, actor: cook?.name ?? "",
-            body: "\(recipe.title) is plated for \(nightLabel(date).lowercased()) — \(cookName) cook\(cookName == "you" ? "" : "s").",
+            body: "\(recipe.title) is plated for \(nightLabel(date).lowercased()). \(cookName.capitalized) cook\(cookName == "you" ? "" : "s").",
             into: context
         )
         withAnimation(.plSnap) { confirmation = "Plated for \(nightLabel(date))" }
@@ -1099,6 +1178,10 @@ struct PlateAssignSheet: View {
 /// Grid picker used from an open night's "Your recipes" chip.
 struct RecipePickerSheet: View {
     let date: Date
+    /// Offered when the cookbook is empty. Without it this sheet is a title
+    /// over a void whose only exit is a downward drag, reached from a row
+    /// that promised "1 dish your household already knows".
+    var onWriteNew: () -> Void = {}
     let onPick: (Recipe) -> Void
 
     @Environment(\.dismiss) private var dismiss
@@ -1112,6 +1195,29 @@ struct RecipePickerSheet: View {
                 .padding(.top, 22)
                 .padding(.bottom, 6)
 
+            if recipes.isEmpty {
+                VStack(spacing: 10) {
+                    Image(systemName: "book.closed")
+                        .font(.system(size: 26, weight: .medium))
+                        .foregroundStyle(Color.inkFaint)
+                    Text("Nothing in the cookbook yet")
+                        .font(.jakarta(15, .bold))
+                        .foregroundStyle(Color.ink)
+                    Text("Write one dish down and it drops onto any night in a tap.")
+                        .font(.jakarta(13, .medium))
+                        .foregroundStyle(Color.inkSecondary)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                    TomatoPillButton(title: "Write a recipe") {
+                        dismiss()
+                        onWriteNew()
+                    }
+                    .padding(.top, 8)
+                }
+                .padding(.horizontal, 34)
+                .padding(.top, 36)
+                Spacer()
+            } else {
             ScrollView(showsIndicators: false) {
                 LazyVGrid(columns: [GridItem(.flexible(), spacing: 18), GridItem(.flexible()), GridItem(.flexible())], spacing: 20) {
                     ForEach(recipes, id: \.persistentModelID) { recipe in
@@ -1145,6 +1251,7 @@ struct RecipePickerSheet: View {
                 .padding(.horizontal, 24)
                 .padding(.top, 14)
                 .padding(.bottom, 30)
+            }
             }
         }
         .presentationDetents([.medium, .large])

@@ -242,7 +242,12 @@ struct HouseholdHomeView: View {
                             // "Your / Household" the moment two were
                             // allowed. Only huge type gets to wrap.
                             .lineLimit(hugeType ? 3 : 1)
-                            .minimumScaleFactor(hugeType ? 1 : 0.8)
+                            // Shrinking is what stops a mid-word break, so
+                            // it has to apply at huge type too. It used to
+                            // be 1 there, which is the one setting under
+                            // which a long surname has no way to fit.
+                            .minimumScaleFactor(hugeType ? 0.7 : 0.6)
+                            .allowsTightening(true)
                             .fixedSize(horizontal: false, vertical: hugeType)
                         if !isNamed {
                             Image(systemName: "pencil")
@@ -289,7 +294,8 @@ struct HouseholdHomeView: View {
                 openOwnProfile()
             } label: {
                 VStack(spacing: 2) {
-                    AvatarCircle(initials: ownerInitial, tone: .neutralPair, size: 40)
+                    AvatarCircle(initials: ownerInitial, tone: .neutralPair, size: 40,
+                                 photo: members.first(where: \.isOwner)?.photoData)
                     Text("HOST")
                         .font(.jakarta(10, .bold))
                         .tracking(0.7)
@@ -473,10 +479,12 @@ struct HouseholdHomeView: View {
             AvatarCircle(
                 initials: member.firstInitial,
                 tone: member.isOwner ? .neutralPair : member.tone,
-                size: 46
+                size: 46,
+                photo: member.photoData
             )
             VStack(alignment: .leading, spacing: 1) {
                 Text(member.name)
+                    .plName()
                     .font(.jakarta(15, .bold))
                     .foregroundStyle(Color.ink)
                 if member.isOwner {
@@ -615,7 +623,7 @@ struct HouseholdHomeView: View {
             .padding(.top, 8)
 
             if turnsTipShown {
-                Text("How turns work: a day with a standing cook (the grid above) always goes to them. When you plate an open night with this on, it's assigned to whoever has cooked the fewest dinners that week — so nobody quietly ends up doing every Tuesday. Turn it off and open nights default to you.")
+                Text("How turns work: a day with a standing cook (the grid above) always goes to them. When you plate an open night with this on, it's assigned to whoever has cooked the fewest dinners that week, so nobody quietly ends up doing every Tuesday. Turn it off and open nights default to you.")
                     .font(.jakarta(12, .medium))
                     .foregroundStyle(Color.inkSecondary)
                     .lineSpacing(3)
@@ -629,7 +637,7 @@ struct HouseholdHomeView: View {
     private var cookGrid: some View {
         let today = Calendar.current.component(.weekday, from: .now)
         return HStack(spacing: 6) {
-            ForEach(weekdaysFromToday, id: \.self) { weekday in
+            ForEach(weekdaysInOrder, id: \.self) { weekday in
                 cookCell(weekday: weekday, isToday: weekday == today)
             }
         }
@@ -637,6 +645,7 @@ struct HouseholdHomeView: View {
 
     private func cookCell(weekday: Int, isToday: Bool) -> some View {
         let cook = members.first { $0.cookWeekdays.contains(weekday) }
+        let dayName = Calendar.current.weekdaySymbols[weekday - 1]
         return Button {
             cycleCook(weekday: weekday)
         } label: {
@@ -649,7 +658,7 @@ struct HouseholdHomeView: View {
                 // hard-cutting inside the spring.
                 ZStack {
                     if let cook {
-                        AvatarCircle(initials: cook.firstInitial, tone: cook.tone, size: 28)
+                        AvatarCircle(member: cook, size: 28)
                             .id(cook.name)
                             .transition(.scale(scale: 0.92).combined(with: .opacity))
                     } else {
@@ -670,12 +679,30 @@ struct HouseholdHomeView: View {
             }
         }
         .buttonStyle(.pressable)
+        // A weekday abbreviation over an initial announces as neither.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(cook.map { "\(dayName), \($0.name) cooks" } ?? "\(dayName), nobody yet")
+        .accessibilityHint("Passes this night to the next person")
     }
 
-    /// Cook grid runs today-first, matching the week screen.
-    private var weekdaysFromToday: [Int] {
-        let today = Calendar.current.component(.weekday, from: .now)
-        return (0..<7).map { (today - 1 + $0) % 7 + 1 }
+    /// The seven days in calendar order, starting where the user's week
+    /// starts.
+    ///
+    /// It used to run today-first, so on a Tuesday the rota read TUE WED THU
+    /// FRI SAT SUN MON. A rota is a shape you learn by looking at it, and it
+    /// cannot be learned if it rearranges itself every morning: the cell your
+    /// eye goes to for Saturday moves one place to the left each day. Worse,
+    /// the rest of the app already disagreed with it. `Calendar.startOfWeek`
+    /// honours `firstWeekday`, so the week screen, the stats and the grocery
+    /// roll-up were all counting a Sunday-to-Saturday week while this row
+    /// drew a Tuesday-to-Monday one.
+    ///
+    /// `firstWeekday` rather than a hard-coded Sunday: it IS Sunday in the
+    /// US, which is what was asked for, and it stays right for a household
+    /// whose region starts on Monday instead of quietly being wrong for them.
+    private var weekdaysInOrder: [Int] {
+        let first = Calendar.current.firstWeekday
+        return (0..<7).map { (first - 1 + $0) % 7 + 1 }
     }
 
     private func shortDay(_ weekday: Int) -> String {
@@ -686,9 +713,12 @@ struct HouseholdHomeView: View {
         if member.cookWeekdays.count == 1, let day = member.cookWeekdays.first {
             return "\(Calendar.current.weekdaySymbols[day - 1])s"
         }
-        let today = Calendar.current.component(.weekday, from: .now)
+        // Same order as the rota above it. Sorting these today-first while
+        // the grid ran week-first would print "Sat + Wed" under a row that
+        // shows Wednesday to the left of Saturday.
+        let order = weekdaysInOrder
         return member.cookWeekdays
-            .sorted { (($0 - today + 7) % 7) < (($1 - today + 7) % 7) }
+            .sorted { (order.firstIndex(of: $0) ?? 0) < (order.firstIndex(of: $1) ?? 0) }
             .map { shortDay($0) }
             .joined(separator: " + ")
     }
@@ -734,6 +764,7 @@ struct AddMemberSheet: View {
                 .font(.jakarta(16, .semibold))
                 .padding(14)
                 .overlay(RoundedRectangle(cornerRadius: Radius.chip).strokeBorder(Color.hairline))
+                .plTappableField()
 
             HStack(spacing: 8) {
                 roleChip("partner", "Partner")
@@ -758,7 +789,9 @@ struct AddMemberSheet: View {
             Spacer()
         }
         .padding(.horizontal, 24)
-        .presentationDetents([.height(320)])
+        // A fixed height with no scroll clips "Set their place" off the
+        // bottom at accessibility text sizes, leaving no way to finish.
+        .presentationDetents([.height(320), .large])
         .presentationDragIndicator(.visible)
         .presentationBackground(Color.canvas)
         .presentationCornerRadius(Radius.sheet)

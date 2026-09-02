@@ -79,7 +79,16 @@ final class TablePost {
     var firstName: String { authorName.split(separator: " ").first.map(String.init) ?? authorName }
 
     /// Stable identity for "saved to cookbook" bookkeeping.
-    var originKey: String { "post:\(authorName)|\(dishTitle)" }
+    var originKey: String {
+        // A title is optional in the composer, so keying on it alone made
+        // every untitled post by one person the same post: save one of
+        // Sam's photo-only dishes and every future one answers "already in
+        // your cookbook". Titled posts keep the old key so the legacy
+        // Discover repair still matches them.
+        dishTitle.isEmpty
+            ? "post:\(authorName)|\(Int(createdAt.timeIntervalSince1970))"
+            : "post:\(authorName)|\(dishTitle)"
+    }
 
     var sortedComments: [TableComment] {
         (comments ?? []).sorted { $0.createdAt < $1.createdAt }

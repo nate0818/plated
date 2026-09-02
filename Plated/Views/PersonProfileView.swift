@@ -70,7 +70,8 @@ struct PersonProfileView: View {
                         AvatarCircle(
                             initials: initials,
                             tone: isMe ? .neutralPair : PersonTone.from(hex: colorHex),
-                            size: 86
+                            size: 86,
+                            photo: member?.photoData
                         )
                         .overlay(Circle().strokeBorder(Color.canvas, lineWidth: 4))
                         .offset(x: 24, y: 43)
@@ -110,6 +111,7 @@ struct PersonProfileView: View {
                             .accessibilityLabel("Add your name")
                         } else {
                             Text(displayName)
+                                .plName()
                                 .font(.gabarito(24, .semibold))
                                 .tracking(-0.4)
                                 .foregroundStyle(Color.ink)
@@ -152,7 +154,7 @@ struct PersonProfileView: View {
                 if posts.isEmpty {
                     VStack(spacing: 8) {
                         PlateReactionGlyph(filled: false)
-                        Text(isMe ? "Nothing shared yet — plate something for the table." : "\(firstName) hasn't shared a plate yet.")
+                        Text(isMe ? "Nothing shared yet. Plate something for the table." : "\(firstName) hasn't shared a plate yet.")
                             .font(.jakarta(13, .medium))
                             .foregroundStyle(Color.inkFaint)
                             .multilineTextAlignment(.center)
@@ -357,6 +359,8 @@ struct EditProfileSheet: View {
     @AppStorage("userBio") private var bio = ""
     @AppStorage("userFirstName") private var firstName = ""
     @State private var draftName = ""
+    @State private var photoData: Data?
+    @State private var pickerItem: PhotosPickerItem?
     /// Why the last Done didn't take. A refusal that only buzzes is a
     /// refusal the user can't act on.
     @State private var nameError: String?
@@ -369,6 +373,17 @@ struct EditProfileSheet: View {
                 .foregroundStyle(Color.ink)
                 .frame(maxWidth: .infinity)
                 .padding(.top, 18)
+
+            PhotosPicker(selection: $pickerItem, matching: .images) {
+                VStack(spacing: 8) {
+                    ProfilePhotoWell(photoData: $photoData, initials: draftInitials, diameter: 96)
+                    Text(photoData == nil ? "Add your photo" : "Change your photo")
+                        .font(.jakarta(12, .bold))
+                        .foregroundStyle(Color.inkSecondary)
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.pressable)
 
             VStack(alignment: .leading, spacing: 8) {
                 MicroLabel("Your name")
@@ -396,22 +411,39 @@ struct EditProfileSheet: View {
                     .lineLimit(2...4)
                     .padding(14)
                     .overlay(RoundedRectangle(cornerRadius: Radius.chip).strokeBorder(Color.hairline))
+                    .plTappableField()
             }
 
-            Text("Apple shares your name once, when you first sign in, and never again — so if Plated is calling you \"Me\", this is where you fix it. Photos aren't shared by Apple at all; they arrive with Plated's own network.")
+            Text("Apple only tells us your name the very first time you sign in. If Plated is calling you \"Me\", this is where you fix it. Apple never shares your photo with any app, so yours is whichever one you pick here.")
                 .font(.jakarta(11, .medium))
                 .foregroundStyle(Color.inkFaint)
 
             InkPillButton(title: "Done") {
                 // Only leave if it took. Dismissing regardless is how a
                 // refusal became invisible.
-                if saveName() { dismiss() }
+                if saveName() {
+                    savePhoto()
+                    dismiss()
+                }
             }
             Spacer()
         }
         .onAppear {
-            let owner = members.first(where: \.isOwner)?.name ?? firstName
-            draftName = HouseholdIdentity.isPlaceholder(owner) ? "" : owner
+            let owner = members.first(where: \.isOwner)
+            let name = owner?.name ?? firstName
+            draftName = HouseholdIdentity.isPlaceholder(name) ? "" : name
+            photoData = owner?.photoData
+        }
+        .onChange(of: pickerItem) { _, item in
+            guard let item else { return }
+            Task {
+                if let raw = try? await item.loadTransferable(type: Data.self),
+                   let square = ProfilePhoto.square(raw) {
+                    Haptic.plate()
+                    withAnimation(.plPop) { photoData = square }
+                }
+                pickerItem = nil
+            }
         }
         .padding(.horizontal, 24)
         .presentationDetents([.height(430), .large])
@@ -420,8 +452,26 @@ struct EditProfileSheet: View {
         .presentationCornerRadius(Radius.sheet)
     }
 
-    /// The name lives in two places — the preference the app reads for
-    /// authorship and the owner's own row at the table. Both or neither.
+    private var draftInitials: String {
+        let source = draftName.trimmingCharacters(in: .whitespaces)
+        let letters = source.split(separator: " ").prefix(2)
+            .compactMap { $0.first }.map(String.init).joined().uppercased()
+        return letters.isEmpty ? "?" : letters
+    }
+
+    /// The photo rides on the owner's row so it syncs to the household the
+    /// same way a recipe photo does. Saved after the name, because a name
+    /// collision aborts the whole Done and a half-applied edit is worse than
+    /// none.
+    private func savePhoto() {
+        guard let owner = members.first(where: \.isOwner),
+              owner.photoData != photoData else { return }
+        owner.photoData = photoData
+        Persist.save(context)
+    }
+
+    /// The name lives in two places: the preference the app reads for
+    /// authorship, and the owner's own row at the table. Both or neither.
     @discardableResult
     private func saveName() -> Bool {
         let name = draftName.trimmingCharacters(in: .whitespaces)
@@ -503,7 +553,7 @@ struct SettingsSheet: View {
                     settingRow(
                         icon: "house",
                         title: "Household name",
-                        caption: "The family name on your Home page."
+                        caption: "What your household is called on Home."
                     ) {
                         TextField("Meadows", text: $householdName)
                             .font(.jakarta(14, .bold))
@@ -524,8 +574,8 @@ struct SettingsSheet: View {
 
                     settingRow(
                         icon: afterDark ? "moon.stars.fill" : "moon",
-                        title: "After Dark",
-                        caption: "The warm room. Photos glow, chrome sleeps."
+                        title: "Dark mode",
+                        caption: "Easier on your eyes at night."
                     ) {
                         Toggle("", isOn: $afterDark)
                             .labelsHidden()
@@ -577,7 +627,7 @@ struct SettingsSheet: View {
                             settingRow(
                                 icon: "plus.circle",
                                 title: "Plated+",
-                                caption: plusActive ? "Active — the whole household is seated." : "Seat the whole household and everything next."
+                                caption: plusActive ? "Active. Everyone at your table is seated." : "Seat your whole household, and everything coming next."
                             ) {
                                 Text(plusActive ? "ACTIVE" : "JOIN")
                                     .font(.jakarta(11, .extraBold))
@@ -607,7 +657,7 @@ struct SettingsSheet: View {
                             settingRow(
                                 icon: "exclamationmark.triangle",
                                 title: "Something didn't save",
-                                caption: "A recent change couldn't be written. It's still on screen — try it again."
+                                caption: "A recent change didn't save. It's still on screen, so try it once more."
                             ) {
                                 Text("DISMISS")
                                     .font(.jakarta(11, .extraBold))
@@ -743,7 +793,7 @@ struct PaywallSheet: View {
                     .font(.gabarito(26, .semibold))
                     .tracking(-0.4)
                     .foregroundStyle(Color.ink)
-                Text("One seat is free — the head of table. Plated+ seats everyone else.")
+                Text("One seat is free, the head of table. Plated+ seats everyone else.")
                     .font(.jakarta(13, .medium))
                     .foregroundStyle(Color.inkSecondary)
                     .multilineTextAlignment(.center)
@@ -753,7 +803,7 @@ struct PaywallSheet: View {
             .padding(.bottom, 20)
 
             VStack(alignment: .leading, spacing: 12) {
-                perk("person.2", "Unlimited household seats", "Partners, kids, grandma — everyone gets a color.")
+                perk("person.2", "Unlimited household seats", "Partners, kids, grandma. Everyone gets a color.")
                 perk("calendar", "The whole plan, shared", "Everyone sees the week and their nights.")
                 perk("bubble.left.and.bubble.right", "Table talk", "Comments, asks, polls, and DMs with your people.")
                 perk("sparkles", "First in line", "New features land on Plated+ tables first.")

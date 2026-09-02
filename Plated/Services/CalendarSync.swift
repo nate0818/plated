@@ -16,9 +16,9 @@ final class CalendarSync {
         var errorDescription: String? {
             switch self {
             case .accessDenied:
-                return "Plated needs Calendar access to add your gatherings. Enable it in Settings › Privacy › Calendars."
+                return "Plated can't get to your calendar yet. Turn it on in Settings, then try again."
             case .noWritableCalendar:
-                return "No writable calendar was found."
+                return "There's no calendar here Plated can add to. Set one up in the Calendar app first."
             }
         }
     }

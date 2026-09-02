@@ -184,7 +184,7 @@ enum SampleData {
         post1.comments = [
             TableComment(
                 authorName: "Grandma",
-                text: "This is the recipe I told you about —",
+                text: "This is the recipe I told you about.",
                 linkURL: "https://cooking.nytimes.com/recipes/pancakes",
                 createdAt: Calendar.current.date(byAdding: .minute, value: -90, to: .now) ?? .now
             ),

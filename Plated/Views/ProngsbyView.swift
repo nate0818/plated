@@ -230,6 +230,7 @@ struct ProngsbyView: View {
                     .padding(.horizontal, 14)
                     .padding(.vertical, 10)
                     .overlay(RoundedRectangle(cornerRadius: Radius.chip).strokeBorder(Color.hairline))
+                    .plTapToFocus { composerFocused = true }
                     // The padding is part of the pill but not of the text
                     // field — without this, taps on it go nowhere and the
                     // keyboard never shows.
@@ -297,7 +298,7 @@ struct ProngsbyView: View {
                 Text("Prongsby")
                     .font(.gabarito(20, .semibold))
                     .foregroundStyle(Color.ink)
-                Text("Your AI cooking companion")
+                Text("Knows your recipes and your week")
                     .font(.jakarta(11, .bold))
                     .foregroundStyle(Color.inkSecondary)
                 // A new joke every day. Quality not guaranteed; frequency is.
@@ -339,7 +340,7 @@ struct ProngsbyView: View {
             Text("Well hello. I'm Prongsby.")
                 .font(.gabarito(19, .bold))
                 .foregroundStyle(Color.ink)
-            Text("Your sous chef and planning department. I know your \(recipes.count) recipes, the week's plan, and who's cooking when — ask me to resize a dish, make it vegetarian, swap a protein, or plan the whole party.")
+            Text("Your sous chef and planning department. I know your \(recipes.count) recipes, the week's plan, and who's cooking when. Ask me to resize a dish, make it vegetarian, swap a protein, or plan the whole party.")
                 .font(.jakarta(13, .medium))
                 .foregroundStyle(Color.inkSecondary)
                 .multilineTextAlignment(.center)

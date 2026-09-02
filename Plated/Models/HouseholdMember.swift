@@ -18,6 +18,13 @@ final class HouseholdMember {
     var roleLine: String = ""
     /// Calendar weekday numbers (1 = Sunday … 7 = Saturday) this person cooks.
     var cookWeekdays: [Int] = []
+    /// This person's face. Downsized JPEG, same treatment as a recipe photo.
+    ///
+    /// Optional because it always can be: Sign in with Apple does not hand
+    /// over the Apple ID picture and never has, so there is no path that
+    /// guarantees one. What there IS is a good path, and the monogram is the
+    /// floor rather than the default. See `ProfilePhoto`.
+    @Attribute(.externalStorage) var photoData: Data?
     var createdAt: Date = Date.now
 
     @Relationship(deleteRule: .nullify, inverse: \PlannedMeal.cook)

@@ -128,7 +128,7 @@ struct MonthPlannerView: View {
                 if let meal {
                     dishDot(meal)
                     if let cook = meal.cook {
-                        AvatarCircle(initials: cook.firstInitial, tone: cook.tone, size: 16)
+                        AvatarCircle(member: cook, size: 16)
                     }
                 } else if !past {
                     Circle()

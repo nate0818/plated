@@ -2,11 +2,15 @@ import SwiftUI
 import SwiftData
 import AuthenticationServices
 
-/// The journey: the opener sets the table → Sign in with Apple (the only
-/// door) → set your table from contacts → the week. Each stage is
-/// remembered, so returning users land straight on their week.
+/// The journey: the opener sets the table, Sign in with Apple is the only
+/// door, then your face and name, then your people, then the week. Each
+/// stage is remembered, so returning users land straight on their week.
 struct RootView: View {
     @AppStorage("didSignIn") private var didSignIn = false
+    /// The photo-and-name step. Its own flag rather than folded into
+    /// `didSetTable`, so an existing install that already has a table is
+    /// not dragged back through onboarding to be asked for a picture.
+    @AppStorage("didSetProfile") private var didSetProfile = false
     @AppStorage("didSetTable") private var didSetTable = false
     @Environment(\.scenePhase) private var scenePhase
     @State private var splashDone = false
@@ -39,6 +43,14 @@ struct RootView: View {
             } else if !didSignIn {
                 SignInView { didSignIn = true }
                     .transition(.opacity)
+            } else if !didSetProfile && !didSetTable {
+                // Only for a genuinely new table. Someone who onboarded
+                // before this step existed has already met the app, and
+                // being handed a "put a face to your name" screen on launch
+                // day two reads as a bug rather than a feature. They get the
+                // same well inside Edit profile instead.
+                ProfileSetupView { didSetProfile = true }
+                    .transition(.opacity)
             } else if !didSetTable {
                 ContactsView { didSetTable = true }
                     .transition(.opacity)
@@ -49,17 +61,20 @@ struct RootView: View {
         }
         .animation(.plSettle, value: splashDone)
         .animation(.plSettle, value: didSignIn)
+        .animation(.plSettle, value: didSetProfile)
         .animation(.plSettle, value: didSetTable)
         .task {
-            // Stand-in for real wake-up work. The opener holds in its
-            // simmer loop if this ever outlasts the wordmark settling —
-            // `-plated-slow-wake` forces that path for testing.
+            // There is no wake-up work. This was a 1.4 second sleep standing
+            // in for some, which means every cold launch paid 1.4 seconds for
+            // nothing, forever, on the one screen every session begins with.
+            // The opener's own settle animation is the moment; it does not
+            // need padding out. The slow path stays for testing the case
+            // where real work does outlast the wordmark.
             #if DEBUG
-            let wake: Double = LaunchFlags.consume("-plated-slow-wake") ? 8 : 1.4
-            #else
-            let wake: Double = 1.4
+            if LaunchFlags.consume("-plated-slow-wake") {
+                try? await Task.sleep(for: .seconds(8))
+            }
             #endif
-            try? await Task.sleep(for: .seconds(wake))
             appReady = true
         }
         .task { await recheckCredential() }

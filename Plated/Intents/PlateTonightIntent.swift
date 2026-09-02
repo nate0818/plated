@@ -49,7 +49,7 @@ struct PlateTonightIntent: AppIntent {
         WidgetBridge.publish(from: context)
 
         var line = "Plated: \(recipe.title) tonight"
-        if let cook { line += " — \(cook.name) cooks" }
+        if let cook { line += ", \(cook.name) cooks" }
         return .result(dialog: "\(line).")
     }
 }

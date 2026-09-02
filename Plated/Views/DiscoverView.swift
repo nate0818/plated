@@ -31,6 +31,7 @@ struct DiscoverView: View {
                     dismiss()
                 } label: {
                     Image(systemName: "chevron.left")
+                        .accessibilityLabel("Back")
                         .font(.system(size: 17, weight: .semibold))
                         .foregroundStyle(Color.ink)
                         .frame(width: 44, height: 44)
@@ -160,6 +161,7 @@ struct DiscoverView: View {
                         .foregroundStyle(Color.ink)
                         .lineLimit(1)
                     Text(post.authorName)
+                        .plName()
                         .font(.jakarta(11, .semibold))
                         .foregroundStyle(Color.inkFaint)
                         .lineLimit(1)
@@ -223,6 +225,7 @@ struct DiscoverPostSheet: View {
                     AvatarCircle(initials: post.initials, tone: PersonTone.from(hex: post.authorColorHex), size: 40)
                     VStack(alignment: .leading, spacing: 0) {
                         Text(post.authorName)
+                            .plName()
                             .font(.jakarta(14, .bold))
                             .foregroundStyle(Color.ink)
                         Text("An open table")

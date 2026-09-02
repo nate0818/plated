@@ -15,6 +15,9 @@ struct ContactsView: View {
         let id: String
         let name: String
         let imageData: Data?
+        /// How the invitation reaches them. A contact without one cannot be
+        /// invited, so `requestContacts` never offers one.
+        let phone: String?
         var seated: Bool = false
     }
 
@@ -22,10 +25,12 @@ struct ContactsView: View {
     @Environment(\.modelContext) private var context
     @State private var candidates: [Candidate] = []
     @State private var accessState: AccessState = .notAsked
-    /// The live CKShare link, once CloudKit has minted one. Nil means the
-    /// invite goes out as words alone — still worth sending, and exactly
-    /// what shipped before sharing existed.
-    @State private var inviteLink: URL?
+    /// The live CKShare link and the message that carries it, once CloudKit
+    /// has minted one. A nil link means the invite goes out as words alone —
+    /// still worth sending, and exactly what shipped before sharing existed.
+    @State private var invite: Invitation.Ready?
+    /// Who the open message composer is addressed to.
+    @State private var inviteTarget: InviteTarget?
     @State private var arrived = false
 
     enum AccessState { case notAsked, granted, denied }
@@ -74,7 +79,7 @@ struct ContactsView: View {
                     .foregroundStyle(Color.ink)
                 Text(accessState == .granted
                      ? "Invite your friends and family to your table. You can invite people to your household later."
-                     : "Plated is an invite-only experience. No one sees your table or recipes unless you set a place for them.")
+                     : "Plated is invite only. Nobody sees your table or your recipes unless you set a place for them.")
                     .font(.jakarta(15, .medium))
                     .foregroundStyle(Color.inkSecondary)
                     .multilineTextAlignment(.center)
@@ -85,7 +90,21 @@ struct ContactsView: View {
             .padding(.horizontal, 28)
             .opacity(arrived ? 1 : 0)
 
-            if accessState == .granted && !candidates.isEmpty {
+            if accessState == .granted && candidates.isEmpty {
+                VStack(spacing: 6) {
+                    Text("Nobody here to suggest")
+                        .font(.jakarta(15, .bold))
+                        .foregroundStyle(Color.ink)
+                    Text("We only suggest people with a phone number saved. You can still invite anyone you like.")
+                        .font(.jakarta(13, .medium))
+                        .foregroundStyle(Color.inkSecondary)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.horizontal, 34)
+                .padding(.top, 30)
+                Spacer()
+            } else if accessState == .granted && !candidates.isEmpty {
                 ScrollView {
                     VStack(spacing: 0) {
                         ForEach($candidates) { $candidate in
@@ -110,45 +129,59 @@ struct ContactsView: View {
 
             VStack(spacing: 12) {
                 if accessState == .granted {
-                    if seatedCount > 0 {
-                        // One share sheet, one message — the label says what
-                        // actually happens.
-                        ShareLink(
-                            item: inviteLink ?? URL(string: "https://plated.app")!,
-                            message: Text(TableSync.inviteMessage(hostName: userFirstName))
-                        ) {
-                            HStack(spacing: 6) {
-                                Image(systemName: "paperplane")
-                                    .font(.system(size: 13, weight: .semibold))
-                                Text("Send the invite")
-                                    .font(.jakarta(14, .bold))
-                            }
-                            .foregroundStyle(Color.ink)
-                            .frame(maxWidth: .infinity)
-                            .frame(minHeight: 48)
-                            .overlay(Capsule().strokeBorder(Color.hairline, lineWidth: 1.5))
+                    // Always offered, not only once somebody is seated: the
+                    // five names above are a shortlist, and the person you
+                    // most want at your table is often not on it.
+                    ShareLink(
+                        item: invite?.url ?? URL(string: "https://plated.app")!,
+                        message: Text(TableSync.inviteMessage(hostName: userFirstName))
+                    ) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "square.and.arrow.up")
+                                .font(.system(size: 13, weight: .semibold))
+                            Text("Invite someone else")
+                                .font(.jakarta(14, .bold))
                         }
+                        .foregroundStyle(Color.ink)
+                        .frame(maxWidth: .infinity)
+                        .frame(minHeight: 48)
+                        .overlay(Capsule().strokeBorder(Color.hairline, lineWidth: 1.5))
                     }
-                    TomatoPillButton(title: "Continue") { finish() }
+                    TomatoPillButton(title: "Take me to my week") { finish() }
                 } else {
                     TomatoPillButton(title: "Find my people") { requestContacts() }
                     if accessState == .denied {
-                        Text("Contacts are off for Plated in Settings — you can set places later.")
+                        Text("Plated can't see your contacts. Turn them on in Settings, or set places for people later.")
                             .font(.jakarta(12, .medium))
                             .foregroundStyle(Color.inkFaint)
                             .multilineTextAlignment(.center)
+                            .fixedSize(horizontal: false, vertical: true)
+                        // Naming Settings without a route there is a dead
+                        // end dressed up as help.
+                        if let settings = URL(string: UIApplication.openSettingsURLString) {
+                            Link("Open Settings", destination: settings)
+                                .font(.jakarta(13, .bold))
+                                .foregroundStyle(Color.ink)
+                                .frame(minHeight: 44)
+                        }
                     }
                 }
-                Button {
-                    Haptic.tap()
-                    finish()
-                } label: {
-                    Text("Start with an empty table")
-                        .font(.jakarta(14, .semibold))
-                        .foregroundStyle(Color.inkSecondary)
-                        .frame(minHeight: 44)
+                // Only before contacts are granted. Once the list is up,
+                // "Take me to my week" is directly above this and calls the
+                // same function, so the screen was ending on two buttons
+                // that do the same thing and promise opposite outcomes.
+                if accessState != .granted {
+                    Button {
+                        Haptic.tap()
+                        finish()
+                    } label: {
+                        Text("Start on my own for now")
+                            .font(.jakarta(14, .semibold))
+                            .foregroundStyle(Color.inkSecondary)
+                            .frame(minHeight: 44)
+                    }
+                    .buttonStyle(.pressable)
                 }
-                .buttonStyle(.pressable)
                 HStack(spacing: 6) {
                     Image(systemName: "lock")
                         .font(.system(size: 12, weight: .semibold))
@@ -177,9 +210,27 @@ struct ContactsView: View {
             if LaunchFlags.consume("-plated-find-people") { requestContacts() }
         }
         .animation(.plSettle, value: accessState == .granted)
-        .task(id: seatedCount) {
-            guard seatedCount > 0, inviteLink == nil else { return }
-            inviteLink = await TableShare.invitationURL(hostName: userFirstName)
+        .task {
+            guard invite == nil else { return }
+            invite = await Invitation.prepare(hostName: userFirstName)
+        }
+        .sheet(item: $inviteTarget) { target in
+            InviteComposer(
+                recipients: [target.phone].compactMap { $0 },
+                body: invite?.body ?? Invitation.body(hostName: userFirstName, link: nil)
+            ) { sent in
+                inviteTarget = nil
+                // A seat is claimed only by an invitation that actually
+                // went. Cancelling the composer used to still mark them
+                // "Waiting on them", which was a lie about a message that
+                // was never sent.
+                guard sent, let index = candidates.firstIndex(where: { $0.id == target.id || $0.name == target.name })
+                else { return }
+                Haptic.plate()
+                withAnimation(.plPop) { candidates[index].seated = true }
+                pendingSeatsRaw = candidates.filter(\.seated).map(\.name).joined(separator: "\n")
+            }
+            .ignoresSafeArea()
         }
     }
 
@@ -215,6 +266,7 @@ struct ContactsView: View {
             }
             VStack(alignment: .leading, spacing: 1) {
                 Text(person.name)
+                    .plName()
                     .font(.jakarta(15, .semibold))
                     .foregroundStyle(Color.ink)
                 Text("In your contacts")
@@ -235,10 +287,7 @@ struct ContactsView: View {
             } else {
                 Button {
                     Haptic.plate()
-                    withAnimation(.plPop) { candidate.wrappedValue.seated = true }
-                    // Persist immediately — every exit from this screen keeps
-                    // the places the user set, not just "Continue".
-                    pendingSeatsRaw = candidates.filter(\.seated).map(\.name).joined(separator: "\n")
+                    inviteTarget = InviteTarget(name: person.name, phone: person.phone)
                 } label: {
                     Text("Invite")
                         .font(.jakarta(13, .bold))
@@ -308,7 +357,9 @@ struct ContactsView: View {
                 if !contact.familyName.isEmpty { score += 1 }
 
                 scored.append((Candidate(id: contact.identifier, name: name,
-                                         imageData: contact.thumbnailImageData), score))
+                                         imageData: contact.thumbnailImageData,
+                                         phone: contact.phoneNumbers.first?.value.stringValue),
+                               score))
             }
             scored.sort {
                 $0.score != $1.score ? $0.score > $1.score : $0.candidate.name < $1.candidate.name

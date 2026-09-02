@@ -38,17 +38,19 @@ struct TableComposerSheet: View {
                 VStack(alignment: .leading, spacing: 14) {
                     photoWell
 
-                    TextField("Name the dish — “Sunday Ragù”", text: $dishTitle)
+                    TextField("Name the dish, like “Sunday Ragù”", text: $dishTitle)
                         .font(.jakarta(15, .semibold))
                         .padding(.horizontal, 14)
                         .frame(height: 48)
                         .overlay(RoundedRectangle(cornerRadius: Radius.chip).strokeBorder(Color.hairline))
+                        .plTappableField()
 
-                    TextField("Say something about it — optional", text: $caption, axis: .vertical)
+                    TextField("Say something about it (optional)", text: $caption, axis: .vertical)
                         .font(.jakarta(15, .medium))
                         .lineLimit(2...4)
                         .padding(14)
                         .overlay(RoundedRectangle(cornerRadius: Radius.chip).strokeBorder(Color.hairline))
+                        .plTappableField()
 
                     if members.count > 1 {
                         VStack(alignment: .leading, spacing: 8) {
@@ -66,7 +68,7 @@ struct TableComposerSheet: View {
                                             }
                                         } label: {
                                             HStack(spacing: 5) {
-                                                AvatarCircle(initials: member.firstInitial, tone: member.tone, size: 22)
+                                                AvatarCircle(member: member, size: 22)
                                                 Text("@\(member.name)")
                                                     .font(.jakarta(12, .bold))
                                             }
@@ -157,7 +159,7 @@ struct TableComposerSheet: View {
                         VStack(spacing: 6) {
                             Image(systemName: "camera")
                                 .font(.system(size: 20, weight: .medium))
-                            Text("The photo — food lives on plates")
+                            Text("The photo. Food lives on plates.")
                                 .font(.jakarta(13, .bold))
                         }
                         .foregroundStyle(Color.inkFaint)

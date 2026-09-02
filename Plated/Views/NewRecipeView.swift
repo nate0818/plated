@@ -37,7 +37,6 @@ struct RecipeEditorView: View {
     @State private var mealType: RecipeMealType = .dinner
     @State private var difficultyOverride: RecipeDifficulty?
     @State private var draftIngredients: [DraftIngredient] = []
-    @State private var ingredientEntry = ""
     @State private var steps: [String] = []
     @State private var stepEntry = ""
     @State private var addToGroceries = true
@@ -73,11 +72,12 @@ struct RecipeEditorView: View {
                             Rectangle().fill(Color.hairline).frame(height: 2)
                         }
 
-                    TextField("One line about it — the sell", text: $summary, axis: .vertical)
+                    TextField("One line about it", text: $summary, axis: .vertical)
                         .font(.jakarta(14, .medium))
                         .lineLimit(1...3)
                         .padding(12)
                         .overlay(RoundedRectangle(cornerRadius: Radius.chip).strokeBorder(Color.hairline))
+                        .plTappableField()
 
                     HStack(spacing: 8) {
                         Menu {
@@ -328,14 +328,13 @@ struct RecipeEditorView: View {
                 .padding(.horizontal, 4)
             }
 
-            HStack(spacing: 8) {
-                TextField("Add one — “2 lb chicken thighs”", text: $ingredientEntry)
-                    .font(.jakarta(14, .medium))
-                    .padding(.horizontal, 14)
-                    .frame(height: 44)
-                    .overlay(RoundedRectangle(cornerRadius: Radius.chip).strokeBorder(Color.hairline))
-                    .onSubmit(addIngredient)
-                addRoundButton(disabled: ingredientEntry.trimmingCharacters(in: .whitespaces).isEmpty, label: "Add ingredient", action: addIngredient)
+            // The same field the import review uses, and for the same
+            // reason: the natural move is to copy the whole ingredient list
+            // and paste it in one go.
+            IngredientEntryField { added in
+                draftIngredients.append(contentsOf: added.map {
+                    DraftIngredient(name: $0.name, quantity: $0.quantity, unit: $0.unit)
+                })
             }
 
             if !isEditing && !draftIngredients.isEmpty {
@@ -398,13 +397,14 @@ struct RecipeEditorView: View {
             }
 
             HStack(spacing: 8) {
-                TextField(steps.isEmpty ? "Step 1 — what happens first?" : "Step \(steps.count + 1)…", text: $stepEntry, axis: .vertical)
+                TextField(steps.isEmpty ? "Step 1. What happens first?" : "Step \(steps.count + 1)…", text: $stepEntry, axis: .vertical)
                     .font(.jakarta(14, .medium))
                     .lineLimit(1...3)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 11)
                     .overlay(RoundedRectangle(cornerRadius: Radius.chip).strokeBorder(Color.hairline))
                     .onSubmit(addStep)
+                    .plTappableField()
                 addRoundButton(disabled: stepEntry.trimmingCharacters(in: .whitespaces).isEmpty, label: "Add step", action: addStep)
             }
         }
@@ -430,14 +430,6 @@ struct RecipeEditorView: View {
         .disabled(disabled)
     }
 
-    private func addIngredient() {
-        let entry = ingredientEntry.trimmingCharacters(in: .whitespaces)
-        guard !entry.isEmpty else { return }
-        Haptic.tap()
-        draftIngredients.append(Self.parseIngredient(entry))
-        ingredientEntry = ""
-    }
-
     private func addStep() {
         let entry = stepEntry.trimmingCharacters(in: .whitespaces)
         guard !entry.isEmpty else { return }
@@ -449,31 +441,9 @@ struct RecipeEditorView: View {
     private func draftQuantityText(_ draft: DraftIngredient) -> String {
         var parts: [String] = []
         if draft.quantity > 0 { parts.append(Ingredient.format(draft.quantity)) }
-        if !draft.unit.isEmpty { parts.append(draft.unit) }
+        let unit = Ingredient.unitText(draft.unit, for: draft.quantity)
+        if !unit.isEmpty { parts.append(unit) }
         return parts.joined(separator: " ")
-    }
-
-    /// "2 lb chicken thighs" → (2, "lb", "chicken thighs"). Forgiving on
-    /// purpose — anything unparseable is just a name.
-    static func parseIngredient(_ entry: String) -> DraftIngredient {
-        var tokens = entry.split(separator: " ").map(String.init)
-        var quantity: Double = 0
-        var unit = ""
-        if let first = tokens.first, let value = Double(first) {
-            quantity = value
-            tokens.removeFirst()
-            let knownUnits: Set<String> = [
-                "lb", "lbs", "oz", "g", "kg", "cup", "cups", "tbsp", "tsp",
-                "clove", "cloves", "can", "cans", "jar", "bottle", "bunch",
-                "pint", "quart", "ball", "balls", "slice", "slices"
-            ]
-            if let next = tokens.first, knownUnits.contains(next.lowercased()) {
-                unit = next
-                tokens.removeFirst()
-            }
-        }
-        let name = tokens.joined(separator: " ")
-        return DraftIngredient(name: name.isEmpty ? entry : name, quantity: quantity, unit: unit)
     }
 
     private var photoWell: some View {
@@ -506,7 +476,7 @@ struct RecipeEditorView: View {
                                 Text("Add a photo of the plate")
                                     .font(.jakarta(15, .bold))
                                     .foregroundStyle(Color.inkSecondary)
-                                Text("Your photo, your dish — no stock food here.")
+                                Text("Your photo, your dish. No stock food here.")
                                     .font(.jakarta(12, .medium))
                                     .foregroundStyle(Color.inkFaint)
                             }
@@ -666,8 +636,14 @@ struct RecipeEditorView: View {
         recipe.title = title.trimmingCharacters(in: .whitespaces)
         recipe.summary = summary.trimmingCharacters(in: .whitespaces)
         recipe.servings = serves
-        recipe.prepMinutes = minutes / 2
-        recipe.cookMinutes = minutes - minutes / 2
+        // Only when the total actually moved. The editor holds one
+        // "minutes" dial, so an untouched save was splitting a stored
+        // 10-prep-plus-50-cook recipe into 30 and 30 and calling it the
+        // same dish. Prongsby then reads those numbers back aloud.
+        if minutes != recipe.totalMinutes {
+            recipe.prepMinutes = minutes / 2
+            recipe.cookMinutes = minutes - minutes / 2
+        }
         recipe.visibility = visibility
         recipe.householdCanEdit = visibility == "private" ? false : householdCanEdit
         recipe.photoData = photoData
@@ -748,20 +724,7 @@ struct RecipeEditorView: View {
     /// Everything unrecognized lands in Other, which is where it would have
     /// gone anyway.
     static func guessAisle(for name: String) -> GroceryAisle {
-        let lowered = name.lowercased()
-        let table: [(GroceryAisle, [String])] = [
-            (.meat, ["chicken", "beef", "steak", "pork", "salmon", "fish", "tuna", "shrimp", "turkey", "sausage", "bacon"]),
-            (.dairy, ["milk", "butter", "cheese", "egg", "yogurt", "cream", "mozzarella", "parmesan"]),
-            (.produce, ["lemon", "lime", "onion", "garlic", "pepper", "tomato", "avocado", "lettuce", "cucumber", "basil", "cilantro", "spinach", "carrot", "potato", "broccoli", "asparagus", "berries", "apple", "banana"]),
-            (.bakery, ["bread", "dough", "bun", "tortilla", "bagel", "roll"]),
-            (.frozen, ["frozen", "ice cream"]),
-            (.beverages, ["juice", "soda", "wine", "beer", "coffee", "tea"]),
-            (.pantry, ["rice", "pasta", "flour", "sugar", "oil", "sauce", "beans", "chickpea", "quinoa", "stock", "broth", "spice", "salt", "syrup", "vinegar", "can "])
-        ]
-        for (aisle, keywords) in table where keywords.contains(where: lowered.contains) {
-            return aisle
-        }
-        return .other
+        RecipeImporter.aisle(for: name)
     }
 
     /// Downscale to ~1200px and recompress — CloudKit charges by the byte.

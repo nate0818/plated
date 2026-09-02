@@ -84,7 +84,7 @@ struct GrocerySheet: View {
                         HStack(spacing: 8) {
                             Image(systemName: "cart")
                                 .font(.system(size: 15, weight: .semibold))
-                            Text("Order with Instacart")
+                            Text("Copy list and open Instacart")
                                 .font(.jakarta(15, .bold))
                         }
                         .foregroundStyle(Color.ink)
@@ -186,7 +186,8 @@ struct GrocerySheet: View {
     private func quantityText(_ item: GroceryItem) -> String {
         var parts: [String] = []
         if item.quantity > 0 { parts.append(Ingredient.format(item.quantity)) }
-        if !item.unit.isEmpty { parts.append(item.unit) }
+        let unit = Ingredient.unitText(item.unit, for: item.quantity)
+        if !unit.isEmpty { parts.append(unit) }
         return parts.joined(separator: " ")
     }
 
@@ -198,10 +199,10 @@ struct GrocerySheet: View {
         let unchecked = currentItems.filter { !$0.isChecked }
         let list = unchecked.map(\.displayText).joined(separator: "\n")
         UIPasteboard.general.string = list
-        exportResult = "List copied — paste items into your Instacart cart"
+        exportResult = "List copied. Paste it into your Instacart cart."
         Notifier.post(
             .groceriesOrdered, actor: "",
-            body: "A delivery run started — \(unchecked.count) items headed to Instacart.",
+            body: "Your list is copied and Instacart is open, ready to paste.",
             into: context
         )
         if let url = URL(string: "https://www.instacart.com/store") {

@@ -51,40 +51,42 @@ struct PlanNightSheet: View {
                         MicroLabel("Change it")
                     }
 
-                    actionRow(
-                        icon: "wand.and.stars", tint: Color.tomato,
-                        title: "Pick for me",
-                        caption: "The engine knows the weather and the hard no's."
-                    ) { pickForMe() }
+                    if !recipes.isEmpty {
+                        actionRow(
+                            icon: "wand.and.stars", tint: Color.tomato,
+                            title: "Pick for me",
+                            caption: "Something that suits the weather and skips what your household won't eat."
+                        ) { pickForMe() }
+                    }
 
                     actionRow(
                         icon: "book.closed", tint: Color.ink,
                         title: "From your recipes",
-                        caption: "\(recipes.count) dishes the household already knows."
+                        caption: "\(recipes.count) \(recipes.count == 1 ? "dish" : "dishes") your household already knows."
                     ) { pickerShown = true }
 
                     actionRow(
                         icon: "plus.circle", tint: Color.ink,
                         title: "New recipe",
-                        caption: "Photograph it, file it, and plate it right here."
+                        caption: "Photograph it, save it, and plate it right here."
                     ) { newRecipeShown = true }
 
                     actionRow(
                         icon: "fork.knife.circle", tint: Color.ink,
                         title: "Eating out",
-                        caption: "A night off is a plan too. The ring agrees."
+                        caption: "A night off is still a plan. It counts towards your week."
                     ) { markEatingOut() }
 
                     actionRow(
                         icon: "hand.raised", tint: Color.ink,
                         title: "Ask the table",
-                        caption: "Post an open ask — with a poll if you have options."
+                        caption: "Ask everyone what they fancy, with a poll if you have options."
                     ) { askShown = true }
 
                     actionRow(
                         icon: "party.popper", tint: Color.ink,
                         title: "Plan a gathering",
-                        caption: "Guests, a menu, and a spot on the Apple Calendar."
+                        caption: "Guests, a menu, and an event in your calendar."
                     ) { gatheringShown = true }
                 }
                 .padding(.horizontal, 24)
@@ -96,7 +98,7 @@ struct PlanNightSheet: View {
         .presentationBackground(Color.canvas)
         .presentationCornerRadius(Radius.sheet)
         .sheet(isPresented: $pickerShown) {
-            RecipePickerSheet(date: date) { recipe in
+            RecipePickerSheet(date: date, onWriteNew: { newRecipeShown = true }) { recipe in
                 plate(recipe, tagline: "")
                 dismiss()
             }
@@ -244,7 +246,13 @@ struct PlanNightSheet: View {
         )
         let ranked = engine.suggestions(for: date, forecast: nil, limit: recipes.count)
         guard let recipe = (ranked.first { !thisWeek.contains($0.recipe.persistentModelID) } ?? ranked.first)?.recipe
-        else { return }
+        else {
+            // The row is hidden when there is nothing to pick, so reaching
+            // here means something else went wrong. Say so with a buzz
+            // rather than looking like a dead button.
+            Haptic.warn()
+            return
+        }
         let minutes = recipe.totalMinutes
         // The magic move earns the plate-weight thump, not a chrome tick.
         Haptic.plate()
@@ -289,7 +297,7 @@ struct PlanNightSheet: View {
         let cookName = (cook?.isOwner ?? true) ? "you" : (cook?.name ?? "someone")
         Notifier.post(
             .mealPlanned, actor: cook?.name ?? "",
-            body: "\(recipe.title) is plated for \(dayTitle.lowercased()) — \(cookName) cook\(cookName == "you" ? "" : "s").",
+            body: "\(recipe.title) is plated for \(dayTitle.lowercased()). \(cookName.capitalized) cook\(cookName == "you" ? "" : "s").",
             into: context
         )
         // The moment to ask, and the only one. They have just said they
@@ -339,6 +347,7 @@ struct AskComposerSheet: View {
                         .lineLimit(2...4)
                         .padding(14)
                         .overlay(RoundedRectangle(cornerRadius: Radius.chip).strokeBorder(Color.hairline))
+                        .plTappableField()
 
                     VStack(alignment: .leading, spacing: 8) {
                         MicroLabel("Poll · optional")
@@ -368,12 +377,13 @@ struct AskComposerSheet: View {
                         }
                         if options.count < 4 {
                             HStack(spacing: 8) {
-                                TextField("Add a choice — “Tacos”", text: $optionEntry)
+                                TextField("Add a choice, like “Tacos”", text: $optionEntry)
                                     .font(.jakarta(14, .medium))
                                     .padding(.horizontal, 14)
                                     .frame(height: 44)
                                     .overlay(RoundedRectangle(cornerRadius: Radius.chip).strokeBorder(Color.hairline))
                                     .onSubmit(addOption)
+                                    .plTappableField()
                                 Button {
                                     addOption()
                                 } label: {
@@ -407,7 +417,7 @@ struct AskComposerSheet: View {
                                         }
                                     } label: {
                                         HStack(spacing: 5) {
-                                            AvatarCircle(initials: member.firstInitial, tone: member.tone, size: 22)
+                                            AvatarCircle(member: member, size: 22)
                                             Text("@\(member.name)")
                                                 .font(.jakarta(12, .bold))
                                         }
@@ -482,7 +492,7 @@ struct AskComposerSheet: View {
             .askPosted, actor: owner?.name ?? "Me",
             body: options.isEmpty
                 ? "\(owner?.name ?? "Someone") asked the table what to plate \(dayName.lowercased())."
-                : "\(owner?.name ?? "Someone") started a poll for \(dayName.lowercased()) — \(options.count) choices.",
+                : "\(owner?.name ?? "Someone") started a poll for \(dayName.lowercased()) with \(options.count) choices.",
             into: context
         )
         dismiss()
@@ -528,15 +538,17 @@ struct GatheringSheet: View {
 
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 14) {
-                    TextField("Name it — “Sunday dinner party”", text: $title)
+                    TextField("Name it, like “Sunday dinner party”", text: $title)
                         .font(.jakarta(16, .semibold))
                         .padding(14)
                         .overlay(RoundedRectangle(cornerRadius: Radius.chip).strokeBorder(Color.hairline))
+                        .plTappableField()
 
-                    TextField("Where — “Our place”", text: $location)
+                    TextField("Where, like “Our place”", text: $location)
                         .font(.jakarta(14, .medium))
                         .padding(14)
                         .overlay(RoundedRectangle(cornerRadius: Radius.chip).strokeBorder(Color.hairline))
+                        .plTappableField()
 
                     HStack {
                         Text("Guests")
@@ -577,7 +589,7 @@ struct GatheringSheet: View {
                             Text("Add to Apple Calendar")
                                 .font(.jakarta(14, .bold))
                                 .foregroundStyle(Color.ink)
-                            Text("The event lands in Calendar — invite guests from there.")
+                            Text("The event lands in your calendar. Invite guests from there.")
                                 .font(.jakarta(12, .medium))
                                 .foregroundStyle(Color.inkSecondary)
                         }
@@ -655,7 +667,7 @@ struct GatheringSheet: View {
         }
         Notifier.post(
             .mealPlanned, actor: "",
-            body: "\(gathering.title) is on for \(dayLabel) — cooking for \(guests).",
+            body: "\(gathering.title) is on for \(dayLabel), cooking for \(guests).",
             into: context
         )
         if syncToCalendar {

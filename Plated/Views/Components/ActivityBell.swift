@@ -22,6 +22,9 @@ struct ActivityBellButton: View {
                     Image(systemName: "bell")
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundStyle(Color.ink)
+                        .accessibilityLabel("Activity")
+                        .accessibilityValue(unread.isEmpty ? "" : (unread.count == 1 ? "1 new" : "\(unread.count) new"))
+                        .accessibilityHint("Opens what happened at your table")
                 }
                 .overlay(alignment: .topTrailing) {
                     if !unread.isEmpty {

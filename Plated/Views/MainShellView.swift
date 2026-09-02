@@ -20,6 +20,14 @@ struct MainShellView: View {
     @Query private var members: [HouseholdMember]
 
     @State private var selection: AppTab = .week
+    /// The tabs you came through, so a left-edge swipe has somewhere to go
+    /// back to. The tab bar is a `switch`, so without this there is no
+    /// history at all and the gesture would have nothing to pop.
+    @State private var tabHistory: [AppTab] = []
+    /// Set while the edge gesture is doing the popping, so the history
+    /// watcher does not record the pop as another forward step and trap the
+    /// user bouncing between two tabs.
+    @State private var poppingTab = false
     /// Prongsby's draft and in-flight reply outlive the sheet he lives in.
     @State private var prongsbySession = ProngsbySession()
     @State private var prongsbyPresented = false
@@ -101,6 +109,22 @@ struct MainShellView: View {
         }
         .environment(\.perchVisibility, perchVisibility)
         .animation(.plSnap, value: perchVisibility.isHidden)
+        .onChange(of: selection) { previous, _ in
+            guard !poppingTab else { poppingTab = false; return }
+            tabHistory.append(previous)
+            // A session's worth of tab hopping is not a browser history.
+            // Ten steps is more than anyone walks back; beyond that the
+            // oldest is dropped rather than grown forever.
+            if tabHistory.count > 10 { tabHistory.removeFirst() }
+        }
+        .plEdgeBack {
+            guard let previous = tabHistory.popLast() else { return }
+            poppingTab = true
+            // Moving between tabs is a change of position, not an action.
+            // The tab bar itself uses select() for the same change.
+            Haptic.select()
+            withAnimation(.plSnap) { selection = previous }
+        }
         .sheet(isPresented: $createPresented, onDismiss: {
             if let choice = createChoice {
                 createChoice = nil
@@ -178,6 +202,40 @@ struct MainShellView: View {
                     sortBy: [SortDescriptor(\.createdAt)]
                 )
             ) {
+                // The face chosen during onboarding, hung on the owner's row
+                // the first time there is a row to hang it on. Onboarding
+                // asks before the head of the table exists, so the bytes wait
+                // here rather than racing the sample seed. See ProfilePhoto.
+                if let owner = owners.first {
+                    if let parked = ProfilePhoto.parked {
+                        if owner.photoData == nil { owner.photoData = parked }
+                        ProfilePhoto.clearParked()
+                        Persist.save(context)
+                    }
+                    // And the name they gave, when the row is still wearing
+                    // the bootstrap placeholder.
+                    //
+                    // The owner row is written on the way OUT of the contacts
+                    // step, so a row that already existed when onboarding ran
+                    // (a reinstall pulling its household back from iCloud, or
+                    // the simulator's sample seed) never saw the name typed
+                    // two screens earlier. It kept answering to "Me" while
+                    // the app had been told otherwise, which is the exact
+                    // "TAP TO ADD YOUR NAME" prompt appearing to somebody who
+                    // just added their name.
+                    //
+                    // Only a placeholder is overwritten. A real name someone
+                    // chose is never quietly replaced, and the rename goes
+                    // through the one door so their posts and awards travel
+                    // with it.
+                    let typed = (UserDefaults.standard.string(forKey: "userFirstName") ?? "")
+                        .trimmingCharacters(in: .whitespaces)
+                    if HouseholdIdentity.isPlaceholder(owner.name), !typed.isEmpty {
+                        HouseholdIdentity.rename(owner, to: typed, in: context)
+                    }
+                }
+                // No owner yet means the block below is about to make one;
+                // the parked photo keeps waiting for the next appear.
                 if owners.count > 1, let kept = owners.first {
                     for dupe in owners.dropFirst() {
                         for meal in dupe.assignedMeals ?? [] { meal.cook = kept }
@@ -380,7 +438,7 @@ struct CreateMenuSheet: View {
                     row(
                         .tablePost, icon: "camera",
                         title: "Post to the Table",
-                        detail: "A plated moment for the household feed"
+                        detail: "A photo of what you just cooked"
                     )
                     row(
                         .recipe, icon: "book.closed",
@@ -398,7 +456,7 @@ struct CreateMenuSheet: View {
                     row(
                         .ask, icon: "hand.raised",
                         title: "Ask the table",
-                        detail: "A question or a poll — what should we plate?"
+                        detail: "A question or a poll. What should we plate?"
                     )
                 }
                 .padding(.horizontal, 24)
