@@ -351,20 +351,25 @@ struct ProngsbyView: View {
 
     /// The fork at work — wiggling glyph, rotating kitchen-status puns.
     private var thinkingBubble: some View {
-        HStack {
-            HStack(spacing: 8) {
-                ProngsbyIdleGlyph(size: 20, tone: .inkSecondary)
-                Text(session.thinkingLine)
-                    .plType(.caption, .semibold)
-                    .foregroundStyle(Color.inkSecondary)
-                    .contentTransition(.opacity)
-                    .id(session.thinkingLine)
-                    .transition(.opacity)
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 9)
-            .background(Color.fill, in: RoundedRectangle(cornerRadius: Radius.chip, style: .continuous))
-            Spacer(minLength: 60)
+        // The same shell an incoming message wears, so the answer lands
+        // exactly where the thinking line stood. It used to seat the fork
+        // INSIDE the pill at 20pt with a 60pt trailing spacer, while the
+        // reply that replaces it puts the fork outside at 18 with 40 — so
+        // at the moment the answer arrived the bubble jumped 26pt to the
+        // right and the fork jumped out of it. See bubble(_:).
+        HStack(alignment: .bottom, spacing: 8) {
+            ProngsbyIdleGlyph(size: 18, tone: .inkSecondary)
+                .padding(.bottom, 4)
+            Text(session.thinkingLine)
+                .plType(.caption, .semibold)
+                .foregroundStyle(Color.inkSecondary)
+                .contentTransition(.opacity)
+                .id(session.thinkingLine)
+                .transition(.opacity)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 9)
+                .background(Color.fill, in: Radius.shape(Radius.chip))
+            Spacer(minLength: 40)
         }
         .task {
             // Rotate the status line while the fork thinks. The cancellation
@@ -397,7 +402,7 @@ struct ProngsbyView: View {
                 .padding(.vertical, 9)
                 .background(
                     message.isMine ? Color.ink : Color.fill,
-                    in: RoundedRectangle(cornerRadius: Radius.chip, style: .continuous)
+                    in: Radius.shape(Radius.chip)
                 )
             if !message.isMine { Spacer(minLength: 40) }
         }

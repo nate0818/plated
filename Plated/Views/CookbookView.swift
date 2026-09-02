@@ -1319,11 +1319,20 @@ struct RecipePickerSheet: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Text(titleLine)
-                .plType(.heading, .bold)
-                .foregroundStyle(Color.ink)
-                .padding(.top, 22)
-                .padding(.bottom, 6)
+            // The masthead the app's other seven sheets wear: an eyebrow
+            // over a .title. This was a bare .heading with nothing above
+            // it, and it opens from PlanNightSheet, which does it the
+            // standard way — so one tap swapped the masthead for a
+            // different one.
+            VStack(spacing: 2) {
+                MicroLabel("Your cookbook")
+                Text(titleLine)
+                    .plType(.title)
+                    .foregroundStyle(Color.ink)
+                    .multilineTextAlignment(.center)
+            }
+            .padding(.top, 22)
+            .padding(.bottom, 12)
 
             if recipes.isEmpty {
                 VStack(spacing: 10) {
