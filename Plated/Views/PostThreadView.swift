@@ -174,23 +174,9 @@ struct PostThreadView: View {
 
     private var topBar: some View {
         HStack(spacing: 10) {
-            Button {
-                Haptic.tap()
+            IconDiscButton(systemName: "chevron.left", label: "Back") {
                 dismiss()
-            } label: {
-                Circle()
-                    .strokeBorder(Color.hairline, lineWidth: 1.5)
-                    .frame(width: 38, height: 38)
-                    .overlay {
-                        Image(systemName: "chevron.left")
-                            .accessibilityLabel("Back")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(Color.ink)
-                    }
-                    .frame(minWidth: 44, minHeight: 44)
-                    .contentShape(Rectangle())
             }
-            .buttonStyle(.pressable)
 
             Button {
                 openProfile(post.authorName, colorHex: post.authorColorHex)
@@ -482,13 +468,13 @@ struct PostThreadView: View {
                                 withAnimation(.plSnap) { self.commentPhoto = nil }
                             } label: {
                                 Circle()
-                                    .fill(Color.ink.opacity(0.7))
+                                    .fill(Color.scrim)
                                     .frame(width: 18, height: 18)
                                     .overlay {
                                         Image(systemName: "xmark")
                                             .accessibilityLabel("Remove photo")
                                             .font(.system(size: 8, weight: .bold))
-                                            .foregroundStyle(.white)
+                                            .foregroundStyle(Color.onScrim)
                                     }
                                     .frame(width: 44, height: 44, alignment: .topTrailing)
                                     .contentShape(Rectangle())

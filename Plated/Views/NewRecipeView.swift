@@ -532,13 +532,13 @@ struct RecipeEditorView: View {
                                     }
                                 } label: {
                                     Circle()
-                                        .fill(Color.ink.opacity(0.7))
+                                        .fill(Color.scrim)
                                         .frame(width: 20, height: 20)
                                         .overlay {
                                             Image(systemName: "xmark")
                                                 .accessibilityLabel("Remove photo")
                                                 .font(.system(size: 9, weight: .bold))
-                                                .foregroundStyle(.white)
+                                                .foregroundStyle(Color.onScrim)
                                         }
                                         .frame(width: 44, height: 44, alignment: .topTrailing)
                                         .contentShape(Rectangle())

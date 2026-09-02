@@ -56,6 +56,19 @@ extension Color {
     /// for white (≥3:1, above). Never canvas, never a bare .white literal.
     static let onTomato       = Color(light: 0xFFFFFF, dark: 0xFFFFFF)
     static let tomatoPressed  = Color(light: 0xD6401F, dark: 0xD6401F)   // pressed always darkens
+
+    /// The darkening under a control that sits on somebody's photograph.
+    ///
+    /// Dark in BOTH rooms, because a photograph is a photograph in both
+    /// rooms. This existed as `Color.ink.opacity(0.7)` in two places, and
+    /// `ink` is the primary TEXT colour, so after dark it inverts to cream:
+    /// a white glyph on a cream disc over a photo. The remove-photo button
+    /// did not degrade after dark, it vanished. A semantic token that
+    /// inverts is the wrong kind of colour for a scrim, and there was no
+    /// right kind, which is why it happened twice.
+    static let scrim          = Color(light: 0x241C12, dark: 0x241C12).opacity(0.7)
+    /// THE label colour on a scrim, both rooms. Never a bare `.white`.
+    static let onScrim        = Color(light: 0xFFFFFF, dark: 0xFFFFFF)
     static let mango          = Color(light: 0xFFB020, dark: 0xFFB63A)   // the chef's kiss only
     static let basil          = Color(light: 0x3DA35D, dark: 0x55BE76)   // progress, "seated"
     /// Light value darkened from 0xC88A00 (2.96:1 on canvas — a hair under
@@ -486,6 +499,44 @@ struct MicroLabel: View {
         Text(text.uppercased())
             .plType(.micro)
             .foregroundStyle(color)
+    }
+}
+
+/// The app's icon button: a 38pt hairline circle around a 14pt glyph,
+/// floored to a 44pt target.
+///
+/// It was hand-drawn in twelve places and every one of them agreed, which is
+/// the tell that it wanted to be a component. The thirteenth place did not
+/// agree: Discover's back control was a bare 17pt chevron in a 44pt box, so
+/// pushing into Discover from the Table — one tap from Activity, which uses
+/// the disc — dropped the container off the back button and shifted the
+/// heading 10pt left. The top 60pt of the screen is the thing a person
+/// orients on, and it changed shape between two destinations reached from
+/// the same place.
+struct IconDiscButton: View {
+    let systemName: String
+    let label: String
+    /// 14 everywhere but the Table's masthead, which sets 15.
+    var glyphSize: CGFloat = 14
+    let action: () -> Void
+
+    var body: some View {
+        Button {
+            Haptic.tap()
+            action()
+        } label: {
+            Circle()
+                .strokeBorder(Color.hairline, lineWidth: 1.5)
+                .frame(width: 38, height: 38)
+                .overlay {
+                    Image(systemName: systemName)
+                        .font(.system(size: glyphSize, weight: .semibold))
+                        .foregroundStyle(Color.ink)
+                }
+                .plTapTarget()
+        }
+        .buttonStyle(.pressable)
+        .accessibilityLabel(label)
     }
 }
 

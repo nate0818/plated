@@ -863,23 +863,9 @@ struct RecipeDetailView: View {
 
     private var topBar: some View {
         HStack(spacing: 10) {
-            Button {
-                Haptic.tap()
+            IconDiscButton(systemName: "chevron.left", label: "Back") {
                 dismiss()
-            } label: {
-                Circle()
-                    .strokeBorder(Color.hairline, lineWidth: 1.5)
-                    .frame(width: 38, height: 38)
-                    .overlay {
-                        Image(systemName: "chevron.left")
-                            .accessibilityLabel("Back")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(Color.ink)
-                    }
-                    .frame(minWidth: 44, minHeight: 44)
-                    .contentShape(Rectangle())
             }
-            .buttonStyle(.pressable)
             Spacer()
 
             Button {
@@ -905,23 +891,9 @@ struct RecipeDetailView: View {
             }
             .buttonStyle(.pressable)
 
-            Button {
-                Haptic.tap()
+            IconDiscButton(systemName: "square.and.arrow.up", label: "Share recipe") {
                 sharePresented = true
-            } label: {
-                Circle()
-                    .strokeBorder(Color.hairline, lineWidth: 1.5)
-                    .frame(width: 38, height: 38)
-                    .overlay {
-                        Image(systemName: "square.and.arrow.up")
-                            .accessibilityLabel("Share recipe")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(Color.ink)
-                    }
-                    .frame(minWidth: 44, minHeight: 44)
-                    .contentShape(Rectangle())
             }
-            .buttonStyle(.pressable)
 
             // Labelled, not a lone pencil in a circle.
             //

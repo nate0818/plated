@@ -46,8 +46,21 @@ struct TableFeedView: View {
 
     private enum Reach { case looking, reached, unreachable }
     @State private var toastToken = 0
-    @State private var discoverPresented = false
-    @State private var activityShown = false
+    /// One destination, not two flags.
+    ///
+    /// These were two `navigationDestination(isPresented:)` modifiers on one
+    /// NavigationStack, which is the same undefined behaviour as two `.sheet`
+    /// modifiers on one view — the trap CLAUDE.md already records. SwiftUI
+    /// honoured the first and silently dropped the second, so the search
+    /// button on the Table opened nothing and Discover was unreachable from
+    /// the app: a control sitting in the masthead doing precisely nothing,
+    /// which is the honesty rule broken by the navigation layer rather than
+    /// by the copy. Same shape as WeekView.PlanDestination.
+    enum TableDestination: String, Identifiable {
+        case activity, discover
+        var id: String { rawValue }
+    }
+    @State private var pushed: TableDestination?
     /// Long-press on a post. Feed cards aren't swipeable — a plate is a tap
     /// and the photo is a door — so the menu carries the rest.
     @State private var pendingDelete: TablePost?
@@ -264,7 +277,7 @@ struct TableFeedView: View {
                     scopePicker
                     Button {
                         Haptic.tap()
-                        discoverPresented = true
+                        pushed = .discover
                     } label: {
                         Circle()
                             .strokeBorder(Color.hairline, lineWidth: 1.5)
@@ -336,13 +349,14 @@ struct TableFeedView: View {
             .navigationDestination(item: $personShown) { person in
                 PersonProfileView(personName: person.name, colorHex: person.colorHex, memberID: person.memberID)
             }
-            .navigationDestination(isPresented: $activityShown) {
-                NotificationsView()
-            }
-            // Discover reads as a pushed screen — it wears the back chevron —
-            // so it is one, and it inherits the edge swipe with the rest.
-            .navigationDestination(isPresented: $discoverPresented) {
-                DiscoverView()
+            // Discover and Activity both read as pushed screens — they wear
+            // the back chevron — so they are, and they inherit the edge swipe
+            // with the rest.
+            .navigationDestination(item: $pushed) { destination in
+                switch destination {
+                case .activity: NotificationsView()
+                case .discover: DiscoverView()
+                }
             }
         }
         .sheet(isPresented: $seatsPresented) {
@@ -373,7 +387,7 @@ struct TableFeedView: View {
         .onAppear {
             #if DEBUG
             if LaunchFlags.consume("-plated-open-discover") {
-                discoverPresented = true
+                pushed = .discover
             }
             if LaunchFlags.consume("-plated-open-seats") {
                 seatsPresented = true
@@ -454,7 +468,7 @@ struct TableFeedView: View {
     @ViewBuilder
     private var headerControls: some View {
             ActivityBellButton {
-                activityShown = true
+                pushed = .activity
             }
             // The seats at your table — tap to see, message, and manage them.
             Button {

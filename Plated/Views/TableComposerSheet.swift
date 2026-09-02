@@ -184,10 +184,10 @@ struct TableComposerSheet: View {
                             Text("Change")
                                 .plType(.micro)
                         }
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color.onScrim)
                         .padding(.horizontal, 10)
                         .frame(height: 30)
-                        .background(.black.opacity(0.45), in: Capsule())
+                        .background(Color.scrim, in: Capsule())
                         .padding(10)
                     }
             } else {

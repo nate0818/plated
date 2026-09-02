@@ -25,19 +25,15 @@ struct DiscoverView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack(spacing: 12) {
-                Button {
-                    Haptic.tap()
+            // The same masthead every other pushed page draws. This was a
+            // bare 17pt chevron in a 44pt box at spacing 12 and a 12pt
+            // leading inset, so arriving here from the Table put the back
+            // control in a different shape and the heading 10pt to the left
+            // of where Activity — one tap away from the same feed — puts it.
+            HStack(spacing: 10) {
+                IconDiscButton(systemName: "chevron.left", label: "Back") {
                     dismiss()
-                } label: {
-                    Image(systemName: "chevron.left")
-                        .accessibilityLabel("Back")
-                        .font(.system(size: 17, weight: .semibold))
-                        .foregroundStyle(Color.ink)
-                        .frame(width: 44, height: 44)
-                        .contentShape(Rectangle())
                 }
-                .buttonStyle(.pressable)
                 VStack(alignment: .leading, spacing: 2) {
                     MicroLabel("From open tables")
                     Text("Discover")
@@ -46,8 +42,7 @@ struct DiscoverView: View {
                 }
                 Spacer()
             }
-            .padding(.leading, 12)
-            .padding(.trailing, 24)
+            .padding(.horizontal, 24)
             .padding(.top, 6)
 
             HStack(spacing: 8) {
