@@ -623,6 +623,33 @@ struct TableFeedView: View {
                 }
             }
 
+            // The dish and what was said about it come before the row of
+            // things you can do to them. They used to sit after, which is
+            // Instagram's order and works while there is a photograph for
+            // the actions to hang under. A post with no photo put a plate
+            // reaction and a Save above the dish's own name: you were asked
+            // what you thought of it before you were told what it was.
+            // The composer led with "Name the dish" and then the card never
+            // showed the name. What you named is what the table sees.
+            if !post.dishTitle.isEmpty {
+                Text(post.dishTitle)
+                    .plType(.heading)
+                    .foregroundStyle(Color.ink)
+                    .padding(.top, 4)
+            }
+            if !post.caption.isEmpty || post.dishTitle.isEmpty {
+                // Concatenated Text takes a Font, not a view modifier, so
+                // the scale is spelled out here rather than applied. These
+                // are TypeScale.body's numbers; keep them in step with it.
+                (Text(post.authorName).font(.jakarta(TypeScale.body.size, .bold))
+                 + Text("  ").font(.jakarta(TypeScale.body.size))
+                 + Text(post.caption).font(.jakarta(TypeScale.body.size)))
+                    .foregroundStyle(Color.ink)
+                    .lineSpacing(3)
+                    .padding(.top, post.dishTitle.isEmpty ? 4 : 1)
+            }
+
+
             HStack(spacing: 14) {
                 plateButton(post)
                 Button {
@@ -675,27 +702,6 @@ struct TableFeedView: View {
             }
             .padding(.top, 10)
             .animation(.plSnap, value: isSaved(post))
-
-            // The composer led with "Name the dish" and then the card never
-            // showed the name. What you named is what the table sees.
-            if !post.dishTitle.isEmpty {
-                Text(post.dishTitle)
-                    .plType(.heading)
-                    .foregroundStyle(Color.ink)
-                    .padding(.top, 4)
-            }
-            if !post.caption.isEmpty || post.dishTitle.isEmpty {
-                // Concatenated Text takes a Font, not a view modifier, so
-                // the scale is spelled out here rather than applied. These
-                // are TypeScale.body's numbers; keep them in step with it.
-                (Text(post.authorName).font(.jakarta(TypeScale.body.size, .bold))
-                 + Text("  ").font(.jakarta(TypeScale.body.size))
-                 + Text(post.caption).font(.jakarta(TypeScale.body.size)))
-                    .foregroundStyle(Color.ink)
-                    .lineSpacing(3)
-                    .padding(.top, post.dishTitle.isEmpty ? 4 : 1)
-            }
-
             ForEach(post.sortedComments.prefix(2), id: \.persistentModelID) { comment in
                 commentLine(comment)
             }
