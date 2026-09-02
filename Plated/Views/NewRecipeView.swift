@@ -41,6 +41,11 @@ struct RecipeEditorView: View {
     @State private var stepEntry = ""
     @State private var addToGroceries = true
     @State private var loaded = false
+    /// What the dial showed when the sheet opened. The dial floors at 15,
+    /// so comparing against the recipe's own total let an untouched save
+    /// rewrite a 10-minute dish into a fabricated 7/8 split.
+    @State private var initialMinutes = -1
+    @State private var discardAsked = false
 
     private let minuteChoices = [15, 25, 40, 60, 90]
 
@@ -185,6 +190,15 @@ struct RecipeEditorView: View {
         .presentationDragIndicator(.visible)
         .presentationBackground(Color.canvas)
         .presentationCornerRadius(Radius.sheet)
+        // A filled draft doesn't die to one accidental swipe. Only fresh
+        // drafts guard — an edit that's dragged away loses deltas, but it
+        // was opened onto a saved recipe and reads as safe, and asking on
+        // every look-then-leave would be nagging.
+        .interactiveDismissDisabled(hasDraftContent)
+        .confirmationDialog("Toss this recipe?", isPresented: $discardAsked, titleVisibility: .visible) {
+            Button("Toss it", role: .destructive) { dismiss() }
+            Button("Keep writing", role: .cancel) {}
+        }
         .onAppear(perform: loadOnce)
         .onChange(of: photoItem) { _, item in
             guard let item else { return }
@@ -216,6 +230,7 @@ struct RecipeEditorView: View {
     private func loadOnce() {
         guard !loaded else { return }
         loaded = true
+        defer { initialMinutes = minutes }
         if let recipe = editing {
             title = recipe.title
             summary = recipe.summary
@@ -243,10 +258,23 @@ struct RecipeEditorView: View {
 
     // MARK: Pieces
 
+    /// A fresh draft with real typing in it — the thing an accidental
+    /// dismissal would destroy.
+    private var hasDraftContent: Bool {
+        editing == nil && (
+            !title.trimmingCharacters(in: .whitespaces).isEmpty
+                || !summary.trimmingCharacters(in: .whitespaces).isEmpty
+                || !steps.isEmpty
+                || !stepEntry.trimmingCharacters(in: .whitespaces).isEmpty
+                || !draftIngredients.isEmpty
+                || photoData != nil
+        )
+    }
+
     private var header: some View {
         HStack {
             Button {
-                dismiss()
+                if hasDraftContent { discardAsked = true } else { dismiss() }
             } label: {
                 Text("Cancel")
                     .font(.jakarta(15, .bold))
@@ -631,16 +659,20 @@ struct RecipeEditorView: View {
     // MARK: Save
 
     private func save(plating night: Date?) {
+        // Text still sitting in the step field is work the user typed and
+        // believes is in — "type the last step, hit Save" used to drop it,
+        // and the loss surfaced days later at the stove.
+        addStep()
         Haptic.plate()
         let recipe = editing ?? Recipe()
         recipe.title = title.trimmingCharacters(in: .whitespaces)
         recipe.summary = summary.trimmingCharacters(in: .whitespaces)
         recipe.servings = serves
-        // Only when the total actually moved. The editor holds one
-        // "minutes" dial, so an untouched save was splitting a stored
-        // 10-prep-plus-50-cook recipe into 30 and 30 and calling it the
-        // same dish. Prongsby then reads those numbers back aloud.
-        if minutes != recipe.totalMinutes {
+        // Only when the dial actually moved. Comparing against the
+        // recipe's own total wasn't enough: the dial floors at 15, so a
+        // 10-minute dish loaded as 15 and an untouched save fabricated a
+        // 7/8 split. Prongsby then reads those numbers back aloud.
+        if minutes != initialMinutes || editing == nil {
             recipe.prepMinutes = minutes / 2
             recipe.cookMinutes = minutes - minutes / 2
         }

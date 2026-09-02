@@ -2,15 +2,21 @@ import SwiftUI
 import SwiftData
 
 /// Turn the phone sideways and the plan widens into a month — which nights
-/// are plated, who's cooking, what the calendar already claims. Read-only
-/// on purpose: landscape is for seeing the shape of the month, not editing.
+/// are plated, who's cooking, what the calendar already claims. One grammar
+/// with the portrait plan: a planned day opens the day, an open future day
+/// opens planning. (An earlier comment here claimed the month was read-only;
+/// the cells have opened the plan sheet for a while — the claim was stale,
+/// and worse, planned days meant something different sideways than upright.)
 struct MonthPlannerView: View {
+    var askTheTable: () -> Void = {}
+
     @Query private var meals: [PlannedMeal]
     @Query(sort: \HouseholdMember.createdAt) private var members: [HouseholdMember]
 
     @AppStorage("showCalendarEvents") private var showCalendarEvents = false
     @State private var monthAnchor: Date = Calendar.current.startOfDay(for: .now)
     @State private var planDay: Date?
+    @State private var dayShown: Date?
     @State private var events = DayEventsProvider.shared
     @State private var forecast = ForecastProvider.shared
 
@@ -36,7 +42,10 @@ struct MonthPlannerView: View {
             if showCalendarEvents { events.refresh() }
         }
         .sheet(item: $planDay) { date in
-            PlanNightSheet(date: date)
+            PlanNightSheet(date: date, askTheTable: askTheTable)
+        }
+        .navigationDestination(item: $dayShown) { day in
+            DayDetailView(date: day, askTheTable: askTheTable)
         }
     }
 
@@ -97,14 +106,20 @@ struct MonthPlannerView: View {
         let meal = dinner(on: date)
         let past = date < calendar.startOfDay(for: .now) && !today
         return Button {
-            guard !past else { return }
             Haptic.tap()
-            planDay = date
+            // Same grammar as the portrait plan: a day with something on it
+            // opens the day — past ones included, history answers questions
+            // — and an open future day goes straight to planning.
+            if meal != nil {
+                dayShown = date
+            } else if !past {
+                planDay = date
+            }
         } label: {
             dayCellContent(date, today: today, meal: meal, past: past)
         }
         .buttonStyle(.pressable)
-        .disabled(past)
+        .disabled(past && meal == nil)
     }
 
     private func dayCellContent(_ date: Date, today: Bool, meal: PlannedMeal?, past: Bool) -> some View {

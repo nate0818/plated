@@ -211,19 +211,32 @@ struct PostThreadView: View {
             .buttonStyle(.pressable)
             Spacer()
             if post.kind == "dish" {
-                Button {
-                    save()
-                } label: {
-                    Text("Save")
-                        .font(.jakarta(13, .bold))
-                        .foregroundStyle(Color.ink)
-                        .padding(.horizontal, 14)
-                        .frame(minHeight: 36)
-                        .overlay(Capsule().strokeBorder(Color.hairline, lineWidth: 1.5))
-                        .frame(minHeight: 44)
-                        .contentShape(Rectangle())
+                if recipes.contains(where: { $0.originID == post.originKey }) {
+                    // A receipt, not a button — same state the feed shows.
+                    HStack(spacing: 4) {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 11, weight: .bold))
+                        Text("Saved")
+                            .font(.jakarta(13, .bold))
+                    }
+                    .foregroundStyle(Color.inkFaint)
+                    .frame(minHeight: 44)
+                    .accessibilityLabel("Already in your cookbook")
+                } else {
+                    Button {
+                        save()
+                    } label: {
+                        Text("Save")
+                            .font(.jakarta(13, .bold))
+                            .foregroundStyle(Color.ink)
+                            .padding(.horizontal, 14)
+                            .frame(minHeight: 36)
+                            .overlay(Capsule().strokeBorder(Color.hairline, lineWidth: 1.5))
+                            .frame(minHeight: 44)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.pressable)
                 }
-                .buttonStyle(.pressable)
             }
         }
         .padding(.horizontal, 20)

@@ -11,6 +11,8 @@ struct GrocerySheet: View {
 
     @State private var exportResult: String?
     @State private var exporting = false
+    @State private var newItemName = ""
+    @FocusState private var addFieldFocused: Bool
     /// One row open at a time, same contract as the week's plan rows.
     @State private var swipedItem: PersistentIdentifier?
 
@@ -25,6 +27,10 @@ struct GrocerySheet: View {
                 ? $0.weekStart >= manualHorizon
                 : Calendar.current.isSameDay($0.weekStart, windowStart)
         }
+    }
+
+    private var unchecked: [GroceryItem] {
+        currentItems.filter { !$0.isChecked }
     }
 
     private var grouped: [(GroceryAisle, [GroceryItem])] {
@@ -68,6 +74,7 @@ struct GrocerySheet: View {
                                 }
                             }
                         }
+                        addRow
                     }
                     .padding(.horizontal, 24)
                     .padding(.top, 18)
@@ -75,7 +82,20 @@ struct GrocerySheet: View {
                 }
 
                 VStack(spacing: 8) {
-                    TomatoPillButton(title: exporting ? "Sending…" : "Send to Reminders", systemImage: "checklist") {
+                    // "Send 0 items" is not an offer. When the list is fully
+                    // shopped the committing action retires and says so.
+                    if unchecked.isEmpty {
+                        Text("All shopped — nothing left to send")
+                            .font(.jakarta(14, .bold))
+                            .foregroundStyle(Color.inkSecondary)
+                            .frame(maxWidth: .infinity)
+                            .frame(minHeight: 50)
+                    } else {
+                    TomatoPillButton(
+                        title: exporting ? "Sending…"
+                            : "Send \(unchecked.count) item\(unchecked.count == 1 ? "" : "s") to Reminders",
+                        systemImage: "checklist"
+                    ) {
                         exportToReminders()
                     }
                     Button {
@@ -94,6 +114,7 @@ struct GrocerySheet: View {
                         .contentShape(Capsule())
                     }
                     .buttonStyle(.pressable)
+                    }
                     if let exportResult {
                         Text(exportResult)
                             .font(.jakarta(12, .semibold))
@@ -115,6 +136,48 @@ struct GrocerySheet: View {
                 assertionFailure("Grocery rebuild failed: \(error)")
             }
         }
+    }
+
+    /// "We're out of olive oil" — the single most obvious grocery job, and
+    /// until now the only door to a hand-typed line was a checkbox buried in
+    /// the recipe editor. The manual horizon and remove() already knew how
+    /// to keep and clear these; the list just never offered a pen.
+    private var addRow: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "plus")
+                .font(.system(size: 13, weight: .bold))
+                .foregroundStyle(Color.inkFaint)
+            TextField("Add something — “olive oil”", text: $newItemName)
+                .font(.jakarta(14, .semibold))
+                .focused($addFieldFocused)
+                .submitLabel(.done)
+                .onSubmit(addManualItem)
+        }
+        .padding(.horizontal, 14)
+        .frame(minHeight: 46)
+        .overlay {
+            RoundedRectangle(cornerRadius: Radius.chip)
+                .strokeBorder(Color.hairlineDashed, style: StrokeStyle(lineWidth: 1.5, dash: [5, 5]))
+        }
+        .contentShape(Rectangle())
+        .onTapGesture { addFieldFocused = true }
+        .padding(.top, 4)
+    }
+
+    private func addManualItem() {
+        let name = newItemName.trimmingCharacters(in: .whitespaces)
+        guard !name.isEmpty else { return }
+        Haptic.tap()
+        withAnimation(.plSnap) {
+            context.insert(GroceryItem(
+                name: name,
+                aisle: RecipeImporter.aisle(for: name),
+                weekStart: .now,
+                isManual: true
+            ))
+            newItemName = ""
+        }
+        // Keep the keyboard: out of one thing usually means out of three.
     }
 
     private func itemRow(_ item: GroceryItem) -> some View {

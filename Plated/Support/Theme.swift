@@ -298,6 +298,11 @@ extension View {
     func plDishShadow() -> some View {
         modifier(PLShadow(lightOpacity: 0.14, darkOpacity: 0.5, radius: 6, y: 4))
     }
+    /// Small tiles that sit on a card rather than on the canvas — the plan's
+    /// date tile. A whisper: enough to lift a white tile off a white row.
+    func plTileShadow() -> some View {
+        modifier(PLShadow(lightOpacity: 0.06, darkOpacity: 0.35, radius: 3, y: 1))
+    }
 }
 
 // MARK: - Shared atoms

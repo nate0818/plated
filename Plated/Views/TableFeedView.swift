@@ -506,15 +506,29 @@ struct TableFeedView: View {
                 }
                 .buttonStyle(.pressable)
                 Spacer()
-                Button {
-                    beginSave(post)
-                } label: {
-                    Text("Save")
-                        .font(.jakarta(13, .bold))
-                        .foregroundStyle(Color.ink)
-                        .frame(minWidth: 44, minHeight: 44)
+                if isSaved(post) {
+                    // A receipt, not a button.
+                    HStack(spacing: 4) {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 11, weight: .bold))
+                        Text("Saved")
+                            .font(.jakarta(13, .bold))
+                    }
+                    .foregroundStyle(Color.inkFaint)
+                    .frame(minHeight: 44)
+                    .transition(.opacity)
+                    .accessibilityLabel("Already in your cookbook")
+                } else {
+                    Button {
+                        beginSave(post)
+                    } label: {
+                        Text("Save")
+                            .font(.jakarta(13, .bold))
+                            .foregroundStyle(Color.ink)
+                            .frame(minWidth: 44, minHeight: 44)
+                    }
+                    .buttonStyle(.pressable)
                 }
-                .buttonStyle(.pressable)
             }
             .padding(.bottom, 10)
 
@@ -562,12 +576,23 @@ struct TableFeedView: View {
             }
             .padding(.top, 10)
 
-            (Text(post.authorName).font(.jakarta(14, .bold))
-             + Text("  ").font(.jakarta(14))
-             + Text(post.caption).font(.jakarta(14)))
-                .foregroundStyle(Color.ink)
-                .lineSpacing(3)
-                .padding(.top, 4)
+            // The composer led with "Name the dish" and then the card never
+            // showed the name. What you named is what the table sees.
+            if !post.dishTitle.isEmpty {
+                Text(post.dishTitle)
+                    .font(.gabarito(17, .semibold))
+                    .tracking(-0.2)
+                    .foregroundStyle(Color.ink)
+                    .padding(.top, 4)
+            }
+            if !post.caption.isEmpty || post.dishTitle.isEmpty {
+                (Text(post.authorName).font(.jakarta(14, .bold))
+                 + Text("  ").font(.jakarta(14))
+                 + Text(post.caption).font(.jakarta(14)))
+                    .foregroundStyle(Color.ink)
+                    .lineSpacing(3)
+                    .padding(.top, post.dishTitle.isEmpty ? 4 : 1)
+            }
 
             ForEach(post.sortedComments.prefix(2), id: \.persistentModelID) { comment in
                 commentLine(comment)
@@ -604,10 +629,17 @@ struct TableFeedView: View {
             Label("Open the thread", systemImage: "bubble.right")
         }
         if canSave {
-            Button {
-                beginSave(post)
-            } label: {
-                Label("Save to cookbook", systemImage: "book")
+            if isSaved(post) {
+                Button {} label: {
+                    Label("In your cookbook", systemImage: "checkmark")
+                }
+                .disabled(true)
+            } else {
+                Button {
+                    beginSave(post)
+                } label: {
+                    Label("Save to cookbook", systemImage: "book")
+                }
             }
         }
         Button {
@@ -622,6 +654,13 @@ struct TableFeedView: View {
                 Label("Delete post", systemImage: "trash")
             }
         }
+    }
+
+    /// Already in the cookbook — the button must know before the tap does.
+    /// DiscoverPostSheet has carried this state from the start; the feed
+    /// offered "Save" on dishes you own and answered with a scolding toast.
+    private func isSaved(_ post: TablePost) -> Bool {
+        recipes.contains { $0.originID == post.originKey }
     }
 
     /// First names bridge authors and household members until real user IDs
@@ -834,6 +873,13 @@ struct TableFeedView: View {
     }
 
     private func finishSave(_ post: TablePost) {
+        // Saving your own dish back is a legitimate move (post first, keep
+        // it later) — but crediting yourself and ringing the household bell
+        // about it is the app talking to itself.
+        if isMine(post) {
+            showToast("Saved to your cookbook")
+            return
+        }
         // The author gets the credit — a save is the sincerest form of
         // dinner flattery. Local ledger today, real push later.
         Awards.recordSaveReceived(by: post.authorName)

@@ -1,0 +1,439 @@
+import SwiftUI
+import SwiftData
+
+/// Everything about one day, in one place. The week list answers "what's for
+/// dinner"; this answers "what's happening today" — every slot from breakfast
+/// to dessert, who's cooking each one, what the weather is doing, what's
+/// already on the calendar, and the way through to the recipe when it's your
+/// turn at the stove.
+///
+/// Tapping a day used to raise a two-button dialog — change what's for
+/// dinner, remove it. Those two live here now, on a swipe, which is where
+/// edits belong: they're things you do to a meal, not the reason you opened
+/// the day.
+struct DayDetailView: View {
+    let date: Date
+    /// Forwarded into PlanNightSheet — "Ask the Table" hops tabs, and only
+    /// the shell knows how. Without it the row is a dead tap.
+    var askTheTable: () -> Void = {}
+
+    @Environment(\.modelContext) private var context
+    @Environment(\.dismiss) private var dismiss
+    @Query private var meals: [PlannedMeal]
+    @Query(sort: \HouseholdMember.createdAt) private var members: [HouseholdMember]
+
+    @AppStorage("showCalendarEvents") private var showCalendarEvents = false
+
+    @State private var planning: SlotPlan?
+    /// One row open at a time, same contract as the week's plan rows.
+    @State private var swipedSlot: MealSlot?
+    @State private var openMeal: PlannedMeal?
+    @State private var events = DayEventsProvider.shared
+    @State private var forecast = ForecastProvider.shared
+
+    /// `sheet(item:)` needs one identifiable value, and planning a day needs
+    /// two — which day, which slot.
+    struct SlotPlan: Identifiable {
+        let date: Date
+        let slot: MealSlot
+        var id: String { "\(date.timeIntervalSince1970)-\(slot.rawValue)" }
+    }
+
+    private var isToday: Bool { Calendar.current.isDateInToday(date) }
+    private var isPast: Bool { date < Calendar.current.startOfDay(for: .now) }
+
+    private var dayMeals: [PlannedMeal] {
+        meals.filter { Calendar.current.isSameDay($0.date, date) }
+    }
+
+    private func meal(in slot: MealSlot) -> PlannedMeal? {
+        dayMeals.first { $0.slotValue == slot }
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            header
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(plannedSlots) { slot in
+                        plannedSection(slot)
+                    }
+                    addMeal
+                        .padding(.top, plannedSlots.isEmpty ? 0 : 16)
+                    if let line = cooksLine {
+                        Text(line)
+                            .font(.jakarta(12, .semibold))
+                            .foregroundStyle(Color.inkSecondary)
+                            .padding(.top, 14)
+                    }
+                }
+                .padding(.horizontal, 24)
+                .padding(.top, 12)
+                // Pushed pages clear the floating tab bar themselves.
+                .padding(.bottom, Layout.floatingChromeInset)
+            }
+            .onScrollPhaseChange { _, phase in
+                if phase == .interacting, swipedSlot != nil {
+                    withAnimation(.plSnap) { swipedSlot = nil }
+                }
+            }
+        }
+        .background(Color.canvas)
+        .toolbar(.hidden, for: .navigationBar)
+        .plSwipeBack()
+        .navigationDestination(item: $openMeal) { meal in
+            // The whole point of arriving from a day: the recipe page knows
+            // which night it's cooking for.
+            if let recipe = meal.recipe {
+                RecipeDetailView(recipe: recipe, meal: meal)
+            }
+        }
+        .sheet(item: $planning) { plan in
+            PlanNightSheet(date: plan.date, slot: plan.slot, askTheTable: askTheTable)
+        }
+        .task {
+            await forecast.refresh(days: 10)
+            if showCalendarEvents { events.refresh() }
+        }
+    }
+
+    // MARK: Header
+
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 10) {
+                Button {
+                    Haptic.tap()
+                    dismiss()
+                } label: {
+                    Circle()
+                        .strokeBorder(Color.hairline, lineWidth: 1.5)
+                        .frame(width: 38, height: 38)
+                        .overlay {
+                            Image(systemName: "chevron.left")
+                                .accessibilityLabel("Back")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundStyle(Color.ink)
+                        }
+                        .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.pressable)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    MicroLabel(fullDateLabel)
+                    Text(dayTitle)
+                        .font(.gabarito(25, .semibold))
+                        .tracking(-0.3)
+                        .foregroundStyle(Color.ink)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                }
+                Spacer(minLength: 6)
+                if let day = forecast.forecast(for: date) {
+                    VStack(spacing: 1) {
+                        Image(systemName: day.symbolName)
+                            .font(.system(size: 17, weight: .medium))
+                        Text("\(Int(day.highF.rounded()))°")
+                            .font(.jakarta(11, .bold))
+                            .monospacedDigit()
+                    }
+                    .foregroundStyle(Color.inkSecondary)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("\(day.conditionDescription), high \(Int(day.highF.rounded())) degrees")
+                }
+            }
+            if let line = contextLine {
+                Text(line)
+                    .font(.jakarta(12, .semibold))
+                    .foregroundStyle(Color.inkSecondary)
+                    .padding(.top, 6)
+                    .padding(.leading, 2)
+            }
+        }
+        .padding(.horizontal, 24)
+        .padding(.top, 6)
+        .padding(.bottom, 12)
+    }
+
+    // MARK: Slots
+
+    /// Only the slots this day actually has, earliest first. Laying out all
+    /// five occasions whether or not anyone eats them turns a day into a
+    /// form to fill in; a day should show what's on it.
+    private var plannedSlots: [MealSlot] {
+        Array(Set(dayMeals.map(\.slotValue)))
+            .sorted { $0.sortOrder < $1.sortOrder }
+    }
+
+    private var openSlots: [MealSlot] {
+        MealSlot.allCases
+            .filter { slot in !plannedSlots.contains(slot) }
+            .sorted { $0.sortOrder < $1.sortOrder }
+    }
+
+    @ViewBuilder
+    private func plannedSection(_ slot: MealSlot) -> some View {
+        if let meal = meal(in: slot) {
+            VStack(alignment: .leading, spacing: 6) {
+                MicroLabel(slot.title)
+                SwipeRow(isOpen: swipeBinding(slot), actions: actions(for: meal, slot: slot)) {
+                    mealCard(meal, slot: slot)
+                }
+            }
+            .padding(.top, 8)
+        }
+    }
+
+    /// One door to every other occasion — breakfast, lunch, a snack, dessert
+    /// — instead of five standing invitations. A day that has already
+    /// happened doesn't get invited to plan.
+    @ViewBuilder
+    private var addMeal: some View {
+        if isPast {
+            if plannedSlots.isEmpty {
+                Text("Nothing was plated.")
+                    .font(.jakarta(14, .semibold))
+                    .foregroundStyle(Color.inkFaint)
+                    .padding(.top, 8)
+            }
+        } else if !openSlots.isEmpty {
+            Menu {
+                ForEach(openSlots) { slot in
+                    Button {
+                        planning = SlotPlan(date: date, slot: slot)
+                    } label: {
+                        Label(slot.title, systemImage: slot.symbolName)
+                    }
+                }
+            } label: {
+                HStack(spacing: 12) {
+                    Circle()
+                        .strokeBorder(Color.hairlineDashed, style: StrokeStyle(lineWidth: 1.5, dash: [5, 5]))
+                        .frame(width: 44, height: 44)
+                        .overlay {
+                            Image(systemName: "plus")
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundStyle(Color.inkFaint)
+                        }
+                    Text(plannedSlots.isEmpty ? "Add a meal" : "Add another meal")
+                        .font(.jakarta(14, .semibold))
+                        .foregroundStyle(Color.inkSecondary)
+                    Spacer()
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .frame(minHeight: 64)
+                .overlay {
+                    RoundedRectangle(cornerRadius: Radius.row, style: .continuous)
+                        .strokeBorder(Color.hairlineDashed, style: StrokeStyle(lineWidth: 1.5, dash: [7, 6]))
+                }
+                .contentShape(Rectangle())
+            }
+            .accessibilityLabel(plannedSlots.isEmpty ? "Add a meal" : "Add another meal")
+            .accessibilityHint("Choose breakfast, lunch, dinner, a snack or dessert")
+        }
+    }
+
+    /// Everything you can do to a plated meal, on a swipe. The cooked mark
+    /// belongs here rather than on a button inside the card: a button living
+    /// under a swipe gesture fires as the finger travels over it, which
+    /// marked dinner cooked every time you reached for Remove.
+    private func actions(for meal: PlannedMeal, slot: MealSlot) -> [SwipeAction] {
+        var actions: [SwipeAction] = []
+        if !isFuture {
+            actions.append(
+                SwipeAction(
+                    symbol: meal.isCooked ? "arrow.uturn.backward" : "checkmark",
+                    label: meal.isCooked ? "Undo" : "Cooked"
+                ) { toggleCooked(meal) }
+            )
+        }
+        actions.append(
+            SwipeAction(symbol: "arrow.2.squarepath", label: "Change") {
+                swipedSlot = nil
+                planning = SlotPlan(date: date, slot: slot)
+            }
+        )
+        actions.append(.remove { remove(meal) })
+        return actions
+    }
+
+    private func mealCard(_ meal: PlannedMeal, slot: MealSlot) -> some View {
+        HStack(spacing: 12) {
+            dish(for: meal)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(meal.title)
+                    .font(.jakarta(16, .bold))
+                    .foregroundStyle(Color.ink)
+                    .lineLimit(2)
+                if let line = mealMeta(meal) {
+                    Text(line)
+                        .font(.jakarta(12, .semibold))
+                        .foregroundStyle(Color.inkSecondary)
+                        .lineLimit(1)
+                }
+            }
+            Spacer(minLength: 8)
+            if let cook = meal.cook {
+                AvatarCircle(member: cook, size: 30)
+            }
+            if meal.recipe != nil {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Color.inkFaint)
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .frame(minHeight: 72)
+        .background(Color.canvas, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: Radius.row, style: .continuous)
+                .strokeBorder(Color.navHairline, lineWidth: 1.5)
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            Haptic.tap()
+            // The recipe is the point when there is one — this is the screen
+            // you stand at the stove with. Without one there's nothing to
+            // read, so the tap goes where it can still help: changing it.
+            if meal.recipe != nil {
+                openMeal = meal
+            } else {
+                planning = SlotPlan(date: date, slot: slot)
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isButton)
+    }
+
+    @ViewBuilder
+    private func dish(for meal: PlannedMeal) -> some View {
+        Group {
+            if let data = meal.recipe?.photoData, let image = UIImage(data: data) {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 52, height: 52)
+                    .clipShape(Circle())
+            } else if let recipe = meal.recipe {
+                DishView(recipe: recipe, diameter: 52)
+            } else if meal.customTitle.localizedCaseInsensitiveContains("eating out") {
+                Circle()
+                    .strokeBorder(Color.hairline, lineWidth: 2)
+                    .frame(width: 52, height: 52)
+                    .overlay {
+                        Image(systemName: "fork.knife.circle")
+                            .font(.system(size: 22, weight: .medium))
+                            .foregroundStyle(Color.inkSecondary)
+                    }
+            } else {
+                DishView(title: meal.title, diameter: 52)
+            }
+        }
+        .plDishShadow()
+        .opacity(meal.isCooked ? 0.75 : 1)
+        .overlay(alignment: .bottomTrailing) {
+            // Nothing wrote `cookedAt` before this screen existed, so
+            // "times cooked" in Insights and the grocery list's skip of
+            // already-cooked meals were both reading a field the app never
+            // set. A plate that happened earns the basil tick.
+            if meal.isCooked {
+                Circle()
+                    .fill(Color.basil)
+                    .frame(width: 20, height: 20)
+                    .overlay {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(Color.onTomato)
+                    }
+                    .overlay { Circle().strokeBorder(Color.canvas, lineWidth: 2) }
+                    .accessibilityHidden(true)
+            }
+        }
+    }
+
+    private func toggleCooked(_ meal: PlannedMeal) {
+        Haptic.plate()
+        withAnimation(.plSnap) {
+            swipedSlot = nil
+            meal.cookedAt = meal.isCooked ? nil : .now
+        }
+    }
+
+    // MARK: Data
+
+    private var isFuture: Bool { date > Calendar.current.startOfDay(for: .now) }
+
+    private func swipeBinding(_ slot: MealSlot) -> Binding<Bool> {
+        Binding(
+            get: { swipedSlot == slot },
+            set: { swipedSlot = $0 ? slot : nil }
+        )
+    }
+
+    private func remove(_ meal: PlannedMeal) {
+        Haptic.warn()
+        withAnimation(.plSnap) {
+            swipedSlot = nil
+            context.delete(meal)
+        }
+    }
+
+    private func mealMeta(_ meal: PlannedMeal) -> String? {
+        var parts: [String] = []
+        if let minutes = meal.recipe?.totalMinutes, minutes > 0 {
+            parts.append("\(minutes) min")
+        }
+        if let cook = meal.cook {
+            parts.append(cook.isOwner ? "you cook" : "\(cook.name) cooks")
+        }
+        if meal.gathering != nil { parts.append("gathering") }
+        if meal.isCooked { parts.append("cooked") }
+        if parts.isEmpty, !meal.tagline.isEmpty { return meal.tagline }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
+    private var dayTitle: String {
+        if isToday { return "Today" }
+        if Calendar.current.isDateInTomorrow(date) { return "Tomorrow" }
+        if Calendar.current.isDateInYesterday(date) { return "Yesterday" }
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEEE"
+        return formatter.string(from: date)
+    }
+
+    private var fullDateLabel: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMMM d"
+        return formatter.string(from: date)
+    }
+
+    private var contextLine: String? {
+        var parts: [String] = []
+        if let day = forecast.forecast(for: date) {
+            parts.append(day.conditionDescription)
+        }
+        if showCalendarEvents, let event = events.firstEventTitle(on: date) {
+            parts.append("On the calendar: \(event)")
+        }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
+    /// Whose night it is by the household's rota, when nobody has been named
+    /// on the meal itself.
+    private var cooksLine: String? {
+        let weekday = Calendar.current.component(.weekday, from: date)
+        let rostered = members.filter { $0.cookWeekdays.contains(weekday) }
+        guard !rostered.isEmpty else { return nil }
+        let names = rostered.map { $0.isOwner ? "you" : $0.name }
+        return "Usually \(names.joined(separator: " and ")) on a \(weekdayName)."
+    }
+
+    private var weekdayName: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEEE"
+        return formatter.string(from: date)
+    }
+}

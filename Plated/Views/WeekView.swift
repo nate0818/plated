@@ -26,7 +26,9 @@ struct WeekView: View {
     @State private var dropHoverDay: Date?
     @State private var groceryPresented = false
     @State private var planDay: Date?
-    @State private var actionDay: Date?
+    /// The day whose detail page is pushed. Tapping a day used to raise a
+    /// change/remove dialog; those two are swipe actions inside the day now.
+    @State private var dayShown: Date?
     @State private var swipedDay: Date?
     @State private var personShown: PersonRef?
     @State private var pushed: PlanDestination?
@@ -75,11 +77,17 @@ struct WeekView: View {
         weekDates.filter { dinner(on: $0) != nil }.count
     }
 
+    /// Nights still askable — today and later, nothing plated. Past days are
+    /// spent, not owed, so they can't hold the week hostage.
+    private var openAheadCount: Int {
+        weekDates.filter { !isPast($0) && dinner(on: $0) == nil }.count
+    }
+
     var body: some View {
         NavigationStack {
             Group {
                 if verticalSizeClass == .compact || forceMonth {
-                    MonthPlannerView()
+                    MonthPlannerView(askTheTable: askTheTable)
                 } else {
                     portraitPlan
                 }
@@ -95,6 +103,9 @@ struct WeekView: View {
                 case .activity: NotificationsView()
                 }
             }
+            .navigationDestination(item: $dayShown) { day in
+                DayDetailView(date: day, askTheTable: askTheTable)
+            }
         }
         .sheet(isPresented: $groceryPresented) { GrocerySheet() }
         .onChange(of: openGrocery.wrappedValue, initial: true) { _, requested in
@@ -104,19 +115,6 @@ struct WeekView: View {
         }
         .sheet(item: $planDay) { date in
             PlanNightSheet(date: date, askTheTable: askTheTable)
-        }
-        .confirmationDialog(
-            actionDay.map { date in
-                Calendar.current.isDateInToday(date) ? "Dinner tonight" : "Dinner on \(dayName(date))"
-            } ?? "",
-            isPresented: Binding(get: { actionDay != nil }, set: { if !$0 { actionDay = nil } }),
-            titleVisibility: .visible
-        ) {
-            if let date = actionDay {
-                Button("Change what's for dinner") { planDay = date }
-                Button("Remove from \(dayName(date))", role: .destructive) { remove(on: date) }
-                Button("Cancel", role: .cancel) {}
-            }
         }
         .task {
             await forecast.refresh(days: 10)
@@ -294,8 +292,10 @@ struct WeekView: View {
                 .contentTransition(.numericText())
         }
         .animation(.plSnap, value: plannedCount)
-        // The seventh plate completes the week, and that is a kiss.
-        .sensoryFeedback(.success, trigger: plannedCount) { old, new in new == 7 && old < 7 }
+        // Completing what's left of the week — that's a kiss. The old
+        // trigger demanded all seven, so one unplanned Monday made the
+        // week's only celebration impossible by Tuesday.
+        .sensoryFeedback(.success, trigger: openAheadCount) { old, new in new == 0 && old > 0 }
         // Read as "5" on its own, which is a number with no noun.
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(plannedCount) of 7 nights planned")
@@ -307,7 +307,7 @@ struct WeekView: View {
         let today = Calendar.current.isDateInToday(date)
         let eatingOut = meal.recipe == nil && meal.customTitle.localizedCaseInsensitiveContains("eating out")
         return SwipeRow(isOpen: swipeBinding(date), actions: [.remove { remove(on: date) }]) {
-            HStack(spacing: 12) {
+            HStack(spacing: 10) {
                 dateCard(date, dimmed: false)
 
                 if eatingOut {
@@ -330,7 +330,7 @@ struct WeekView: View {
                         .font(.jakarta(15, .bold))
                         .foregroundStyle(Color.ink)
                         .lineLimit(1)
-                    Text(tagLine(for: meal, today: today))
+                    Text(tagLine(for: meal, today: today, date: date))
                         .font(.jakarta(12, .semibold))
                         .foregroundStyle(today ? Color.ink : Color.inkSecondary)
                         .lineLimit(1)
@@ -341,7 +341,7 @@ struct WeekView: View {
                 }
             }
             .padding(.vertical, 8)
-            .padding(.horizontal, 14)
+            .padding(.horizontal, 12)
             .frame(minHeight: 72)
             .background(Color.canvas, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
             // Every row in the plan draws the same shape at the same weight —
@@ -356,14 +356,14 @@ struct WeekView: View {
             .contentShape(Rectangle())
             .onTapGesture {
                 Haptic.tap()
-                actionDay = date
+                dayShown = date
             }
             // A gesture announces nothing: without this the row's swipe
             // actions scattered onto each child text and the tap itself
             // was invisible to VoiceOver. Home's member rows do the same.
             .accessibilityElement(children: .combine)
             .accessibilityAddTraits(.isButton)
-            .accessibilityHint("Opens what you can do with this night")
+            .accessibilityHint("Opens the whole day — every meal, the cook, the weather")
         }
         .draggable(DayTransfer.token(for: date)) {
             dishCircle(for: meal)
@@ -385,13 +385,17 @@ struct WeekView: View {
         .animation(.plPop, value: bounceDay)
     }
 
+    /// Two targets, deliberately. The dashed plate still plates dinner in one
+    /// tap — that is the app's core move and it does not deserve a detour —
+    /// while the rest of the row opens the day, where breakfast, lunch,
+    /// dessert and the cook live.
     private func emptyRow(date: Date) -> some View {
-        Button {
-            Haptic.tap()
-            planDay = date
-        } label: {
-            HStack(spacing: 12) {
-                dateCard(date, dimmed: true)
+        HStack(spacing: 10) {
+            dateCard(date, dimmed: true)
+            Button {
+                Haptic.tap()
+                planDay = date
+            } label: {
                 Circle()
                     .strokeBorder(Color.hairlineDashed, style: StrokeStyle(lineWidth: 1.5, dash: [5, 5]))
                     .frame(width: 52, height: 52)
@@ -400,28 +404,42 @@ struct WeekView: View {
                             .font(.system(size: 15, weight: .bold))
                             .foregroundStyle(Color.inkFaint)
                     }
-                Text("Nothing plated yet")
-                    .font(.jakarta(14, .semibold))
-                    .foregroundStyle(Color.inkSecondary)
-                Spacer()
+                    .contentShape(Circle())
             }
-            .padding(.vertical, 8)
-            .padding(.horizontal, 14)
-            .frame(minHeight: 72)
-            .overlay {
-                // A hovering plate turns the dashed invitation solid. Same
-                // corner and weight as a planned row — see plannedRow.
-                if dropHoverDay == date {
-                    RoundedRectangle(cornerRadius: Radius.row, style: .continuous)
-                        .strokeBorder(Color.ink, lineWidth: 1.5)
-                } else {
-                    RoundedRectangle(cornerRadius: Radius.row, style: .continuous)
-                        .strokeBorder(Color.hairlineDashed, style: StrokeStyle(lineWidth: 1.5, dash: [7, 6]))
-                }
-            }
-            .contentShape(Rectangle())
+            .buttonStyle(.pressable)
+            // The row speaks for both targets below; a second announcement
+            // here would just be the same night read twice.
+            .accessibilityHidden(true)
+            Text(openLine(date))
+                .font(.jakarta(14, .semibold))
+                .foregroundStyle(Color.inkSecondary)
+                .lineLimit(1)
+            Spacer()
         }
-        .buttonStyle(.pressable)
+        .padding(.vertical, 8)
+        .padding(.horizontal, 12)
+        .frame(minHeight: 72)
+        .overlay {
+            // A hovering plate turns the dashed invitation solid. Same
+            // corner and weight as a planned row — see plannedRow.
+            if dropHoverDay == date {
+                RoundedRectangle(cornerRadius: Radius.row, style: .continuous)
+                    .strokeBorder(Color.ink, lineWidth: 1.5)
+            } else {
+                RoundedRectangle(cornerRadius: Radius.row, style: .continuous)
+                    .strokeBorder(Color.hairlineDashed, style: StrokeStyle(lineWidth: 1.5, dash: [7, 6]))
+            }
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            Haptic.tap()
+            dayShown = date
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityLabel("\(dayName(date).capitalized), \(openLine(date))")
+        .accessibilityHint("Opens the whole day — every meal, the cook, the weather")
+        .accessibilityAction(named: "Plate dinner") { planDay = date }
         .dropDestination(for: String.self) { tokens, _ in
             moveMeal(from: tokens.first, to: date)
         } isTargeted: { over in
@@ -489,62 +507,86 @@ struct WeekView: View {
             RoundedRectangle(cornerRadius: Radius.row, style: .continuous)
                 .strokeBorder(Color.hairlineSoft, lineWidth: 1.5)
         }
+        // History answers questions — "what was that thing we ate Monday?"
+        // — so it opens the day like every other row. It just can't be
+        // planned from there.
+        .contentShape(Rectangle())
+        .onTapGesture {
+            Haptic.tap()
+            dayShown = date
+        }
         .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityHint("Opens the day")
     }
 
-    /// Apple's Calendar tile, in Plated's register: an accent weekday over a
-    /// large numeral, the day's weather under it. Today is the only day that
-    /// gets paint — a tomato tint fills the tile, so the highlight lives on
-    /// the date rather than in a heavier line around the whole row.
+    /// The Calendar icon, in Plated's register: a real card — white, hairline
+    /// edge, a whisper of lift — carrying a small accent weekday over one
+    /// large, light numeral. Apple's numeral is big and airy, not chunky, so
+    /// this one is Gabarito medium at 28 rather than bold at 24; everything
+    /// else in the tile stays quiet so the date is the only thing you read.
     ///
-    /// Sized to the dish circle it sits beside (52 wide) so the row keeps one
-    /// rhythm instead of two.
+    /// Today swaps the white fill for a tomato tint and turns the weekday
+    /// tomato. That tint is the whole highlight — no heavier line around the
+    /// row, no second signal.
+    ///
+    /// Sized to the dish circle beside it (52 wide) so the row keeps one
+    /// rhythm, and to a fixed height so a day the forecast can't answer for
+    /// doesn't make its row shorter than its neighbours.
     private func dateCard(_ date: Date, dimmed: Bool) -> some View {
         let today = Calendar.current.isDateInToday(date)
         return VStack(spacing: 0) {
             HStack(spacing: 3) {
                 // Today is today whether or not the night is planned.
                 Text(date.formattedWeekday())
-                    .font(.jakarta(10, .bold))
-                    .tracking(0.3)
+                    .font(.jakarta(10, .semibold))
+                    .tracking(0.4)
                     .foregroundStyle(today ? Color.tomato : Color.inkFaint)
                 if showCalendarEvents && events.hasEvent(on: date) {
                     Circle().fill(Color.grape).frame(width: 4.5, height: 4.5)
                 }
             }
+
             // A date is a fact whether or not the night is planned, so an
             // open night no longer reads as disabled — the dashed plate and
             // the faint copy carry the emptiness on their own.
             Text(date.formattedDayNumber())
-                .font(.gabarito(24, .bold))
+                .font(.gabarito(28, .medium))
                 .monospacedDigit()
                 .foregroundStyle(dimmed && !today ? Color.inkSecondary : Color.ink)
+                // Gabarito's line box leaves the numeral floating below the
+                // weekday; Apple sets them almost touching.
+                .padding(.top, -2)
+
             if let day = forecast.forecast(for: date) {
                 HStack(spacing: 2) {
                     Image(systemName: day.symbolName)
-                        .font(.system(size: 9, weight: .semibold))
+                        .font(.system(size: 8.5, weight: .medium))
                     Text("\(Int(day.highF.rounded()))°")
-                        .font(.jakarta(10, .bold))
+                        .font(.jakarta(9, .semibold))
                         .monospacedDigit()
                 }
                 // inkFaint disappears into the tomato tint.
                 .foregroundStyle(today ? Color.inkSecondary : Color.inkFaint)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
-                .padding(.top, 2)
+                .padding(.top, 1)
                 // The row combines its children, so a bare "72°" would read
                 // as a stray number. Say the condition the way Weather does.
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel("\(day.conditionDescription), high \(Int(day.highF.rounded())) degrees")
             }
         }
-        // Fixed height, so a day the forecast can't answer for doesn't make
-        // its row shorter than its neighbours.
-        .frame(width: 52, height: 56)
+        .frame(width: 52, height: 60)
         .background {
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(today ? Color.tomatoTint : Color.chipFill)
+            RoundedRectangle(cornerRadius: 13, style: .continuous)
+                .fill(today ? Color.tomatoTint : Color.cardFill)
         }
+        .overlay {
+            RoundedRectangle(cornerRadius: 13, style: .continuous)
+                .strokeBorder(today ? Color.tomato.opacity(0.16) : Color.hairline, lineWidth: 1)
+        }
+        .plTileShadow()
     }
 
     private func dishCircle(for meal: PlannedMeal, diameter: CGFloat = 52, simmering: Bool = false) -> some View {
@@ -583,15 +625,40 @@ struct WeekView: View {
         }
     }
 
-    private func tagLine(for meal: PlannedMeal, today: Bool) -> String {
+    private func tagLine(for meal: PlannedMeal, today: Bool, date: Date) -> String {
+        let base: String
         if today {
             let minutes = meal.recipe?.totalMinutes ?? 0
-            return minutes > 0 ? "Tonight · \(minutes) min" : "Tonight"
+            base = minutes > 0 ? "Tonight · \(minutes) min" : "Tonight"
+        } else if !meal.tagline.isEmpty {
+            base = meal.tagline
+        } else if let cook = meal.cook, !cook.isOwner {
+            base = "\(cook.name) cooks"
+        } else {
+            let minutes = meal.recipe?.totalMinutes ?? 0
+            base = minutes > 0 ? "\(minutes) min" : "Planned"
         }
-        if !meal.tagline.isEmpty { return meal.tagline }
-        if let cook = meal.cook, !cook.isOwner { return "\(cook.name) cooks" }
-        let minutes = meal.recipe?.totalMinutes ?? 0
-        return minutes > 0 ? "\(minutes) min" : "Planned"
+        // The week row shows dinner; a day can now hold breakfast, lunch,
+        // dessert and a snack too, and hiding them here would make the day
+        // page a surprise.
+        let others = otherSlots(on: date).count
+        return others > 0 ? "\(base) · +\(others) more" : base
+    }
+
+    /// Everything planned on a day that isn't its dinner, earliest first.
+    private func otherSlots(on date: Date) -> [MealSlot] {
+        meals
+            .filter { Calendar.current.isSameDay($0.date, date) && $0.slotValue != .dinner }
+            .map(\.slotValue)
+            .sorted { $0.sortOrder < $1.sortOrder }
+    }
+
+    /// An open night is only truly empty when nothing else is planned either.
+    private func openLine(_ date: Date) -> String {
+        let others = otherSlots(on: date)
+        guard !others.isEmpty else { return "Nothing plated yet" }
+        let joined = ListFormatter.localizedString(byJoining: others.map { $0.title.lowercased() })
+        return joined.prefix(1).uppercased() + joined.dropFirst() + " planned"
     }
 
     private var weekRangeLabel: String {

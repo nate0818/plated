@@ -628,6 +628,13 @@ struct FlowChips<Chip: View>: View {
 /// always in reach, and asks who's cooking and when.
 struct RecipeDetailView: View {
     let recipe: Recipe
+    /// The plated night this page was opened from, when it was. A recipe
+    /// reached from the cookbook is being considered — its job is "Plate it".
+    /// The same recipe reached from a day it's already plated on is being
+    /// cooked — offering to plate it again is a circle. With a meal in hand
+    /// the page scales ingredients to that night's servings and the docked
+    /// CTA becomes the one thing left to say: it got cooked.
+    var meal: PlannedMeal? = nil
 
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
@@ -635,6 +642,7 @@ struct RecipeDetailView: View {
 
     @State private var editorShown = false
     @State private var assignShown = false
+    @State private var swapShown = false
     @State private var shownPhoto: Data?
 
     var body: some View {
@@ -662,7 +670,7 @@ struct RecipeDetailView: View {
                         label: "Time"
                     )
                     CountDivider()
-                    CountBlock(value: "\(recipe.servings)", label: "Serves")
+                    CountBlock(value: "\(meal?.servings ?? recipe.servings)", label: "Serves")
                     CountDivider()
                     CountBlock(value: recipe.difficultyValue.rawValue, label: "Effort")
                 }
@@ -674,16 +682,16 @@ struct RecipeDetailView: View {
                         .lineSpacing(4)
                 }
 
-                if !recipe.sortedIngredients.isEmpty {
+                if !ingredientRows.isEmpty {
                     VStack(alignment: .leading, spacing: 10) {
-                        MicroLabel("Ingredients")
-                        ForEach(recipe.sortedIngredients, id: \.persistentModelID) { ingredient in
+                        MicroLabel(ingredientsLabel)
+                        ForEach(ingredientRows, id: \.ingredient.persistentModelID) { row in
                             HStack {
-                                Text(ingredient.name)
+                                Text(row.ingredient.name)
                                     .font(.jakarta(14, .semibold))
                                     .foregroundStyle(Color.ink)
                                 Spacer()
-                                Text(quantityText(ingredient))
+                                Text(quantityText(row.ingredient, quantity: row.quantity))
                                     .font(.jakarta(13, .medium))
                                     .foregroundStyle(Color.inkSecondary)
                             }
@@ -739,18 +747,16 @@ struct RecipeDetailView: View {
         .safeAreaInset(edge: .top) { topBar }
         .safeAreaInset(edge: .bottom) {
             // Flush to the bottom, every screen size, never scrolled away.
-            TomatoPillButton(title: "Plate it", systemImage: "circle.circle") {
-                assignShown = true
-            }
-            .padding(.horizontal, 24)
-            .padding(.top, 8)
-            // The bar rides over pushed pages and occupies the 4…72pt band;
-            // a 6pt inset put the one committing CTA on this page directly
-            // underneath it. `.hidesProngsbyPerch()` below clears the perch
-            // but never touched the bar. Pre-existing — the last docked
-            // control the token family hadn't reached.
-            .padding(.bottom, Layout.tabBarInset)
-            .background(Color.canvas.opacity(0.94))
+            dockedCTA
+                .padding(.horizontal, 24)
+                .padding(.top, 8)
+                // The bar rides over pushed pages and occupies the 4…72pt band;
+                // a 6pt inset put the one committing CTA on this page directly
+                // underneath it. `.hidesProngsbyPerch()` below clears the perch
+                // but never touched the bar. Pre-existing — the last docked
+                // control the token family hadn't reached.
+                .padding(.bottom, Layout.tabBarInset)
+                .background(Color.canvas.opacity(0.94))
         }
         // This page docks its own tomato CTA across the bottom; the perch
         // would sit right on top of it.
@@ -761,6 +767,60 @@ struct RecipeDetailView: View {
         .sheet(isPresented: $assignShown) {
             PlateAssignSheet(recipe: recipe)
         }
+        .sheet(isPresented: $swapShown) {
+            if let meal {
+                PlanNightSheet(date: meal.date, slot: meal.slotValue)
+            }
+        }
+    }
+
+    /// One docked action, chosen by why you're here. Browse → "Plate it".
+    /// Tonight's (or an unmarked past night's) plate → "Cooked it", which is
+    /// the first and only writer of `cookedAt` this page has. A cooked plate
+    /// → a quiet basil receipt that can take it back. A future night → the
+    /// honest secondary, swapping the plate, in ink not tomato.
+    @ViewBuilder
+    private var dockedCTA: some View {
+        if let meal {
+            if meal.isCooked {
+                Button {
+                    Haptic.plate()
+                    withAnimation(.plSnap) { meal.cookedAt = nil }
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 16, weight: .semibold))
+                        Text("Cooked")
+                            .font(.jakarta(17, .bold))
+                    }
+                    .foregroundStyle(Color.basil)
+                    .frame(maxWidth: .infinity)
+                    .frame(minHeight: 56)
+                    .background(Color.basilTint, in: Capsule())
+                }
+                .buttonStyle(.pressable)
+                .accessibilityLabel("Cooked")
+                .accessibilityHint("Tap to mark it not cooked after all")
+            } else if nightHasArrived {
+                TomatoPillButton(title: "Cooked it", systemImage: "checkmark") {
+                    Haptic.plate()
+                    withAnimation(.plSnap) { meal.cookedAt = .now }
+                }
+            } else {
+                InkPillButton(title: "Swap this plate", systemImage: "arrow.2.squarepath") {
+                    swapShown = true
+                }
+            }
+        } else {
+            TomatoPillButton(title: "Plate it", systemImage: "circle.circle") {
+                assignShown = true
+            }
+        }
+    }
+
+    private var nightHasArrived: Bool {
+        guard let meal else { return false }
+        return meal.date <= Calendar.current.startOfDay(for: .now)
     }
 
     private var topBar: some View {
@@ -945,7 +1005,40 @@ struct RecipeDetailView: View {
         var parts: [String] = [recipe.mealTypeValue.rawValue]
         if let genre = recipe.categoryValue { parts.append(genre.rawValue) }
         if recipe.isImported { parts.append("Saved from the Table") }
+        if let meal {
+            parts.append(platedLine(meal))
+            if let cook = meal.cook {
+                parts.append(cook.isOwner ? "you cook" : "\(cook.name) cooks")
+            }
+        }
         return parts.joined(separator: " · ").uppercased()
+    }
+
+    private func platedLine(_ meal: PlannedMeal) -> String {
+        if Calendar.current.isDateInToday(meal.date) { return "Plated for tonight" }
+        if Calendar.current.isDateInTomorrow(meal.date) { return "Plated for tomorrow" }
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEEE"
+        return "Plated for \(formatter.string(from: meal.date))"
+    }
+
+    /// Quantities for the night actually being cooked. `scaledIngredients`
+    /// existed on PlannedMeal from the start and nothing ever read it for
+    /// display — the cook was silently shown the recipe's base servings no
+    /// matter what the plan said.
+    private var ingredientRows: [(ingredient: Ingredient, quantity: Double)] {
+        if let meal, meal.recipe === recipe, meal.servings != recipe.servings,
+           !meal.scaledIngredients.isEmpty {
+            return meal.scaledIngredients
+        }
+        return recipe.sortedIngredients.map { ($0, $0.quantity) }
+    }
+
+    private var ingredientsLabel: String {
+        if let meal, meal.recipe === recipe, meal.servings != recipe.servings {
+            return "Ingredients · scaled for \(meal.servings)"
+        }
+        return "Ingredients"
     }
 
     private var shareText: String {
@@ -981,10 +1074,10 @@ struct RecipeDetailView: View {
         }
     }
 
-    private func quantityText(_ ingredient: Ingredient) -> String {
+    private func quantityText(_ ingredient: Ingredient, quantity: Double) -> String {
         var parts: [String] = []
-        if ingredient.quantity > 0 { parts.append(Ingredient.format(ingredient.quantity)) }
-        let unit = Ingredient.unitText(ingredient.unit, for: ingredient.quantity)
+        if quantity > 0 { parts.append(Ingredient.format(quantity)) }
+        let unit = Ingredient.unitText(ingredient.unit, for: quantity)
         if !unit.isEmpty { parts.append(unit) }
         return parts.joined(separator: " ")
     }
@@ -1002,6 +1095,10 @@ struct PlateAssignSheet: View {
 
     @State private var chosenDate: Date?
     @State private var chosenCook: HouseholdMember?
+    /// A cook tapped by hand stays chosen. Without this, picking the cook
+    /// first and the night second silently threw the hand-pick away in
+    /// favour of the rotation's guess.
+    @State private var cookPickedByHand = false
     @State private var confirmation: String?
 
     private var nights: [Date] {
@@ -1049,7 +1146,10 @@ struct PlateAssignSheet: View {
             // "Plate it for Tuesday" → "Plated for Tuesday" morphs in place.
             .contentTransition(.numericText())
             .animation(.plSnap, value: confirmation)
-            .disabled(chosenDate == nil)
+            // Once it reads "Plated for Tuesday" it is a receipt, not a
+            // button — a second tap in the closing beat plated (and rang
+            // the bell) twice.
+            .disabled(chosenDate == nil || confirmation != nil)
             .opacity(chosenDate == nil ? 0.4 : 1)
             .animation(.plSnap, value: chosenDate == nil)
             .padding(.horizontal, 24)
@@ -1071,8 +1171,15 @@ struct PlateAssignSheet: View {
             Haptic.tap()
             withAnimation(.plSnap) {
                 chosenDate = date
-                if let suggested = CookRotation.cook(for: date, members: members, meals: meals) {
-                    chosenCook = suggested
+                // The header promises occupied nights keep their cook — so
+                // swapping Tuesday's dish must not move Tuesday off Maya.
+                // The rotation only speaks when nobody else has.
+                if !cookPickedByHand {
+                    if let keeper = occupied?.cook {
+                        chosenCook = keeper
+                    } else if let suggested = CookRotation.cook(for: date, members: members, meals: meals) {
+                        chosenCook = suggested
+                    }
                 }
             }
         } label: {
@@ -1110,7 +1217,10 @@ struct PlateAssignSheet: View {
         let active = chosenCook?.persistentModelID == member.persistentModelID
         return Button {
             Haptic.tap()
-            withAnimation(.plSnap) { chosenCook = member }
+            withAnimation(.plSnap) {
+                chosenCook = member
+                cookPickedByHand = true
+            }
         } label: {
             VStack(spacing: 4) {
                 AvatarCircle(initials: member.firstInitial, tone: member.isOwner ? .neutralPair : member.tone, size: 44,

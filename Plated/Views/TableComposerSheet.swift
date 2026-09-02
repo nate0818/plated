@@ -15,6 +15,15 @@ struct TableComposerSheet: View {
     @State private var dishTitle = ""
     @State private var caption = ""
     @State private var tagged: Set<String> = []
+    @State private var discardAsked = false
+
+    /// Anything worth losing. The sheet advertises the drag-down and used to
+    /// let it destroy a filled post without a word.
+    private var hasContent: Bool {
+        photoData != nil
+            || !dishTitle.trimmingCharacters(in: .whitespaces).isEmpty
+            || !caption.trimmingCharacters(in: .whitespaces).isEmpty
+    }
 
     /// A picked photo that is still resolving holds the post — a fast tap
     /// on the pill must never silently ship without it.
@@ -33,6 +42,28 @@ struct TableComposerSheet: View {
             }
             .padding(.top, 22)
             .padding(.bottom, 12)
+            .frame(maxWidth: .infinity)
+            .overlay(alignment: .topTrailing) {
+                Button {
+                    Haptic.tap()
+                    if hasContent { discardAsked = true } else { dismiss() }
+                } label: {
+                    Circle()
+                        .strokeBorder(Color.hairline, lineWidth: 1.5)
+                        .frame(width: 32, height: 32)
+                        .overlay {
+                            Image(systemName: "xmark")
+                                .accessibilityLabel("Close")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(Color.ink)
+                        }
+                        .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.pressable)
+                .padding(.trailing, 16)
+                .padding(.top, 12)
+            }
 
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 14) {
@@ -108,6 +139,14 @@ struct TableComposerSheet: View {
         .presentationDragIndicator(.visible)
         .presentationBackground(Color.canvas)
         .presentationCornerRadius(Radius.sheet)
+        // A filled post doesn't die to one accidental swipe — the drag
+        // rubber-bands instead. Leaving on purpose goes through the X,
+        // which asks first. An empty composer still slides away freely.
+        .interactiveDismissDisabled(hasContent)
+        .confirmationDialog("Toss this post?", isPresented: $discardAsked, titleVisibility: .visible) {
+            Button("Toss it", role: .destructive) { dismiss() }
+            Button("Keep writing", role: .cancel) {}
+        }
         .onChange(of: photoItem) { _, item in
             guard let item else {
                 // Un-checking the photo inside the system picker lands here —
