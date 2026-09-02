@@ -356,7 +356,10 @@ struct PlateTabBar: View {
         HStack(spacing: 0) {
             tabItem(.week, label: "Plan") {
                 Image(systemName: "calendar")
-                    .font(.system(size: 21, weight: .medium))
+                    // 20, like the other three. It was 21 with nothing
+                    // recorded about why, and four peers built by one
+                    // helper should not disagree by a point.
+                    .font(.system(size: 20, weight: .medium))
             }
             tabItem(.table, label: "Table") {
                 Image(systemName: "table.furniture")

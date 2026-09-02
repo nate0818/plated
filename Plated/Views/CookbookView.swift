@@ -340,11 +340,17 @@ struct CookbookView: View {
                     Haptic.tap()
                     importShown = true
                 } label: {
+                    // 56 and .callout, matching the TomatoPillButton
+                    // directly above it. These are peers in one stack and
+                    // the fill-versus-outline already carries which is
+                    // primary; the 8pt height gap and the type step down
+                    // carried nothing. Discover and the seats sheet already
+                    // pair this filled/outlined couple at matched heights.
                     Text("Paste or scan")
-                        .plType(.body, .bold)
+                        .plType(.callout)
                         .foregroundStyle(Color.ink)
                         .frame(maxWidth: .infinity)
-                        .frame(minHeight: 48)
+                        .frame(minHeight: 56)
                         .overlay(Capsule().strokeBorder(Color.hairline, lineWidth: 1.5))
                         .contentShape(Capsule())
                 }
