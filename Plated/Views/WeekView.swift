@@ -210,7 +210,13 @@ struct WeekView: View {
     private var header: some View {
         HStack(alignment: .center, spacing: 10) {
             VStack(alignment: .leading, spacing: 2) {
+                // "Aug 30 to Sep 5" is wider than a cross-month range has
+                // any right to be, and the header's icons leave it under
+                // half the screen. It shrinks to fit; wrapping pushed the
+                // title down and broke the masthead.
                 MicroLabel(weekRangeLabel)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
                 Text("Your week")
                     .font(.gabarito(25, .semibold))
                     .tracking(-0.3)
@@ -582,26 +588,41 @@ struct WeekView: View {
                 // weekday; Apple sets them almost touching.
                 .padding(.top, -2)
 
-            if let day = forecast.forecast(for: date) {
-                HStack(spacing: 2) {
-                    Image(systemName: day.symbolName)
-                        .font(.system(size: 8.5, weight: .medium))
-                    Text("\(Int(day.highF.rounded()))°")
+            // Weather always occupies its line, even when the forecast
+            // can't answer, so a day without one is not a shorter tile.
+            Group {
+                if let day = forecast.forecast(for: date) {
+                    HStack(spacing: 2) {
+                        Image(systemName: day.symbolName)
+                            .font(.system(size: 8.5, weight: .medium))
+                        Text("\(Int(day.highF.rounded()))°")
+                            .font(.jakarta(9, .semibold))
+                            .monospacedDigit()
+                    }
+                    // inkFaint disappears into the tomato tint.
+                    .foregroundStyle(today ? Color.inkSecondary : Color.inkFaint)
+                    // The row combines its children, so a bare "72°" would
+                    // read as a stray number. Say the condition the way
+                    // Weather does.
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("\(day.conditionDescription), high \(Int(day.highF.rounded())) degrees")
+                } else {
+                    Text(" ")
                         .font(.jakarta(9, .semibold))
-                        .monospacedDigit()
+                        .accessibilityHidden(true)
                 }
-                // inkFaint disappears into the tomato tint.
-                .foregroundStyle(today ? Color.inkSecondary : Color.inkFaint)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-                .padding(.top, 1)
-                // The row combines its children, so a bare "72°" would read
-                // as a stray number. Say the condition the way Weather does.
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel("\(day.conditionDescription), high \(Int(day.highF.rounded())) degrees")
             }
+            .lineLimit(1)
+            .minimumScaleFactor(0.8)
+            .padding(.top, 1)
         }
-        .frame(width: 52, height: 60)
+        // Padding and a floor, not a fixed height. The three lines add up
+        // to almost exactly 60pt, so on a device that renders type a hair
+        // larger than the simulator the temperature fell out of the bottom
+        // of the tile.
+        .padding(.vertical, 6)
+        .frame(width: 52)
+        .frame(minHeight: 62)
         .background {
             RoundedRectangle(cornerRadius: 13, style: .continuous)
                 .fill(today ? Color.tomatoTint : Color.cardFill)
