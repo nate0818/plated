@@ -295,7 +295,7 @@ struct CookbookView: View {
                 .foregroundStyle(Color.inkFaint)
             Text("Nothing matches that filter")
                 .plType(.body, .bold)
-                .foregroundStyle(Color.inkSecondary)
+                .foregroundStyle(Color.ink)
             Button {
                 Haptic.tap()
                 withAnimation(.plSnap) { filter = RecipeFilter() }
@@ -321,10 +321,13 @@ struct CookbookView: View {
     private var emptyCookbook: some View {
         VStack(spacing: 12) {
             Image(systemName: "book.closed")
-                .font(.system(size: 30, weight: .medium))
+                .font(.system(size: 26, weight: .medium))
                 .foregroundStyle(Color.inkFaint)
             Text("Nothing in the cookbook yet")
-                .plType(.heading)
+                // .body/.bold, like the other six empty headlines in the
+                // app, including the identical sentence one sheet away in
+                // RecipePickerSheet. This was the only one set a step up.
+                .plType(.body, .bold)
                 .foregroundStyle(Color.ink)
                 .multilineTextAlignment(.center)
             Text("Start with the one your household asks for most.")

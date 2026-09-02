@@ -53,11 +53,11 @@ struct GrocerySheet: View {
                 Spacer()
                 VStack(spacing: 8) {
                     Image(systemName: "basket")
-                        .font(.system(size: 30, weight: .medium))
+                        .font(.system(size: 26, weight: .medium))
                         .foregroundStyle(Color.inkFaint)
                     Text("Nothing to shop for yet")
                         .plType(.body, .bold)
-                        .foregroundStyle(Color.inkSecondary)
+                        .foregroundStyle(Color.ink)
                     Text("Plan a few nights and the list builds itself.")
                         .plType(.footnote)
                         .foregroundStyle(Color.inkSecondary)

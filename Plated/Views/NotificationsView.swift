@@ -38,11 +38,11 @@ struct NotificationsView: View {
                 Spacer()
                 VStack(spacing: 8) {
                     Image(systemName: "bell")
-                        .font(.system(size: 28, weight: .medium))
+                        .font(.system(size: 26, weight: .medium))
                         .foregroundStyle(Color.inkFaint)
                     Text("Nothing yet")
                         .plType(.body, .bold)
-                        .foregroundStyle(Color.inkSecondary)
+                        .foregroundStyle(Color.ink)
                     Text("Plates, comments, saves, and turn reminders land here.")
                         .plType(.footnote)
                         .foregroundStyle(Color.inkSecondary)

@@ -173,7 +173,7 @@ struct TableFeedView: View {
     private var cannotReachTable: some View {
         VStack(spacing: 10) {
             Image(systemName: "icloud.slash")
-                .font(.system(size: 30, weight: .light))
+                .font(.system(size: 26, weight: .medium))
                 .foregroundStyle(Color.inkFaint)
             Text("Couldn't check for new dishes")
                 .plType(.body, .bold)

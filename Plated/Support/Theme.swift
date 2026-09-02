@@ -856,15 +856,28 @@ struct AvatarCircle: View {
 struct TomatoPillButton: View {
     let title: String
     var systemImage: String?
+    /// Working. The spinner replaces the glyph rather than joining it, so
+    /// the pill does not change width mid-press. A committing action that
+    /// can take a moment is common enough that hand-rolling the busy state
+    /// is what put two 48pt copies of this pill in the import sheet.
+    var busy: Bool = false
+    /// Haptics carry meaning here: `tap` for ordinary chrome, `plate` for
+    /// something landing, `kiss` for the good thing. Most committing pills
+    /// are a tap, but a save that earns the kiss must keep it — flattening
+    /// every pill to one buzz is how a shared component quietly costs a
+    /// screen its voice.
+    var haptic: () -> Void = Haptic.tap
     let action: () -> Void
 
     var body: some View {
         Button {
-            Haptic.tap()
+            haptic()
             action()
         } label: {
             HStack(spacing: 8) {
-                if let systemImage {
+                if busy {
+                    ProgressView().tint(Color.onTomato)
+                } else if let systemImage {
                     Image(systemName: systemImage).font(.system(size: 16, weight: .semibold))
                 }
                 Text(title).plType(.callout)

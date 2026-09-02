@@ -93,7 +93,7 @@ struct DiscoverView: View {
                 // that did not happen.
                 VStack(spacing: 8) {
                     Image(systemName: posts.isEmpty ? "table.furniture" : "magnifyingglass")
-                        .font(.system(size: 28, weight: .medium))
+                        .font(.system(size: 26, weight: .medium))
                         .foregroundStyle(Color.inkFaint)
                     Text(posts.isEmpty ? "No open tables yet" : "Nothing found")
                         .plType(.body, .bold)
@@ -251,15 +251,13 @@ struct DiscoverPostSheet: View {
                         togglePlate()
                     } label: {
                         HStack(spacing: 7) {
-                            ZStack {
-                                Circle()
-                                    .strokeBorder(post.platedByMe ? Color.tomato : Color.inkSecondary, lineWidth: 2)
-                                    .background(Circle().fill(post.platedByMe ? Color.tomato : Color.clear))
-                                    .frame(width: 26, height: 26)
-                                if post.platedByMe {
-                                    Circle().fill(Color.canvas).frame(width: 9, height: 9)
-                                }
-                            }
+                            // The app owns a plate. This was a hand-rebuilt
+                            // copy of it that had already drifted: the
+                            // component fills an unplated mark with a `fill`
+                            // well and this drew a bare ring, so the same
+                            // control looked like two different marks on two
+                            // screens one tap apart.
+                            PlateReactionGlyph(filled: post.platedByMe)
                             Text("\(post.totalPlates)")
                                 .plType(.body, .bold)
                                 .foregroundStyle(post.platedByMe ? Color.tomato : Color.inkSecondary)

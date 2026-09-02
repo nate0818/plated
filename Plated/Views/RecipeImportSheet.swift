@@ -145,22 +145,15 @@ struct RecipeImportSheet: View {
                 .buttonStyle(.pressable)
             }
 
-            Button {
-                Haptic.plate()
+            // The shared pill. Hand-built at 48pt and .body/.bold, this
+            // lost TomatoPillStyle's pressed tomato and its float shadow,
+            // and stood 8pt shorter than every other committing action in
+            // the app.
+            TomatoPillButton(title: reading ? "Reading…" : "Read it",
+                             busy: reading, haptic: Haptic.plate) {
                 editing = false
                 read(raw)
-            } label: {
-                HStack(spacing: 8) {
-                    if reading { ProgressView().tint(Color.onTomato) }
-                    Text(reading ? "Reading…" : "Read it")
-                        .plType(.body, .bold)
-                }
-                .foregroundStyle(Color.onTomato)
-                .frame(maxWidth: .infinity)
-                .frame(minHeight: 48)
-                .background(Color.tomato, in: Capsule())
             }
-            .buttonStyle(.pressable)
             .disabled(raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || reading)
             .opacity(raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0.5 : 1)
 
@@ -257,18 +250,10 @@ struct RecipeImportSheet: View {
                     }
                     .buttonStyle(.pressable)
 
-                    Button {
-                        Haptic.kiss()
+                    TomatoPillButton(title: unnamed ? "Name it to save" : "Save to cookbook",
+                                     haptic: Haptic.kiss) {
                         save(bound.wrappedValue)
-                    } label: {
-                        Text(unnamed ? "Name it to save" : "Save to cookbook")
-                            .plType(.body, .bold)
-                            .foregroundStyle(Color.onTomato)
-                            .frame(maxWidth: .infinity)
-                            .frame(minHeight: 48)
-                            .background(Color.tomato, in: Capsule())
                     }
-                    .buttonStyle(.pressable)
                     .disabled(unnamed)
                     .opacity(unnamed ? 0.5 : 1)
                 }

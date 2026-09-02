@@ -409,22 +409,15 @@ struct TableSeatsSheet: View {
     private var inviteRow: some View {
         VStack(spacing: 10) {
             if InviteComposer.isAvailable {
-                Button {
+                // The shared atom. This same action is a 56pt pill with a
+                // float shadow on Home and was a hand-built 48pt capsule
+                // with neither here, so the one control that actually
+                // invites somebody looked like two different buttons
+                // depending on which screen you reached it from.
+                InkPillButton(title: "Invite someone", systemImage: "person.badge.plus") {
                     Haptic.tap()
                     pickingContact = true
-                } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: "person.badge.plus")
-                            .font(.system(size: 13, weight: .semibold))
-                        Text("Invite someone")
-                            .plType(.body, .bold)
-                    }
-                    .foregroundStyle(Color.canvas)
-                    .frame(maxWidth: .infinity)
-                    .frame(minHeight: 48)
-                    .background(Color.ink, in: Capsule())
                 }
-                .buttonStyle(.pressable)
             }
 
             // Only when there is a real link. This used to fall back to
