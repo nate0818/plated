@@ -411,8 +411,13 @@ struct TableSeatsSheet: View {
                 .buttonStyle(.pressable)
             }
 
+            // Only when there is a real link. This used to fall back to
+            // plated.app — a domain Plated does not own, serving somebody
+            // else's parked page — and hand it to a friend as an invitation.
+            // With no link the honest line below already says so.
+            if let url = invite?.url {
             ShareLink(
-                item: invite?.url ?? URL(string: "https://plated.app")!,
+                item: url,
                 message: Text(TableSync.inviteMessage(hostName: userFirstName))
             ) {
                 HStack(spacing: 6) {
@@ -425,6 +430,7 @@ struct TableSeatsSheet: View {
                 .frame(maxWidth: .infinity)
                 .frame(minHeight: 48)
                 .overlay(Capsule().strokeBorder(Color.hairline, lineWidth: 1.5))
+            }
             }
 
             // Said plainly, because the alternative is someone wondering why

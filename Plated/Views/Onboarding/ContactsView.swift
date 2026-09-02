@@ -132,8 +132,11 @@ struct ContactsView: View {
                     // Always offered, not only once somebody is seated: the
                     // five names above are a shortlist, and the person you
                     // most want at your table is often not on it.
+                    // Only when there is a real link — the old fallback
+                    // shared a domain Plated does not own.
+                    if let url = invite?.url {
                     ShareLink(
-                        item: invite?.url ?? URL(string: "https://plated.app")!,
+                        item: url,
                         message: Text(TableSync.inviteMessage(hostName: userFirstName))
                     ) {
                         HStack(spacing: 6) {
@@ -146,6 +149,7 @@ struct ContactsView: View {
                         .frame(maxWidth: .infinity)
                         .frame(minHeight: 48)
                         .overlay(Capsule().strokeBorder(Color.hairline, lineWidth: 1.5))
+                    }
                     }
                     TomatoPillButton(title: "Done") { finish() }
                 } else {

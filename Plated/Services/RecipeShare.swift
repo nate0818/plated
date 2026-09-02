@@ -20,14 +20,13 @@ import LinkPresentation
 ///   somebody else's release schedule for no gain the cook can see.
 enum RecipeShare {
 
-    /// Where a shared recipe points when it lands on a phone that has never
-    /// heard of Plated.
+    /// A shared recipe carries no link at all, deliberately.
     ///
-    /// Deliberately NOT the household's `CKShare` invitation link. That link
+    /// It must never carry the household's `CKShare` invitation: that link
     /// hands over a seat at your table, and texting somebody a salmon recipe
     /// is not an offer to join your family's private feed. A seat is
     /// something you give on purpose, from Seats, to a person you named.
-    static let site = URL(string: "https://plated.app")!
+    /// And it cannot carry a marketing URL until one exists that is ours.
 
     // MARK: On Plated
 
@@ -118,7 +117,10 @@ enum RecipeShare {
         }
         if includeSource {
             lines.append("")
-            lines.append("From my cookbook on Plated. \(site.absoluteString)")
+            // The name, with no URL after it. This appended plated.app —
+            // not ours, somebody else's parked page — to the body of every
+            // recipe anyone ever shared out of this app.
+            lines.append("From my cookbook on Plated.")
         }
         return lines.joined(separator: "\n")
     }
@@ -176,8 +178,12 @@ enum RecipeShare {
         ) -> LPLinkMetadata? {
             let metadata = LPLinkMetadata()
             metadata.title = title
-            metadata.originalURL = RecipeShare.site
-            metadata.url = RecipeShare.site
+            // No URL on purpose. This pointed at plated.app, which Plated
+            // does not own — it resolves to somebody else's parked page, so
+            // every shared recipe carried a preview card aimed at a stranger
+            // and some destinations passed that link along. A card with a
+            // title and the dish's own photo is complete without it. Put a
+            // URL back the day there is a page that is actually ours.
             if let photo { metadata.imageProvider = NSItemProvider(object: photo) }
             return metadata
         }
