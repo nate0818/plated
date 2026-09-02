@@ -81,16 +81,29 @@ struct DiscoverView: View {
 
             if filtered.isEmpty {
                 Spacer()
+                // Two different nothings, and the app was answering both
+                // with the one that blames the reader. "Nothing found. Try
+                // a dish name" says a corpus exists and you searched it
+                // wrong. `TableShare` stamps every arriving post
+                // `isDiscover: false`, so no other household's open table
+                // has ever reached this phone, and telling somebody to
+                // search harder for it is the interface claiming something
+                // that did not happen.
                 VStack(spacing: 8) {
-                    Image(systemName: "magnifyingglass")
+                    Image(systemName: posts.isEmpty ? "table.furniture" : "magnifyingglass")
                         .font(.system(size: 28, weight: .medium))
                         .foregroundStyle(Color.inkFaint)
-                    Text("Nothing found")
+                    Text(posts.isEmpty ? "No open tables yet" : "Nothing found")
                         .plType(.body, .bold)
-                        .foregroundStyle(Color.inkSecondary)
-                    Text("Try a dish name or a cook's name.")
+                        .foregroundStyle(Color.ink)
+                    Text(posts.isEmpty
+                         ? "An open table is a household that made its dinners public. None have reached this phone."
+                         : "Try a dish name or a cook's name.")
                         .plType(.footnote)
                         .foregroundStyle(Color.inkSecondary)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.horizontal, 40)
                 }
                 Spacer()
             } else {

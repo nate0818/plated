@@ -158,6 +158,14 @@ says "Invited" must correspond to a message that actually sent. A push saying
 count the real thing. If the app cannot do something, it says so plainly rather
 than showing a control that quietly does nothing.
 
+Corollary: **an empty screen must know why it is empty.** "Nothing here"
+is a claim, and it is only true when the app actually asked and got an
+answer. Three states, never one: *still asking* (a spinner, no words),
+*asked and there is nothing* (the invitation), *could not ask* (say so, and
+offer the retry). A screen that cannot reach iCloud may not say "Nothing
+plated yet", and a search over a corpus that was never populated may not
+tell the reader to try a different word. See `TableFeedView.Reach`.
+
 Corollary: **state is recorded, never asserted.** `HouseholdMember.Seat` is set
 from a composer reporting `.sent` or CloudKit reporting `.accepted` — never from
 optimism. See `Plated/Services/Seats.swift`.

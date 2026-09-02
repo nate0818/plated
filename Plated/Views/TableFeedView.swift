@@ -34,6 +34,17 @@ struct TableFeedView: View {
     @State private var savedToast: String?
     /// The post you tapped is the post that opens. See CookbookView.
     @Namespace private var zoom
+    /// What the app actually knows about the Table right now, as opposed to
+    /// what it can show. These were one screen: an empty table, a table that
+    /// hadn't been checked yet, and a table we couldn't reach all drew the
+    /// same "Nothing plated yet" over the same invitation to post. The last
+    /// of those is a claim about other people's dinners that we had not
+    /// earned. `refreshFeed` already knew the difference and spent it on a
+    /// haptic.
+    @State private var reach: Reach = .looking
+    @State private var hasLooked = false
+
+    private enum Reach { case looking, reached, unreachable }
     @State private var toastToken = 0
     @State private var discoverPresented = false
     @State private var activityShown = false
@@ -90,9 +101,92 @@ struct TableFeedView: View {
         // refresh from a finished one.
         guard !Task.isCancelled else { return }
         switch outcome {
-        case .arrived, .quiet: Haptic.tap()
-        case .failed: Haptic.warn()
+        case .arrived, .quiet:
+            reach = .reached
+            Haptic.tap()
+        case .failed:
+            reach = .unreachable
+            Haptic.warn()
         }
+    }
+
+    // MARK: The three empty tables
+
+    /// Still asking. Only ever seen on a cold launch with nothing cached,
+    /// and only for as long as the ask takes.
+    private var lookingForPosts: some View {
+        ProgressView()
+            .controlSize(.regular)
+            .tint(Color.inkFaint)
+            .padding(.top, 80)
+            .accessibilityLabel("Looking for new posts")
+    }
+
+    /// Asked, and got an answer: nobody has posted. This is the only one of
+    /// the three that may say so, because it is the only one that knows.
+    private var nothingPlatedYet: some View {
+        VStack(spacing: 10) {
+            PlateReactionGlyph(filled: false)
+            Text(scope == .household ? "Your household hasn't posted yet" : "Nothing plated yet")
+                .plType(.body, .bold)
+                .foregroundStyle(Color.ink)
+            Text("Only the people you invite can see it.")
+                .plType(.footnote)
+                .foregroundStyle(Color.inkSecondary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, 40)
+            Button {
+                Haptic.tap()
+                composerShown = true
+            } label: {
+                Text("Post a dish")
+                    .plType(.body, .bold)
+                    .foregroundStyle(Color.onTomato)
+                    .padding(.horizontal, 24)
+                    .frame(minHeight: 44)
+                    .background(Color.tomato, in: Capsule())
+            }
+            .buttonStyle(.pressable)
+            .padding(.top, 4)
+        }
+        .padding(.top, 60)
+    }
+
+    /// Couldn't ask. Says exactly that and no more: it does not know whether
+    /// anybody has posted, so it does not get to say "nothing plated yet",
+    /// and it does not get to invite you to fill a silence that might not
+    /// be one.
+    private var cannotReachTable: some View {
+        VStack(spacing: 10) {
+            Image(systemName: "icloud.slash")
+                .font(.system(size: 30, weight: .light))
+                .foregroundStyle(Color.inkFaint)
+            Text("Couldn't check for new dishes")
+                .plType(.body, .bold)
+                .foregroundStyle(Color.ink)
+            Text("What's here is what's on this phone.")
+                .plType(.footnote)
+                .foregroundStyle(Color.inkSecondary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, 40)
+            Button {
+                Haptic.tap()
+                reach = .looking
+                Task { await refreshFeed() }
+            } label: {
+                Text("Try again")
+                    .plType(.body, .bold)
+                    .foregroundStyle(Color.ink)
+                    .padding(.horizontal, 24)
+                    .frame(minHeight: 44)
+                    .background(Color.fill, in: Capsule())
+            }
+            .buttonStyle(.pressable)
+            .padding(.top, 4)
+        }
+        .padding(.top, 60)
     }
 
     /// The people you granted and invited when you set your table.
@@ -210,37 +304,21 @@ struct TableFeedView: View {
                             Divider().overlay(Color.hairlineSoft)
                         }
                         if shownPosts.isEmpty {
-                            VStack(spacing: 10) {
-                                PlateReactionGlyph(filled: false)
-                                Text(scope == .household ? "Your household hasn't posted yet" : "Nothing plated yet")
-                                    .plType(.body, .bold)
-                                    .foregroundStyle(Color.ink)
-                                Text("Only the people you invite can see it.")
-                                    .plType(.footnote)
-                                    .foregroundStyle(Color.inkSecondary)
-                                    .multilineTextAlignment(.center)
-                                    .fixedSize(horizontal: false, vertical: true)
-                                    .padding(.horizontal, 40)
-                                Button {
-                                    Haptic.tap()
-                                    composerShown = true
-                                } label: {
-                                    Text("Post a dish")
-                                        .plType(.body, .bold)
-                                        .foregroundStyle(Color.onTomato)
-                                        .padding(.horizontal, 24)
-                                        .frame(minHeight: 44)
-                                        .background(Color.tomato, in: Capsule())
-                                }
-                                .buttonStyle(.pressable)
-                                .padding(.top, 4)
+                            switch reach {
+                            case .looking: lookingForPosts
+                            case .unreachable: cannotReachTable
+                            case .reached: nothingPlatedYet
                             }
-                            .padding(.top, 60)
                         }
                     }
                     .padding(.bottom, Layout.floatingChromeInset)
                 }
                 .refreshable { await refreshFeed() }
+                .task {
+                    guard !hasLooked else { return }
+                    hasLooked = true
+                    await refreshFeed()
+                }
                 // A seat accepted from Messages while the Table is already
                 // open would otherwise sit invisible until the next pull.
                 .onReceive(NotificationCenter.default.publisher(for: ShareAcceptor.didAccept)) { _ in
