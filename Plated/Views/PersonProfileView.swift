@@ -384,10 +384,11 @@ struct EditProfileSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Edit profile")
-                .plType(.heading, .bold)
+                // .title at 22, like Settings one sheet away.
+                .plType(.title)
                 .foregroundStyle(Color.ink)
                 .frame(maxWidth: .infinity)
-                .padding(.top, 18)
+                .padding(.top, 22)
 
             PhotosPicker(selection: $pickerItem, matching: .images) {
                 VStack(spacing: 8) {

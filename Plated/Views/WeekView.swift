@@ -582,9 +582,18 @@ struct WeekView: View {
         .padding(.leading, 8)
         .padding(.trailing, 14)
         .frame(minHeight: 54)
+        // The same container as the rows above and below it. A past night is
+        // still a row in this list, and it had neither their fill nor their
+        // border: `hairlineSoft` measures 1.105:1 on canvas against
+        // `navHairline`'s 1.178, so history read as loose text between two
+        // cards rather than as a shorter card. Being past is carried by the
+        // things that belong to the content — the compression from 76pt to
+        // 54, the smaller type, no plate, no forecast, no plus — not by
+        // taking the container away.
+        .background(Color.cardFill, in: Radius.shape(Radius.row))
         .overlay {
-            RoundedRectangle(cornerRadius: Radius.row, style: .continuous)
-                .strokeBorder(Color.hairlineSoft, lineWidth: 1.5)
+            Radius.shape(Radius.row)
+                .strokeBorder(Color.navHairline, lineWidth: 1.5)
         }
         // History answers questions — "what was that thing we ate Monday?"
         // — so it opens the day like every other row. It just can't be

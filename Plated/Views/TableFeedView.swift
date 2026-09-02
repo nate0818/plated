@@ -189,12 +189,17 @@ struct TableFeedView: View {
                 reach = .looking
                 Task { await refreshFeed() }
             } label: {
+                // Outlined, not filled. `Color.fill` is this app's selection
+                // ground, and a retry is not a selected thing — I wrote this
+                // one earlier today and reached for the wrong idiom, which
+                // is the whole argument for the shared atoms.
                 Text("Try again")
-                    .plType(.body, .bold)
+                    .plType(.callout)
                     .foregroundStyle(Color.ink)
                     .padding(.horizontal, 24)
                     .frame(minHeight: 44)
-                    .background(Color.fill, in: Capsule())
+                    .overlay(Capsule().strokeBorder(Color.hairline, lineWidth: 1.5))
+                    .contentShape(Capsule())
             }
             .buttonStyle(.pressable)
             .padding(.top, 4)

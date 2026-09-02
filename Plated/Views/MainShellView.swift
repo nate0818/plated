@@ -486,7 +486,9 @@ struct CreateMenuSheet: View {
                 Text("Add")
                     .plType(.title)
                     .foregroundStyle(Color.ink)
-                    .padding(.top, 26)
+                    // 22, the top padding every other sheet masthead uses.
+                    // These were 18, 20, 22 and 26 across four sheets.
+                    .padding(.top, 22)
                     .padding(.bottom, 18)
 
                 VStack(spacing: 10) {

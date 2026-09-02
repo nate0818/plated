@@ -455,7 +455,10 @@ struct PostThreadView: View {
 
             if linkFieldShown {
                 TextField("Paste a link", text: $link)
-                    .plType(.footnote)
+                    // .body, like the other nineteen text inputs in the app.
+                    // This was the only one set a step down, so typing into
+                    // it felt like a different app.
+                    .plType(.body, .medium)
                     .keyboardType(.URL)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()

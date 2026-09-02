@@ -44,23 +44,12 @@ struct TableComposerSheet: View {
             .padding(.bottom, 12)
             .frame(maxWidth: .infinity)
             .overlay(alignment: .topTrailing) {
-                Button {
-                    Haptic.tap()
+                // 38 with a 14pt glyph, like every other header icon disc
+                // in the app. This one was 32 with a 12, including against
+                // the disc in the sheet it is most often opened beside.
+                IconDiscButton(systemName: "xmark", label: "Close") {
                     if hasContent { discardAsked = true } else { dismiss() }
-                } label: {
-                    Circle()
-                        .strokeBorder(Color.hairline, lineWidth: 1.5)
-                        .frame(width: 32, height: 32)
-                        .overlay {
-                            Image(systemName: "xmark")
-                                .accessibilityLabel("Close")
-                                .font(.system(size: 12, weight: .semibold))
-                                .foregroundStyle(Color.ink)
-                        }
-                        .frame(minWidth: 44, minHeight: 44)
-                        .contentShape(Rectangle())
                 }
-                .buttonStyle(.pressable)
                 .padding(.trailing, 16)
                 .padding(.top, 12)
             }
@@ -72,7 +61,10 @@ struct TableComposerSheet: View {
                     TextField("Name the dish", text: $dishTitle)
                         .plType(.body)
                         .padding(.horizontal, 14)
-                        .frame(height: 48)
+                        // Floored, not fixed. Every other field in the app is
+                    // floored; a hard height around type that answers
+                    // Dynamic Type is the overflow CLAUDE.md already logs.
+                    .frame(minHeight: 48)
                         .overlay(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous).strokeBorder(Color.hairline))
                         .plTappableField()
 

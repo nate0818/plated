@@ -854,10 +854,11 @@ struct AddMemberSheet: View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 18) {
                 Text("Add someone")
-                    .plType(.heading)
+                    // .title at 22, the app's sheet masthead.
+                    .plType(.title)
                     .foregroundStyle(Color.ink)
                     .frame(maxWidth: .infinity)
-                    .padding(.top, 20)
+                    .padding(.top, 22)
 
                 inviteDoor
 
