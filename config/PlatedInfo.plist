@@ -29,6 +29,13 @@
 	     Apple's (CloudKit, WeatherKit, Sign in with Apple) over HTTPS, which
 	     is exempt. Declared here so every TestFlight build skips the
 	     "Missing Compliance" hold instead of waiting on a manual answer. -->
+	<!-- Without this, iOS has no idea Plated can open an iCloud share
+	     link, so tapping an invitation opens Safari and the icloud.com
+	     web page instead of the app. Same reason as UIBackgroundModes
+	     below: Xcode accepts INFOPLIST_KEY_CKSharingSupported as a build
+	     setting and then never emits it. -->
+	<key>CKSharingSupported</key>
+	<true/>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>UIBackgroundModes</key>
