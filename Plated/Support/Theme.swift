@@ -362,8 +362,7 @@ struct MicroLabel: View {
 
     var body: some View {
         Text(text.uppercased())
-            .font(.jakarta(12, .bold))
-            .tracking(1.0)
+            .plType(.micro)
             .foregroundStyle(color)
     }
 }
@@ -388,7 +387,7 @@ struct CountBlock: View {
                 // is unreadable for a numeral this size. Amber is the same
                 // family two steps darker and is already the app's token
                 // for "mango, but as text".
-                .font(.gabarito(24, .semibold))
+                .plType(.title)
                 .foregroundStyle(accent ? Color.amber : Color.ink)
                 .contentTransition(.numericText())
                 // Most values here are a numeral or two, but not all: the
@@ -397,7 +396,7 @@ struct CountBlock: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
             Text(label)
-                .font(.jakarta(11, .semibold))
+                .plType(.micro, .semibold)
                 .foregroundStyle(Color.inkSecondary)
                 .multilineTextAlignment(.center)
                 .lineLimit(2)
@@ -564,7 +563,7 @@ struct TomatoPillButton: View {
                 if let systemImage {
                     Image(systemName: systemImage).font(.system(size: 16, weight: .semibold))
                 }
-                Text(title).font(.jakarta(17, .bold))
+                Text(title).plType(.callout)
             }
             .foregroundStyle(Color.onTomato)
             .frame(maxWidth: .infinity)
@@ -590,7 +589,7 @@ struct InkPillButton: View {
                 if let systemImage {
                     Image(systemName: systemImage).font(.system(size: 16, weight: .semibold))
                 }
-                Text(title).font(.jakarta(17, .bold))
+                Text(title).plType(.callout)
             }
             .foregroundStyle(Color.canvas)
             .frame(maxWidth: .infinity)

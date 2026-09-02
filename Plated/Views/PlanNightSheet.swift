@@ -36,11 +36,11 @@ struct PlanNightSheet: View {
             VStack(spacing: 4) {
                 MicroLabel(meal == nil ? planLabel : "Planned")
                 Text(dayTitle)
-                    .font(.gabarito(22, .semibold))
+                    .plType(.title)
                     .foregroundStyle(Color.ink)
                 if let context = contextLine {
                     Text(context)
-                        .font(.jakarta(12, .semibold))
+                        .plType(.caption, .semibold)
                         .foregroundStyle(Color.inkSecondary)
                 }
             }
@@ -153,11 +153,11 @@ struct PlanNightSheet: View {
             .plDishShadow()
             VStack(alignment: .leading, spacing: 2) {
                 Text(meal.title)
-                    .font(.jakarta(15, .bold))
+                    .plType(.body, .bold)
                     .foregroundStyle(Color.ink)
                 if let cook = meal.cook {
                     Text(cook.isOwner ? "You cook" : "\(cook.name) cooks")
-                        .font(.jakarta(12, .semibold))
+                        .plType(.caption, .semibold)
                         .foregroundStyle(Color.inkSecondary)
                 }
             }
@@ -200,10 +200,10 @@ struct PlanNightSheet: View {
                     }
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
-                        .font(.jakarta(15, .bold))
+                        .plType(.body, .bold)
                         .foregroundStyle(Color.ink)
                     Text(caption)
-                        .font(.jakarta(12, .medium))
+                        .plType(.caption)
                         .foregroundStyle(Color.inkSecondary)
                 }
                 Spacer()
@@ -354,7 +354,7 @@ struct AskComposerSheet: View {
             VStack(spacing: 2) {
                 MicroLabel("Ask the Table")
                 Text(dayName)
-                    .font(.gabarito(22, .semibold))
+                    .plType(.title)
                     .foregroundStyle(Color.ink)
             }
             .padding(.top, 22)
@@ -363,7 +363,7 @@ struct AskComposerSheet: View {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 14) {
                     TextField(defaultCaption, text: $caption, axis: .vertical)
-                        .font(.jakarta(15, .medium))
+                        .plType(.body, .medium)
                         .lineLimit(2...4)
                         .padding(14)
                         .overlay(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous).strokeBorder(Color.hairline))
@@ -377,7 +377,7 @@ struct AskComposerSheet: View {
                                     .font(.system(size: 13, weight: .semibold))
                                     .foregroundStyle(Color.inkFaint)
                                 Text(option)
-                                    .font(.jakarta(14, .semibold))
+                                    .plType(.body)
                                     .foregroundStyle(Color.ink)
                                 Spacer()
                                 Button {
@@ -398,9 +398,9 @@ struct AskComposerSheet: View {
                         if options.count < 4 {
                             HStack(spacing: 8) {
                                 TextField("Add an option", text: $optionEntry)
-                                    .font(.jakarta(14, .medium))
+                                    .plType(.body, .medium)
                                     .padding(.horizontal, 14)
-                                    .frame(height: 44)
+                                    .frame(minHeight: 44)
                                     .overlay(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous).strokeBorder(Color.hairline))
                                     .onSubmit(addOption)
                                     .plTappableField()
@@ -439,7 +439,7 @@ struct AskComposerSheet: View {
                                         HStack(spacing: 5) {
                                             AvatarCircle(member: member, size: 22)
                                             Text("@\(member.name)")
-                                                .font(.jakarta(12, .bold))
+                                                .plType(.micro)
                                         }
                                         .foregroundStyle(active ? Color.canvas : Color.ink)
                                         .padding(.horizontal, 10)
@@ -561,7 +561,7 @@ struct GatheringSheet: View {
             VStack(spacing: 2) {
                 MicroLabel("Plan a gathering")
                 Text(dayLabel)
-                    .font(.gabarito(22, .semibold))
+                    .plType(.title)
                     .foregroundStyle(Color.ink)
             }
             .padding(.top, 22)
@@ -570,26 +570,26 @@ struct GatheringSheet: View {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 14) {
                     TextField("Sunday dinner party", text: $title)
-                        .font(.jakarta(16, .semibold))
+                        .plType(.body)
                         .padding(14)
                         .overlay(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous).strokeBorder(Color.hairline))
                         .plTappableField()
 
                     TextField("Our place", text: $location)
-                        .font(.jakarta(14, .medium))
+                        .plType(.body, .medium)
                         .padding(14)
                         .overlay(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous).strokeBorder(Color.hairline))
                         .plTappableField()
 
                     HStack {
                         Text("Guests")
-                            .font(.jakarta(14, .bold))
+                            .plType(.body, .bold)
                             .foregroundStyle(Color.ink)
                         Spacer()
                         HStack(spacing: 14) {
                             stepperButton("minus", "One fewer guest") { if guests > 1 { guests -= 1 } }
                             Text("\(guests)")
-                                .font(.gabarito(19, .bold))
+                                .plType(.heading, .bold)
                                 .foregroundStyle(Color.ink)
                                 .frame(minWidth: 30)
                                 .contentTransition(.numericText())
@@ -601,7 +601,7 @@ struct GatheringSheet: View {
                     .overlay(RoundedRectangle(cornerRadius: Radius.card, style: .continuous).strokeBorder(Color.hairline))
 
                     DatePicker("Starts at", selection: $startTime, displayedComponents: .hourAndMinute)
-                        .font(.jakarta(14, .bold))
+                        .plType(.body, .bold)
                         .tint(Color.tomato)
                         .padding(.horizontal, 16)
                         .padding(.vertical, 10)
@@ -618,10 +618,10 @@ struct GatheringSheet: View {
                             }
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Add to Apple Calendar")
-                                .font(.jakarta(14, .bold))
+                                .plType(.body, .bold)
                                 .foregroundStyle(Color.ink)
                             Text("Adds an event you can invite guests from.")
-                                .font(.jakarta(12, .medium))
+                                .plType(.caption)
                                 .foregroundStyle(Color.inkSecondary)
                         }
                         Spacer()
@@ -636,7 +636,7 @@ struct GatheringSheet: View {
 
                     if let syncResult {
                         Text(syncResult)
-                            .font(.jakarta(12, .semibold))
+                            .plType(.caption, .semibold)
                             .foregroundStyle(Color.inkSecondary)
                     }
                 }

@@ -33,15 +33,13 @@ struct ProfileSetupView: View {
         VStack(spacing: 0) {
             VStack(spacing: 10) {
                 Text("Put a face to your name")
-                    .font(.gabarito(32, .extraBold))
-                    .tracking(-0.8)
+                    .plType(.hero)
                     .foregroundStyle(Color.ink)
                     .multilineTextAlignment(.center)
                 Text("This is how your household sees you everywhere in Plated.")
-                    .font(.jakarta(15, .medium))
+                    .plType(.body, .medium)
                     .foregroundStyle(Color.inkSecondary)
                     .multilineTextAlignment(.center)
-                    .lineSpacing(4)
                     .fixedSize(horizontal: false, vertical: true)
             }
             .padding(.top, 76)
@@ -77,7 +75,7 @@ struct ProfileSetupView: View {
             VStack(alignment: .leading, spacing: 8) {
                 MicroLabel("Your name")
                 TextField("First name", text: $name)
-                    .font(.jakarta(15, .semibold))
+                    .plType(.body)
                     .foregroundStyle(Color.ink)
                     .padding(.horizontal, 16)
                     .frame(minHeight: 52)
@@ -103,7 +101,7 @@ struct ProfileSetupView: View {
                     finish()
                 } label: {
                     Text("Not now")
-                        .font(.jakarta(14, .semibold))
+                        .plType(.body)
                         .foregroundStyle(Color.inkSecondary)
                         .frame(minHeight: 44)
                 }
@@ -151,7 +149,7 @@ struct ProfileSetupView: View {
             Image(systemName: icon)
                 .font(.system(size: 13, weight: .semibold))
             Text(title)
-                .font(.jakarta(13, .bold))
+                .plType(.footnote, .bold)
         }
         .foregroundStyle(Color.ink)
         .frame(maxWidth: .infinity)

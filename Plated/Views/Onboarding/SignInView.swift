@@ -54,16 +54,13 @@ struct SignInView: View {
             VStack(spacing: 10) {
                 PlatedWordmark(size: 26)
                 Text("Dinner's better with your people.")
-                    .font(.gabarito(32, .extraBold))
-                    .tracking(-0.8)
+                    .plType(.hero)
                     .foregroundStyle(Color.ink)
                     .multilineTextAlignment(.center)
-                    .lineSpacing(2)
                 Text("Plan the week, cook together, and share your table with only the people you choose.")
-                    .font(.jakarta(15, .medium))
+                    .plType(.body, .medium)
                     .foregroundStyle(Color.inkSecondary)
                     .multilineTextAlignment(.center)
-                    .lineSpacing(4)
             }
             .padding(.horizontal, 32)
             .opacity(arrived ? 1 : 0)
@@ -125,7 +122,7 @@ struct SignInView: View {
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(Color.inkSecondary)
                     Text("No passwords. Nothing public. Just your people.")
-                        .font(.jakarta(12, .medium))
+                        .plType(.caption)
                         .foregroundStyle(Color.inkSecondary)
                 }
             }

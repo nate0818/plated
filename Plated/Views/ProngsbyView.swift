@@ -204,7 +204,7 @@ struct ProngsbyView: View {
                                 send(starter)
                             } label: {
                                 Text(starter)
-                                    .font(.jakarta(12, .bold))
+                                    .plType(.caption, .bold)
                                     .fixedSize()
                                     .foregroundStyle(Color.ink)
                                     .padding(.horizontal, 13)
@@ -224,7 +224,7 @@ struct ProngsbyView: View {
 
             HStack(spacing: 10) {
                 TextField("Ask Prongsby…", text: $session.draft, axis: .vertical)
-                    .font(.jakarta(14, .medium))
+                    .plType(.body, .medium)
                     .lineLimit(1...4)
                     .focused($composerFocused)
                     .padding(.horizontal, 14)
@@ -296,14 +296,14 @@ struct ProngsbyView: View {
             ProngsbyGlyph(size: 30)
             VStack(alignment: .leading, spacing: 1) {
                 Text("Prongsby")
-                    .font(.gabarito(20, .semibold))
+                    .plType(.heading)
                     .foregroundStyle(Color.ink)
                 Text("Knows your recipes and your week")
-                    .font(.jakarta(11, .bold))
+                    .plType(.caption, .bold)
                     .foregroundStyle(Color.inkSecondary)
                 // A new joke every day. Quality not guaranteed; frequency is.
                 Text(ProngsbyBrain.taglineOfTheDay)
-                    .font(.jakarta(10, .medium))
+                    .plType(.micro, .medium)
                     .foregroundStyle(Color.inkFaint)
                     .lineLimit(1)
                     .minimumScaleFactor(0.85)
@@ -338,13 +338,12 @@ struct ProngsbyView: View {
             ProngsbyIdleGlyph(size: 56)
                 .padding(.top, 24)
             Text("Well hello. I'm Prongsby.")
-                .font(.gabarito(19, .bold))
+                .plType(.heading, .bold)
                 .foregroundStyle(Color.ink)
             Text("Your sous chef and planning department. I know your \(recipes.count) recipes, the week's plan, and who's cooking when. Ask me to resize a dish, make it vegetarian, swap a protein, or plan the whole party.")
-                .font(.jakarta(13, .medium))
+                .plType(.footnote)
                 .foregroundStyle(Color.inkSecondary)
                 .multilineTextAlignment(.center)
-                .lineSpacing(3)
                 .padding(.horizontal, 24)
         }
         .padding(.bottom, 12)
@@ -356,7 +355,7 @@ struct ProngsbyView: View {
             HStack(spacing: 8) {
                 ProngsbyIdleGlyph(size: 20, tone: .inkSecondary)
                 Text(session.thinkingLine)
-                    .font(.jakarta(12, .semibold))
+                    .plType(.caption, .semibold)
                     .foregroundStyle(Color.inkSecondary)
                     .contentTransition(.opacity)
                     .id(session.thinkingLine)
@@ -392,9 +391,8 @@ struct ProngsbyView: View {
                     .padding(.bottom, 4)
             }
             Text(message.text)
-                .font(.jakarta(14, .medium))
+                .plType(.body, .medium)
                 .foregroundStyle(message.isMine ? Color.canvas : Color.ink)
-                .lineSpacing(3)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 9)
                 .background(

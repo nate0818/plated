@@ -67,14 +67,16 @@ struct PostThreadView: View {
                     HStack(spacing: 14) {
                         PlateReactionButton(post: post, bounce: $bounce)
                         Text(post.totalPlates == 1 ? "1 plate" : "\(post.totalPlates) plates")
-                            .font(.jakarta(13, .semibold))
+                            .plType(.footnote, .semibold)
                             .foregroundStyle(Color.inkSecondary)
                         Spacer()
                     }
 
-                    (Text(post.authorName).font(.jakarta(15, .bold))
-                     + Text("  ").font(.jakarta(15))
-                     + Text(post.caption).font(.jakarta(15)))
+                    // Spelled out because concatenated Text takes a Font,
+                    // not a view modifier. TypeScale.body's numbers.
+                    (Text(post.authorName).font(.jakarta(TypeScale.body.size, .bold))
+                     + Text("  ").font(.jakarta(TypeScale.body.size))
+                     + Text(post.caption).font(.jakarta(TypeScale.body.size)))
                         .foregroundStyle(Color.ink)
                         .lineSpacing(3)
 
@@ -85,7 +87,7 @@ struct PostThreadView: View {
                                     openProfile(name)
                                 } label: {
                                     Text("@\(name)")
-                                        .font(.jakarta(12, .bold))
+                                        .plType(.micro)
                                         .foregroundStyle(Color.ink)
                                 }
                                 .buttonStyle(.pressable)
@@ -103,7 +105,7 @@ struct PostThreadView: View {
 
                     if post.sortedComments.isEmpty {
                         Text(post.kind == "ask" ? "No suggestions yet" : "No comments yet")
-                            .font(.jakarta(13, .medium))
+                            .plType(.footnote)
                             .foregroundStyle(Color.inkFaint)
                     }
 
@@ -149,7 +151,7 @@ struct PostThreadView: View {
         .overlay(alignment: .bottom) {
             if let toast = saveToast {
                 Text(toast)
-                    .font(.jakarta(13, .bold))
+                    .plType(.footnote, .bold)
                     .foregroundStyle(Color.canvas)
                     .padding(.horizontal, 18)
                     .frame(minHeight: 40)
@@ -199,10 +201,10 @@ struct PostThreadView: View {
                     VStack(alignment: .leading, spacing: 0) {
                         Text(post.authorName)
                             .plName()
-                            .font(.jakarta(15, .bold))
+                            .plType(.body, .bold)
                             .foregroundStyle(Color.ink)
                         Text(post.dishTitle.isEmpty ? "Open ask" : post.dishTitle)
-                            .font(.jakarta(12, .semibold))
+                            .plType(.caption, .semibold)
                             .foregroundStyle(Color.inkSecondary)
                     }
                 }
@@ -217,7 +219,7 @@ struct PostThreadView: View {
                         Image(systemName: "checkmark")
                             .font(.system(size: 11, weight: .bold))
                         Text("Saved")
-                            .font(.jakarta(13, .bold))
+                            .plType(.footnote, .bold)
                     }
                     .foregroundStyle(Color.inkFaint)
                     .frame(minHeight: 44)
@@ -227,7 +229,7 @@ struct PostThreadView: View {
                         save()
                     } label: {
                         Text("Save")
-                            .font(.jakarta(13, .bold))
+                            .plType(.footnote, .bold)
                             .foregroundStyle(Color.ink)
                             .padding(.horizontal, 14)
                             .frame(minHeight: 36)
@@ -253,7 +255,7 @@ struct PostThreadView: View {
                 pollRow(index: index, option: option)
             }
             Text(post.totalPollVotes == 1 ? "1 vote" : "\(post.totalPollVotes) votes")
-                .font(.jakarta(11, .semibold))
+                .plType(.micro, .semibold)
                 .foregroundStyle(Color.inkFaint)
         }
         .padding(14)
@@ -276,11 +278,11 @@ struct PostThreadView: View {
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(mine ? Color.basil : Color.inkFaint)
                 Text(option)
-                    .font(.jakarta(14, mine ? .bold : .semibold))
+                    .plType(.body, mine ? TypeWeight.bold : .semibold)
                     .foregroundStyle(Color.ink)
                 Spacer()
                 Text("\(votes)")
-                    .font(.jakarta(13, .bold))
+                    .plType(.footnote, .bold)
                     .foregroundStyle(mine ? Color.basil : Color.inkSecondary)
                     .contentTransition(.numericText())
             }
@@ -317,7 +319,7 @@ struct PostThreadView: View {
                     } label: {
                         Text(comment.authorName)
                             .plName()
-                            .font(.jakarta(13, .bold))
+                            .plType(.footnote, .bold)
                             .foregroundStyle(Color.ink)
                     }
                     .buttonStyle(.pressable)
@@ -326,12 +328,12 @@ struct PostThreadView: View {
                             Image(systemName: "arrowshape.turn.up.left.fill")
                                 .font(.system(size: 8))
                             Text(comment.replyToName)
-                                .font(.jakarta(11, .bold))
+                                .plType(.micro)
                         }
                         .foregroundStyle(Color.inkFaint)
                     }
                     Text(relativeWhen(comment.createdAt))
-                        .font(.jakarta(11, .medium))
+                        .plType(.micro, .medium)
                         .foregroundStyle(Color.inkFaint)
                 }
                 mentionedText(comment)
@@ -350,7 +352,7 @@ struct PostThreadView: View {
                             Image(systemName: "link")
                                 .font(.system(size: 11, weight: .bold))
                             Text(comment.linkLabel)
-                                .font(.jakarta(12, .bold))
+                                .plType(.micro)
                         }
                         .foregroundStyle(Color.tomato)
                         .padding(.horizontal, 12)
@@ -367,7 +369,7 @@ struct PostThreadView: View {
                     }
                 } label: {
                     Text("Reply")
-                        .font(.jakarta(11, .bold))
+                        .plType(.micro)
                         .foregroundStyle(Color.inkFaint)
                         .frame(minWidth: 44, minHeight: 44, alignment: .leading)
                         .contentShape(Rectangle())
@@ -385,9 +387,9 @@ struct PostThreadView: View {
         for word in comment.text.split(separator: " ", omittingEmptySubsequences: false) {
             let piece = String(word)
             if piece.hasPrefix("@"), comment.mentions.contains(where: { piece.dropFirst().hasPrefix($0) }) {
-                result = result + Text(piece).font(.jakarta(14, .bold)).foregroundStyle(Color.ink)
+                result = result + Text(piece).font(.jakarta(TypeScale.body.size, .bold)).foregroundStyle(Color.ink)
             } else {
-                result = result + Text(piece).font(.jakarta(14)).foregroundStyle(Color.ink)
+                result = result + Text(piece).font(.jakarta(TypeScale.body.size)).foregroundStyle(Color.ink)
             }
             result = result + Text(" ")
         }
@@ -404,7 +406,7 @@ struct PostThreadView: View {
                         .font(.system(size: 10))
                         .foregroundStyle(Color.inkFaint)
                     Text("Replying to \(replyTo)")
-                        .font(.jakarta(12, .bold))
+                        .plType(.caption, .bold)
                         .foregroundStyle(Color.inkSecondary)
                     Spacer()
                     Button {
@@ -436,7 +438,7 @@ struct PostThreadView: View {
                                     AvatarCircle(member: member, size: 22)
                                     Text(member.name)
                                         .plName()
-                                        .font(.jakarta(12, .bold))
+                                        .plType(.micro)
                                         .foregroundStyle(Color.ink)
                                 }
                                 .padding(.horizontal, 10)
@@ -453,7 +455,7 @@ struct PostThreadView: View {
 
             if linkFieldShown {
                 TextField("Paste a link", text: $link)
-                    .font(.jakarta(13, .medium))
+                    .plType(.footnote)
                     .keyboardType(.URL)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
@@ -532,7 +534,7 @@ struct PostThreadView: View {
                 .buttonStyle(.pressable)
 
                 TextField(placeholder, text: $draft, axis: .vertical)
-                    .font(.jakarta(14, .medium))
+                    .plType(.body, .medium)
                     .lineLimit(1...4)
                     .focused($composerFocused)
                     .padding(.horizontal, 14)
@@ -593,7 +595,7 @@ struct PostThreadView: View {
                 .font(.system(size: 14, weight: .bold))
                 .foregroundStyle(Color.mango)
             Text("Chef's kiss")
-                .font(.jakarta(13, .bold))
+                .plType(.footnote, .bold)
                 .foregroundStyle(Color.ink)
         }
         .padding(.horizontal, 14)

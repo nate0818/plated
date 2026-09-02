@@ -35,8 +35,7 @@ struct NotificationsView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     MicroLabel("Recent")
                     Text("Activity")
-                        .font(.gabarito(25, .semibold))
-                        .tracking(-0.3)
+                        .plType(.display)
                         .foregroundStyle(Color.ink)
                 }
                 Spacer()
@@ -56,10 +55,10 @@ struct NotificationsView: View {
                         .font(.system(size: 28, weight: .medium))
                         .foregroundStyle(Color.inkFaint)
                     Text("Nothing yet")
-                        .font(.jakarta(15, .bold))
+                        .plType(.body, .bold)
                         .foregroundStyle(Color.inkSecondary)
                     Text("Plates, comments, saves, and turn reminders land here.")
-                        .font(.jakarta(13, .medium))
+                        .plType(.footnote)
                         .foregroundStyle(Color.inkFaint)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 40)
@@ -127,11 +126,10 @@ struct NotificationsView: View {
             }
             VStack(alignment: .leading, spacing: 3) {
                 Text(note.body)
-                    .font(.jakarta(14, note.isRead ? .medium : .semibold))
+                    .plType(.body, note.isRead ? TypeWeight.medium : .semibold)
                     .foregroundStyle(Color.ink)
-                    .lineSpacing(2)
                 Text(relativeWhen(note.createdAt))
-                    .font(.jakarta(11, .medium))
+                    .plType(.micro, .medium)
                     .foregroundStyle(Color.inkFaint)
             }
             Spacer()

@@ -32,7 +32,7 @@ struct RecipeShareSheet: View {
             VStack(spacing: 2) {
                 MicroLabel("Share")
                 Text(recipe.title.isEmpty ? "This recipe" : recipe.title)
-                    .font(.gabarito(22, .semibold))
+                    .plType(.title)
                     .foregroundStyle(Color.ink)
                     .multilineTextAlignment(.center)
                     .lineLimit(2)
@@ -158,10 +158,10 @@ struct RecipeShareSheet: View {
                     .contentTransition(.symbolEffect(.replace))
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
-                        .font(.jakarta(15, .bold))
+                        .plType(.body, .bold)
                         .foregroundStyle(Color.ink)
                     Text(detail)
-                        .font(.jakarta(12, .medium))
+                        .plType(.caption)
                         .foregroundStyle(Color.inkSecondary)
                 }
                 Spacer(minLength: 0)

@@ -131,7 +131,7 @@ struct TableFeedView: View {
                                     photo: members.photo(forAuthor: name)
                                 )
                                 Text(name.split(separator: " ").first.map(String.init) ?? name)
-                                    .font(.jakarta(11, .semibold))
+                                    .plType(.micro, .semibold)
                                     .foregroundStyle(Color.inkSecondary)
                                     .lineLimit(1)
                             }
@@ -206,10 +206,10 @@ struct TableFeedView: View {
                             VStack(spacing: 10) {
                                 PlateReactionGlyph(filled: false)
                                 Text(scope == .household ? "Your household hasn't posted yet" : "Nothing plated yet")
-                                    .font(.jakarta(15, .bold))
+                                    .plType(.body, .bold)
                                     .foregroundStyle(Color.ink)
                                 Text("Only the people you invite can see it.")
-                                    .font(.jakarta(13, .medium))
+                                    .plType(.footnote)
                                     .foregroundStyle(Color.inkSecondary)
                                     .multilineTextAlignment(.center)
                                     .fixedSize(horizontal: false, vertical: true)
@@ -219,7 +219,7 @@ struct TableFeedView: View {
                                     composerShown = true
                                 } label: {
                                     Text("Post a dish")
-                                        .font(.jakarta(14, .bold))
+                                        .plType(.body, .bold)
                                         .foregroundStyle(Color.onTomato)
                                         .padding(.horizontal, 24)
                                         .frame(minHeight: 44)
@@ -300,7 +300,7 @@ struct TableFeedView: View {
         .overlay(alignment: .bottom) {
             if let toast = savedToast {
                 Text(toast)
-                    .font(.jakarta(13, .bold))
+                    .plType(.footnote, .bold)
                     .foregroundStyle(Color.canvas)
                     .padding(.horizontal, 18)
                     .frame(minHeight: 40)
@@ -354,8 +354,7 @@ struct TableFeedView: View {
                         .minimumScaleFactor(0.7)
                 }
                 Text("The Table")
-                    .font(.gabarito(25, .semibold))
-                    .tracking(-0.3)
+                    .plType(.display)
                     .foregroundStyle(Color.ink)
                     // One line at ordinary sizes; only huge type may wrap,
                     // and never mid-word.
@@ -421,8 +420,7 @@ struct TableFeedView: View {
                     AvatarCircle(initials: hostInitial, tone: .neutralPair, size: 38,
                                  photo: members.first(where: \.isOwner)?.photoData)
                     Text("HOST")
-                        .font(.jakarta(10, .bold))
-                        .tracking(0.7)
+                        .plType(.micro)
                         .foregroundStyle(Color.inkFaint)
                 }
                 // A 38pt avatar is a 38pt target; the law says 44. Home's
@@ -455,7 +453,7 @@ struct TableFeedView: View {
                     withAnimation(.plSnap) { scope = option }
                 } label: {
                     Text(option.rawValue)
-                        .font(.jakarta(13, .bold))
+                        .plType(.footnote, .bold)
                         .foregroundStyle(active ? Color.ink : Color.inkSecondary)
                         .frame(maxWidth: .infinity)
                         .frame(minHeight: 40)
@@ -491,11 +489,11 @@ struct TableFeedView: View {
                         VStack(alignment: .leading, spacing: 0) {
                             Text(post.authorName)
                                 .plName()
-                                .font(.jakarta(14, .bold))
+                                .plType(.body, .bold)
                                 .foregroundStyle(Color.ink)
                             HStack(spacing: 5) {
                                 Text(postWhen(post.createdAt))
-                                    .font(.jakarta(11, .semibold))
+                                    .plType(.micro, .semibold)
                                     .foregroundStyle(Color.inkFaint)
                                 // Whose table this came from, said once and
                                 // quietly. No badge, no tint: a guest's dish
@@ -504,7 +502,7 @@ struct TableFeedView: View {
                                 // ranking it.
                                 if post.isRemote {
                                     Text("· another table")
-                                        .font(.jakarta(11, .semibold))
+                                        .plType(.micro, .semibold)
                                         .foregroundStyle(Color.inkFaint)
                                 }
                             }
@@ -550,7 +548,7 @@ struct TableFeedView: View {
                             .font(.system(size: 18, weight: .medium))
                             .foregroundStyle(Color.inkSecondary)
                         Text("\(post.sortedComments.count)")
-                            .font(.jakarta(14, .bold))
+                            .plType(.body, .bold)
                             .foregroundStyle(Color.inkSecondary)
                     }
                     .frame(minHeight: 44)
@@ -568,7 +566,7 @@ struct TableFeedView: View {
                         Image(systemName: "bookmark.fill")
                             .font(.system(size: 14, weight: .semibold))
                         Text("Saved")
-                            .font(.jakarta(13, .bold))
+                            .plType(.footnote, .bold)
                     }
                     .foregroundStyle(Color.inkFaint)
                     .frame(minHeight: 44)
@@ -581,7 +579,7 @@ struct TableFeedView: View {
                             Image(systemName: "bookmark")
                                 .font(.system(size: 14, weight: .semibold))
                             Text("Save")
-                                .font(.jakarta(13, .bold))
+                                .plType(.footnote, .bold)
                         }
                         .foregroundStyle(Color.inkSecondary)
                         .frame(minHeight: 44)
@@ -598,15 +596,17 @@ struct TableFeedView: View {
             // showed the name. What you named is what the table sees.
             if !post.dishTitle.isEmpty {
                 Text(post.dishTitle)
-                    .font(.gabarito(17, .semibold))
-                    .tracking(-0.2)
+                    .plType(.heading)
                     .foregroundStyle(Color.ink)
                     .padding(.top, 4)
             }
             if !post.caption.isEmpty || post.dishTitle.isEmpty {
-                (Text(post.authorName).font(.jakarta(14, .bold))
-                 + Text("  ").font(.jakarta(14))
-                 + Text(post.caption).font(.jakarta(14)))
+                // Concatenated Text takes a Font, not a view modifier, so
+                // the scale is spelled out here rather than applied. These
+                // are TypeScale.body's numbers; keep them in step with it.
+                (Text(post.authorName).font(.jakarta(TypeScale.body.size, .bold))
+                 + Text("  ").font(.jakarta(TypeScale.body.size))
+                 + Text(post.caption).font(.jakarta(TypeScale.body.size)))
                     .foregroundStyle(Color.ink)
                     .lineSpacing(3)
                     .padding(.top, post.dishTitle.isEmpty ? 4 : 1)
@@ -623,7 +623,7 @@ struct TableFeedView: View {
                 Text(post.sortedComments.count > 2
                      ? "See all \(post.sortedComments.count) comments"
                      : "Add a comment")
-                    .font(.jakarta(12, .semibold))
+                    .plType(.caption, .semibold)
                     .foregroundStyle(Color.inkFaint)
                     .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                     .contentShape(Rectangle())
@@ -714,11 +714,11 @@ struct TableFeedView: View {
                         VStack(alignment: .leading, spacing: 0) {
                             Text(post.authorName)
                                 .plName()
-                                .font(.jakarta(14, .bold))
+                                .plType(.body, .bold)
                                 .foregroundStyle(Color.ink)
                             HStack(spacing: 5) {
                                 Text(postWhen(post.createdAt))
-                                    .font(.jakarta(11, .semibold))
+                                    .plType(.micro, .semibold)
                                     .foregroundStyle(Color.inkFaint)
                                 // Whose table this came from, said once and
                                 // quietly. No badge, no tint: a guest's dish
@@ -727,7 +727,7 @@ struct TableFeedView: View {
                                 // ranking it.
                                 if post.isRemote {
                                     Text("· another table")
-                                        .font(.jakarta(11, .semibold))
+                                        .plType(.micro, .semibold)
                                         .foregroundStyle(Color.inkFaint)
                                 }
                             }
@@ -745,16 +745,15 @@ struct TableFeedView: View {
             } label: {
                 VStack(alignment: .leading, spacing: 8) {
                     Text(post.caption)
-                        .font(.jakarta(15, .semibold))
+                        .plType(.body)
                         .foregroundStyle(Color.ink)
-                        .lineSpacing(3)
                         .multilineTextAlignment(.leading)
                     if post.hasPoll {
                         HStack(spacing: 6) {
                             Image(systemName: "chart.bar.xaxis")
                                 .font(.system(size: 11, weight: .bold))
                             Text("\(post.pollOptions.count) choices · \(post.totalPollVotes) votes")
-                                .font(.jakarta(12, .bold))
+                                .plType(.micro)
                         }
                         .foregroundStyle(Color.basil)
                     }
@@ -776,7 +775,7 @@ struct TableFeedView: View {
                 threadPost = post
             } label: {
                 Text("Suggest a dish…")
-                    .font(.jakarta(12, .semibold))
+                    .plType(.caption, .semibold)
                     .foregroundStyle(Color.inkFaint)
                     .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                     .contentShape(Rectangle())
@@ -794,7 +793,7 @@ struct TableFeedView: View {
                 .font(.system(size: 14, weight: .bold))
                 .foregroundStyle(Color.mango)
             Text("Chef's kiss")
-                .font(.jakarta(13, .bold))
+                .plType(.footnote, .bold)
                 .foregroundStyle(Color.ink)
         }
         .padding(.horizontal, 14)
@@ -811,7 +810,7 @@ struct TableFeedView: View {
             HStack(spacing: 7) {
                 PlateReactionGlyph(filled: post.platedByMe)
                 Text("\(post.totalPlates)")
-                    .font(.jakarta(14, .bold))
+                    .plType(.body, .bold)
                     .foregroundStyle(post.platedByMe ? Color.tomato : Color.inkSecondary)
                     .contentTransition(.numericText())
             }
@@ -822,9 +821,9 @@ struct TableFeedView: View {
 
     private func commentLine(_ comment: TableComment) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            (Text(comment.authorName).font(.jakarta(13, .bold)).foregroundStyle(Color.ink)
-             + Text("  ").font(.jakarta(13))
-             + Text(comment.text).font(.jakarta(13)).foregroundStyle(Color.inkSecondary))
+            (Text(comment.authorName).font(.jakarta(TypeScale.footnote.size, .bold)).foregroundStyle(Color.ink)
+             + Text("  ").font(.jakarta(TypeScale.footnote.size))
+             + Text(comment.text).font(.jakarta(TypeScale.footnote.size)).foregroundStyle(Color.inkSecondary))
                 .lineSpacing(2)
             if let url = URL.webLink(comment.linkURL) {
                 Link(destination: url) {
@@ -832,7 +831,7 @@ struct TableFeedView: View {
                         Image(systemName: "link")
                             .font(.system(size: 11, weight: .bold))
                         Text(comment.linkLabel)
-                            .font(.jakarta(12, .bold))
+                            .plType(.micro)
                     }
                     .foregroundStyle(Color.tomato)
                     .padding(.horizontal, 12)

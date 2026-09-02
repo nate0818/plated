@@ -77,7 +77,7 @@ struct ProngsbyPerch: View {
                 glyph
                 if showsName {
                     Text("Prongsby")
-                        .font(.jakarta(12, .bold))
+                        .plType(.micro)
                         .foregroundStyle(Color.ink)
                         .fixedSize()
                         .transition(.opacity.combined(with: .scale(scale: 0.8, anchor: .leading)))

@@ -250,8 +250,7 @@ struct HouseholdHomeView: View {
                     MicroLabel("Household")
                     HStack(spacing: 5) {
                         Text(householdDisplayName)
-                            .font(.gabarito(26, .semibold))
-                            .tracking(-0.3)
+                            .plType(.display)
                             .foregroundStyle(Color.ink)
                             // One line at ordinary sizes — it wrapped
                             // "Your / Household" the moment two were
@@ -312,8 +311,7 @@ struct HouseholdHomeView: View {
                     AvatarCircle(initials: ownerInitial, tone: .neutralPair, size: 40,
                                  photo: members.first(where: \.isOwner)?.photoData)
                     Text("You")
-                        .font(.jakarta(10, .bold))
-                        .tracking(0.7)
+                        .plType(.micro)
                         .foregroundStyle(Color.inkFaint)
                 }
                 .frame(minWidth: 44, minHeight: 44)
@@ -359,7 +357,7 @@ struct HouseholdHomeView: View {
                             Image(systemName: "camera")
                                 .font(.system(size: 11, weight: .semibold))
                             Text("Change")
-                                .font(.jakarta(11, .bold))
+                                .plType(.micro)
                         }
                         .foregroundStyle(Color.ink)
                         .padding(.horizontal, 12)
@@ -375,7 +373,7 @@ struct HouseholdHomeView: View {
                                     Image(systemName: "photo")
                                         .font(.system(size: 18, weight: .medium))
                                     Text("Add a photo")
-                                        .font(.jakarta(13, .bold))
+                                        .plType(.footnote, .bold)
                                 }
                                 .foregroundStyle(Color.inkFaint)
                             }
@@ -386,7 +384,7 @@ struct HouseholdHomeView: View {
             .accessibilityLabel("Household photo")
 
             Text(HouseholdIdentity.seatedLine(names: members.map(\.name)))
-                .font(.jakarta(12, .medium))
+                .plType(.caption)
                 .foregroundStyle(Color.inkFaint)
                 .padding(.horizontal, 2)
         }
@@ -445,7 +443,7 @@ struct HouseholdHomeView: View {
 
                 HStack(spacing: 4) {
                     Text("All stats and badges")
-                        .font(.jakarta(12, .semibold))
+                        .plType(.caption, .semibold)
                     Image(systemName: "chevron.right")
                         .font(.system(size: 9, weight: .bold))
                 }
@@ -503,12 +501,11 @@ struct HouseholdHomeView: View {
             VStack(alignment: .leading, spacing: 1) {
                 Text(member.name)
                     .plName()
-                    .font(.jakarta(15, .bold))
+                    .plType(.body, .bold)
                     .foregroundStyle(Color.ink)
                 if member.isOwner, HouseholdIdentity.isPlaceholder(member.name) {
                     Text("Head of table")
-                        .font(.jakarta(12, .bold))
-                        .tracking(0.5)
+                        .plType(.caption, .bold)
                         .foregroundStyle(Color.inkSecondary)
                         .lineLimit(2)
                 } else {
@@ -517,14 +514,14 @@ struct HouseholdHomeView: View {
                     // seconds earlier about somebody with no account and
                     // nothing to plan with.
                     Text(member.subtitle)
-                        .font(.jakarta(12, .semibold))
+                        .plType(.caption, .semibold)
                         .foregroundStyle(Color.inkSecondary)
                 }
             }
             Spacer(minLength: 6)
             if !member.isOwner, member.cooks, !member.cookWeekdays.isEmpty {
                 Text(dayChipLabel(member))
-                    .font(.jakarta(12, .bold))
+                    .plType(.caption, .bold)
                     .foregroundStyle(member.tone.tone)
                     .padding(.horizontal, 12)
                     .frame(minHeight: 30)
@@ -604,7 +601,7 @@ struct HouseholdHomeView: View {
                 Image(systemName: "plus")
                     .font(.system(size: 14, weight: .bold))
                 Text("Add someone")
-                    .font(.jakarta(15, .bold))
+                    .plType(.body, .bold)
                     .lineLimit(1)
             }
             .foregroundStyle(Color.inkSecondary)
@@ -643,16 +640,16 @@ struct HouseholdHomeView: View {
             cookGrid
 
             Text("Tap a day to hand it to someone else. Nobody is notified.")
-                .font(.jakarta(12, .medium))
+                .plType(.caption)
                 .foregroundStyle(Color.inkFaint)
 
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Take turns automatically")
-                        .font(.jakarta(14, .bold))
+                        .plType(.body, .bold)
                         .foregroundStyle(Color.ink)
                     Text("Open nights go to whoever has cooked least")
-                        .font(.jakarta(12, .medium))
+                        .plType(.caption)
                         .foregroundStyle(Color.inkSecondary)
                 }
                 Spacer()
@@ -668,9 +665,8 @@ struct HouseholdHomeView: View {
 
             if turnsTipShown {
                 Text("A day with a standing cook always goes to them. Open nights go to whoever has cooked least that week, or to you with this off.")
-                    .font(.jakarta(12, .medium))
+                    .plType(.caption)
                     .foregroundStyle(Color.inkSecondary)
-                    .lineSpacing(3)
                     .padding(14)
                     .background(Color.hairlineSoft, in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
                     .transition(.opacity.combined(with: .move(edge: .top)))
@@ -695,8 +691,7 @@ struct HouseholdHomeView: View {
         } label: {
             VStack(spacing: 6) {
                 Text(shortDay(weekday).uppercased())
-                    .font(.jakarta(10, .extraBold))
-                    .tracking(0.4)
+                    .plType(.micro, .extraBold)
                     .foregroundStyle(isToday ? Color.tomato : Color.inkFaint)
                 // The seat swap animates — a new cook scales in rather than
                 // hard-cutting inside the spring.
@@ -841,7 +836,7 @@ struct AddMemberSheet: View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 18) {
                 Text("Add someone")
-                    .font(.gabarito(21, .semibold))
+                    .plType(.heading)
                     .foregroundStyle(Color.ink)
                     .frame(maxWidth: .infinity)
                     .padding(.top, 20)
@@ -855,7 +850,7 @@ struct AddMemberSheet: View {
                             .font(.system(size: 15, weight: .semibold))
                             .foregroundStyle(Color.tomato)
                         Text(problem)
-                            .font(.jakarta(13, .semibold))
+                            .plType(.footnote, .semibold)
                             .foregroundStyle(Color.ink)
                             .fixedSize(horizontal: false, vertical: true)
                     }
@@ -868,7 +863,7 @@ struct AddMemberSheet: View {
                 HStack(spacing: 10) {
                     Rectangle().fill(Color.hairline).frame(height: 1)
                     Text("No phone?")
-                        .font(.jakarta(12, .bold))
+                        .plType(.caption, .bold)
                         .foregroundStyle(Color.inkFaint)
                     Rectangle().fill(Color.hairline).frame(height: 1)
                 }
@@ -904,7 +899,7 @@ struct AddMemberSheet: View {
             Text(InviteComposer.isAvailable
                  ? "They get a text with a link to join."
                  : "This iPhone can't send messages. Add them by name below.")
-                .font(.jakarta(12, .medium))
+                .plType(.caption)
                 .foregroundStyle(Color.inkSecondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -914,15 +909,15 @@ struct AddMemberSheet: View {
     private var byNameDoor: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Add by name")
-                .font(.jakarta(15, .bold))
+                .plType(.body, .bold)
                 .foregroundStyle(Color.ink)
             Text("For a kid, a grandparent, anyone without the app. Nothing gets sent to them.")
-                .font(.jakarta(12, .medium))
+                .plType(.caption)
                 .foregroundStyle(Color.inkSecondary)
                 .fixedSize(horizontal: false, vertical: true)
 
             TextField("Their name", text: $name)
-                .font(.jakarta(16, .semibold))
+                .plType(.body)
                 .padding(14)
                 .overlay(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous).strokeBorder(Color.hairline))
                 .plTappableField()
@@ -933,7 +928,7 @@ struct AddMemberSheet: View {
                 roleChip("member", "Guest")
             }
             Text("Kids and guests don't get cook nights.")
-                .font(.jakarta(11, .medium))
+                .plType(.micro, .medium)
                 .foregroundStyle(Color.inkFaint)
 
             InkPillButton(title: "Add") {
@@ -1062,7 +1057,7 @@ struct AddMemberSheet: View {
             withAnimation(.plSnap) { role = value }
         } label: {
             Text(label)
-                .font(.jakarta(13, .bold))
+                .plType(.footnote, .bold)
                 .foregroundStyle(active ? Color.canvas : Color.ink)
                 .frame(maxWidth: .infinity)
                 .frame(minHeight: 40)

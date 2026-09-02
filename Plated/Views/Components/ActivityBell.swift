@@ -29,7 +29,7 @@ struct ActivityBellButton: View {
                 .overlay(alignment: .topTrailing) {
                     if !unread.isEmpty {
                         Text(unread.count > 9 ? "9+" : "\(unread.count)")
-                            .font(.jakarta(9, .extraBold))
+                            .plType(.micro, .extraBold)
                             .foregroundStyle(Color.onTomato)
                             .contentTransition(.numericText())
                             .padding(.horizontal, 4)

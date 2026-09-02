@@ -117,8 +117,7 @@ struct PersonProfileView: View {
                             } label: {
                                 HStack(spacing: 6) {
                                     Text("Add your name")
-                                        .font(.gabarito(24, .semibold))
-                                        .tracking(-0.4)
+                                        .plType(.title)
                                         .foregroundStyle(Color.ink)
                                     Image(systemName: "pencil")
                                         .font(.system(size: 13, weight: .semibold))
@@ -131,16 +130,14 @@ struct PersonProfileView: View {
                         } else {
                             Text(displayName)
                                 .plName()
-                                .font(.gabarito(24, .semibold))
-                                .tracking(-0.4)
+                                .plType(.title)
                                 .foregroundStyle(Color.ink)
                         }
                         MicroLabel(roleLine)
                         if isMe && !myBio.isEmpty {
                             Text(myBio)
-                                .font(.jakarta(13, .medium))
+                                .plType(.footnote)
                                 .foregroundStyle(Color.inkSecondary)
-                                .lineSpacing(3)
                                 .padding(.top, 3)
                         }
                     }
@@ -174,7 +171,7 @@ struct PersonProfileView: View {
                     VStack(spacing: 8) {
                         PlateReactionGlyph(filled: false)
                         Text(emptyLine)
-                            .font(.jakarta(13, .medium))
+                            .plType(.footnote)
                             .foregroundStyle(Color.inkFaint)
                             .multilineTextAlignment(.center)
                     }
@@ -275,7 +272,7 @@ struct PersonProfileView: View {
                         Image(systemName: "camera")
                             .font(.system(size: 11, weight: .semibold))
                         Text("Change")
-                            .font(.jakarta(11, .bold))
+                            .plType(.micro)
                     }
                     .foregroundStyle(Color.ink)
                     .padding(.horizontal, 12)
@@ -318,7 +315,7 @@ struct PersonProfileView: View {
             action()
         } label: {
             Text(label)
-                .font(.jakarta(13, .bold))
+                .plType(.footnote, .bold)
                 .foregroundStyle(Color.ink)
                 .padding(.horizontal, 16)
                 .frame(minHeight: 36)
@@ -387,7 +384,7 @@ struct EditProfileSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Edit profile")
-                .font(.gabarito(19, .bold))
+                .plType(.heading, .bold)
                 .foregroundStyle(Color.ink)
                 .frame(maxWidth: .infinity)
                 .padding(.top, 18)
@@ -396,7 +393,7 @@ struct EditProfileSheet: View {
                 VStack(spacing: 8) {
                     ProfilePhotoWell(photoData: $photoData, initials: draftInitials, diameter: 96)
                     Text(photoData == nil ? "Add your photo" : "Change your photo")
-                        .font(.jakarta(12, .bold))
+                        .plType(.caption, .bold)
                         .foregroundStyle(Color.inkSecondary)
                 }
                 .frame(maxWidth: .infinity)
@@ -406,7 +403,7 @@ struct EditProfileSheet: View {
             VStack(alignment: .leading, spacing: 8) {
                 MicroLabel("Your name")
                 TextField("First name", text: $draftName)
-                    .font(.jakarta(14, .semibold))
+                    .plType(.body)
                     .padding(.horizontal, 14)
                     .frame(minHeight: 48)
                     .overlay(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous).strokeBorder(Color.hairline))
@@ -416,7 +413,7 @@ struct EditProfileSheet: View {
                     .submitLabel(.done)
                 if let nameError {
                     Text(nameError)
-                        .font(.jakarta(12, .semibold))
+                        .plType(.caption, .semibold)
                         .foregroundStyle(Color.tomato)
                         .transition(.opacity)
                 }
@@ -425,7 +422,7 @@ struct EditProfileSheet: View {
             VStack(alignment: .leading, spacing: 8) {
                 MicroLabel("Bio")
                 TextField("What kind of cook are you?", text: $bio, axis: .vertical)
-                    .font(.jakarta(14, .medium))
+                    .plType(.body, .medium)
                     .lineLimit(2...4)
                     .padding(14)
                     .overlay(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous).strokeBorder(Color.hairline))
@@ -433,7 +430,7 @@ struct EditProfileSheet: View {
             }
 
             Text("Apple shares your name only at first sign-in, and never your photo. Set both here.")
-                .font(.jakarta(11, .medium))
+                .plType(.micro, .medium)
                 .foregroundStyle(Color.inkFaint)
 
             InkPillButton(title: "Done") {
@@ -557,7 +554,7 @@ struct SettingsSheet: View {
             VStack(spacing: 2) {
                 MicroLabel("Plated")
                 Text("Settings")
-                    .font(.gabarito(22, .semibold))
+                    .plType(.title)
                     .foregroundStyle(Color.ink)
             }
             .padding(.top, 22)
@@ -574,7 +571,7 @@ struct SettingsSheet: View {
                         caption: "What your household is called on Home."
                     ) {
                         TextField("Family name", text: $householdName)
-                            .font(.jakarta(14, .bold))
+                            .plType(.body, .bold)
                             .foregroundStyle(Color.ink)
                             .multilineTextAlignment(.trailing)
                             .frame(width: 110)
@@ -648,8 +645,7 @@ struct SettingsSheet: View {
                                 caption: plusActive ? "Active. Unlimited household members." : "Add your whole household."
                             ) {
                                 Text(plusActive ? "ACTIVE" : "JOIN")
-                                    .font(.jakarta(11, .extraBold))
-                                    .tracking(0.5)
+                                    .plType(.micro, .extraBold)
                                     .foregroundStyle(plusActive ? Color.basil : Color.tomato)
                             }
                         }
@@ -678,8 +674,7 @@ struct SettingsSheet: View {
                                 caption: "A recent change didn't save. It's still on screen, so try it once more."
                             ) {
                                 Text("DISMISS")
-                                    .font(.jakarta(11, .extraBold))
-                                    .tracking(0.5)
+                                    .plType(.micro, .extraBold)
                                     .foregroundStyle(Color.tomato)
                             }
                         }
@@ -696,15 +691,14 @@ struct SettingsSheet: View {
                             caption: "Ends this Apple sign-in. Nothing is deleted."
                         ) {
                             Text("SIGN OUT")
-                                .font(.jakarta(11, .extraBold))
-                                .tracking(0.5)
+                                .plType(.micro, .extraBold)
                                 .foregroundStyle(Color.tomato)
                         }
                     }
                     .buttonStyle(.pressable)
 
                     Text("Plated 0.1.0")
-                        .font(.jakarta(11, .medium))
+                        .plType(.micro, .medium)
                         .foregroundStyle(Color.inkFaint)
                         .frame(maxWidth: .infinity)
                         .padding(.top, 14)
@@ -774,10 +768,10 @@ struct SettingsSheet: View {
                 }
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .font(.jakarta(14, .bold))
+                    .plType(.body, .bold)
                     .foregroundStyle(Color.ink)
                 Text(caption)
-                    .font(.jakarta(12, .medium))
+                    .plType(.caption)
                     .foregroundStyle(Color.inkSecondary)
             }
             Spacer()
@@ -808,11 +802,10 @@ struct PaywallSheet: View {
                         .foregroundStyle(Color.ink)
                 }
                 Text("Plated+")
-                    .font(.gabarito(26, .semibold))
-                    .tracking(-0.4)
+                    .plType(.display)
                     .foregroundStyle(Color.ink)
                 Text("Your seat is free. Plated+ adds everyone else.")
-                    .font(.jakarta(13, .medium))
+                    .plType(.footnote)
                     .foregroundStyle(Color.inkSecondary)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 30)
@@ -836,7 +829,7 @@ struct PaywallSheet: View {
                         Image(systemName: "checkmark.circle.fill")
                             .foregroundStyle(Color.basil)
                         Text("Plated+ is active on this table")
-                            .font(.jakarta(14, .bold))
+                            .plType(.body, .bold)
                             .foregroundStyle(Color.ink)
                     }
                     .frame(minHeight: 56)
@@ -851,7 +844,7 @@ struct PaywallSheet: View {
                         }
                     }
                     Text("Preview only. No payment is taken.")
-                        .font(.jakarta(10, .medium))
+                        .plType(.micro, .medium)
                         .foregroundStyle(Color.inkFaint)
                         .multilineTextAlignment(.center)
                 }
@@ -873,10 +866,10 @@ struct PaywallSheet: View {
                 .frame(width: 26)
             VStack(alignment: .leading, spacing: 1) {
                 Text(title)
-                    .font(.jakarta(14, .bold))
+                    .plType(.body, .bold)
                     .foregroundStyle(Color.ink)
                 Text(caption)
-                    .font(.jakarta(12, .medium))
+                    .plType(.caption)
                     .foregroundStyle(Color.inkSecondary)
             }
         }

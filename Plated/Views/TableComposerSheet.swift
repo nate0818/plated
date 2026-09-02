@@ -37,7 +37,7 @@ struct TableComposerSheet: View {
             VStack(spacing: 2) {
                 MicroLabel("Post to the Table")
                 Text("What you cooked")
-                    .font(.gabarito(22, .semibold))
+                    .plType(.title)
                     .foregroundStyle(Color.ink)
             }
             .padding(.top, 22)
@@ -70,14 +70,14 @@ struct TableComposerSheet: View {
                     photoWell
 
                     TextField("Name the dish", text: $dishTitle)
-                        .font(.jakarta(15, .semibold))
+                        .plType(.body)
                         .padding(.horizontal, 14)
                         .frame(height: 48)
                         .overlay(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous).strokeBorder(Color.hairline))
                         .plTappableField()
 
                     TextField("Say something about it", text: $caption, axis: .vertical)
-                        .font(.jakarta(15, .medium))
+                        .plType(.body, .medium)
                         .lineLimit(2...4)
                         .padding(14)
                         .overlay(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous).strokeBorder(Color.hairline))
@@ -101,7 +101,7 @@ struct TableComposerSheet: View {
                                             HStack(spacing: 5) {
                                                 AvatarCircle(member: member, size: 22)
                                                 Text("@\(member.name)")
-                                                    .font(.jakarta(12, .bold))
+                                                    .plType(.micro)
                                             }
                                             .foregroundStyle(active ? Color.canvas : Color.ink)
                                             .padding(.horizontal, 10)
@@ -181,7 +181,7 @@ struct TableComposerSheet: View {
                             Image(systemName: "camera")
                                 .font(.system(size: 11, weight: .semibold))
                             Text("Change")
-                                .font(.jakarta(11, .bold))
+                                .plType(.micro)
                         }
                         .foregroundStyle(.white)
                         .padding(.horizontal, 10)
@@ -199,7 +199,7 @@ struct TableComposerSheet: View {
                             Image(systemName: "camera")
                                 .font(.system(size: 20, weight: .medium))
                             Text("Add a photo")
-                                .font(.jakarta(13, .bold))
+                                .plType(.footnote, .bold)
                         }
                         .foregroundStyle(Color.inkFaint)
                     }

@@ -55,8 +55,7 @@ struct MonthPlannerView: View {
         HStack(spacing: 14) {
             VStack(alignment: .leading, spacing: 3) {
                 Text(monthTitle)
-                    .font(.gabarito(25, .semibold))
-                    .tracking(-0.3)
+                    .plType(.display)
                     .foregroundStyle(Color.ink)
                 // Legend rides the header — visible before you scroll an inch.
                 legend
@@ -91,8 +90,7 @@ struct MonthPlannerView: View {
         HStack(spacing: 6) {
             ForEach(orderedWeekdaySymbols, id: \.self) { symbol in
                 Text(symbol.uppercased())
-                    .font(.jakarta(10, .extraBold))
-                    .tracking(0.5)
+                    .plType(.micro, .extraBold)
                     .foregroundStyle(Color.inkFaint)
                     .frame(maxWidth: .infinity)
             }
@@ -126,7 +124,7 @@ struct MonthPlannerView: View {
         VStack(spacing: 3) {
             HStack(spacing: 3) {
                 Text(date.formattedDayNumber())
-                    .font(.gabarito(13, .extraBold))
+                    .plType(.footnote, .extraBold, family: .display)
                     .foregroundStyle(today ? Color.tomato : (past ? Color.inkFaint : Color.ink))
                 if let day = forecast.forecast(for: date) {
                     Image(systemName: day.symbolName)
@@ -159,7 +157,10 @@ struct MonthPlannerView: View {
             }
         }
         .padding(6)
-        .frame(height: 64)
+        // Floored: the cell's numeral and chips now scale with Dynamic
+        // Type. The leading blanks above stay fixed because they hold
+        // nothing and keep the grid's shape.
+        .frame(minHeight: 64)
         .background(today ? Color.todayTint : Color.canvas)
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay {
@@ -204,7 +205,7 @@ struct MonthPlannerView: View {
         HStack(spacing: 5) {
             marker()
             Text(label)
-                .font(.jakarta(11, .semibold))
+                .plType(.micro, .semibold)
                 .foregroundStyle(Color.inkSecondary)
                 .fixedSize()
         }

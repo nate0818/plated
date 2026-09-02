@@ -36,7 +36,7 @@ struct RecipeImportSheet: View {
             VStack(spacing: 2) {
                 MicroLabel(draft == nil ? "To your cookbook" : "New recipe")
                 Text(draft == nil ? "Add a recipe" : "Does this look right?")
-                    .font(.gabarito(22, .semibold))
+                    .plType(.title)
                     .foregroundStyle(Color.ink)
             }
             .padding(.top, 22)
@@ -90,14 +90,14 @@ struct RecipeImportSheet: View {
                     // headed sections are read as sections, and "Notes",
                     // "Nutrition" and the story are dropped on the floor.
                     Text("Paste the whole thing. We'll keep the recipe and drop the rest.")
-                        .font(.jakarta(14, .medium))
+                        .plType(.body, .medium)
                         .foregroundStyle(Color.inkFaint)
                         .padding(.horizontal, 16)
                         .padding(.vertical, 16)
                         .allowsHitTesting(false)
                 }
                 TextEditor(text: $raw)
-                    .font(.jakarta(14, .medium))
+                    .plType(.body, .medium)
                     .foregroundStyle(Color.ink)
                     .scrollContentBackground(.hidden)
                     .padding(10)
@@ -109,14 +109,14 @@ struct RecipeImportSheet: View {
 
             if nothingToPaste {
                 Text("Nothing on the clipboard. Copy the recipe first.")
-                    .font(.jakarta(12, .semibold))
+                    .plType(.caption, .semibold)
                     .foregroundStyle(Color.inkSecondary)
                     .multilineTextAlignment(.center)
             }
 
             if readFailed {
                 Text("No recipe found. Check that the ingredients and steps are included.")
-                    .font(.jakarta(12, .semibold))
+                    .plType(.caption, .semibold)
                     .foregroundStyle(Color.tomato)
                     .multilineTextAlignment(.center)
             }
@@ -151,7 +151,7 @@ struct RecipeImportSheet: View {
                 HStack(spacing: 8) {
                     if reading { ProgressView().tint(Color.onTomato) }
                     Text(reading ? "Reading…" : "Read it")
-                        .font(.jakarta(14, .bold))
+                        .plType(.body, .bold)
                 }
                 .foregroundStyle(Color.onTomato)
                 .frame(maxWidth: .infinity)
@@ -172,7 +172,7 @@ struct RecipeImportSheet: View {
                 editorShown = true
             } label: {
                 Text("Write it out")
-                    .font(.jakarta(13, .bold))
+                    .plType(.footnote, .bold)
                     .foregroundStyle(Color.ink)
                     .frame(maxWidth: .infinity)
                     .frame(minHeight: 44)
@@ -180,7 +180,7 @@ struct RecipeImportSheet: View {
             .buttonStyle(.pressable)
 
             Text("Photos and scans are read on your phone. Nothing is uploaded.")
-                .font(.jakarta(11, .medium))
+                .plType(.caption)
                 .foregroundStyle(Color.inkFaint)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
@@ -204,7 +204,7 @@ struct RecipeImportSheet: View {
             Image(systemName: icon)
                 .font(.system(size: 12, weight: .semibold))
             Text(title)
-                .font(.jakarta(13, .bold))
+                .plType(.footnote, .bold)
         }
         .foregroundStyle(Color.ink)
         .frame(maxWidth: .infinity)
@@ -243,7 +243,7 @@ struct RecipeImportSheet: View {
                         withAnimation(.plSnap) { draft = nil }
                     } label: {
                         Text("Start over")
-                            .font(.jakarta(14, .bold))
+                            .plType(.body, .bold)
                             .foregroundStyle(Color.ink)
                             .frame(maxWidth: .infinity)
                             .frame(minHeight: 48)
@@ -256,7 +256,7 @@ struct RecipeImportSheet: View {
                         save(bound.wrappedValue)
                     } label: {
                         Text(unnamed ? "Name it to save" : "Save to cookbook")
-                            .font(.jakarta(14, .bold))
+                            .plType(.body, .bold)
                             .foregroundStyle(Color.onTomato)
                             .frame(maxWidth: .infinity)
                             .frame(minHeight: 48)
@@ -286,7 +286,7 @@ struct RecipeImportSheet: View {
         VStack(alignment: .leading, spacing: 6) {
             MicroLabel("Name")
             TextField("Name the dish", text: draft.title)
-                .font(.gabarito(20, .semibold))
+                .plType(.heading)
                 .foregroundStyle(Color.ink)
                 .focused($namingDish)
                 .padding(.horizontal, 14)
@@ -298,7 +298,7 @@ struct RecipeImportSheet: View {
                 .plTapToFocus(radius: Radius.card) { namingDish = true }
             if !draft.wrappedValue.summary.isEmpty {
                 Text(draft.wrappedValue.summary)
-                    .font(.jakarta(13, .medium))
+                    .plType(.footnote)
                     .foregroundStyle(Color.inkSecondary)
             }
         }
@@ -313,7 +313,7 @@ struct RecipeImportSheet: View {
                 ForEach(draft.wrappedValue.ingredients) { ingredient in
                     HStack(spacing: 10) {
                         Text(line(for: ingredient))
-                            .font(.jakarta(13, .semibold))
+                            .plType(.footnote, .semibold)
                             .foregroundStyle(Color.ink)
                         Spacer(minLength: 8)
                         removeButton("Remove \(ingredient.name)") {
@@ -345,14 +345,14 @@ struct RecipeImportSheet: View {
                             // onto two lines, so every step past nine
                             // read as a stacked pair of digits.
                             Text("\(i + 1)")
-                                .font(.jakarta(12, .extraBold))
+                                .plType(.micro, .extraBold)
                                 .foregroundStyle(Color.tomato)
                                 .monospacedDigit()
                                 .lineLimit(1)
                                 .fixedSize()
                                 .frame(minWidth: 18, alignment: .leading)
                             Text(step)
-                                .font(.jakarta(13, .medium))
+                                .plType(.footnote)
                                 .foregroundStyle(Color.ink)
                             Spacer(minLength: 8)
                             removeButton("Remove step \(i + 1)") {
@@ -474,7 +474,7 @@ struct IngredientEntryField: View {
     var body: some View {
         HStack(spacing: 8) {
             TextField("Add one, or paste the whole list", text: $entry, axis: .vertical)
-                .font(.jakarta(14, .medium))
+                .plType(.body, .medium)
                 .lineLimit(1...6)
                 .focused($focused)
                 .padding(.horizontal, 14)
@@ -495,7 +495,7 @@ struct IngredientEntryField: View {
                         // visible before it happens.
                         if pieces.count > 1 {
                             Text("\(pieces.count)")
-                                .font(.jakarta(13, .extraBold))
+                                .plType(.footnote, .extraBold)
                                 .foregroundStyle(Color.canvas)
                         } else {
                             Image(systemName: "plus")

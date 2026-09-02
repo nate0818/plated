@@ -185,7 +185,7 @@ struct HouseholdStatsView: View {
             VStack(alignment: .leading, spacing: 1) {
                 MicroLabel("\(earned) of \(total) earned")
                 Text("Stats and badges")
-                    .font(.gabarito(20, .semibold))
+                    .plType(.heading)
                     .foregroundStyle(Color.ink)
             }
             Spacer()
@@ -239,10 +239,10 @@ struct HouseholdStatsView: View {
                 VStack(alignment: .leading, spacing: 3) {
                     MicroLabel("Closest badge")
                     Text(badge.title)
-                        .font(.jakarta(15, .bold))
+                        .plType(.body, .bold)
                         .foregroundStyle(Color.ink)
                     Text(badge.progressLabel.map { "\($0) · \(badge.remainingLine)" } ?? badge.detail)
-                        .font(.jakarta(12, .medium))
+                        .plType(.caption)
                         .foregroundStyle(Color.inkSecondary)
                         .lineLimit(2)
                         .multilineTextAlignment(.leading)
@@ -291,7 +291,7 @@ struct HouseholdStatsView: View {
             VStack(spacing: 8) {
                 BadgeMedal(badge: badge)
                 Text(badge.title)
-                    .font(.jakarta(11.5, .bold))
+                    .plType(.micro)
                     .foregroundStyle(badge.earned ? Color.ink : Color.inkSecondary)
                     .multilineTextAlignment(.center)
                     .lineLimit(2)
@@ -303,7 +303,7 @@ struct HouseholdStatsView: View {
                     // does not get the faint tone — inkFaint on canvas is
                     // about 2.2:1 and this is content, not chrome.
                     Text(label)
-                        .font(.jakarta(10, .semibold))
+                        .plType(.micro, .semibold)
                         .foregroundStyle(Color.inkSecondary)
                 }
             }
@@ -369,15 +369,14 @@ struct BadgeDetailSheet: View {
                     .padding(.top, 30)
 
                 Text(badge.title)
-                    .font(.gabarito(22, .semibold))
+                    .plType(.title)
                     .foregroundStyle(Color.ink)
                     .multilineTextAlignment(.center)
 
                 Text(badge.detail)
-                    .font(.jakarta(14, .medium))
+                    .plType(.footnote)
                     .foregroundStyle(Color.inkSecondary)
                     .multilineTextAlignment(.center)
-                    .lineSpacing(3)
                     .padding(.horizontal, 28)
 
                 if badge.earned {
@@ -385,7 +384,7 @@ struct BadgeDetailSheet: View {
                         Image(systemName: "checkmark.circle.fill")
                             .font(.system(size: 13, weight: .semibold))
                         Text("Earned")
-                            .font(.jakarta(13, .bold))
+                            .plType(.footnote, .bold)
                     }
                     .foregroundStyle(Color.basil)
                     .padding(.horizontal, 14)
@@ -393,7 +392,7 @@ struct BadgeDetailSheet: View {
                     .background(Color.basilTint, in: Capsule())
                 } else if let label = badge.progressLabel {
                     Text("\(label) · \(badge.remainingLine)")
-                        .font(.jakarta(13, .bold))
+                        .plType(.footnote, .bold)
                         .foregroundStyle(Color.inkSecondary)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 14)

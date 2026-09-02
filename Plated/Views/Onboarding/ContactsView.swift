@@ -74,16 +74,14 @@ struct ContactsView: View {
                 .padding(.bottom, 8)
 
                 Text("Invite your people")
-                    .font(.gabarito(32, .extraBold))
-                    .tracking(-0.8)
+                    .plType(.hero)
                     .foregroundStyle(Color.ink)
                 Text(accessState == .granted
                      ? "Anyone you invite sees your plan and what you cook."
                      : "Plated is invite only. Nobody sees your plan or your recipes unless you invite them.")
-                    .font(.jakarta(15, .medium))
+                    .plType(.body, .medium)
                     .foregroundStyle(Color.inkSecondary)
                     .multilineTextAlignment(.center)
-                    .lineSpacing(4)
                     .fixedSize(horizontal: false, vertical: true)
             }
             .padding(.top, 84)
@@ -93,10 +91,10 @@ struct ContactsView: View {
             if accessState == .granted && candidates.isEmpty {
                 VStack(spacing: 6) {
                     Text("Nobody here to suggest")
-                        .font(.jakarta(15, .bold))
+                        .plType(.body, .bold)
                         .foregroundStyle(Color.ink)
                     Text("We only suggest contacts with a phone number. Share a link instead.")
-                        .font(.jakarta(13, .medium))
+                        .plType(.footnote)
                         .foregroundStyle(Color.inkSecondary)
                         .multilineTextAlignment(.center)
                         .fixedSize(horizontal: false, vertical: true)
@@ -143,7 +141,7 @@ struct ContactsView: View {
                             Image(systemName: "square.and.arrow.up")
                                 .font(.system(size: 13, weight: .semibold))
                             Text("Share a link")
-                                .font(.jakarta(14, .bold))
+                                .plType(.body, .bold)
                         }
                         .foregroundStyle(Color.ink)
                         .frame(maxWidth: .infinity)
@@ -156,7 +154,7 @@ struct ContactsView: View {
                     TomatoPillButton(title: "Use Contacts") { requestContacts() }
                     if accessState == .denied {
                         Text("Plated can't see your contacts. Allow access in iOS Settings, or invite people later.")
-                            .font(.jakarta(12, .medium))
+                            .plType(.caption)
                             .foregroundStyle(Color.inkFaint)
                             .multilineTextAlignment(.center)
                             .fixedSize(horizontal: false, vertical: true)
@@ -164,7 +162,7 @@ struct ContactsView: View {
                         // end dressed up as help.
                         if let settings = URL(string: UIApplication.openSettingsURLString) {
                             Link("Open Settings", destination: settings)
-                                .font(.jakarta(13, .bold))
+                                .plType(.footnote, .bold)
                                 .foregroundStyle(Color.ink)
                                 .frame(minHeight: 44)
                         }
@@ -180,7 +178,7 @@ struct ContactsView: View {
                         finish()
                     } label: {
                         Text("Not now")
-                            .font(.jakarta(14, .semibold))
+                            .plType(.body)
                             .foregroundStyle(Color.inkSecondary)
                             .frame(minHeight: 44)
                     }
@@ -191,7 +189,7 @@ struct ContactsView: View {
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(Color.inkFaint)
                     Text("Contacts are matched on your device. Never uploaded, never sold.")
-                        .font(.jakarta(12, .medium))
+                        .plType(.caption)
                         .foregroundStyle(Color.inkFaint)
                 }
             }
@@ -278,13 +276,13 @@ struct ContactsView: View {
             // text carrying no information.
             Text(person.name)
                 .plName()
-                .font(.jakarta(15, .semibold))
+                .plType(.body)
                 .foregroundStyle(Color.ink)
             Spacer()
             if person.seated {
                 HStack(spacing: 5) {
                     Image(systemName: "checkmark").font(.system(size: 11, weight: .heavy))
-                    Text("Invited").font(.jakarta(13, .bold))
+                    Text("Invited").plType(.footnote, .bold)
                 }
                 .foregroundStyle(Color.basil)
                 .padding(.horizontal, 16)
@@ -297,7 +295,7 @@ struct ContactsView: View {
                     inviteTarget = InviteTarget(name: person.name, phone: person.phone)
                 } label: {
                     Text("Invite")
-                        .font(.jakarta(13, .bold))
+                        .plType(.footnote, .bold)
                         .foregroundStyle(Color.onTomato)
                         .padding(.horizontal, 18)
                         .frame(minHeight: 36)

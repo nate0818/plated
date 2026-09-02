@@ -430,7 +430,7 @@ struct PlateTabBar: View {
                 icon()
                     .frame(height: 23)
                 Text(label)
-                    .font(.jakarta(10, active ? .extraBold : .bold))
+                    .plType(.micro, active ? TypeWeight.extraBold : .bold)
                     .lineLimit(1)
                     .minimumScaleFactor(0.75)
             }
@@ -453,7 +453,7 @@ struct CreateMenuSheet: View {
     var body: some View {
         VStack(spacing: 0) {
             Text("Add")
-                .font(.gabarito(22, .semibold))
+                .plType(.title)
                 .foregroundStyle(Color.ink)
                 .padding(.top, 26)
                 .padding(.bottom, 18)
@@ -501,10 +501,10 @@ struct CreateMenuSheet: View {
                     .frame(width: 26)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
-                        .font(.jakarta(15, .bold))
+                        .plType(.body, .bold)
                         .foregroundStyle(Color.ink)
                     Text(detail)
-                        .font(.jakarta(12, .medium))
+                        .plType(.caption)
                         .foregroundStyle(Color.inkSecondary)
                 }
                 Spacer(minLength: 0)

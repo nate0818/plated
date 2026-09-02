@@ -41,8 +41,7 @@ struct DiscoverView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     MicroLabel("From open tables")
                     Text("Discover")
-                        .font(.gabarito(25, .semibold))
-                        .tracking(-0.3)
+                        .plType(.display)
                         .foregroundStyle(Color.ink)
                 }
                 Spacer()
@@ -56,7 +55,7 @@ struct DiscoverView: View {
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(Color.inkFaint)
                 TextField("Search dishes and cooks", text: $query)
-                    .font(.jakarta(15, .medium))
+                    .plType(.body, .medium)
                     .foregroundStyle(Color.ink)
                     .tint(Color.tomato)
                     .autocorrectionDisabled()
@@ -87,10 +86,10 @@ struct DiscoverView: View {
                         .font(.system(size: 28, weight: .medium))
                         .foregroundStyle(Color.inkFaint)
                     Text("Nothing found")
-                        .font(.jakarta(15, .bold))
+                        .plType(.body, .bold)
                         .foregroundStyle(Color.inkSecondary)
                     Text("Try a dish name or a cook's name.")
-                        .font(.jakarta(13, .medium))
+                        .plType(.footnote)
                         .foregroundStyle(Color.inkFaint)
                 }
                 Spacer()
@@ -108,7 +107,7 @@ struct DiscoverView: View {
                         Image(systemName: "lock")
                             .font(.system(size: 11, weight: .semibold))
                         Text("Open tables share with everyone. Yours stays invite-only.")
-                            .font(.jakarta(12, .medium))
+                            .plType(.caption)
                     }
                     .foregroundStyle(Color.inkFaint)
                     .padding(.top, 20)
@@ -157,12 +156,12 @@ struct DiscoverView: View {
                 }
                 VStack(alignment: .leading, spacing: 1) {
                     Text(post.dishTitle)
-                        .font(.jakarta(13, .bold))
+                        .plType(.footnote, .bold)
                         .foregroundStyle(Color.ink)
                         .lineLimit(1)
                     Text(post.authorName)
                         .plName()
-                        .font(.jakarta(11, .semibold))
+                        .plType(.micro, .semibold)
                         .foregroundStyle(Color.inkFaint)
                         .lineLimit(1)
                 }
@@ -209,7 +208,7 @@ struct DiscoverPostSheet: View {
                                 .font(.system(size: 14, weight: .bold))
                                 .foregroundStyle(Color.mango)
                             Text("Chef's kiss")
-                                .font(.jakarta(13, .bold))
+                                .plType(.footnote, .bold)
                                 .foregroundStyle(Color.ink)
                         }
                         .padding(.horizontal, 14)
@@ -226,10 +225,10 @@ struct DiscoverPostSheet: View {
                     VStack(alignment: .leading, spacing: 0) {
                         Text(post.authorName)
                             .plName()
-                            .font(.jakarta(14, .bold))
+                            .plType(.body, .bold)
                             .foregroundStyle(Color.ink)
                         Text("An open table")
-                            .font(.jakarta(11, .semibold))
+                            .plType(.micro, .semibold)
                             .foregroundStyle(Color.inkFaint)
                     }
                     Spacer()
@@ -247,7 +246,7 @@ struct DiscoverPostSheet: View {
                                 }
                             }
                             Text("\(post.totalPlates)")
-                                .font(.jakarta(14, .bold))
+                                .plType(.body, .bold)
                                 .foregroundStyle(post.platedByMe ? Color.tomato : Color.inkSecondary)
                                 .contentTransition(.numericText())
                         }
@@ -257,14 +256,12 @@ struct DiscoverPostSheet: View {
                 }
 
                 Text(post.dishTitle)
-                    .font(.gabarito(27, .semibold))
-                    .tracking(-0.5)
+                    .plType(.display)
                     .foregroundStyle(Color.ink)
 
                 Text(post.caption)
-                    .font(.jakarta(14, .medium))
+                    .plType(.footnote)
                     .foregroundStyle(Color.inkSecondary)
-                    .lineSpacing(4)
 
                 // The tomato budget here is spent on the plate reaction, so the
                 // committing action takes the ink pill — and "plate" stays the
@@ -272,7 +269,7 @@ struct DiscoverPostSheet: View {
                 if saved {
                     HStack(spacing: 8) {
                         Image(systemName: "checkmark").font(.system(size: 15, weight: .semibold))
-                        Text("In your cookbook").font(.jakarta(16, .bold))
+                        Text("In your cookbook").plType(.callout)
                     }
                     .foregroundStyle(Color.inkSecondary)
                     .frame(maxWidth: .infinity)

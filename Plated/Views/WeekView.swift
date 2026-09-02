@@ -164,7 +164,7 @@ struct WeekView: View {
                             MicroLabel(weekSectionLabel(week, index: index))
                             Spacer()
                             Text("\(week.filter { dinner(on: $0) != nil }.count) of 7")
-                                .font(.jakarta(11, .bold))
+                                .plType(.micro)
                                 .foregroundStyle(Color.inkFaint)
                         }
                         .padding(.top, 18)
@@ -218,8 +218,7 @@ struct WeekView: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.75)
                 Text("Your week")
-                    .font(.gabarito(25, .semibold))
-                    .tracking(-0.3)
+                    .plType(.display)
                     .foregroundStyle(Color.ink)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
@@ -249,8 +248,7 @@ struct WeekView: View {
                     AvatarCircle(initials: hostInitial, tone: .neutralPair, size: 42,
                                  photo: members.first(where: \.isOwner)?.photoData)
                     Text("HOST")
-                        .font(.jakarta(10, .bold))
-                        .tracking(0.7)
+                        .plType(.micro)
                         .foregroundStyle(Color.inkFaint)
                 }
                 .contentShape(Rectangle())
@@ -298,7 +296,7 @@ struct WeekView: View {
                 .frame(width: 34, height: 34)
             Circle().fill(Color.canvas).frame(width: 26, height: 26)
             Text("\(plannedCount)")
-                .font(.jakarta(11, .extraBold))
+                .plType(.micro, .extraBold)
                 .foregroundStyle(Color.ink)
                 .contentTransition(.numericText())
         }
@@ -317,27 +315,45 @@ struct WeekView: View {
     private func plannedRow(_ meal: PlannedMeal, date: Date) -> some View {
         let today = Calendar.current.isDateInToday(date)
         let eatingOut = meal.recipe == nil && meal.customTitle.localizedCaseInsensitiveContains("eating out")
-        // The dish photo left this row: the date and its weather earned the
-        // width instead. The plate is still the first thing you see the
-        // moment you open the day.
         return SwipeRow(isOpen: swipeBinding(date), actions: [.remove { remove(on: date) }]) {
             HStack(spacing: 10) {
                 dateCard(date, dimmed: false)
 
+                // The dish is back, and in the same slot the open night puts
+                // its dashed plate: one skeleton down the list instead of
+                // two. It went away when the date card took the width, which
+                // left the week — the screen this app is mostly looked at —
+                // with no photograph on it at all.
+                dishCircle(for: meal, diameter: 48)
+                    // The cook belongs to the dish, not to the far edge of
+                    // the row. Moving them here also hands the title back the
+                    // 38pt that an edge avatar was costing it, which is the
+                    // difference between "Creamy Tuscan Chicken" and
+                    // "Creamy Tuscan Chick…".
+                    .overlay(alignment: .bottomTrailing) {
+                        // Not the owner: the tagline already refuses to say
+                        // "Nate cooks" to Nate, and your own face on your own
+                        // dish every night is decoration, not information.
+                        if let cook = meal.cook, !cook.isOwner, !eatingOut {
+                            AvatarCircle(member: cook, size: 22)
+                                // A face on a photograph needs its own edge
+                                // or it reads as part of the dish.
+                                .overlay { Circle().strokeBorder(Color.cardFill, lineWidth: 2) }
+                                .offset(x: 3, y: 3)
+                        }
+                    }
+
                 VStack(alignment: .leading, spacing: 2) {
                     Text(meal.title)
-                        .font(.jakarta(15, .bold))
+                        .plType(.body, .bold)
                         .foregroundStyle(Color.ink)
                         .lineLimit(2)
                     Text(tagLine(for: meal, today: today, date: date))
-                        .font(.jakarta(12, .semibold))
+                        .plType(.caption, .semibold)
                         .foregroundStyle(today ? Color.ink : Color.inkSecondary)
                         .lineLimit(1)
                 }
                 Spacer(minLength: 8)
-                if let cook = meal.cook, !eatingOut {
-                    AvatarCircle(member: cook, size: 30)
-                }
             }
             .padding(.vertical, 12)
             .padding(.leading, 8)
@@ -403,7 +419,10 @@ struct WeekView: View {
             } label: {
                 Circle()
                     .strokeBorder(Color.hairlineDashed, style: StrokeStyle(lineWidth: 1.5, dash: [5, 5]))
-                    .frame(width: 52, height: 52)
+                    // 48, matching the planned night's dish. An empty plate
+                    // that is a different size from a full one makes the two
+                    // rows read as two lists.
+                    .frame(width: 48, height: 48)
                     .overlay {
                         Image(systemName: "plus")
                             .font(.system(size: 15, weight: .bold))
@@ -416,7 +435,7 @@ struct WeekView: View {
             // here would just be the same night read twice.
             .accessibilityHidden(true)
             Text(openLine(date))
-                .font(.jakarta(14, .semibold))
+                .plType(.body)
                 .foregroundStyle(Color.inkSecondary)
                 .lineLimit(1)
             Spacer()
@@ -490,18 +509,25 @@ struct WeekView: View {
         let meal = dinner(on: date)
         return HStack(spacing: 12) {
             VStack(spacing: 0) {
-                Text(date.formattedWeekday())
-                    .font(.jakarta(9, .bold))
-                    .tracking(0.3)
+                // Uppercase to match the live day's card. The scale's own
+                // micro tracking is set for caps, and two cases one row
+                // apart read as two different labels.
+                Text(date.formattedWeekday().uppercased())
+                    .plType(.micro)
                 Text(date.formattedDayNumber())
-                    .font(.gabarito(17, .bold))
+                    .plType(.heading, .bold)
                     .monospacedDigit()
             }
             .foregroundStyle(Color.inkFaint)
             // Same width as a live day's card, so the whole left column
             // holds one line down the list — history is shorter, not
             // narrower.
-            .frame(width: 66, height: 38)
+            // Floored, not fixed: both lines grew with the scale and this
+            // held 38pt of text in a 38pt box. A hard height around type
+            // that now answers Dynamic Type is the overflow already logged
+            // in CLAUDE.md.
+            .frame(width: 66)
+            .frame(minHeight: 40)
             .background {
                 RoundedRectangle(cornerRadius: 11, style: .continuous)
                     .fill(Color.chipFill)
@@ -511,14 +537,14 @@ struct WeekView: View {
                 dishCircle(for: meal, diameter: 34)
                     .opacity(0.65)
                 Text(meal.title)
-                    .font(.jakarta(13, .semibold))
+                    .plType(.footnote, .semibold)
                     .foregroundStyle(Color.inkSecondary)
                     .lineLimit(1)
             } else {
                 // Past tense on purpose: "yet" promises a night you can
                 // still cook.
                 Text("Nothing plated")
-                    .font(.jakarta(13, .semibold))
+                    .plType(.footnote, .semibold)
                     .foregroundStyle(Color.inkFaint)
             }
             Spacer(minLength: 8)
@@ -657,8 +683,7 @@ struct WeekView: View {
             HStack(spacing: 4) {
                 // Today is today whether or not the night is planned.
                 Text(date.formattedWeekday().uppercased())
-                    .font(.jakarta(9.5, .bold))
-                    .tracking(0.6)
+                    .plType(.micro)
                     .foregroundStyle(today ? Color.tomato : Color.inkFaint)
                 if showCalendarEvents && events.hasEvent(on: date) {
                     Circle().fill(Color.grape).frame(width: 5, height: 5)
@@ -669,7 +694,7 @@ struct WeekView: View {
             // open night no longer reads as disabled — the dashed plate and
             // the faint copy carry the emptiness on their own.
             Text(date.formattedDayNumber())
-                .font(.gabarito(25, .medium))
+                .plType(.display, .medium)
                 .monospacedDigit()
                 .foregroundStyle(dimmed && !today ? Color.inkSecondary : Color.ink)
                 // Gabarito's line box leaves the numeral floating below the
@@ -685,7 +710,7 @@ struct WeekView: View {
                             .font(.system(size: 10, weight: .medium))
                             .symbolRenderingMode(.hierarchical)
                         Text("\(Int(day.highF.rounded()))°")
-                            .font(.jakarta(10, .bold))
+                            .plType(.micro)
                             .monospacedDigit()
                     }
                     // inkFaint disappears into the tomato tint.
@@ -697,7 +722,7 @@ struct WeekView: View {
                     .accessibilityLabel("\(day.conditionDescription), high \(Int(day.highF.rounded())) degrees")
                 } else {
                     Text(" ")
-                        .font(.jakarta(10, .bold))
+                        .plType(.micro)
                         .accessibilityHidden(true)
                 }
             }
@@ -745,7 +770,7 @@ struct WeekView: View {
                 AvatarCircle(member: first, size: 26)
             }
             Text(cooksLine)
-                .font(.jakarta(12, .semibold))
+                .plType(.caption, .semibold)
                 .foregroundStyle(Color.inkSecondary)
         }
     }

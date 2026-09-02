@@ -114,8 +114,7 @@ struct CookbookView: View {
                     VStack(alignment: .leading, spacing: 2) {
                         MicroLabel(countLabel)
                         Text("Recipes")
-                            .font(.gabarito(25, .semibold))
-                            .tracking(-0.3)
+                            .plType(.display)
                             .foregroundStyle(Color.ink)
                     }
                     Spacer()
@@ -135,7 +134,7 @@ struct CookbookView: View {
                             Image(systemName: "magnifyingglass")
                                 .font(.system(size: 12, weight: .bold))
                             Text(filter.chipLabel)
-                                .font(.jakarta(13, .bold))
+                                .plType(.footnote, .bold)
                                 .lineLimit(1)
                             Image(systemName: "chevron.down")
                                 .accessibilityHidden(true)
@@ -188,7 +187,7 @@ struct CookbookView: View {
                             Image(systemName: "plus")
                                 .font(.system(size: 12, weight: .bold))
                             Text("Add")
-                                .font(.jakarta(13, .bold))
+                                .plType(.footnote, .bold)
                         }
                         // Outlined, not tomato. The tab bar's + is eight
                         // points below this and already wearing the accent;
@@ -289,14 +288,14 @@ struct CookbookView: View {
                 .font(.system(size: 26, weight: .medium))
                 .foregroundStyle(Color.inkFaint)
             Text("Nothing matches that filter")
-                .font(.jakarta(15, .bold))
+                .plType(.body, .bold)
                 .foregroundStyle(Color.inkSecondary)
             Button {
                 Haptic.tap()
                 withAnimation(.plSnap) { filter = RecipeFilter() }
             } label: {
                 Text("Clear filters")
-                    .font(.jakarta(13, .bold))
+                    .plType(.footnote, .bold)
                     .foregroundStyle(Color.ink)
                     .padding(.horizontal, 18)
                     .frame(minHeight: 44)
@@ -319,14 +318,13 @@ struct CookbookView: View {
                 .font(.system(size: 30, weight: .medium))
                 .foregroundStyle(Color.inkFaint)
             Text("Nothing in the cookbook yet")
-                .font(.gabarito(20, .semibold))
+                .plType(.heading)
                 .foregroundStyle(Color.ink)
                 .multilineTextAlignment(.center)
             Text("Start with the one your household asks for most.")
-                .font(.jakarta(14, .medium))
+                .plType(.footnote)
                 .foregroundStyle(Color.inkSecondary)
                 .multilineTextAlignment(.center)
-                .lineSpacing(3)
             VStack(spacing: 10) {
                 TomatoPillButton(title: "Add a recipe") { newRecipeShown = true }
                 Button {
@@ -334,7 +332,7 @@ struct CookbookView: View {
                     importShown = true
                 } label: {
                     Text("Paste or scan")
-                        .font(.jakarta(14, .bold))
+                        .plType(.body, .bold)
                         .foregroundStyle(Color.ink)
                         .frame(maxWidth: .infinity)
                         .frame(minHeight: 48)
@@ -393,11 +391,11 @@ struct CookbookView: View {
                 }
                 VStack(spacing: 2) {
                     Text(recipe.title)
-                        .font(.jakarta(15, .bold))
+                        .plType(.body, .bold)
                         .foregroundStyle(Color.ink)
                         .lineLimit(1)
                     Text(metaLine(recipe))
-                        .font(.jakarta(12, .semibold))
+                        .plType(.caption, .semibold)
                         .foregroundStyle(Color.inkSecondary)
                 }
             }
@@ -498,7 +496,7 @@ struct RecipeFilterSheet: View {
             VStack(spacing: 2) {
                 MicroLabel("Your cookbook")
                 Text("Search and filters")
-                    .font(.gabarito(22, .semibold))
+                    .plType(.title)
                     .foregroundStyle(Color.ink)
             }
             .padding(.top, 22)
@@ -511,7 +509,7 @@ struct RecipeFilterSheet: View {
                             .font(.system(size: 14, weight: .semibold))
                             .foregroundStyle(Color.inkFaint)
                         TextField("Search dishes and ingredients", text: $filter.searchText)
-                            .font(.jakarta(14, .medium))
+                            .plType(.body, .medium)
                             .focused($searchFocused)
                         if !filter.searchText.isEmpty {
                             Button {
@@ -568,7 +566,7 @@ struct RecipeFilterSheet: View {
                         withAnimation(.plSnap) { filter = RecipeFilter() }
                     } label: {
                         Text("Clear filters")
-                            .font(.jakarta(13, .semibold))
+                            .plType(.footnote, .semibold)
                             .foregroundStyle(Color.inkSecondary)
                             .frame(minHeight: 44)
                     }
@@ -605,7 +603,7 @@ struct RecipeFilterSheet: View {
             withAnimation(.plSnap) { action() }
         } label: {
             Text(label)
-                .font(.jakarta(13, .bold))
+                .plType(.footnote, .bold)
                 .fixedSize()
                 .foregroundStyle(active ? Color.canvas : Color.ink)
                 .padding(.horizontal, 13)
@@ -684,11 +682,10 @@ struct RecipeDetailView: View {
 
                 VStack(alignment: .leading, spacing: 6) {
                     Text(recipe.title)
-                        .font(.gabarito(27, .semibold))
-                        .tracking(-0.5)
+                        .plType(.display)
                         .foregroundStyle(Color.ink)
                     Text(byline)
-                        .font(.jakarta(12, .bold))
+                        .plType(.caption, .bold)
                         .foregroundStyle(Color.inkSecondary)
                 }
 
@@ -708,9 +705,8 @@ struct RecipeDetailView: View {
 
                 if !recipe.summary.isEmpty {
                     Text(recipe.summary)
-                        .font(.jakarta(14, .medium))
+                        .plType(.footnote)
                         .foregroundStyle(Color.inkSecondary)
-                        .lineSpacing(4)
                 }
 
                 if !ingredientRows.isEmpty {
@@ -719,11 +715,11 @@ struct RecipeDetailView: View {
                         ForEach(ingredientRows, id: \.ingredient.persistentModelID) { row in
                             HStack {
                                 Text(row.ingredient.name)
-                                    .font(.jakarta(14, .semibold))
+                                    .plType(.body)
                                     .foregroundStyle(Color.ink)
                                 Spacer()
                                 Text(quantityText(row.ingredient, quantity: row.quantity))
-                                    .font(.jakarta(13, .medium))
+                                    .plType(.footnote)
                                     .foregroundStyle(Color.inkSecondary)
                             }
                             .padding(.vertical, 4)
@@ -738,16 +734,15 @@ struct RecipeDetailView: View {
                         ForEach(Array(recipe.steps.enumerated()), id: \.offset) { index, step in
                             HStack(alignment: .top, spacing: 12) {
                                 Text("\(index + 1)")
-                                    .font(.gabarito(17, .bold))
+                                    .plType(.callout, .bold, family: .display)
                                     .foregroundStyle(Color.inkFaint)
                                     .monospacedDigit()
                                     .lineLimit(1)
                                     .fixedSize()
                                     .frame(minWidth: 22, alignment: .trailing)
                                 Text(step)
-                                    .font(.jakarta(14, .medium))
+                                    .plType(.body, .medium)
                                     .foregroundStyle(Color.ink)
-                                    .lineSpacing(3)
                             }
                         }
                     }
@@ -756,9 +751,8 @@ struct RecipeDetailView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         MicroLabel("Steps")
                         Text(recipe.instructions)
-                            .font(.jakarta(14, .medium))
+                            .plType(.body, .medium)
                             .foregroundStyle(Color.ink)
-                            .lineSpacing(4)
                     }
                 }
 
@@ -766,7 +760,7 @@ struct RecipeDetailView: View {
                     Image(systemName: visibilityIcon)
                         .font(.system(size: 12, weight: .semibold))
                     Text(visibilityLine)
-                        .font(.jakarta(12, .semibold))
+                        .plType(.caption, .semibold)
                 }
                 .foregroundStyle(Color.inkFaint)
                 .padding(.top, 6)
@@ -828,7 +822,7 @@ struct RecipeDetailView: View {
                         Image(systemName: "checkmark")
                             .font(.system(size: 16, weight: .semibold))
                         Text("Cooked")
-                            .font(.jakarta(17, .bold))
+                            .plType(.callout)
                     }
                     .foregroundStyle(Color.basil)
                     .frame(maxWidth: .infinity)
@@ -940,7 +934,7 @@ struct RecipeDetailView: View {
                     Image(systemName: "pencil")
                         .font(.system(size: 13, weight: .semibold))
                     Text("Edit")
-                        .font(.jakarta(13, .bold))
+                        .plType(.footnote, .bold)
                 }
                 .foregroundStyle(Color.ink)
                 .padding(.horizontal, 14)
@@ -993,10 +987,10 @@ struct RecipeDetailView: View {
                                 DishView(recipe: recipe, diameter: 92)
                                 VStack(spacing: 3) {
                                     Text("Add a photo")
-                                        .font(.jakarta(14, .bold))
+                                        .plType(.body, .bold)
                                         .foregroundStyle(Color.inkSecondary)
                                     Text("It shows on your plan and on the Table.")
-                                        .font(.jakarta(12, .medium))
+                                        .plType(.caption)
                                         .foregroundStyle(Color.inkFaint)
                                 }
                             }
@@ -1133,7 +1127,7 @@ struct PlateAssignSheet: View {
             VStack(spacing: 2) {
                 MicroLabel("Plan a night")
                 Text(recipe.title)
-                    .font(.gabarito(22, .semibold))
+                    .plType(.title)
                     .foregroundStyle(Color.ink)
                     .lineLimit(1)
             }
@@ -1207,17 +1201,17 @@ struct PlateAssignSheet: View {
         } label: {
             HStack(spacing: 10) {
                 Text(nightLabel(date))
-                    .font(.jakarta(14, .bold))
+                    .plType(.body, .bold)
                     .foregroundStyle(active ? Color.canvas : Color.ink)
                 Spacer()
                 if let occupied {
                     Text("\(occupied.title) planned")
-                        .font(.jakarta(11, .semibold))
+                        .plType(.micro, .semibold)
                         .foregroundStyle(active ? Color.canvas.opacity(0.8) : Color.inkFaint)
                         .lineLimit(1)
                 } else {
                     Text("Open")
-                        .font(.jakarta(11, .bold))
+                        .plType(.micro)
                         .foregroundStyle(active ? Color.canvas.opacity(0.8) : Color.basil)
                 }
             }
@@ -1253,7 +1247,7 @@ struct PlateAssignSheet: View {
                         }
                     }
                 Text(member.isOwner ? "You" : member.name)
-                    .font(.jakarta(11, active ? .extraBold : .semibold))
+                    .plType(.micro, active ? .extraBold : .semibold)
                     .foregroundStyle(active ? Color.ink : Color.inkSecondary)
             }
         }
@@ -1322,7 +1316,7 @@ struct RecipePickerSheet: View {
     var body: some View {
         VStack(spacing: 0) {
             Text(titleLine)
-                .font(.gabarito(19, .bold))
+                .plType(.heading, .bold)
                 .foregroundStyle(Color.ink)
                 .padding(.top, 22)
                 .padding(.bottom, 6)
@@ -1333,10 +1327,10 @@ struct RecipePickerSheet: View {
                         .font(.system(size: 26, weight: .medium))
                         .foregroundStyle(Color.inkFaint)
                     Text("Nothing in the cookbook yet")
-                        .font(.jakarta(15, .bold))
+                        .plType(.body, .bold)
                         .foregroundStyle(Color.ink)
                     Text("Add one and you can plan it in a tap.")
-                        .font(.jakarta(13, .medium))
+                        .plType(.footnote)
                         .foregroundStyle(Color.inkSecondary)
                         .multilineTextAlignment(.center)
                         .fixedSize(horizontal: false, vertical: true)
@@ -1372,7 +1366,7 @@ struct RecipePickerSheet: View {
                                 }
                                 .plDishShadow()
                                 Text(recipe.title)
-                                    .font(.jakarta(12, .bold))
+                                    .plType(.caption, .bold)
                                     .foregroundStyle(Color.ink)
                                     .lineLimit(1)
                             }

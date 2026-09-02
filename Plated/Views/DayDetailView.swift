@@ -63,7 +63,7 @@ struct DayDetailView: View {
                         .padding(.top, plannedSlots.isEmpty ? 0 : 16)
                     if let line = cooksLine {
                         Text(line)
-                            .font(.jakarta(12, .semibold))
+                            .plType(.caption, .semibold)
                             .foregroundStyle(Color.inkSecondary)
                             .padding(.top, 14)
                     }
@@ -124,8 +124,7 @@ struct DayDetailView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     MicroLabel(fullDateLabel)
                     Text(dayTitle)
-                        .font(.gabarito(25, .semibold))
-                        .tracking(-0.3)
+                        .plType(.display)
                         .foregroundStyle(Color.ink)
                         .lineLimit(1)
                         .minimumScaleFactor(0.7)
@@ -145,7 +144,7 @@ struct DayDetailView: View {
                                 .font(.system(size: 19, weight: .medium))
                                 .symbolRenderingMode(.hierarchical)
                             Text("\(Int(day.highF.rounded()))°")
-                                .font(.jakarta(12, .bold))
+                                .plType(.micro)
                                 .monospacedDigit()
                         }
                         .foregroundStyle(Color.inkSecondary)
@@ -159,7 +158,7 @@ struct DayDetailView: View {
             }
             if let line = contextLine {
                 Text(line)
-                    .font(.jakarta(12, .semibold))
+                    .plType(.caption, .semibold)
                     .foregroundStyle(Color.inkSecondary)
                     .padding(.top, 6)
                     .padding(.leading, 2)
@@ -207,7 +206,7 @@ struct DayDetailView: View {
         if isPast {
             if plannedSlots.isEmpty {
                 Text("Nothing plated")
-                    .font(.jakarta(14, .semibold))
+                    .plType(.body)
                     .foregroundStyle(Color.inkFaint)
                     .padding(.top, 8)
             }
@@ -231,7 +230,7 @@ struct DayDetailView: View {
                                 .foregroundStyle(Color.inkFaint)
                         }
                     Text(plannedSlots.isEmpty ? "Add a meal" : "Add another meal")
-                        .font(.jakarta(14, .semibold))
+                        .plType(.body)
                         .foregroundStyle(Color.inkSecondary)
                     Spacer()
                 }
@@ -278,12 +277,12 @@ struct DayDetailView: View {
             dish(for: meal)
             VStack(alignment: .leading, spacing: 3) {
                 Text(meal.title)
-                    .font(.jakarta(16, .bold))
+                    .plType(.body, .bold)
                     .foregroundStyle(Color.ink)
                     .lineLimit(2)
                 if let line = mealMeta(meal) {
                     Text(line)
-                        .font(.jakarta(12, .semibold))
+                        .plType(.caption, .semibold)
                         .foregroundStyle(Color.inkSecondary)
                         .lineLimit(1)
                 }

@@ -44,7 +44,7 @@ struct GrocerySheet: View {
             VStack(spacing: 2) {
                 MicroLabel("This week")
                 Text("Groceries")
-                    .font(.gabarito(22, .semibold))
+                    .plType(.title)
                     .foregroundStyle(Color.ink)
             }
             .padding(.top, 22)
@@ -56,10 +56,10 @@ struct GrocerySheet: View {
                         .font(.system(size: 30, weight: .medium))
                         .foregroundStyle(Color.inkFaint)
                     Text("Nothing to shop for yet")
-                        .font(.jakarta(15, .bold))
+                        .plType(.body, .bold)
                         .foregroundStyle(Color.inkSecondary)
                     Text("Plan a few nights and the list builds itself.")
-                        .font(.jakarta(13, .medium))
+                        .plType(.footnote)
                         .foregroundStyle(Color.inkFaint)
                 }
                 Spacer()
@@ -86,7 +86,7 @@ struct GrocerySheet: View {
                     // shopped the committing action retires and says so.
                     if unchecked.isEmpty {
                         Text("All shopped. Nothing left to send.")
-                            .font(.jakarta(14, .bold))
+                            .plType(.body, .bold)
                             .foregroundStyle(Color.inkSecondary)
                             .frame(maxWidth: .infinity)
                             .frame(minHeight: 50)
@@ -105,7 +105,7 @@ struct GrocerySheet: View {
                             Image(systemName: "cart")
                                 .font(.system(size: 15, weight: .semibold))
                             Text("Copy list and open Instacart")
-                                .font(.jakarta(15, .bold))
+                                .plType(.body, .bold)
                         }
                         .foregroundStyle(Color.ink)
                         .frame(maxWidth: .infinity)
@@ -117,7 +117,7 @@ struct GrocerySheet: View {
                     }
                     if let exportResult {
                         Text(exportResult)
-                            .font(.jakarta(12, .semibold))
+                            .plType(.caption, .semibold)
                             .foregroundStyle(Color.inkSecondary)
                     }
                 }
@@ -148,7 +148,7 @@ struct GrocerySheet: View {
                 .font(.system(size: 13, weight: .bold))
                 .foregroundStyle(Color.inkFaint)
             TextField("Add an item", text: $newItemName)
-                .font(.jakarta(14, .semibold))
+                .plType(.body)
                 .focused($addFieldFocused)
                 .submitLabel(.done)
                 .onSubmit(addManualItem)
@@ -233,12 +233,12 @@ struct GrocerySheet: View {
                     }
                 }
                 Text(item.name)
-                    .font(.jakarta(15, .semibold))
+                    .plType(.body)
                     .foregroundStyle(item.isChecked ? Color.inkFaint : Color.ink)
                     .strikethrough(item.isChecked, color: .inkFaint)
                 Spacer()
                 Text(quantityText(item))
-                    .font(.jakarta(13, .medium))
+                    .plType(.footnote)
                     .foregroundStyle(Color.inkSecondary)
             }
             .frame(minHeight: 44)

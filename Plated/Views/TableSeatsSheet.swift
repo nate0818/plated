@@ -55,7 +55,7 @@ struct TableSeatsSheet: View {
             VStack(spacing: 2) {
                 MicroLabel("\(members.count + guestSeats.count + pendingSeats.count) people")
                 Text(amGuest ? "This table" : "Your table")
-                    .font(.gabarito(22, .semibold))
+                    .plType(.title)
                     .foregroundStyle(Color.ink)
             }
             .padding(.top, 22)
@@ -148,7 +148,7 @@ struct TableSeatsSheet: View {
                             leaveAsked = true
                         } label: {
                             Text("Leave this table")
-                                .font(.jakarta(14, .bold))
+                                .plType(.body, .bold)
                                 .foregroundStyle(Color.tomato)
                                 .frame(maxWidth: .infinity)
                                 .frame(minHeight: 48)
@@ -248,10 +248,10 @@ struct TableSeatsSheet: View {
             VStack(alignment: .leading, spacing: 1) {
                 Text(name)
                     .plName()
-                    .font(.jakarta(14, .bold))
+                    .plType(.body, .bold)
                     .foregroundStyle(Color.ink)
                 Text(subtitle)
-                    .font(.jakarta(12, .semibold))
+                    .plType(.caption, .semibold)
                     .foregroundStyle(Color.inkSecondary)
             }
             Spacer()
@@ -305,7 +305,7 @@ struct TableSeatsSheet: View {
             HStack(spacing: 8) {
                 ProgressView().controlSize(.small)
                 Text("Looking for people you know…")
-                    .font(.jakarta(13, .semibold))
+                    .plType(.footnote, .semibold)
                     .foregroundStyle(Color.inkSecondary)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -321,7 +321,7 @@ struct TableSeatsSheet: View {
                             size: 38
                         )
                         Text(match.name)
-                            .font(.jakarta(15, .bold))
+                            .plType(.body, .bold)
                             .foregroundStyle(Color.ink)
                             .lineLimit(1)
                         Spacer()
@@ -333,7 +333,7 @@ struct TableSeatsSheet: View {
                             }
                         } label: {
                             Text("Add")
-                                .font(.jakarta(13, .bold))
+                                .plType(.footnote, .bold)
                                 .foregroundStyle(Color.canvas)
                                 .padding(.horizontal, 18)
                                 .frame(minHeight: 36)
@@ -401,7 +401,7 @@ struct TableSeatsSheet: View {
                         Image(systemName: "person.badge.plus")
                             .font(.system(size: 13, weight: .semibold))
                         Text("Invite someone")
-                            .font(.jakarta(14, .bold))
+                            .plType(.body, .bold)
                     }
                     .foregroundStyle(Color.canvas)
                     .frame(maxWidth: .infinity)
@@ -424,7 +424,7 @@ struct TableSeatsSheet: View {
                     Image(systemName: "square.and.arrow.up")
                         .font(.system(size: 13, weight: .semibold))
                     Text("Share link")
-                        .font(.jakarta(14, .bold))
+                        .plType(.body, .bold)
                 }
                 .foregroundStyle(Color.ink)
                 .frame(maxWidth: .infinity)
@@ -438,7 +438,7 @@ struct TableSeatsSheet: View {
             Text(invite?.hasLink == true
                  ? "They get a link to join."
                  : "Sign in to iCloud to send an invite link.")
-                .font(.jakarta(11, .medium))
+                .plType(.micro, .medium)
                 .foregroundStyle(Color.inkFaint)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
@@ -493,7 +493,7 @@ struct DMThreadView: View {
                 MicroLabel("Direct")
                 Text(peerName)
                     .plName()
-                    .font(.gabarito(22, .semibold))
+                    .plType(.title)
                     .foregroundStyle(Color.ink)
             }
             .padding(.top, 22)
@@ -503,7 +503,7 @@ struct DMThreadView: View {
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 8) {
                     Text("These messages stay on this device. \(peerName.split(separator: " ").first.map(String.init) ?? peerName) can't see them yet.")
-                        .font(.jakarta(11, .medium))
+                        .plType(.micro, .medium)
                         .foregroundStyle(Color.inkFaint)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 30)
@@ -522,7 +522,7 @@ struct DMThreadView: View {
 
             HStack(spacing: 10) {
                 TextField("Message \(peerName.split(separator: " ").first.map(String.init) ?? peerName)…", text: $draft, axis: .vertical)
-                    .font(.jakarta(14, .medium))
+                    .plType(.body, .medium)
                     .lineLimit(1...4)
                     .focused($composerFocused)
                     .padding(.horizontal, 14)
@@ -562,7 +562,7 @@ struct DMThreadView: View {
         HStack {
             if message.isMine { Spacer(minLength: 60) }
             Text(message.text)
-                .font(.jakarta(14, .medium))
+                .plType(.body, .medium)
                 .foregroundStyle(message.isMine ? Color.canvas : Color.ink)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 9)

@@ -68,8 +68,7 @@ struct RecipeEditorView: View {
                     extraPhotoStrip
 
                     TextField("Name the dish", text: $title)
-                        .font(.gabarito(27, .semibold))
-                        .tracking(-0.5)
+                        .plType(.display)
                         .foregroundStyle(Color.ink)
                         .tint(Color.tomato)
                         .padding(.bottom, 8)
@@ -78,7 +77,7 @@ struct RecipeEditorView: View {
                         }
 
                     TextField("One line about it", text: $summary, axis: .vertical)
-                        .font(.jakarta(14, .medium))
+                        .plType(.body, .medium)
                         .lineLimit(1...3)
                         .padding(12)
                         .overlay(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous).strokeBorder(Color.hairline))
@@ -142,7 +141,7 @@ struct RecipeEditorView: View {
                         visibilityPicker
                         HStack {
                             Text("Household can edit")
-                                .font(.jakarta(14, .semibold))
+                                .plType(.body)
                                 .foregroundStyle(Color.ink)
                             Spacer()
                             Toggle("", isOn: $householdCanEdit)
@@ -174,7 +173,7 @@ struct RecipeEditorView: View {
                         save(plating: night)
                     } label: {
                         Text("Save and plan it for \(nightLabel(night))")
-                            .font(.jakarta(13, .semibold))
+                            .plType(.footnote, .semibold)
                             .foregroundStyle(Color.inkSecondary)
                             .frame(minHeight: 44)
                             .contentShape(Rectangle())
@@ -277,14 +276,14 @@ struct RecipeEditorView: View {
                 if hasDraftContent { discardAsked = true } else { dismiss() }
             } label: {
                 Text("Cancel")
-                    .font(.jakarta(15, .bold))
+                    .plType(.body, .bold)
                     .foregroundStyle(Color.inkSecondary)
                     .frame(minHeight: 44)
             }
             .buttonStyle(.pressable)
             Spacer()
             Text(isEditing ? "Edit recipe" : (prefill == nil ? "New recipe" : "Save to your cookbook"))
-                .font(.gabarito(19, .bold))
+                .plType(.heading, .bold)
                 .foregroundStyle(Color.ink)
             Spacer()
             Color.clear.frame(width: 48, height: 1)
@@ -306,7 +305,7 @@ struct RecipeEditorView: View {
                 Image(systemName: icon)
                     .font(.system(size: 11, weight: .bold))
                 Text(label)
-                    .font(.jakarta(13, .bold))
+                    .plType(.footnote, .bold)
             }
             .fixedSize()
             .foregroundStyle(active ? Color.canvas : Color.ink)
@@ -332,11 +331,11 @@ struct RecipeEditorView: View {
             ForEach(draftIngredients) { draft in
                 HStack {
                     Text(draft.name)
-                        .font(.jakarta(14, .semibold))
+                        .plType(.body)
                         .foregroundStyle(Color.ink)
                     Spacer()
                     Text(draftQuantityText(draft))
-                        .font(.jakarta(13, .medium))
+                        .plType(.footnote)
                         .foregroundStyle(Color.inkSecondary)
                     Button {
                         Haptic.tap()
@@ -369,10 +368,10 @@ struct RecipeEditorView: View {
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Add to this week's grocery list")
-                            .font(.jakarta(14, .bold))
+                            .plType(.body, .bold)
                             .foregroundStyle(Color.ink)
                         Text("These \(draftIngredients.count) ingredients go on the list when you save.")
-                            .font(.jakarta(12, .medium))
+                            .plType(.caption)
                             .foregroundStyle(Color.inkSecondary)
                     }
                     Spacer()
@@ -398,13 +397,12 @@ struct RecipeEditorView: View {
             ForEach(Array(steps.enumerated()), id: \.offset) { index, step in
                 HStack(alignment: .top, spacing: 10) {
                     Text("\(index + 1)")
-                        .font(.gabarito(14, .extraBold))
+                        .plType(.footnote, .extraBold, family: .display)
                         .foregroundStyle(Color.inkFaint)
                         .frame(width: 20, alignment: .trailing)
                     Text(step)
-                        .font(.jakarta(14, .medium))
+                        .plType(.body, .medium)
                         .foregroundStyle(Color.ink)
-                        .lineSpacing(2)
                     Spacer()
                     Button {
                         Haptic.tap()
@@ -426,7 +424,7 @@ struct RecipeEditorView: View {
 
             HStack(spacing: 8) {
                 TextField(steps.isEmpty ? "Step 1. What happens first?" : "Step \(steps.count + 1)…", text: $stepEntry, axis: .vertical)
-                    .font(.jakarta(14, .medium))
+                    .plType(.body, .medium)
                     .lineLimit(1...3)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 11)
@@ -484,7 +482,7 @@ struct RecipeEditorView: View {
                         Image(systemName: "camera")
                             .font(.system(size: 12, weight: .semibold))
                         Text("Change")
-                            .font(.jakarta(12, .bold))
+                            .plType(.micro)
                     }
                     .foregroundStyle(Color.ink)
                     .padding(.horizontal, 14)
@@ -502,10 +500,10 @@ struct RecipeEditorView: View {
                                     .font(.system(size: 26, weight: .medium))
                                     .foregroundStyle(Color.inkFaint)
                                 Text("Add a photo of the plate")
-                                    .font(.jakarta(15, .bold))
+                                    .plType(.body, .bold)
                                     .foregroundStyle(Color.inkSecondary)
                                 Text("Your photo, your dish. No stock food here.")
-                                    .font(.jakarta(12, .medium))
+                                    .plType(.caption)
                                     .foregroundStyle(Color.inkFaint)
                             }
                         }
@@ -559,7 +557,7 @@ struct RecipeEditorView: View {
                                     Image(systemName: "plus")
                                         .font(.system(size: 14, weight: .bold))
                                     Text("Add")
-                                        .font(.jakarta(10, .bold))
+                                        .plType(.micro)
                                 }
                                 .foregroundStyle(Color.inkFaint)
                             }
@@ -579,13 +577,13 @@ struct RecipeEditorView: View {
     private func factPicker(_ label: String, _ value: String) -> some View {
         VStack(spacing: 2) {
             Text(value)
-                .font(.gabarito(17, .semibold))
+                .plType(.heading)
                 .foregroundStyle(Color.ink)
             // Sentence case, matching CountBlock. The all-caps tracked
             // micro-type this used to wear is dashboard voice, and a
             // household is not a dashboard.
             Text(label)
-                .font(.jakarta(11, .semibold))
+                .plType(.micro, .semibold)
                 .foregroundStyle(Color.inkSecondary)
         }
         .frame(maxWidth: .infinity)
@@ -614,7 +612,7 @@ struct RecipeEditorView: View {
                 if let icon {
                     Image(systemName: icon).font(.system(size: 11, weight: .bold))
                 }
-                Text(label).font(.jakarta(13, .bold))
+                Text(label).plType(.footnote, .bold)
             }
             .foregroundStyle(active ? Color.ink : Color.inkSecondary)
             .frame(maxWidth: .infinity)
