@@ -176,7 +176,12 @@ struct WeekView: View {
                     cooksFooter
                         .padding(.top, 14)
                 }
-                .padding(.horizontal, 24)
+                // 16, not 24. The row's own 8pt of padding then puts the
+                // date tile at 24 from the screen edge — the same line
+                // "Your week" starts on. The tile used to sit 12pt inboard
+                // of the header, which is the kind of misalignment you feel
+                // before you can name it.
+                .padding(.horizontal, 16)
                 .padding(.top, 14)
                 .padding(.bottom, Layout.floatingChromeInset)
             }
@@ -329,7 +334,7 @@ struct WeekView: View {
                     Text(meal.title)
                         .font(.jakarta(15, .bold))
                         .foregroundStyle(Color.ink)
-                        .lineLimit(1)
+                        .lineLimit(2)
                     Text(tagLine(for: meal, today: today, date: date))
                         .font(.jakarta(12, .semibold))
                         .foregroundStyle(today ? Color.ink : Color.inkSecondary)
@@ -340,10 +345,15 @@ struct WeekView: View {
                     AvatarCircle(member: cook, size: 30)
                 }
             }
-            .padding(.vertical, 8)
-            .padding(.horizontal, 12)
-            .frame(minHeight: 72)
-            .background(Color.canvas, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
+            .padding(.vertical, 12)
+            .padding(.leading, 8)
+            .padding(.trailing, 14)
+            // 72 was tight enough that "Creamy Tuscan Chicken" and
+            // "Alessandra Fitzgerald cooks" both ended in an ellipsis on the
+            // one screen the app is mostly looked at. The height and the
+            // reclaimed 18pt of width are what let the row say the thing.
+            .frame(minHeight: 88)
+            .background(Color.cardFill, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
             // Every row in the plan draws the same shape at the same weight —
             // planned rows used to be an 18pt corner at 1pt (1.5 on today)
             // while open rows were a 20pt corner at 2pt, and stacked 8pt
@@ -416,9 +426,17 @@ struct WeekView: View {
                 .lineLimit(1)
             Spacer()
         }
-        .padding(.vertical, 8)
-        .padding(.horizontal, 12)
-        .frame(minHeight: 72)
+        .padding(.vertical, 12)
+        .padding(.leading, 8)
+        .padding(.trailing, 14)
+        .frame(minHeight: 88)
+        // An open night is a card like any other. It used to be a dashed
+        // ghost in a stack of solid rows, so the week read as two different
+        // lists — and in dark mode the page showed straight through it.
+        // Apple doesn't mix filled and unfilled rows in one table; the
+        // emptiness is the copy's job and the dashed plate's, not the
+        // container's.
+        .background(Color.cardFill, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
         .overlay {
             // A hovering plate turns the dashed invitation solid. Same
             // corner and weight as a planned row — see plannedRow.
@@ -426,8 +444,13 @@ struct WeekView: View {
                 RoundedRectangle(cornerRadius: Radius.row, style: .continuous)
                     .strokeBorder(Color.ink, lineWidth: 1.5)
             } else {
+                // Solid, like every other row. Now that an open night is a
+                // white card, a dashed outline around it read as a card that
+                // had failed rather than a night that is free. The dashed
+                // plate inside is the invitation, and one dashed thing per
+                // row is enough to say "nothing here yet".
                 RoundedRectangle(cornerRadius: Radius.row, style: .continuous)
-                    .strokeBorder(Color.hairlineDashed, style: StrokeStyle(lineWidth: 1.5, dash: [7, 6]))
+                    .strokeBorder(Color.navHairline, lineWidth: 1.5)
             }
         }
         .contentShape(Rectangle())
@@ -501,7 +524,8 @@ struct WeekView: View {
             Spacer(minLength: 8)
         }
         .padding(.vertical, 6)
-        .padding(.horizontal, 14)
+        .padding(.leading, 8)
+        .padding(.trailing, 14)
         .frame(minHeight: 54)
         .overlay {
             RoundedRectangle(cornerRadius: Radius.row, style: .continuous)
