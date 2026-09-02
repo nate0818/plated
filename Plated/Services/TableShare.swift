@@ -1,5 +1,6 @@
 import Foundation
 import CloudKit
+import UIKit
 import SwiftData
 
 /// Real seats at a real table: CloudKit sharing for `TablePost`, and for
@@ -79,12 +80,28 @@ enum TableShare {
             if let ref = root.share,
                let existing = try? await db.record(for: ref.recordID) as? CKShare,
                let url = existing.url {
+                // A table minted before the mark existed still carries the
+                // generic iCloud card on every link it has ever sent. Fill
+                // it in once, here, rather than only on brand-new shares.
+                if existing[CKShare.SystemFieldKey.thumbnailImageData] == nil,
+                   let icon = shareThumbnail() {
+                    existing[CKShare.SystemFieldKey.title] = tableTitle as CKRecordValue
+                    existing[CKShare.SystemFieldKey.thumbnailImageData] = icon as CKRecordValue
+                    _ = try? await db.modifyRecords(saving: [existing], deleting: [])
+                }
                 return url
             }
 
             let share = CKShare(rootRecord: root)
             let shareTitle: String = "\(tableTitle) on Plated"
             share[CKShare.SystemFieldKey.title] = shareTitle as CKRecordValue
+            // Messages renders an iCloud share link from the share's own
+            // title and thumbnail. With no thumbnail it falls back to a
+            // generic iCloud card, so a personal invitation to somebody's
+            // dinner table arrived looking like a system file transfer.
+            if let icon = shareThumbnail() {
+                share[CKShare.SystemFieldKey.thumbnailImageData] = icon as CKRecordValue
+            }
             // The link is the credential: whoever holds it can take a seat.
             //
             // This was `.none` — participant-only — which sounds safer and
@@ -113,6 +130,31 @@ enum TableShare {
         } catch {
             return nil
         }
+    }
+
+    /// The app's own mark, small enough to ride on a share record.
+    ///
+    /// Read from the bundled icon file rather than `UIImage(named:)`: an
+    /// app icon is not a normal asset at runtime and often will not resolve
+    /// by name, which would silently put us back on the iCloud card.
+    private static func shareThumbnail() -> Data? {
+        let names = Bundle.main.object(forInfoDictionaryKey: "CFBundleIcons")
+            .flatMap { ($0 as? [String: Any])?["CFBundlePrimaryIcon"] as? [String: Any] }
+            .flatMap { $0["CFBundleIconFiles"] as? [String] } ?? []
+        let candidates = names.reversed() + ["AppIcon60x60", "AppIcon"]
+        for name in candidates {
+            guard let image = UIImage(named: name) else { continue }
+            // CloudKit keeps share metadata small; a 256pt mark is plenty
+            // for a link preview and stays well inside the record limit.
+            let side: CGFloat = 256
+            let renderer = UIGraphicsImageRenderer(size: CGSize(width: side, height: side))
+            let scaled = renderer.image { _ in
+                image.draw(in: CGRect(x: 0, y: 0, width: side, height: side))
+            }
+            if let data = scaled.jpegData(compressionQuality: 0.9) { return data }
+        }
+        print("PLATED SHARE: no app icon found for the link preview")
+        return nil
     }
 
     /// What happened when we tried to make a real seat for somebody.
