@@ -10,14 +10,26 @@ import CloudKit
 /// phones, one of them told a comforting lie.
 ///
 /// **What an invitation has to be.** A link the recipient can tap, in a
-/// message they actually receive, that works whether or not they have the
-/// app. A `CKShare` URL is all three: tapped on a phone with Plated it
-/// hands the share straight to `ShareAcceptor`; tapped without it, iCloud
-/// serves a web page that points at the App Store and holds the invitation
-/// until they come back. That is the whole reason the invite rides a share
-/// URL rather than a custom `plated://` scheme — a custom scheme is dead
-/// text on a phone that doesn't have the app, which is precisely the phone
-/// every invitation is sent to.
+/// message they actually receive. A `CKShare` URL is that: on a phone with
+/// Plated it hands the share straight to `ShareAcceptor` — which requires
+/// `CKSharingSupported` in Info.plist, and without it every link went to
+/// Safari instead. It also beats a custom `plated://` scheme, which is dead
+/// text on a phone that doesn't have the app, and that is precisely the
+/// phone most invitations are sent to.
+///
+/// **What it is NOT, yet.** An earlier version of this comment claimed the
+/// iCloud page "points at the App Store and holds the invitation until they
+/// come back." That was assumed, never verified, and is the same species of
+/// comfortable fiction this file was written to delete. What is actually
+/// true: somebody without the app lands on an iCloud web page, and what
+/// that page offers is Apple's business, not ours.
+///
+/// The fix, before launch, is a Universal Link on our own domain —
+/// `plated.app/join/…` wrapping the share URL, with an
+/// apple-app-site-association file and a real landing page. Then a phone
+/// with the app opens it directly, and a phone without it sees Plated's own
+/// page and an App Store button instead of an Apple support article. Until
+/// that exists, do not write copy promising the App Store.
 enum Invitation {
 
     struct Ready {
