@@ -823,6 +823,12 @@ struct AddMemberSheet: View {
     @State private var name = ""
     @State private var role = "member"
     @State private var pickingContact = false
+    /// Who came back from the picker, held until the picker has actually
+    /// gone. SwiftUI stands up one sheet at a time: presenting the composer
+    /// from inside the picker's callback raced its dismissal, and the
+    /// composer lost — you picked somebody and nothing happened at all.
+    /// The same two-step the create menu already learned.
+    @State private var picked: InviteTarget?
     @State private var inviteTarget: InviteTarget?
     @State private var inviteBody = ""
     @State private var working: String?
@@ -840,11 +846,20 @@ struct AddMemberSheet: View {
                 inviteDoor
 
                 if let problem {
-                    Text(problem)
-                        .font(.jakarta(13, .semibold))
-                        .foregroundStyle(Color.inkSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .transition(.opacity)
+                    // Loud enough to be the answer to "did anything happen?"
+                    HStack(alignment: .top, spacing: 10) {
+                        Image(systemName: "exclamationmark.circle")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(Color.tomato)
+                        Text(problem)
+                            .font(.jakarta(13, .semibold))
+                            .foregroundStyle(Color.ink)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(14)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.tomatoTint, in: RoundedRectangle(cornerRadius: Radius.card))
+                    .transition(.opacity)
                 }
 
                 HStack(spacing: 10) {
@@ -865,11 +880,16 @@ struct AddMemberSheet: View {
         .presentationDragIndicator(.visible)
         .presentationBackground(Color.canvas)
         .presentationCornerRadius(Radius.sheet)
-        .sheet(isPresented: $pickingContact) {
+        .sheet(isPresented: $pickingContact, onDismiss: {
+            // Only now is the picker actually off screen.
+            guard let target = picked else { return }
+            picked = nil
+            Task { await beginInvite(target) }
+        }) {
             ContactPicker(
                 onPick: { contactName, phone in
+                    picked = InviteTarget(name: contactName, phone: phone)
                     pickingContact = false
-                    Task { await beginInvite(name: contactName, phone: phone) }
                 },
                 onCancel: { pickingContact = false }
             )
@@ -952,21 +972,27 @@ struct AddMemberSheet: View {
 
     /// Bind them to the share first. Nothing is created here — if this
     /// can't produce a working link, we say so and no seat appears.
-    private func beginInvite(name who: String, phone: String?) async {
+    private func beginInvite(_ target: InviteTarget) async {
+        let who = target.name
+        let phone = target.phone
         withAnimation(.plSnap) { working = "Preparing the invite…" }
         defer { withAnimation(.plSnap) { working = nil } }
+        print("PLATED INVITE: preparing for \(who) at \(phone ?? "no number")")
 
         let outcome = await Seats.prepareInvite(phone: phone, email: nil, hostName: userFirstName)
         switch outcome {
         case .ready(let url):
+            print("PLATED INVITE: link ready — opening the composer")
             inviteBody = Invitation.body(hostName: userFirstName, link: url)
-            inviteTarget = InviteTarget(name: who, phone: phone)
+            inviteTarget = target
         case .noAccount:
+            print("PLATED INVITE: no iCloud account for \(phone ?? "that address")")
             Haptic.warn()
             withAnimation(.plSnap) {
                 problem = "That number has no iCloud account, so the link won't reach them. Try another number, or add them by name."
             }
         case .noCloud:
+            print("PLATED INVITE: CloudKit unavailable, or the share could not be minted")
             Haptic.warn()
             withAnimation(.plSnap) {
                 problem = "Sign in to iCloud to send an invite link."

@@ -69,9 +69,19 @@ enum TableShare {
             let share = CKShare(rootRecord: root)
             let shareTitle: String = "\(tableTitle) on Plated"
             share[CKShare.SystemFieldKey.title] = shareTitle as CKRecordValue
-            // Invite-only by design. A public URL would make the Table a
-            // broadcast surface, which is the opposite of the product.
-            share.publicPermission = .none
+            // The link is the credential: whoever holds it can take a seat.
+            //
+            // This was `.none` — participant-only — which sounds safer and
+            // in practice meant almost nobody could accept. A CloudKit
+            // participant can only be looked up by the address on someone's
+            // iCloud account, and the number in your Contacts for a person
+            // is very often not that address. Every one of those invitations
+            // failed. An unlisted link, sent by hand in a message the user
+            // wrote, is the same trade Notes and Reminders make, and it is
+            // the difference between an invite that works and one that
+            // doesn't. Anyone we CAN resolve is still added as a
+            // participant, which pre-authorises them.
+            share.publicPermission = .readWrite
 
             // The URL is server-assigned, so it exists on the record that
             // comes BACK, never on the instance we sent. Returning
@@ -112,6 +122,13 @@ enum TableShare {
         guard let url = await invitationURL(hostName: hostName),
               let share = await currentShare() else { return .noCloud }
 
+        // Tables minted before the link became the credential are still
+        // participant-only; open them so their links start working.
+        if share.publicPermission != .readWrite {
+            share.publicPermission = .readWrite
+            _ = try? await container.privateCloudDatabase.modifyRecords(saving: [share], deleting: [])
+        }
+
         // Look them up by the address the invitation is going to. A number
         // that isn't the one on their iCloud account finds nobody, which is
         // a thing to say out loud rather than fail silently on.
@@ -122,7 +139,12 @@ enum TableShare {
         if identity == nil, let email, !email.isEmpty {
             identity = try? await container.shareParticipant(forEmailAddress: email)
         }
-        guard let participant = identity else { return .noAccount }
+        // Not finding them is no longer fatal: the link works regardless,
+        // and resolving them is a bonus that pre-authorises their seat.
+        guard let participant = identity else {
+            print("PLATED SHARE: no iCloud identity for that address — sending the open link")
+            return .ready(url)
+        }
 
         // Already on it — reuse rather than adding them twice.
         let known = share.participants.contains { existing in
