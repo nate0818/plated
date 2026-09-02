@@ -173,6 +173,36 @@ struct CookbookView: View {
                         .buttonStyle(.pressable)
                     }
                     Spacer()
+
+                    // The tab bar's + can add a recipe, but it asks a
+                    // question first and it is not on this screen when you
+                    // are standing in front of a shelf thinking "I want to
+                    // put a dish on here". Labelled rather than a bare
+                    // glyph: a lone + beside a filter chip is read as "add a
+                    // filter" at least as often as "add a recipe".
+                    Button {
+                        Haptic.tap()
+                        newRecipeShown = true
+                    } label: {
+                        HStack(spacing: 5) {
+                            Image(systemName: "plus")
+                                .font(.system(size: 12, weight: .bold))
+                            Text("Add")
+                                .font(.jakarta(13, .bold))
+                        }
+                        // Outlined, not tomato. The tab bar's + is eight
+                        // points below this and already wearing the accent;
+                        // two red create buttons on one screen is two
+                        // answers to the same question.
+                        .foregroundStyle(Color.ink)
+                        .padding(.horizontal, 14)
+                        .frame(minHeight: 38)
+                        .background(Capsule().strokeBorder(Color.hairline, lineWidth: 1.5))
+                        .frame(minHeight: 44)
+                        .contentShape(Capsule())
+                    }
+                    .buttonStyle(.pressable)
+                    .accessibilityLabel("Add a recipe")
                 }
                 .padding(.horizontal, 24)
                 .padding(.top, 12)
@@ -641,6 +671,7 @@ struct RecipeDetailView: View {
     @Query(sort: \HouseholdMember.createdAt) private var members: [HouseholdMember]
 
     @State private var editorShown = false
+    @State private var sharePresented = false
     @State private var assignShown = false
     @State private var swapShown = false
     @State private var shownPhoto: Data?
@@ -761,6 +792,9 @@ struct RecipeDetailView: View {
         // This page docks its own tomato CTA across the bottom; the perch
         // would sit right on top of it.
         .hidesProngsbyPerch()
+        .sheet(isPresented: $sharePresented) {
+            RecipeShareSheet(recipe: recipe)
+        }
         .sheet(isPresented: $editorShown) {
             RecipeEditorView(editing: recipe)
         }
@@ -868,7 +902,10 @@ struct RecipeDetailView: View {
             }
             .buttonStyle(.pressable)
 
-            ShareLink(item: shareText) {
+            Button {
+                Haptic.tap()
+                sharePresented = true
+            } label: {
                 Circle()
                     .strokeBorder(Color.hairline, lineWidth: 1.5)
                     .frame(width: 38, height: 38)
@@ -1039,24 +1076,6 @@ struct RecipeDetailView: View {
             return "Ingredients · scaled for \(meal.servings)"
         }
         return "Ingredients"
-    }
-
-    private var shareText: String {
-        var lines: [String] = ["\(recipe.title), from our Plated cookbook"]
-        if !recipe.summary.isEmpty { lines.append(recipe.summary) }
-        lines.append("Time: \(recipe.totalMinutes) min · Serves \(recipe.servings)")
-        let ingredients = recipe.sortedIngredients
-        if !ingredients.isEmpty {
-            lines.append("")
-            lines.append("Ingredients:")
-            lines.append(contentsOf: ingredients.map { "• \($0.displayText)" })
-        }
-        if !recipe.steps.isEmpty {
-            lines.append("")
-            lines.append("Steps:")
-            lines.append(contentsOf: recipe.steps.enumerated().map { "\($0 + 1). \($1)" })
-        }
-        return lines.joined(separator: "\n")
     }
 
     private var visibilityIcon: String {
