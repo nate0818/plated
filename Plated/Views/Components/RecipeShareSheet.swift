@@ -169,11 +169,11 @@ struct RecipeShareSheet: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 14)
             .background {
-                RoundedRectangle(cornerRadius: Radius.card)
+                RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
                     .fill(weighted ? Color.fill : Color.clear)
             }
-            .overlay(RoundedRectangle(cornerRadius: Radius.card).strokeBorder(Color.hairline))
-            .contentShape(RoundedRectangle(cornerRadius: Radius.card))
+            .overlay(RoundedRectangle(cornerRadius: Radius.card, style: .continuous).strokeBorder(Color.hairline))
+            .contentShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
         }
         .buttonStyle(.pressable)
     }

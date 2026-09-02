@@ -143,7 +143,7 @@ struct DiscoverView: View {
                                 Color.fill
                             }
                         }
-                        .clipShape(RoundedRectangle(cornerRadius: Radius.card))
+                        .clipShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
                         .plCardShadow()
                     if post.hasChefsKiss {
                         Image(systemName: "sparkles")
@@ -201,7 +201,7 @@ struct DiscoverPostSheet: View {
                                 Color.fill
                             }
                         }
-                        .clipShape(RoundedRectangle(cornerRadius: Radius.hero))
+                        .clipShape(RoundedRectangle(cornerRadius: Radius.hero, style: .continuous))
                         .plCardShadow()
                     if post.hasChefsKiss {
                         HStack(spacing: 6) {
@@ -216,7 +216,7 @@ struct DiscoverPostSheet: View {
                         .frame(minHeight: 36)
                         .background(Color.canvas, in: Capsule())
                         .overlay(Capsule().strokeBorder(Color.navHairline))
-                        .shadow(color: Color.shadowInk.opacity(0.14), radius: 10, y: 8)
+                        .plCardShadow()
                         .offset(x: 6, y: -10)
                     }
                 }

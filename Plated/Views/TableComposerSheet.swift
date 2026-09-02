@@ -73,14 +73,14 @@ struct TableComposerSheet: View {
                         .font(.jakarta(15, .semibold))
                         .padding(.horizontal, 14)
                         .frame(height: 48)
-                        .overlay(RoundedRectangle(cornerRadius: Radius.chip).strokeBorder(Color.hairline))
+                        .overlay(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous).strokeBorder(Color.hairline))
                         .plTappableField()
 
                     TextField("Say something about it", text: $caption, axis: .vertical)
                         .font(.jakarta(15, .medium))
                         .lineLimit(2...4)
                         .padding(14)
-                        .overlay(RoundedRectangle(cornerRadius: Radius.chip).strokeBorder(Color.hairline))
+                        .overlay(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous).strokeBorder(Color.hairline))
                         .plTappableField()
 
                     if members.count > 1 {
@@ -190,7 +190,7 @@ struct TableComposerSheet: View {
                         .padding(10)
                     }
             } else {
-                RoundedRectangle(cornerRadius: Radius.hero)
+                RoundedRectangle(cornerRadius: Radius.hero, style: .continuous)
                     .strokeBorder(Color.hairlineDashed, style: StrokeStyle(lineWidth: 2, dash: [8, 7]))
                     .frame(maxWidth: .infinity)
                     .frame(minHeight: 150)

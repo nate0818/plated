@@ -104,8 +104,8 @@ struct RecipeImportSheet: View {
                     .focused($editing)
             }
             .frame(maxHeight: .infinity)
-            .background(Color.fill, in: RoundedRectangle(cornerRadius: Radius.card))
-            .overlay(RoundedRectangle(cornerRadius: Radius.card).strokeBorder(Color.hairline))
+            .background(Color.fill, in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: Radius.card, style: .continuous).strokeBorder(Color.hairline))
 
             if nothingToPaste {
                 Text("Nothing on the clipboard. Copy the recipe first.")
@@ -292,7 +292,7 @@ struct RecipeImportSheet: View {
                 .padding(.horizontal, 14)
                 .frame(minHeight: 52)
                 .overlay(
-                    RoundedRectangle(cornerRadius: Radius.card)
+                    RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
                         .strokeBorder(unnamed ? Color.tomato : Color.hairline, lineWidth: unnamed ? 1.5 : 1)
                 )
                 .plTapToFocus(radius: Radius.card) { namingDish = true }
@@ -329,7 +329,7 @@ struct RecipeImportSheet: View {
             }
             .padding(14)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .overlay(RoundedRectangle(cornerRadius: Radius.card).strokeBorder(Color.hairline))
+            .overlay(RoundedRectangle(cornerRadius: Radius.card, style: .continuous).strokeBorder(Color.hairline))
         }
     }
 
@@ -364,7 +364,7 @@ struct RecipeImportSheet: View {
                 }
                 .padding(14)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .overlay(RoundedRectangle(cornerRadius: Radius.card).strokeBorder(Color.hairline))
+                .overlay(RoundedRectangle(cornerRadius: Radius.card, style: .continuous).strokeBorder(Color.hairline))
             }
         }
     }
@@ -479,7 +479,7 @@ struct IngredientEntryField: View {
                 .focused($focused)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 11)
-                .overlay(RoundedRectangle(cornerRadius: Radius.chip).strokeBorder(Color.hairline))
+                .overlay(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous).strokeBorder(Color.hairline))
                 .onSubmit(commit)
                 .plTapToFocus { focused = true }
 

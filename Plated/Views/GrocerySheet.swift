@@ -156,7 +156,7 @@ struct GrocerySheet: View {
         .padding(.horizontal, 14)
         .frame(minHeight: 46)
         .overlay {
-            RoundedRectangle(cornerRadius: Radius.chip)
+            RoundedRectangle(cornerRadius: Radius.chip, style: .continuous)
                 .strokeBorder(Color.hairlineDashed, style: StrokeStyle(lineWidth: 1.5, dash: [5, 5]))
         }
         .contentShape(Rectangle())

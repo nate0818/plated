@@ -257,7 +257,7 @@ struct PostThreadView: View {
                 .foregroundStyle(Color.inkFaint)
         }
         .padding(14)
-        .overlay(RoundedRectangle(cornerRadius: Radius.card).strokeBorder(Color.hairline))
+        .overlay(RoundedRectangle(cornerRadius: Radius.card, style: .continuous).strokeBorder(Color.hairline))
     }
 
     private func pollRow(index: Int, option: String) -> some View {
@@ -288,14 +288,14 @@ struct PostThreadView: View {
             .frame(minHeight: 44)
             .background(alignment: .leading) {
                 GeometryReader { proxy in
-                    RoundedRectangle(cornerRadius: 12)
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
                         .fill(mine ? Color.basilTint : Color.hairlineSoft)
                         .frame(width: max(proxy.size.width * fraction, votes > 0 ? 20 : 0))
                         .animation(.plSnap, value: fraction)
                 }
             }
-            .clipShape(RoundedRectangle(cornerRadius: 12))
-            .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(mine ? Color.basil.opacity(0.4) : Color.hairline))
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(mine ? Color.basil.opacity(0.4) : Color.hairline))
             .contentShape(Rectangle())
         }
         .buttonStyle(.pressable)
@@ -341,7 +341,7 @@ struct PostThreadView: View {
                         .resizable()
                         .scaledToFill()
                         .frame(maxWidth: 200, maxHeight: 150)
-                        .clipShape(RoundedRectangle(cornerRadius: Radius.chip))
+                        .clipShape(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous))
                         .padding(.top, 2)
                 }
                 if let url = URL.webLink(comment.linkURL) {
@@ -459,7 +459,7 @@ struct PostThreadView: View {
                     .autocorrectionDisabled()
                     .padding(.horizontal, 14)
                     .frame(height: 40)
-                    .overlay(RoundedRectangle(cornerRadius: Radius.chip).strokeBorder(Color.hairline))
+                    .overlay(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous).strokeBorder(Color.hairline))
                     .padding(.horizontal, 24)
                     .plTappableField()
             }
@@ -470,7 +470,7 @@ struct PostThreadView: View {
                         .resizable()
                         .scaledToFill()
                         .frame(width: 52, height: 52)
-                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                         .overlay(alignment: .topTrailing) {
                             Button {
                                 withAnimation(.plSnap) { self.commentPhoto = nil }
@@ -537,11 +537,11 @@ struct PostThreadView: View {
                     .focused($composerFocused)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 10)
-                    .overlay(RoundedRectangle(cornerRadius: Radius.chip).strokeBorder(Color.hairline))
+                    .overlay(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous).strokeBorder(Color.hairline))
                     .plTapToFocus { composerFocused = true }
                     // The padding is part of the pill but not of the text
                     // field — without this, taps on it go nowhere.
-                    .contentShape(RoundedRectangle(cornerRadius: Radius.chip))
+                    .contentShape(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous))
                     .onTapGesture { composerFocused = true }
                     .onChange(of: draft) { _, text in
                         if text.hasSuffix("@") {
@@ -600,7 +600,7 @@ struct PostThreadView: View {
         .frame(minHeight: 36)
         .background(Color.canvas, in: Capsule())
         .overlay(Capsule().strokeBorder(Color.navHairline))
-        .shadow(color: Color.shadowInk.opacity(0.14), radius: 10, y: 8)
+        .plCardShadow()
     }
 
     // MARK: Actions

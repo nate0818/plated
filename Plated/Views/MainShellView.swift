@@ -371,7 +371,7 @@ struct PlateTabBar: View {
                     Circle()
                         .fill(Color.tomato)
                         .frame(width: 54, height: 54)
-                        .shadow(color: Color.shadowInk.opacity(0.16), radius: 10, y: 8)
+                        .plFloatShadow()
                     Image(systemName: "plus")
                         .accessibilityLabel("Add")
                         .font(.system(size: 22, weight: .bold))
@@ -512,11 +512,11 @@ struct CreateMenuSheet: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 14)
             .background {
-                RoundedRectangle(cornerRadius: Radius.card)
+                RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
                     .fill(weighted ? Color.fill : Color.clear)
             }
-            .overlay(RoundedRectangle(cornerRadius: Radius.card).strokeBorder(Color.hairline))
-            .contentShape(RoundedRectangle(cornerRadius: Radius.card))
+            .overlay(RoundedRectangle(cornerRadius: Radius.card, style: .continuous).strokeBorder(Color.hairline))
+            .contentShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
         }
         .buttonStyle(.pressable)
     }

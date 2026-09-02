@@ -409,8 +409,8 @@ struct EditProfileSheet: View {
                     .font(.jakarta(14, .semibold))
                     .padding(.horizontal, 14)
                     .frame(minHeight: 48)
-                    .overlay(RoundedRectangle(cornerRadius: Radius.chip).strokeBorder(Color.hairline))
-                    .contentShape(RoundedRectangle(cornerRadius: Radius.chip))
+                    .overlay(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous).strokeBorder(Color.hairline))
+                    .contentShape(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous))
                     .onTapGesture { namingSelf = true }
                     .focused($namingSelf)
                     .submitLabel(.done)
@@ -428,7 +428,7 @@ struct EditProfileSheet: View {
                     .font(.jakarta(14, .medium))
                     .lineLimit(2...4)
                     .padding(14)
-                    .overlay(RoundedRectangle(cornerRadius: Radius.chip).strokeBorder(Color.hairline))
+                    .overlay(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous).strokeBorder(Color.hairline))
                     .plTappableField()
             }
 
@@ -785,7 +785,7 @@ struct SettingsSheet: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
-        .overlay(RoundedRectangle(cornerRadius: Radius.card).strokeBorder(Color.hairline))
+        .overlay(RoundedRectangle(cornerRadius: Radius.card, style: .continuous).strokeBorder(Color.hairline))
     }
 }
 

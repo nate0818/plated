@@ -352,7 +352,7 @@ struct HouseholdHomeView: View {
                                     .resizable()
                                     .scaledToFill()
                             }
-                            .clipShape(RoundedRectangle(cornerRadius: Radius.hero))
+                            .clipShape(RoundedRectangle(cornerRadius: Radius.hero, style: .continuous))
                             .plCardShadow()
 
                         HStack(spacing: 5) {
@@ -367,7 +367,7 @@ struct HouseholdHomeView: View {
                         .background(.ultraThinMaterial, in: Capsule())
                         .padding(10)
                     } else {
-                        RoundedRectangle(cornerRadius: Radius.hero)
+                        RoundedRectangle(cornerRadius: Radius.hero, style: .continuous)
                             .strokeBorder(Color.hairlineDashed, style: StrokeStyle(lineWidth: 2, dash: [8, 7]))
                             .aspectRatio(BannerFocus.aspect, contentMode: .fit)
                             .overlay {
@@ -479,8 +479,8 @@ struct HouseholdHomeView: View {
             }
             .padding(.horizontal, 18)
             .background(Color.canvas)
-            .clipShape(RoundedRectangle(cornerRadius: Radius.hero))
-            .overlay(RoundedRectangle(cornerRadius: Radius.hero).strokeBorder(Color.hairline))
+            .clipShape(RoundedRectangle(cornerRadius: Radius.hero, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: Radius.hero, style: .continuous).strokeBorder(Color.hairline))
             .plCardShadow()
             .animation(.plSnap, value: members.count)
 
@@ -663,7 +663,7 @@ struct HouseholdHomeView: View {
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 14)
-            .overlay(RoundedRectangle(cornerRadius: Radius.card).strokeBorder(Color.hairline))
+            .overlay(RoundedRectangle(cornerRadius: Radius.card, style: .continuous).strokeBorder(Color.hairline))
             .padding(.top, 8)
 
             if turnsTipShown {
@@ -672,7 +672,7 @@ struct HouseholdHomeView: View {
                     .foregroundStyle(Color.inkSecondary)
                     .lineSpacing(3)
                     .padding(14)
-                    .background(Color.hairlineSoft, in: RoundedRectangle(cornerRadius: Radius.card))
+                    .background(Color.hairlineSoft, in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
                     .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
@@ -716,9 +716,9 @@ struct HouseholdHomeView: View {
             .frame(maxWidth: .infinity)
             .padding(.vertical, 10)
             .background(isToday ? Color.todayTint : Color.canvas)
-            .clipShape(RoundedRectangle(cornerRadius: Radius.chip))
+            .clipShape(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous))
             .overlay {
-                RoundedRectangle(cornerRadius: Radius.chip)
+                RoundedRectangle(cornerRadius: Radius.chip, style: .continuous)
                     .strokeBorder(isToday ? Color.tomato : Color.hairline, lineWidth: isToday ? 2 : 1)
             }
         }
@@ -861,7 +861,7 @@ struct AddMemberSheet: View {
                     }
                     .padding(14)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color.tomatoTint, in: RoundedRectangle(cornerRadius: Radius.card))
+                    .background(Color.tomatoTint, in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
                     .transition(.opacity)
                 }
 
@@ -924,7 +924,7 @@ struct AddMemberSheet: View {
             TextField("Their name", text: $name)
                 .font(.jakarta(16, .semibold))
                 .padding(14)
-                .overlay(RoundedRectangle(cornerRadius: Radius.chip).strokeBorder(Color.hairline))
+                .overlay(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous).strokeBorder(Color.hairline))
                 .plTappableField()
 
             HStack(spacing: 8) {

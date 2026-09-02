@@ -32,6 +32,8 @@ struct SignInView: View {
                     foodChip("🍜", size: 44).offset(x: 306, y: 240 + bob(t, 5.1))
                     Circle().fill(Color.mango)
                         .frame(width: 30, height: 30)
+                        // A coloured glow on a drawn object, not a shadow
+                        // under a surface. The ramp does not apply to art.
                         .shadow(color: Color.mango.opacity(0.4), radius: 8, y: 8)
                         .offset(x: 322, y: 36 + bob(t, 2.0, amp: 5))
                     Circle().fill(Color.basil.opacity(0.85))
@@ -144,7 +146,7 @@ struct SignInView: View {
             .frame(width: size, height: size)
             .overlay(Text(emoji).font(.system(size: size * 0.5)))
             .overlay(Circle().strokeBorder(Color.canvas, lineWidth: 4))
-            .shadow(color: Color.shadowWarm.opacity(0.18), radius: 24, y: 18)
+            .plFloatShadow()
     }
 
     private func foodChip(_ emoji: String, size: CGFloat) -> some View {

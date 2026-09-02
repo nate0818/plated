@@ -465,7 +465,7 @@ struct TableFeedView: View {
                                 Capsule()
                                     .fill(Color.raisedFill)
                                     .overlay(Capsule().strokeBorder(Color.navHairline))
-                                    .shadow(color: Color.shadowWarm.opacity(0.12), radius: 4, y: 2)
+                                    .plTileShadow()
                                     .matchedGeometryEffect(id: "scopePill", in: scopePill)
                             }
                         }
@@ -762,7 +762,7 @@ struct TableFeedView: View {
                 .padding(14)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .overlay {
-                    RoundedRectangle(cornerRadius: Radius.row)
+                    RoundedRectangle(cornerRadius: Radius.row, style: .continuous)
                         .strokeBorder(Color.hairlineDashed, style: StrokeStyle(lineWidth: 2, dash: [6, 5]))
                 }
                 .contentShape(Rectangle())
@@ -801,7 +801,7 @@ struct TableFeedView: View {
         .frame(minHeight: 36)
         .background(Color.canvas, in: Capsule())
         .overlay(Capsule().strokeBorder(Color.navHairline))
-        .shadow(color: Color.shadowInk.opacity(0.14), radius: 10, y: 8)
+        .plCardShadow()
     }
 
     private func plateButton(_ post: TablePost) -> some View {

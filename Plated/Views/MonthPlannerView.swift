@@ -161,9 +161,9 @@ struct MonthPlannerView: View {
         .padding(6)
         .frame(height: 64)
         .background(today ? Color.todayTint : Color.canvas)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay {
-            RoundedRectangle(cornerRadius: 12)
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .strokeBorder(today ? Color.tomato : Color.hairline, lineWidth: today ? 1.5 : 1)
         }
         .opacity(past ? 0.55 : 1)

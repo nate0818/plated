@@ -234,7 +234,7 @@ struct TableSeatsSheet: View {
             MicroLabel(label)
             VStack(spacing: 0) { rows() }
                 .padding(.horizontal, 14)
-                .overlay(RoundedRectangle(cornerRadius: Radius.card).strokeBorder(Color.hairline))
+                .overlay(RoundedRectangle(cornerRadius: Radius.card, style: .continuous).strokeBorder(Color.hairline))
         }
     }
 
@@ -527,8 +527,8 @@ struct DMThreadView: View {
                     .focused($composerFocused)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 10)
-                    .overlay(RoundedRectangle(cornerRadius: Radius.chip).strokeBorder(Color.hairline))
-                    .contentShape(RoundedRectangle(cornerRadius: Radius.chip))
+                    .overlay(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous).strokeBorder(Color.hairline))
+                    .contentShape(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous))
                     .onTapGesture { composerFocused = true }
                 Button {
                     send()
@@ -568,7 +568,7 @@ struct DMThreadView: View {
                 .padding(.vertical, 9)
                 .background(
                     message.isMine ? Color.ink : Color.fill,
-                    in: RoundedRectangle(cornerRadius: Radius.chip)
+                    in: RoundedRectangle(cornerRadius: Radius.chip, style: .continuous)
                 )
             if !message.isMine { Spacer(minLength: 60) }
         }

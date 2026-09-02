@@ -116,8 +116,8 @@ struct ContactsView: View {
                     }
                     .padding(.horizontal, 18)
                     .background(Color.canvas)
-                    .clipShape(RoundedRectangle(cornerRadius: Radius.hero))
-                    .overlay(RoundedRectangle(cornerRadius: Radius.hero).strokeBorder(Color.hairline))
+                    .clipShape(RoundedRectangle(cornerRadius: Radius.hero, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: Radius.hero, style: .continuous).strokeBorder(Color.hairline))
                     .plCardShadow()
                     .padding(.horizontal, 24)
                     .padding(.top, 22)
@@ -257,7 +257,7 @@ struct ContactsView: View {
                 }
             }
             .overlay(Circle().strokeBorder(Color.canvas, lineWidth: 3))
-            .shadow(color: Color.shadowWarm.opacity(0.12), radius: 10, y: 8)
+            .plCardShadow()
     }
 
     private func candidateRow(_ candidate: Binding<Candidate>) -> some View {
@@ -302,7 +302,7 @@ struct ContactsView: View {
                         .padding(.horizontal, 18)
                         .frame(minHeight: 36)
                         .background(Color.tomato, in: Capsule())
-                        .shadow(color: Color.shadowInk.opacity(0.14), radius: 7, y: 6)
+                        .plDishShadow()
                 }
                 .buttonStyle(.pressable)
             }

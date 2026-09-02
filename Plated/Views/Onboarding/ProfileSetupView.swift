@@ -81,8 +81,8 @@ struct ProfileSetupView: View {
                     .foregroundStyle(Color.ink)
                     .padding(.horizontal, 16)
                     .frame(minHeight: 52)
-                    .overlay(RoundedRectangle(cornerRadius: Radius.chip).strokeBorder(Color.hairline))
-                    .contentShape(RoundedRectangle(cornerRadius: Radius.chip))
+                    .overlay(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous).strokeBorder(Color.hairline))
+                    .contentShape(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous))
                     .onTapGesture { namingSelf = true }
                     .focused($namingSelf)
                     .submitLabel(.done)
@@ -201,7 +201,7 @@ struct ProfilePhotoWell: View {
                         )
                 }
             }
-            .shadow(color: Color.shadowWarm.opacity(0.14), radius: 18, y: 10)
+            .plCardShadow()
 
             if photoData != nil {
                 Button {

@@ -26,7 +26,7 @@ struct ProngsbyGlyph: View {
                 }
             }
             // The head — the wide of the fork, with the face.
-            RoundedRectangle(cornerRadius: 6 * s)
+            RoundedRectangle(cornerRadius: 6 * s, style: .continuous)
                 .fill(tone)
                 .frame(width: 14 * s, height: 12 * s)
                 .overlay {
@@ -229,12 +229,12 @@ struct ProngsbyView: View {
                     .focused($composerFocused)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 10)
-                    .overlay(RoundedRectangle(cornerRadius: Radius.chip).strokeBorder(Color.hairline))
+                    .overlay(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous).strokeBorder(Color.hairline))
                     .plTapToFocus { composerFocused = true }
                     // The padding is part of the pill but not of the text
                     // field — without this, taps on it go nowhere and the
                     // keyboard never shows.
-                    .contentShape(RoundedRectangle(cornerRadius: Radius.chip))
+                    .contentShape(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous))
                     .onTapGesture { composerFocused = true }
                 Button {
                     send(session.draft)
@@ -364,7 +364,7 @@ struct ProngsbyView: View {
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 9)
-            .background(Color.fill, in: RoundedRectangle(cornerRadius: Radius.chip))
+            .background(Color.fill, in: RoundedRectangle(cornerRadius: Radius.chip, style: .continuous))
             Spacer(minLength: 60)
         }
         .task {
@@ -399,7 +399,7 @@ struct ProngsbyView: View {
                 .padding(.vertical, 9)
                 .background(
                     message.isMine ? Color.ink : Color.fill,
-                    in: RoundedRectangle(cornerRadius: Radius.chip)
+                    in: RoundedRectangle(cornerRadius: Radius.chip, style: .continuous)
                 )
             if !message.isMine { Spacer(minLength: 40) }
         }

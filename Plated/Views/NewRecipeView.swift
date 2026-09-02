@@ -81,7 +81,7 @@ struct RecipeEditorView: View {
                         .font(.jakarta(14, .medium))
                         .lineLimit(1...3)
                         .padding(12)
-                        .overlay(RoundedRectangle(cornerRadius: Radius.chip).strokeBorder(Color.hairline))
+                        .overlay(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous).strokeBorder(Color.hairline))
                         .plTappableField()
 
                     HStack(spacing: 8) {
@@ -383,7 +383,7 @@ struct RecipeEditorView: View {
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)
-                .overlay(RoundedRectangle(cornerRadius: Radius.card).strokeBorder(Color.hairline))
+                .overlay(RoundedRectangle(cornerRadius: Radius.card, style: .continuous).strokeBorder(Color.hairline))
                 .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
@@ -430,7 +430,7 @@ struct RecipeEditorView: View {
                     .lineLimit(1...3)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 11)
-                    .overlay(RoundedRectangle(cornerRadius: Radius.chip).strokeBorder(Color.hairline))
+                    .overlay(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous).strokeBorder(Color.hairline))
                     .onSubmit(addStep)
                     .plTappableField()
                 addRoundButton(disabled: stepEntry.trimmingCharacters(in: .whitespaces).isEmpty, label: "Add step", action: addStep)
@@ -492,7 +492,7 @@ struct RecipeEditorView: View {
                     .background(.ultraThinMaterial, in: Capsule())
                     .padding(12)
                 } else {
-                    RoundedRectangle(cornerRadius: Radius.hero)
+                    RoundedRectangle(cornerRadius: Radius.hero, style: .continuous)
                         .strokeBorder(Color.hairlineDashed, style: StrokeStyle(lineWidth: 2, dash: [8, 7]))
                         .frame(maxWidth: .infinity)
                         .frame(minHeight: 240)
@@ -525,7 +525,7 @@ struct RecipeEditorView: View {
                             .resizable()
                             .scaledToFill()
                             .frame(width: 72, height: 72)
-                            .clipShape(RoundedRectangle(cornerRadius: Radius.chip))
+                            .clipShape(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous))
                             .overlay(alignment: .topTrailing) {
                                 Button {
                                     Haptic.tap()
@@ -551,7 +551,7 @@ struct RecipeEditorView: View {
                 }
                 if extraPhotoData.count < 5 {
                     PhotosPicker(selection: $extraItems, maxSelectionCount: 5 - extraPhotoData.count, matching: .images) {
-                        RoundedRectangle(cornerRadius: Radius.chip)
+                        RoundedRectangle(cornerRadius: Radius.chip, style: .continuous)
                             .strokeBorder(Color.hairlineDashed, style: StrokeStyle(lineWidth: 2, dash: [5, 5]))
                             .frame(width: 72, height: 72)
                             .overlay {
@@ -590,7 +590,7 @@ struct RecipeEditorView: View {
         }
         .frame(maxWidth: .infinity)
         .frame(minHeight: 52)
-        .overlay(RoundedRectangle(cornerRadius: Radius.chip).strokeBorder(Color.hairline))
+        .overlay(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous).strokeBorder(Color.hairline))
         .contentShape(Rectangle())
     }
 
@@ -625,7 +625,7 @@ struct RecipeEditorView: View {
                     Capsule()
                         .fill(Color.raisedFill)
                         .overlay(Capsule().strokeBorder(Color.navHairline))
-                        .shadow(color: Color.shadowWarm.opacity(0.12), radius: 4, y: 2)
+                        .plTileShadow()
                         // One pill, three seats — it slides, never blinks.
                         .matchedGeometryEffect(id: "visibilityPill", in: visibilityPill)
                 }

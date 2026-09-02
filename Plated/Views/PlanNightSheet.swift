@@ -177,8 +177,8 @@ struct PlanNightSheet: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
-        .background(Color.canvas, in: RoundedRectangle(cornerRadius: Radius.row))
-        .overlay(RoundedRectangle(cornerRadius: Radius.row).strokeBorder(Color.navHairline))
+        .background(Color.canvas, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: Radius.row, style: .continuous).strokeBorder(Color.navHairline))
     }
 
     private func actionRow(
@@ -213,7 +213,7 @@ struct PlanNightSheet: View {
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 12)
-            .overlay(RoundedRectangle(cornerRadius: Radius.card).strokeBorder(Color.hairline))
+            .overlay(RoundedRectangle(cornerRadius: Radius.card, style: .continuous).strokeBorder(Color.hairline))
             .contentShape(Rectangle())
         }
         .buttonStyle(.pressable)
@@ -366,7 +366,7 @@ struct AskComposerSheet: View {
                         .font(.jakarta(15, .medium))
                         .lineLimit(2...4)
                         .padding(14)
-                        .overlay(RoundedRectangle(cornerRadius: Radius.chip).strokeBorder(Color.hairline))
+                        .overlay(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous).strokeBorder(Color.hairline))
                         .plTappableField()
 
                     VStack(alignment: .leading, spacing: 8) {
@@ -401,7 +401,7 @@ struct AskComposerSheet: View {
                                     .font(.jakarta(14, .medium))
                                     .padding(.horizontal, 14)
                                     .frame(height: 44)
-                                    .overlay(RoundedRectangle(cornerRadius: Radius.chip).strokeBorder(Color.hairline))
+                                    .overlay(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous).strokeBorder(Color.hairline))
                                     .onSubmit(addOption)
                                     .plTappableField()
                                 Button {
@@ -572,13 +572,13 @@ struct GatheringSheet: View {
                     TextField("Sunday dinner party", text: $title)
                         .font(.jakarta(16, .semibold))
                         .padding(14)
-                        .overlay(RoundedRectangle(cornerRadius: Radius.chip).strokeBorder(Color.hairline))
+                        .overlay(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous).strokeBorder(Color.hairline))
                         .plTappableField()
 
                     TextField("Our place", text: $location)
                         .font(.jakarta(14, .medium))
                         .padding(14)
-                        .overlay(RoundedRectangle(cornerRadius: Radius.chip).strokeBorder(Color.hairline))
+                        .overlay(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous).strokeBorder(Color.hairline))
                         .plTappableField()
 
                     HStack {
@@ -598,14 +598,14 @@ struct GatheringSheet: View {
                     }
                     .padding(.horizontal, 16)
                     .padding(.vertical, 10)
-                    .overlay(RoundedRectangle(cornerRadius: Radius.card).strokeBorder(Color.hairline))
+                    .overlay(RoundedRectangle(cornerRadius: Radius.card, style: .continuous).strokeBorder(Color.hairline))
 
                     DatePicker("Starts at", selection: $startTime, displayedComponents: .hourAndMinute)
                         .font(.jakarta(14, .bold))
                         .tint(Color.tomato)
                         .padding(.horizontal, 16)
                         .padding(.vertical, 10)
-                        .overlay(RoundedRectangle(cornerRadius: Radius.card).strokeBorder(Color.hairline))
+                        .overlay(RoundedRectangle(cornerRadius: Radius.card, style: .continuous).strokeBorder(Color.hairline))
 
                     HStack(spacing: 12) {
                         Circle()
@@ -632,7 +632,7 @@ struct GatheringSheet: View {
                     }
                     .padding(.horizontal, 16)
                     .padding(.vertical, 12)
-                    .overlay(RoundedRectangle(cornerRadius: Radius.card).strokeBorder(Color.hairline))
+                    .overlay(RoundedRectangle(cornerRadius: Radius.card, style: .continuous).strokeBorder(Color.hairline))
 
                     if let syncResult {
                         Text(syncResult)

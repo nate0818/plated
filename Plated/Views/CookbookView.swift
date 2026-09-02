@@ -527,7 +527,7 @@ struct RecipeFilterSheet: View {
                     }
                     .padding(.horizontal, 14)
                     .frame(height: 46)
-                    .overlay(RoundedRectangle(cornerRadius: Radius.chip).strokeBorder(Color.hairline))
+                    .overlay(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous).strokeBorder(Color.hairline))
 
                     chipGroup("Meal", options: RecipeMealType.allCases, selection: $filter.mealType) { $0.rawValue }
 
@@ -984,7 +984,7 @@ struct RecipeDetailView: View {
                     Haptic.tap()
                     editorShown = true
                 } label: {
-                    RoundedRectangle(cornerRadius: Radius.hero)
+                    RoundedRectangle(cornerRadius: Radius.hero, style: .continuous)
                         .strokeBorder(Color.hairlineDashed, style: StrokeStyle(lineWidth: 2, dash: [8, 7]))
                         .frame(maxWidth: .infinity)
                         .frame(height: 210)
@@ -1024,9 +1024,9 @@ struct RecipeDetailView: View {
                                     .resizable()
                                     .scaledToFill()
                                     .frame(width: 56, height: 56)
-                                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                                     .overlay {
-                                        RoundedRectangle(cornerRadius: 12)
+                                        RoundedRectangle(cornerRadius: 12, style: .continuous)
                                             .strokeBorder(
                                                 (shownPhoto ?? recipe.photoData) == data ? Color.ink : Color.hairline,
                                                 lineWidth: (shownPhoto ?? recipe.photoData) == data ? 2 : 1
@@ -1225,9 +1225,9 @@ struct PlateAssignSheet: View {
             .frame(minHeight: 46)
             .background {
                 if active {
-                    RoundedRectangle(cornerRadius: Radius.chip).fill(Color.ink)
+                    RoundedRectangle(cornerRadius: Radius.chip, style: .continuous).fill(Color.ink)
                 } else {
-                    RoundedRectangle(cornerRadius: Radius.chip).strokeBorder(Color.hairline)
+                    RoundedRectangle(cornerRadius: Radius.chip, style: .continuous).strokeBorder(Color.hairline)
                 }
             }
             .contentShape(Rectangle())

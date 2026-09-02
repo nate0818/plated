@@ -124,7 +124,7 @@ private struct TappableField: ViewModifier {
     func body(content: Content) -> some View {
         content
             .focused($focused)
-            .contentShape(RoundedRectangle(cornerRadius: radius))
+            .contentShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
             .onTapGesture { focused = true }
     }
 }
@@ -136,7 +136,7 @@ extension View {
 
     /// The same target, for a field whose focus somebody else already owns.
     func plTapToFocus(radius: CGFloat = Radius.chip, _ focus: @escaping () -> Void) -> some View {
-        contentShape(RoundedRectangle(cornerRadius: radius))
+        contentShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
             .onTapGesture(perform: focus)
     }
 }
@@ -177,12 +177,38 @@ extension Collection where Element == HouseholdMember {
 
 // MARK: - Scales
 
+/// Corner radii.
+///
+/// **Every corner in Plated is `.continuous`.** A circular arc meets the
+/// straight edge at a visible crease that grows with the radius — at `card`
+/// (20) and `hero` (24) it is plainly there. Every corner iOS draws around
+/// us is continuous, so a circular one reads as a foreign object without
+/// anyone being able to say why. The app used to draw both: twelve
+/// continuous corners in the Plan tab and eighty-five circular ones
+/// everywhere else, one tap apart.
+///
+/// Use `Radius.shape(_:)` or pass `style: .continuous` explicitly. A bare
+/// `RoundedRectangle(cornerRadius: , style: .continuous)` is the wrong corner.
 enum Radius {
     static let chip: CGFloat = 16
     static let row: CGFloat = 18
     static let card: CGFloat = 20
     static let hero: CGFloat = 24
     static let sheet: CGFloat = 28
+
+    static func shape(_ radius: CGFloat) -> RoundedRectangle {
+        RoundedRectangle(cornerRadius: radius, style: .continuous)
+    }
+
+    /// A corner nested inside another, inset by the gap between them.
+    ///
+    /// Concentric corners share a centre: the inner radius is the outer
+    /// minus the padding. Repeating the outer radius on an inner shape
+    /// leaves the two arcs visibly non-parallel, which is one of the few
+    /// craft errors people notice without knowing what they are seeing.
+    static func nested(in outer: CGFloat, inset: CGFloat) -> RoundedRectangle {
+        RoundedRectangle(cornerRadius: max(outer - inset, 2), style: .continuous)
+    }
 }
 
 // MARK: - Motion
@@ -285,23 +311,40 @@ private struct PLShadow: ViewModifier {
     }
 }
 
+/// The elevation ramp. Four steps, one light.
+///
+/// Two rules hold it together, and the app was breaking both.
+///
+/// **Opacity falls as a thing rises.** A shadow spreads and softens with
+/// height; it does not darken. The ramp ran 0.06 → 0.14 → 0.10 → 0.08, so a
+/// dish circle cast the darkest shadow in the app from nearly the lowest
+/// elevation, and the floating chrome cast a lighter one than the card it
+/// hovers over.
+///
+/// **y ÷ radius is constant, or the light source moves.** It ran 0.33, 0.67,
+/// 0.67, 0.75 — two lights in one room, which is exactly the kind of
+/// wrongness a person feels and cannot name. It is 0.60 everywhere now.
+///
+/// After dark the ramp had collapsed as well (dish and float both 0.50, so
+/// elevation stopped being readable); it steps again.
 extension View {
-    /// Cards and photo tiles: 0 8 24 @ 10%, deepened after dark.
-    func plCardShadow() -> some View {
-        modifier(PLShadow(lightOpacity: 0.10, darkOpacity: 0.45, radius: 12, y: 8))
-    }
-    /// Floating chrome (nav pill, + button): 0 12 32 @ 8%.
-    func plFloatShadow() -> some View {
-        modifier(PLShadow(lightOpacity: 0.08, darkOpacity: 0.5, radius: 16, y: 12))
-    }
-    /// Dish circles: 0 4 12 @ 14%.
-    func plDishShadow() -> some View {
-        modifier(PLShadow(lightOpacity: 0.14, darkOpacity: 0.5, radius: 6, y: 4))
-    }
-    /// Small tiles that sit on a card rather than on the canvas — the plan's
-    /// date tile. A whisper: enough to lift a white tile off a white row.
+    /// The lowest step: small tiles sitting on a card rather than on the
+    /// canvas, like the plan's date tile. Tightest and darkest.
     func plTileShadow() -> some View {
-        modifier(PLShadow(lightOpacity: 0.06, darkOpacity: 0.35, radius: 3, y: 1))
+        modifier(PLShadow(lightOpacity: 0.13, darkOpacity: 0.40, radius: 5, y: 3))
+    }
+    /// Dish circles.
+    func plDishShadow() -> some View {
+        modifier(PLShadow(lightOpacity: 0.11, darkOpacity: 0.46, radius: 10, y: 6))
+    }
+    /// Cards and photo tiles.
+    func plCardShadow() -> some View {
+        modifier(PLShadow(lightOpacity: 0.09, darkOpacity: 0.52, radius: 18, y: 11))
+    }
+    /// Floating chrome: the nav pill and the + button. The highest things in
+    /// the app, so the widest and faintest shadow of the four.
+    func plFloatShadow() -> some View {
+        modifier(PLShadow(lightOpacity: 0.07, darkOpacity: 0.58, radius: 28, y: 17))
     }
 }
 
@@ -405,7 +448,7 @@ struct PhotoWell: View {
                     .resizable()
                     .scaledToFill()
             }
-            .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
+            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
     }
 }
 

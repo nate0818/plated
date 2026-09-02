@@ -245,6 +245,10 @@ private struct PorcelainBase: View {
                     .strokeBorder(Color.hairline, lineWidth: 1 / displayScale)
                     .frame(width: diameter * 0.86, height: diameter * 0.86)
             }
+            // Not elevation, and deliberately outside the ramp: a two-layer
+            // contact shadow is part of how the plate reads as porcelain on a
+            // surface. It goes to zero after dark because the dark canvas is
+            // the table, and a lit plate does not cast onto it.
             .shadow(color: .black.opacity(scheme == .dark ? 0 : 0.06), radius: 20, y: 8)
             .shadow(color: .black.opacity(scheme == .dark ? 0 : 0.05), radius: 2, y: 1)
     }
