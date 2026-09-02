@@ -1005,9 +1005,9 @@ struct RecipeDetailView: View {
                                     .resizable()
                                     .scaledToFill()
                                     .frame(width: 56, height: 56)
-                                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                                    .clipShape(RoundedRectangle(cornerRadius: Radius.small, style: .continuous))
                                     .overlay {
-                                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                        RoundedRectangle(cornerRadius: Radius.small, style: .continuous)
                                             .strokeBorder(
                                                 (shownPhoto ?? recipe.photoData) == data ? Color.ink : Color.hairline,
                                                 lineWidth: (shownPhoto ?? recipe.photoData) == data ? 2 : 1

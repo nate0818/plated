@@ -289,14 +289,14 @@ struct PostThreadView: View {
             .frame(minHeight: 44)
             .background(alignment: .leading) {
                 GeometryReader { proxy in
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    RoundedRectangle(cornerRadius: Radius.small, style: .continuous)
                         .fill(mine ? Color.basilTint : Color.hairlineSoft)
                         .frame(width: max(proxy.size.width * fraction, votes > 0 ? 20 : 0))
                         .animation(.plSnap, value: fraction)
                 }
             }
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(mine ? Color.basil.opacity(0.4) : Color.hairline))
+            .clipShape(RoundedRectangle(cornerRadius: Radius.small, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: Radius.small, style: .continuous).strokeBorder(mine ? Color.basil.opacity(0.4) : Color.hairline))
             .contentShape(Rectangle())
         }
         .buttonStyle(.pressable)
@@ -472,7 +472,7 @@ struct PostThreadView: View {
                         .resizable()
                         .scaledToFill()
                         .frame(width: 52, height: 52)
-                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: Radius.small, style: .continuous))
                         .overlay(alignment: .topTrailing) {
                             Button {
                                 withAnimation(.plSnap) { self.commentPhoto = nil }

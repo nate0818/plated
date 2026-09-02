@@ -212,6 +212,16 @@ extension Collection where Element == HouseholdMember {
 /// Use `Radius.shape(_:)` or pass `style: .continuous` explicitly. A bare
 /// `RoundedRectangle(cornerRadius: , style: .continuous)` is the wrong corner.
 enum Radius {
+    /// Small rectangles nested inside a larger one: a thumbnail, a poll
+    /// option, a day cell in the month grid, the date chip in a plan row.
+    ///
+    /// DESIGN.md says to add a fifth step rather than write a literal, and
+    /// this is that step. Thirteen inline radii had accumulated below the
+    /// chip's 16 — six 12s, a 14, an 11, a 10 — which is not a scale, it is
+    /// whatever each author's eye picked that day. The worst of it was the
+    /// plan list's own date chip: 14 when the night is ahead of you and 11
+    /// once it has passed, for one element in one column.
+    static let small: CGFloat = 12
     static let chip: CGFloat = 16
     static let row: CGFloat = 18
     static let card: CGFloat = 20

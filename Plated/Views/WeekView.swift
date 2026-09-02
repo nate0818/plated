@@ -558,7 +558,7 @@ struct WeekView: View {
             .frame(width: 66)
             .frame(minHeight: 40)
             .background {
-                RoundedRectangle(cornerRadius: 11, style: .continuous)
+                RoundedRectangle(cornerRadius: Radius.small, style: .continuous)
                     .fill(Color.chipFill)
             }
 
@@ -802,11 +802,11 @@ struct WeekView: View {
         .frame(width: 66)
         .frame(minHeight: 62)
         .background {
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
+            RoundedRectangle(cornerRadius: Radius.small, style: .continuous)
                 .fill(today ? Color.tomatoTint : Color.cardFill)
         }
         .overlay {
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
+            RoundedRectangle(cornerRadius: Radius.small, style: .continuous)
                 .strokeBorder(today ? Color.tomato.opacity(0.16) : Color.hairline, lineWidth: 1)
         }
         .plTileShadow()
