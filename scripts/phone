@@ -69,6 +69,11 @@ if [[ -n "$(git -C "$ROOT" status --porcelain)" ]]; then
   say "note: shipping uncommitted changes"
 fi
 
+# The widget hand-copies Theme.swift's tokens and has drifted before, in a
+# way nothing about the file looked stale enough to reveal. Cheap to check,
+# and this is the last gate before a build reaches a phone.
+"$ROOT/scripts/check-tokens" >/dev/null || die "Design tokens have drifted. Run scripts/check-tokens."
+
 say "Building $HEAD_SHA — $HEAD_SUB"
 say "Target: $NAME"
 

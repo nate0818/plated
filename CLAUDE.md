@@ -45,6 +45,14 @@ rendering a hair larger so fixed-height layouts overflow, and Foundation Models.
 - **CloudKit needs table GRANTs, not just RLS** on the Supabase side; "expose new
   tables" being off locks out the service role too.
 - **Model changes must stay CloudKit-safe**: new properties optional or defaulted.
+- **The widget is a second target and cannot import `Theme.swift`.** Its
+  tokens are hand-copied into `PlatedWidgets/PlatedWidgets.swift`, and that
+  copy has already drifted once: it shipped `inkSecondary` at the rejected
+  `0x8A8074` for weeks after the app fixed it, while receiving other edits in
+  the same enum. A fork that gets *some* fixes is worse than one that gets
+  none, because nothing about it looks stale. `scripts/check-tokens` diffs the
+  two and both `make phone` and `scripts/testflight.sh` now refuse to ship on
+  drift. Change a colour in Theme.swift, change it there too.
 - The store migration in `PlatedStore` is precious. An unreadable live store must
   always abort. Never simplify it to an existence check.
 

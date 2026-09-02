@@ -82,12 +82,12 @@ struct GroceryWidgetView: View {
                     if grocery.openCount > grocery.sample.count {
                         Text("+ \(grocery.openCount - grocery.sample.count) more")
                             .font(.jakarta(12))
-                            .foregroundStyle(Plate.inkFaint)
+                            .foregroundStyle(Plate.inkSecondary)
                     }
                 } else {
                     Text("Plate a few nights and the list builds itself.")
                         .font(.jakarta(13, "SemiBold"))
-                        .foregroundStyle(Plate.inkFaint)
+                        .foregroundStyle(Plate.inkSecondary)
                         .lineLimit(3)
                 }
                 Spacer(minLength: 0)
@@ -112,7 +112,7 @@ struct GroceryWidgetView: View {
             .frame(height: 4)
             Text("\(bought) of \(grocery.totalCount) in the basket")
                 .font(.jakarta(10, "SemiBold"))
-                .foregroundStyle(Plate.inkFaint)
+                .foregroundStyle(Plate.inkSecondary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
         }
