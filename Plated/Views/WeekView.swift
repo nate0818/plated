@@ -368,6 +368,7 @@ struct WeekView: View {
             .accessibilityElement(children: .combine)
             .accessibilityAddTraits(.isButton)
             .accessibilityHint("Opens the day")
+            .contextMenu { nightMenu(date) }
         }
         .draggable(DayTransfer.token(for: date)) {
             dishCircle(for: meal)
@@ -457,6 +458,8 @@ struct WeekView: View {
         .accessibilityLabel("\(dayName(date).capitalized), \(openLine(date))")
         .accessibilityHint("Opens the day")
         .accessibilityAction(named: "Plan dinner") { planDay = date }
+        .accessibilityAction(named: "Eating out") { markEatingOut(on: date) }
+        .contextMenu { nightMenu(date) }
         .dropDestination(for: String.self) { tokens, _ in
             moveMeal(from: tokens.first, to: date)
         } isTargeted: { over in
@@ -554,6 +557,100 @@ struct WeekView: View {
     /// Sized to the dish circle beside it (52 wide) so the row keeps one
     /// rhythm, and to a fixed height so a day the forecast can't answer for
     /// doesn't make its row shorter than its neighbours.
+    /// Long press a night and the things you actually do to one are right
+    /// there. Eating out sat four taps down: add a meal, choose a slot,
+    /// scroll, tap. That is the most common answer there is to "what's for
+    /// dinner", which is "we aren't cooking".
+    @ViewBuilder
+    private func nightMenu(_ date: Date) -> some View {
+        let planned = dinner(on: date)
+        let eatingOut = planned?.recipe == nil
+            && planned?.customTitle.localizedCaseInsensitiveContains("eating out") == true
+
+        if !eatingOut {
+            Button {
+                markEatingOut(on: date)
+            } label: {
+                Label("Eating out", systemImage: "fork.knife")
+            }
+        }
+        if !recipes.isEmpty {
+            Button {
+                pickForMe(on: date)
+            } label: {
+                Label("Pick for me", systemImage: "wand.and.stars")
+            }
+        }
+        Button {
+            Haptic.tap()
+            planDay = date
+        } label: {
+            Label(planned == nil ? "Plan this night" : "Change the dish",
+                  systemImage: planned == nil ? "plus.circle" : "arrow.2.squarepath")
+        }
+        if planned != nil {
+            Button(role: .destructive) {
+                remove(on: date)
+            } label: {
+                Label("Clear the night", systemImage: "trash")
+            }
+        }
+    }
+
+    /// A night off the stove still counts as a plan for the week.
+    private func markEatingOut(on date: Date) {
+        Haptic.plate()
+        withAnimation(.plPop) {
+            if let meal = dinner(on: date) {
+                meal.recipe = nil
+                meal.customTitle = "Eating out"
+                meal.tagline = "Night off the stove"
+                meal.cook = nil
+            } else {
+                let meal = PlannedMeal(date: date, slot: .dinner, customTitle: "Eating out")
+                meal.tagline = "Night off the stove"
+                context.insert(meal)
+            }
+            bounceDay = date
+        }
+    }
+
+    /// The same engine the night sheet uses, with the same forecast it can
+    /// see, skipping anything already on this week so the menu never hands
+    /// back Tuesday's dinner.
+    private func pickForMe(on date: Date) {
+        let engine = SuggestionEngine(recipes: recipes, members: members)
+        let thisWeek = Set(weekDates.compactMap { dinner(on: $0)?.recipe?.persistentModelID })
+        let ranked = engine.suggestions(
+            for: date, forecast: forecast.forecast(for: date), limit: recipes.count
+        )
+        guard let pick = ranked.first(where: { !thisWeek.contains($0.recipe.persistentModelID) })
+                ?? ranked.first
+        else {
+            Haptic.warn()
+            return
+        }
+        Haptic.plate()
+        let why = pick.reason.components(separatedBy: ", ").first ?? ""
+        let line = why.isEmpty ? "Picked for you" : "Picked for you · \(why)"
+        withAnimation(.plPop) {
+            if let meal = dinner(on: date) {
+                meal.recipe = pick.recipe
+                meal.customTitle = ""
+                meal.servings = pick.recipe.servings
+                meal.tagline = line
+            } else {
+                context.insert(PlannedMeal(
+                    date: date, slot: .dinner, recipe: pick.recipe,
+                    servings: pick.recipe.servings,
+                    cook: CookRotation.cook(for: date, members: members, meals: meals),
+                    tagline: line
+                ))
+            }
+            bounceDay = date
+        }
+    }
+
     private func dateCard(_ date: Date, dimmed: Bool) -> some View {
         let today = Calendar.current.isDateInToday(date)
         return VStack(spacing: 1) {
