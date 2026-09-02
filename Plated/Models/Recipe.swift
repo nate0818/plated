@@ -80,6 +80,31 @@ final class Recipe {
 
     var totalMinutes: Int { prepMinutes + cookMinutes }
 
+    /// How long it takes, said the way a person says it. A slow-cooker
+    /// dish is "6 hr 8 min", never "368 min" — past an hour, raw minutes
+    /// stop being a duration and become arithmetic homework.
+    static func durationText(_ minutes: Int) -> String {
+        guard minutes > 0 else { return "" }
+        if minutes < 60 { return "\(minutes) min" }
+        let hours = minutes / 60
+        let rest = minutes % 60
+        if rest == 0 { return "\(hours) hr" }
+        return "\(hours) hr \(rest) min"
+    }
+
+    /// The same, spoken aloud — Prongsby and Siri read this one.
+    static func spokenDuration(_ minutes: Int) -> String {
+        guard minutes > 0 else { return "" }
+        if minutes < 60 { return "\(minutes) minutes" }
+        let hours = minutes / 60
+        let rest = minutes % 60
+        let hourWord = hours == 1 ? "hour" : "hours"
+        if rest == 0 { return "\(hours) \(hourWord)" }
+        return "\(hours) \(hourWord) \(rest) minutes"
+    }
+
+    var timeText: String { Self.durationText(totalMinutes) }
+
     var categoryValue: RecipeCategory? {
         get { RecipeCategory(rawValue: category) }
         set { category = newValue?.rawValue ?? "" }

@@ -384,7 +384,7 @@ struct DayDetailView: View {
     private func mealMeta(_ meal: PlannedMeal) -> String? {
         var parts: [String] = []
         if let minutes = meal.recipe?.totalMinutes, minutes > 0 {
-            parts.append("\(minutes) min")
+            parts.append(Recipe.durationText(minutes))
         }
         if let cook = meal.cook {
             parts.append(cook.isOwner ? "you cook" : "\(cook.name) cooks")

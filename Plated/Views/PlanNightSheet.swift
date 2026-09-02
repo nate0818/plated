@@ -275,7 +275,7 @@ struct PlanNightSheet: View {
         // looked out the window.
         let why = pick.reason.components(separatedBy: ", ").first ?? ""
         let tagline = !why.isEmpty ? "Picked for you · \(why)"
-            : (minutes > 0 ? "Picked for you · \(minutes) min" : "Picked for you")
+            : (minutes > 0 ? "Picked for you · \(Recipe.durationText(minutes))" : "Picked for you")
         plate(recipe, tagline: tagline)
         dismiss()
     }

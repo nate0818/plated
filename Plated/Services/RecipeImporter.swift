@@ -482,6 +482,15 @@ enum RecipeImporter {
     /// carrying no number of its own, following one that did not finish its
     /// sentence, is the rest of that sentence.
     private static func append(_ line: Line, to steps: inout [String]) {
+        // A short line ending in a colon is a heading, not an instruction —
+        // "Add the sauce:", "Serve:", "Optional crispy finish:". Left alone
+        // it becomes a numbered step that tells the cook to do nothing,
+        // and pushes the real instruction to the next number. It belongs
+        // to the step it introduces, so it takes it.
+        if let previous = steps.last, isHeading(previous) {
+            steps[steps.count - 1] = previous + " " + line.text
+            return
+        }
         guard line.stepNumber == nil, !line.isBullet, let previous = steps.last,
               !previous.hasSuffix("."), !previous.hasSuffix("!"),
               !previous.hasSuffix("?"), !previous.hasSuffix(":")
@@ -490,6 +499,13 @@ enum RecipeImporter {
             return
         }
         steps[steps.count - 1] = previous + " " + line.text
+    }
+
+    /// A label introducing what follows, rather than a sentence that
+    /// happens to end in a colon. Length is the tell: real instructions
+    /// that end in a colon run long ("Combine the following in a bowl:").
+    private static func isHeading(_ text: String) -> Bool {
+        text.hasSuffix(":") && text.count <= 40
     }
 
     private static func preambleTitleCount(_ preamble: [Line]) -> Int {

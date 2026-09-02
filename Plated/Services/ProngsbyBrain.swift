@@ -82,7 +82,7 @@ struct ProngsbyBrain {
         if let party = gatheringPlan(text) { return party }
         if let recipe = recipeMatch(in: text) {
             if text.contains("how long") || text.contains("time") {
-                return "\(recipe.title) runs about \(recipe.totalMinutes) minutes. \(recipe.prepMinutes) of prep, \(recipe.cookMinutes) on the heat. \(recipe.difficultyValue.rawValue) night. You've got this."
+                return "\(recipe.title) runs about \(Recipe.spokenDuration(recipe.totalMinutes)). \(recipe.prepMinutes) of prep, \(recipe.cookMinutes) on the heat. \(recipe.difficultyValue.rawValue) night. You've got this."
             }
             return describe(recipe)
         }
@@ -238,7 +238,7 @@ struct ProngsbyBrain {
         }
         let minutes = meal.recipe?.totalMinutes ?? 0
         let cookLine = meal.cook.map { $0.isOwner ? " You're cooking." : " \($0.name)'s cooking." } ?? ""
-        return "\(dayName.capitalized): \(meal.title)\(minutes > 0 ? ", about \(minutes) minutes" : "").\(cookLine)"
+        return "\(dayName.capitalized): \(meal.title)\(minutes > 0 ? ", about \(Recipe.spokenDuration(minutes))" : "").\(cookLine)"
     }
 
     /// "Plan a gathering for 10" — builds a menu from the cookbook and
@@ -314,7 +314,7 @@ struct ProngsbyBrain {
 
     private func describe(_ recipe: Recipe) -> String {
         var parts: [String] = []
-        parts.append("\(recipe.title): \(recipe.totalMinutes) min, serves \(recipe.servings).")
+        parts.append("\(recipe.title): \(recipe.timeText), serves \(recipe.servings).")
         if !recipe.summary.isEmpty { parts.append(recipe.summary) }
         let ingredients = recipe.sortedIngredients
         if !ingredients.isEmpty {

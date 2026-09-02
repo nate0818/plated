@@ -42,7 +42,7 @@ enum RecipePrint {
 
     private static func markup(for recipe: Recipe) -> String {
         var facts: [String] = []
-        if recipe.totalMinutes > 0 { facts.append("\(recipe.totalMinutes) min") }
+        if recipe.totalMinutes > 0 { facts.append(recipe.timeText) }
         facts.append("Serves \(recipe.servings)")
         if let category = recipe.categoryValue { facts.append(escape(category.rawValue)) }
 

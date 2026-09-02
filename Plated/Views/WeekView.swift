@@ -653,14 +653,14 @@ struct WeekView: View {
         let base: String
         if today {
             let minutes = meal.recipe?.totalMinutes ?? 0
-            base = minutes > 0 ? "Tonight · \(minutes) min" : "Tonight"
+            base = minutes > 0 ? "Tonight · \(Recipe.durationText(minutes))" : "Tonight"
         } else if !meal.tagline.isEmpty {
             base = meal.tagline
         } else if let cook = meal.cook, !cook.isOwner {
             base = "\(cook.name) cooks"
         } else {
             let minutes = meal.recipe?.totalMinutes ?? 0
-            base = minutes > 0 ? "\(minutes) min" : "Planned"
+            base = minutes > 0 ? Recipe.durationText(minutes) : "Planned"
         }
         // The week row shows dinner; a day can now hold breakfast, lunch,
         // dessert and a snack too, and hiding them here would make the day

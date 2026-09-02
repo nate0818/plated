@@ -341,10 +341,16 @@ struct RecipeImportSheet: View {
                 VStack(alignment: .leading, spacing: 10) {
                     ForEach(Array(draft.wrappedValue.steps.enumerated()), id: \.offset) { i, step in
                         HStack(alignment: .top, spacing: 10) {
+                            // Fixed-size first: a 16pt box broke "10"
+                            // onto two lines, so every step past nine
+                            // read as a stacked pair of digits.
                             Text("\(i + 1)")
                                 .font(.jakarta(12, .extraBold))
                                 .foregroundStyle(Color.tomato)
-                                .frame(width: 16, alignment: .leading)
+                                .monospacedDigit()
+                                .lineLimit(1)
+                                .fixedSize()
+                                .frame(minWidth: 18, alignment: .leading)
                             Text(step)
                                 .font(.jakarta(13, .medium))
                                 .foregroundStyle(Color.ink)

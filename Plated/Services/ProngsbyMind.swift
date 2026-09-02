@@ -140,7 +140,7 @@ enum ProngsbyMind {
         if !brain.recipes.isEmpty {
             let dishes = brain.recipes.prefix(40).map { recipe -> String in
                 var bits = [recipe.title]
-                if recipe.totalMinutes > 0 { bits.append("\(recipe.totalMinutes) min") }
+                if recipe.totalMinutes > 0 { bits.append(recipe.timeText) }
                 bits.append(recipe.difficultyValue.rawValue)
                 return bits.joined(separator: ", ")
             }

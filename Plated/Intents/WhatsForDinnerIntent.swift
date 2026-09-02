@@ -22,7 +22,7 @@ struct WhatsForDinnerIntent: AppIntent {
 
         var line = "Tonight: \(dinner.title)"
         if let cook = dinner.cook { line += ", \(cook.name) cooks" }
-        if let minutes = dinner.recipe?.totalMinutes, minutes > 0 { line += ", about \(minutes) minutes" }
+        if let minutes = dinner.recipe?.totalMinutes, minutes > 0 { line += ", about \(Recipe.spokenDuration(minutes))" }
         return .result(dialog: "\(line).")
     }
 }

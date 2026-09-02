@@ -472,7 +472,7 @@ struct CookbookView: View {
 
     private func metaLine(_ recipe: Recipe) -> String {
         var parts: [String] = []
-        if recipe.totalMinutes > 0 { parts.append("\(recipe.totalMinutes) min") }
+        if recipe.totalMinutes > 0 { parts.append(recipe.timeText) }
         parts.append(recipe.categoryValue?.rawValue ?? recipe.mealTypeValue.rawValue)
         return parts.joined(separator: " · ")
     }
@@ -697,7 +697,7 @@ struct RecipeDetailView: View {
                 // all-caps micro-type this used to wear is dashboard voice.
                 HStack(spacing: 0) {
                     CountBlock(
-                        value: recipe.totalMinutes > 0 ? "\(recipe.totalMinutes) min" : "Not set",
+                        value: recipe.totalMinutes > 0 ? recipe.timeText : "Not set",
                         label: "Time"
                     )
                     CountDivider()
@@ -740,7 +740,10 @@ struct RecipeDetailView: View {
                                 Text("\(index + 1)")
                                     .font(.gabarito(17, .bold))
                                     .foregroundStyle(Color.inkFaint)
-                                    .frame(width: 22, alignment: .trailing)
+                                    .monospacedDigit()
+                                    .lineLimit(1)
+                                    .fixedSize()
+                                    .frame(minWidth: 22, alignment: .trailing)
                                 Text(step)
                                     .font(.jakarta(14, .medium))
                                     .foregroundStyle(Color.ink)

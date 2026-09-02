@@ -101,7 +101,7 @@ enum RecipeShare {
         if !recipe.summary.isEmpty { lines.append(recipe.summary) }
 
         var facts: [String] = []
-        if recipe.totalMinutes > 0 { facts.append("\(recipe.totalMinutes) min") }
+        if recipe.totalMinutes > 0 { facts.append(recipe.timeText) }
         facts.append("serves \(recipe.servings)")
         lines.append(facts.joined(separator: " · "))
 
