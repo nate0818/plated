@@ -625,6 +625,25 @@ struct TableFeedView: View {
                 }
                 .buttonStyle(.pressable)
                 Spacer()
+                // The overflow, where every social app puts it: trailing
+                // edge of the byline row, on the avatar's centreline.
+                //
+                // Everything in this menu was already here and reachable
+                // only by long-pressing the card, which is a gesture nobody
+                // is told about — so "delete the thing I just posted", the
+                // one action a person is most certain they should have, was
+                // effectively missing. DESIGN.md already says a gesture
+                // nobody is told about is not a feature most people have.
+                // The long press still works as an accelerator.
+                Menu {
+                    postMenu(post, canSave: true)
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(Color.inkSecondary)
+                        .plTapTarget()
+                }
+                .accessibilityLabel("More")
             }
             .padding(.bottom, 10)
 
@@ -854,6 +873,17 @@ struct TableFeedView: View {
                 .buttonStyle(.pressable)
                 Spacer()
                 MicroLabel(post.hasPoll ? "Poll" : "Ask")
+                // The same overflow the dish cards carry. An ask is a post
+                // too, and its author has the same right to take it back.
+                Menu {
+                    postMenu(post, canSave: false)
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(Color.inkSecondary)
+                        .plTapTarget()
+                }
+                .accessibilityLabel("More")
             }
             Button {
                 Haptic.tap()
