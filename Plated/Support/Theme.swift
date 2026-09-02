@@ -436,6 +436,68 @@ struct MicroLabel: View {
     }
 }
 
+/// A tappable choice: a glyph, what it does, and what that means. The row
+/// every stacked-option sheet in the app is made of.
+///
+/// **It takes no emphasis parameter, and that is the point.** Two hand-kept
+/// copies of this row lived in `MainShellView` and `RecipeShareSheet`, and
+/// both carried a `weighted` flag that filled one row of a peer set with
+/// `Color.fill`. Two things were wrong with that. `fill` is this app's
+/// SELECTION ground, so a row nobody had selected was painted as though
+/// somebody had. And `hairline` on `fill` measures 1.05:1, which is not a
+/// border, so the weighted row also lost the outline every other row in the
+/// set was wearing: same stroke in the code, 3.5 times more visible on the
+/// row beside it. One choice read as a solid block among outlines.
+///
+/// Emphasis in a list of choices is position and copy. See DESIGN.md,
+/// "One row, one geometry".
+struct OptionRow: View {
+    let icon: String
+    let title: String
+    let detail: String
+    let action: () -> Void
+
+    var body: some View {
+        Button {
+            Haptic.tap()
+            action()
+        } label: {
+            HStack(spacing: 14) {
+                Image(systemName: icon)
+                    .font(.system(size: 19, weight: .semibold))
+                    .foregroundStyle(Color.ink)
+                    // Fixed width, so a wide glyph and a narrow one start
+                    // their labels at the same x. SF Symbols are not
+                    // monospaced and "camera" is a good deal wider than
+                    // "book.closed".
+                    .frame(width: 26)
+                    // Inert unless the caller swaps the symbol for its own
+                    // opposite, which the share sheet's Copy row does.
+                    .contentTransition(.symbolEffect(.replace.magic(fallback: .replace.downUp)))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .plType(.body, .bold)
+                        .foregroundStyle(Color.ink)
+                    Text(detail)
+                        .plType(.caption)
+                        .foregroundStyle(Color.inkSecondary)
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
+            .frame(minHeight: 44)
+            .background(Radius.shape(Radius.card).fill(Color.canvas))
+            .overlay(Radius.shape(Radius.card).strokeBorder(Color.hairline))
+            .contentShape(Radius.shape(Radius.card))
+        }
+        .buttonStyle(.pressable)
+        // Two lines that are one sentence: without this VoiceOver reads the
+        // title and the detail as two separate elements inside a button.
+        .accessibilityElement(children: .combine)
+    }
+}
+
 /// A number and the thing it counts. No glyph, no box.
 ///
 /// Instagram's profile triad and X's metric row agree on this: a count

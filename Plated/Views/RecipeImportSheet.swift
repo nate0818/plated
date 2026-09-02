@@ -104,8 +104,10 @@ struct RecipeImportSheet: View {
                     .focused($editing)
             }
             .frame(maxHeight: .infinity)
-            .background(Color.fill, in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: Radius.card, style: .continuous).strokeBorder(Color.hairline))
+            // The fill IS the well. A `hairline` border on a `fill` ground
+            // measures 1.05:1, so this drew a stroke nobody has ever seen
+            // and the rounded rectangle was already being described twice.
+            .background(Color.fill, in: Radius.shape(Radius.card))
 
             if nothingToPaste {
                 Text("Nothing on the clipboard. Copy the recipe first.")

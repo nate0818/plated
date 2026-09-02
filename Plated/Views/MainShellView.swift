@@ -446,8 +446,13 @@ struct PlateTabBar: View {
 /// for the cookbook. Two rows, because those are the two things there are
 /// to add: pasting a recipe and writing one out are ways of adding a
 /// recipe, not separate things to add, and the import sheet already offers
-/// every one of them. No color until the choice; the first row carries
-/// weight instead, because posting is what the + is mostly reached for.
+/// every one of them.
+///
+/// Both rows are `OptionRow`, which is to say both rows are the same row.
+/// Posting used to be drawn heavier because it is what the + is mostly
+/// reached for, and "heavier" meant a `fill` ground: this app's selection
+/// paint, on a row nobody had selected, with the side effect of erasing
+/// its own border. Two choices that are peers look like peers.
 struct CreateMenuSheet: View {
     let onChoose: (CreateKind) -> Void
 
@@ -463,16 +468,16 @@ struct CreateMenuSheet: View {
             // the grabber offers the full-height detent as a way out.
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 10) {
-                    row(
-                        .tablePost, icon: "camera", weighted: true,
+                    OptionRow(
+                        icon: "camera",
                         title: "Post to the Table",
                         detail: "A photo of what you just cooked"
-                    )
-                    row(
-                        .recipe, icon: "book.closed",
+                    ) { onChoose(.tablePost) }
+                    OptionRow(
+                        icon: "book.closed",
                         title: "Add a recipe",
                         detail: "Paste it, scan it, or write it out"
-                    )
+                    ) { onChoose(.recipe) }
                 }
                 .padding(.horizontal, 24)
                 .padding(.bottom, 20)
@@ -482,44 +487,6 @@ struct CreateMenuSheet: View {
         .presentationDragIndicator(.visible)
         .presentationBackground(Color.canvas)
         .presentationCornerRadius(Radius.sheet)
-    }
-
-    /// No circle around the glyph and no chevron beside it. The circle was
-    /// a stroke drawn around a stroke, and a chevron that appears on every
-    /// row says nothing — it also promised a push this sheet never made.
-    private func row(
-        _ kind: CreateKind, icon: String, weighted: Bool = false,
-        title: String, detail: String
-    ) -> some View {
-        Button {
-            Haptic.tap()
-            onChoose(kind)
-        } label: {
-            HStack(spacing: 14) {
-                Image(systemName: icon)
-                    .font(.system(size: 19, weight: .semibold))
-                    .foregroundStyle(Color.ink)
-                    .frame(width: 26)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .plType(.body, .bold)
-                        .foregroundStyle(Color.ink)
-                    Text(detail)
-                        .plType(.caption)
-                        .foregroundStyle(Color.inkSecondary)
-                }
-                Spacer(minLength: 0)
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 14)
-            .background {
-                RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
-                    .fill(weighted ? Color.fill : Color.clear)
-            }
-            .overlay(RoundedRectangle(cornerRadius: Radius.card, style: .continuous).strokeBorder(Color.hairline))
-            .contentShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
-        }
-        .buttonStyle(.pressable)
     }
 }
 

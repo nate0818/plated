@@ -90,6 +90,34 @@ rather than inline.
 a stroke weight. Mixing an 18pt/1pt row with a 20pt/2pt row reads as crooked
 even when nobody can say why.
 
+Stronger, and the version that was actually broken: **peers look like peers.**
+A set of choices gets one treatment. Emphasis inside a set is position and
+copy, never paint — a filled ground is this app's SELECTION idiom and putting
+it on a row nobody selected is a lie about state. Where two screens draw the
+same kind of row, they use the same component: `OptionRow` exists because two
+hand-kept copies of it drifted apart, and both grew the same `weighted` flag.
+
+**A stroke has to be visible against the ground behind it.** The border is
+part of the geometry, so a border that does not render is a row with different
+geometry from the row beside it, whatever the code says. Ratios on canvas:
+
+| stroke | on canvas | on chipFill | on fill |
+|---|---|---|---|
+| `hairline` | 1.19 | 1.09 | **1.05 — gone** |
+| `hairlineSoft` | 1.11 | **1.02 — gone** | **1.02 — gone** |
+| `hairlineDashed` | 1.23 | 1.13 | 1.09 |
+| `navHairline` | 1.18 | 1.08 | **1.05 — gone** |
+
+Under about 1.08:1 there is no line on the screen. `hairline` over `fill` was
+drawn in three places and seen in none of them. A filled well does not need a
+border: the fill already draws the shape.
+
+**A detent is a measurement, not a guess.** `.presentationDetents([.height(575)])`
+was a number typed for six rows in a sheet where two of them are conditional,
+so on a phone without Messages it opened with two hundred points of nothing
+under the last option. Measure the content with `onGeometryChange` and feed
+that; Dynamic Type moves these numbers too.
+
 ## Motion
 
 - Springs are `plPop`, `plSnap`, `plSettle`. Use them; don't hand-roll durations.
@@ -172,9 +200,9 @@ optimism. See `Plated/Services/Seats.swift`.
 
 ## Components to reuse
 
-`AvatarCircle` · `DishView` · `SwipeRow` · `MicroLabel` · `TomatoPillButton` ·
-`InkPillButton` · `CountBlock` · `PhotoWell` · `PlatedWordmark` · `.pressable` ·
-`plTappableField` · the `plShadow` family
+`AvatarCircle` · `DishView` · `SwipeRow` · `MicroLabel` · `OptionRow` ·
+`TomatoPillButton` · `InkPillButton` · `CountBlock` · `PhotoWell` ·
+`PlatedWordmark` · `.pressable` · `plTappableField` · the `plShadow` family
 
 A `.padding` on a `TextField` makes the pill bigger but **not** tappable — add
 `.contentShape` plus a tap that focuses it, or the keyboard never appears. Same
