@@ -31,8 +31,8 @@ Use the token, never a literal. Every token carries its own dark value.
 |---|---|---|
 | `canvas` | `#FFFFFF` | page and card ground |
 | `ink` | `#221B14` | primary text |
-| `inkSecondary` | `#8A8074` | supporting text |
-| `inkFaint` | `#B5AC9E` | the quietest legible thing |
+| `inkSecondary` | `#7F7364` | every supporting sentence |
+| `inkFaint` | `#B5AC9E` | decoration only, never a word |
 | `hairline` | `#F0EBE4` | card borders |
 | `hairlineSoft` | `#F7F3EE` | row separators |
 | `hairlineDashed` | `#EFE7DD` | empty-state dashes |
@@ -45,6 +45,24 @@ Use the token, never a literal. Every token carries its own dark value.
 | `grape` | `#B95CF4` | calendar events |
 
 Tints (`tomatoTint`, `basilTint`, …) are for surfaces, not text.
+
+**Two text colours, not three.** `ink` and `inkSecondary` are the only tokens
+that may paint a word. `inkFaint` measures 2.24:1 on canvas and 3.08:1 after
+dark: it cannot legibly carry a glyph-shaped letter at any size, so it paints
+strokes, dashed outlines, and the icon on a control that is genuinely off, and
+nothing else. That includes the cases every design system loses first —
+placeholders, timestamps, counts, eyebrow labels, disabled-looking-but-tappable
+buttons, and inactive tab titles. All of those are things a person reads.
+
+The third level of hierarchy is size and weight, which is what the type scale
+is for. It is not a third grey. Sixty-one call sites were painting sentences in
+`inkFaint` when this was written, and `MicroLabel` — the eyebrow above almost
+every title in the app — defaulted to it, which is most of why the app read as
+washed out rather than quiet.
+
+`inkSecondary` was `#8A8074` and measured 3.87:1, under the 4.5:1 floor for
+text at these sizes. `#7F7364` is the same hue and saturation at 4.63:1. If a
+token has to be lightened for a design to work, the design is wrong.
 
 ## Type
 

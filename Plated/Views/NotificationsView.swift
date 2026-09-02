@@ -59,7 +59,7 @@ struct NotificationsView: View {
                         .foregroundStyle(Color.inkSecondary)
                     Text("Plates, comments, saves, and turn reminders land here.")
                         .plType(.footnote)
-                        .foregroundStyle(Color.inkFaint)
+                        .foregroundStyle(Color.inkSecondary)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 40)
                 }
@@ -130,7 +130,7 @@ struct NotificationsView: View {
                     .foregroundStyle(Color.ink)
                 Text(relativeWhen(note.createdAt))
                     .plType(.micro, .medium)
-                    .foregroundStyle(Color.inkFaint)
+                    .foregroundStyle(Color.inkSecondary)
             }
             Spacer()
             // Quiet unread: weight and an ink dot — the tomato budget is

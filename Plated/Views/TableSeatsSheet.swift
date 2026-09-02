@@ -439,7 +439,7 @@ struct TableSeatsSheet: View {
                  ? "They get a link to join."
                  : "Sign in to iCloud to send an invite link.")
                 .plType(.micro, .medium)
-                .foregroundStyle(Color.inkFaint)
+                .foregroundStyle(Color.inkSecondary)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -504,7 +504,7 @@ struct DMThreadView: View {
                 VStack(spacing: 8) {
                     Text("These messages stay on this device. \(peerName.split(separator: " ").first.map(String.init) ?? peerName) can't see them yet.")
                         .plType(.micro, .medium)
-                        .foregroundStyle(Color.inkFaint)
+                        .foregroundStyle(Color.inkSecondary)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 30)
                         .padding(.vertical, 12)

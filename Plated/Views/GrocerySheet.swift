@@ -60,7 +60,7 @@ struct GrocerySheet: View {
                         .foregroundStyle(Color.inkSecondary)
                     Text("Plan a few nights and the list builds itself.")
                         .plType(.footnote)
-                        .foregroundStyle(Color.inkFaint)
+                        .foregroundStyle(Color.inkSecondary)
                 }
                 Spacer()
             } else {
@@ -234,8 +234,8 @@ struct GrocerySheet: View {
                 }
                 Text(item.name)
                     .plType(.body)
-                    .foregroundStyle(item.isChecked ? Color.inkFaint : Color.ink)
-                    .strikethrough(item.isChecked, color: .inkFaint)
+                    .foregroundStyle(item.isChecked ? Color.inkSecondary : Color.ink)
+                    .strikethrough(item.isChecked, color: .inkSecondary)
                 Spacer()
                 Text(quantityText(item))
                     .plType(.footnote)

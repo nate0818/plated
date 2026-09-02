@@ -398,7 +398,7 @@ struct RecipeEditorView: View {
                 HStack(alignment: .top, spacing: 10) {
                     Text("\(index + 1)")
                         .plType(.footnote, .extraBold, family: .display)
-                        .foregroundStyle(Color.inkFaint)
+                        .foregroundStyle(Color.inkSecondary)
                         .frame(width: 20, alignment: .trailing)
                     Text(step)
                         .plType(.body, .medium)
@@ -504,7 +504,7 @@ struct RecipeEditorView: View {
                                     .foregroundStyle(Color.inkSecondary)
                                 Text("Your photo, your dish. No stock food here.")
                                     .plType(.caption)
-                                    .foregroundStyle(Color.inkFaint)
+                                    .foregroundStyle(Color.inkSecondary)
                             }
                         }
                 }
@@ -559,7 +559,7 @@ struct RecipeEditorView: View {
                                     Text("Add")
                                         .plType(.micro)
                                 }
-                                .foregroundStyle(Color.inkFaint)
+                                .foregroundStyle(Color.inkSecondary)
                             }
                     }
                     .buttonStyle(.pressable)

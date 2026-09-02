@@ -165,7 +165,7 @@ struct WeekView: View {
                             Spacer()
                             Text("\(week.filter { dinner(on: $0) != nil }.count) of 7")
                                 .plType(.micro)
-                                .foregroundStyle(Color.inkFaint)
+                                .foregroundStyle(Color.inkSecondary)
                         }
                         .padding(.top, 18)
                         .padding(.bottom, 2)
@@ -249,7 +249,7 @@ struct WeekView: View {
                                  photo: members.first(where: \.isOwner)?.photoData)
                     Text("HOST")
                         .plType(.micro)
-                        .foregroundStyle(Color.inkFaint)
+                        .foregroundStyle(Color.inkSecondary)
                 }
                 .contentShape(Rectangle())
             }
@@ -518,7 +518,7 @@ struct WeekView: View {
                     .plType(.heading, .bold)
                     .monospacedDigit()
             }
-            .foregroundStyle(Color.inkFaint)
+            .foregroundStyle(Color.inkSecondary)
             // Same width as a live day's card, so the whole left column
             // holds one line down the list — history is shorter, not
             // narrower.
@@ -545,7 +545,7 @@ struct WeekView: View {
                 // still cook.
                 Text("Nothing plated")
                     .plType(.footnote, .semibold)
-                    .foregroundStyle(Color.inkFaint)
+                    .foregroundStyle(Color.inkSecondary)
             }
             Spacer(minLength: 8)
         }
@@ -684,7 +684,7 @@ struct WeekView: View {
                 // Today is today whether or not the night is planned.
                 Text(date.formattedWeekday().uppercased())
                     .plType(.micro)
-                    .foregroundStyle(today ? Color.tomato : Color.inkFaint)
+                    .foregroundStyle(today ? Color.tomato : Color.inkSecondary)
                 if showCalendarEvents && events.hasEvent(on: date) {
                     Circle().fill(Color.grape).frame(width: 5, height: 5)
                 }
@@ -713,8 +713,7 @@ struct WeekView: View {
                             .plType(.micro)
                             .monospacedDigit()
                     }
-                    // inkFaint disappears into the tomato tint.
-                    .foregroundStyle(today ? Color.inkSecondary : Color.inkFaint)
+                    .foregroundStyle(Color.inkSecondary)
                     // The row combines its children, so a bare "72°" would
                     // read as a stray number. Say the condition the way
                     // Weather does.

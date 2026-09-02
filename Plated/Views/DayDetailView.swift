@@ -207,7 +207,7 @@ struct DayDetailView: View {
             if plannedSlots.isEmpty {
                 Text("Nothing plated")
                     .plType(.body)
-                    .foregroundStyle(Color.inkFaint)
+                    .foregroundStyle(Color.inkSecondary)
                     .padding(.top, 8)
             }
         } else if !openSlots.isEmpty {

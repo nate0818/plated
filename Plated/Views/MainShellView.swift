@@ -434,7 +434,7 @@ struct PlateTabBar: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.75)
             }
-            .foregroundStyle(active ? Color.ink : Color.inkFaint)
+            .foregroundStyle(active ? Color.ink : Color.inkSecondary)
             .frame(maxWidth: .infinity, minHeight: 66)
         }
         .buttonStyle(.pressable)

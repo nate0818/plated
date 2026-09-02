@@ -31,7 +31,15 @@ extension Color {
     // Chrome
     static let canvas         = Color(light: 0xFFFFFF, dark: 0x16120E)
     static let ink            = Color(light: 0x221B14, dark: 0xF4EDE3)
-    static let inkSecondary   = Color(light: 0x8A8074, dark: 0xA79B8B)
+    /// Every supporting sentence in the app. 4.63:1 on canvas, 6.8:1 after
+    /// dark. It was 0x8A8074, which measured 3.87:1 — under the 4.5:1 floor
+    /// for text this size, so half the words in the app were below the line
+    /// while looking, to a designer with good eyes on a bright screen, fine.
+    /// Same hue and saturation, doing a job it can actually do.
+    static let inkSecondary   = Color(light: 0x7F7364, dark: 0xA79B8B)
+    /// Decoration only: strokes, dashes, an icon on a control that is off.
+    /// 2.24:1 on canvas and 3.08:1 after dark — it cannot legibly carry a
+    /// word at any size, so it is never a `Text` colour. See DESIGN.md.
     static let inkFaint       = Color(light: 0xB5AC9E, dark: 0x6B6157)
     static let hairline       = Color(light: 0xF0EBE4, dark: 0x2B241C)   // card borders
     static let hairlineSoft   = Color(light: 0xF7F3EE, dark: 0x231D17)   // row separators
@@ -353,9 +361,9 @@ extension View {
 /// The tracked micro-label above titles: "AUGUST 21–27", "WHO COOKS WHEN".
 struct MicroLabel: View {
     let text: String
-    var color: Color = .inkFaint
+    var color: Color = .inkSecondary
 
-    init(_ text: String, color: Color = .inkFaint) {
+    init(_ text: String, color: Color = .inkSecondary) {
         self.text = text
         self.color = color
     }

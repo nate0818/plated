@@ -735,7 +735,7 @@ struct RecipeDetailView: View {
                             HStack(alignment: .top, spacing: 12) {
                                 Text("\(index + 1)")
                                     .plType(.callout, .bold, family: .display)
-                                    .foregroundStyle(Color.inkFaint)
+                                    .foregroundStyle(Color.inkSecondary)
                                     .monospacedDigit()
                                     .lineLimit(1)
                                     .fixedSize()
@@ -762,7 +762,7 @@ struct RecipeDetailView: View {
                     Text(visibilityLine)
                         .plType(.caption, .semibold)
                 }
-                .foregroundStyle(Color.inkFaint)
+                .foregroundStyle(Color.inkSecondary)
                 .padding(.top, 6)
             }
             .padding(.horizontal, 24)
@@ -991,7 +991,7 @@ struct RecipeDetailView: View {
                                         .foregroundStyle(Color.inkSecondary)
                                     Text("It shows on your plan and on the Table.")
                                         .plType(.caption)
-                                        .foregroundStyle(Color.inkFaint)
+                                        .foregroundStyle(Color.inkSecondary)
                                 }
                             }
                         }
@@ -1207,7 +1207,7 @@ struct PlateAssignSheet: View {
                 if let occupied {
                     Text("\(occupied.title) planned")
                         .plType(.micro, .semibold)
-                        .foregroundStyle(active ? Color.canvas.opacity(0.8) : Color.inkFaint)
+                        .foregroundStyle(active ? Color.canvas.opacity(0.8) : Color.inkSecondary)
                         .lineLimit(1)
                 } else {
                     Text("Open")

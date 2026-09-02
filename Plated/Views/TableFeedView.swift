@@ -421,7 +421,7 @@ struct TableFeedView: View {
                                  photo: members.first(where: \.isOwner)?.photoData)
                     Text("HOST")
                         .plType(.micro)
-                        .foregroundStyle(Color.inkFaint)
+                        .foregroundStyle(Color.inkSecondary)
                 }
                 // A 38pt avatar is a 38pt target; the law says 44. Home's
                 // copy of this control already had the frame.
@@ -494,7 +494,7 @@ struct TableFeedView: View {
                             HStack(spacing: 5) {
                                 Text(postWhen(post.createdAt))
                                     .plType(.micro, .semibold)
-                                    .foregroundStyle(Color.inkFaint)
+                                    .foregroundStyle(Color.inkSecondary)
                                 // Whose table this came from, said once and
                                 // quietly. No badge, no tint: a guest's dish
                                 // is not a lesser dish, it just isn't from
@@ -503,7 +503,7 @@ struct TableFeedView: View {
                                 if post.isRemote {
                                     Text("· another table")
                                         .plType(.micro, .semibold)
-                                        .foregroundStyle(Color.inkFaint)
+                                        .foregroundStyle(Color.inkSecondary)
                                 }
                             }
                         }
@@ -568,7 +568,7 @@ struct TableFeedView: View {
                         Text("Saved")
                             .plType(.footnote, .bold)
                     }
-                    .foregroundStyle(Color.inkFaint)
+                    .foregroundStyle(Color.inkSecondary)
                     .frame(minHeight: 44)
                     .accessibilityLabel("Already in your cookbook")
                 } else {
@@ -624,7 +624,7 @@ struct TableFeedView: View {
                      ? "See all \(post.sortedComments.count) comments"
                      : "Add a comment")
                     .plType(.caption, .semibold)
-                    .foregroundStyle(Color.inkFaint)
+                    .foregroundStyle(Color.inkSecondary)
                     .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                     .contentShape(Rectangle())
             }
@@ -719,7 +719,7 @@ struct TableFeedView: View {
                             HStack(spacing: 5) {
                                 Text(postWhen(post.createdAt))
                                     .plType(.micro, .semibold)
-                                    .foregroundStyle(Color.inkFaint)
+                                    .foregroundStyle(Color.inkSecondary)
                                 // Whose table this came from, said once and
                                 // quietly. No badge, no tint: a guest's dish
                                 // is not a lesser dish, it just isn't from
@@ -728,7 +728,7 @@ struct TableFeedView: View {
                                 if post.isRemote {
                                     Text("· another table")
                                         .plType(.micro, .semibold)
-                                        .foregroundStyle(Color.inkFaint)
+                                        .foregroundStyle(Color.inkSecondary)
                                 }
                             }
                         }
@@ -776,7 +776,7 @@ struct TableFeedView: View {
             } label: {
                 Text("Suggest a dish…")
                     .plType(.caption, .semibold)
-                    .foregroundStyle(Color.inkFaint)
+                    .foregroundStyle(Color.inkSecondary)
                     .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                     .contentShape(Rectangle())
             }

@@ -91,7 +91,7 @@ struct MonthPlannerView: View {
             ForEach(orderedWeekdaySymbols, id: \.self) { symbol in
                 Text(symbol.uppercased())
                     .plType(.micro, .extraBold)
-                    .foregroundStyle(Color.inkFaint)
+                    .foregroundStyle(Color.inkSecondary)
                     .frame(maxWidth: .infinity)
             }
         }
@@ -125,7 +125,7 @@ struct MonthPlannerView: View {
             HStack(spacing: 3) {
                 Text(date.formattedDayNumber())
                     .plType(.footnote, .extraBold, family: .display)
-                    .foregroundStyle(today ? Color.tomato : (past ? Color.inkFaint : Color.ink))
+                    .foregroundStyle(today ? Color.tomato : (past ? Color.inkSecondary : Color.ink))
                 if let day = forecast.forecast(for: date) {
                     Image(systemName: day.symbolName)
                         .font(.system(size: 8, weight: .semibold))

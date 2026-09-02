@@ -155,7 +155,7 @@ struct ContactsView: View {
                     if accessState == .denied {
                         Text("Plated can't see your contacts. Allow access in iOS Settings, or invite people later.")
                             .plType(.caption)
-                            .foregroundStyle(Color.inkFaint)
+                            .foregroundStyle(Color.inkSecondary)
                             .multilineTextAlignment(.center)
                             .fixedSize(horizontal: false, vertical: true)
                         // Naming Settings without a route there is a dead
@@ -187,10 +187,10 @@ struct ContactsView: View {
                 HStack(spacing: 6) {
                     Image(systemName: "lock")
                         .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(Color.inkFaint)
+                        .foregroundStyle(Color.inkSecondary)
                     Text("Contacts are matched on your device. Never uploaded, never sold.")
                         .plType(.caption)
-                        .foregroundStyle(Color.inkFaint)
+                        .foregroundStyle(Color.inkSecondary)
                 }
             }
             .padding(.horizontal, 24)

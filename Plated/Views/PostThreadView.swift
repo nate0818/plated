@@ -106,7 +106,7 @@ struct PostThreadView: View {
                     if post.sortedComments.isEmpty {
                         Text(post.kind == "ask" ? "No suggestions yet" : "No comments yet")
                             .plType(.footnote)
-                            .foregroundStyle(Color.inkFaint)
+                            .foregroundStyle(Color.inkSecondary)
                     }
 
                     ForEach(post.sortedComments, id: \.persistentModelID) { comment in
@@ -221,7 +221,7 @@ struct PostThreadView: View {
                         Text("Saved")
                             .plType(.footnote, .bold)
                     }
-                    .foregroundStyle(Color.inkFaint)
+                    .foregroundStyle(Color.inkSecondary)
                     .frame(minHeight: 44)
                     .accessibilityLabel("Already in your cookbook")
                 } else {
@@ -256,7 +256,7 @@ struct PostThreadView: View {
             }
             Text(post.totalPollVotes == 1 ? "1 vote" : "\(post.totalPollVotes) votes")
                 .plType(.micro, .semibold)
-                .foregroundStyle(Color.inkFaint)
+                .foregroundStyle(Color.inkSecondary)
         }
         .padding(14)
         .overlay(RoundedRectangle(cornerRadius: Radius.card, style: .continuous).strokeBorder(Color.hairline))
@@ -330,11 +330,11 @@ struct PostThreadView: View {
                             Text(comment.replyToName)
                                 .plType(.micro)
                         }
-                        .foregroundStyle(Color.inkFaint)
+                        .foregroundStyle(Color.inkSecondary)
                     }
                     Text(relativeWhen(comment.createdAt))
                         .plType(.micro, .medium)
-                        .foregroundStyle(Color.inkFaint)
+                        .foregroundStyle(Color.inkSecondary)
                 }
                 mentionedText(comment)
                     .lineSpacing(2)
@@ -370,7 +370,7 @@ struct PostThreadView: View {
                 } label: {
                     Text("Reply")
                         .plType(.micro)
-                        .foregroundStyle(Color.inkFaint)
+                        .foregroundStyle(Color.inkSecondary)
                         .frame(minWidth: 44, minHeight: 44, alignment: .leading)
                         .contentShape(Rectangle())
                 }

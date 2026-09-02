@@ -90,7 +90,7 @@ struct DiscoverView: View {
                         .foregroundStyle(Color.inkSecondary)
                     Text("Try a dish name or a cook's name.")
                         .plType(.footnote)
-                        .foregroundStyle(Color.inkFaint)
+                        .foregroundStyle(Color.inkSecondary)
                 }
                 Spacer()
             } else {
@@ -109,7 +109,7 @@ struct DiscoverView: View {
                         Text("Open tables share with everyone. Yours stays invite-only.")
                             .plType(.caption)
                     }
-                    .foregroundStyle(Color.inkFaint)
+                    .foregroundStyle(Color.inkSecondary)
                     .padding(.top, 20)
                     .padding(.bottom, 30)
                 }
@@ -162,7 +162,7 @@ struct DiscoverView: View {
                     Text(post.authorName)
                         .plName()
                         .plType(.micro, .semibold)
-                        .foregroundStyle(Color.inkFaint)
+                        .foregroundStyle(Color.inkSecondary)
                         .lineLimit(1)
                 }
                 .padding(.horizontal, 2)
@@ -229,7 +229,7 @@ struct DiscoverPostSheet: View {
                             .foregroundStyle(Color.ink)
                         Text("An open table")
                             .plType(.micro, .semibold)
-                            .foregroundStyle(Color.inkFaint)
+                            .foregroundStyle(Color.inkSecondary)
                     }
                     Spacer()
                     Button {

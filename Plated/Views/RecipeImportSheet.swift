@@ -91,7 +91,7 @@ struct RecipeImportSheet: View {
                     // "Nutrition" and the story are dropped on the floor.
                     Text("Paste the whole thing. We'll keep the recipe and drop the rest.")
                         .plType(.body, .medium)
-                        .foregroundStyle(Color.inkFaint)
+                        .foregroundStyle(Color.inkSecondary)
                         .padding(.horizontal, 16)
                         .padding(.vertical, 16)
                         .allowsHitTesting(false)
@@ -181,7 +181,7 @@ struct RecipeImportSheet: View {
 
             Text("Photos and scans are read on your phone. Nothing is uploaded.")
                 .plType(.caption)
-                .foregroundStyle(Color.inkFaint)
+                .foregroundStyle(Color.inkSecondary)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
         }

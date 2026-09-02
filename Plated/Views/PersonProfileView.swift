@@ -172,7 +172,7 @@ struct PersonProfileView: View {
                         PlateReactionGlyph(filled: false)
                         Text(emptyLine)
                             .plType(.footnote)
-                            .foregroundStyle(Color.inkFaint)
+                            .foregroundStyle(Color.inkSecondary)
                             .multilineTextAlignment(.center)
                     }
                     .padding(.top, 44)
@@ -431,7 +431,7 @@ struct EditProfileSheet: View {
 
             Text("Apple shares your name only at first sign-in, and never your photo. Set both here.")
                 .plType(.micro, .medium)
-                .foregroundStyle(Color.inkFaint)
+                .foregroundStyle(Color.inkSecondary)
 
             InkPillButton(title: "Done") {
                 // Only leave if it took. Dismissing regardless is how a
@@ -699,7 +699,7 @@ struct SettingsSheet: View {
 
                     Text("Plated 0.1.0")
                         .plType(.micro, .medium)
-                        .foregroundStyle(Color.inkFaint)
+                        .foregroundStyle(Color.inkSecondary)
                         .frame(maxWidth: .infinity)
                         .padding(.top, 14)
                 }
@@ -845,7 +845,7 @@ struct PaywallSheet: View {
                     }
                     Text("Preview only. No payment is taken.")
                         .plType(.micro, .medium)
-                        .foregroundStyle(Color.inkFaint)
+                        .foregroundStyle(Color.inkSecondary)
                         .multilineTextAlignment(.center)
                 }
             }

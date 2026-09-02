@@ -304,7 +304,7 @@ struct ProngsbyView: View {
                 // A new joke every day. Quality not guaranteed; frequency is.
                 Text(ProngsbyBrain.taglineOfTheDay)
                     .plType(.micro, .medium)
-                    .foregroundStyle(Color.inkFaint)
+                    .foregroundStyle(Color.inkSecondary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.85)
             }

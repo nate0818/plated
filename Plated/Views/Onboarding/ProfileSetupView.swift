@@ -189,7 +189,7 @@ struct ProfilePhotoWell: View {
                         .overlay {
                             Text(initials)
                                 .font(.gabarito(diameter * 0.32, .semibold))
-                                .foregroundStyle(Color.inkFaint)
+                                .foregroundStyle(Color.inkSecondary)
                         }
                         .overlay(
                             Circle().strokeBorder(

@@ -312,7 +312,7 @@ struct HouseholdHomeView: View {
                                  photo: members.first(where: \.isOwner)?.photoData)
                     Text("You")
                         .plType(.micro)
-                        .foregroundStyle(Color.inkFaint)
+                        .foregroundStyle(Color.inkSecondary)
                 }
                 .frame(minWidth: 44, minHeight: 44)
                 .contentShape(Rectangle())
@@ -375,7 +375,7 @@ struct HouseholdHomeView: View {
                                     Text("Add a photo")
                                         .plType(.footnote, .bold)
                                 }
-                                .foregroundStyle(Color.inkFaint)
+                                .foregroundStyle(Color.inkSecondary)
                             }
                     }
                 }
@@ -385,7 +385,7 @@ struct HouseholdHomeView: View {
 
             Text(HouseholdIdentity.seatedLine(names: members.map(\.name)))
                 .plType(.caption)
-                .foregroundStyle(Color.inkFaint)
+                .foregroundStyle(Color.inkSecondary)
                 .padding(.horizontal, 2)
         }
     }
@@ -641,7 +641,7 @@ struct HouseholdHomeView: View {
 
             Text("Tap a day to hand it to someone else. Nobody is notified.")
                 .plType(.caption)
-                .foregroundStyle(Color.inkFaint)
+                .foregroundStyle(Color.inkSecondary)
 
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
@@ -692,7 +692,7 @@ struct HouseholdHomeView: View {
             VStack(spacing: 6) {
                 Text(shortDay(weekday).uppercased())
                     .plType(.micro, .extraBold)
-                    .foregroundStyle(isToday ? Color.tomato : Color.inkFaint)
+                    .foregroundStyle(isToday ? Color.tomato : Color.inkSecondary)
                 // The seat swap animates — a new cook scales in rather than
                 // hard-cutting inside the spring.
                 ZStack {
@@ -864,7 +864,7 @@ struct AddMemberSheet: View {
                     Rectangle().fill(Color.hairline).frame(height: 1)
                     Text("No phone?")
                         .plType(.caption, .bold)
-                        .foregroundStyle(Color.inkFaint)
+                        .foregroundStyle(Color.inkSecondary)
                     Rectangle().fill(Color.hairline).frame(height: 1)
                 }
                 .padding(.vertical, 2)
@@ -929,7 +929,7 @@ struct AddMemberSheet: View {
             }
             Text("Kids and guests don't get cook nights.")
                 .plType(.micro, .medium)
-                .foregroundStyle(Color.inkFaint)
+                .foregroundStyle(Color.inkSecondary)
 
             InkPillButton(title: "Add") {
                 let clean = name.trimmingCharacters(in: .whitespaces)

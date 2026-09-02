@@ -201,7 +201,7 @@ struct TableComposerSheet: View {
                             Text("Add a photo")
                                 .plType(.footnote, .bold)
                         }
-                        .foregroundStyle(Color.inkFaint)
+                        .foregroundStyle(Color.inkSecondary)
                     }
             }
         }
