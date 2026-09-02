@@ -36,7 +36,7 @@ struct TableComposerSheet: View {
         VStack(spacing: 0) {
             VStack(spacing: 2) {
                 MicroLabel("Post to the Table")
-                Text("What did you plate?")
+                Text("What you cooked")
                     .font(.gabarito(22, .semibold))
                     .foregroundStyle(Color.ink)
             }
@@ -69,14 +69,14 @@ struct TableComposerSheet: View {
                 VStack(alignment: .leading, spacing: 14) {
                     photoWell
 
-                    TextField("Name the dish, like “Sunday Ragù”", text: $dishTitle)
+                    TextField("Name the dish", text: $dishTitle)
                         .font(.jakarta(15, .semibold))
                         .padding(.horizontal, 14)
                         .frame(height: 48)
                         .overlay(RoundedRectangle(cornerRadius: Radius.chip).strokeBorder(Color.hairline))
                         .plTappableField()
 
-                    TextField("Say something about it (optional)", text: $caption, axis: .vertical)
+                    TextField("Say something about it", text: $caption, axis: .vertical)
                         .font(.jakarta(15, .medium))
                         .lineLimit(2...4)
                         .padding(14)
@@ -127,7 +127,7 @@ struct TableComposerSheet: View {
                 .padding(.bottom, 16)
             }
 
-            TomatoPillButton(title: "Set it on the Table") {
+            TomatoPillButton(title: "Post") {
                 post()
             }
             .opacity(canPost ? 1 : 0.4)
@@ -143,8 +143,8 @@ struct TableComposerSheet: View {
         // rubber-bands instead. Leaving on purpose goes through the X,
         // which asks first. An empty composer still slides away freely.
         .interactiveDismissDisabled(hasContent)
-        .confirmationDialog("Toss this post?", isPresented: $discardAsked, titleVisibility: .visible) {
-            Button("Toss it", role: .destructive) { dismiss() }
+        .confirmationDialog("Discard this post?", isPresented: $discardAsked, titleVisibility: .visible) {
+            Button("Discard", role: .destructive) { dismiss() }
             Button("Keep writing", role: .cancel) {}
         }
         .onChange(of: photoItem) { _, item in
@@ -198,7 +198,7 @@ struct TableComposerSheet: View {
                         VStack(spacing: 6) {
                             Image(systemName: "camera")
                                 .font(.system(size: 20, weight: .medium))
-                            Text("The photo. Food lives on plates.")
+                            Text("Add a photo")
                                 .font(.jakarta(13, .bold))
                         }
                         .foregroundStyle(Color.inkFaint)
@@ -235,7 +235,7 @@ struct TableComposerSheet: View {
         }
         Notifier.post(
             .general, actor: owner?.name ?? "Me",
-            body: "\(owner?.name ?? "Someone") set \(post.dishTitle.isEmpty ? "a dish" : post.dishTitle) on the Table.",
+            body: "\(owner?.name ?? "Someone") posted \(post.dishTitle.isEmpty ? "a dish" : post.dishTitle) to the Table.",
             into: context
         )
         dismiss()

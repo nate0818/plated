@@ -43,7 +43,7 @@ struct GrocerySheet: View {
         VStack(spacing: 0) {
             VStack(spacing: 2) {
                 MicroLabel("This week")
-                Text("Grocery")
+                Text("Groceries")
                     .font(.gabarito(22, .semibold))
                     .foregroundStyle(Color.ink)
             }
@@ -58,7 +58,7 @@ struct GrocerySheet: View {
                     Text("Nothing to shop for yet")
                         .font(.jakarta(15, .bold))
                         .foregroundStyle(Color.inkSecondary)
-                    Text("Plate a few nights and the list builds itself.")
+                    Text("Plan a few nights and the list builds itself.")
                         .font(.jakarta(13, .medium))
                         .foregroundStyle(Color.inkFaint)
                 }
@@ -147,7 +147,7 @@ struct GrocerySheet: View {
             Image(systemName: "plus")
                 .font(.system(size: 13, weight: .bold))
                 .foregroundStyle(Color.inkFaint)
-            TextField("Add something — “olive oil”", text: $newItemName)
+            TextField("Add an item", text: $newItemName)
                 .font(.jakarta(14, .semibold))
                 .focused($addFieldFocused)
                 .submitLabel(.done)
@@ -265,7 +265,7 @@ struct GrocerySheet: View {
         exportResult = "List copied. Paste it into your Instacart cart."
         Notifier.post(
             .groceriesOrdered, actor: "",
-            body: "Your list is copied and Instacart is open, ready to paste.",
+            body: "Grocery list copied for Instacart.",
             into: context
         )
         if let url = URL(string: "https://www.instacart.com/store") {
@@ -279,10 +279,10 @@ struct GrocerySheet: View {
             do {
                 let unchecked = currentItems.filter { !$0.isChecked }
                 let count = try await RemindersExporter.shared.export(unchecked)
-                withAnimation(.plSnap) { exportResult = "\(count) items sent to Reminders" }
+                withAnimation(.plSnap) { exportResult = "\(count) \(count == 1 ? "item" : "items") sent to Reminders" }
                 Haptic.kiss()
             } catch {
-                withAnimation(.plSnap) { exportResult = "Reminders access is off in Settings" }
+                withAnimation(.plSnap) { exportResult = "Couldn't add to Reminders. Check access in iOS Settings." }
                 Haptic.warn()
             }
             exporting = false

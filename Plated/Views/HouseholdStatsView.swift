@@ -91,20 +91,20 @@ struct HouseholdStatsView: View {
                   detail: "Put a night on the plan.",
                   mark: .symbol("fork.knife"), have: nightsPlated, need: 1),
             Badge(id: "first-recipe", title: "First recipe",
-                  detail: "Write a dish into the cookbook.",
+                  detail: "Add a dish to the cookbook.",
                   mark: .symbol("text.book.closed"), have: recipes.count, need: 1),
             Badge(id: "first-post", title: "First plate shared",
-                  detail: "Bring something you cooked to the table.",
+                  detail: "Post something you cooked to the Table.",
                   mark: .symbol("table.furniture"), have: dishPosts.count, need: 1),
             Badge(id: "first-kiss", title: "First chef's kiss",
-                  detail: "Ten plates on one dish. The table's highest compliment.",
+                  detail: "Ten plates on one dish.",
                   mark: .symbol("sparkles"), have: kissCount, need: 1),
-            Badge(id: "first-save", title: "Cooked elsewhere",
-                  detail: "Someone cooked your dish at their own table.",
+            Badge(id: "first-save", title: "Saved elsewhere",
+                  detail: "Someone saved your dish to their cookbook.",
                   mark: .symbol("bookmark"),
                   have: members.reduce(0) { $0 + Awards.savesReceived(by: $1.name) }, need: 1),
             Badge(id: "full-table", title: "Full table",
-                  detail: "Three seats filled at your household.",
+                  detail: "Three people in your household.",
                   mark: .symbol("person.3"), have: members.count, need: 3),
             Badge(id: "ten-recipes", title: "Ten dishes deep",
                   detail: "A cookbook worth cooking from.",
@@ -181,7 +181,7 @@ struct HouseholdStatsView: View {
 
             VStack(alignment: .leading, spacing: 1) {
                 MicroLabel("\(earned) of \(total) earned")
-                Text("All stats")
+                Text("Stats and badges")
                     .font(.gabarito(20, .semibold))
                     .foregroundStyle(Color.ink)
             }

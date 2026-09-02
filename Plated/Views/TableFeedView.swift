@@ -174,7 +174,7 @@ struct TableFeedView: View {
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.pressable)
-                    .accessibilityLabel("Discover other tables")
+                    .accessibilityLabel("Discover")
                 }
                 .padding(.horizontal, 24)
                 .padding(.bottom, 12)
@@ -197,10 +197,10 @@ struct TableFeedView: View {
                         if shownPosts.isEmpty {
                             VStack(spacing: 10) {
                                 PlateReactionGlyph(filled: false)
-                                Text(scope == .household ? "Your household hasn't posted yet" : "Nothing on the table yet")
+                                Text(scope == .household ? "Your household hasn't posted yet" : "Nothing plated yet")
                                     .font(.jakarta(15, .bold))
                                     .foregroundStyle(Color.ink)
-                                Text("Post what you cooked tonight and everyone at your table sees it.")
+                                Text("Only the people you invite can see it.")
                                     .font(.jakarta(13, .medium))
                                     .foregroundStyle(Color.inkSecondary)
                                     .multilineTextAlignment(.center)
@@ -264,11 +264,11 @@ struct TableFeedView: View {
                 Button("Cancel", role: .cancel) {}
             }
         } message: {
-            Text("The photo and every comment on it go with it.")
+            Text("The photo and comments go too.")
         }
         .sheet(item: $editingSave) { post in
             RecipeEditorView(prefill: (
-                title: post.dishTitle.isEmpty ? "From \(post.firstName)'s table" : post.dishTitle,
+                title: post.dishTitle.isEmpty ? "\(post.firstName)'s dish" : post.dishTitle,
                 summary: post.caption,
                 photo: post.photoData,
                 originID: post.originKey
@@ -341,7 +341,7 @@ struct TableFeedView: View {
                     Image(systemName: "lock")
                         .font(.system(size: 11, weight: .bold))
                         .foregroundStyle(Color.inkFaint)
-                    MicroLabel("\(seatCount) \(seatCount == 1 ? "seat" : "seats") · Invite only")
+                    MicroLabel("\(seatCount) \(seatCount == 1 ? "person" : "people") · Invite only")
                         .lineLimit(1)
                         .minimumScaleFactor(0.7)
                 }
@@ -402,7 +402,7 @@ struct TableFeedView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.pressable)
-            .accessibilityLabel("Seats at your table")
+            .accessibilityLabel("Everyone at the Table")
 
             // The host's own door, the same one the plan and home offer.
             Button {
@@ -604,7 +604,7 @@ struct TableFeedView: View {
             } label: {
                 Text(post.sortedComments.count > 2
                      ? "See all \(post.sortedComments.count) comments"
-                     : "Add a comment for \(post.firstName)…")
+                     : "Add a comment")
                     .font(.jakarta(12, .semibold))
                     .foregroundStyle(Color.inkFaint)
                     .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
@@ -626,7 +626,7 @@ struct TableFeedView: View {
             Haptic.tap()
             threadPost = post
         } label: {
-            Label("Open the thread", systemImage: "bubble.right")
+            Label("Comments", systemImage: "bubble.right")
         }
         if canSave {
             if isSaved(post) {
@@ -645,7 +645,7 @@ struct TableFeedView: View {
         Button {
             openProfile(post)
         } label: {
-            Label("See \(post.firstName)'s table", systemImage: "person")
+            Label("See \(post.firstName)'s profile", systemImage: "person")
         }
         if isMine(post) {
             Button(role: .destructive) {
@@ -719,7 +719,7 @@ struct TableFeedView: View {
                 }
                 .buttonStyle(.pressable)
                 Spacer()
-                MicroLabel(post.hasPoll ? "Poll" : "Open ask")
+                MicroLabel(post.hasPoll ? "Poll" : "Ask")
             }
             Button {
                 Haptic.tap()
@@ -735,7 +735,7 @@ struct TableFeedView: View {
                         HStack(spacing: 6) {
                             Image(systemName: "chart.bar.xaxis")
                                 .font(.system(size: 11, weight: .bold))
-                            Text("\(post.pollOptions.count) choices · \(post.totalPollVotes) votes · tap to vote")
+                            Text("\(post.pollOptions.count) choices · \(post.totalPollVotes) votes")
                                 .font(.jakarta(12, .bold))
                         }
                         .foregroundStyle(Color.basil)
@@ -886,10 +886,10 @@ struct TableFeedView: View {
         let me = members.first(where: \.isOwner)?.name ?? "Someone"
         Notifier.post(
             .saveReceived, actor: me,
-            body: "\(me) saved \(post.firstName)'s \(post.dishTitle.isEmpty ? "dish" : post.dishTitle). They get the credit.",
+            body: "\(me) saved \(post.firstName)'s \(post.dishTitle.isEmpty ? "dish" : post.dishTitle).",
             into: context
         )
-        showToast("Saved. \(post.firstName) gets the credit")
+        showToast("Saved to your cookbook")
     }
 
     private func showToast(_ message: String) {

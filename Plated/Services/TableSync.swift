@@ -120,9 +120,8 @@ enum TableSync {
     static func inviteMessage(hostName: String) -> String {
         let host = hostName.isEmpty ? "I" : hostName
         return """
-        \(host) set a place for you at our table on Plated, a private feed \
-        of what we're actually cooking. Only the people with a seat can see \
-        it. Yours is saved and waiting.
+        \(host) added you on Plated, a private feed of what we're actually \
+        cooking. Only invited people can see it.
         """
     }
 }

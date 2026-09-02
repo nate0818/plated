@@ -34,7 +34,7 @@ struct RecipeImportSheet: View {
     var body: some View {
         VStack(spacing: 0) {
             VStack(spacing: 2) {
-                MicroLabel(draft == nil ? "From anywhere" : "Check it over")
+                MicroLabel(draft == nil ? "To your cookbook" : "New recipe")
                 Text(draft == nil ? "Add a recipe" : "Does this look right?")
                     .font(.gabarito(22, .semibold))
                     .foregroundStyle(Color.ink)
@@ -89,7 +89,7 @@ struct RecipeImportSheet: View {
                     // The promise this makes is now one the parser keeps:
                     // headed sections are read as sections, and "Notes",
                     // "Nutrition" and the story are dropped on the floor.
-                    Text("Paste the whole thing. Ingredients, method, the blogger's childhood story. We keep the recipe, drop the rest, and you get to fix anything we misread before it saves.")
+                    Text("Paste the whole thing. We'll keep the recipe and drop the rest.")
                         .font(.jakarta(14, .medium))
                         .foregroundStyle(Color.inkFaint)
                         .padding(.horizontal, 16)
@@ -108,14 +108,14 @@ struct RecipeImportSheet: View {
             .overlay(RoundedRectangle(cornerRadius: Radius.card).strokeBorder(Color.hairline))
 
             if nothingToPaste {
-                Text("Nothing copied yet. Copy the recipe first, then come back.")
+                Text("Nothing on the clipboard. Copy the recipe first.")
                     .font(.jakarta(12, .semibold))
                     .foregroundStyle(Color.inkSecondary)
                     .multilineTextAlignment(.center)
             }
 
             if readFailed {
-                Text("We couldn't find a recipe in that. Check there are ingredients and steps in there, then try again.")
+                Text("No recipe found. Check that the ingredients and steps are included.")
                     .font(.jakarta(12, .semibold))
                     .foregroundStyle(Color.tomato)
                     .multilineTextAlignment(.center)
@@ -138,7 +138,7 @@ struct RecipeImportSheet: View {
                     ghostButton("Scan", icon: "doc.viewfinder") { scannerShown = true }
                 }
                 PhotosPicker(selection: $photoItem, matching: .images) {
-                    ghostLabel("Photo", icon: "photo")
+                    ghostLabel("Choose photo", icon: "photo")
                 }
                 .buttonStyle(.pressable)
             }
@@ -150,7 +150,7 @@ struct RecipeImportSheet: View {
             } label: {
                 HStack(spacing: 8) {
                     if reading { ProgressView().tint(Color.onTomato) }
-                    Text(reading ? "Reading it" : "Make it a recipe")
+                    Text(reading ? "Reading…" : "Read it")
                         .font(.jakarta(14, .bold))
                 }
                 .foregroundStyle(Color.onTomato)
@@ -171,7 +171,7 @@ struct RecipeImportSheet: View {
                 Haptic.tap()
                 editorShown = true
             } label: {
-                Text("Write it out yourself")
+                Text("Write it out")
                     .font(.jakarta(13, .bold))
                     .foregroundStyle(Color.ink)
                     .frame(maxWidth: .infinity)
@@ -179,7 +179,7 @@ struct RecipeImportSheet: View {
             }
             .buttonStyle(.pressable)
 
-            Text("A card, a cookbook page, your grandmother's handwriting. Scan it and we'll read it. Nothing leaves your phone.")
+            Text("Photos and scans are read on your phone. Nothing is uploaded.")
                 .font(.jakarta(11, .medium))
                 .foregroundStyle(Color.inkFaint)
                 .multilineTextAlignment(.center)
@@ -242,7 +242,7 @@ struct RecipeImportSheet: View {
                         Haptic.tap()
                         withAnimation(.plSnap) { draft = nil }
                     } label: {
-                        Text("Back")
+                        Text("Start over")
                             .font(.jakarta(14, .bold))
                             .foregroundStyle(Color.ink)
                             .frame(maxWidth: .infinity)
@@ -255,7 +255,7 @@ struct RecipeImportSheet: View {
                         Haptic.kiss()
                         save(bound.wrappedValue)
                     } label: {
-                        Text(unnamed ? "Name it to save" : "Add to cookbook")
+                        Text(unnamed ? "Name it to save" : "Save to cookbook")
                             .font(.jakarta(14, .bold))
                             .foregroundStyle(Color.onTomato)
                             .frame(maxWidth: .infinity)
@@ -284,8 +284,8 @@ struct RecipeImportSheet: View {
     /// deliberate enough that it is easy to save without noticing.
     private func nameField(_ draft: Binding<ImportedRecipe>) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            MicroLabel(unnamed ? "What's it called?" : "Name")
-            TextField("Name this dish", text: draft.title)
+            MicroLabel("Name")
+            TextField("Name the dish", text: draft.title)
                 .font(.gabarito(20, .semibold))
                 .foregroundStyle(Color.ink)
                 .focused($namingDish)
@@ -307,7 +307,7 @@ struct RecipeImportSheet: View {
     private func ingredientsBlock(_ draft: Binding<ImportedRecipe>) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             MicroLabel(draft.wrappedValue.ingredients.isEmpty
-                       ? "Add the ingredients"
+                       ? "Ingredients"
                        : "\(draft.wrappedValue.ingredients.count) ingredients")
             VStack(spacing: 0) {
                 ForEach(draft.wrappedValue.ingredients) { ingredient in
@@ -337,7 +337,7 @@ struct RecipeImportSheet: View {
     private func stepsBlock(_ draft: Binding<ImportedRecipe>) -> some View {
         if !draft.wrappedValue.steps.isEmpty {
             VStack(alignment: .leading, spacing: 6) {
-                MicroLabel("\(draft.wrappedValue.steps.count) steps")
+                MicroLabel("\(draft.wrappedValue.steps.count) \(draft.wrappedValue.steps.count == 1 ? "step" : "steps")")
                 VStack(alignment: .leading, spacing: 10) {
                     ForEach(Array(draft.wrappedValue.steps.enumerated()), id: \.offset) { i, step in
                         HStack(alignment: .top, spacing: 10) {

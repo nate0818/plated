@@ -367,7 +367,7 @@ struct WeekView: View {
             // was invisible to VoiceOver. Home's member rows do the same.
             .accessibilityElement(children: .combine)
             .accessibilityAddTraits(.isButton)
-            .accessibilityHint("Opens the whole day — every meal, the cook, the weather")
+            .accessibilityHint("Opens the day")
         }
         .draggable(DayTransfer.token(for: date)) {
             dishCircle(for: meal)
@@ -455,8 +455,8 @@ struct WeekView: View {
         .accessibilityElement(children: .ignore)
         .accessibilityAddTraits(.isButton)
         .accessibilityLabel("\(dayName(date).capitalized), \(openLine(date))")
-        .accessibilityHint("Opens the whole day — every meal, the cook, the weather")
-        .accessibilityAction(named: "Plate dinner") { planDay = date }
+        .accessibilityHint("Opens the day")
+        .accessibilityAction(named: "Plan dinner") { planDay = date }
         .dropDestination(for: String.self) { tokens, _ in
             moveMeal(from: tokens.first, to: date)
         } isTargeted: { over in
@@ -752,12 +752,12 @@ struct WeekView: View {
                 var comps = DateComponents()
                 comps.weekday = ordered[0]
                 if let date = Calendar.current.nextDate(after: .now, matching: comps, matchingPolicy: .nextTime) {
-                    return "\(member.name) takes \(full.string(from: date))"
+                    return "\(member.name) cooks \(full.string(from: date))"
                 }
             }
             return "\(member.name) cooks \(days.joined(separator: " & "))"
         }.filter { !$0.isEmpty }
-        return parts.isEmpty ? "Tap an open night to plan it" : parts.joined(separator: " · ")
+        return parts.isEmpty ? "Nobody has a regular cook night" : parts.joined(separator: " · ")
     }
 
     // MARK: Actions

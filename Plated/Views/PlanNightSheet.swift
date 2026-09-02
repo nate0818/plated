@@ -34,7 +34,7 @@ struct PlanNightSheet: View {
     var body: some View {
         VStack(spacing: 0) {
             VStack(spacing: 4) {
-                MicroLabel(meal == nil ? planLabel : "The plan so far")
+                MicroLabel(meal == nil ? planLabel : "Planned")
                 Text(dayTitle)
                     .font(.gabarito(22, .semibold))
                     .foregroundStyle(Color.ink)
@@ -52,45 +52,45 @@ struct PlanNightSheet: View {
                     if let meal {
                         currentMealCard(meal)
                             .padding(.bottom, 6)
-                        MicroLabel("Change it")
+                        MicroLabel("Something else")
                     }
 
                     if !recipes.isEmpty {
                         actionRow(
                             icon: "wand.and.stars", tint: Color.tomato,
                             title: "Pick for me",
-                            caption: "Something that suits the weather and skips what your household won't eat."
+                            caption: "Matched to the weather and what your household eats."
                         ) { pickForMe() }
                     }
 
                     actionRow(
                         icon: "book.closed", tint: Color.ink,
-                        title: "From your recipes",
+                        title: "Choose a recipe",
                         caption: "\(recipes.count) \(recipes.count == 1 ? "dish" : "dishes") your household already knows."
                     ) { pickerShown = true }
 
                     actionRow(
                         icon: "plus.circle", tint: Color.ink,
-                        title: "New recipe",
-                        caption: "Photograph it, save it, and plate it right here."
+                        title: "Add a recipe",
+                        caption: "Save it and plan it in one go."
                     ) { newRecipeShown = true }
 
                     actionRow(
                         icon: "fork.knife.circle", tint: Color.ink,
                         title: "Eating out",
-                        caption: "A night off is still a plan. It counts towards your week."
+                        caption: "Counts as a planned night."
                     ) { markEatingOut() }
 
                     actionRow(
                         icon: "bubble.and.pencil", tint: Color.ink,
                         title: "Ask the Table",
-                        caption: "Ask everyone what they fancy, with a poll if you have options."
+                        caption: "Ask what everyone wants, or put up a poll."
                     ) { askShown = true }
 
                     actionRow(
                         icon: "party.popper", tint: Color.ink,
                         title: "Plan a gathering",
-                        caption: "Guests, a menu, and an event in your calendar."
+                        caption: "Guests, a time, and an event in your calendar."
                     ) { gatheringShown = true }
                 }
                 .padding(.horizontal, 24)
@@ -317,7 +317,7 @@ struct PlanNightSheet: View {
         let cookName = (cook?.isOwner ?? true) ? "you" : (cook?.name ?? "someone")
         Notifier.post(
             .mealPlanned, actor: cook?.name ?? "",
-            body: "\(recipe.title) is plated for \(dayTitle.lowercased()). \(cookName.capitalized) cook\(cookName == "you" ? "" : "s").",
+            body: "\(dayTitle): \(recipe.title). \(cookName.capitalized) cook\(cookName == "you" ? "" : "s").",
             into: context
         )
         // The moment to ask, and the only one. They have just said they
@@ -397,7 +397,7 @@ struct AskComposerSheet: View {
                         }
                         if options.count < 4 {
                             HStack(spacing: 8) {
-                                TextField("Add a choice, like “Tacos”", text: $optionEntry)
+                                TextField("Add an option", text: $optionEntry)
                                     .font(.jakarta(14, .medium))
                                     .padding(.horizontal, 14)
                                     .frame(height: 44)
@@ -426,7 +426,7 @@ struct AskComposerSheet: View {
 
                     if members.count > 1 {
                         VStack(alignment: .leading, spacing: 8) {
-                            MicroLabel("Ring someone")
+                            MicroLabel("Tag someone")
                             HStack(spacing: 8) {
                                 ForEach(members.filter { !$0.isOwner }, id: \.persistentModelID) { member in
                                     let active = tagged.contains(member.name)
@@ -462,7 +462,7 @@ struct AskComposerSheet: View {
                 .padding(.bottom, 16)
             }
 
-            TomatoPillButton(title: options.isEmpty ? "Post the ask" : "Post with poll") {
+            TomatoPillButton(title: options.isEmpty ? "Post" : "Post with poll") {
                 post()
             }
             .padding(.horizontal, 24)
@@ -486,9 +486,9 @@ struct AskComposerSheet: View {
     }
 
     private var defaultCaption: String {
-        if Calendar.current.isDateInToday(date) { return "What should we plate tonight? Open to ideas." }
-        if Calendar.current.isDateInTomorrow(date) { return "What should we plate tomorrow? Open to ideas." }
-        return "What should we plate on \(dayName)? Open to ideas."
+        if Calendar.current.isDateInToday(date) { return "What should we make tonight?" }
+        if Calendar.current.isDateInTomorrow(date) { return "What should we make tomorrow?" }
+        return "What should we make on \(dayName)?"
     }
 
     private func addOption() {
@@ -516,8 +516,8 @@ struct AskComposerSheet: View {
         Notifier.post(
             .askPosted, actor: owner?.name ?? "Me",
             body: options.isEmpty
-                ? "\(owner?.name ?? "Someone") asked the table what to plate \(dayName.lowercased())."
-                : "\(owner?.name ?? "Someone") started a poll for \(dayName.lowercased()) with \(options.count) choices.",
+                ? "\(owner?.name ?? "Someone") asked the Table about \(dayName)."
+                : "\(owner?.name ?? "Someone") started a poll for \(dayName).",
             into: context
         )
         dismiss()
@@ -543,7 +543,7 @@ struct GatheringSheet: View {
     @State private var syncToCalendar = true
     @State private var syncResult: String?
     /// Set once the gathering lands in the store. A calendar failure used to
-    /// leave "Set the table" live over a save the user believed failed —
+    /// leave "Save gathering" live over a save the user believed failed —
     /// tapping again threw a second party and rang the bell twice.
     @State private var savedGathering: Gathering?
 
@@ -569,13 +569,13 @@ struct GatheringSheet: View {
 
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 14) {
-                    TextField("Name it, like “Sunday dinner party”", text: $title)
+                    TextField("Sunday dinner party", text: $title)
                         .font(.jakarta(16, .semibold))
                         .padding(14)
                         .overlay(RoundedRectangle(cornerRadius: Radius.chip).strokeBorder(Color.hairline))
                         .plTappableField()
 
-                    TextField("Where, like “Our place”", text: $location)
+                    TextField("Our place", text: $location)
                         .font(.jakarta(14, .medium))
                         .padding(14)
                         .overlay(RoundedRectangle(cornerRadius: Radius.chip).strokeBorder(Color.hairline))
@@ -600,7 +600,7 @@ struct GatheringSheet: View {
                     .padding(.vertical, 10)
                     .overlay(RoundedRectangle(cornerRadius: Radius.card).strokeBorder(Color.hairline))
 
-                    DatePicker("Sitting down at", selection: $startTime, displayedComponents: .hourAndMinute)
+                    DatePicker("Starts at", selection: $startTime, displayedComponents: .hourAndMinute)
                         .font(.jakarta(14, .bold))
                         .tint(Color.tomato)
                         .padding(.horizontal, 16)
@@ -620,7 +620,7 @@ struct GatheringSheet: View {
                             Text("Add to Apple Calendar")
                                 .font(.jakarta(14, .bold))
                                 .foregroundStyle(Color.ink)
-                            Text("The event lands in your calendar. Invite guests from there.")
+                            Text("Adds an event you can invite guests from.")
                                 .font(.jakarta(12, .medium))
                                 .foregroundStyle(Color.inkSecondary)
                         }
@@ -645,7 +645,7 @@ struct GatheringSheet: View {
             }
 
             TomatoPillButton(
-                title: savedGathering == nil ? "Set the table" : "Try the calendar again",
+                title: savedGathering == nil ? "Save gathering" : "Add to calendar",
                 systemImage: savedGathering == nil ? "party.popper" : "calendar.badge.plus"
             ) {
                 save()
@@ -716,7 +716,7 @@ struct GatheringSheet: View {
             }
             Notifier.post(
                 .mealPlanned, actor: "",
-                body: "\(gathering.title) is on for \(dayLabel), cooking for \(guests).",
+                body: "\(gathering.title), \(dayLabel). Cooking for \(guests).",
                 into: context
             )
             savedGathering = gathering
@@ -732,7 +732,7 @@ struct GatheringSheet: View {
                 } catch {
                     // The raw EventKit error read like the save failed.
                     // It didn't — say what's true, in our voice.
-                    syncResult = "Couldn't reach your calendar — the gathering is saved either way."
+                    syncResult = "The gathering is saved. Your calendar wasn't updated."
                 }
             }
         } else {

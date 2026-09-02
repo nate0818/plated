@@ -366,7 +366,7 @@ struct PlateTabBar: View {
                         .frame(width: 54, height: 54)
                         .shadow(color: Color.shadowInk.opacity(0.16), radius: 10, y: 8)
                     Image(systemName: "plus")
-                        .accessibilityLabel("Create")
+                        .accessibilityLabel("Add")
                         .font(.system(size: 22, weight: .bold))
                         .foregroundStyle(Color.onTomato)
                 }
@@ -445,7 +445,7 @@ struct CreateMenuSheet: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Text("What are you adding?")
+            Text("Add")
                 .font(.gabarito(22, .semibold))
                 .foregroundStyle(Color.ink)
                 .padding(.top, 26)

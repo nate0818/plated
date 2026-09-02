@@ -72,7 +72,7 @@ struct ProngsbyBrain {
 
         if text.contains("hello") || text.contains("hi ") || text == "hi" || text == "hey"
             || text.contains("who are you") || text.contains("what can you do") {
-            return "Well hello! I'm Prongsby, your cooking companion and the only fork that talks back (politely). I know your \(recipes.count) recipes, your week, and who's cooking when. Ask me for dinner ideas, swaps, resizing a dish, making something vegetarian, or planning a whole gathering. \(Self.taglineOfTheDay)"
+            return "I'm Prongsby. I know your \(recipes.count) recipes, your week, and who's cooking when. Ask me for dinner ideas, swaps, resizing a dish, making something vegetarian, or planning a gathering. \(Self.taglineOfTheDay)"
         }
         if let swap = substitution(in: text) { return swap }
         if let scaled = scaleRecipe(text) { return scaled }
@@ -94,12 +94,12 @@ struct ProngsbyBrain {
             return opener() + (Self.tips.randomElement() ?? Self.tips[0])
         }
         if text.contains("timer") {
-            return "I can't run timers. No thumbs, only tines. Say \"Hey Siri, set a timer\" and I'll hold the recipe open."
+            return "I can't run timers. Say \"Hey Siri, set a timer\" instead."
         }
         if text.contains("thank") {
             return ["Any time. I'll be in the drawer.", "That's what the third prong is for.", "De nada. Tip your dishwasher."].randomElement()!
         }
-        return "Hmm, that one's past my prongs for now. Here's what I'm genuinely good at: \"what should we make tonight?\", \"make \(recipes.first?.title ?? "Pizza Night") vegetarian\", \"scale \(recipes.first?.title ?? "it") for 8\", \"substitute for buttermilk\", \"who's cooking Friday?\", or \"plan a gathering for 10\"."
+        return "I can't help with that one. Try \"what should we make tonight?\", \"make \(recipes.first?.title ?? "Pizza Night") vegetarian\", \"scale \(recipes.first?.title ?? "it") for 8\", or \"who's cooking Friday?\""
     }
 
     // MARK: Sous-chef skills
@@ -186,7 +186,7 @@ struct ProngsbyBrain {
             .compactMap { p in text.range(of: p).map { (p, $0.lowerBound) } }
             .sorted { $0.1 < $1.1 }
         guard hits.count >= 2 else {
-            return "Swap what for what in \(recipe.title)? Give me both, like \"swap the chicken for shrimp\", and I'll adjust the plan."
+            return "Swap what for what in \(recipe.title)? Give me both, like \"swap the chicken for shrimp\"."
         }
         // …except "make tofu instead of chicken", where the replacement
         // comes FIRST: whatever follows "instead of" is what leaves the
@@ -201,7 +201,7 @@ struct ProngsbyBrain {
             from = hits[0].0
             to = hits[1].0
         }
-        var notes = "\(recipe.title) with \(to) instead of \(from). Done."
+        var notes = "\(recipe.title) with \(to) instead of \(from):"
         if ["shrimp", "fish", "salmon", "tuna"].contains(to) {
             notes += " Seafood cooks fast: pull the time down to a third and take it off the heat the moment it turns opaque."
         } else if to == "tofu" {
@@ -228,7 +228,7 @@ struct ProngsbyBrain {
         guard let meal = meals.first(where: {
             Calendar.current.isSameDay($0.date, target) && $0.slotValue == .dinner
         }) else {
-            return "Nothing's plated for \(dayName) yet. A blank placemat, full of potential. Want ideas? Just say \"what should we make?\""
+            return "Nothing's plated for \(dayName) yet. Want ideas? Say \"what should we make?\""
         }
         if asksWho {
             guard let cook = meal.cook else {
@@ -253,9 +253,9 @@ struct ProngsbyBrain {
         let mains = recipes.filter { $0.mealTypeValue == .dinner }
             .sorted { $0.loveScore > $1.loveScore }
         guard let main = mains.first else {
-            return "A gathering for \(guests)! First, teach me some dishes. The cookbook's empty and I can't feed \(guests) people vibes."
+            return "Your cookbook is empty. Add a dinner recipe and I'll build you a menu for \(guests)."
         }
-        var menu = ["The headliner: \(main.title) (crowd-tested, \(main.loveScore) love points)"]
+        var menu = ["The main: \(main.title)"]
         if let side = recipes.first(where: { $0.mealTypeValue == .sideDish }) {
             menu.append("On the side: \(side.title)")
         }
@@ -283,14 +283,14 @@ struct ProngsbyBrain {
         let engine = SuggestionEngine(recipes: recipes, members: members)
         let picks = engine.suggestions(for: .now, forecast: nil, limit: 3)
         guard !picks.isEmpty else {
-            return "Your cookbook is empty, which is very minimalist of you. Add a few dishes and I'll have opinions. So many opinions."
+            return "Your cookbook is empty. Add a few dishes and I'll have suggestions."
         }
         let lines = picks.enumerated().map { index, pick in
             "\(index + 1). \(pick.recipe.title), \(pick.recipe.totalMinutes) min, \(pick.recipe.difficultyValue.rawValue.lowercased())"
         }
         let closers = [
-            "Say the word and plate it from the plan.",
-            "All three respect the household's hard no's. I checked. Twice.",
+            "Plan any of them from the Plan tab.",
+            "All three skip what your household won't eat.",
             "I'd go with #1, but I'm biased toward whatever gets cooked."
         ]
         return opener() + "Tonight I'd plate one of these:\n\n\(lines.joined(separator: "\n"))\n\n\(closers.randomElement()!)"
@@ -322,11 +322,11 @@ struct ProngsbyBrain {
         }
         if !recipe.steps.isEmpty {
             let steps = recipe.steps.enumerated().map { "\($0 + 1). \($1)" }
-            parts.append("The moves:\n\(steps.joined(separator: "\n"))")
+            parts.append("Steps:\n\(steps.joined(separator: "\n"))")
         } else if !recipe.instructions.isEmpty {
             parts.append(recipe.instructions)
         } else {
-            parts.append("No steps written down yet. Open it in Recipes, add them, and I'll recite them back like poetry. Kitchen poetry.")
+            parts.append("No steps written down yet. Open it in Recipes and add them.")
         }
         return parts.joined(separator: "\n\n")
     }

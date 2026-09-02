@@ -142,7 +142,7 @@ struct PersonProfileView: View {
                         ),
                         spacing: typeSize >= .accessibility1 ? 16 : 0
                     ) {
-                        CountBlock(value: "\(posts.count)", label: "On the table")
+                        CountBlock(value: "\(posts.count)", label: "Posts")
                         CountBlock(value: "\(plateCount)", label: "Happy plates")
                         CountBlock(value: "\(kissCount)", label: "Chef's kisses", accent: kissCount > 0)
                         CountBlock(value: "\(Awards.savesReceived(by: name))", label: "Saved by others")
@@ -154,7 +154,7 @@ struct PersonProfileView: View {
                 if posts.isEmpty {
                     VStack(spacing: 8) {
                         PlateReactionGlyph(filled: false)
-                        Text(isMe ? "Nothing shared yet. Plate something for the table." : "\(firstName) hasn't shared a plate yet.")
+                        Text(isMe ? "Nothing shared yet." : "\(firstName) hasn't shared a plate yet.")
                             .font(.jakarta(13, .medium))
                             .foregroundStyle(Color.inkFaint)
                             .multilineTextAlignment(.center)
@@ -256,7 +256,7 @@ struct PersonProfileView: View {
                     HStack(spacing: 5) {
                         Image(systemName: "camera")
                             .font(.system(size: 11, weight: .semibold))
-                        Text("Banner")
+                        Text("Change")
                             .font(.jakarta(11, .bold))
                     }
                     .foregroundStyle(Color.ink)
@@ -326,7 +326,7 @@ struct PersonProfileView: View {
     }
 
     private var roleLine: String {
-        if isMe { return "Host · Head of table" }
+        if isMe { return "Head of table" }
         if let member { return member.roleLine.isEmpty ? member.role.capitalized : member.roleLine }
         return "At your table"
     }
@@ -387,7 +387,7 @@ struct EditProfileSheet: View {
 
             VStack(alignment: .leading, spacing: 8) {
                 MicroLabel("Your name")
-                TextField("Nate", text: $draftName)
+                TextField("First name", text: $draftName)
                     .font(.jakarta(14, .semibold))
                     .padding(.horizontal, 14)
                     .frame(minHeight: 48)
@@ -414,7 +414,7 @@ struct EditProfileSheet: View {
                     .plTappableField()
             }
 
-            Text("Apple only tells us your name the very first time you sign in. If Plated is calling you \"Me\", this is where you fix it. Apple never shares your photo with any app, so yours is whichever one you pick here.")
+            Text("Apple shares your name only at first sign-in, and never your photo. Set both here.")
                 .font(.jakarta(11, .medium))
                 .foregroundStyle(Color.inkFaint)
 
@@ -495,7 +495,7 @@ struct EditProfileSheet: View {
             case .nameTaken(let who):
                 Haptic.warn()
                 withAnimation(.plSnap) {
-                    nameError = "\(who) already answers to that name at this table."
+                    nameError = "\(who) already uses that name. Try another."
                 }
                 return false
             case .invalid, .failed:
@@ -537,7 +537,7 @@ struct SettingsSheet: View {
     var body: some View {
         VStack(spacing: 0) {
             VStack(spacing: 2) {
-                MicroLabel("The back of house")
+                MicroLabel("Plated")
                 Text("Settings")
                     .font(.gabarito(22, .semibold))
                     .foregroundStyle(Color.ink)
@@ -555,7 +555,7 @@ struct SettingsSheet: View {
                         title: "Household name",
                         caption: "What your household is called on Home."
                     ) {
-                        TextField("Meadows", text: $householdName)
+                        TextField("Family name", text: $householdName)
                             .font(.jakarta(14, .bold))
                             .foregroundStyle(Color.ink)
                             .multilineTextAlignment(.trailing)
@@ -585,10 +585,10 @@ struct SettingsSheet: View {
 
                     settingRow(
                         icon: "bell",
-                        title: "Whose night it is",
+                        title: "Cook reminders",
                         caption: remindersAllowed
                             ? "The evening before someone cooks, and Sundays when the week's still open."
-                            : "Turn notifications on for Plated in Settings first."
+                            : "Turn on notifications for Plated in iOS Settings."
                     ) {
                         Toggle("", isOn: $remindersOn)
                             .labelsHidden()
@@ -627,7 +627,7 @@ struct SettingsSheet: View {
                             settingRow(
                                 icon: "plus.circle",
                                 title: "Plated+",
-                                caption: plusActive ? "Active. Everyone at your table is seated." : "Seat your whole household, and everything coming next."
+                                caption: plusActive ? "Active. Unlimited household members." : "Add your whole household."
                             ) {
                                 Text(plusActive ? "ACTIVE" : "JOIN")
                                     .font(.jakarta(11, .extraBold))
@@ -675,7 +675,7 @@ struct SettingsSheet: View {
                         settingRow(
                             icon: "rectangle.portrait.and.arrow.right",
                             title: "Sign out",
-                            caption: "Ends this Apple sign-in. Your table stays."
+                            caption: "Ends this Apple sign-in. Nothing is deleted."
                         ) {
                             Text("SIGN OUT")
                                 .font(.jakarta(11, .extraBold))
@@ -685,7 +685,7 @@ struct SettingsSheet: View {
                     }
                     .buttonStyle(.pressable)
 
-                    Text("Plated 0.1.0 · Made at the table")
+                    Text("Plated 0.1.0")
                         .font(.jakarta(11, .medium))
                         .foregroundStyle(Color.inkFaint)
                         .frame(maxWidth: .infinity)
@@ -715,7 +715,7 @@ struct SettingsSheet: View {
             Button("Sign out", role: .destructive) { signOut() }
             Button("Stay", role: .cancel) {}
         } message: {
-            Text("Your recipes, your week and your household stay on this device. You'll set your table again when you sign back in.")
+            Text("Your recipes, your week and your household stay on this device.")
         }
     }
 
@@ -793,7 +793,7 @@ struct PaywallSheet: View {
                     .font(.gabarito(26, .semibold))
                     .tracking(-0.4)
                     .foregroundStyle(Color.ink)
-                Text("One seat is free, the head of table. Plated+ seats everyone else.")
+                Text("Your seat is free. Plated+ adds everyone else.")
                     .font(.jakarta(13, .medium))
                     .foregroundStyle(Color.inkSecondary)
                     .multilineTextAlignment(.center)
@@ -805,7 +805,7 @@ struct PaywallSheet: View {
             VStack(alignment: .leading, spacing: 12) {
                 perk("person.2", "Unlimited household seats", "Partners, kids, grandma. Everyone gets a color.")
                 perk("calendar", "The whole plan, shared", "Everyone sees the week and their nights.")
-                perk("bubble.left.and.bubble.right", "Table talk", "Comments, asks, polls, and DMs with your people.")
+                perk("bubble.left.and.bubble.right", "Comments and polls", "Ask the Table, run a poll, reply on any dish.")
                 perk("sparkles", "First in line", "New features land on Plated+ tables first.")
             }
             .padding(.horizontal, 30)
@@ -832,7 +832,7 @@ struct PaywallSheet: View {
                             dismiss()
                         }
                     }
-                    Text("Preview build: activates instantly. Real checkout arrives with App Store Connect setup.")
+                    Text("Preview only. No payment is taken.")
                         .font(.jakarta(10, .medium))
                         .foregroundStyle(Color.inkFaint)
                         .multilineTextAlignment(.center)

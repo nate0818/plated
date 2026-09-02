@@ -130,7 +130,7 @@ enum Seats {
                 if !standing.name.isEmpty { match.name = standing.name }
                 Notifier.post(
                     .general, actor: match.firstName,
-                    body: "\(match.firstName) is at the table. They can see the plan now, and their nights are theirs to take.",
+                    body: "\(match.firstName) joined. They can see the plan now.",
                     into: context
                 )
                 Haptic.kiss()

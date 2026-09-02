@@ -206,7 +206,7 @@ struct DayDetailView: View {
     private var addMeal: some View {
         if isPast {
             if plannedSlots.isEmpty {
-                Text("Nothing was plated.")
+                Text("Nothing plated")
                     .font(.jakarta(14, .semibold))
                     .foregroundStyle(Color.inkFaint)
                     .padding(.top, 8)
@@ -245,7 +245,7 @@ struct DayDetailView: View {
                 .contentShape(Rectangle())
             }
             .accessibilityLabel(plannedSlots.isEmpty ? "Add a meal" : "Add another meal")
-            .accessibilityHint("Choose breakfast, lunch, dinner, a snack or dessert")
+            .accessibilityHint("Choose a meal")
         }
     }
 
@@ -259,7 +259,7 @@ struct DayDetailView: View {
             actions.append(
                 SwipeAction(
                     symbol: meal.isCooked ? "arrow.uturn.backward" : "checkmark",
-                    label: meal.isCooked ? "Undo" : "Cooked"
+                    label: meal.isCooked ? "Not cooked" : "Mark cooked"
                 ) { toggleCooked(meal) }
             )
         }
@@ -411,10 +411,10 @@ struct DayDetailView: View {
             parts.append(Recipe.durationText(minutes))
         }
         if let cook = meal.cook {
-            parts.append(cook.isOwner ? "you cook" : "\(cook.name) cooks")
+            parts.append(cook.isOwner ? "You cook" : "\(cook.name) cooks")
         }
-        if meal.gathering != nil { parts.append("gathering") }
-        if meal.isCooked { parts.append("cooked") }
+        if meal.gathering != nil { parts.append("Gathering") }
+        if meal.isCooked { parts.append("Cooked") }
         if parts.isEmpty, !meal.tagline.isEmpty { return meal.tagline }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
@@ -452,7 +452,7 @@ struct DayDetailView: View {
         let rostered = members.filter { $0.cookWeekdays.contains(weekday) }
         guard !rostered.isEmpty else { return nil }
         let names = rostered.map { $0.isOwner ? "you" : $0.name }
-        return "Usually \(names.joined(separator: " and ")) on a \(weekdayName)."
+        return "Usually \(names.joined(separator: " and ")) on \(weekdayName)s"
     }
 
     private var weekdayName: String {

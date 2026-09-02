@@ -62,7 +62,7 @@ enum Notifier {
         let name = cook.isOwner ? "your" : "\(cook.name)'s"
         post(
             .turnReminder, actor: cook.name,
-            body: "Tonight is \(name) night to cook and nothing is plated yet.",
+            body: "Tonight is \(name) night to cook. Nothing plated yet.",
             into: context
         )
     }

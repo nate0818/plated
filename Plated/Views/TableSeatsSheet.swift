@@ -50,7 +50,7 @@ struct TableSeatsSheet: View {
     var body: some View {
         VStack(spacing: 0) {
             VStack(spacing: 2) {
-                MicroLabel("\(members.count + guestSeats.count + pendingSeats.count) seats")
+                MicroLabel("\(members.count + guestSeats.count + pendingSeats.count) people")
                 Text(amGuest ? "This table" : "Your table")
                     .font(.gabarito(22, .semibold))
                     .foregroundStyle(Color.ink)
@@ -103,7 +103,7 @@ struct TableSeatsSheet: View {
                             ForEach(pendingSeats, id: \.self) { name in
                                 seatRow(
                                     name: name,
-                                    subtitle: "Waiting on them",
+                                    subtitle: "Not joined yet",
                                     tone: .neutralPair,
                                     canRemove: true,
                                     canMessage: false
@@ -121,7 +121,7 @@ struct TableSeatsSheet: View {
                                     name: seat.isMe ? "\(seat.name) (you)" : seat.name,
                                     subtitle: seat.isOwner
                                         ? (seat.isMe ? "You host this table" : "Hosts this table")
-                                        : "At the table",
+                                        : "Sees this too",
                                     tone: .basilPair,
                                     canRemove: !seat.isOwner && !seat.isMe,
                                     canMessage: false
@@ -206,14 +206,14 @@ struct TableSeatsSheet: View {
                     else { Haptic.warn() }
                 }
             }
-            Button("Stay", role: .cancel) {}
+            Button("Cancel", role: .cancel) {}
         } message: {
             // True, and worth saying: leaving deletes only this user's copy
             // of the zone. Nothing the host owns is touched.
             Text("You'll stop seeing their dishes. Nothing you've cooked is deleted, and the host keeps their table.")
         }
         .confirmationDialog(
-            "Remove \(removingMember?.name ?? "") from the table?",
+            "Remove \(removingMember?.name ?? "") from the household?",
             isPresented: Binding(get: { removingMember != nil }, set: { if !$0 { removingMember = nil } }),
             titleVisibility: .visible
         ) {
@@ -415,7 +415,7 @@ struct TableSeatsSheet: View {
                 HStack(spacing: 6) {
                     Image(systemName: "square.and.arrow.up")
                         .font(.system(size: 13, weight: .semibold))
-                    Text("Share the invite link")
+                    Text("Share link")
                         .font(.jakarta(14, .bold))
                 }
                 .foregroundStyle(Color.ink)
@@ -427,8 +427,8 @@ struct TableSeatsSheet: View {
             // Said plainly, because the alternative is someone wondering why
             // their sister never turned up at the table.
             Text(invite?.hasLink == true
-                 ? "They'll get a link. It opens Plated if they have it, and the App Store if they don't. Either way their seat is waiting."
-                 : "Your table is only on this phone for now. Sign in to iCloud to send a link that seats them.")
+                 ? "They get a link to join."
+                 : "Sign in to iCloud to send an invite link.")
                 .font(.jakarta(11, .medium))
                 .foregroundStyle(Color.inkFaint)
                 .multilineTextAlignment(.center)
@@ -493,7 +493,7 @@ struct DMThreadView: View {
 
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 8) {
-                    Text("Messages stay on your devices for now. They'll deliver once \(peerName.split(separator: " ").first.map(String.init) ?? peerName) is on Plated.")
+                    Text("These messages stay on this device. \(peerName.split(separator: " ").first.map(String.init) ?? peerName) can't see them yet.")
                         .font(.jakarta(11, .medium))
                         .foregroundStyle(Color.inkFaint)
                         .multilineTextAlignment(.center)

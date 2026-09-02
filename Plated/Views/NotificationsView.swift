@@ -33,7 +33,7 @@ struct NotificationsView: View {
                 }
                 .buttonStyle(.pressable)
                 VStack(alignment: .leading, spacing: 2) {
-                    MicroLabel("What happened")
+                    MicroLabel("Recent")
                     Text("Activity")
                         .font(.gabarito(25, .semibold))
                         .tracking(-0.3)
@@ -55,7 +55,7 @@ struct NotificationsView: View {
                     Image(systemName: "bell")
                         .font(.system(size: 28, weight: .medium))
                         .foregroundStyle(Color.inkFaint)
-                    Text("All quiet at the table")
+                    Text("Nothing yet")
                         .font(.jakarta(15, .bold))
                         .foregroundStyle(Color.inkSecondary)
                     Text("Plates, comments, saves, and turn reminders land here.")

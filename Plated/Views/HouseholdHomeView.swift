@@ -308,7 +308,7 @@ struct HouseholdHomeView: View {
                 VStack(spacing: 2) {
                     AvatarCircle(initials: ownerInitial, tone: .neutralPair, size: 40,
                                  photo: members.first(where: \.isOwner)?.photoData)
-                    Text("HOST")
+                    Text("You")
                         .font(.jakarta(10, .bold))
                         .tracking(0.7)
                         .foregroundStyle(Color.inkFaint)
@@ -371,7 +371,7 @@ struct HouseholdHomeView: View {
                                 VStack(spacing: 6) {
                                     Image(systemName: "photo")
                                         .font(.system(size: 18, weight: .medium))
-                                    Text("Hang a photo of your household")
+                                    Text("Add a photo")
                                         .font(.jakarta(13, .bold))
                                 }
                                 .foregroundStyle(Color.inkFaint)
@@ -462,7 +462,7 @@ struct HouseholdHomeView: View {
 
     private var peopleSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            MicroLabel("Who sits at your table")
+            MicroLabel("People")
 
             VStack(spacing: 0) {
                 ForEach(members, id: \.persistentModelID) { member in
@@ -503,7 +503,7 @@ struct HouseholdHomeView: View {
                     .font(.jakarta(15, .bold))
                     .foregroundStyle(Color.ink)
                 if member.isOwner, HouseholdIdentity.isPlaceholder(member.name) {
-                    Text("HEAD OF TABLE · TAP TO ADD YOUR NAME")
+                    Text("Head of table")
                         .font(.jakarta(12, .bold))
                         .tracking(0.5)
                         .foregroundStyle(Color.inkSecondary)
@@ -600,7 +600,7 @@ struct HouseholdHomeView: View {
             HStack(spacing: 8) {
                 Image(systemName: "plus")
                     .font(.system(size: 14, weight: .bold))
-                Text("Add someone to the household")
+                Text("Add someone")
                     .font(.jakarta(15, .bold))
                     .lineLimit(1)
             }
@@ -639,7 +639,7 @@ struct HouseholdHomeView: View {
 
             cookGrid
 
-            Text("Tap a day to hand it to someone else. This is your household's rota — nobody gets a text.")
+            Text("Tap a day to hand it to someone else. Nobody is notified.")
                 .font(.jakarta(12, .medium))
                 .foregroundStyle(Color.inkFaint)
 
@@ -664,7 +664,7 @@ struct HouseholdHomeView: View {
             .padding(.top, 8)
 
             if turnsTipShown {
-                Text("How turns work: a day with a standing cook (the grid above) always goes to them. When you plate an open night with this on, it's assigned to whoever has cooked the fewest dinners that week, so nobody quietly ends up doing every Tuesday. Turn it off and open nights default to you.")
+                Text("A day with a standing cook always goes to them. Open nights go to whoever has cooked least that week — or to you, with this off.")
                     .font(.jakarta(12, .medium))
                     .foregroundStyle(Color.inkSecondary)
                     .lineSpacing(3)
@@ -831,7 +831,7 @@ struct AddMemberSheet: View {
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 18) {
-                Text("Who's joining you?")
+                Text("Add someone")
                     .font(.gabarito(21, .semibold))
                     .foregroundStyle(Color.ink)
                     .frame(maxWidth: .infinity)
@@ -899,8 +899,8 @@ struct AddMemberSheet: View {
             .opacity(working != nil ? 0.6 : (InviteComposer.isAvailable ? 1 : 0.4))
 
             Text(InviteComposer.isAvailable
-                 ? "Pick them from Contacts. They get a link that opens your table — and the App Store if they don't have Plated yet."
-                 : "This iPhone can't send messages, so there's no way to hand them a link from here.")
+                 ? "They get a text with a link to join."
+                 : "This iPhone can't send messages. Add them by name below.")
                 .font(.jakarta(12, .medium))
                 .foregroundStyle(Color.inkSecondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -910,10 +910,10 @@ struct AddMemberSheet: View {
     /// The door for somebody who will never have the app.
     private var byNameDoor: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Lay a place by name")
+            Text("Add by name")
                 .font(.jakarta(15, .bold))
                 .foregroundStyle(Color.ink)
-            Text("For a kid, a grandparent, anyone who won't be getting the app. They're on the plan and in the rota; nothing gets sent to them.")
+            Text("For a kid, a grandparent, anyone without the app. Nothing gets sent to them.")
                 .font(.jakarta(12, .medium))
                 .foregroundStyle(Color.inkSecondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -929,15 +929,15 @@ struct AddMemberSheet: View {
                 roleChip("kid", "Kid")
                 roleChip("member", "Guest")
             }
-            Text("Kids and guests keep their seat without being handed a cook night.")
+            Text("Kids and guests don't get cook nights.")
                 .font(.jakarta(11, .medium))
                 .foregroundStyle(Color.inkFaint)
 
-            InkPillButton(title: "Lay their place") {
+            InkPillButton(title: "Add") {
                 let clean = name.trimmingCharacters(in: .whitespaces)
                 guard !Seats.isTaken(clean, in: context) else {
                     Haptic.warn()
-                    withAnimation(.plSnap) { problem = "\(clean) already has a seat." }
+                    withAnimation(.plSnap) { problem = "\(clean) is already in your household. Try another name." }
                     return
                 }
                 // A new seat at the table is a plate-weight moment.
@@ -953,7 +953,7 @@ struct AddMemberSheet: View {
     /// Bind them to the share first. Nothing is created here — if this
     /// can't produce a working link, we say so and no seat appears.
     private func beginInvite(name who: String, phone: String?) async {
-        withAnimation(.plSnap) { working = "Setting a place for \(firstWord(who))…" }
+        withAnimation(.plSnap) { working = "Preparing the invite…" }
         defer { withAnimation(.plSnap) { working = nil } }
 
         let outcome = await Seats.prepareInvite(phone: phone, email: nil, hostName: userFirstName)
@@ -964,12 +964,12 @@ struct AddMemberSheet: View {
         case .noAccount:
             Haptic.warn()
             withAnimation(.plSnap) {
-                problem = "Plated couldn't find an iCloud account for that number, so a link sent there wouldn't open the door. Try another number for them, or lay their place by name."
+                problem = "That number has no iCloud account, so the link won't reach them. Try another number, or add them by name."
             }
         case .noCloud:
             Haptic.warn()
             withAnimation(.plSnap) {
-                problem = "Your table is only on this phone. Sign in to iCloud and the invite will carry a link that seats them."
+                problem = "Sign in to iCloud to send an invite link."
             }
         }
     }
@@ -980,7 +980,7 @@ struct AddMemberSheet: View {
             await Seats.abandon(phone: target.phone, email: nil)
             Haptic.warn()
             withAnimation(.plSnap) {
-                problem = "That message didn't send, so nothing changed. \(firstWord(target.name)) still has no seat."
+                problem = "The message didn't send, so \(firstWord(target.name)) wasn't added. Try again."
             }
             return
         }

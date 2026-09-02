@@ -265,7 +265,7 @@ enum HouseholdIdentity {
     static func seatedLine(names: [String]) -> String {
         let firsts = names.compactMap { $0.split(separator: " ").first.map(String.init) }
         switch firsts.count {
-        case 0: return "Everyone who sits at your table"
+        case 0: return "Everyone in your household"
         case 1: return firsts[0]
         case 2: return "\(firsts[0]) and \(firsts[1])"
         case 3: return "\(firsts[0]), \(firsts[1]) and \(firsts[2])"

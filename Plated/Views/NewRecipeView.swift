@@ -109,7 +109,7 @@ struct RecipeEditorView: View {
                     }
 
                     VStack(alignment: .leading, spacing: 8) {
-                        MicroLabel("What meal is it")
+                        MicroLabel("Meal")
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 8) {
                                 ForEach(RecipeMealType.allCases) { option in
@@ -122,7 +122,7 @@ struct RecipeEditorView: View {
                     }
 
                     VStack(alignment: .leading, spacing: 8) {
-                        MicroLabel("What kind of dish")
+                        MicroLabel("Kind of dish")
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 8) {
                                 ForEach(RecipeCategory.allCases) { option in
@@ -138,7 +138,7 @@ struct RecipeEditorView: View {
                     stepsSection
 
                     VStack(alignment: .leading, spacing: 8) {
-                        MicroLabel("Who can see it")
+                        MicroLabel("Visibility")
                         visibilityPicker
                         HStack {
                             Text("Household can edit")
@@ -173,7 +173,7 @@ struct RecipeEditorView: View {
                     Button {
                         save(plating: night)
                     } label: {
-                        Text("Save & plate it for \(nightLabel(night))")
+                        Text("Save and plan it for \(nightLabel(night))")
                             .font(.jakarta(13, .semibold))
                             .foregroundStyle(Color.inkSecondary)
                             .frame(minHeight: 44)
@@ -195,8 +195,8 @@ struct RecipeEditorView: View {
         // was opened onto a saved recipe and reads as safe, and asking on
         // every look-then-leave would be nagging.
         .interactiveDismissDisabled(hasDraftContent)
-        .confirmationDialog("Toss this recipe?", isPresented: $discardAsked, titleVisibility: .visible) {
-            Button("Toss it", role: .destructive) { dismiss() }
+        .confirmationDialog("Discard this recipe?", isPresented: $discardAsked, titleVisibility: .visible) {
+            Button("Discard", role: .destructive) { dismiss() }
             Button("Keep writing", role: .cancel) {}
         }
         .onAppear(perform: loadOnce)
@@ -283,7 +283,7 @@ struct RecipeEditorView: View {
             }
             .buttonStyle(.pressable)
             Spacer()
-            Text(isEditing ? "Edit recipe" : (prefill == nil ? "New recipe" : "Make it yours"))
+            Text(isEditing ? "Edit recipe" : (prefill == nil ? "New recipe" : "Save to your cookbook"))
                 .font(.gabarito(19, .bold))
                 .foregroundStyle(Color.ink)
             Spacer()
@@ -345,7 +345,7 @@ struct RecipeEditorView: View {
                         }
                     } label: {
                         Image(systemName: "xmark")
-                            .accessibilityLabel("Remove ingredient")
+                            .accessibilityLabel("Remove \(draft.name)")
                             .font(.system(size: 11, weight: .bold))
                             .foregroundStyle(Color.inkFaint)
                             .frame(minWidth: 44, minHeight: 44)
@@ -371,7 +371,7 @@ struct RecipeEditorView: View {
                         Text("Add to this week's grocery list")
                             .font(.jakarta(14, .bold))
                             .foregroundStyle(Color.ink)
-                        Text("These \(draftIngredients.count) items land in the basket when you save.")
+                        Text("These \(draftIngredients.count) ingredients go on the list when you save.")
                             .font(.jakarta(12, .medium))
                             .foregroundStyle(Color.inkSecondary)
                     }
@@ -413,7 +413,7 @@ struct RecipeEditorView: View {
                         }
                     } label: {
                         Image(systemName: "xmark")
-                            .accessibilityLabel("Remove step")
+                            .accessibilityLabel("Remove step \(index + 1)")
                             .font(.system(size: 11, weight: .bold))
                             .foregroundStyle(Color.inkFaint)
                             .frame(minWidth: 44, minHeight: 44)
@@ -483,7 +483,7 @@ struct RecipeEditorView: View {
                     HStack(spacing: 6) {
                         Image(systemName: "camera")
                             .font(.system(size: 12, weight: .semibold))
-                        Text("Retake")
+                        Text("Change")
                             .font(.jakarta(12, .bold))
                     }
                     .foregroundStyle(Color.ink)
@@ -558,7 +558,7 @@ struct RecipeEditorView: View {
                                 VStack(spacing: 3) {
                                     Image(systemName: "plus")
                                         .font(.system(size: 14, weight: .bold))
-                                    Text("More")
+                                    Text("Add")
                                         .font(.jakarta(10, .bold))
                                 }
                                 .foregroundStyle(Color.inkFaint)
@@ -596,9 +596,9 @@ struct RecipeEditorView: View {
 
     private var visibilityPicker: some View {
         HStack(spacing: 0) {
-            visibilitySegment("private", label: "Just me", icon: "lock")
+            visibilitySegment("private", label: "Only me", icon: "lock")
             visibilitySegment("household", label: "Household", icon: nil)
-            visibilitySegment("table", label: "My Table", icon: nil)
+            visibilitySegment("table", label: "The Table", icon: nil)
         }
         .padding(2)
         .background(Color.hairlineSoft, in: Capsule())
@@ -710,7 +710,7 @@ struct RecipeEditorView: View {
                 let owner = members.first(where: \.isOwner)?.name ?? "Someone"
                 Notifier.post(
                     .recipeAdded, actor: owner,
-                    body: "\(recipe.title) joined the cookbook.",
+                    body: "\(owner) added \(recipe.title) to the cookbook.",
                     into: context
                 )
             }
@@ -734,7 +734,7 @@ struct RecipeEditorView: View {
                 let owner = members.first(where: \.isOwner)?.name ?? "Someone"
                 Notifier.post(
                     .groceriesAdded, actor: owner,
-                    body: "\(draftIngredients.count) items for \(recipe.title) landed on the grocery list.",
+                    body: "\(draftIngredients.count) ingredients from \(recipe.title) added to the grocery list.",
                     into: context
                 )
             }

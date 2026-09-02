@@ -115,8 +115,8 @@ enum NotificationScheduler {
             let content = UNMutableNotificationContent()
             content.title = mine ? "Your night tomorrow" : "\(who) cooks tomorrow"
             content.body = mine
-                ? "\(dish). Everything you need is in the list."
-                : "\(dish). Nothing for you to do, just turn up."
+                ? "\(dish). Check the grocery list tonight."
+                : "\(dish). Nothing for you to do."
             content.sound = .default
 
             let request = UNNotificationRequest(
@@ -149,10 +149,10 @@ enum NotificationScheduler {
         guard plannedAhead < 3 else { return }
 
         let content = UNMutableNotificationContent()
-        content.title = "The week's still open"
+        content.title = "The week ahead"
         content.body = plannedAhead == 0
-            ? "Nothing's plated yet. Five minutes now is five conversations you don't have later."
-            : "A few nights are still empty. Worth a look before the week starts."
+            ? "Nothing's plated yet."
+            : "A few nights are still empty."
         content.sound = .default
 
         var when = DateComponents()

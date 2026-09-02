@@ -11,9 +11,9 @@ struct RecipeFilter: Equatable {
     var sort: Sort = .favoritesFirst
 
     enum Source: String, CaseIterable, Identifiable {
-        case all = "Everything"
-        case mine = "My recipes"
-        case imported = "Saved from others"
+        case all = "All"
+        case mine = "Mine"
+        case imported = "Saved"
         var id: String { rawValue }
     }
 
@@ -38,7 +38,7 @@ struct RecipeFilter: Equatable {
         if let genre { parts.append(genre.rawValue) }
         if source != .all { parts.append(source == .mine ? "Mine" : "Saved") }
         if !searchText.isEmpty { parts.append("“\(searchText)”") }
-        return parts.isEmpty ? "All dishes" : parts.joined(separator: " · ")
+        return parts.isEmpty ? "Search and filter" : parts.joined(separator: " · ")
     }
 
     func apply(to recipes: [Recipe]) -> [Recipe] {
@@ -279,7 +279,7 @@ struct CookbookView: View {
                 Button("Cancel", role: .cancel) {}
             }
         } message: {
-            Text("This takes the dish out of the cookbook for the whole household.")
+            Text("Deletes it for everyone. Nights it's planned on keep the name.")
         }
     }
 
@@ -322,7 +322,7 @@ struct CookbookView: View {
                 .font(.gabarito(20, .semibold))
                 .foregroundStyle(Color.ink)
                 .multilineTextAlignment(.center)
-            Text("Start with the one your household asks for most. Photograph it, paste it in from a website or a text, or write it out. Once it's here, it's one tap onto any night.")
+            Text("Start with the one your household asks for most.")
                 .font(.jakarta(14, .medium))
                 .foregroundStyle(Color.inkSecondary)
                 .multilineTextAlignment(.center)
@@ -333,7 +333,7 @@ struct CookbookView: View {
                     Haptic.tap()
                     importShown = true
                 } label: {
-                    Text("Paste one in")
+                    Text("Paste or scan")
                         .font(.jakarta(14, .bold))
                         .foregroundStyle(Color.ink)
                         .frame(maxWidth: .infinity)
@@ -417,7 +417,7 @@ struct CookbookView: View {
             Button {
                 plating = recipe
             } label: {
-                Label("Plate it", systemImage: "circle.circle")
+                Label("Plan it", systemImage: "circle.circle")
             }
             Button {
                 Haptic.tap()
@@ -496,8 +496,8 @@ struct RecipeFilterSheet: View {
     var body: some View {
         VStack(spacing: 0) {
             VStack(spacing: 2) {
-                MicroLabel("Find a dish")
-                Text("Filter & sort")
+                MicroLabel("Your cookbook")
+                Text("Search and filters")
                     .font(.gabarito(22, .semibold))
                     .foregroundStyle(Color.ink)
             }
@@ -532,11 +532,11 @@ struct RecipeFilterSheet: View {
                     chipGroup("Meal", options: RecipeMealType.allCases, selection: $filter.mealType) { $0.rawValue }
 
                     if !presentGenres.isEmpty {
-                        chipGroup("Genre", options: presentGenres, selection: $filter.genre) { $0.rawValue }
+                        chipGroup("Kind of dish", options: presentGenres, selection: $filter.genre) { $0.rawValue }
                     }
 
                     VStack(alignment: .leading, spacing: 8) {
-                        MicroLabel("Whose")
+                        MicroLabel("Source")
                         HStack(spacing: 8) {
                             ForEach(RecipeFilter.Source.allCases) { source in
                                 chip(source.rawValue, active: filter.source == source) {
@@ -561,13 +561,13 @@ struct RecipeFilterSheet: View {
             }
 
             VStack(spacing: 8) {
-                InkPillButton(title: "Show dishes") { dismiss() }
+                InkPillButton(title: "Done") { dismiss() }
                 if filter.isFiltering {
                     Button {
                         Haptic.tap()
                         withAnimation(.plSnap) { filter = RecipeFilter() }
                     } label: {
-                        Text("Clear everything")
+                        Text("Clear filters")
                             .font(.jakarta(13, .semibold))
                             .foregroundStyle(Color.inkSecondary)
                             .frame(minHeight: 44)
@@ -654,12 +654,12 @@ struct FlowChips<Chip: View>: View {
 }
 
 /// One dish, the NYT-cooking way — hero and gallery, the facts, the
-/// ingredients, the numbered steps. "Plate it" rides the bottom edge,
+/// ingredients, the numbered steps. "Plan it" rides the bottom edge,
 /// always in reach, and asks who's cooking and when.
 struct RecipeDetailView: View {
     let recipe: Recipe
     /// The plated night this page was opened from, when it was. A recipe
-    /// reached from the cookbook is being considered — its job is "Plate it".
+    /// reached from the cookbook is being considered — its job is "Plan it".
     /// The same recipe reached from a day it's already plated on is being
     /// cooked — offering to plate it again is a circle. With a meal in hand
     /// the page scales ingredients to that night's servings and the docked
@@ -734,7 +734,7 @@ struct RecipeDetailView: View {
 
                 if !recipe.steps.isEmpty {
                     VStack(alignment: .leading, spacing: 12) {
-                        MicroLabel("The steps")
+                        MicroLabel("Steps")
                         ForEach(Array(recipe.steps.enumerated()), id: \.offset) { index, step in
                             HStack(alignment: .top, spacing: 12) {
                                 Text("\(index + 1)")
@@ -754,7 +754,7 @@ struct RecipeDetailView: View {
                     .padding(.top, 4)
                 } else if !recipe.instructions.isEmpty {
                     VStack(alignment: .leading, spacing: 8) {
-                        MicroLabel("The method")
+                        MicroLabel("Steps")
                         Text(recipe.instructions)
                             .font(.jakarta(14, .medium))
                             .foregroundStyle(Color.ink)
@@ -811,7 +811,7 @@ struct RecipeDetailView: View {
         }
     }
 
-    /// One docked action, chosen by why you're here. Browse → "Plate it".
+    /// One docked action, chosen by why you're here. Browse → "Plan it".
     /// Tonight's (or an unmarked past night's) plate → "Cooked it", which is
     /// the first and only writer of `cookedAt` this page has. A cooked plate
     /// → a quiet basil receipt that can take it back. A future night → the
@@ -837,19 +837,19 @@ struct RecipeDetailView: View {
                 }
                 .buttonStyle(.pressable)
                 .accessibilityLabel("Cooked")
-                .accessibilityHint("Tap to mark it not cooked after all")
+                .accessibilityHint("Marks it not cooked")
             } else if nightHasArrived {
                 TomatoPillButton(title: "Cooked it", systemImage: "checkmark") {
                     Haptic.plate()
                     withAnimation(.plSnap) { meal.cookedAt = .now }
                 }
             } else {
-                InkPillButton(title: "Swap this plate", systemImage: "arrow.2.squarepath") {
+                InkPillButton(title: "Change the dish", systemImage: "arrow.2.squarepath") {
                     swapShown = true
                 }
             }
         } else {
-            TomatoPillButton(title: "Plate it", systemImage: "circle.circle") {
+            TomatoPillButton(title: "Plan it", systemImage: "circle.circle") {
                 assignShown = true
             }
         }
@@ -914,7 +914,7 @@ struct RecipeDetailView: View {
                     .frame(width: 38, height: 38)
                     .overlay {
                         Image(systemName: "square.and.arrow.up")
-                            .accessibilityLabel("Share this recipe")
+                            .accessibilityLabel("Share recipe")
                             .font(.system(size: 14, weight: .semibold))
                             .foregroundStyle(Color.ink)
                     }
@@ -992,10 +992,10 @@ struct RecipeDetailView: View {
                             VStack(spacing: 12) {
                                 DishView(recipe: recipe, diameter: 92)
                                 VStack(spacing: 3) {
-                                    Text("Add a photo of the plate")
+                                    Text("Add a photo")
                                         .font(.jakarta(14, .bold))
                                         .foregroundStyle(Color.inkSecondary)
-                                    Text("Your photo, your dish. No stock food here.")
+                                    Text("It shows on your plan and on the Table.")
                                         .font(.jakarta(12, .medium))
                                         .foregroundStyle(Color.inkFaint)
                                 }
@@ -1048,10 +1048,10 @@ struct RecipeDetailView: View {
         if let meal {
             parts.append(platedLine(meal))
             if let cook = meal.cook {
-                parts.append(cook.isOwner ? "you cook" : "\(cook.name) cooks")
+                parts.append(cook.isOwner ? "You cook" : "\(cook.name) cooks")
             }
         }
-        return parts.joined(separator: " · ").uppercased()
+        return parts.joined(separator: " · ")
     }
 
     private func platedLine(_ meal: PlannedMeal) -> String {
@@ -1087,12 +1087,12 @@ struct RecipeDetailView: View {
 
     private var visibilityLine: String {
         switch recipe.visibility {
-        case "private": return "Just you can see this"
-        case "table": return "Your whole table can see this"
+        case "private": return "Only you can see this"
+        case "table": return "Everyone on the Table can see this"
         default:
             return recipe.householdCanEdit
-                ? "Household can see & edit"
-                : "Household can see it"
+                ? "Your household can see and edit this"
+                : "Your household can see this"
         }
     }
 
@@ -1105,7 +1105,7 @@ struct RecipeDetailView: View {
     }
 }
 
-/// "Plate it" grown up: pick the night, pick the cook (you by default),
+/// "Plan it" grown up: pick the night, pick the cook (you by default),
 /// land the dish. Occupied nights swap the dish and keep their cook.
 struct PlateAssignSheet: View {
     let recipe: Recipe
@@ -1131,7 +1131,7 @@ struct PlateAssignSheet: View {
     var body: some View {
         VStack(spacing: 0) {
             VStack(spacing: 2) {
-                MicroLabel("Plate it")
+                MicroLabel("Plan a night")
                 Text(recipe.title)
                     .font(.gabarito(22, .semibold))
                     .foregroundStyle(Color.ink)
@@ -1211,7 +1211,7 @@ struct PlateAssignSheet: View {
                     .foregroundStyle(active ? Color.canvas : Color.ink)
                 Spacer()
                 if let occupied {
-                    Text("Swaps \(occupied.title)")
+                    Text("\(occupied.title) planned")
                         .font(.jakarta(11, .semibold))
                         .foregroundStyle(active ? Color.canvas.opacity(0.8) : Color.inkFaint)
                         .lineLimit(1)
@@ -1262,7 +1262,7 @@ struct PlateAssignSheet: View {
 
     private var plateLabel: String {
         guard let chosenDate else { return "Pick a night" }
-        return "Plate for \(nightLabel(chosenDate))"
+        return "Plan for \(nightLabel(chosenDate))"
     }
 
     private func dinner(on date: Date) -> PlannedMeal? {
@@ -1296,7 +1296,7 @@ struct PlateAssignSheet: View {
         let cookName = (cook?.isOwner ?? true) ? "you" : (cook?.name ?? "someone")
         Notifier.post(
             .mealPlanned, actor: cook?.name ?? "",
-            body: "\(recipe.title) is plated for \(nightLabel(date).lowercased()). \(cookName.capitalized) cook\(cookName == "you" ? "" : "s").",
+            body: "\(nightLabel(date)): \(recipe.title). \(cookName.capitalized) cook\(cookName == "you" ? "" : "s").",
             into: context
         )
         withAnimation(.plSnap) { confirmation = "Plated for \(nightLabel(date))" }
@@ -1335,12 +1335,12 @@ struct RecipePickerSheet: View {
                     Text("Nothing in the cookbook yet")
                         .font(.jakarta(15, .bold))
                         .foregroundStyle(Color.ink)
-                    Text("Write one dish down and it drops onto any night in a tap.")
+                    Text("Add one and you can plan it in a tap.")
                         .font(.jakarta(13, .medium))
                         .foregroundStyle(Color.inkSecondary)
                         .multilineTextAlignment(.center)
                         .fixedSize(horizontal: false, vertical: true)
-                    TomatoPillButton(title: "Write a recipe") {
+                    TomatoPillButton(title: "Add a recipe") {
                         dismiss()
                         onWriteNew()
                     }

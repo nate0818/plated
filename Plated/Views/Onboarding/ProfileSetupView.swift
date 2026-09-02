@@ -37,7 +37,7 @@ struct ProfileSetupView: View {
                     .tracking(-0.8)
                     .foregroundStyle(Color.ink)
                     .multilineTextAlignment(.center)
-                Text("This is how your household sees you on the plans you make and the dishes you post.")
+                Text("This is how your household sees you everywhere in Plated.")
                     .font(.jakarta(15, .medium))
                     .foregroundStyle(Color.inkSecondary)
                     .multilineTextAlignment(.center)
@@ -65,7 +65,7 @@ struct ProfileSetupView: View {
                         Haptic.tap()
                         cameraShown = true
                     } label: {
-                        photoOption("Take one", icon: "camera")
+                        photoOption("Take a photo", icon: "camera")
                     }
                     .buttonStyle(.pressable)
                 }
@@ -76,7 +76,7 @@ struct ProfileSetupView: View {
 
             VStack(alignment: .leading, spacing: 8) {
                 MicroLabel("Your name")
-                TextField("What should we call you?", text: $name)
+                TextField("First name", text: $name)
                     .font(.jakarta(15, .semibold))
                     .foregroundStyle(Color.ink)
                     .padding(.horizontal, 16)
@@ -94,7 +94,7 @@ struct ProfileSetupView: View {
             Spacer(minLength: 16)
 
             VStack(spacing: 12) {
-                TomatoPillButton(title: "That's me") { finish() }
+                TomatoPillButton(title: "Continue") { finish() }
                     .disabled(trimmedName.isEmpty)
                     .opacity(trimmedName.isEmpty ? 0.5 : 1)
 
@@ -102,7 +102,7 @@ struct ProfileSetupView: View {
                     Haptic.tap()
                     finish()
                 } label: {
-                    Text("Do this later")
+                    Text("Not now")
                         .font(.jakarta(14, .semibold))
                         .foregroundStyle(Color.inkSecondary)
                         .frame(minHeight: 44)

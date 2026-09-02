@@ -98,11 +98,11 @@ struct PostThreadView: View {
                         pollCard
                     }
 
-                    MicroLabel("Table talk · \(post.sortedComments.count)")
+                    MicroLabel("Comments · \(post.sortedComments.count)")
                         .padding(.top, 8)
 
                     if post.sortedComments.isEmpty {
-                        Text(post.kind == "ask" ? "No suggestions yet. Be the first." : "Nobody has said anything yet. Go on.")
+                        Text(post.kind == "ask" ? "No suggestions yet" : "No comments yet")
                             .font(.jakarta(13, .medium))
                             .foregroundStyle(Color.inkFaint)
                     }
@@ -248,7 +248,7 @@ struct PostThreadView: View {
     /// freely.
     private var pollCard: some View {
         VStack(alignment: .leading, spacing: 8) {
-            MicroLabel("The table votes")
+            MicroLabel("Poll")
             ForEach(Array(post.pollOptions.enumerated()), id: \.offset) { index, option in
                 pollRow(index: index, option: option)
             }
@@ -577,7 +577,7 @@ struct PostThreadView: View {
 
     private var placeholder: String {
         if replyTo != nil { return "Your reply…" }
-        return post.kind == "ask" ? "Suggest a dish…" : "Say something nice…"
+        return post.kind == "ask" ? "Suggest a dish…" : "Add a comment…"
     }
 
     private var canSend: Bool {
@@ -654,7 +654,7 @@ struct PostThreadView: View {
             Notifier.post(
                 .commentAdded, actor: author,
                 body: replyTo == nil
-                    ? "\(author) commented on \(post.firstName)'s \(post.dishTitle.isEmpty ? "ask" : post.dishTitle)."
+                    ? "\(author) commented on \(post.firstName)'s \(post.dishTitle.isEmpty ? "post" : post.dishTitle)."
                     : "\(author) replied to \(replyTo ?? "") on \(post.firstName)'s post.",
                 into: context
             )

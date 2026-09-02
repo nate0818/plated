@@ -73,13 +73,13 @@ struct ContactsView: View {
                 }
                 .padding(.bottom, 8)
 
-                Text("Set your table")
+                Text("Invite your people")
                     .font(.gabarito(32, .extraBold))
                     .tracking(-0.8)
                     .foregroundStyle(Color.ink)
                 Text(accessState == .granted
-                     ? "Invite your friends and family to your table. You can invite people to your household later."
-                     : "Plated is invite only. Nobody sees your table or your recipes unless you set a place for them.")
+                     ? "Anyone you invite sees your plan and what you cook."
+                     : "Plated is invite only. Nobody sees your plan or your recipes unless you invite them.")
                     .font(.jakarta(15, .medium))
                     .foregroundStyle(Color.inkSecondary)
                     .multilineTextAlignment(.center)
@@ -95,7 +95,7 @@ struct ContactsView: View {
                     Text("Nobody here to suggest")
                         .font(.jakarta(15, .bold))
                         .foregroundStyle(Color.ink)
-                    Text("We only suggest people with a phone number saved. You can still invite anyone you like.")
+                    Text("We only suggest contacts with a phone number. Share a link instead.")
                         .font(.jakarta(13, .medium))
                         .foregroundStyle(Color.inkSecondary)
                         .multilineTextAlignment(.center)
@@ -139,7 +139,7 @@ struct ContactsView: View {
                         HStack(spacing: 6) {
                             Image(systemName: "square.and.arrow.up")
                                 .font(.system(size: 13, weight: .semibold))
-                            Text("Invite someone else")
+                            Text("Share a link")
                                 .font(.jakarta(14, .bold))
                         }
                         .foregroundStyle(Color.ink)
@@ -147,11 +147,11 @@ struct ContactsView: View {
                         .frame(minHeight: 48)
                         .overlay(Capsule().strokeBorder(Color.hairline, lineWidth: 1.5))
                     }
-                    TomatoPillButton(title: "Take me to my week") { finish() }
+                    TomatoPillButton(title: "Done") { finish() }
                 } else {
-                    TomatoPillButton(title: "Find my people") { requestContacts() }
+                    TomatoPillButton(title: "Use Contacts") { requestContacts() }
                     if accessState == .denied {
-                        Text("Plated can't see your contacts. Turn them on in Settings, or set places for people later.")
+                        Text("Plated can't see your contacts. Allow access in iOS Settings, or invite people later.")
                             .font(.jakarta(12, .medium))
                             .foregroundStyle(Color.inkFaint)
                             .multilineTextAlignment(.center)
@@ -167,7 +167,7 @@ struct ContactsView: View {
                     }
                 }
                 // Only before contacts are granted. Once the list is up,
-                // "Take me to my week" is directly above this and calls the
+                // "Done" is directly above this and calls the
                 // same function, so the screen was ending on two buttons
                 // that do the same thing and promise opposite outcomes.
                 if accessState != .granted {
@@ -175,7 +175,7 @@ struct ContactsView: View {
                         Haptic.tap()
                         finish()
                     } label: {
-                        Text("Start on my own for now")
+                        Text("Not now")
                             .font(.jakarta(14, .semibold))
                             .foregroundStyle(Color.inkSecondary)
                             .frame(minHeight: 44)
@@ -264,15 +264,13 @@ struct ContactsView: View {
             } else {
                 AvatarCircle(initials: initials(of: person.name), tone: tone, size: 44)
             }
-            VStack(alignment: .leading, spacing: 1) {
-                Text(person.name)
-                    .plName()
-                    .font(.jakarta(15, .semibold))
-                    .foregroundStyle(Color.ink)
-                Text("In your contacts")
-                    .font(.jakarta(12, .medium))
-                    .foregroundStyle(Color.inkFaint)
-            }
+            // The name alone. A second line reading "In your contacts" on a
+            // screen that is entirely a list of your contacts was a row of
+            // text carrying no information.
+            Text(person.name)
+                .plName()
+                .font(.jakarta(15, .semibold))
+                .foregroundStyle(Color.ink)
             Spacer()
             if person.seated {
                 HStack(spacing: 5) {
