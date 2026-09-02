@@ -238,16 +238,44 @@ struct MainShellView: View {
                         !name.isEmpty && $0.name.caseInsensitiveCompare(name) == .orderedSame
                     }) {
                         match.role = "owner"
-                        match.roleLine = "Head of table"
+                        match.seat = .head
                     } else {
                         context.insert(HouseholdMember(
                             name: name.isEmpty ? "Me" : name,
-                            colorHex: "FF5A3C", isPrimaryCook: true,
-                            role: "owner", roleLine: "Head of table", cookWeekdays: []
+                            colorHex: "FF5A3C", role: "owner", cookWeekdays: [],
+                            seat: .head
                         ))
                     }
                     Persist.save(context)
                 }
+            }
+
+            // Seats, once, before any people screen can render a stale one.
+            // Everything that predates the seat is `.notOnPlated`, which is
+            // the truth about all of it, and the old pending-names string
+            // becomes real invited rows rather than being stranded.
+            let pendingKey = "pendingSeats"
+            let pending = UserDefaults.standard.string(forKey: pendingKey) ?? ""
+            if !UserDefaults.standard.bool(forKey: "didMigrateSeats") {
+                if Seats.migrate(in: context, pendingSeats: pending) {
+                    Persist.save(context)
+                }
+                UserDefaults.standard.set(true, forKey: "didMigrateSeats")
+                UserDefaults.standard.removeObject(forKey: pendingKey)
+            }
+            // What CloudKit knows about who actually accepted.
+            Task {
+                await Seats.reconcile(in: context)
+                Persist.save(context)
+            }
+        }
+        // Somebody just tapped an invitation. This is the moment an invited
+        // row becomes a joined one, and the only thing that ever made
+        // accepting a share visible inside the household.
+        .onReceive(NotificationCenter.default.publisher(for: ShareAcceptor.didAccept)) { _ in
+            Task {
+                await Seats.reconcile(in: context)
+                Persist.save(context)
             }
             #if DEBUG
             // UI-test hook: `simctl launch … -plated-tab table` lands here.

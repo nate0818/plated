@@ -53,7 +53,10 @@ enum Notifier {
         guard !tonightPlanned else { return }
 
         let weekday = Calendar.current.component(.weekday, from: today)
-        guard let cook = members.first(where: { $0.cookWeekdays.contains(weekday) }) else { return }
+        // This fires on its own and asserts a standing obligation. It must
+        // never assert one about somebody who was never contacted.
+        guard let cook = members.first(where: { $0.cooks && $0.cookWeekdays.contains(weekday) })
+        else { return }
 
         UserDefaults.standard.set(today.timeIntervalSince1970, forKey: stampKey)
         let name = cook.isOwner ? "your" : "\(cook.name)'s"

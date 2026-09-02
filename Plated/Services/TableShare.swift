@@ -73,11 +73,114 @@ enum TableShare {
             // broadcast surface, which is the opposite of the product.
             share.publicPermission = .none
 
+            // The URL is server-assigned, so it exists on the record that
+            // comes BACK, never on the instance we sent. Returning
+            // `share.url` here handed out nil for the first invitation
+            // anybody ever sent from a table.
             let saved = try await db.modifyRecords(saving: [root, share], deleting: [])
-            _ = saved
-            return share.url
+            for (_, result) in saved.saveResults {
+                if case .success(let record) = result, let share = record as? CKShare {
+                    return share.url
+                }
+            }
+            return nil
         } catch {
             return nil
+        }
+    }
+
+    /// What happened when we tried to make a real seat for somebody.
+    enum InviteOutcome {
+        /// A link bound to them. Send it.
+        case ready(URL)
+        /// No iCloud account answers to that number or address, so a link
+        /// sent there would not open the door.
+        case noAccount
+        /// No iCloud on this device at all, or CloudKit refused.
+        case noCloud
+    }
+
+    /// Add one person to the table's share and hand back their link.
+    ///
+    /// This is the step that was missing entirely. The share is created
+    /// with `publicPermission = .none` — correct, an invite-only table —
+    /// but with no participants ever added, that share admits literally
+    /// nobody. Every invitation the app had ever "sent" carried a link
+    /// that could not have worked for the person holding it.
+    static func invite(phone: String?, email: String?, hostName: String) async -> InviteOutcome {
+        guard await TableSync.accountAvailable() else { return .noCloud }
+        guard let url = await invitationURL(hostName: hostName),
+              let share = await currentShare() else { return .noCloud }
+
+        // Look them up by the address the invitation is going to. A number
+        // that isn't the one on their iCloud account finds nobody, which is
+        // a thing to say out loud rather than fail silently on.
+        var identity: CKShare.Participant?
+        if let phone, !phone.isEmpty {
+            identity = try? await container.shareParticipant(forPhoneNumber: phone)
+        }
+        if identity == nil, let email, !email.isEmpty {
+            identity = try? await container.shareParticipant(forEmailAddress: email)
+        }
+        guard let participant = identity else { return .noAccount }
+
+        // Already on it — reuse rather than adding them twice.
+        let known = share.participants.contains { existing in
+            existing.userIdentity.lookupInfo?.phoneNumber == phone
+                || existing.userIdentity.lookupInfo?.emailAddress == email
+        }
+        if known { return .ready(url) }
+
+        participant.permission = .readWrite
+        share.addParticipant(participant)
+        do {
+            _ = try await container.privateCloudDatabase.modifyRecords(saving: [share], deleting: [])
+            return .ready(url)
+        } catch {
+            print("PLATED SHARE: could not add participant — \(error)")
+            return .noCloud
+        }
+    }
+
+    /// Undo `invite` when the message was never sent. A participant left on
+    /// the share for a person who was never told is a door standing open
+    /// for somebody who does not know it exists.
+    static func revokeInvite(phone: String?, email: String?) async {
+        guard let share = await currentShare() else { return }
+        guard let victim = share.participants.first(where: { existing in
+            (phone != nil && existing.userIdentity.lookupInfo?.phoneNumber == phone)
+                || (email != nil && existing.userIdentity.lookupInfo?.emailAddress == email)
+        }), victim.role != .owner else { return }
+        share.removeParticipant(victim)
+        _ = try? await container.privateCloudDatabase.modifyRecords(saving: [share], deleting: [])
+    }
+
+    /// Everyone on the share and how far along they are, keyed by the
+    /// address they were invited at — the only thing a *pending*
+    /// participant carries, since it has no user record until it accepts.
+    struct Standing {
+        var phone: String?
+        var email: String?
+        var name: String
+        var accepted: Bool
+        var participantID: String?
+    }
+
+    static func standings() async -> [Standing] {
+        guard await TableSync.accountAvailable() else { return [] }
+        guard let share = await currentShare() else { return [] }
+        return share.participants.compactMap { p in
+            guard p.role != .owner else { return nil }
+            let name = [p.userIdentity.nameComponents?.givenName,
+                        p.userIdentity.nameComponents?.familyName]
+                .compactMap { $0 }.joined(separator: " ")
+            return Standing(
+                phone: p.userIdentity.lookupInfo?.phoneNumber,
+                email: p.userIdentity.lookupInfo?.emailAddress,
+                name: name,
+                accepted: p.acceptanceStatus == .accepted,
+                participantID: p.userIdentity.userRecordID?.recordName
+            )
         }
     }
 
@@ -379,6 +482,12 @@ enum TableShare {
     static func participants() async -> [Seat] { [] }
     static func remove(seatID: String) async -> Bool { false }
     static func leaveTable() async -> Bool { false }
+    enum InviteOutcome { case ready(URL), noAccount, noCloud }
+    static func invite(phone: String?, email: String?, hostName: String) async -> InviteOutcome { .noCloud }
+    static func revokeInvite(phone: String?, email: String?) async {}
+    struct Standing { var phone: String?; var email: String?; var name = ""
+                      var accepted = false; var participantID: String? }
+    static func standings() async -> [Standing] { [] }
     static func isGuest() async -> Bool { false }
     #endif
 

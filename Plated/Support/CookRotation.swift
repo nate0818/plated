@@ -12,6 +12,11 @@ enum CookRotation {
         members: [HouseholdMember],
         meals: [PlannedMeal]
     ) -> HouseholdMember? {
+        // A six-year-old could be handed Thursday and announced by push as
+        // the cook, and an invited ghost could hold a standing night,
+        // because nothing filtered on who can actually take the pan.
+        let members = members.filter(\.cooks)
+
         let weekday = Calendar.current.component(.weekday, from: date)
         if let standing = members.first(where: { $0.cookWeekdays.contains(weekday) }) {
             return standing
@@ -19,7 +24,9 @@ enum CookRotation {
 
         let autoRotate = UserDefaults.standard.object(forKey: "autoRotateOpenNights") as? Bool ?? true
         guard autoRotate, !members.isEmpty else {
-            return members.first(where: \.isOwner)
+            // Turns off means open nights stay open, not that they quietly
+            // fall to the owner.
+            return nil
         }
 
         // Fewest dinners in this night's week takes the pan.

@@ -91,6 +91,9 @@ enum NotificationScheduler {
 
         for meal in meals where meal.date > today && meal.date <= horizon {
             guard let cook = meal.cook else { continue }
+            // A system push saying "Riley cooks tomorrow" about a name typed
+            // five seconds ago, to somebody who has never heard of Plated.
+            guard cook.seat != .invited else { continue }
             let dish = meal.recipe?.title ?? meal.customTitle
             guard !dish.isEmpty else { continue }
 
@@ -103,7 +106,9 @@ enum NotificationScheduler {
             when.hour = 19
             guard let fire = cal.date(from: when), fire > .now else { continue }
 
-            let mine = cook.name == ownerName
+            // Identity, not a string compare — two people called Sam broke
+            // this, and so did the owner renaming themselves.
+            let mine = cook.isOwner
             // First name only. "Riley cooks tomorrow" is how a household
             // talks; the full name is how a system does.
             let who = cook.name.split(separator: " ").first.map(String.init) ?? cook.name

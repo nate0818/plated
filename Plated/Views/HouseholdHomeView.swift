@@ -22,6 +22,10 @@ struct HouseholdHomeView: View {
     @AppStorage("userFamilyName") private var userFamilyName = ""
     @AppStorage("householdName") private var householdName = ""
     @State private var addPresented = false
+    @State private var resendTarget: InviteTarget?
+    @State private var resendBody = ""
+    @AppStorage("userFirstName") private var userFirstName = ""
+    @Environment(\.openURL) private var openURL
     @State private var paywallPresented = false
     @State private var settingsPresented = false
     @State private var namingFromMasthead = false
@@ -119,6 +123,13 @@ struct HouseholdHomeView: View {
         }
         .sheet(isPresented: $addPresented) {
             AddMemberSheet()
+        }
+        .sheet(item: $resendTarget) { target in
+            InviteComposer(
+                recipients: [target.phone].compactMap { $0 },
+                body: resendBody
+            ) { _ in resendTarget = nil }
+            .ignoresSafeArea()
         }
         .sheet(isPresented: $paywallPresented) {
             PaywallSheet()
@@ -479,7 +490,10 @@ struct HouseholdHomeView: View {
         HStack(spacing: 12) {
             AvatarCircle(
                 initials: member.firstInitial,
-                tone: member.isOwner ? .neutralPair : member.tone,
+                // Colour is earned by being here. An invitation is the one
+                // thing still unresolved, so it is the one grey row —
+                // their colour arrives when they do.
+                tone: (member.isOwner || !member.showsColor) ? .neutralPair : member.tone,
                 size: 46,
                 photo: member.photoData
             )
@@ -488,22 +502,24 @@ struct HouseholdHomeView: View {
                     .plName()
                     .font(.jakarta(15, .bold))
                     .foregroundStyle(Color.ink)
-                if member.isOwner {
-                    Text(HouseholdIdentity.isPlaceholder(member.name)
-                         ? "HEAD OF TABLE · TAP TO ADD YOUR NAME"
-                         : "HEAD OF TABLE")
+                if member.isOwner, HouseholdIdentity.isPlaceholder(member.name) {
+                    Text("HEAD OF TABLE · TAP TO ADD YOUR NAME")
                         .font(.jakarta(12, .bold))
                         .tracking(0.5)
                         .foregroundStyle(Color.inkSecondary)
                         .lineLimit(2)
                 } else {
-                    Text(member.roleLine.isEmpty ? member.role.capitalized : member.roleLine)
+                    // The seat, not a role line frozen at insert. "Partner ·
+                    // plans & cooks" was printed under a name typed four
+                    // seconds earlier about somebody with no account and
+                    // nothing to plan with.
+                    Text(member.subtitle)
                         .font(.jakarta(12, .semibold))
                         .foregroundStyle(Color.inkSecondary)
                 }
             }
             Spacer(minLength: 6)
-            if !member.isOwner, !member.cookWeekdays.isEmpty {
+            if !member.isOwner, member.cooks, !member.cookWeekdays.isEmpty {
                 Text(dayChipLabel(member))
                     .font(.jakarta(12, .bold))
                     .foregroundStyle(member.tone.tone)
@@ -530,13 +546,36 @@ struct HouseholdHomeView: View {
     /// person who owns the account.
     private func swipeActions(for member: HouseholdMember) -> [SwipeAction] {
         guard !member.isOwner else { return [] }
-        return [
-            .message {
+        var actions: [SwipeAction] = []
+        // An invitation nobody answered needs a way forward, not just a way
+        // out. Same live link, sent again.
+        if member.canResend {
+            actions.append(SwipeAction(symbol: "paperplane", label: "Send again") {
                 swipedMember = nil
-                dmPeer = member.name
-            },
-            .remove { removingMember = member }
-        ]
+                Task { await resend(member) }
+            })
+        }
+        // Message only where a message can actually go. Everywhere else the
+        // button opened a thread that could never deliver.
+        if let url = member.messageURL {
+            actions.append(SwipeAction(symbol: "bubble.right", label: "Message") {
+                swipedMember = nil
+                openURL(url)
+            })
+        }
+        actions.append(.remove { removingMember = member })
+        return actions
+    }
+
+    /// Reopen the composer with the link that already belongs to them.
+    private func resend(_ member: HouseholdMember) async {
+        let outcome = await Seats.resend(member, hostName: userFirstName)
+        guard case .ready(let url) = outcome else {
+            Haptic.warn()
+            return
+        }
+        resendTarget = InviteTarget(name: member.name, phone: member.phoneE164)
+        resendBody = Invitation.body(hostName: userFirstName, link: url)
     }
 
     /// Keyed by identity, not by name — two people called Sam are two
@@ -563,6 +602,7 @@ struct HouseholdHomeView: View {
                     .font(.system(size: 14, weight: .bold))
                 Text("Add someone to the household")
                     .font(.jakarta(15, .bold))
+                    .lineLimit(1)
             }
             .foregroundStyle(Color.inkSecondary)
             .frame(maxWidth: .infinity)
@@ -599,7 +639,7 @@ struct HouseholdHomeView: View {
 
             cookGrid
 
-            Text("Tap a day to pass it around. Open days ask the household for ideas.")
+            Text("Tap a day to hand it to someone else. This is your household's rota — nobody gets a text.")
                 .font(.jakarta(12, .medium))
                 .foregroundStyle(Color.inkFaint)
 
@@ -760,63 +800,63 @@ struct HouseholdHomeView: View {
 /// with a real link. And a name typed by hand still works, because a
 /// six-year-old has no phone and still eats dinner — it is just no longer
 /// the only thing on offer, and it says what it is.
+/// Adding somebody, with the invitation as the thing the sheet is for.
+///
+/// **What was wrong.** The tomato pill — the app's one always-tomato
+/// element, its strongest possible affordance — sat on a text field that
+/// inserted a local row and contacted nobody. Setting a role there did
+/// nothing twice over: the chip wrote a display string that was never read
+/// again, and the person it described had no account to hold a role in.
+///
+/// **Now.** The primary door binds them to the table's CloudKit share and
+/// opens a message carrying a link that actually opens it — and the seat
+/// exists only if that message reports itself sent. The by-name door stays,
+/// because a six-year-old has no phone and still eats dinner, but it says
+/// what it is and takes the quieter pill.
 struct AddMemberSheet: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
     @Query private var members: [HouseholdMember]
 
-    @AppStorage("pendingSeats") private var pendingSeatsRaw = ""
     @AppStorage("userFirstName") private var userFirstName = ""
 
     @State private var name = ""
-    @State private var role = "partner"
-    @State private var onPlated: [Directory.Match] = []
-    @State private var searching = false
+    @State private var role = "member"
     @State private var pickingContact = false
     @State private var inviteTarget: InviteTarget?
-    @State private var invite: Invitation.Ready?
+    @State private var inviteBody = ""
+    @State private var working: String?
+    @State private var problem: String?
 
     var body: some View {
         ScrollView(showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 16) {
-                Text("Add to the household")
-                    .font(.gabarito(19, .bold))
+            VStack(alignment: .leading, spacing: 18) {
+                Text("Who's joining you?")
+                    .font(.gabarito(21, .semibold))
                     .foregroundStyle(Color.ink)
                     .frame(maxWidth: .infinity)
-                    .padding(.top, 18)
+                    .padding(.top, 20)
 
-                alreadyOnPlated
                 inviteDoor
 
-                VStack(alignment: .leading, spacing: 10) {
-                    MicroLabel("Or add them by name")
-                    Text("For kids and anyone without a phone. They show up on the plan; there's nobody to text.")
-                        .font(.jakarta(12, .medium))
-                        .foregroundStyle(Color.inkFaint)
+                if let problem {
+                    Text(problem)
+                        .font(.jakarta(13, .semibold))
+                        .foregroundStyle(Color.inkSecondary)
                         .fixedSize(horizontal: false, vertical: true)
-
-                    TextField("Their name", text: $name)
-                        .font(.jakarta(16, .semibold))
-                        .padding(14)
-                        .overlay(RoundedRectangle(cornerRadius: Radius.chip).strokeBorder(Color.hairline))
-                        .plTappableField()
-
-                    HStack(spacing: 8) {
-                        roleChip("partner", "Partner")
-                        roleChip("kid", "Kid")
-                        roleChip("member", "Guest")
-                    }
-
-                    TomatoPillButton(title: "Set their place") {
-                        // A new seat at the table is a plate-weight moment.
-                        Haptic.plate()
-                        addMember(named: name.trimmingCharacters(in: .whitespaces))
-                        dismiss()
-                    }
-                    .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
-                    .opacity(name.trimmingCharacters(in: .whitespaces).isEmpty ? 0.4 : 1)
+                        .transition(.opacity)
                 }
-                .padding(.top, 4)
+
+                HStack(spacing: 10) {
+                    Rectangle().fill(Color.hairline).frame(height: 1)
+                    Text("No phone?")
+                        .font(.jakarta(12, .bold))
+                        .foregroundStyle(Color.inkFaint)
+                    Rectangle().fill(Color.hairline).frame(height: 1)
+                }
+                .padding(.vertical, 2)
+
+                byNameDoor
             }
             .padding(.horizontal, 24)
             .padding(.bottom, 30)
@@ -825,165 +865,132 @@ struct AddMemberSheet: View {
         .presentationDragIndicator(.visible)
         .presentationBackground(Color.canvas)
         .presentationCornerRadius(Radius.sheet)
-        .task {
-            invite = await Invitation.prepare(hostName: userFirstName)
-            await findPeople()
-        }
         .sheet(isPresented: $pickingContact) {
             ContactPicker(
                 onPick: { contactName, phone in
                     pickingContact = false
-                    inviteTarget = InviteTarget(name: contactName, phone: phone)
+                    Task { await beginInvite(name: contactName, phone: phone) }
                 },
                 onCancel: { pickingContact = false }
             )
             .ignoresSafeArea()
         }
         .sheet(item: $inviteTarget) { target in
-            InviteComposer(
-                recipients: [target.phone].compactMap { $0 },
-                body: invite?.body ?? Invitation.body(hostName: userFirstName, link: nil)
-            ) { sent in
+            InviteComposer(recipients: [target.phone].compactMap { $0 }, body: inviteBody) { sent in
                 inviteTarget = nil
-                // A cancelled composer is not an invitation. Only a message
-                // that actually went earns the seat.
-                guard sent else { return }
-                Haptic.plate()
-                var seats = pendingSeatsRaw.split(separator: "\n").map(String.init)
-                if !seats.contains(target.name) { seats.append(target.name) }
-                pendingSeatsRaw = seats.joined(separator: "\n")
-                dismiss()
+                Task { await finishInvite(target, sent: sent) }
             }
             .ignoresSafeArea()
         }
     }
 
-    /// Door one: they already have the app, so there is nothing to send.
-    @ViewBuilder
-    private var alreadyOnPlated: some View {
-        if searching {
-            HStack(spacing: 8) {
-                ProgressView().controlSize(.small)
-                Text("Looking for people you know…")
-                    .font(.jakarta(13, .semibold))
-                    .foregroundStyle(Color.inkSecondary)
-            }
-        } else if !onPlated.isEmpty {
-            VStack(alignment: .leading, spacing: 8) {
-                MicroLabel("Already on Plated")
-                ForEach(onPlated) { match in
-                    HStack(spacing: 12) {
-                        AvatarCircle(
-                            initials: initials(match.name),
-                            tone: PersonTone.from(hex: "3DA35D"),
-                            size: 38
-                        )
-                        Text(match.name)
-                            .font(.jakarta(15, .bold))
-                            .foregroundStyle(Color.ink)
-                            .lineLimit(1)
-                        Spacer()
-                        Button {
-                            Haptic.plate()
-                            addMember(named: match.name)
-                            withAnimation(.plSnap) { onPlated.removeAll { $0.id == match.id } }
-                        } label: {
-                            Text("Add")
-                                .font(.jakarta(13, .bold))
-                                .foregroundStyle(Color.canvas)
-                                .padding(.horizontal, 18)
-                                .frame(minHeight: 36)
-                                .background(Color.ink, in: Capsule())
-                                .frame(minHeight: 44)
-                                .contentShape(Capsule())
-                        }
-                        .buttonStyle(.pressable)
-                    }
-                }
-            }
-        }
-    }
-
-    /// Door two: they are in your phone but not here yet, so they get a
-    /// message they can actually receive.
+    /// The door that reaches a person.
     private var inviteDoor: some View {
-        Button {
-            Haptic.tap()
-            pickingContact = true
-        } label: {
-            HStack(spacing: 12) {
-                Circle()
-                    .fill(Color.fill)
-                    .frame(width: 42, height: 42)
-                    .overlay {
-                        Image(systemName: "person.badge.plus")
-                            .font(.system(size: 17, weight: .medium))
-                            .foregroundStyle(Color.ink)
-                    }
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Invite someone")
-                        .font(.jakarta(15, .bold))
-                        .foregroundStyle(Color.ink)
-                    Text("Pick a contact and send them a link to your table.")
-                        .font(.jakarta(12, .medium))
-                        .foregroundStyle(Color.inkSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
+        VStack(alignment: .leading, spacing: 10) {
+            TomatoPillButton(
+                title: working ?? "Invite someone",
+                systemImage: working == nil ? "person.badge.plus" : nil
+            ) {
+                guard working == nil else { return }
+                withAnimation(.plSnap) { problem = nil }
+                pickingContact = true
+            }
+            .disabled(working != nil || !InviteComposer.isAvailable)
+            .opacity(working != nil ? 0.6 : (InviteComposer.isAvailable ? 1 : 0.4))
+
+            Text(InviteComposer.isAvailable
+                 ? "Pick them from Contacts. They get a link that opens your table — and the App Store if they don't have Plated yet."
+                 : "This iPhone can't send messages, so there's no way to hand them a link from here.")
+                .font(.jakarta(12, .medium))
+                .foregroundStyle(Color.inkSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    /// The door for somebody who will never have the app.
+    private var byNameDoor: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Lay a place by name")
+                .font(.jakarta(15, .bold))
+                .foregroundStyle(Color.ink)
+            Text("For a kid, a grandparent, anyone who won't be getting the app. They're on the plan and in the rota; nothing gets sent to them.")
+                .font(.jakarta(12, .medium))
+                .foregroundStyle(Color.inkSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            TextField("Their name", text: $name)
+                .font(.jakarta(16, .semibold))
+                .padding(14)
+                .overlay(RoundedRectangle(cornerRadius: Radius.chip).strokeBorder(Color.hairline))
+                .plTappableField()
+
+            HStack(spacing: 8) {
+                roleChip("partner", "Partner")
+                roleChip("kid", "Kid")
+                roleChip("member", "Guest")
+            }
+            Text("Kids and guests keep their seat without being handed a cook night.")
+                .font(.jakarta(11, .medium))
+                .foregroundStyle(Color.inkFaint)
+
+            InkPillButton(title: "Lay their place") {
+                let clean = name.trimmingCharacters(in: .whitespaces)
+                guard !Seats.isTaken(clean, in: context) else {
+                    Haptic.warn()
+                    withAnimation(.plSnap) { problem = "\(clean) already has a seat." }
+                    return
                 }
-                Spacer(minLength: 6)
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(Color.inkFaint)
+                // A new seat at the table is a plate-weight moment.
+                Haptic.plate()
+                Seats.layPlace(name: clean, role: role, in: context)
+                dismiss()
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 12)
-            .overlay(RoundedRectangle(cornerRadius: Radius.card).strokeBorder(Color.hairline))
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.pressable)
-        .disabled(!InviteComposer.isAvailable)
-        .opacity(InviteComposer.isAvailable ? 1 : 0.4)
-    }
-
-    private func addMember(named who: String) {
-        guard !who.isEmpty else { return }
-        let color = PersonTone.rotation[members.count % PersonTone.rotation.count]
-        let line = role == "partner" ? "Partner · plans & cooks"
-            : role == "kid" ? "Kid · ideas & helping" : "Guest of the table"
-        context.insert(HouseholdMember(
-            name: who, colorHex: color, role: role, roleLine: line
-        ))
-    }
-
-    private func findPeople() async {
-        guard Directory.isRegistered else { return }
-        let store = CNContactStore()
-        guard (try? await store.requestAccess(for: .contacts)) == true else { return }
-
-        searching = true
-        defer { searching = false }
-
-        let keys = [
-            CNContactGivenNameKey, CNContactFamilyNameKey,
-            CNContactNicknameKey, CNContactPhoneNumbersKey
-        ] as [CNKeyDescriptor]
-        var contacts: [CNContact] = []
-        await Task.detached(priority: .utility) {
-            let request = CNContactFetchRequest(keysToFetch: keys)
-            try? store.enumerateContacts(with: request) { contact, _ in
-                contacts.append(contact)
-            }
-        }.value
-
-        let seated = Set(members.map(\.name))
-        let found = await Directory.onPlated(contacts: contacts)
-        withAnimation(.plSnap) {
-            onPlated = found.filter { !seated.contains($0.name) }
+            .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
+            .opacity(name.trimmingCharacters(in: .whitespaces).isEmpty ? 0.4 : 1)
         }
     }
 
-    private func initials(_ who: String) -> String {
-        let parts = who.split(separator: " ").filter { $0.first?.isLetter == true }
-        return parts.prefix(2).compactMap { $0.first.map(String.init) }.joined().uppercased()
+    /// Bind them to the share first. Nothing is created here — if this
+    /// can't produce a working link, we say so and no seat appears.
+    private func beginInvite(name who: String, phone: String?) async {
+        withAnimation(.plSnap) { working = "Setting a place for \(firstWord(who))…" }
+        defer { withAnimation(.plSnap) { working = nil } }
+
+        let outcome = await Seats.prepareInvite(phone: phone, email: nil, hostName: userFirstName)
+        switch outcome {
+        case .ready(let url):
+            inviteBody = Invitation.body(hostName: userFirstName, link: url)
+            inviteTarget = InviteTarget(name: who, phone: phone)
+        case .noAccount:
+            Haptic.warn()
+            withAnimation(.plSnap) {
+                problem = "Plated couldn't find an iCloud account for that number, so a link sent there wouldn't open the door. Try another number for them, or lay their place by name."
+            }
+        case .noCloud:
+            Haptic.warn()
+            withAnimation(.plSnap) {
+                problem = "Your table is only on this phone. Sign in to iCloud and the invite will carry a link that seats them."
+            }
+        }
+    }
+
+    /// The seat exists only if the message went.
+    private func finishInvite(_ target: InviteTarget, sent: Bool) async {
+        guard sent else {
+            await Seats.abandon(phone: target.phone, email: nil)
+            Haptic.warn()
+            withAnimation(.plSnap) {
+                problem = "That message didn't send, so nothing changed. \(firstWord(target.name)) still has no seat."
+            }
+            return
+        }
+        Haptic.plate()
+        Seats.confirmSent(name: target.name, phone: target.phone, email: nil, in: context)
+        dismiss()
+    }
+
+    private func firstWord(_ who: String) -> String {
+        who.split(separator: " ").first.map(String.init) ?? who
     }
 
     private func roleChip(_ value: String, _ label: String) -> some View {

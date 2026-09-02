@@ -41,6 +41,8 @@ struct TableSeatsSheet: View {
         return guests
     }
 
+    /// Legacy. Migrated into real seats at launch by `Seats.migrate`; read
+    /// here only so a table that hasn't relaunched yet still counts right.
     private var pendingSeats: [String] {
         pendingSeatsRaw.split(separator: "\n").map(String.init).filter { !$0.isEmpty }
     }
@@ -369,7 +371,7 @@ struct TableSeatsSheet: View {
             }
         }.value
 
-        let seated = Set(members.map(\.name) + pendingSeats)
+        let seated = Set(members.map(\.name))
         let found = await Directory.onPlated(contacts: contacts)
         withAnimation(.plSnap) {
             // Somebody already at the table is not a suggestion.
