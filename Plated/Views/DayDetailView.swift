@@ -129,7 +129,13 @@ struct DayDetailView: View {
                     Text(dayTitle)
                         .plType(.display)
                         .foregroundStyle(Color.ink)
-                        .lineLimit(1)
+                        // Two lines, not one. At normal sizes the title never
+                        // reaches the second, so nothing moves; at accessibility
+                        // sizes it wraps the way an iOS large title wraps instead
+                        // of truncating "Your week" to "Your...". A title is
+                        // content, so it keeps growing; the icons beside it are
+                        // chrome and hold at xxLarge.
+                        .lineLimit(2)
                         .minimumScaleFactor(0.7)
                 }
                 Spacer(minLength: 6)

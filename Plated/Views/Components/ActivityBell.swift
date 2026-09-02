@@ -33,8 +33,11 @@ struct ActivityBellButton: View {
                             .foregroundStyle(Color.onTomato)
                             .contentTransition(.numericText())
                             .padding(.horizontal, 4)
-                            .frame(minWidth: 16)
-                            .frame(height: 16)
+                            // Floored, not fixed: this held 32pt digits in
+                            // a 16pt capsule at AX5 and rendered as a red
+                            // smear. plChrome below stops the growth; the
+                            // floor stops the clip.
+                            .frame(minWidth: 16, minHeight: 16)
                             .background(Color.tomato, in: Capsule())
                             .offset(x: -1, y: 3)
                             .transition(.plArrive)
@@ -46,5 +49,6 @@ struct ActivityBellButton: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.pressable)
+        .plChrome()
     }
 }

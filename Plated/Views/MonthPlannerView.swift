@@ -157,6 +157,9 @@ struct MonthPlannerView: View {
             }
         }
         .padding(6)
+        // Seven columns on a 402pt screen is 50pt a cell: furniture, and it
+        // cannot reflow. See plChrome in Theme.swift.
+        .plChrome()
         // Floored: the cell's numeral and chips now scale with Dynamic
         // Type. The leading blanks above stay fixed because they hold
         // nothing and keep the grid's shape.

@@ -320,6 +320,11 @@ struct HouseholdHomeView: View {
                     Text("You")
                         .plType(.micro)
                         .foregroundStyle(Color.inkSecondary)
+                        // One line, always. This sits in a squeezed masthead
+                        // HStack, so at XXXL it wrapped and broke the word
+                        // across two lines: "HO" over "ST".
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
                 }
                 .frame(minWidth: 44, minHeight: 44)
                 .contentShape(Rectangle())
@@ -327,6 +332,7 @@ struct HouseholdHomeView: View {
             .buttonStyle(.pressable)
             .accessibilityLabel("Your profile")
             .matchedTransitionSource(id: ZoomID.host, in: zoom)
+            .plChrome()
     }
 
     private var ownerInitial: String {

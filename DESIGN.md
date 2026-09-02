@@ -112,11 +112,30 @@ Under about 1.08:1 there is no line on the screen. `hairline` over `fill` was
 drawn in three places and seen in none of them. A filled well does not need a
 border: the fill already draws the shape.
 
+**Chrome caps its Dynamic Type; content does not.** A tab bar, a masthead's
+icon cluster, a badge, a date chip: fixed-size furniture with nowhere to
+reflow. At AX5 the five tab labels ran into each other, the bell's 16pt badge
+held 32pt digits, and the Plan list's 66pt date chip set "MON" as "M" over "O"
+over "N". The dish name beside that chip has a whole row to grow into and
+should keep going. `.plChrome()` in Theme.swift holds furniture at xxLarge;
+everything a person is reading runs to AX5. It changes what is drawn, never
+what VoiceOver reads. A title is content, so it wraps to a second line rather
+than truncating to "Your...".
+
 **A detent is a measurement, not a guess.** `.presentationDetents([.height(575)])`
 was a number typed for six rows in a sheet where two of them are conditional,
 so on a phone without Messages it opened with two hundred points of nothing
 under the last option. Measure the content with `onGeometryChange` and feed
-that; Dynamic Type moves these numbers too.
+that; Dynamic Type moves these numbers too. Measure the SCROLL CONTENT, not a
+view in the same stack as the scroll view: a `ScrollView` takes whatever
+height the detent gives it, so measuring its sibling measures the detent's own
+answer coming back around, and the sheet walks itself taller every pass.
+
+**The floating sheet is the OS, not us.** On iOS 26 a detented sheet sits 8pt
+off the screen's sides, rounds all four corners, and stops short of the bottom
+edge, so the dimmed app shows behind its lower corners. That happens with
+`presentationBackground` and `presentationCornerRadius` removed entirely: it
+was measured that way. Do not chase it with negative padding.
 
 ## Motion
 

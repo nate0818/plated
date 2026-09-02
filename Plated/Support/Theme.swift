@@ -403,6 +403,32 @@ extension View {
     }
 }
 
+// MARK: - Chrome that has to hold still
+
+extension View {
+    /// **Chrome caps its type; content does not.**
+    ///
+    /// A tab bar, a masthead's icon cluster, a notification badge, a date
+    /// chip: these are fixed-size furniture with nowhere to reflow to, and
+    /// past a point they stop being readable and start being broken. At
+    /// AX5 the tab bar's five labels ran into each other, the bell's 16pt
+    /// badge held 32pt digits, and the Plan list's 66pt date chip set
+    /// "MON" as "M" over "O" over "N". Meanwhile the dish name beside that
+    /// chip — the thing a person is actually reading — has a whole row to
+    /// grow into and should keep growing.
+    ///
+    /// So the furniture holds at xxLarge and the content runs to AX5. iOS
+    /// does the same with its own tab bars, and swaps presentation entirely
+    /// at accessibility sizes, which a floating custom bar cannot do.
+    ///
+    /// This changes what is DRAWN, never what is READ: VoiceOver takes the
+    /// string, and every one of these already carries an accessibility
+    /// label that says the whole thing.
+    func plChrome() -> some View {
+        dynamicTypeSize(...DynamicTypeSize.xxLarge)
+    }
+}
+
 // MARK: - Zoom transitions
 
 /// Stable identities for zoom transitions whose source is not a model

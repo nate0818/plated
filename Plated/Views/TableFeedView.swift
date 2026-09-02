@@ -508,6 +508,11 @@ struct TableFeedView: View {
                     Text("HOST")
                         .plType(.micro)
                         .foregroundStyle(Color.inkSecondary)
+                        // One line, always. This sits in a squeezed masthead
+                        // HStack, so at XXXL it wrapped and broke the word
+                        // across two lines: "HO" over "ST".
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
                 }
                 // A 38pt avatar is a 38pt target; the law says 44. Home's
                 // copy of this control already had the frame.

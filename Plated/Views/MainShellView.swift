@@ -392,6 +392,9 @@ struct PlateTabBar: View {
         }
         .padding(.horizontal, 8)
         .frame(height: 68)
+        // At XXXL the five items had 68pt each and "Recipes" wanted 66 of
+        // them, so Recipes and Home touched. See plChrome in Theme.swift.
+        .plChrome()
         .background { barSurface }
         .plFloatShadow()
     }
@@ -456,17 +459,30 @@ struct PlateTabBar: View {
 struct CreateMenuSheet: View {
     let onChoose: (CreateKind) -> Void
 
-    var body: some View {
-        VStack(spacing: 0) {
-            Text("Add")
-                .plType(.title)
-                .foregroundStyle(Color.ink)
-                .padding(.top, 26)
-                .padding(.bottom, 18)
+    /// The sheet's height, measured rather than typed.
+    ///
+    /// It was a literal 210 against 221 points of content, so this sheet
+    /// scrolled: two rows and a word, and you could drag them.
+    ///
+    /// The title lives INSIDE the scroll view so this measurement can be
+    /// taken. A greedy `ScrollView` beside a header in a `VStack` takes
+    /// whatever height the detent gives it, so measuring anything in that
+    /// stack measures the detent's own answer coming back around — set the
+    /// detent from it and the sheet walks itself taller every pass. Scroll
+    /// content has a natural height that owes the detent nothing.
+    @State private var measured: CGFloat = 210
 
-            // Large type outgrows the fixed detent — the rows scroll, and
-            // the grabber offers the full-height detent as a way out.
-            ScrollView(showsIndicators: false) {
+    var body: some View {
+        // Large type outgrows the sheet — the content scrolls, and the
+        // grabber offers the full-height detent as a way out.
+        ScrollView(showsIndicators: false) {
+            VStack(spacing: 0) {
+                Text("Add")
+                    .plType(.title)
+                    .foregroundStyle(Color.ink)
+                    .padding(.top, 26)
+                    .padding(.bottom, 18)
+
                 VStack(spacing: 10) {
                     OptionRow(
                         icon: "camera",
@@ -479,11 +495,12 @@ struct CreateMenuSheet: View {
                         detail: "Paste it, scan it, or write it out"
                     ) { onChoose(.recipe) }
                 }
-                .padding(.horizontal, 24)
-                .padding(.bottom, 20)
             }
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 24)
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { measured = $0 }
         }
-        .presentationDetents([.height(210), .large])
+        .presentationDetents([.height(measured), .large])
         .presentationDragIndicator(.visible)
         .presentationBackground(Color.canvas)
         .presentationCornerRadius(Radius.sheet)

@@ -222,10 +222,20 @@ struct WeekView: View {
                 MicroLabel(weekRangeLabel)
                     .lineLimit(1)
                     .minimumScaleFactor(0.75)
+                    // Squeezed by four icon buttons, so it truncated to
+                    // "AUG 3..." at accessibility sizes. An eyebrow beside
+                    // a title is chrome; the title below it is not.
+                    .plChrome()
                 Text("Your week")
                     .plType(.display)
                     .foregroundStyle(Color.ink)
-                    .lineLimit(1)
+                    // Two lines, not one. At normal sizes the title never
+                    // reaches the second, so nothing moves; at accessibility
+                    // sizes it wraps the way an iOS large title wraps instead
+                    // of truncating "Your week" to "Your...". A title is
+                    // content, so it keeps growing; the icons beside it are
+                    // chrome and hold at xxLarge.
+                    .lineLimit(2)
                     .minimumScaleFactor(0.7)
             }
             .layoutPriority(1)
@@ -255,11 +265,17 @@ struct WeekView: View {
                     Text("HOST")
                         .plType(.micro)
                         .foregroundStyle(Color.inkSecondary)
+                        // One line, always. This sits in a squeezed masthead
+                        // HStack, so at XXXL it wrapped and broke the word
+                        // across two lines: "HO" over "ST".
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
                 }
                 .contentShape(Rectangle())
             }
             .buttonStyle(.pressable)
             .matchedTransitionSource(id: ZoomID.host, in: zoom)
+            .plChrome()
         }
     }
 
@@ -534,6 +550,7 @@ struct WeekView: View {
             // held 38pt of text in a 38pt box. A hard height around type
             // that now answers Dynamic Type is the overflow already logged
             // in CLAUDE.md.
+            .plChrome()
             .frame(width: 66)
             .frame(minHeight: 40)
             .background {
@@ -774,6 +791,10 @@ struct WeekView: View {
         // footnote, and no wider. 84x76 with a 32pt numeral was a card for
         // somebody who has been told to hold the phone further away.
         .padding(.vertical, 7)
+        // A 66pt chip is furniture: at AX5 it set "MON" as "M" over "O"
+        // over "N". The dish name beside it has a whole row to grow into
+        // and keeps going. See plChrome in Theme.swift.
+        .plChrome()
         .frame(width: 66)
         .frame(minHeight: 62)
         .background {
