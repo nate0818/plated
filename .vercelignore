@@ -1,0 +1,13 @@
+# This repo is an Xcode project that happens to also hold Plated's few web
+# files. Vercel serves whatever it is given, so without this the whole app
+# source would be readable at plated.food/Plated/Services/Directory.swift.
+#
+# Everything is excluded, then the four things that are genuinely the site
+# are allowed back in.
+*
+!index.html
+!join/
+!join/index.html
+!.well-known/
+!.well-known/apple-app-site-association
+!vercel.json
