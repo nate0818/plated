@@ -276,7 +276,7 @@ struct DiscoverPostSheet: View {
                     .frame(minHeight: 56)
                     .overlay(Capsule().strokeBorder(Color.hairline, lineWidth: 1.5))
                     .padding(.top, 6)
-                    .transition(.scale(scale: 0.94).combined(with: .opacity))
+                    .transition(.plArrive)
                 } else {
                     InkPillButton(title: "Save to cookbook", systemImage: "book.closed") {
                         save()

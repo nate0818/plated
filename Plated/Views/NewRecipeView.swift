@@ -383,7 +383,7 @@ struct RecipeEditorView: View {
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)
                 .overlay(RoundedRectangle(cornerRadius: Radius.card, style: .continuous).strokeBorder(Color.hairline))
-                .transition(.opacity.combined(with: .move(edge: .top)))
+                .transition(.plUnfold)
             }
         }
         .animation(.plSnap, value: draftIngredients.count)
@@ -630,6 +630,7 @@ struct RecipeEditorView: View {
             }
         }
         .buttonStyle(.pressable)
+        .accessibilityAddTraits(active ? .isSelected : [])
     }
 
     /// Saving waits for the photo to finish processing so a picked photo is

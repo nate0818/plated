@@ -511,7 +511,7 @@ struct DMThreadView: View {
 
                     ForEach(messages, id: \.persistentModelID) { message in
                         bubble(message)
-                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                            .transition(.plRise)
                     }
                 }
                 .animation(.plSnap, value: messages.count)

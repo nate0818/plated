@@ -120,7 +120,7 @@ struct ContactsView: View {
                     .padding(.horizontal, 24)
                     .padding(.top, 22)
                 }
-                .transition(.opacity.combined(with: .scale(scale: 0.97)))
+                .transition(.plArrive)
             } else {
                 Spacer()
             }
@@ -288,7 +288,7 @@ struct ContactsView: View {
                 .padding(.horizontal, 16)
                 .frame(minHeight: 36)
                 .background(Color.basilTint, in: Capsule())
-                .transition(.scale(scale: 0.8).combined(with: .opacity))
+                .transition(.plArrive)
             } else {
                 Button {
                     Haptic.plate()

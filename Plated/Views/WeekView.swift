@@ -623,12 +623,45 @@ struct WeekView: View {
                   systemImage: planned == nil ? "plus.circle" : "arrow.2.squarepath")
         }
         if planned != nil {
+            // Dragging a plate from one night to another was the only way to
+            // move a dinner. That is a gesture nobody is told about and a
+            // gesture VoiceOver cannot perform, and `moveMeal` was already
+            // sitting here doing the work for the drop target.
+            Menu {
+                ForEach(movableNights(excluding: date), id: \.self) { target in
+                    Button(nightLabel(target)) {
+                        _ = moveMeal(from: DayTransfer.token(for: date), to: target)
+                    }
+                }
+            } label: {
+                Label("Move to another night", systemImage: "calendar")
+            }
             Button(role: .destructive) {
                 remove(on: date)
             } label: {
                 Label("Clear the night", systemImage: "trash")
             }
         }
+    }
+
+    /// Nights this dinner could move to: the rest of this week and the
+    /// weeks already on screen, today onward, minus the one it is on.
+    private func movableNights(excluding date: Date) -> [Date] {
+        let today = Calendar.current.startOfDay(for: .now)
+        return (weekDates + futureWeeks.flatMap { $0 })
+            .filter { $0 >= today && !Calendar.current.isSameDay($0, date) }
+    }
+
+    /// "Tonight", "Tomorrow", then the weekday, then the date once a
+    /// weekday name would be ambiguous.
+    private func nightLabel(_ date: Date) -> String {
+        let calendar = Calendar.current
+        if calendar.isDateInToday(date) { return "Tonight" }
+        if calendar.isDateInTomorrow(date) { return "Tomorrow" }
+        let formatter = DateFormatter()
+        let withinTheWeek = weekDates.contains { calendar.isSameDay($0, date) }
+        formatter.dateFormat = withinTheWeek ? "EEEE" : "EEEE, MMM d"
+        return formatter.string(from: date)
     }
 
     /// A night off the stove still counts as a plan for the week.

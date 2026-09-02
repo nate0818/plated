@@ -105,7 +105,7 @@ struct MainShellView: View {
                 // cluster instead of two loose objects.
                 .padding(.trailing, 20)
                 .padding(.bottom, Layout.perchBottom)
-                .transition(.scale(scale: 0.8).combined(with: .opacity))
+                .transition(.plArrive)
             }
 
             PlateTabBar(selection: $selection) {
@@ -438,6 +438,7 @@ struct PlateTabBar: View {
             .frame(maxWidth: .infinity, minHeight: 66)
         }
         .buttonStyle(.pressable)
+        .accessibilityAddTraits(active ? .isSelected : [])
     }
 }
 

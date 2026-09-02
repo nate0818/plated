@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 // MARK: - Palette · "quiet chrome, earned color"
 // Chrome is near-monochrome so every family's photos carry the color.
@@ -224,12 +225,58 @@ enum Radius {
 // cubic-bezier(0.34, 1.56, 0.64, 1) at 0.28–0.32s.
 
 extension Animation {
+    /// Reduce Motion is answered here, once, rather than at the hundred and
+    /// eighteen places that call `withAnimation`. A rule that has to be
+    /// remembered at every call site is a rule that will be forgotten at the
+    /// next one, and the count was eighteen guards against a hundred and
+    /// eighteen springs when this was measured.
+    ///
+    /// What changes is the travel, not the change: a spring overshoots and
+    /// settles, which is exactly the movement the setting asks us to drop.
+    /// The state still changes, and it still takes a moment doing it.
+    private static var wantsReduced: Bool { UIAccessibility.isReduceMotionEnabled }
+    private static let reduced = Animation.easeInOut(duration: 0.2)
+
     /// Icon and reaction bounce.
-    static let plPop = Animation.spring(response: 0.32, dampingFraction: 0.55)
+    static var plPop: Animation {
+        wantsReduced ? reduced : .spring(response: 0.32, dampingFraction: 0.55)
+    }
     /// State changes without theater.
-    static let plSnap = Animation.spring(response: 0.28, dampingFraction: 0.75)
+    static var plSnap: Animation {
+        wantsReduced ? reduced : .spring(response: 0.28, dampingFraction: 0.75)
+    }
     /// Sheets, splash, big arrivals.
-    static let plSettle = Animation.spring(response: 0.55, dampingFraction: 0.8)
+    static var plSettle: Animation {
+        wantsReduced ? reduced : .spring(response: 0.55, dampingFraction: 0.8)
+    }
+}
+
+// A spring that has been flattened still scales a view into place, and the
+// scale is the movement. These are the two arrivals the app uses; both
+// become a plain fade when the reader has asked for less.
+
+extension AnyTransition {
+    /// Something arriving in a list or a grid.
+    static var plArrive: AnyTransition {
+        UIAccessibility.isReduceMotionEnabled
+            ? .opacity
+            : .scale(scale: 0.92).combined(with: .opacity)
+    }
+
+    /// Something arriving from off the bottom edge: a toast, a composer bar.
+    static var plRise: AnyTransition {
+        UIAccessibility.isReduceMotionEnabled
+            ? .opacity
+            : .move(edge: .bottom).combined(with: .opacity)
+    }
+
+    /// Something unfolding downward under the control that revealed it:
+    /// an explanation, a draft row.
+    static var plUnfold: AnyTransition {
+        UIAccessibility.isReduceMotionEnabled
+            ? .opacity
+            : .opacity.combined(with: .move(edge: .top))
+    }
 }
 
 // MARK: - Haptics

@@ -179,7 +179,20 @@ class of bug: `.frame(minWidth: 44)` alone is not hit-testable.
 - A row that combines its children needs `.accessibilityElement(children:)` and a
   label that reads as a sentence. A bare "72°" is a stray number; say the
   condition the way Weather does.
-- Any gesture-only affordance (long press, swipe) needs an
-  `.accessibilityAction` equivalent.
+- Any gesture-only affordance (long press, swipe, drag) needs an equivalent
+  that is not a gesture. `SwipeRow` vends its actions through
+  `.accessibilityActions`; a context menu is bridged by SwiftUI on its own.
+  Dragging a plate between nights had no equivalent at all, so the night menu
+  carries "Move to another night" — a gesture nobody is told about is not a
+  feature most people have.
+- **A control with a chosen state says so.** `.accessibilityAddTraits(active
+  ? .isSelected : [])` on every segment, chip and tab. Colour and a raised
+  pill are not audible; without the trait VoiceOver reads eight identical
+  buttons and never says which one is on.
+- **Reduce Motion is answered in Theme.swift, not at the call site.**
+  `plPop`, `plSnap` and `plSettle` flatten to a cross-fade on their own, and
+  `plArrive` / `plRise` / `plUnfold` drop their travel. A rule that has to be
+  remembered at a hundred and eighteen `withAnimation` calls is a rule that
+  gets forgotten at the hundred and nineteenth.
 - Dynamic Type must not break layout. Fixed heights that exactly fit their
   content will overflow on a real device: pad and floor instead.

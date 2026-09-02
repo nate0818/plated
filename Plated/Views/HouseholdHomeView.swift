@@ -680,7 +680,7 @@ struct HouseholdHomeView: View {
                     .foregroundStyle(Color.inkSecondary)
                     .padding(14)
                     .background(Color.hairlineSoft, in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
-                    .transition(.opacity.combined(with: .move(edge: .top)))
+                    .transition(.plUnfold)
             }
         }
     }
@@ -710,7 +710,7 @@ struct HouseholdHomeView: View {
                     if let cook {
                         AvatarCircle(member: cook, size: 28)
                             .id(cook.name)
-                            .transition(.scale(scale: 0.92).combined(with: .opacity))
+                            .transition(.plArrive)
                     } else {
                         Circle()
                             .strokeBorder(Color.hairlineDashed, style: StrokeStyle(lineWidth: 2, dash: [4, 4]))
@@ -1081,5 +1081,6 @@ struct AddMemberSheet: View {
                 }
         }
         .buttonStyle(.pressable)
+        .accessibilityAddTraits(active ? .isSelected : [])
     }
 }

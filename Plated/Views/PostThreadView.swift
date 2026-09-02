@@ -304,6 +304,7 @@ struct PostThreadView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.pressable)
+        .accessibilityAddTraits(mine ? .isSelected : [])
     }
 
     private func threadComment(_ comment: TableComment) -> some View {

@@ -117,6 +117,7 @@ struct TableComposerSheet: View {
                                             .contentShape(Capsule())
                                         }
                                         .buttonStyle(.pressable)
+                                        .accessibilityAddTraits(active ? .isSelected : [])
                                     }
                                 }
                             }

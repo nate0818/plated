@@ -453,6 +453,7 @@ struct AskComposerSheet: View {
                                         }
                                     }
                                     .buttonStyle(.pressable)
+                                    .accessibilityAddTraits(active ? .isSelected : [])
                                 }
                             }
                         }

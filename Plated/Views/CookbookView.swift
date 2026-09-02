@@ -215,7 +215,7 @@ struct CookbookView: View {
                     LazyVGrid(columns: [GridItem(.flexible(), spacing: 20), GridItem(.flexible())], spacing: 26) {
                         ForEach(shown, id: \.persistentModelID) { recipe in
                             recipeTile(recipe)
-                                .transition(.scale(scale: 0.92).combined(with: .opacity))
+                                .transition(.plArrive)
                         }
                     }
                     // Filtering resettles the shelf — dishes fade and slide
@@ -1248,6 +1248,7 @@ struct PlateAssignSheet: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.pressable)
+        .accessibilityAddTraits(active ? .isSelected : [])
     }
 
     private func cookChip(_ member: HouseholdMember) -> some View {
@@ -1273,6 +1274,7 @@ struct PlateAssignSheet: View {
             }
         }
         .buttonStyle(.pressable)
+        .accessibilityAddTraits(active ? .isSelected : [])
     }
 
     private var plateLabel: String {

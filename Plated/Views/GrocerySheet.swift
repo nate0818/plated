@@ -229,7 +229,7 @@ struct GrocerySheet: View {
                         Image(systemName: "checkmark")
                             .font(.system(size: 11, weight: .heavy))
                             .foregroundStyle(Color.canvas)
-                            .transition(.scale(scale: 0.86).combined(with: .opacity))
+                            .transition(.plArrive)
                     }
                 }
                 Text(item.name)

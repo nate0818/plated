@@ -318,7 +318,7 @@ struct TableFeedView: View {
                     // branch that hadn't gone through the token family the
                     // rest of this class was built to fix.
                     .padding(.bottom, Layout.floatingChromeInset)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .transition(.plRise)
             }
         }
     }
@@ -477,6 +477,7 @@ struct TableFeedView: View {
                         }
                 }
                 .buttonStyle(.pressable)
+                .accessibilityAddTraits(active ? .isSelected : [])
             }
         }
         .padding(2)
@@ -540,7 +541,7 @@ struct TableFeedView: View {
                         .offset(x: 6, y: -10)
                         // Appears; does not launch. 0.01 threw it in from
                         // a point, which is the fly-in note again.
-                        .transition(.scale(scale: 0.92).combined(with: .opacity))
+                        .transition(.plArrive)
                 }
             }
 
