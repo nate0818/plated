@@ -11,6 +11,13 @@ struct LaunchOpenerView: View {
     /// settles → the lift-away plays straight after it; still loading →
     /// the opener holds in the two-pulse simmer loop and exits at a seam.
     let ready: Bool
+    /// Every launch after the first. The full opener is a 4.3 second piece
+    /// of theatre, which is right exactly once: the first time someone opens
+    /// the app. On the two hundredth launch it is a door that sticks. Brief
+    /// keeps the persimmon ground and the settled wordmark for two thirds of
+    /// a second so the static launch plate still has somewhere to go, and
+    /// gets out of the way.
+    var brief = false
     let onFinished: () -> Void
 
     @Environment(\.colorScheme) private var colorScheme
@@ -25,7 +32,9 @@ struct LaunchOpenerView: View {
     @State private var markSet = false
     @State private var liftedAway = false
 
-    private var cue: OpenerCue { reduceMotion ? .reduced : .full }
+    // Brief outranks Reduce Motion: someone who has asked for less motion
+    // is not asking for a longer opener.
+    private var cue: OpenerCue { brief ? .brief : (reduceMotion ? .reduced : .full) }
 
     var body: some View {
         GeometryReader { geo in
@@ -37,8 +46,7 @@ struct LaunchOpenerView: View {
             TimelineView(.animation) { ctx in
                 let t = ctx.date.timeIntervalSince(start)
                 let (T, _) = cue.authoredTime(t, readyAt: readyAt)
-                let f = OpenerFrame(T: T, cue: cue, reduced: reduceMotion,
-                                    darkRoom: colorScheme == .dark)
+                let f = OpenerFrame(T: T, cue: cue, darkRoom: colorScheme == .dark)
                 let dotD = 32 * k
 
                 ZStack {
@@ -54,14 +62,14 @@ struct LaunchOpenerView: View {
                         // must land first or the peach mark spends half a
                         // second nearly invisible on persimmon.
                         th.ground.opacity(
-                            reduceMotion
-                                ? glide(0, 1, 0.0, 0.35, T)
+                            cue.flat
+                                ? glide(0, 1, 0, cue.fade * 0.64, T)
                                 : glide(0, 1, 0.15, 0.75, T)
                         )
                     }
 
                     // Ground ripple from the set-down, at true screen center
-                    if !reduceMotion, f.rippleP > 0.001, f.rippleP < 0.999 {
+                    if !cue.flat, f.rippleP > 0.001, f.rippleP < 0.999 {
                         RadialGradient(stops: [.init(color: .clear, location: 0.52),
                                                .init(color: th.rippleTone, location: 0.68),
                                                .init(color: .clear, location: 0.84)],
@@ -116,20 +124,22 @@ struct LaunchOpenerView: View {
                 // the loudest thing that happens — a run of equal taps reads
                 // as a stutter, not as choreography.
                 //
-                // Reduce Motion silences all three rather than re-timing
+                // The flat cues silence all three rather than re-timing
                 // them: the cue they annotate is the motion itself, and a
                 // haptic marking a beat the user cannot see is just a buzz.
-                if !reduceMotion, !markSet, T >= 0.8 {
+                // That covers Reduce Motion and the brief opener both, and
+                // it keeps every launch after the first from buzzing.
+                if !cue.flat, !markSet, T >= 0.8 {
                     // The period is set down at center, like a plate on cloth.
                     markSet = true
                     Haptic.tap()
                 }
-                if !reduceMotion, !plateLanded, T >= 1.3 {
+                if !cue.flat, !plateLanded, T >= 1.3 {
                     // The period touches the table — a plate lands.
                     plateLanded = true
                     Haptic.plate()
                 }
-                if !reduceMotion, !liftedAway, T >= cue.out {
+                if !cue.flat, !liftedAway, T >= cue.out {
                     // Everything lifts into the first screen — the handoff.
                     liftedAway = true
                     Haptic.tap()
@@ -227,17 +237,33 @@ private struct OpenerCue {
     /// the same eased shapes. A slow wake still simmers at 1:1.
     let hurry: Double
     /// Full mode rounds the simmer to whole cycles so a pulse never cuts
-    /// mid-breath; reduced mode has no pulse and exits the moment it can.
+    /// mid-breath; the flat modes have no pulse and exit the moment they can.
     let quantizesSimmer: Bool
-    let cycle = 2.2
+    /// No choreography at all: the finished lockup arrives, holds, lifts.
+    /// The set-down, the travel to centre and the per-letter resolve are the
+    /// parts worth watching once, and the parts that cost the seconds.
+    let flat: Bool
+    /// One simmer breath, and so how far Out sits behind the simmer cue.
+    let cycle: Double
+    /// Flat modes only: how long the lockup takes to arrive. Every other
+    /// window in the flat path is derived from this and `outDur`, so a
+    /// timing is changed in one place rather than four.
+    let fade: Double
 
     var out: Double { simmer + cycle }
     var total: Double { out + outDur }
 
     /// Field 0.8 · Mark 1.1 · Word 1.5 · Simmer 2.2 · Out 0.9
-    static let full = OpenerCue(simmer: 3.4, outDur: 0.9, hurry: 1.5, quantizesSimmer: true)
+    static let full = OpenerCue(simmer: 3.4, outDur: 0.9, hurry: 1.5,
+                                quantizesSimmer: true, flat: false, cycle: 2.2, fade: 0.55)
     /// Reduce Motion: fade the finished lockup in, no pulse, leave early.
-    static let reduced = OpenerCue(simmer: 1.2, outDur: 0.7, hurry: 1, quantizesSimmer: false)
+    static let reduced = OpenerCue(simmer: 1.2, outDur: 0.7, hurry: 1,
+                                   quantizesSimmer: false, flat: true, cycle: 2.2, fade: 0.55)
+    /// Second launch onward: 0.65s door. Long enough that the persimmon
+    /// launch plate resolves into the wordmark instead of cutting to white,
+    /// short enough that nobody ever waits through it.
+    static let brief = OpenerCue(simmer: 0.05, outDur: 0.30, hurry: 1,
+                                 quantizesSimmer: false, flat: true, cycle: 0.30, fade: 0.22)
 
     /// Wall clock → authored time. Before the simmer they agree (hurried
     /// once the app is ready); then the simmer repeats whole cycles until
@@ -278,10 +304,10 @@ private struct OpenerFrame {
 
     static let settledLetters = [Letter](repeating: Letter(o: 1, b: 0, y: 0), count: 6)
 
-    init(T: Double, cue: OpenerCue, reduced: Bool, darkRoom: Bool = false) {
+    init(T: Double, cue: OpenerCue, darkRoom: Bool = false) {
         let S = cue.simmer, O = cue.out
 
-        if reduced {
+        if cue.flat {
             // Every animated channel stays flat — the glow pulse included,
             // which is doubly right now that the reduced path can exit
             // mid-cycle the moment the app is ready.
@@ -289,8 +315,9 @@ private struct OpenerFrame {
             // In the dark room the mark waits for the espresso to fully
             // arrive (0.35) so it fades in on its final ground; light has
             // no crossfade to wait for and starts straight away.
-            let lockIn: Double = darkRoom ? 0.35 : 0.15
-            let lockO = glide(0, 1, lockIn, lockIn + 0.55, T) * glide(1, 0, O + 0.1, O + 0.6, T)
+            let lockIn: Double = cue.fade * (darkRoom ? 0.64 : 0.27)
+            let lockO = glide(0, 1, lockIn, lockIn + cue.fade, T)
+                * glide(1, 0, O + cue.outDur * 0.15, O + cue.outDur * 0.9, T)
             letters = (0..<6).map { _ in Letter(o: lockO, b: 0, y: 0) }
             trackingExtra = 0
             breatheScale = 1

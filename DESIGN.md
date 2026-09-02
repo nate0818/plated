@@ -97,6 +97,10 @@ even when nobody can say why.
   spinning `+`, no symbol-effect thump on a heart. Colour carries the meaning and
   the haptic carries the feedback.
 - Every animation respects Reduce Motion.
+- **Theatre is owed once.** The full launch opener runs 4.3 seconds and is
+  right exactly once, on a person's first launch; after that it is a 0.65s
+  fade of the settled wordmark off the persimmon plate. Anything that plays
+  on every launch has to earn its length every launch.
 - Haptics have meaning: `tap` for chrome, `select` for position changes, `plate`
   for something landing, `kiss` for the good thing, `warn` for a refusal.
 

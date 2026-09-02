@@ -12,6 +12,10 @@ struct RootView: View {
     /// not dragged back through onboarding to be asked for a picture.
     @AppStorage("didSetProfile") private var didSetProfile = false
     @AppStorage("didSetTable") private var didSetTable = false
+    /// Set the first time the opener plays all the way through. Its own
+    /// flag rather than `didSignIn`, because the full opener is owed to
+    /// anyone who has not seen it — including someone who quit during it.
+    @AppStorage("sawOpener") private var sawOpener = false
     @Environment(\.scenePhase) private var scenePhase
     @State private var splashDone = false
     @State private var appReady = false
@@ -38,7 +42,10 @@ struct RootView: View {
             Color.canvas.ignoresSafeArea()
 
             if !splashDone {
-                LaunchOpenerView(ready: appReady) { splashDone = true }
+                LaunchOpenerView(ready: appReady, brief: sawOpener) {
+                    sawOpener = true
+                    splashDone = true
+                }
                     .transition(.opacity)
             } else if !didSignIn {
                 SignInView { didSignIn = true }
