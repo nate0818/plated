@@ -435,7 +435,9 @@ struct TableFeedView: View {
                 }
             }
         } else {
-            HStack(spacing: 12) {
+            // Aligned on the discs, not the blocks. See
+            // VerticalAlignment.discCentre.
+            HStack(alignment: .discCentre, spacing: 12) {
                 headerTitle
                 Spacer(minLength: 8)
                 headerControls
@@ -530,11 +532,11 @@ struct TableFeedView: View {
                 }
                 // A 38pt avatar is a 38pt target; the law says 44. Home's
                 // copy of this control already had the frame.
-                .frame(minWidth: 44, minHeight: 44)
-                .contentShape(Rectangle())
+                .plTapTarget()
             }
             .buttonStyle(.pressable)
             .accessibilityLabel("Your profile")
+            .plDiscAligned(38)
     }
 
     private var hostInitial: String {

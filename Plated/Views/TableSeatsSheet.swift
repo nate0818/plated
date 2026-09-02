@@ -270,8 +270,7 @@ struct TableSeatsSheet: View {
                                 .font(.system(size: 13, weight: .semibold))
                                 .foregroundStyle(Color.ink)
                         }
-                        .frame(minWidth: 44, minHeight: 44)
-                        .contentShape(Rectangle())
+                        .plTapTarget()
                 }
                 .buttonStyle(.pressable)
             }
@@ -280,12 +279,22 @@ struct TableSeatsSheet: View {
                     Haptic.tap()
                     onRemove()
                 } label: {
-                    Image(systemName: "minus.circle")
-                        .accessibilityLabel("Remove \(name)")
-                        .font(.system(size: 17, weight: .medium))
-                        .foregroundStyle(Color.inkFaint)
-                        .frame(minWidth: 44, minHeight: 44)
-                        .contentShape(Rectangle())
+                    // The same container Message wears, one control to its
+                    // left. These are peers on one row and were drawn as
+                    // unlike things: a contained disc beside a bare glyph,
+                    // and the bare one in inkFaint, which is the tone this
+                    // app reserves for a control that is genuinely off.
+                    // Remove is not off.
+                    Circle()
+                        .strokeBorder(Color.hairline, lineWidth: 1.5)
+                        .frame(width: 34, height: 34)
+                        .overlay {
+                            Image(systemName: "minus")
+                                .accessibilityLabel("Remove \(name)")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(Color.ink)
+                        }
+                        .plTapTarget()
                 }
                 .buttonStyle(.pressable)
             }
@@ -316,10 +325,16 @@ struct TableSeatsSheet: View {
                 MicroLabel("Already on Plated")
                 ForEach(onPlated) { match in
                     HStack(spacing: 12) {
+                        // Neutral, not basil. `3DA35D` is the tone this
+                        // sheet gives a real accepted seat, so every
+                        // suggestion was wearing the colour that means
+                        // "already at your table" for somebody who has
+                        // never been asked. The Invited group above uses
+                        // neutral for the same reason.
                         AvatarCircle(
                             initials: initials(for: match.name),
-                            tone: PersonTone.from(hex: "3DA35D"),
-                            size: 38
+                            tone: .neutralPair,
+                            size: 40
                         )
                         Text(match.name)
                             .plType(.body, .bold)

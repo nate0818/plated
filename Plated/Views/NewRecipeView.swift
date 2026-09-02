@@ -444,22 +444,7 @@ struct RecipeEditorView: View {
     }
 
     private func addRoundButton(disabled: Bool, label: String, action: @escaping () -> Void) -> some View {
-        Button {
-            action()
-        } label: {
-            Circle()
-                .strokeBorder(Color.hairline, lineWidth: 1.5)
-                .frame(width: 40, height: 40)
-                .overlay {
-                    Image(systemName: "plus")
-                        .accessibilityLabel(label)
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundStyle(Color.ink)
-                }
-                .plTapTarget()
-        }
-        .buttonStyle(.pressable)
-        .disabled(disabled)
+        AddCircleButton(label: label, disabled: disabled, action: action)
     }
 
     private func addStep() {

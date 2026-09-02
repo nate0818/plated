@@ -237,7 +237,7 @@ struct HouseholdHomeView: View {
                 }
             }
         } else {
-            HStack(alignment: .center, spacing: 10) {
+            HStack(alignment: .discCentre, spacing: 10) {
                 mastheadTitle
                 Spacer(minLength: 6)
                 mastheadControls
@@ -332,6 +332,7 @@ struct HouseholdHomeView: View {
             .buttonStyle(.pressable)
             .accessibilityLabel("Your profile")
             .matchedTransitionSource(id: ZoomID.host, in: zoom)
+            .plDiscAligned(40)
             .plChrome()
     }
 

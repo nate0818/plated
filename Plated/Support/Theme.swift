@@ -416,6 +416,34 @@ extension View {
     }
 }
 
+// MARK: - Masthead alignment
+
+extension VerticalAlignment {
+    /// Aligns a masthead's round controls on the centres of their DISCS
+    /// rather than on the centres of their layout blocks.
+    ///
+    /// The bell and the gear are 36pt discs inside 44pt tap frames, so their
+    /// discs land on the block's centreline for free. The host avatar is a
+    /// 38-42pt disc with a caption under it, so its block runs about 55pt
+    /// and centring the block puts the face roughly 8pt above the two
+    /// circles beside it — permanently, on all three screens that carry it.
+    /// One control looks like it slipped.
+    private enum DiscCentreID: AlignmentID {
+        static func defaultValue(in d: ViewDimensions) -> CGFloat {
+            d[VerticalAlignment.center]
+        }
+    }
+    static let discCentre = VerticalAlignment(DiscCentreID.self)
+}
+
+extension View {
+    /// Put this view's own disc on the masthead's centreline. `diameter` is
+    /// the disc's, and it is assumed to sit at the top of the block.
+    func plDiscAligned(_ diameter: CGFloat) -> some View {
+        alignmentGuide(.discCentre) { _ in diameter / 2 }
+    }
+}
+
 // MARK: - Touch targets
 
 extension View {
@@ -537,6 +565,47 @@ struct IconDiscButton: View {
         }
         .buttonStyle(.pressable)
         .accessibilityLabel(label)
+    }
+}
+
+/// The round commit button at the end of an entry field.
+///
+/// Two of these sat in one recipe form disagreeing on three things with no
+/// state behind any of them: diameter (36 against 40), ground (a filled disc
+/// against a stroked ring), and whether being disabled looked like anything
+/// at all. The filled one wins, because it is the only one of the pair that
+/// showed you it was off, and the only one that can carry a count. 38 is the
+/// diameter the rest of the app's round controls already use.
+struct AddCircleButton: View {
+    let label: String
+    /// Above one, the disc says how many things are about to be added, so
+    /// what is going to happen is visible before it happens.
+    var count: Int = 1
+    var disabled: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Circle()
+                .fill(disabled ? Color.fill : Color.ink)
+                .frame(width: 38, height: 38)
+                .overlay {
+                    if count > 1 {
+                        Text("\(count)")
+                            .plType(.footnote, .extraBold)
+                            .foregroundStyle(Color.canvas)
+                    } else {
+                        Image(systemName: "plus")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundStyle(disabled ? Color.inkFaint : Color.canvas)
+                    }
+                }
+                .plTapTarget()
+                .animation(.plSnap, value: count)
+        }
+        .buttonStyle(.pressable)
+        .accessibilityLabel(count > 1 ? "\(label), \(count)" : label)
+        .disabled(disabled)
     }
 }
 

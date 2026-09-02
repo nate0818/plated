@@ -489,33 +489,14 @@ struct IngredientEntryField: View {
                 .onSubmit(commit)
                 .plTapToFocus { focused = true }
 
-            Button {
-                commit()
-            } label: {
-                Circle()
-                    .fill(pieces.isEmpty ? Color.fill : Color.ink)
-                    .frame(width: 36, height: 36)
-                    .overlay {
-                        // The count is the affordance: paste eight lines and
-                        // the button says 8, so what is about to happen is
-                        // visible before it happens.
-                        if pieces.count > 1 {
-                            Text("\(pieces.count)")
-                                .plType(.footnote, .extraBold)
-                                .foregroundStyle(Color.canvas)
-                        } else {
-                            Image(systemName: "plus")
-                                .font(.system(size: 14, weight: .bold))
-                                .foregroundStyle(pieces.isEmpty ? Color.inkFaint : Color.canvas)
-                        }
-                    }
-                    .frame(minWidth: 44, minHeight: 44)
-                    .contentShape(Rectangle())
-                    .animation(.plSnap, value: pieces.count)
-            }
-            .buttonStyle(.pressable)
-            .accessibilityLabel(pieces.count > 1 ? "Add \(pieces.count) ingredients" : "Add ingredient")
-            .disabled(pieces.isEmpty)
+            // The count is the affordance: paste eight lines and the button
+            // says 8, so what is about to happen is visible before it does.
+            AddCircleButton(
+                label: "Add ingredient",
+                count: pieces.count,
+                disabled: pieces.isEmpty,
+                action: commit
+            )
         }
     }
 

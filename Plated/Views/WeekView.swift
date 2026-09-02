@@ -213,7 +213,10 @@ struct WeekView: View {
     // MARK: Header
 
     private var header: some View {
-        HStack(alignment: .center, spacing: 10) {
+        // Aligned on the discs, not the blocks: the avatar carries a caption
+        // and the bell does not, so centring the blocks left the face
+        // sitting about 8pt high. See VerticalAlignment.discCentre.
+        HStack(alignment: .discCentre, spacing: 10) {
             VStack(alignment: .leading, spacing: 2) {
                 // "Aug 30 to Sep 5" is wider than a cross-month range has
                 // any right to be, and the header's icons leave it under
@@ -275,6 +278,7 @@ struct WeekView: View {
             }
             .buttonStyle(.pressable)
             .matchedTransitionSource(id: ZoomID.host, in: zoom)
+            .plDiscAligned(42)
             .plChrome()
         }
     }

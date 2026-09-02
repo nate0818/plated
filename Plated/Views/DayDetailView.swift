@@ -218,7 +218,10 @@ struct DayDetailView: View {
                 HStack(spacing: 12) {
                     Circle()
                         .strokeBorder(Color.hairlineDashed, style: StrokeStyle(lineWidth: 1.5, dash: [5, 5]))
-                        .frame(width: 44, height: 44)
+                        // 52, the same as a real dish in this column. An
+                        // empty plate of a different size from a full one
+                        // starts its label 8pt off every label above it.
+                        .frame(width: 52, height: 52)
                         .overlay {
                             Image(systemName: "plus")
                                 .font(.system(size: 14, weight: .bold))
@@ -230,11 +233,18 @@ struct DayDetailView: View {
                     Spacer()
                 }
                 .padding(.horizontal, 14)
-                .padding(.vertical, 8)
-                .frame(minHeight: 64)
+                .padding(.vertical, 10)
+                // The same container the meal cards use, not a dashed ghost
+                // among solid rows. WeekView removed exactly this from the
+                // identical stack one screen away: an open row drawn as a
+                // failed card makes the list read as two lists, and the
+                // dashed plate inside is enough to carry the emptiness.
+                // One dashed thing per row.
+                .frame(minHeight: 72)
+                .background(Color.canvas, in: Radius.shape(Radius.row))
                 .overlay {
-                    RoundedRectangle(cornerRadius: Radius.row, style: .continuous)
-                        .strokeBorder(Color.hairlineDashed, style: StrokeStyle(lineWidth: 1.5, dash: [7, 6]))
+                    Radius.shape(Radius.row)
+                        .strokeBorder(Color.navHairline, lineWidth: 1.5)
                 }
                 .contentShape(Rectangle())
             }
