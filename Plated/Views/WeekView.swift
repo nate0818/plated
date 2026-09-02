@@ -346,7 +346,7 @@ struct WeekView: View {
             // "Alessandra Fitzgerald cooks" both ended in an ellipsis on the
             // one screen the app is mostly looked at. The height and the
             // reclaimed 18pt of width are what let the row say the thing.
-            .frame(minHeight: 88)
+            .frame(minHeight: 76)
             .background(Color.cardFill, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
             // Every row in the plan draws the same shape at the same weight —
             // planned rows used to be an 18pt corner at 1pt (1.5 on today)
@@ -423,7 +423,7 @@ struct WeekView: View {
         .padding(.vertical, 12)
         .padding(.leading, 8)
         .padding(.trailing, 14)
-        .frame(minHeight: 88)
+        .frame(minHeight: 76)
         // An open night is a card like any other. It used to be a dashed
         // ghost in a stack of solid rows, so the week read as two different
         // lists — and in dark mode the page showed straight through it.
@@ -495,7 +495,10 @@ struct WeekView: View {
                     .monospacedDigit()
             }
             .foregroundStyle(Color.inkFaint)
-            .frame(width: 52, height: 38)
+            // Same width as a live day's card, so the whole left column
+            // holds one line down the list — history is shorter, not
+            // narrower.
+            .frame(width: 66, height: 38)
             .background {
                 RoundedRectangle(cornerRadius: 11, style: .continuous)
                     .fill(Color.chipFill)
@@ -557,8 +560,8 @@ struct WeekView: View {
             HStack(spacing: 4) {
                 // Today is today whether or not the night is planned.
                 Text(date.formattedWeekday().uppercased())
-                    .font(.jakarta(11, .bold))
-                    .tracking(0.8)
+                    .font(.jakarta(9.5, .bold))
+                    .tracking(0.6)
                     .foregroundStyle(today ? Color.tomato : Color.inkFaint)
                 if showCalendarEvents && events.hasEvent(on: date) {
                     Circle().fill(Color.grape).frame(width: 5, height: 5)
@@ -569,12 +572,12 @@ struct WeekView: View {
             // open night no longer reads as disabled — the dashed plate and
             // the faint copy carry the emptiness on their own.
             Text(date.formattedDayNumber())
-                .font(.gabarito(32, .medium))
+                .font(.gabarito(25, .medium))
                 .monospacedDigit()
                 .foregroundStyle(dimmed && !today ? Color.inkSecondary : Color.ink)
                 // Gabarito's line box leaves the numeral floating below the
                 // weekday; Apple sets them almost touching.
-                .padding(.top, -3)
+                .padding(.top, -2)
 
             // Weather always occupies its line, even when the forecast
             // can't answer, so a day without one is not a shorter card.
@@ -582,10 +585,10 @@ struct WeekView: View {
                 if let day = forecast.forecast(for: date) {
                     HStack(spacing: 4) {
                         Image(systemName: day.symbolName)
-                            .font(.system(size: 12, weight: .medium))
+                            .font(.system(size: 10, weight: .medium))
                             .symbolRenderingMode(.hierarchical)
                         Text("\(Int(day.highF.rounded()))°")
-                            .font(.jakarta(12, .bold))
+                            .font(.jakarta(10, .bold))
                             .monospacedDigit()
                     }
                     // inkFaint disappears into the tomato tint.
@@ -597,7 +600,7 @@ struct WeekView: View {
                     .accessibilityLabel("\(day.conditionDescription), high \(Int(day.highF.rounded())) degrees")
                 } else {
                     Text(" ")
-                        .font(.jakarta(12, .bold))
+                        .font(.jakarta(10, .bold))
                         .accessibilityHidden(true)
                 }
             }
@@ -605,18 +608,18 @@ struct WeekView: View {
             .minimumScaleFactor(0.8)
             .padding(.top, 2)
         }
-        // The dish photo used to take this width. With it gone the date can
-        // be read at arm's length and the temperature has room to be a
-        // temperature rather than a footnote.
-        .padding(.vertical, 10)
-        .frame(width: 84)
-        .frame(minHeight: 76)
+        // Wide enough that the temperature is a temperature rather than a
+        // footnote, and no wider. 84x76 with a 32pt numeral was a card for
+        // somebody who has been told to hold the phone further away.
+        .padding(.vertical, 7)
+        .frame(width: 66)
+        .frame(minHeight: 62)
         .background {
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .fill(today ? Color.tomatoTint : Color.cardFill)
         }
         .overlay {
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .strokeBorder(today ? Color.tomato.opacity(0.16) : Color.hairline, lineWidth: 1)
         }
         .plTileShadow()
