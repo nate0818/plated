@@ -321,8 +321,13 @@ struct TableSeatsSheet: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.top, 6)
         } else if !onPlated.isEmpty {
-            VStack(alignment: .leading, spacing: 8) {
-                MicroLabel("Already on Plated")
+            // Through seatGroup, like the sheet's other four groups. Built
+            // by hand, this one had no bordered container and no 14pt inner
+            // inset, so within one scroll its avatar column sat 14pt left of
+            // every other avatar and its rows floated where the others were
+            // carded. Its label sat 8pt off its rows against everyone
+            // else's 4.
+            seatGroup("Already on Plated") {
                 ForEach(onPlated) { match in
                     HStack(spacing: 12) {
                         // Neutral, not basil. `3DA35D` is the tone this
@@ -359,7 +364,8 @@ struct TableSeatsSheet: View {
                         }
                         .buttonStyle(.pressable)
                     }
-                    .padding(.vertical, 2)
+                    // 10, the rhythm seatRow uses two groups above.
+                    .padding(.vertical, 10)
                 }
             }
             .padding(.top, 6)
