@@ -486,7 +486,7 @@ enum TableShare {
     /// primer does not cover them.
     static func primeSchema() async -> String {
         guard await TableSync.accountAvailable() else {
-            return "PRIME SHARE: no iCloud account — nothing primed."
+            return "PRIME SHARE: no iCloud account, nothing primed."
         }
         guard let url = await invitationURL(hostName: "Prime") else {
             return "PRIME SHARE FAILED: could not create the zone, root or share."

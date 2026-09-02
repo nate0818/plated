@@ -85,7 +85,7 @@ struct GrocerySheet: View {
                     // "Send 0 items" is not an offer. When the list is fully
                     // shopped the committing action retires and says so.
                     if unchecked.isEmpty {
-                        Text("All shopped — nothing left to send")
+                        Text("All shopped. Nothing left to send.")
                             .font(.jakarta(14, .bold))
                             .foregroundStyle(Color.inkSecondary)
                             .frame(maxWidth: .infinity)

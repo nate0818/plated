@@ -93,7 +93,7 @@ enum TableSync {
         throw NSError(
             domain: "Plated", code: 1, userInfo: [
                 NSLocalizedDescriptionKey:
-                    "This build is not armed with PLATED_CLOUDKIT — nothing was purged."
+                    "This build is not armed with PLATED_CLOUDKIT, so nothing was purged."
             ]
         )
         #endif

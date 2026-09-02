@@ -667,7 +667,7 @@ struct HouseholdHomeView: View {
             .padding(.top, 8)
 
             if turnsTipShown {
-                Text("A day with a standing cook always goes to them. Open nights go to whoever has cooked least that week — or to you, with this off.")
+                Text("A day with a standing cook always goes to them. Open nights go to whoever has cooked least that week, or to you with this off.")
                     .font(.jakarta(12, .medium))
                     .foregroundStyle(Color.inkSecondary)
                     .lineSpacing(3)
