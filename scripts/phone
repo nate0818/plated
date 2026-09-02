@@ -74,10 +74,16 @@ say "Target: $NAME"
 
 # ----------------------------------------------------------------- build ---
 mkdir -p "$DERIVED"
+# -allowProvisioningUpdates lets Xcode fetch a regenerated profile. Without
+# it, turning a capability on in the developer portal changes nothing here:
+# the cached profile is reused forever and the build fails claiming the
+# capability is missing, which reads as "you didn't tick the box" when the
+# box was ticked. testflight.sh has always passed it; this script never did.
 if ! xcodebuild -project "$ROOT/Plated.xcodeproj" \
       -scheme "$SCHEME" -configuration "$CONFIG" \
       -destination "platform=iOS,id=$UDID" \
       -derivedDataPath "$DERIVED" \
+      -allowProvisioningUpdates \
       build >"$LOG" 2>&1; then
   grep -E "error:|BUILD FAILED" "$LOG" | head -20 >&2 || true
   die "Build failed. Full log: $LOG"
