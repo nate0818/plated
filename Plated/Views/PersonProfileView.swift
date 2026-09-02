@@ -17,6 +17,7 @@ struct PersonProfileView: View {
     var memberID: PersistentIdentifier?
 
     @Environment(\.modelContext) private var context
+    @Environment(\.openURL) private var openURL
     @Environment(\.dismiss) private var dismiss
     @Query(sort: \HouseholdMember.createdAt) private var members: [HouseholdMember]
     @Query(filter: #Predicate<TablePost> { !$0.isDiscover }, sort: \TablePost.createdAt, order: .reverse)
@@ -30,7 +31,6 @@ struct PersonProfileView: View {
     @Environment(\.dynamicTypeSize) private var typeSize
     @AppStorage("userBio") private var myBio = ""
     @AppStorage("userFamilyName") private var userFamilyName = ""
-    @State private var dmShown = false
     @State private var settingsShown = false
     @State private var editShown = false
     @State private var bannerItem: PhotosPickerItem?
@@ -42,6 +42,20 @@ struct PersonProfileView: View {
 
     private var firstName: String {
         name.split(separator: " ").first.map(String.init) ?? name
+    }
+
+    /// What "nothing here" means depends on who they are. A kid who will
+    /// never post is not the same silence as somebody who joined last week.
+    private var emptyLine: String {
+        if isMe { return "Nothing shared yet." }
+        switch member?.seat {
+        case .invited:
+            return "\(firstName) hasn't taken their seat yet."
+        case .notOnPlated:
+            return "\(firstName) isn't on Plated. This is the place you keep for them."
+        default:
+            return "\(firstName) hasn't shared a plate yet."
+        }
     }
 
     private var member: HouseholdMember? {
@@ -82,8 +96,10 @@ struct PersonProfileView: View {
                         Spacer()
                         if isMe {
                             outlineAction("Edit profile") { editShown = true }
-                        } else {
-                            outlineAction("Message") { dmShown = true }
+                        } else if let url = member?.messageURL {
+                            // Only where a message can actually go. This used
+                            // to open a thread that could never deliver.
+                            outlineAction("Message") { openURL(url) }
                         }
                     }
                     .padding(.top, 8)
@@ -154,7 +170,7 @@ struct PersonProfileView: View {
                 if posts.isEmpty {
                     VStack(spacing: 8) {
                         PlateReactionGlyph(filled: false)
-                        Text(isMe ? "Nothing shared yet." : "\(firstName) hasn't shared a plate yet.")
+                        Text(emptyLine)
                             .font(.jakarta(13, .medium))
                             .foregroundStyle(Color.inkFaint)
                             .multilineTextAlignment(.center)
@@ -176,7 +192,6 @@ struct PersonProfileView: View {
         .toolbar(.hidden, for: .navigationBar)
         .plSwipeBack()
         .safeAreaInset(edge: .top) { topBar }
-        .sheet(isPresented: $dmShown) { DMThreadView(peerName: name) }
         .sheet(isPresented: $settingsShown) { SettingsSheet() }
         .sheet(isPresented: $editShown) { EditProfileSheet() }
         .navigationDestination(item: $openedPost) { post in

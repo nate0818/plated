@@ -880,16 +880,20 @@ struct AddMemberSheet: View {
         .presentationDragIndicator(.visible)
         .presentationBackground(Color.canvas)
         .presentationCornerRadius(Radius.sheet)
-        .sheet(isPresented: $pickingContact, onDismiss: {
-            // Only now is the picker actually off screen.
-            guard let target = picked else { return }
-            picked = nil
-            Task { await beginInvite(target) }
-        }) {
+        .sheet(isPresented: $pickingContact) {
             ContactPicker(
                 onPick: { contactName, phone in
-                    picked = InviteTarget(name: contactName, phone: phone)
+                    let target = InviteTarget(name: contactName, phone: phone)
+                    print("PLATED INVITE: picked \(contactName)")
                     pickingContact = false
+                    // The picker dismisses itself, and SwiftUI often never
+                    // learns — so onDismiss can never fire and chaining off
+                    // it loses the composer silently. Wait out the
+                    // dismissal instead, then present.
+                    Task {
+                        try? await Task.sleep(for: .milliseconds(450))
+                        await beginInvite(target)
+                    }
                 },
                 onCancel: { pickingContact = false }
             )
@@ -911,6 +915,7 @@ struct AddMemberSheet: View {
                 title: working ?? "Invite someone",
                 systemImage: working == nil ? "person.badge.plus" : nil
             ) {
+                // Tapping while it works must not stack a second picker.
                 guard working == nil else { return }
                 withAnimation(.plSnap) { problem = nil }
                 pickingContact = true
@@ -979,7 +984,13 @@ struct AddMemberSheet: View {
         defer { withAnimation(.plSnap) { working = nil } }
         print("PLATED INVITE: preparing for \(who) at \(phone ?? "no number")")
 
-        let outcome = await Seats.prepareInvite(phone: phone, email: nil, hostName: userFirstName)
+        // CloudKit can sit forever on a bad network. A spinner that never
+        // resolves is the same experience as a button that does nothing, so
+        // give it a deadline and say so when it passes.
+        let outcome = await withTimeout(seconds: 20) {
+            await Seats.prepareInvite(phone: phone, email: nil, hostName: userFirstName)
+        } ?? .noCloud
+
         switch outcome {
         case .ready(let url):
             print("PLATED INVITE: link ready — opening the composer")
@@ -1017,6 +1028,22 @@ struct AddMemberSheet: View {
 
     private func firstWord(_ who: String) -> String {
         who.split(separator: " ").first.map(String.init) ?? who
+    }
+
+    /// Whichever finishes first: the work, or the clock.
+    private func withTimeout<T: Sendable>(
+        seconds: Double, _ work: @escaping @Sendable () async -> T
+    ) async -> T? {
+        await withTaskGroup(of: T?.self) { group in
+            group.addTask { await work() }
+            group.addTask {
+                try? await Task.sleep(for: .seconds(seconds))
+                return nil
+            }
+            let first = await group.next() ?? nil
+            group.cancelAll()
+            return first
+        }
     }
 
     private func roleChip(_ value: String, _ label: String) -> some View {

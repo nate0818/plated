@@ -228,7 +228,12 @@ struct ContactsView: View {
                 else { return }
                 Haptic.plate()
                 withAnimation(.plPop) { candidates[index].seated = true }
-                pendingSeatsRaw = candidates.filter(\.seated).map(\.name).joined(separator: "\n")
+                // A real seat, not a name in a string only one sheet could
+                // read. Onboarding used to invite three people and hand you
+                // a household of one.
+                Seats.confirmSent(
+                    name: target.name, phone: target.phone, email: nil, in: context
+                )
             }
             .ignoresSafeArea()
         }

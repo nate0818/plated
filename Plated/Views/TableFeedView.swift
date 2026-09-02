@@ -49,8 +49,10 @@ struct TableFeedView: View {
                 .map(\.authorName)
                 .filter { !knownNames.contains($0) && !knownNames.contains(String($0.split(separator: " ").first ?? "")) }
         )
-        let pending = pendingSeatsRaw.split(separator: "\n").filter { !$0.isEmpty }.count
-        return max(members.count + guests.count + pending, 1)
+        // Members already include everyone invited or joined — the old sum
+        // double-counted pending ghosts while omitting people who had
+        // actually accepted.
+        return max(members.count + guests.count, 1)
     }
 
     /// Pull to refresh. `@Query` is live, so anything CloudKit has already
