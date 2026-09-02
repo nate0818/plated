@@ -44,6 +44,17 @@ final class ForecastProvider: NSObject {
         isLoading = true
         defer { isLoading = false }
 
+        #if DEBUG
+        // WeatherKit needs the provisioned entitlement and a real fix, so the
+        // day column is simply blank in the simulator. This seeds a plausible
+        // week so the layout can be seen and reviewed without a device.
+        if ProcessInfo.processInfo.arguments.contains("-plated-fake-weather") {
+            dailyForecasts = Self.sampleWeek(days: days)
+            lastError = nil
+            return
+        }
+        #endif
+
         do {
             let location = try await currentLocation()
             let forecast = try await weather.weather(for: location, including: .daily)
@@ -77,6 +88,40 @@ final class ForecastProvider: NSObject {
             print("PLATED WEATHER: refresh failed — \(error)")
         }
     }
+
+    #if DEBUG
+    /// Deterministic stand-in forecast behind `-plated-fake-weather`.
+    private static func sampleWeek(days: Int) -> [DayForecast] {
+        let pattern: [(high: Double, low: Double, precip: Double, text: String, symbol: String)] = [
+            (78, 61, 0.05, "Mostly Clear", "sun.max"),
+            (72, 58, 0.10, "Partly Cloudy", "cloud.sun"),
+            (64, 52, 0.60, "Rain", "cloud.rain"),
+            (59, 47, 0.20, "Cloudy", "cloud"),
+            (85, 66, 0.00, "Clear", "sun.max"),
+            (69, 55, 0.35, "Drizzle", "cloud.drizzle"),
+            (52, 41, 0.15, "Windy", "wind")
+        ]
+        let start = Date().startOfDay
+        return (0..<max(0, days)).compactMap { offset in
+            guard let date = Calendar.current.date(byAdding: .day, value: offset, to: start)
+            else { return nil }
+            let sample = pattern[offset % pattern.count]
+            return DayForecast(
+                date: date,
+                highF: sample.high,
+                lowF: sample.low,
+                precipitationChance: sample.precip,
+                conditionDescription: sample.text,
+                symbolName: sample.symbol,
+                mood: WeatherMood.from(
+                    highF: sample.high,
+                    precipitationChance: sample.precip,
+                    isClear: sample.symbol.hasPrefix("sun")
+                )
+            )
+        }
+    }
+    #endif
 
     func forecast(for date: Date) -> DayForecast? {
         let day = date.startOfDay
