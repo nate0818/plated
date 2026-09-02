@@ -11,6 +11,7 @@ struct DiscoverView: View {
     ) private var posts: [TablePost]
 
     @State private var query = ""
+    @FocusState private var searchFocused: Bool
     @State private var selected: TablePost?
 
     private var filtered: [TablePost] {
@@ -54,6 +55,7 @@ struct DiscoverView: View {
                     .foregroundStyle(Color.ink)
                     .tint(Color.tomato)
                     .autocorrectionDisabled()
+                    .focused($searchFocused)
                 if !query.isEmpty {
                     Button {
                         query = ""
@@ -71,6 +73,11 @@ struct DiscoverView: View {
             .frame(height: 48)
             .background(Color.chipFill, in: Capsule())
             .overlay(Capsule().strokeBorder(Color.navHairline))
+            // The pill is filled, so it was hit-testable — and tapping it
+            // anywhere but the ~20pt text line still did nothing, because
+            // nothing raised the keyboard. A surface that swallows a tap
+            // without answering it is worse than one that lets it through.
+            .plTapToFocus(radius: 24) { searchFocused = true }
             .padding(.horizontal, 24)
             .padding(.top, 14)
 

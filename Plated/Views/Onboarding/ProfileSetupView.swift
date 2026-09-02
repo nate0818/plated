@@ -155,6 +155,9 @@ struct ProfileSetupView: View {
         .frame(maxWidth: .infinity)
         .frame(minHeight: 46)
         .overlay(Capsule().strokeBorder(Color.hairline, lineWidth: 1.5))
+        // A stroked capsule is a ring: without this the 46pt pill was
+        // tappable only across its letters. One line, both pills.
+        .contentShape(Capsule())
     }
 
     private func finish() {

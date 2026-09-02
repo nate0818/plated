@@ -153,6 +153,7 @@ struct TableSeatsSheet: View {
                                 .frame(maxWidth: .infinity)
                                 .frame(minHeight: 48)
                                 .overlay(Capsule().strokeBorder(Color.hairline, lineWidth: 1.5))
+            .contentShape(Capsule())
                         }
                         .buttonStyle(.pressable)
                     }
@@ -430,6 +431,7 @@ struct TableSeatsSheet: View {
                 .frame(maxWidth: .infinity)
                 .frame(minHeight: 48)
                 .overlay(Capsule().strokeBorder(Color.hairline, lineWidth: 1.5))
+            .contentShape(Capsule())
             }
             }
 

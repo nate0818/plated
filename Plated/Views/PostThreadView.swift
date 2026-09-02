@@ -86,9 +86,19 @@ struct PostThreadView: View {
                                 Button {
                                     openProfile(name)
                                 } label: {
+                                    // The whole target was the glyph box:
+                                    // about 22 by 14 points for a short
+                                    // name. It is a chip inside a 44pt
+                                    // frame now, the same two-frame shape
+                                    // the Save pill above it uses.
                                     Text("@\(name)")
                                         .plType(.micro)
                                         .foregroundStyle(Color.ink)
+                                        .padding(.horizontal, 10)
+                                        .frame(minHeight: 30)
+                                        .overlay(Capsule().strokeBorder(Color.hairline))
+                                        .frame(minHeight: 44)
+                                        .contentShape(Capsule())
                                 }
                                 .buttonStyle(.pressable)
                             }

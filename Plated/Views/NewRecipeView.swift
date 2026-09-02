@@ -318,6 +318,12 @@ struct RecipeEditorView: View {
                     Capsule().strokeBorder(Color.hairline)
                 }
             }
+            // The drawn capsule stays 38 so these match the identical chips
+            // in the cookbook filter; the TARGET goes outside it. An
+            // unselected chip is a stroked ring with nothing behind it, so
+            // without this the tap landed on the glyphs alone.
+            .frame(minHeight: 44)
+            .contentShape(Capsule())
         }
         .buttonStyle(.pressable)
     }

@@ -533,6 +533,12 @@ struct RecipeFilterSheet: View {
                     .padding(.horizontal, 14)
                     .frame(height: 46)
                     .overlay(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous).strokeBorder(Color.hairline))
+                    // A 46pt well whose tap target was the ~20pt text line
+                    // inside it: the padding, the glyph and the bands above
+                    // and below all swallowed the tap. `searchFocused` was
+                    // declared and bound here and never once assigned, so
+                    // nothing outside the text could raise the keyboard.
+                    .plTapToFocus { searchFocused = true }
 
                     chipGroup("Meal", options: RecipeMealType.allCases, selection: $filter.mealType) { $0.rawValue }
 

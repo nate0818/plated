@@ -1085,6 +1085,12 @@ struct AddMemberSheet: View {
                         Capsule().strokeBorder(Color.hairline)
                     }
                 }
+                // Only the SELECTED chip was tappable. A filled capsule hit
+                // tests; a stroked one hit tests its ring and nothing else,
+                // so the two chips a person actually needs to reach were the
+                // two that ignored them.
+                .frame(minHeight: 44)
+                .contentShape(Capsule())
         }
         .buttonStyle(.pressable)
         .accessibilityAddTraits(active ? .isSelected : [])
