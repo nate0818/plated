@@ -5,10 +5,13 @@ enum AppTab: String, CaseIterable {
     case week, table, cookbook, home
 }
 
-/// What the + can put into the world. Instagram asks before it assumes;
-/// so do we.
+/// What the + can put into the world: two things, because there are two.
+/// A recipe arrives however it arrives — pasted, scanned, photographed,
+/// typed — and that is one door, not several; the import sheet already
+/// holds every way in. Asking the table went back to the plan, where the
+/// question has a night attached (see PlanNightSheet).
 enum CreateKind: String, Identifiable {
-    case recipe, pasteRecipe, tablePost, ask
+    case tablePost, recipe
     var id: String { rawValue }
 }
 
@@ -50,10 +53,13 @@ struct MainShellView: View {
     ]
     #endif
     @State private var createPresented = false
-    /// The pick made inside the menu; presented only after the menu is
-    /// fully down — two sheets can't stand on the same view at once.
-    @State private var createChoice: CreateKind?
-    @State private var activeCreate: CreateKind?
+    /// Screenshot flags open a composer without passing through the menu;
+    /// the flow starts there instead of at the rows. Nil for a real tap.
+    @State private var createStart: CreateKind?
+    /// Asking left the + for the plan, where the question has a night. The
+    /// screenshot flag still needs a way in, so it opens the composer
+    /// straight off the shell rather than restoring the row.
+    @State private var askPresented = false
     /// A widget asked for the grocery list; the week picks it up on arrival.
     @State private var groceryRequested = false
     /// Guards sample seeding so a slow CloudKit first-import can never race
@@ -87,9 +93,10 @@ struct MainShellView: View {
 
             if ProngsbyFeature.isEnabled, !perchVisibility.isHidden {
                 ProngsbyPerch(session: prongsbySession) {
-                    // SwiftUI stands up one sheet at a time; the create
-                    // hand-off already owns a two-step, so don't race it.
-                    guard !createPresented, activeCreate == nil else { return }
+                    // SwiftUI stands up one sheet at a time. The create
+                    // flow is a single presentation now, so this is just
+                    // "is a sheet already up".
+                    guard !createPresented, !askPresented else { return }
                     prongsbyPresented = true
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
@@ -125,31 +132,14 @@ struct MainShellView: View {
             Haptic.select()
             withAnimation(.plSnap) { selection = previous }
         }
-        .sheet(isPresented: $createPresented, onDismiss: {
-            if let choice = createChoice {
-                createChoice = nil
-                activeCreate = choice
-            }
-        }) {
-            CreateMenuSheet { choice in
-                createChoice = choice
-                createPresented = false
-            }
+        .sheet(isPresented: $createPresented, onDismiss: { createStart = nil }) {
+            CreateFlowSheet(start: createStart)
+        }
+        .sheet(isPresented: $askPresented) {
+            AskComposerSheet(date: Calendar.current.startOfDay(for: .now))
         }
         .sheet(isPresented: $prongsbyPresented) {
             ProngsbyView(session: prongsbySession)
-        }
-        .sheet(item: $activeCreate) { kind in
-            switch kind {
-            case .recipe:
-                RecipeEditorView()
-            case .tablePost:
-                TableComposerSheet()
-            case .pasteRecipe:
-                RecipeImportSheet()
-            case .ask:
-                AskComposerSheet(date: Calendar.current.startOfDay(for: .now))
-            }
         }
         .onOpenURL { url in
             guard let destination = DeepLink.destination(for: url) else { return }
@@ -292,13 +282,15 @@ struct MainShellView: View {
                 createPresented = true
             }
             if LaunchFlags.consume("-plated-open-table-post") {
-                activeCreate = .tablePost
+                createStart = .tablePost
+                createPresented = true
             }
             if LaunchFlags.consume("-plated-open-recipe") {
-                activeCreate = .recipe
+                createStart = .recipe
+                createPresented = true
             }
             if LaunchFlags.consume("-plated-open-ask") {
-                activeCreate = .ask
+                askPresented = true
             }
             // Prongsby has been a pushed page and a tab; he is a sheet off
             // the perch now. The flag keeps its name and still opens him.
@@ -414,75 +406,64 @@ struct PlateTabBar: View {
     }
 }
 
-/// The + asks before it assumes — a recipe for the cookbook, a plated
-/// moment for the Table, or an open ask. Instagram's create menu, our
-/// register: three quiet rows, no color until the choice.
+/// The + asks before it assumes — a plated moment for the Table, or a dish
+/// for the cookbook. Two rows, because those are the two things there are
+/// to add: pasting a recipe and writing one out are ways of adding a
+/// recipe, not separate things to add, and the import sheet already offers
+/// every one of them. No color until the choice; the first row carries
+/// weight instead, because posting is what the + is mostly reached for.
 struct CreateMenuSheet: View {
     let onChoose: (CreateKind) -> Void
 
     var body: some View {
         VStack(spacing: 0) {
-            VStack(spacing: 2) {
-                MicroLabel("Create")
-                Text("What are you adding?")
-                    .font(.gabarito(22, .semibold))
-                    .foregroundStyle(Color.ink)
-            }
-            .padding(.top, 22)
-            .padding(.bottom, 16)
+            Text("What are you adding?")
+                .font(.gabarito(22, .semibold))
+                .foregroundStyle(Color.ink)
+                .padding(.top, 26)
+                .padding(.bottom, 18)
 
             // Large type outgrows the fixed detent — the rows scroll, and
             // the grabber offers the full-height detent as a way out.
             ScrollView(showsIndicators: false) {
-                VStack(spacing: 8) {
+                VStack(spacing: 10) {
                     row(
-                        .tablePost, icon: "camera",
+                        .tablePost, icon: "camera", weighted: true,
                         title: "Post to the Table",
                         detail: "A photo of what you just cooked"
                     )
                     row(
                         .recipe, icon: "book.closed",
-                        title: "Recipe",
-                        detail: "A dish for the cookbook"
-                    )
-                    // The empty cookbook offers this too, but that state
-                    // disappears the moment there's one recipe in it — and
-                    // pasting the second is exactly as useful as the first.
-                    row(
-                        .pasteRecipe, icon: "doc.on.clipboard",
-                        title: "Paste a recipe",
-                        detail: "From a website, a note, or a text"
-                    )
-                    row(
-                        .ask, icon: "hand.raised",
-                        title: "Ask the table",
-                        detail: "A question or a poll. What should we plate?"
+                        title: "Add a recipe",
+                        detail: "Paste it, scan it, or write it out"
                     )
                 }
                 .padding(.horizontal, 24)
-                .padding(.bottom, 16)
+                .padding(.bottom, 20)
             }
         }
-        .presentationDetents([.height(330), .large])
+        .presentationDetents([.height(210), .large])
         .presentationDragIndicator(.visible)
         .presentationBackground(Color.canvas)
         .presentationCornerRadius(Radius.sheet)
     }
 
-    private func row(_ kind: CreateKind, icon: String, title: String, detail: String) -> some View {
+    /// No circle around the glyph and no chevron beside it. The circle was
+    /// a stroke drawn around a stroke, and a chevron that appears on every
+    /// row says nothing — it also promised a push this sheet never made.
+    private func row(
+        _ kind: CreateKind, icon: String, weighted: Bool = false,
+        title: String, detail: String
+    ) -> some View {
         Button {
             Haptic.tap()
             onChoose(kind)
         } label: {
-            HStack(spacing: 12) {
-                Circle()
-                    .strokeBorder(Color.hairline, lineWidth: 1.5)
-                    .frame(width: 42, height: 42)
-                    .overlay {
-                        Image(systemName: icon)
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundStyle(Color.ink)
-                    }
+            HStack(spacing: 14) {
+                Image(systemName: icon)
+                    .font(.system(size: 19, weight: .semibold))
+                    .foregroundStyle(Color.ink)
+                    .frame(width: 26)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
                         .font(.jakarta(15, .bold))
@@ -491,16 +472,48 @@ struct CreateMenuSheet: View {
                         .font(.jakarta(12, .medium))
                         .foregroundStyle(Color.inkSecondary)
                 }
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(Color.inkFaint)
+                Spacer(minLength: 0)
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 11)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
+            .background {
+                RoundedRectangle(cornerRadius: Radius.card)
+                    .fill(weighted ? Color.fill : Color.clear)
+            }
             .overlay(RoundedRectangle(cornerRadius: Radius.card).strokeBorder(Color.hairline))
             .contentShape(RoundedRectangle(cornerRadius: Radius.card))
         }
         .buttonStyle(.pressable)
+    }
+}
+
+/// One sheet, not two. Choosing used to lower the menu and wait for
+/// `onDismiss` to raise the composer, because two sheets can't stand on
+/// the same view at once — two full sheet animations to perform one
+/// action, with a beat of nothing in between. The composer replaces the
+/// menu inside the same presentation instead: one animation, and a
+/// composer's own `dismiss()` still closes the whole thing rather than
+/// walking back to a menu nobody wants to see again.
+struct CreateFlowSheet: View {
+    /// Non-nil skips the menu and opens that composer directly.
+    init(start: CreateKind? = nil) {
+        _kind = State(initialValue: start)
+    }
+
+    @State private var kind: CreateKind?
+
+    var body: some View {
+        if let kind {
+            switch kind {
+            case .tablePost:
+                TableComposerSheet()
+            case .recipe:
+                RecipeImportSheet()
+            }
+        } else {
+            CreateMenuSheet { chosen in
+                withAnimation(.plSnap) { kind = chosen }
+            }
+        }
     }
 }

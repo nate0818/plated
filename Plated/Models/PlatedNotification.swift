@@ -51,7 +51,7 @@ enum PlatedNotificationKind: String, Codable, CaseIterable {
         case .prongsbyReplied: return "fork.knife"
         case .commentAdded: return "bubble.right"
         case .recipeAdded: return "book.closed"
-        case .askPosted: return "hand.raised"
+        case .askPosted: return "bubble.and.pencil"
         case .general: return "bell"
         }
     }

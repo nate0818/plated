@@ -23,6 +23,10 @@ struct RecipeImportSheet: View {
     @State private var readFailed = false
     @State private var nothingToPaste = false
     @State private var scannerShown = false
+    @State private var editorShown = false
+    /// Set by the editor before it closes, so the import sheet can leave
+    /// with it instead of reappearing behind a finished recipe.
+    @State private var savedInEditor = false
     @State private var photoItem: PhotosPickerItem?
     @FocusState private var editing: Bool
     @FocusState private var namingDish: Bool
@@ -58,6 +62,11 @@ struct RecipeImportSheet: View {
                 onCancel: { scannerShown = false }
             )
             .ignoresSafeArea()
+        }
+        .sheet(isPresented: $editorShown, onDismiss: {
+            if savedInEditor { dismiss() }
+        }) {
+            RecipeEditorView { _ in savedInEditor = true }
         }
         .onChange(of: photoItem) { _, item in
             guard let item else { return }
@@ -126,7 +135,7 @@ struct RecipeImportSheet: View {
                     }
                 }
                 if DocumentScanner.isAvailable {
-                    ghostButton("Scan", icon: "camera") { scannerShown = true }
+                    ghostButton("Scan", icon: "doc.viewfinder") { scannerShown = true }
                 }
                 PhotosPicker(selection: $photoItem, matching: .images) {
                     ghostLabel("Photo", icon: "photo")
@@ -152,6 +161,23 @@ struct RecipeImportSheet: View {
             .buttonStyle(.pressable)
             .disabled(raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || reading)
             .opacity(raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0.5 : 1)
+
+            // The last way in. It used to be its own row in the + menu,
+            // sitting beside "Paste a recipe" — which asked people to pick
+            // how they were adding a recipe before they'd picked adding
+            // one. It belongs here, next to paste and scan and photo, as
+            // one more way to fill the same cookbook.
+            Button {
+                Haptic.tap()
+                editorShown = true
+            } label: {
+                Text("Write it out yourself")
+                    .font(.jakarta(13, .bold))
+                    .foregroundStyle(Color.ink)
+                    .frame(maxWidth: .infinity)
+                    .frame(minHeight: 44)
+            }
+            .buttonStyle(.pressable)
 
             Text("A card, a cookbook page, your grandmother's handwriting. Scan it and we'll read it. Nothing leaves your phone.")
                 .font(.jakarta(11, .medium))
