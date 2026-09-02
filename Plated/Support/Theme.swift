@@ -356,6 +356,20 @@ extension View {
     }
 }
 
+// MARK: - Zoom transitions
+
+/// Stable identities for zoom transitions whose source is not a model
+/// object — a masthead avatar, a person row. Anything backed by SwiftData
+/// uses its own `persistentModelID` instead, which is already stable and
+/// already unique.
+enum ZoomID: Hashable {
+    /// The masthead avatar that opens your own profile.
+    case host
+    /// A row or avatar that opens somebody's profile. Keyed on the name,
+    /// which `Seats.isTaken` already keeps unique at one table.
+    case person(String)
+}
+
 // MARK: - Shared atoms
 
 /// The tracked micro-label above titles: "AUGUST 21–27", "WHO COOKS WHEN".

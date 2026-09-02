@@ -32,6 +32,8 @@ struct TableFeedView: View {
     @State private var composerShown = false
     @State private var editingSave: TablePost?
     @State private var savedToast: String?
+    /// The post you tapped is the post that opens. See CookbookView.
+    @Namespace private var zoom
     @State private var toastToken = 0
     @State private var discoverPresented = false
     @State private var activityShown = false
@@ -195,11 +197,16 @@ struct TableFeedView: View {
                             Divider().overlay(Color.hairlineSoft)
                         }
                         ForEach(shownPosts, id: \.persistentModelID) { post in
-                            if post.kind == "ask" {
-                                askCard(post)
-                            } else {
-                                postCard(post)
+                            Group {
+                                if post.kind == "ask" {
+                                    askCard(post)
+                                } else {
+                                    postCard(post)
+                                }
                             }
+                            // Both card kinds are doors to the same thread,
+                            // so the source sits above the branch.
+                            .matchedTransitionSource(id: post.persistentModelID, in: zoom)
                             Divider().overlay(Color.hairlineSoft)
                         }
                         if shownPosts.isEmpty {
@@ -246,6 +253,7 @@ struct TableFeedView: View {
             .sheet(isPresented: $composerShown) { TableComposerSheet() }
             .navigationDestination(item: $threadPost) { post in
                 PostThreadView(post: post) { beginSave($0) }
+                    .navigationTransition(.zoom(sourceID: post.persistentModelID, in: zoom))
             }
             .navigationDestination(item: $personShown) { person in
                 PersonProfileView(personName: person.name, colorHex: person.colorHex, memberID: person.memberID)
@@ -560,34 +568,31 @@ struct TableFeedView: View {
                 // beside the byline where every feed ever built puts
                 // follow and more. Same row as the plate and the
                 // comments, trailing edge, the way a bookmark sits.
-                if isSaved(post) {
-                    // A receipt, not a button.
+                // One control in both states, not two. An `if/else` swaps
+                // SwiftUI's identity, so the bookmark was torn down and
+                // rebuilt and no transition could survive it. It also left
+                // a saved dish with a dead-looking label where a control
+                // had been — `beginSave` already answers a second tap with
+                // "Already in your cookbook", which is a better reply than
+                // nothing happening.
+                let saved = isSaved(post)
+                Button {
+                    beginSave(post)
+                } label: {
                     HStack(spacing: 5) {
-                        Image(systemName: "bookmark.fill")
+                        Image(systemName: saved ? "bookmark.fill" : "bookmark")
                             .font(.system(size: 14, weight: .semibold))
-                        Text("Saved")
+                            .contentTransition(.symbolEffect(.replace.magic(fallback: .replace.downUp)))
+                        Text(saved ? "Saved" : "Save")
                             .plType(.footnote, .bold)
                     }
                     .foregroundStyle(Color.inkSecondary)
                     .frame(minHeight: 44)
-                    .accessibilityLabel("Already in your cookbook")
-                } else {
-                    Button {
-                        beginSave(post)
-                    } label: {
-                        HStack(spacing: 5) {
-                            Image(systemName: "bookmark")
-                                .font(.system(size: 14, weight: .semibold))
-                            Text("Save")
-                                .plType(.footnote, .bold)
-                        }
-                        .foregroundStyle(Color.inkSecondary)
-                        .frame(minHeight: 44)
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.pressable)
-                    .accessibilityHint("Opens the recipe so you can make it yours")
+                    .contentShape(Rectangle())
                 }
+                .buttonStyle(.pressable)
+                .accessibilityLabel(saved ? "Saved to your cookbook" : "Save")
+                .accessibilityHint(saved ? "" : "Opens the recipe so you can make it yours")
             }
             .padding(.top, 10)
             .animation(.plSnap, value: isSaved(post))

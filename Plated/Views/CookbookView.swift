@@ -104,6 +104,11 @@ struct CookbookView: View {
     @State private var plating: Recipe?
     @State private var editing: Recipe?
     @State private var pendingDelete: Recipe?
+    /// The dish you tapped is the dish that opens. Without a matched source
+    /// the recipe page slid in from the right with no relationship to the
+    /// plate under your finger, which is the single loudest way an app
+    /// reads as a stack of screens rather than one place.
+    @Namespace private var zoom
 
     private var shown: [Recipe] { filter.apply(to: recipes) }
 
@@ -250,6 +255,7 @@ struct CookbookView: View {
             .background(Color.canvas)
             .navigationDestination(item: $selected) { recipe in
                 RecipeDetailView(recipe: recipe)
+                    .navigationTransition(.zoom(sourceID: recipe.persistentModelID, in: zoom))
             }
             .navigationDestination(isPresented: $activityShown) {
                 NotificationsView()
@@ -401,6 +407,7 @@ struct CookbookView: View {
             }
         }
         .buttonStyle(.pressable)
+        .matchedTransitionSource(id: recipe.persistentModelID, in: zoom)
         .contextMenu {
             Button {
                 Haptic.plate()
@@ -887,12 +894,11 @@ struct RecipeDetailView: View {
                             .accessibilityLabel(recipe.isFavorite ? "Remove from favorites" : "Add to favorites")
                             .font(.system(size: 14, weight: .semibold))
                             .foregroundStyle(recipe.isFavorite ? Color.tomato : Color.ink)
-                            // The fill pours in. It does NOT thump: an
-                            // icon that performs its own state change is
-                            // the same note as the tab bounce and the perch,
-                            // and we are done playing it. The color carries
-                            // the meaning, the haptic carries the feedback.
-                            .contentTransition(.symbolEffect(.replace))
+                            // The fill pours in. It does NOT thump: a
+                            // symbol may morph into its own opposite, which
+                            // is the state, and may not perform a flourish
+                            // about the tap, which is not. See DESIGN.md.
+                            .contentTransition(.symbolEffect(.replace.magic(fallback: .replace.downUp)))
                     }
                     .frame(minWidth: 44, minHeight: 44)
                     .contentShape(Rectangle())
@@ -1044,8 +1050,23 @@ struct RecipeDetailView: View {
             if let cook = meal.cook {
                 parts.append(cook.isOwner ? "You cook" : "\(cook.name) cooks")
             }
+        } else if let next = nextPlannedNight {
+            // Opened from the cookbook, so "Plan it" is still the right
+            // offer — you may well want it twice. But the page said nothing
+            // about the night this dish is already cooking on, which is the
+            // one fact a reader standing here would most want.
+            parts.append(platedLine(next))
         }
         return parts.joined(separator: " · ")
+    }
+
+    /// The soonest night this recipe is already plated on, today onward.
+    /// Nights that have been and gone are history, not a heads-up.
+    private var nextPlannedNight: PlannedMeal? {
+        let today = Calendar.current.startOfDay(for: .now)
+        return (recipe.plannedMeals ?? [])
+            .filter { $0.date >= today }
+            .min { $0.date < $1.date }
     }
 
     private func platedLine(_ meal: PlannedMeal) -> String {

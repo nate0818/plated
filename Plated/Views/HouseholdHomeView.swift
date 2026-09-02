@@ -38,6 +38,12 @@ struct HouseholdHomeView: View {
     /// asynchronously (the launch harness does exactly that) pops an
     /// isPresented destination straight back off.
     @State private var pushed: HomeDestination?
+    /// The face you tapped is the face that opens. See CookbookView.
+    @Namespace private var zoom
+    /// Which door was used. The owner is on this screen twice — in the
+    /// masthead and in People — and two sources cannot share one id, so
+    /// the tap records which one it came through.
+    @State private var personDoor: ZoomID = .host
     @State private var personShown: PersonRef?
     @State private var dmPeer: String?
     @State private var swipedMember: PersistentIdentifier?
@@ -90,6 +96,7 @@ struct HouseholdHomeView: View {
                 }
                 .navigationDestination(item: $personShown) { person in
                     PersonProfileView(personName: person.name, colorHex: person.colorHex, memberID: person.memberID)
+                        .navigationTransition(.zoom(sourceID: personDoor, in: zoom))
                 }
                 .toolbar(.hidden, for: .navigationBar)
                 .plSwipeBack()
@@ -319,6 +326,7 @@ struct HouseholdHomeView: View {
             }
             .buttonStyle(.pressable)
             .accessibilityLabel("Your profile")
+            .matchedTransitionSource(id: ZoomID.host, in: zoom)
     }
 
     private var ownerInitial: String {
@@ -326,6 +334,7 @@ struct HouseholdHomeView: View {
     }
 
     private func openOwnProfile() {
+        personDoor = .host
         personShown = PersonRef(
             name: owner?.name ?? "You",
             colorHex: owner?.colorHex ?? "",
@@ -535,11 +544,13 @@ struct HouseholdHomeView: View {
         .contentShape(Rectangle())
         .onTapGesture {
             Haptic.tap()
+            personDoor = .person(member.name)
             personShown = PersonRef(name: member.name, colorHex: member.colorHex, memberID: member.persistentModelID)
         }
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isButton)
         .accessibilityHint("Opens \(member.name)'s profile")
+        .matchedTransitionSource(id: ZoomID.person(member.name), in: zoom)
     }
 
     /// The head of table keeps their seat — you cannot swipe away the

@@ -29,6 +29,8 @@ struct DayDetailView: View {
     /// One row open at a time, same contract as the week's plan rows.
     @State private var swipedSlot: MealSlot?
     @State private var openMeal: PlannedMeal?
+    /// The dish you tapped is the dish that opens. See CookbookView.
+    @Namespace private var zoom
     @State private var events = DayEventsProvider.shared
     @State private var forecast = ForecastProvider.shared
 
@@ -87,6 +89,7 @@ struct DayDetailView: View {
             // which night it's cooking for.
             if let recipe = meal.recipe {
                 RecipeDetailView(recipe: recipe, meal: meal)
+                    .navigationTransition(.zoom(sourceID: meal.persistentModelID, in: zoom))
             }
         }
         .sheet(item: $planning) { plan in
@@ -288,7 +291,10 @@ struct DayDetailView: View {
                 }
             }
             Spacer(minLength: 8)
-            if let cook = meal.cook {
+            // Not you. The meta line already says "You cook"; your own face
+            // beside it is the same fact twice. Same rule as the week's
+            // rows — see WeekView.plannedRow.
+            if let cook = meal.cook, !cook.isOwner {
                 AvatarCircle(member: cook, size: 30)
             }
             if meal.recipe != nil {
@@ -319,6 +325,7 @@ struct DayDetailView: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isButton)
+        .matchedTransitionSource(id: meal.persistentModelID, in: zoom)
     }
 
     @ViewBuilder

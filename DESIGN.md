@@ -93,9 +93,18 @@ even when nobody can say why.
 ## Motion
 
 - Springs are `plPop`, `plSnap`, `plSettle`. Use them; don't hand-roll durations.
-- **An icon must never perform its own state change.** No bouncing tabs, no
-  spinning `+`, no symbol-effect thump on a heart. Colour carries the meaning and
-  the haptic carries the feedback.
+- **An icon may morph into its own opposite. It may never perform about a tap.**
+  Magic Replace is allowed exactly where a symbol swaps for its matched pair and
+  the swap *is* the state: `bookmark` to `bookmark.fill` on Save, `circle` to
+  `checkmark.circle.fill` on a vote, `heart` to `heart.fill` on a favourite.
+  Everything else stays banned: no bouncing tabs, no spinning `+`, no thump on a
+  plate tap. The test is whether the symbol is showing you what changed or
+  celebrating that you touched it. Colour still carries the meaning and the
+  haptic still carries the feedback.
+- A toggle must be **one view in both states**. An `if/else` around the two
+  symbols swaps SwiftUI's identity, the view is torn down and rebuilt, and no
+  transition can survive it — the animation silently does nothing and the code
+  looks correct.
 - Every animation respects Reduce Motion.
 - **Theatre is owed once.** The full launch opener runs 4.3 seconds and is
   right exactly once, on a person's first launch; after that it is a 0.65s
@@ -103,6 +112,24 @@ even when nobody can say why.
   on every launch has to earn its length every launch.
 - Haptics have meaning: `tap` for chrome, `select` for position changes, `plate`
   for something landing, `kiss` for the good thing, `warn` for a refusal.
+
+## Continuity
+
+**The thing you tapped is the thing that opens.** Every push into a detail
+view carries a `matchedTransitionSource` on the tile, row or face you touched
+and a `.navigationTransition(.zoom(sourceID:in:))` on the destination. A
+recipe page that slides in from the right with no relationship to the plate
+under your finger is the loudest single reason an app reads as a stack of
+screens rather than one place.
+
+- Model-backed sources key on `persistentModelID`. Anything else uses
+  `ZoomID` in Theme.swift, so ids stay a shared vocabulary rather than a
+  literal per file.
+- Two sources may not share one id in one namespace. Where a screen offers
+  two doors to the same destination (the owner is both the masthead face and
+  a row in People), the tap records which door it came through.
+- A source that has scrolled away falls back to a plain push on its own.
+  Nothing needs guarding.
 
 ## Copy
 

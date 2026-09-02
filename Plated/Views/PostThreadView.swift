@@ -277,6 +277,9 @@ struct PostThreadView: View {
                 Image(systemName: mine ? "checkmark.circle.fill" : "circle")
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(mine ? Color.basil : Color.inkFaint)
+                    // The tick is drawn into the ring you already voted
+                    // against, rather than one symbol cutting to another.
+                    .contentTransition(.symbolEffect(.replace.magic(fallback: .replace.downUp)))
                 Text(option)
                     .plType(.body, mine ? TypeWeight.bold : .semibold)
                     .foregroundStyle(Color.ink)

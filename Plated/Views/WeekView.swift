@@ -32,6 +32,9 @@ struct WeekView: View {
     @State private var swipedDay: Date?
     @State private var personShown: PersonRef?
     @State private var pushed: PlanDestination?
+    /// The night you tapped is the night that opens, and your own face is
+    /// the door to your own profile. See CookbookView for the reasoning.
+    @Namespace private var zoom
 
     enum PlanDestination: String, Identifiable {
         case activity
@@ -97,6 +100,7 @@ struct WeekView: View {
             .plSwipeBack()
             .navigationDestination(item: $personShown) { person in
                 PersonProfileView(personName: person.name, colorHex: person.colorHex, memberID: person.memberID)
+                    .navigationTransition(.zoom(sourceID: ZoomID.host, in: zoom))
             }
             .navigationDestination(item: $pushed) { destination in
                 switch destination {
@@ -105,6 +109,7 @@ struct WeekView: View {
             }
             .navigationDestination(item: $dayShown) { day in
                 DayDetailView(date: day, askTheTable: askTheTable)
+                    .navigationTransition(.zoom(sourceID: day, in: zoom))
             }
         }
         .sheet(isPresented: $groceryPresented) { GrocerySheet() }
@@ -254,6 +259,7 @@ struct WeekView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.pressable)
+            .matchedTransitionSource(id: ZoomID.host, in: zoom)
         }
     }
 
@@ -404,6 +410,7 @@ struct WeekView: View {
         }
         .scaleEffect(bounceDay == date ? 1.02 : (dropHoverDay == date ? 1.015 : 1))
         .animation(.plPop, value: bounceDay)
+        .matchedTransitionSource(id: date, in: zoom)
     }
 
     /// Two targets, deliberately. The dashed plate still plates dinner in one
@@ -497,6 +504,7 @@ struct WeekView: View {
             }
         }
         .scaleEffect(dropHoverDay == date ? 1.015 : 1)
+        .matchedTransitionSource(id: date, in: zoom)
     }
 
     /// Nights already gone. They stay on screen so the week keeps its real
