@@ -63,7 +63,10 @@ struct HouseholdStatsView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.dynamicTypeSize) private var typeSize
     @Query private var recipes: [Recipe]
-    @Query(filter: #Predicate<TablePost> { !$0.isDiscover }) private var posts: [TablePost]
+    // An author is the one thing every real post has. The empty-name
+    // rows are blanks the CloudKit mirror adopts (TablePost.isBlank),
+    // and counting them puts a dish on the board nobody cooked.
+    @Query(filter: #Predicate<TablePost> { !$0.isDiscover && !$0.authorName.isEmpty }) private var posts: [TablePost]
     @Query(sort: \HouseholdMember.createdAt) private var members: [HouseholdMember]
     @Query private var meals: [PlannedMeal]
 

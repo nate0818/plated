@@ -8,7 +8,10 @@ import Contacts
 struct TableSeatsSheet: View {
     @Environment(\.modelContext) private var context
     @Query(sort: \HouseholdMember.createdAt) private var members: [HouseholdMember]
-    @Query(filter: #Predicate<TablePost> { !$0.isDiscover }) private var posts: [TablePost]
+    // An author is the one thing every real post has. The empty-name
+    // rows are blanks the CloudKit mirror adopts (TablePost.isBlank),
+    // and counting them puts a dish on the board nobody cooked.
+    @Query(filter: #Predicate<TablePost> { !$0.isDiscover && !$0.authorName.isEmpty }) private var posts: [TablePost]
 
     @AppStorage("pendingSeats") private var pendingSeatsRaw = ""
     @AppStorage("userFirstName") private var userFirstName = ""

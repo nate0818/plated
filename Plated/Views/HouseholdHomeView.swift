@@ -10,7 +10,10 @@ import PhotosUI
 struct HouseholdHomeView: View {
     @Environment(\.modelContext) private var context
     @Query(sort: \HouseholdMember.createdAt) private var members: [HouseholdMember]
-    @Query(filter: #Predicate<TablePost> { !$0.isDiscover }) private var posts: [TablePost]
+    // An author is the one thing every real post has. The empty-name
+    // rows are blanks the CloudKit mirror adopts (TablePost.isBlank),
+    // and counting them puts a dish on the board nobody cooked.
+    @Query(filter: #Predicate<TablePost> { !$0.isDiscover && !$0.authorName.isEmpty }) private var posts: [TablePost]
     @Query private var meals: [PlannedMeal]
     // Oldest first — see PersonProfileView: the oldest row is the
     // household's one true profile when a sync race left more than one.
@@ -880,32 +883,7 @@ struct AddMemberSheet: View {
         .presentationDragIndicator(.visible)
         .presentationBackground(Color.canvas)
         .presentationCornerRadius(Radius.sheet)
-        .sheet(isPresented: $pickingContact) {
-            ContactPicker(
-                onPick: { contactName, phone in
-                    let target = InviteTarget(name: contactName, phone: phone)
-                    print("PLATED INVITE: picked \(contactName)")
-                    pickingContact = false
-                    // The picker dismisses itself, and SwiftUI often never
-                    // learns — so onDismiss can never fire and chaining off
-                    // it loses the composer silently. Wait out the
-                    // dismissal instead, then present.
-                    Task {
-                        try? await Task.sleep(for: .milliseconds(450))
-                        await beginInvite(target)
-                    }
-                },
-                onCancel: { pickingContact = false }
-            )
-            .ignoresSafeArea()
-        }
-        .sheet(item: $inviteTarget) { target in
-            InviteComposer(recipients: [target.phone].compactMap { $0 }, body: inviteBody) { sent in
-                inviteTarget = nil
-                Task { await finishInvite(target, sent: sent) }
-            }
-            .ignoresSafeArea()
-        }
+
     }
 
     /// The door that reaches a person.
@@ -918,7 +896,7 @@ struct AddMemberSheet: View {
                 // Tapping while it works must not stack a second picker.
                 guard working == nil else { return }
                 withAnimation(.plSnap) { problem = nil }
-                pickingContact = true
+                startInvite()
             }
             .disabled(working != nil || !InviteComposer.isAvailable)
             .opacity(working != nil ? 0.6 : (InviteComposer.isAvailable ? 1 : 0.4))
@@ -977,6 +955,37 @@ struct AddMemberSheet: View {
 
     /// Bind them to the share first. Nothing is created here — if this
     /// can't produce a working link, we say so and no seat appears.
+    /// Hand the whole picker → link → composer sequence to UIKit, which is
+    /// the only layer that can promise a presentation happens after the one
+    /// before it is genuinely gone. See `InviteFlow`.
+    private func startInvite() {
+        InviteFlow.run(
+            hostName: userFirstName,
+            prepare: { phone in
+                await withTimeout(seconds: 20) {
+                    await Seats.prepareInvite(phone: phone, email: nil, hostName: userFirstName)
+                } ?? .noCloud
+            }
+        ) { result in
+            switch result {
+            case .sent(let name, let phone):
+                Haptic.plate()
+                Seats.confirmSent(name: name, phone: phone, email: nil, in: context)
+                dismiss()
+            case .notSent(let name, _):
+                Haptic.warn()
+                withAnimation(.plSnap) {
+                    problem = "The message didn't send, so \(firstWord(name)) wasn't added. Try again."
+                }
+            case .noLink(_, let reason):
+                Haptic.warn()
+                withAnimation(.plSnap) { problem = reason }
+            case .cancelled:
+                break
+            }
+        }
+    }
+
     private func beginInvite(_ target: InviteTarget) async {
         let who = target.name
         let phone = target.phone

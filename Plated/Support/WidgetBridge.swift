@@ -174,8 +174,12 @@ enum WidgetBridge {
             predicate: #Predicate { !$0.isDiscover && $0.kind == "dish" },
             sortBy: [SortDescriptor(\TablePost.createdAt, order: .reverse)]
         )
-        descriptor.fetchLimit = 1
-        guard let post = (try? context.fetch(descriptor))?.first else { return (nil, nil) }
+        // Not 1: the newest row can be a blank the mirror adopted (see
+        // TablePost.isBlank), and the home screen is the last place that
+        // should show an empty card. Take the newest real one.
+        descriptor.fetchLimit = 8
+        guard let post = (try? context.fetch(descriptor))?.first(where: { !$0.isBlank })
+        else { return (nil, nil) }
         let card = Snapshot.TableCard(
             authorName: post.authorName,
             authorInitial: post.initials,

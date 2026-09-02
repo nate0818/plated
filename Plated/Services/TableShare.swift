@@ -28,7 +28,23 @@ enum TableShare {
 
     static let zoneName = "PlatedTable"
     private static let rootType = "Table"
-    private static let postType = "TablePost"
+    /// The record type a shared dish is written as. Deliberately NOT
+    /// "TablePost", and the difference is load-bearing.
+    ///
+    /// The SwiftData mirror syncs the same private database this zone
+    /// lives in, walks every zone it finds there, and adopts any record
+    /// whose type matches one of its own entity names. A record typed
+    /// "TablePost" therefore came back through the mirror as a TablePost
+    /// row with every field at its default — no author, no dish, no photo
+    /// — because the mirror reads `CD_`-prefixed fields and this record
+    /// carries none. That was the blank card in the feed. The root record
+    /// was never adopted for exactly the reason this rename works: no
+    /// entity is called "Table". The collision was the entity name, not
+    /// the zone.
+    private static let postType = "PlatedDish"
+    /// What `postType` used to be. Read, never written — tables shared
+    /// before the rename still carry it, and their dishes are real.
+    private static let legacyPostType = "TablePost"
 
     #if PLATED_CLOUDKIT
     private static var container: CKContainer { .default() }
@@ -299,7 +315,8 @@ enum TableShare {
                 )
                 for (_, result) in changes.modificationResultsByID {
                     guard let record = try? result.get().record,
-                          record.recordType == postType else { continue }
+                          record.recordType == postType
+                            || record.recordType == legacyPostType else { continue }
                     found.append(remotePost(from: record))
                 }
                 store(changes.changeToken, for: zone.zoneID)

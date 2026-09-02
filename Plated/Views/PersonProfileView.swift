@@ -20,7 +20,10 @@ struct PersonProfileView: View {
     @Environment(\.openURL) private var openURL
     @Environment(\.dismiss) private var dismiss
     @Query(sort: \HouseholdMember.createdAt) private var members: [HouseholdMember]
-    @Query(filter: #Predicate<TablePost> { !$0.isDiscover }, sort: \TablePost.createdAt, order: .reverse)
+    // An author is the one thing every real post has. The empty-name
+    // rows are blanks the CloudKit mirror adopts (TablePost.isBlank),
+    // and counting them puts a dish on the board nobody cooked.
+    @Query(filter: #Predicate<TablePost> { !$0.isDiscover && !$0.authorName.isEmpty }, sort: \TablePost.createdAt, order: .reverse)
     private var allPosts: [TablePost]
     @Query private var recipes: [Recipe]
     // Oldest first: two devices racing a first banner before sync merges

@@ -40,12 +40,18 @@ struct TableFeedView: View {
     @State private var pendingDelete: TablePost?
     @AppStorage("pendingSeats") private var pendingSeatsRaw = ""
 
+    /// Everything worth showing. A post with no author, no dish, no words
+    /// and no photo is not a post — see `TablePost.isBlank`. Filtered here
+    /// rather than in the `@Query` so the rule is stated once and every
+    /// reader of the feed gets it, counts included.
+    private var realPosts: [TablePost] { posts.filter { !$0.isBlank } }
+
     private var seatCount: Int {
         // "Sam Meadows" the author is "Sam" the household member — first
         // names bridge the two worlds until real user IDs exist.
         let knownNames = Set(members.map(\.name))
         let guests = Set(
-            posts.filter { $0.kind == "dish" }
+            realPosts.filter { $0.kind == "dish" }
                 .map(\.authorName)
                 .filter { !knownNames.contains($0) && !knownNames.contains(String($0.split(separator: " ").first ?? "")) }
         )
@@ -142,9 +148,9 @@ struct TableFeedView: View {
     }
 
     private var shownPosts: [TablePost] {
-        guard scope == .household else { return posts }
+        guard scope == .household else { return realPosts }
         let names = Set(members.map(\.name))
-        return posts.filter { names.contains($0.firstName) || names.contains($0.authorName) }
+        return realPosts.filter { names.contains($0.firstName) || names.contains($0.authorName) }
     }
 
     var body: some View {
@@ -287,7 +293,7 @@ struct TableFeedView: View {
                 seatsPresented = true
             }
             if LaunchFlags.consume("-plated-open-thread") {
-                threadPost = posts.first { $0.kind == "dish" }
+                threadPost = realPosts.first { $0.kind == "dish" }
             }
             #endif
         }
@@ -508,29 +514,6 @@ struct TableFeedView: View {
                 }
                 .buttonStyle(.pressable)
                 Spacer()
-                if isSaved(post) {
-                    // A receipt, not a button.
-                    HStack(spacing: 4) {
-                        Image(systemName: "checkmark")
-                            .font(.system(size: 11, weight: .bold))
-                        Text("Saved")
-                            .font(.jakarta(13, .bold))
-                    }
-                    .foregroundStyle(Color.inkFaint)
-                    .frame(minHeight: 44)
-                    .transition(.opacity)
-                    .accessibilityLabel("Already in your cookbook")
-                } else {
-                    Button {
-                        beginSave(post)
-                    } label: {
-                        Text("Save")
-                            .font(.jakarta(13, .bold))
-                            .foregroundStyle(Color.ink)
-                            .frame(minWidth: 44, minHeight: 44)
-                    }
-                    .buttonStyle(.pressable)
-                }
             }
             .padding(.bottom, 10)
 
@@ -575,8 +558,41 @@ struct TableFeedView: View {
                 }
                 .buttonStyle(.pressable)
                 Spacer()
+                // Save belongs with the things you do to a dish, not up
+                // beside the byline where every feed ever built puts
+                // follow and more. Same row as the plate and the
+                // comments, trailing edge, the way a bookmark sits.
+                if isSaved(post) {
+                    // A receipt, not a button.
+                    HStack(spacing: 5) {
+                        Image(systemName: "bookmark.fill")
+                            .font(.system(size: 14, weight: .semibold))
+                        Text("Saved")
+                            .font(.jakarta(13, .bold))
+                    }
+                    .foregroundStyle(Color.inkFaint)
+                    .frame(minHeight: 44)
+                    .accessibilityLabel("Already in your cookbook")
+                } else {
+                    Button {
+                        beginSave(post)
+                    } label: {
+                        HStack(spacing: 5) {
+                            Image(systemName: "bookmark")
+                                .font(.system(size: 14, weight: .semibold))
+                            Text("Save")
+                                .font(.jakarta(13, .bold))
+                        }
+                        .foregroundStyle(Color.inkSecondary)
+                        .frame(minHeight: 44)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.pressable)
+                    .accessibilityHint("Opens the recipe so you can make it yours")
+                }
             }
             .padding(.top, 10)
+            .animation(.plSnap, value: isSaved(post))
 
             // The composer led with "Name the dish" and then the card never
             // showed the name. What you named is what the table sees.

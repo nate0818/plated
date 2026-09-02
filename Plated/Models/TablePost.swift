@@ -64,6 +64,18 @@ final class TablePost {
         self.photoData = photoData
     }
 
+    /// A post with nobody behind it and nothing in it.
+    ///
+    /// Nothing a person can do makes one: the composer refuses to post
+    /// without a photo or a name, and every path through it stamps an
+    /// author. These arrive on their own — see `TableShare.postType` for
+    /// how — and they render as a card with a blank byline, no dish and
+    /// no words. The feed, the widget and every count skip them.
+    var isBlank: Bool {
+        authorName.isEmpty && dishTitle.isEmpty && caption.isEmpty
+            && photoData == nil && pollOptions.isEmpty
+    }
+
     var totalPlates: Int { plateCount + (platedByMe ? 1 : 0) }
 
     /// Ten plates from the table and the dish has officially made it.
