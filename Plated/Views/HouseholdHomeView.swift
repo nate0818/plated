@@ -539,6 +539,13 @@ struct HouseholdHomeView: View {
                 Text(dayChipLabel(member))
                     .plType(.caption, .bold)
                     .foregroundStyle(member.tone.tone)
+                    // One line. A status chip squeezed between a name and a
+                    // chevron has nowhere to reflow, and at accessibility
+                    // sizes "Sun + Mon" came apart into "Sun / + / Mo / n".
+                    // Same reason the cook grid beside it holds.
+                    .lineLimit(1)
+                    .fixedSize()
+                    .plChrome()
                     .padding(.horizontal, 12)
                     .frame(minHeight: 30)
                     .background(member.tone.tint, in: Capsule())
@@ -711,6 +718,16 @@ struct HouseholdHomeView: View {
                 Text(shortDay(weekday).uppercased())
                     .plType(.micro, .extraBold)
                     .foregroundStyle(isToday ? Color.tomato : Color.inkSecondary)
+                    // One line, always. Seven cells share the page width, so
+                    // a cell is about 44pt wide on a 393pt phone and 32 of
+                    // that is content. "MON" and "WED" are the two widest
+                    // labels, and at a large text size they were the two
+                    // that broke: "MO" over "N". Worse, a wrapped label made
+                    // its own cell wider and taller than the five beside it,
+                    // so the whole strip went ragged.
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+                    .fixedSize(horizontal: false, vertical: true)
                 // The seat swap animates — a new cook scales in rather than
                 // hard-cutting inside the spring.
                 ZStack {
@@ -728,6 +745,11 @@ struct HouseholdHomeView: View {
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 10)
+            // Seven fixed cells across one row: furniture, and it cannot
+            // reflow. This is the grid plChrome was written for and the one
+            // I did not apply it to. See VerticalAlignment.discCentre's
+            // neighbour in Theme.swift.
+            .plChrome()
             .background(isToday ? Color.todayTint : Color.canvas)
             .clipShape(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous))
             .overlay {
