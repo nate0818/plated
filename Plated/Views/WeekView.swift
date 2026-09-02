@@ -317,24 +317,12 @@ struct WeekView: View {
     private func plannedRow(_ meal: PlannedMeal, date: Date) -> some View {
         let today = Calendar.current.isDateInToday(date)
         let eatingOut = meal.recipe == nil && meal.customTitle.localizedCaseInsensitiveContains("eating out")
+        // The dish photo left this row: the date and its weather earned the
+        // width instead. The plate is still the first thing you see the
+        // moment you open the day.
         return SwipeRow(isOpen: swipeBinding(date), actions: [.remove { remove(on: date) }]) {
             HStack(spacing: 10) {
                 dateCard(date, dimmed: false)
-
-                if eatingOut {
-                    Circle()
-                        .strokeBorder(Color.hairline, lineWidth: 2)
-                        .frame(width: 52, height: 52)
-                        .overlay {
-                            Image(systemName: "fork.knife.circle")
-                                .font(.system(size: 22, weight: .medium))
-                                .foregroundStyle(Color.inkSecondary)
-                        }
-                } else {
-                    // Tonight's plate simmers — the one ambient mesh drift
-                    // per screen that DishView was built for.
-                    dishCircle(for: meal, simmering: today)
-                }
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(meal.title)
@@ -565,15 +553,15 @@ struct WeekView: View {
     /// doesn't make its row shorter than its neighbours.
     private func dateCard(_ date: Date, dimmed: Bool) -> some View {
         let today = Calendar.current.isDateInToday(date)
-        return VStack(spacing: 0) {
-            HStack(spacing: 3) {
+        return VStack(spacing: 1) {
+            HStack(spacing: 4) {
                 // Today is today whether or not the night is planned.
-                Text(date.formattedWeekday())
-                    .font(.jakarta(10, .semibold))
-                    .tracking(0.4)
+                Text(date.formattedWeekday().uppercased())
+                    .font(.jakarta(11, .bold))
+                    .tracking(0.8)
                     .foregroundStyle(today ? Color.tomato : Color.inkFaint)
                 if showCalendarEvents && events.hasEvent(on: date) {
-                    Circle().fill(Color.grape).frame(width: 4.5, height: 4.5)
+                    Circle().fill(Color.grape).frame(width: 5, height: 5)
                 }
             }
 
@@ -581,22 +569,23 @@ struct WeekView: View {
             // open night no longer reads as disabled — the dashed plate and
             // the faint copy carry the emptiness on their own.
             Text(date.formattedDayNumber())
-                .font(.gabarito(28, .medium))
+                .font(.gabarito(32, .medium))
                 .monospacedDigit()
                 .foregroundStyle(dimmed && !today ? Color.inkSecondary : Color.ink)
                 // Gabarito's line box leaves the numeral floating below the
                 // weekday; Apple sets them almost touching.
-                .padding(.top, -2)
+                .padding(.top, -3)
 
             // Weather always occupies its line, even when the forecast
-            // can't answer, so a day without one is not a shorter tile.
+            // can't answer, so a day without one is not a shorter card.
             Group {
                 if let day = forecast.forecast(for: date) {
-                    HStack(spacing: 2) {
+                    HStack(spacing: 4) {
                         Image(systemName: day.symbolName)
-                            .font(.system(size: 8.5, weight: .medium))
+                            .font(.system(size: 12, weight: .medium))
+                            .symbolRenderingMode(.hierarchical)
                         Text("\(Int(day.highF.rounded()))°")
-                            .font(.jakarta(9, .semibold))
+                            .font(.jakarta(12, .bold))
                             .monospacedDigit()
                     }
                     // inkFaint disappears into the tomato tint.
@@ -608,27 +597,26 @@ struct WeekView: View {
                     .accessibilityLabel("\(day.conditionDescription), high \(Int(day.highF.rounded())) degrees")
                 } else {
                     Text(" ")
-                        .font(.jakarta(9, .semibold))
+                        .font(.jakarta(12, .bold))
                         .accessibilityHidden(true)
                 }
             }
             .lineLimit(1)
             .minimumScaleFactor(0.8)
-            .padding(.top, 1)
+            .padding(.top, 2)
         }
-        // Padding and a floor, not a fixed height. The three lines add up
-        // to almost exactly 60pt, so on a device that renders type a hair
-        // larger than the simulator the temperature fell out of the bottom
-        // of the tile.
-        .padding(.vertical, 6)
-        .frame(width: 52)
-        .frame(minHeight: 62)
+        // The dish photo used to take this width. With it gone the date can
+        // be read at arm's length and the temperature has room to be a
+        // temperature rather than a footnote.
+        .padding(.vertical, 10)
+        .frame(width: 84)
+        .frame(minHeight: 76)
         .background {
-            RoundedRectangle(cornerRadius: 13, style: .continuous)
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .fill(today ? Color.tomatoTint : Color.cardFill)
         }
         .overlay {
-            RoundedRectangle(cornerRadius: 13, style: .continuous)
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .strokeBorder(today ? Color.tomato.opacity(0.16) : Color.hairline, lineWidth: 1)
         }
         .plTileShadow()

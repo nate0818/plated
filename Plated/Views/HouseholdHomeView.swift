@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import Contacts
 import PhotosUI
 
 /// Home — the household itself. Who sits here, what they have earned
@@ -744,57 +745,245 @@ struct HouseholdHomeView: View {
 
 /// New seat at the household table — name, role, and the next color around
 /// the rotation.
+/// Adding someone to the household, with the three doors that actually
+/// exist rather than the one that didn't.
+///
+/// **What was wrong.** This sheet asked for a name, offered three role
+/// chips, and inserted a local row. Nobody was contacted. The person
+/// appeared at the table having never been told they were invited to
+/// anything, and there was no way from here to reach them — the real
+/// invite lived on a different screen, behind the Table's avatar cluster,
+/// which is not where anybody looks for "add someone to the household".
+///
+/// **The three doors.** Someone already on Plated is one tap, no
+/// invitation needed. Someone in your contacts who isn't gets a real text
+/// with a real link. And a name typed by hand still works, because a
+/// six-year-old has no phone and still eats dinner — it is just no longer
+/// the only thing on offer, and it says what it is.
 struct AddMemberSheet: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
     @Query private var members: [HouseholdMember]
 
+    @AppStorage("pendingSeats") private var pendingSeatsRaw = ""
+    @AppStorage("userFirstName") private var userFirstName = ""
+
     @State private var name = ""
     @State private var role = "partner"
+    @State private var onPlated: [Directory.Match] = []
+    @State private var searching = false
+    @State private var pickingContact = false
+    @State private var inviteTarget: InviteTarget?
+    @State private var invite: Invitation.Ready?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Add to the household")
-                .font(.gabarito(19, .bold))
-                .foregroundStyle(Color.ink)
-                .frame(maxWidth: .infinity)
-                .padding(.top, 18)
+        ScrollView(showsIndicators: false) {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("Add to the household")
+                    .font(.gabarito(19, .bold))
+                    .foregroundStyle(Color.ink)
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, 18)
 
-            TextField("Their name", text: $name)
-                .font(.jakarta(16, .semibold))
-                .padding(14)
-                .overlay(RoundedRectangle(cornerRadius: Radius.chip).strokeBorder(Color.hairline))
-                .plTappableField()
+                alreadyOnPlated
+                inviteDoor
 
-            HStack(spacing: 8) {
-                roleChip("partner", "Partner")
-                roleChip("kid", "Kid")
-                roleChip("member", "Guest")
+                VStack(alignment: .leading, spacing: 10) {
+                    MicroLabel("Or add them by name")
+                    Text("For kids and anyone without a phone. They show up on the plan; there's nobody to text.")
+                        .font(.jakarta(12, .medium))
+                        .foregroundStyle(Color.inkFaint)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    TextField("Their name", text: $name)
+                        .font(.jakarta(16, .semibold))
+                        .padding(14)
+                        .overlay(RoundedRectangle(cornerRadius: Radius.chip).strokeBorder(Color.hairline))
+                        .plTappableField()
+
+                    HStack(spacing: 8) {
+                        roleChip("partner", "Partner")
+                        roleChip("kid", "Kid")
+                        roleChip("member", "Guest")
+                    }
+
+                    TomatoPillButton(title: "Set their place") {
+                        // A new seat at the table is a plate-weight moment.
+                        Haptic.plate()
+                        addMember(named: name.trimmingCharacters(in: .whitespaces))
+                        dismiss()
+                    }
+                    .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
+                    .opacity(name.trimmingCharacters(in: .whitespaces).isEmpty ? 0.4 : 1)
+                }
+                .padding(.top, 4)
             }
-
-            TomatoPillButton(title: "Set their place") {
-                // A new seat at the table is a plate-weight moment.
-                Haptic.plate()
-                let color = PersonTone.rotation[members.count % PersonTone.rotation.count]
-                let line = role == "partner" ? "Partner · plans & cooks"
-                    : role == "kid" ? "Kid · ideas & helping" : "Guest of the table"
-                context.insert(HouseholdMember(
-                    name: name.trimmingCharacters(in: .whitespaces),
-                    colorHex: color, role: role, roleLine: line
-                ))
-                dismiss()
-            }
-            .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
-            .opacity(name.trimmingCharacters(in: .whitespaces).isEmpty ? 0.4 : 1)
-            Spacer()
+            .padding(.horizontal, 24)
+            .padding(.bottom, 30)
         }
-        .padding(.horizontal, 24)
-        // A fixed height with no scroll clips "Set their place" off the
-        // bottom at accessibility text sizes, leaving no way to finish.
-        .presentationDetents([.height(320), .large])
+        .presentationDetents([.large])
         .presentationDragIndicator(.visible)
         .presentationBackground(Color.canvas)
         .presentationCornerRadius(Radius.sheet)
+        .task {
+            invite = await Invitation.prepare(hostName: userFirstName)
+            await findPeople()
+        }
+        .sheet(isPresented: $pickingContact) {
+            ContactPicker(
+                onPick: { contactName, phone in
+                    pickingContact = false
+                    inviteTarget = InviteTarget(name: contactName, phone: phone)
+                },
+                onCancel: { pickingContact = false }
+            )
+            .ignoresSafeArea()
+        }
+        .sheet(item: $inviteTarget) { target in
+            InviteComposer(
+                recipients: [target.phone].compactMap { $0 },
+                body: invite?.body ?? Invitation.body(hostName: userFirstName, link: nil)
+            ) { sent in
+                inviteTarget = nil
+                // A cancelled composer is not an invitation. Only a message
+                // that actually went earns the seat.
+                guard sent else { return }
+                Haptic.plate()
+                var seats = pendingSeatsRaw.split(separator: "\n").map(String.init)
+                if !seats.contains(target.name) { seats.append(target.name) }
+                pendingSeatsRaw = seats.joined(separator: "\n")
+                dismiss()
+            }
+            .ignoresSafeArea()
+        }
+    }
+
+    /// Door one: they already have the app, so there is nothing to send.
+    @ViewBuilder
+    private var alreadyOnPlated: some View {
+        if searching {
+            HStack(spacing: 8) {
+                ProgressView().controlSize(.small)
+                Text("Looking for people you know…")
+                    .font(.jakarta(13, .semibold))
+                    .foregroundStyle(Color.inkSecondary)
+            }
+        } else if !onPlated.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                MicroLabel("Already on Plated")
+                ForEach(onPlated) { match in
+                    HStack(spacing: 12) {
+                        AvatarCircle(
+                            initials: initials(match.name),
+                            tone: PersonTone.from(hex: "3DA35D"),
+                            size: 38
+                        )
+                        Text(match.name)
+                            .font(.jakarta(15, .bold))
+                            .foregroundStyle(Color.ink)
+                            .lineLimit(1)
+                        Spacer()
+                        Button {
+                            Haptic.plate()
+                            addMember(named: match.name)
+                            withAnimation(.plSnap) { onPlated.removeAll { $0.id == match.id } }
+                        } label: {
+                            Text("Add")
+                                .font(.jakarta(13, .bold))
+                                .foregroundStyle(Color.canvas)
+                                .padding(.horizontal, 18)
+                                .frame(minHeight: 36)
+                                .background(Color.ink, in: Capsule())
+                                .frame(minHeight: 44)
+                                .contentShape(Capsule())
+                        }
+                        .buttonStyle(.pressable)
+                    }
+                }
+            }
+        }
+    }
+
+    /// Door two: they are in your phone but not here yet, so they get a
+    /// message they can actually receive.
+    private var inviteDoor: some View {
+        Button {
+            Haptic.tap()
+            pickingContact = true
+        } label: {
+            HStack(spacing: 12) {
+                Circle()
+                    .fill(Color.fill)
+                    .frame(width: 42, height: 42)
+                    .overlay {
+                        Image(systemName: "person.badge.plus")
+                            .font(.system(size: 17, weight: .medium))
+                            .foregroundStyle(Color.ink)
+                    }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Invite someone")
+                        .font(.jakarta(15, .bold))
+                        .foregroundStyle(Color.ink)
+                    Text("Pick a contact and send them a link to your table.")
+                        .font(.jakarta(12, .medium))
+                        .foregroundStyle(Color.inkSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 6)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Color.inkFaint)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .overlay(RoundedRectangle(cornerRadius: Radius.card).strokeBorder(Color.hairline))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.pressable)
+        .disabled(!InviteComposer.isAvailable)
+        .opacity(InviteComposer.isAvailable ? 1 : 0.4)
+    }
+
+    private func addMember(named who: String) {
+        guard !who.isEmpty else { return }
+        let color = PersonTone.rotation[members.count % PersonTone.rotation.count]
+        let line = role == "partner" ? "Partner · plans & cooks"
+            : role == "kid" ? "Kid · ideas & helping" : "Guest of the table"
+        context.insert(HouseholdMember(
+            name: who, colorHex: color, role: role, roleLine: line
+        ))
+    }
+
+    private func findPeople() async {
+        guard Directory.isRegistered else { return }
+        let store = CNContactStore()
+        guard (try? await store.requestAccess(for: .contacts)) == true else { return }
+
+        searching = true
+        defer { searching = false }
+
+        let keys = [
+            CNContactGivenNameKey, CNContactFamilyNameKey,
+            CNContactNicknameKey, CNContactPhoneNumbersKey
+        ] as [CNKeyDescriptor]
+        var contacts: [CNContact] = []
+        await Task.detached(priority: .utility) {
+            let request = CNContactFetchRequest(keysToFetch: keys)
+            try? store.enumerateContacts(with: request) { contact, _ in
+                contacts.append(contact)
+            }
+        }.value
+
+        let seated = Set(members.map(\.name))
+        let found = await Directory.onPlated(contacts: contacts)
+        withAnimation(.plSnap) {
+            onPlated = found.filter { !seated.contains($0.name) }
+        }
+    }
+
+    private func initials(_ who: String) -> String {
+        let parts = who.split(separator: " ").filter { $0.first?.isLetter == true }
+        return parts.prefix(2).compactMap { $0.first.map(String.init) }.joined().uppercased()
     }
 
     private func roleChip(_ value: String, _ label: String) -> some View {

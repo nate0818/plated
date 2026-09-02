@@ -19,6 +19,7 @@ struct DayDetailView: View {
 
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.openURL) private var openURL
     @Query private var meals: [PlannedMeal]
     @Query(sort: \HouseholdMember.createdAt) private var members: [HouseholdMember]
 
@@ -131,16 +132,29 @@ struct DayDetailView: View {
                 }
                 Spacer(minLength: 6)
                 if let day = forecast.forecast(for: date) {
-                    VStack(spacing: 1) {
-                        Image(systemName: day.symbolName)
-                            .font(.system(size: 17, weight: .medium))
-                        Text("\(Int(day.highF.rounded()))°")
-                            .font(.jakarta(11, .bold))
-                            .monospacedDigit()
+                    // Plated shows the one fact that changes dinner — how
+                    // hot it will be. Anyone who wants the hour-by-hour
+                    // wants Weather, not a forecast screen we would have to
+                    // build and keep honest.
+                    Button {
+                        Haptic.tap()
+                        openWeatherApp()
+                    } label: {
+                        VStack(spacing: 1) {
+                            Image(systemName: day.symbolName)
+                                .font(.system(size: 19, weight: .medium))
+                                .symbolRenderingMode(.hierarchical)
+                            Text("\(Int(day.highF.rounded()))°")
+                                .font(.jakarta(12, .bold))
+                                .monospacedDigit()
+                        }
+                        .foregroundStyle(Color.inkSecondary)
+                        .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(Rectangle())
                     }
-                    .foregroundStyle(Color.inkSecondary)
-                    .accessibilityElement(children: .ignore)
+                    .buttonStyle(.pressable)
                     .accessibilityLabel("\(day.conditionDescription), high \(Int(day.highF.rounded())) degrees")
+                    .accessibilityHint("Opens the Weather app")
                 }
             }
             if let line = contextLine {
@@ -365,6 +379,16 @@ struct DayDetailView: View {
     // MARK: Data
 
     private var isFuture: Bool { date > Calendar.current.startOfDay(for: .now) }
+
+    /// Apple's Weather app. `weather://` is not a documented scheme, so
+    /// this is offered rather than promised: if it doesn't open, the tap
+    /// does nothing rather than bouncing the user to a Safari error.
+    private func openWeatherApp() {
+        guard let url = URL(string: "weather://") else { return }
+        openURL(url) { accepted in
+            if !accepted { print("PLATED WEATHER: no Weather app to open") }
+        }
+    }
 
     private func swipeBinding(_ slot: MealSlot) -> Binding<Bool> {
         Binding(
