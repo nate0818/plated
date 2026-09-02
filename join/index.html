@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>You're invited to a table on Plated</title>
+<meta name="description" content="Someone kept you a seat at their table on Plated.">
+<meta property="og:title" content="You're invited to a table on Plated">
+<meta property="og:description" content="Someone kept you a seat at their table on Plated.">
+<meta property="og:type" content="website">
+<style>
+  :root { --ink:#221B14; --soft:#8A8074; --faint:#B5AC9E; --line:#F0EBE4;
+          --bg:#FFFFFF; --tomato:#FF5A3C; }
+  @media (prefers-color-scheme: dark) {
+    :root { --ink:#F4EDE3; --soft:#A79B8B; --faint:#6B6157; --line:#2B241C;
+            --bg:#16120E; --tomato:#F75434; }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin:0; padding:0; }
+  body {
+    background: var(--bg); color: var(--ink); min-height: 100vh;
+    font: 400 17px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    display: flex; align-items: center; justify-content: center; padding: 32px 24px;
+  }
+  main { width: 100%; max-width: 420px; text-align: center; }
+  .mark {
+    width: 72px; height: 72px; margin: 0 auto 28px; border-radius: 18px;
+    background: var(--tomato); display: flex; align-items: center;
+    justify-content: center; color: #fff; font-size: 34px; font-weight: 700;
+  }
+  h1 { font-size: 28px; line-height: 1.2; letter-spacing: -0.02em; margin: 0 0 12px; }
+  p { color: var(--soft); margin: 0 0 28px; }
+  .btn {
+    display: block; width: 100%; padding: 16px 20px; border-radius: 999px;
+    background: var(--tomato); color: #fff; font-weight: 700; font-size: 17px;
+    text-decoration: none; margin-bottom: 12px;
+  }
+  .btn.quiet { background: transparent; color: var(--ink); border: 1.5px solid var(--line); }
+  .note { font-size: 13px; color: var(--faint); margin: 20px 0 0; }
+  code {
+    display: block; word-break: break-all; font-size: 12px; color: var(--faint);
+    margin-top: 10px;
+  }
+</style>
+</head>
+<body>
+<main>
+  <div class="mark">P</div>
+  <h1>Someone kept you a seat</h1>
+  <p id="lede">Plated is a private feed of what a household is actually cooking. Only invited people can see it.</p>
+
+  <!-- Filled in from ?s= by the script below. On a phone that has Plated,
+       this page is never reached: iOS opens the app straight from the link. -->
+  <a class="btn" id="open" href="#" hidden>Open in Plated</a>
+  <a class="btn" id="store" href="https://apps.apple.com/app/id0000000000">Get Plated</a>
+  <a class="btn quiet" id="raw" href="#" hidden>Open the invitation directly</a>
+
+  <p class="note" id="note">
+    Install Plated, then tap the invitation link again from your message.
+  </p>
+</main>
+<script>
+  // The iCloud share URL rides in ?s=. Without it this is just the page
+  // somebody landed on by hand, so it stays a plain description.
+  var share = new URLSearchParams(location.search).get('s');
+  if (share) {
+    var raw = document.getElementById('raw');
+    raw.href = share;
+    raw.hidden = false;
+    var open = document.getElementById('open');
+    open.href = 'plated://join?s=' + encodeURIComponent(share);
+    open.hidden = false;
+    document.getElementById('note').textContent =
+      'Already have Plated? "Open in Plated" takes you straight to the table.';
+  }
+</script>
+</body>
+</html>

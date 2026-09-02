@@ -264,6 +264,32 @@ enum TableShare {
         }
     }
 
+    /// Read a share's metadata from its URL.
+    ///
+    /// The system does this for you when it routes an `icloud.com/share`
+    /// link, but a link that arrives through our own domain is just a URL —
+    /// so the metadata has to be fetched by hand before it can be accepted.
+    static func shareMetadata(for url: URL) async throws -> CKShare.Metadata {
+        try await withCheckedThrowingContinuation { continuation in
+            let operation = CKFetchShareMetadataOperation(shareURLs: [url])
+            operation.shouldFetchRootRecord = false
+            var found: CKShare.Metadata?
+            operation.perShareMetadataResultBlock = { _, result in
+                if case .success(let metadata) = result { found = metadata }
+            }
+            operation.fetchShareMetadataResultBlock = { result in
+                switch result {
+                case .success:
+                    if let found { continuation.resume(returning: found) }
+                    else { continuation.resume(throwing: CKError(.unknownItem)) }
+                case .failure(let error):
+                    continuation.resume(throwing: error)
+                }
+            }
+            container.add(operation)
+        }
+    }
+
     /// Someone tapped an invitation. Accepting puts the host's zone into
     /// this user's shared database; the next refresh reads it.
     static func accept(_ metadata: CKShare.Metadata) async -> Bool {
@@ -561,6 +587,9 @@ enum TableShare {
     static func fetchRemote() async -> [RemotePost] { [] }
     struct Seat: Identifiable { var id = ""; var name = ""; var isOwner = false; var isMe = false }
     static func participants() async -> [Seat] { [] }
+    static func shareMetadata(for url: URL) async throws -> CKShare.Metadata {
+        throw CKError(.unknownItem)
+    }
     static func remove(seatID: String) async -> Bool { false }
     static func leaveTable() async -> Bool { false }
     enum InviteOutcome { case ready(URL), noAccount, noCloud }

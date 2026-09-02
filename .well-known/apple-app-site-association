@@ -1,0 +1,14 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appID": "JA9M6TYXYL.com.natemeadows.plated",
+        "paths": [
+          "/join",
+          "/join/*"
+        ]
+      }
+    ]
+  }
+}

@@ -62,7 +62,26 @@ enum Invitation {
 
     static func body(hostName: String, link: URL?) -> String {
         var text = TableSync.inviteMessage(hostName: hostName)
-        if let link { text += "\n\n\(link.absoluteString)" }
+        if let link { text += "\n\n\(wrapped(link).absoluteString)" }
         return text
+    }
+
+    /// The share URL, carried inside a Plated link.
+    ///
+    /// A phone with the app opens it directly — that is what the
+    /// associated-domains entitlement and the `apple-app-site-association`
+    /// file on plated.food are for. A phone without the app gets Plated's
+    /// own page saying what this is and where to get it, instead of an
+    /// Apple support article about a share it cannot open.
+    ///
+    /// Falls back to the raw iCloud link if the wrap can't be built, since
+    /// a link that works for some people beats no link at all.
+    static func wrapped(_ share: URL) -> URL {
+        var components = URLComponents()
+        components.scheme = "https"
+        components.host = "plated.food"
+        components.path = "/join"
+        components.queryItems = [URLQueryItem(name: "s", value: share.absoluteString)]
+        return components.url ?? share
     }
 }

@@ -142,6 +142,13 @@ struct MainShellView: View {
             ProngsbyView(session: prongsbySession)
         }
         .onOpenURL { url in
+            // An invitation arriving through plated.food is a Universal Link,
+            // so it lands here as an ordinary URL rather than at the
+            // CloudKit delegate. Same destination, different road.
+            if let share = ShareAcceptor.shareURL(from: url) {
+                Task { await ShareAcceptor.accept(shareURL: share) }
+                return
+            }
             guard let destination = DeepLink.destination(for: url) else { return }
             withAnimation(.plSnap) {
                 switch destination {
