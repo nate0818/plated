@@ -67,7 +67,7 @@ struct DiscoverView: View {
                             .accessibilityLabel("Clear search")
                             .font(.system(size: 16))
                             .foregroundStyle(Color.inkFaint)
-                            .frame(minWidth: 44, minHeight: 44)
+                            .plTapTarget()
                     }
                     .buttonStyle(.pressable)
                 }
@@ -263,7 +263,7 @@ struct DiscoverPostSheet: View {
                                 .foregroundStyle(post.platedByMe ? Color.tomato : Color.inkSecondary)
                                 .contentTransition(.numericText())
                         }
-                        .frame(minWidth: 44, minHeight: 44)
+                        .plTapTarget()
                     }
                     .buttonStyle(.pressable)
                 }

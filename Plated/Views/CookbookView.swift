@@ -575,7 +575,7 @@ struct RecipeFilterSheet: View {
                         Text("Clear filters")
                             .plType(.footnote, .semibold)
                             .foregroundStyle(Color.inkSecondary)
-                            .frame(minHeight: 44)
+                            .plTapTarget()
                     }
                     .buttonStyle(.pressable)
                 }

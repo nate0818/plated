@@ -909,7 +909,7 @@ struct TableFeedView: View {
                     .foregroundStyle(post.platedByMe ? Color.tomato : Color.inkSecondary)
                     .contentTransition(.numericText())
             }
-            .frame(minHeight: 44)
+            .plTapTarget()
         }
         .buttonStyle(.pressable)
     }
@@ -1109,7 +1109,7 @@ struct PlateReactionButton: View {
             }
         } label: {
             PlateReactionGlyph(filled: post.platedByMe)
-                .frame(minWidth: 44, minHeight: 44)
+                .plTapTarget()
         }
         .buttonStyle(.pressable)
     }

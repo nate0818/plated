@@ -403,6 +403,33 @@ extension View {
     }
 }
 
+// MARK: - Touch targets
+
+extension View {
+    /// A 44pt target that is actually tappable.
+    ///
+    /// `.frame` is layout. Hit testing needs a shape, and a `Button` whose
+    /// label draws only a glyph is hit-testable only where the glyph is —
+    /// `.pressable` adds scale and opacity, not a surface. Sixteen controls
+    /// shipped with the frame and without the shape.
+    ///
+    /// That is not sixteen mistakes, it is one idiom copied sixteen times,
+    /// and it is the same shape of failure as Reduce Motion before `plPop`
+    /// answered it in one place: DESIGN.md states this rule twice, in two
+    /// different sections, which is the strongest possible evidence that
+    /// stating it does not work. So it stops being a sentence and becomes a
+    /// type.
+    ///
+    /// It hides from review twice over. `.contentShape` is invisible by
+    /// definition, and a mouse pointer aimed at the middle of a glyph in a
+    /// simulator hits every one of these controls perfectly. A thumb on a
+    /// phone does not. That is CLAUDE.md's "the simulator lies about this
+    /// app", extended to a class that was never on the list.
+    func plTapTarget(_ shape: some Shape = Rectangle()) -> some View {
+        frame(minWidth: 44, minHeight: 44).contentShape(shape)
+    }
+}
+
 // MARK: - Chrome that has to hold still
 
 extension View {

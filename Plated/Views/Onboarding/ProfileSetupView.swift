@@ -103,7 +103,7 @@ struct ProfileSetupView: View {
                     Text("Not now")
                         .plType(.body)
                         .foregroundStyle(Color.inkSecondary)
-                        .frame(minHeight: 44)
+                        .plTapTarget()
                 }
                 .buttonStyle(.pressable)
             }

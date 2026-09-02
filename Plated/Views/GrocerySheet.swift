@@ -241,7 +241,7 @@ struct GrocerySheet: View {
                     .plType(.footnote)
                     .foregroundStyle(Color.inkSecondary)
             }
-            .frame(minHeight: 44)
+            .plTapTarget()
         }
         .buttonStyle(.pressable)
     }

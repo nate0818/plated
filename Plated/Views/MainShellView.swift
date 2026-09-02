@@ -439,6 +439,12 @@ struct PlateTabBar: View {
             }
             .foregroundStyle(active ? Color.ink : Color.inkSecondary)
             .frame(maxWidth: .infinity, minHeight: 66)
+            // The most-touched control in the product, and only the glyphs
+            // were tappable: `.pressable` draws no surface, so a 66pt column
+            // was hit-testable across roughly 26x38pt of icon and label,
+            // with 14pt of dead strip along the top and bottom of the bar.
+            // That strip is where a thumb lands first.
+            .contentShape(Rectangle())
         }
         .buttonStyle(.pressable)
         .accessibilityAddTraits(active ? .isSelected : [])

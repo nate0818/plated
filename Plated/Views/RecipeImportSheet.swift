@@ -177,7 +177,7 @@ struct RecipeImportSheet: View {
                     .plType(.footnote, .bold)
                     .foregroundStyle(Color.ink)
                     .frame(maxWidth: .infinity)
-                    .frame(minHeight: 44)
+                    .plTapTarget()
             }
             .buttonStyle(.pressable)
 
@@ -212,6 +212,9 @@ struct RecipeImportSheet: View {
         .frame(maxWidth: .infinity)
         .frame(minHeight: 44)
         .overlay(Capsule().strokeBorder(Color.hairline, lineWidth: 1.5))
+        // After the overlay, not before: a stroked capsule is a hollow ring,
+        // so without this the tap lands only where the letters are.
+        .contentShape(Capsule())
     }
 
     // MARK: Review — editable, because the parse is a first draft
@@ -250,6 +253,7 @@ struct RecipeImportSheet: View {
                             .frame(maxWidth: .infinity)
                             .frame(minHeight: 48)
                             .overlay(Capsule().strokeBorder(Color.hairline, lineWidth: 1.5))
+                            .contentShape(Capsule())
                     }
                     .buttonStyle(.pressable)
 

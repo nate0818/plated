@@ -567,7 +567,7 @@ struct PostThreadView: View {
                                 .font(.system(size: 15, weight: .bold))
                                 .foregroundStyle(canSend ? Color.onTomato : Color.inkFaint)
                         }
-                        .frame(minWidth: 44, minHeight: 44)
+                        .plTapTarget()
                 }
                 .buttonStyle(.pressable)
                 .disabled(!canSend)

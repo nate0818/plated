@@ -278,7 +278,7 @@ struct RecipeEditorView: View {
                 Text("Cancel")
                     .plType(.body, .bold)
                     .foregroundStyle(Color.inkSecondary)
-                    .frame(minHeight: 44)
+                    .plTapTarget()
             }
             .buttonStyle(.pressable)
             Spacer()
@@ -450,7 +450,7 @@ struct RecipeEditorView: View {
                         .font(.system(size: 14, weight: .bold))
                         .foregroundStyle(Color.ink)
                 }
-                .frame(minWidth: 44, minHeight: 44)
+                .plTapTarget()
         }
         .buttonStyle(.pressable)
         .disabled(disabled)

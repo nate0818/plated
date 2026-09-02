@@ -164,7 +164,7 @@ struct ContactsView: View {
                             Link("Open Settings", destination: settings)
                                 .plType(.footnote, .bold)
                                 .foregroundStyle(Color.ink)
-                                .frame(minHeight: 44)
+                                .plTapTarget()
                         }
                     }
                 }
@@ -180,7 +180,7 @@ struct ContactsView: View {
                         Text("Not now")
                             .plType(.body)
                             .foregroundStyle(Color.inkSecondary)
-                            .frame(minHeight: 44)
+                            .plTapTarget()
                     }
                     .buttonStyle(.pressable)
                 }

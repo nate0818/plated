@@ -56,41 +56,41 @@ struct PlanNightSheet: View {
                     }
 
                     if !recipes.isEmpty {
-                        actionRow(
-                            icon: "wand.and.stars", tint: Color.tomato,
+                        OptionRow(
+                            icon: "wand.and.stars",
                             title: "Pick for me",
-                            caption: "Matched to the weather and what your household eats."
+                            detail: "Matched to the weather and what your household eats."
                         ) { pickForMe() }
                     }
 
-                    actionRow(
-                        icon: "book.closed", tint: Color.ink,
+                    OptionRow(
+                        icon: "book.closed",
                         title: "Choose a recipe",
-                        caption: "\(recipes.count) \(recipes.count == 1 ? "dish" : "dishes") your household already knows."
+                        detail: "\(recipes.count) \(recipes.count == 1 ? "dish" : "dishes") your household already knows."
                     ) { pickerShown = true }
 
-                    actionRow(
-                        icon: "plus.circle", tint: Color.ink,
+                    OptionRow(
+                        icon: "plus.circle",
                         title: "Add a recipe",
-                        caption: "Save it and plan it in one go."
+                        detail: "Save it and plan it in one go."
                     ) { newRecipeShown = true }
 
-                    actionRow(
-                        icon: "fork.knife.circle", tint: Color.ink,
+                    OptionRow(
+                        icon: "fork.knife.circle",
                         title: "Eating out",
-                        caption: "Counts as a planned night."
+                        detail: "Counts as a planned night."
                     ) { markEatingOut() }
 
-                    actionRow(
-                        icon: "bubble.and.pencil", tint: Color.ink,
+                    OptionRow(
+                        icon: "bubble.and.pencil",
                         title: "Ask the Table",
-                        caption: "Ask what everyone wants, or put up a poll."
+                        detail: "Ask what everyone wants, or put up a poll."
                     ) { askShown = true }
 
-                    actionRow(
-                        icon: "party.popper", tint: Color.ink,
+                    OptionRow(
+                        icon: "party.popper",
                         title: "Plan a gathering",
-                        caption: "Guests, a time, and an event in your calendar."
+                        detail: "Guests, a time, and an event in your calendar."
                     ) { gatheringShown = true }
                 }
                 .padding(.horizontal, 24)
@@ -181,43 +181,6 @@ struct PlanNightSheet: View {
         .overlay(RoundedRectangle(cornerRadius: Radius.row, style: .continuous).strokeBorder(Color.navHairline))
     }
 
-    private func actionRow(
-        icon: String, tint: Color, title: String, caption: String,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button {
-            Haptic.tap()
-            action()
-        } label: {
-            HStack(spacing: 12) {
-                Circle()
-                    .fill(Color.fill)
-                    .frame(width: 42, height: 42)
-                    .overlay {
-                        Image(systemName: icon)
-                            .font(.system(size: 17, weight: .medium))
-                            .foregroundStyle(tint)
-                    }
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .plType(.body, .bold)
-                        .foregroundStyle(Color.ink)
-                    Text(caption)
-                        .plType(.caption)
-                        .foregroundStyle(Color.inkSecondary)
-                }
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(Color.inkFaint)
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 12)
-            .overlay(RoundedRectangle(cornerRadius: Radius.card, style: .continuous).strokeBorder(Color.hairline))
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.pressable)
-    }
 
     /// "Plan the night" is dinner's line and stays dinner's line; the other
     /// slots say what they are.
@@ -416,7 +379,7 @@ struct AskComposerSheet: View {
                                                 .font(.system(size: 14, weight: .bold))
                                                 .foregroundStyle(Color.ink)
                                         }
-                                        .frame(minWidth: 44, minHeight: 44)
+                                        .plTapTarget()
                                 }
                                 .buttonStyle(.pressable)
                                 .disabled(optionEntry.trimmingCharacters(in: .whitespaces).isEmpty)
