@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import Contacts
 
 /// Everyone with a seat at your table — opened from the avatar cluster in
 /// the Table header. Household members, friends who post here, and pending
@@ -21,6 +22,11 @@ struct TableSeatsSheet: View {
     @State private var sharedSeats: [TableShare.Seat] = []
     @State private var amGuest = false
     @State private var leaveAsked = false
+    /// Contacts who already have Plated. Empty until the directory answers,
+    /// and empty forever if it never does — the invite paths below work
+    /// regardless, so this section is a shortcut, never a dependency.
+    @State private var onPlated: [Directory.Match] = []
+    @State private var searchingContacts = false
 
     /// A friend at the table: someone who posts here but isn't in the household.
     private var guestSeats: [(name: String, colorHex: String)] {
@@ -146,6 +152,7 @@ struct TableSeatsSheet: View {
                         .buttonStyle(.pressable)
                     }
 
+                    alreadyHere
                     inviteRow
                 }
                 .padding(.horizontal, 24)
@@ -164,6 +171,7 @@ struct TableSeatsSheet: View {
             sharedSeats = await TableShare.participants()
             amGuest = await TableShare.isGuest()
             invite = await Invitation.prepare(hostName: userFirstName)
+            await findPeople()
         }
         .sheet(isPresented: $pickingContact) {
             ContactPicker(
@@ -277,6 +285,96 @@ struct TableSeatsSheet: View {
             }
         }
         .padding(.vertical, 10)
+    }
+
+    /// The people in your phone who are already here. No invitation
+    /// needed — they have the app, so seating them is one tap.
+    ///
+    /// This is the half of "add to household" that iOS cannot answer on
+    /// its own: Apple deprecated every local way to discover which of your
+    /// contacts use an app, so the names below come from Plated's
+    /// directory, matched on salted phone hashes. See `Directory`.
+    @ViewBuilder
+    private var alreadyHere: some View {
+        if searchingContacts {
+            HStack(spacing: 8) {
+                ProgressView().controlSize(.small)
+                Text("Looking for people you know…")
+                    .font(.jakarta(13, .semibold))
+                    .foregroundStyle(Color.inkSecondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.top, 6)
+        } else if !onPlated.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                MicroLabel("Already on Plated")
+                ForEach(onPlated) { match in
+                    HStack(spacing: 12) {
+                        AvatarCircle(
+                            initials: initials(for: match.name),
+                            tone: PersonTone.from(hex: "3DA35D"),
+                            size: 38
+                        )
+                        Text(match.name)
+                            .font(.jakarta(15, .bold))
+                            .foregroundStyle(Color.ink)
+                            .lineLimit(1)
+                        Spacer()
+                        Button {
+                            Haptic.plate()
+                            withAnimation(.plSnap) {
+                                seat(match.name)
+                                onPlated.removeAll { $0.id == match.id }
+                            }
+                        } label: {
+                            Text("Add")
+                                .font(.jakarta(13, .bold))
+                                .foregroundStyle(Color.canvas)
+                                .padding(.horizontal, 18)
+                                .frame(minHeight: 36)
+                                .background(Color.ink, in: Capsule())
+                                .frame(minHeight: 44)
+                                .contentShape(Capsule())
+                        }
+                        .buttonStyle(.pressable)
+                    }
+                    .padding(.vertical, 2)
+                }
+            }
+            .padding(.top, 6)
+        }
+    }
+
+    /// Ask the directory who we know. Contacts are read here rather than
+    /// handed to the server: only numbers that match come back, and only
+    /// the ones we could normalise are ever sent.
+    private func findPeople() async {
+        guard Directory.isRegistered else { return }
+        let store = CNContactStore()
+        guard (try? await store.requestAccess(for: .contacts)) == true else { return }
+
+        searchingContacts = true
+        defer { searchingContacts = false }
+
+        let keys = [
+            CNContactGivenNameKey, CNContactFamilyNameKey,
+            CNContactNicknameKey, CNContactPhoneNumbersKey
+        ] as [CNKeyDescriptor]
+        var contacts: [CNContact] = []
+        // Off the main thread: a large address book takes real time to walk.
+        await Task.detached(priority: .utility) {
+            let request = CNContactFetchRequest(keysToFetch: keys)
+            try? store.enumerateContacts(with: request) { contact, _ in
+                contacts.append(contact)
+            }
+        }.value
+
+        let seated = Set(members.map(\.name) + pendingSeats)
+        let found = await Directory.onPlated(contacts: contacts)
+        withAnimation(.plSnap) {
+            // Somebody already at the table is not a suggestion.
+            onPlated = found.filter { !seated.contains($0.name) }
+        }
     }
 
     /// The one control that actually invites somebody.

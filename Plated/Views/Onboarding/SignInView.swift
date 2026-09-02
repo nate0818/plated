@@ -78,6 +78,21 @@ struct SignInView: View {
                             AppleIdentity.save(credential.user)
                             userFirstName = credential.fullName?.givenName ?? userFirstName
                             userFamilyName = credential.fullName?.familyName ?? userFamilyName
+                            // Publish presence to the directory so other
+                            // households can find you. The identity token
+                            // exists only here and only for minutes, so
+                            // this is the one moment registration can
+                            // happen; it trades that for a lasting token.
+                            // Silent either way — the app is whole without it.
+                            if let tokenData = credential.identityToken,
+                               let identityToken = String(data: tokenData, encoding: .utf8) {
+                                let name = credential.fullName?.givenName ?? userFirstName
+                                Task { await Directory.register(
+                                    identityToken: identityToken,
+                                    displayName: name,
+                                    phone: nil
+                                ) }
+                            }
                         }
                         Haptic.tap()
                         onSignedIn()
