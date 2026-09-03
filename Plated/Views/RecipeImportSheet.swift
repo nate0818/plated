@@ -16,6 +16,7 @@ import PhotosUI
 struct RecipeImportSheet: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     @State private var raw = ""
     @State private var draft: ImportedRecipe?
@@ -123,7 +124,14 @@ struct RecipeImportSheet: View {
                     .multilineTextAlignment(.center)
             }
 
-            HStack(spacing: 8) {
+            // Three peers, one geometry. "Choose photo" needed about 108pt
+            // of content in a 111pt chip, so on a real phone — where text
+            // sets a hair wider than the simulator, the trap CLAUDE.md
+            // names — it wrapped to two lines and that one chip stood
+            // taller than the two beside it. The label is a word now, the
+            // labels cannot wrap at all, and above xxLarge the three stop
+            // sharing one row instead of crushing each other.
+            sourceRow {
                 ghostButton("Paste", icon: "doc.on.clipboard") {
                     // An empty clipboard used to be indistinguishable from a
                     // broken button: the tap did nothing and said nothing.
@@ -140,7 +148,10 @@ struct RecipeImportSheet: View {
                     ghostButton("Scan", icon: "doc.viewfinder") { scannerShown = true }
                 }
                 PhotosPicker(selection: $photoItem, matching: .images) {
-                    ghostLabel("Choose photo", icon: "photo")
+                    // "Photos" rather than "Choose photo": it names where
+                    // the picture comes from, which is the one thing that
+                    // distinguishes it from Scan beside it, and it fits.
+                    ghostLabel("Photos", icon: "photo")
                 }
                 .buttonStyle(.pressable)
             }
@@ -183,6 +194,20 @@ struct RecipeImportSheet: View {
         .padding(.bottom, 24)
     }
 
+    /// Three ways in, side by side while they fit and stacked when they do
+    /// not. Chips this small have nowhere to reflow inside themselves, so
+    /// the row reflows instead: at accessibility sizes a third of a screen
+    /// cannot hold a word plus an icon, and squeezing them is how "Choose
+    /// photo" wrapped in the first place.
+    @ViewBuilder
+    private func sourceRow(@ViewBuilder _ content: () -> some View) -> some View {
+        if typeSize.isAccessibilitySize {
+            VStack(spacing: 8) { content() }
+        } else {
+            HStack(spacing: 8) { content() }
+        }
+    }
+
     private func ghostButton(_ title: String, icon: String, action: @escaping () -> Void) -> some View {
         Button {
             Haptic.tap()
@@ -199,6 +224,10 @@ struct RecipeImportSheet: View {
                 .font(.system(size: 12, weight: .semibold))
             Text(title)
                 .plType(.footnote, .bold)
+                // One line, always. A chip that grows a second line is a
+                // chip with different geometry from the two beside it, and
+                // DESIGN.md's rule is that peers look like peers.
+                .lineLimit(1)
         }
         .foregroundStyle(Color.ink)
         .frame(maxWidth: .infinity)
