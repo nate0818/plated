@@ -167,3 +167,36 @@ struct TourWeek: View {
         todayUp = false
     }
 }
+
+/// A plate on the tour: the photograph if it is in the bundle, the drawn
+/// dish if it is not.
+///
+/// The fallback is the point. The four food photographs are installed by
+/// `scripts/tour-photos`, and until they are there this draws exactly what
+/// the tour drew before them, so a missing asset is never an empty circle
+/// on the first screen somebody sees.
+struct TourPlate: View {
+    let asset: String
+    let fallbackTitle: String
+    var diameter: CGFloat
+
+    var body: some View {
+        Group {
+            if let image = UIImage(named: asset) {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: diameter, height: diameter)
+                    .clipShape(Circle())
+                    .overlay {
+                        // The porcelain rim the plan's own plates wear, so a
+                        // photograph reads as a dish rather than a sticker.
+                        Circle().strokeBorder(Color.canvas, lineWidth: diameter * 0.055)
+                    }
+            } else {
+                DishView(title: fallbackTitle, diameter: diameter)
+            }
+        }
+        .plDishShadow()
+    }
+}

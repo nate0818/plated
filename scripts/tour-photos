@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+#
+# Put the tour's four food photographs into the asset catalog, at a size a
+# phone actually needs.
+#
+# The originals are two to four megapixels, which is between twenty and fifty
+# times more than the circles they are drawn in: the largest is 132pt, so
+# even at 3x it is 396 pixels. Shipping the originals would put several
+# megabytes into the app to draw four thumbnails.
+#
+#   scripts/tour-photos ~/Desktop/plated-photos
+#
+# The folder needs four files whose names contain nachos, pasta, salad and
+# ramen, in any case and any image format sips can read.
+#
+set -euo pipefail
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SRC="${1:-}"
+
+if [ -z "$SRC" ] || [ ! -d "$SRC" ]; then
+  echo "usage: scripts/tour-photos <folder of photos>" >&2
+  exit 1
+fi
+
+# 900px square: 3x for the 132pt hero with room to spare, and one file that
+# serves every plate on the tour rather than four sizes to keep in step.
+EDGE=900
+QUALITY=68
+
+install_one() {
+  local match="$1" asset="$2"
+  local file
+  file="$(find "$SRC" -maxdepth 1 -type f -iname "*${match}*" | head -1)"
+  if [ -z "$file" ]; then
+    echo "  ✗ no file matching '${match}' in $SRC" >&2
+    return 1
+  fi
+  local out="$ROOT/Plated/Assets.xcassets/${asset}.imageset/${asset}.jpg"
+  # Square crop from the centre, because every one of these is drawn in a
+  # circle and an off-centre crop puts the food against the rim.
+  sips -s format jpeg -s formatOptions "$QUALITY" \
+       -Z "$EDGE" "$file" --out "$out" >/dev/null
+  sips -c "$EDGE" "$EDGE" "$out" >/dev/null
+  printf "  ✓ %-12s %-34s %s\n" "$asset" "$(basename "$file")" "$(du -h "$out" | cut -f1)"
+}
+
+echo "Installing the tour's photographs from $SRC"
+install_one nachos TourNachos
+install_one pasta  TourPasta
+install_one salad  TourSalad
+install_one ramen  TourRamen
+echo
+echo "Build and they appear. Until a file is present the tour falls back to"
+echo "the drawn plate, so a missing photograph is never a blank circle."

@@ -139,18 +139,17 @@ struct TourView: View {
         }
     }
 
-    /// The real plate the plan draws, at the size the Tonight card uses.
+    /// Tonight's dinner, at the size the Tonight card uses.
     private var tonightPlate: some View {
-        DishView(title: "Sheet-pan chicken", diameter: 132)
-            .plDishShadow()
+        TourPlate(asset: "TourNachos", fallbackTitle: "Sheet-pan chicken", diameter: 132)
     }
 
     /// Three plates, the way the cookbook grid holds them.
     private var cookbookShelf: some View {
         HStack(spacing: -18) {
-            DishView(title: "Lemon orzo", diameter: 88).plDishShadow()
-            DishView(title: "Chili", diameter: 104).plDishShadow()
-            DishView(title: "Roast squash", diameter: 88).plDishShadow()
+            TourPlate(asset: "TourSalad", fallbackTitle: "Lemon orzo", diameter: 88)
+            TourPlate(asset: "TourPasta", fallbackTitle: "Chili", diameter: 104)
+            TourPlate(asset: "TourRamen", fallbackTitle: "Roast squash", diameter: 88)
         }
         .accessibilityHidden(true)
     }
