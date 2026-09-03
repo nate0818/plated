@@ -96,7 +96,10 @@ struct DayDetailView: View {
             PlanNightSheet(date: plan.date, slot: plan.slot, askTheTable: askTheTable)
         }
         .task {
-            await forecast.refresh(days: 10)
+            // The only place Plated raises the location prompt. This
+            // screen shows the forecast and the suggestion that reads it,
+            // so the ask arrives with its answer already on screen.
+            await forecast.refresh(days: 10, mayAsk: true)
             if showCalendarEvents { events.refresh() }
         }
     }
