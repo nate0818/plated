@@ -366,6 +366,21 @@ enum TableShare {
             )
             record["authorName"] = post.authorName as CKRecordValue
             record["authorID"] = TableIdentity.cached as CKRecordValue
+            // An ask's poll never crossed the wire at all, so a guest saw
+            // the question with no answers under it and no way to vote —
+            // "Ask the Table" reaching everybody except the table.
+            //
+            // Omitted rather than written empty: a CloudKit list field
+            // minted from an empty array is minted as the WRONG TYPE and
+            // stays that way, and every later save carrying a real list
+            // then fails .invalidArguments. From a person's seat that looks
+            // exactly like "my post just didn't appear".
+            if !post.pollOptions.isEmpty {
+                record["pollOptions"] = post.pollOptions as CKRecordValue
+            }
+            if !post.taggedNames.isEmpty {
+                record["taggedNames"] = post.taggedNames as CKRecordValue
+            }
             record["authorColorHex"] = post.authorColorHex as CKRecordValue
             record["dishTitle"] = post.dishTitle as CKRecordValue
             record["caption"] = post.caption as CKRecordValue
@@ -662,6 +677,8 @@ enum TableShare {
         var kind = "dish"
         var createdAt = Date.now
         var photoData: Data?
+        var pollOptions: [String] = []
+        var taggedNames: [String] = []
     }
 
     /// Everything other people have put on tables this user can see.
@@ -934,6 +951,8 @@ enum TableShare {
         var p = RemotePost()
         p.recordName = record.recordID.recordName
         p.authorID = record["authorID"] as? String ?? ""
+        p.pollOptions = record["pollOptions"] as? [String] ?? []
+        p.taggedNames = record["taggedNames"] as? [String] ?? []
         p.authorName = record["authorName"] as? String ?? ""
         p.authorColorHex = record["authorColorHex"] as? String ?? "FF5A3C"
         p.dishTitle = record["dishTitle"] as? String ?? ""
@@ -1014,6 +1033,7 @@ enum TableShare {
     static func publish(_ post: TablePost, hostName: String) async -> String? { nil }
     static func retract(recordName: String, zoneOwner: String) async -> Bool { true }
     struct RemotePost { var recordName = ""; var zoneOwner = ""; var authorID = ""
+                        var pollOptions: [String] = []; var taggedNames: [String] = []
                         var authorName = ""
                         var authorColorHex = "FF5A3C"
                         var dishTitle = ""; var caption = ""; var kind = "dish"
@@ -1100,6 +1120,8 @@ enum TableShare {
                 post.dishTitle = r.dishTitle
                 post.shareZoneOwner = r.zoneOwner
                 if !r.authorID.isEmpty { post.authorID = r.authorID }
+                if !r.pollOptions.isEmpty { post.pollOptions = r.pollOptions }
+                if !r.taggedNames.isEmpty { post.taggedNames = r.taggedNames }
             } else {
                 let post = TablePost(
                     authorName: r.authorName, authorColorHex: r.authorColorHex,
@@ -1109,6 +1131,8 @@ enum TableShare {
                 post.shareRecordName = r.recordName
                 post.shareZoneOwner = r.zoneOwner
                 post.authorID = r.authorID
+                post.pollOptions = r.pollOptions
+                post.taggedNames = r.taggedNames
                 // Remote only when the wire actually named somebody else.
                 // An unstamped record — one written before authorID existed
                 // — is left alone rather than assumed to be a stranger's,
