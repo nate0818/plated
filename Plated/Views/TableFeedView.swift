@@ -1026,6 +1026,9 @@ struct TableFeedView: View {
         // the host's first name is offered Delete on the host's own dish —
         // the same name-keying trap the swipe rows hit, and the reason posts
         // now carry an origin and not just a byline.
+        // An id when there is one, a first name only as the fallback it
+        // always was. Two people called Sam broke this in about six places.
+        if !post.authorID.isEmpty { return post.authorID == TableIdentity.cached }
         guard !post.isRemote else { return false }
         guard let me = members.first(where: \.isOwner)?.name else { return false }
         return post.authorName == me || post.firstName == me

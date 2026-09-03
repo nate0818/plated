@@ -58,6 +58,16 @@ final class TablePost {
     /// backfill reads them exactly once to seed the ledger.
     var plateCount: Int = 0
     var platedByMe: Bool = false
+    /// Who wrote it, in CloudKit's terms.
+    ///
+    /// Everything about ownership keys on first names today — `isMine`,
+    /// `seatCount`, `members.photo(forAuthor:)` — and the code already
+    /// carries comments admitting it. Names also cannot answer the question
+    /// the host-side fetch just created: a post written on the host's iPad
+    /// arrives on the host's iPhone through the shared zone, and without an
+    /// id there is nothing to recognise it by, so it is stamped
+    /// `isRemote` and its own author can never delete it.
+    var authorID: String = ""
     /// Whether this has actually reached the table.
     ///
     /// `shareRecordName` used to carry two meanings at once — the record's

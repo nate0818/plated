@@ -365,6 +365,7 @@ enum TableShare {
                 recordID: CKRecord.ID(recordName: name, zoneID: zoneID)
             )
             record["authorName"] = post.authorName as CKRecordValue
+            record["authorID"] = TableIdentity.cached as CKRecordValue
             record["authorColorHex"] = post.authorColorHex as CKRecordValue
             record["dishTitle"] = post.dishTitle as CKRecordValue
             record["caption"] = post.caption as CKRecordValue
@@ -616,6 +617,7 @@ enum TableShare {
         var recordName = ""
         /// Which table this arrived from. "" is my own.
         var zoneOwner = ""
+        var authorID = ""
         var authorName = ""
         var authorColorHex = "FF5A3C"
         var dishTitle = ""
@@ -894,6 +896,7 @@ enum TableShare {
     private static func remotePost(from record: CKRecord) -> RemotePost {
         var p = RemotePost()
         p.recordName = record.recordID.recordName
+        p.authorID = record["authorID"] as? String ?? ""
         p.authorName = record["authorName"] as? String ?? ""
         p.authorColorHex = record["authorColorHex"] as? String ?? "FF5A3C"
         p.dishTitle = record["dishTitle"] as? String ?? ""
@@ -973,7 +976,8 @@ enum TableShare {
     static func accept(_ metadata: CKShare.Metadata) async -> Bool { false }
     static func publish(_ post: TablePost, hostName: String) async -> String? { nil }
     static func retract(recordName: String, zoneOwner: String) async -> Bool { true }
-    struct RemotePost { var recordName = ""; var zoneOwner = ""; var authorName = ""
+    struct RemotePost { var recordName = ""; var zoneOwner = ""; var authorID = ""
+                        var authorName = ""
                         var authorColorHex = "FF5A3C"
                         var dishTitle = ""; var caption = ""; var kind = "dish"
                         var createdAt = Date.now; var photoData: Data? }
@@ -1057,6 +1061,7 @@ enum TableShare {
                 post.caption = r.caption
                 post.dishTitle = r.dishTitle
                 post.shareZoneOwner = r.zoneOwner
+                if !r.authorID.isEmpty { post.authorID = r.authorID }
             } else {
                 let post = TablePost(
                     authorName: r.authorName, authorColorHex: r.authorColorHex,
@@ -1065,7 +1070,15 @@ enum TableShare {
                 )
                 post.shareRecordName = r.recordName
                 post.shareZoneOwner = r.zoneOwner
-                post.isRemote = true
+                post.authorID = r.authorID
+                // Remote only when the wire actually named somebody else.
+                // An unstamped record — one written before authorID existed
+                // — is left alone rather than assumed to be a stranger's,
+                // because that assumption is permanent and takes Delete with
+                // it. Better to offer Delete on somebody else's old post,
+                // which CloudKit will refuse, than to withhold it forever on
+                // your own.
+                post.isRemote = !r.authorID.isEmpty && r.authorID != TableIdentity.cached
                 context.insert(post)
             }
         }
