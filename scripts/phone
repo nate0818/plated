@@ -73,6 +73,7 @@ fi
 # way nothing about the file looked stale enough to reveal. Cheap to check,
 # and this is the last gate before a build reaches a phone.
 "$ROOT/scripts/check-tokens" >/dev/null || die "Design tokens have drifted. Run scripts/check-tokens."
+"$ROOT/scripts/check-design" >/dev/null || die "A DESIGN.md rule is broken. Run scripts/check-design."
 
 say "Building $HEAD_SHA — $HEAD_SUB"
 say "Target: $NAME"

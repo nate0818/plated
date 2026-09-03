@@ -210,6 +210,12 @@ enum Plate {
     static let fill = color(0xF4F1EC, 0x282119)
     static let basil = color(0x3DA35D, 0x55BE76)
     static let tomato = color(0xFF5A3C, 0xF75434)
+    // A photograph is a photograph in both rooms, so these two do not flip.
+    // The app has carried them since the remove-photo button vanished after
+    // dark; the widget was still writing `.white` by hand over its own food
+    // photos, which is the same fork drift the note above is about.
+    static let scrimInk = color(0x241C12, 0x241C12)
+    static let onScrim = color(0xFFFFFF, 0xFFFFFF)
 
     static func person(_ hex: String) -> (tint: Color, tone: Color) {
         switch hex.uppercased() {

@@ -1,7 +1,7 @@
 # Plated — the phone does not follow main, so putting a build on it is a
 # deliberate step. This is that step.
 
-.PHONY: phone phone-install phone-purge tokens
+.PHONY: phone phone-install phone-purge tokens design
 
 ## Build the working tree, install it on the iPhone, and launch it.
 phone:
@@ -18,3 +18,7 @@ phone-purge:
 ## Check the widget's copied design tokens against Theme.swift.
 tokens:
 	@scripts/check-tokens
+
+## Check the codebase against the DESIGN.md rules a machine can check.
+design:
+	@scripts/check-design

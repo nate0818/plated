@@ -66,7 +66,12 @@ extension Color {
     /// did not degrade after dark, it vanished. A semantic token that
     /// inverts is the wrong kind of colour for a scrim, and there was no
     /// right kind, which is why it happened twice.
-    static let scrim          = Color(light: 0x241C12, dark: 0x241C12).opacity(0.7)
+    static let scrim          = Color.scrimInk.opacity(0.7)
+    /// The scrim's colour with no alpha spent yet, for the places that need
+    /// their own: a gradient ramp cannot use a token that has already picked
+    /// one opacity. Warm rather than black, so it sits under food photographs
+    /// without turning them grey.
+    static let scrimInk       = Color(light: 0x241C12, dark: 0x241C12)
     /// THE label colour on a scrim, both rooms. Never a bare `.white`.
     static let onScrim        = Color(light: 0xFFFFFF, dark: 0xFFFFFF)
     static let mango          = Color(light: 0xFFB020, dark: 0xFFB63A)   // the chef's kiss only

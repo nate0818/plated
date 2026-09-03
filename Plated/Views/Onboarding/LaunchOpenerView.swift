@@ -390,10 +390,10 @@ private struct OpenerTheme {
     static let light = OpenerTheme(
         ground: Color(rgb: 0xE4593B),
         ink: .white,
-        contact: Color(red: 60 / 255, green: 10 / 255, blue: 0).opacity(0.38),
+        contact: Color(rgb: 0x3C0A00).opacity(0.38),
         glowCore: .white.opacity(0.55),
         rippleTone: .white.opacity(0.28),
-        typeShadow: Color(red: 88 / 255, green: 22 / 255, blue: 6 / 255).opacity(0.22)
+        typeShadow: Color(rgb: 0x581606).opacity(0.22)
     )
 
     static let dark = OpenerTheme(

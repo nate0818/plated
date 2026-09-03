@@ -125,7 +125,7 @@ struct DishView: View {
                         // After dark the deep palette pools sink into the dark
                         // porcelain — a whisper of rim keeps the food's silhouette.
                         if scheme == .dark {
-                            Circle().strokeBorder(Color.white.opacity(0.10), lineWidth: 1)
+                            Circle().strokeBorder(Color.white.opacity(0.10), lineWidth: 1)  // design-ok(literal-colour): a rim highlight is light catching an edge, not a palette colour
                         }
                     }
             }
@@ -236,7 +236,7 @@ private struct PorcelainBase: View {
             .fill(Color.cardFill)
             .overlay {
                 if scheme == .dark {
-                    Circle().strokeBorder(Color.white.opacity(0.06), lineWidth: 1)
+                    Circle().strokeBorder(Color.white.opacity(0.06), lineWidth: 1)  // design-ok(literal-colour): same, on the empty plate
                 }
             }
             .overlay {

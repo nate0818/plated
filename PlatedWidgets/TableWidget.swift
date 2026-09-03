@@ -37,14 +37,14 @@ struct TableWidgetView: View {
                     .scaledToFill()
                 // A scrim, not a slab: legible type without dimming the food.
                 LinearGradient(
-                    colors: [.black.opacity(0), .black.opacity(0.55)],
+                    colors: [Plate.scrimInk.opacity(0), Plate.scrimInk.opacity(0.55)],
                     startPoint: .center,
                     endPoint: .bottom
                 )
                 VStack(alignment: .leading, spacing: 2) {
                     Text(card.firstName)
                         .font(.jakarta(13))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Plate.onScrim)
                     plates(card, onPhoto: true)
                 }
                 .padding(12)
@@ -122,7 +122,7 @@ struct TableWidgetView: View {
                     .font(.jakarta(12))
             }
         }
-        .foregroundStyle(onPhoto ? Color.white.opacity(0.92) : Plate.inkSecondary)
+        .foregroundStyle(onPhoto ? Plate.onScrim.opacity(0.92) : Plate.inkSecondary)
     }
 
     private var empty: some View {
