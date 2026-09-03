@@ -12,6 +12,13 @@ struct RootView: View {
     /// not dragged back through onboarding to be asked for a picture.
     @AppStorage("didSetProfile") private var didSetProfile = false
     @AppStorage("didSetTable") private var didSetTable = false
+    /// The four-card tour, owed once at the end of setting up.
+    ///
+    /// Its own flag, and carried forward for anybody whose table already
+    /// exists: being walked around an app you have been using for weeks is
+    /// the same wrong note as being asked for a photo on launch day two.
+    /// See `carryTourForward`.
+    @AppStorage("sawTour") private var sawTour = false
     /// Set the first time the opener plays all the way through. Its own
     /// flag rather than `didSignIn`, because the full opener is owed to
     /// anyone who has not seen it — including someone who quit during it.
@@ -35,6 +42,17 @@ struct RootView: View {
             AppleIdentity.clear()
             didSignIn = false
         }
+    }
+
+    /// A table that already exists means the app has already been met.
+    ///
+    /// Runs once: after this the key exists and the check never fires again.
+    /// Without it, shipping the tour would hand every existing household a
+    /// walkthrough of the app they were in the middle of using.
+    private func carryTourForward() {
+        let store = UserDefaults.standard
+        guard store.object(forKey: "sawTour") == nil else { return }
+        store.set(store.bool(forKey: "didSetTable"), forKey: "sawTour")
     }
 
     var body: some View {
@@ -61,6 +79,9 @@ struct RootView: View {
             } else if !didSetTable {
                 ContactsView { didSetTable = true }
                     .transition(.opacity)
+            } else if !sawTour {
+                TourView { sawTour = true }
+                    .transition(.opacity)
             } else {
                 MainShellView()
                     .transition(.opacity)
@@ -70,6 +91,8 @@ struct RootView: View {
         .animation(.plSettle, value: didSignIn)
         .animation(.plSettle, value: didSetProfile)
         .animation(.plSettle, value: didSetTable)
+        .animation(.plSettle, value: sawTour)
+        .onAppear(perform: carryTourForward)
         .task {
             // There is no wake-up work. This was a 1.4 second sleep standing
             // in for some, which means every cold launch paid 1.4 seconds for
