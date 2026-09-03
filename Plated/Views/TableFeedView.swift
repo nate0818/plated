@@ -337,8 +337,17 @@ struct TableFeedView: View {
         .padding(.vertical, 14)
     }
 
+    /// True once "Everyone" and "Household" could return different lists —
+    /// that is, once the table holds a post by somebody who is not in the
+    /// house. Derived rather than remembered, so it goes away again if that
+    /// post does.
+    private var scopeIsMeaningful: Bool {
+        let names = Set(members.map(\.name))
+        return realPosts.contains { !names.contains($0.firstName) && !names.contains($0.authorName) }
+    }
+
     private var shownPosts: [TablePost] {
-        guard scope == .household else { return realPosts }
+        guard scope == .household, scopeIsMeaningful else { return realPosts }
         let names = Set(members.map(\.name))
         return realPosts.filter { names.contains($0.firstName) || names.contains($0.authorName) }
     }
@@ -354,28 +363,18 @@ struct TableFeedView: View {
                 // Search sits beside the scope, the way it does on Recipes:
                 // scoping the feed and searching it are the same kind of act,
                 // and the header has a host to seat instead.
-                HStack(spacing: 8) {
+                // The scope's own row, and it exists only when the scope
+                // does. "Everyone" and "Household" are the same set until
+                // somebody outside the house has posted, so on a new table
+                // this was a segmented control whose two halves returned an
+                // identical empty list — a decision offered before there was
+                // anything to decide, above a row of chrome that existed to
+                // hold it. A control appears when it can do something.
+                if scopeIsMeaningful {
                     scopePicker
-                    Button {
-                        Haptic.tap()
-                        pushed = .discover
-                    } label: {
-                        Circle()
-                            .strokeBorder(Color.hairline, lineWidth: 1.5)
-                            .frame(width: 38, height: 38)
-                            .overlay {
-                                Image(systemName: "magnifyingglass")
-                                    .font(.system(size: 15, weight: .semibold))
-                                    .foregroundStyle(Color.ink)
-                            }
-                            .frame(minWidth: 44, minHeight: 44)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.pressable)
-                    .accessibilityLabel("Discover")
+                        .padding(.horizontal, 24)
+                        .padding(.bottom, 12)
                 }
-                .padding(.horizontal, 24)
-                .padding(.bottom, 12)
                 Divider().overlay(Color.hairlineSoft)
 
                 ScrollView(showsIndicators: false) {
@@ -582,6 +581,12 @@ struct TableFeedView: View {
 
     @ViewBuilder
     private var headerControls: some View {
+            // Discover lives with the other icon buttons rather than alone in
+            // a row of its own. It is chrome, not a filter, and it has
+            // nothing to do with the scope beside which it used to sit.
+            IconDiscButton(systemName: "magnifyingglass", label: "Discover", glyphSize: 15) {
+                pushed = .discover
+            }
             ActivityBellButton {
                 pushed = .activity
             }

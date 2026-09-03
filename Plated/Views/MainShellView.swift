@@ -62,10 +62,12 @@ struct MainShellView: View {
     @State private var askPresented = false
     /// A widget asked for the grocery list; the week picks it up on arrival.
     @State private var groceryRequested = false
-    /// Guards sample seeding so a slow CloudKit first-import can never race
-    /// an "empty" check into duplicating everything.
-    @AppStorage("didSeedSampleData") private var didSeedSampleData = false
-    @AppStorage("didSeedDiscover") private var didSeedDiscover = false
+    // `didSeedSampleData` and `didSeedDiscover` lived here, each with a
+    // careful comment about guarding a seed against a slow CloudKit import.
+    // Neither was ever read or written, and `SampleData` is called from
+    // SwiftUI previews and nowhere else — so a real first launch has always
+    // been a genuinely empty app, and the guard was for a race that could
+    // not happen. Two more comments describing machinery that was not there.
     /// Guards the legacy Discover repair so a slow CloudKit first-import can
     /// never race an "empty" check into skipping it forever.
     @AppStorage("didRepairLegacyDiscover") private var didRepairLegacyDiscover = false
