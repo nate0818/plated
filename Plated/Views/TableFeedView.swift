@@ -377,7 +377,9 @@ struct TableFeedView: View {
                 Button("Cancel", role: .cancel) {}
             }
         } message: {
-            Text("The photo and comments go too.")
+            // "Everyone" is now a promise the code keeps. It used to delete
+            // the local row only, and the post came back on the next pull.
+            Text("It comes off the table for everyone. The photo and comments go too.")
         }
         .sheet(item: $editingSave) { post in
             RecipeEditorView(prefill: (
@@ -706,9 +708,14 @@ struct TableFeedView: View {
                             .accessibilityLabel("Comments")
                             .font(.system(size: 18, weight: .medium))
                             .foregroundStyle(Color.inkSecondary)
-                        Text("\(post.sortedComments.count)")
-                            .plType(.body, .bold)
-                            .foregroundStyle(Color.inkSecondary)
+                        // Same rule as the plate: the count is evidence, not
+                        // furniture. The "Add a comment" row below already
+                        // carries the invitation, so nothing is lost.
+                        if !post.sortedComments.isEmpty {
+                            Text("\(post.sortedComments.count)")
+                                .plType(.body, .bold)
+                                .foregroundStyle(Color.inkSecondary)
+                        }
                     }
                     .frame(minHeight: 44)
                     .contentShape(Rectangle())
@@ -829,11 +836,31 @@ struct TableFeedView: View {
         return post.authorName == me || post.firstName == me
     }
 
+    /// The record first, the row second.
+    ///
+    /// This used to be `context.delete(post)` alone, which does not delete
+    /// anything anybody else can see. `merge` keys on `shareRecordName`, so
+    /// the record left behind in the zone came back on the very next pull as
+    /// a NEW post stamped `isRemote = true`: your own dinner, returned to
+    /// your feed as a stranger's, without its plates or comments, and
+    /// undeletable forever after because `isMine` refuses remote posts.
+    ///
+    /// So the local row only goes when the record is confirmed gone. If
+    /// iCloud cannot be reached the post stays exactly where it is and says
+    /// so, because a delete that half happened is worse than one that did
+    /// not: DESIGN.md's rule is that state is recorded, never asserted.
     private func deletePost(_ post: TablePost) {
-        Haptic.plate()
-        withAnimation(.plSnap) {
-            pendingDelete = nil
-            context.delete(post)
+        let recordName = post.shareRecordName
+        pendingDelete = nil
+        Task {
+            guard await TableShare.retract(recordName: recordName) else {
+                Haptic.warn()
+                showToast("Couldn't reach iCloud. The post is still on the table.")
+                return
+            }
+            Haptic.plate()
+            withAnimation(.plSnap) { context.delete(post) }
+            Persist.save(context)
         }
     }
 
@@ -955,11 +982,21 @@ struct TableFeedView: View {
         } label: {
             HStack(spacing: 7) {
                 PlateReactionGlyph(filled: post.platedByMe)
-                Text("\(post.totalPlates)")
-                    .plType(.body, .bold)
-                    .foregroundStyle(post.platedByMe ? Color.tomato : Color.inkSecondary)
-                    .contentTransition(.numericText())
+                // The numeral arrives with the first plate and not before.
+                // A mounted zero beside every dinner somebody cooked is not
+                // neutral in a room of eight people; it reads as a verdict
+                // on a post nobody has got to yet. Instagram draws no like
+                // row at zero, Slack no pill, Messages no chip: a reaction
+                // display is evidence that something happened, never a
+                // counter waiting to be filled.
+                if post.totalPlates > 0 {
+                    Text("\(post.totalPlates)")
+                        .plType(.body, .bold)
+                        .foregroundStyle(post.platedByMe ? Color.tomato : Color.inkSecondary)
+                        .contentTransition(.numericText())
+                }
             }
+            .animation(.plSnap, value: post.totalPlates)
             .plTapTarget()
         }
         .buttonStyle(.pressable)
@@ -1002,16 +1039,20 @@ struct TableFeedView: View {
         }
         if turningOn {
             post.hasChefsKiss ? Haptic.kiss() : Haptic.plate()
-            let me = members.first(where: \.isOwner)?.name ?? "You"
-            if post.firstName != me && post.authorName != me {
-                // Once per post, ever — plate/unplate/plate must not spam.
-                Notifier.postOnce(
-                    key: "plate:\(post.originKey)|\(Int(post.createdAt.timeIntervalSince1970))",
-                    .plateReaction, actor: me,
-                    body: "\(me) plated \(post.firstName)'s \(post.dishTitle.isEmpty ? "post" : post.dishTitle).",
-                    into: context
-                )
-            }
+            // NO notification here, deliberately.
+            //
+            // `Notifier.postOnce` writes into the LOCAL context, and plates
+            // do not cross the wire, so this row only ever reached the
+            // person who tapped it. Your own activity bell filled with
+            // third-person narration of things you had just done — "Nate
+            // plated Riley's ragù", in Nate's bell — and Riley was never
+            // told anything. Instagram's rule is that a like never appears
+            // in the liker's own activity, because you already know what
+            // you did.
+            //
+            // The de-dup key below was well built and is worth restoring
+            // the moment plates actually reach the author:
+            //   key: "plate:\(post.originKey)|\(Int(post.createdAt.timeIntervalSince1970))"
         } else {
             Haptic.tap()
         }
@@ -1142,15 +1183,10 @@ struct PlateReactionButton: View {
             }
             if turningOn {
                 post.hasChefsKiss ? Haptic.kiss() : Haptic.plate()
-                let me = members.first(where: \.isOwner)?.name ?? "You"
-                if post.firstName != me && post.authorName != me {
-                    Notifier.postOnce(
-                        key: "plate:\(post.originKey)|\(Int(post.createdAt.timeIntervalSince1970))",
-                        .plateReaction, actor: me,
-                        body: "\(me) plated \(post.firstName)'s \(post.dishTitle.isEmpty ? "post" : post.dishTitle).",
-                        into: context
-                    )
-                }
+                // The second copy of the notification removed in
+                // togglePlate above, and the same reason: it was written
+                // into the local context, so it only ever reached the
+                // person who tapped it.
             } else {
                 Haptic.tap()
             }

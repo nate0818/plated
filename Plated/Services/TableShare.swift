@@ -345,6 +345,39 @@ enum TableShare {
         }
     }
 
+    /// Take a post back off the table. The inverse of `publish`.
+    ///
+    /// **Deleting locally is not deleting.** `merge` keys on
+    /// `shareRecordName`, so a row removed from this device while its record
+    /// still sits in the zone comes back on the very next pull — and comes
+    /// back as somebody ELSE's post, because the merge path that handles an
+    /// unmatched record stamps `isRemote = true`. It arrives stripped of its
+    /// plates and comments, attributed to "another table", and `isMine`
+    /// refuses remote posts, so the overflow no longer offers Delete and the
+    /// author can never remove it again. The confirmation said "The photo
+    /// and comments go too" and meant it about this phone only.
+    ///
+    /// Returns false only when the record exists and could not be reached.
+    /// A post that never published has an empty name and is already gone
+    /// everywhere, which is a success, not a no-op.
+    static func retract(recordName: String) async -> Bool {
+        guard !recordName.isEmpty else { return true }
+        guard await TableSync.accountAvailable() else { return false }
+        guard let (db, zoneID) = await writableZone() else { return false }
+        do {
+            _ = try await db.deleteRecord(
+                withID: CKRecord.ID(recordName: recordName, zoneID: zoneID)
+            )
+            return true
+        } catch let error as CKError where error.code == .unknownItem {
+            // Already gone: deleted from another device, or it never landed.
+            // Either way the caller's local delete is now honest.
+            return true
+        } catch {
+            return false
+        }
+    }
+
     /// Everything other people have put on tables this user can see.
     ///
     /// Returns plain values, never model objects: the caller merges on the
@@ -581,6 +614,7 @@ enum TableShare {
     static func invitationURL(hostName: String) async -> URL? { nil }
     static func accept(_ metadata: CKShare.Metadata) async -> Bool { false }
     static func publish(_ post: TablePost, hostName: String) async -> String? { nil }
+    static func retract(recordName: String) async -> Bool { true }
     struct RemotePost { var recordName = ""; var authorName = ""; var authorColorHex = "FF5A3C"
                         var dishTitle = ""; var caption = ""; var kind = "dish"
                         var createdAt = Date.now; var photoData: Data? }
