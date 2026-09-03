@@ -29,6 +29,8 @@ struct WeekView: View {
     /// The day whose detail page is pushed. Tapping a day used to raise a
     /// change/remove dialog; those two are swipe actions inside the day now.
     @State private var dayShown: Date?
+    /// Nights already eaten start folded. They are history, not plan.
+    @State private var earlierShown = false
     @State private var swipedDay: Date?
     @State private var personShown: PersonRef?
     @State private var pushed: PlanDestination?
@@ -175,9 +177,17 @@ struct WeekView: View {
                     // both ways it appeared twice in one scroll, and the
                     // second time was underneath four nights already eaten,
                     // which reads as the week having lost its order.
-                    ForEach(rowDates(skippingToday: tonight != nil), id: \.self) { date in
+                    ForEach(aheadThisWeek(skippingToday: tonight != nil), id: \.self) { date in
                         dayRow(date)
                     }
+                    // The nights already eaten, folded away. A plan reads
+                    // forward: putting Sunday and Monday directly under the
+                    // answer to "what is tonight" opened the screen with
+                    // four days nobody can act on. They are still here
+                    // because history answers questions — see pastRow — and
+                    // they are one tap from the end of the week they belong
+                    // to rather than the top of it.
+                    if !earlierThisWeek.isEmpty { earlierSection }
                     ForEach(Array(futureWeeks.enumerated()), id: \.offset) { index, week in
                         HStack {
                             MicroLabel(weekSectionLabel(week, index: index))
@@ -870,12 +880,59 @@ struct WeekView: View {
 
     // MARK: Data
 
-    /// The week's rows. `weekDates` itself is untouched, because the ring,
-    /// the counts and the week label all measure the whole week including
-    /// tonight; it is only the list that hands tonight to the card.
-    private func rowDates(skippingToday: Bool) -> [Date] {
-        guard skippingToday else { return weekDates }
-        return weekDates.filter { !Calendar.current.isDateInToday($0) }
+    /// What is left of this week. `weekDates` itself is untouched, because
+    /// the ring, the counts and the week label all measure the whole week
+    /// including tonight; it is only the list that reorders around the card.
+    private func aheadThisWeek(skippingToday: Bool) -> [Date] {
+        weekDates.filter { date in
+            if isPast(date) { return false }
+            if skippingToday, Calendar.current.isDateInToday(date) { return false }
+            return true
+        }
+    }
+
+    /// What was actually eaten earlier this week.
+    ///
+    /// Only the nights with a dinner on them. An empty past night is not
+    /// history, it is nothing: it cannot be planned (pastRow disables it)
+    /// and it records nothing, so offering to unfold a list of them was
+    /// offering to open an empty drawer. That also retires the "0 dinners"
+    /// this section used to carry, which is the mounted zero DESIGN.md
+    /// names, and makes the remaining count identical to the row count and
+    /// therefore not worth printing.
+    private var earlierThisWeek: [Date] {
+        weekDates.filter { isPast($0) && dinner(on: $0) != nil }
+    }
+
+    @ViewBuilder
+    private var earlierSection: some View {
+        Button {
+            Haptic.select()
+            withAnimation(.plSnap) { earlierShown.toggle() }
+        } label: {
+            HStack(spacing: 6) {
+                MicroLabel("Earlier this week")
+                Image(systemName: "chevron.down")
+                    .accessibilityHidden(true)
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(Color.inkSecondary)
+                    .rotationEffect(.degrees(earlierShown ? 0 : -90))
+                Spacer()
+            }
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.pressable)
+        .accessibilityLabel("Earlier this week")
+        .accessibilityValue(earlierShown ? "Showing" : "Hidden")
+        .padding(.top, 10)
+
+        if earlierShown {
+            ForEach(earlierThisWeek, id: \.self) { date in
+                dayRow(date)
+            }
+            .transition(.plUnfold)
+        }
     }
 
     private func dinner(on date: Date) -> PlannedMeal? {

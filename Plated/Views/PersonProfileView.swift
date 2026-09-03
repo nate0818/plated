@@ -542,6 +542,7 @@ struct SettingsSheet: View {
     var focusHouseholdName = false
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var typeSize
     @AppStorage("appearance") private var appearanceRaw = Appearance.system.rawValue
     /// Calendar access was asked for and refused. Not persisted: it is a
     /// fact about this moment, and somebody who fixes it in Settings should
@@ -809,33 +810,73 @@ struct SettingsSheet: View {
         }
     }
 
+    /// A settings row: a disc, a sentence, and the control it belongs to.
+    ///
+    /// The words take the width first. Without a layout priority the
+    /// trailing control won the negotiation and the text column was
+    /// compressed until it was narrower than its own title, so SwiftUI
+    /// broke the word rather than the line: "Appearance" set as "Appearanc"
+    /// over "e". A title breaking mid-word is the thing DESIGN.md says a
+    /// title may never do, one step worse than truncating.
+    ///
+    /// Above xxLarge the control moves under the sentence instead of
+    /// fighting it for the row. This is the same answer the cook rotation's
+    /// "Take turns automatically" needed on Home, and it belongs here, in
+    /// the component, rather than at each of the five call sites.
     private func settingRow(
         icon: String, title: String, caption: String,
         @ViewBuilder trailing: () -> some View
     ) -> some View {
-        HStack(spacing: 12) {
-            Circle()
-                .fill(Color.fill)
-                .frame(width: 40, height: 40)
-                .overlay {
-                    Image(systemName: icon)
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundStyle(Color.ink)
+        let stacked = typeSize >= .xxLarge
+        let words = VStack(alignment: .leading, spacing: 2) {
+            Text(title)
+                .plType(.body, .bold)
+                .foregroundStyle(Color.ink)
+                .fixedSize(horizontal: false, vertical: true)
+            Text(caption)
+                .plType(.caption)
+                .foregroundStyle(Color.inkSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+
+        return Group {
+            if stacked {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(spacing: 12) {
+                        settingDisc(icon)
+                        words
+                    }
+                    trailing()
                 }
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .plType(.body, .bold)
-                    .foregroundStyle(Color.ink)
-                Text(caption)
-                    .plType(.caption)
-                    .foregroundStyle(Color.inkSecondary)
+            } else {
+                HStack(spacing: 12) {
+                    settingDisc(icon)
+                    words
+                        // The sentence wins the width; the control takes
+                        // what is left.
+                        .layoutPriority(1)
+                    trailing()
+                }
             }
-            Spacer()
-            trailing()
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
         .overlay(RoundedRectangle(cornerRadius: Radius.card, style: .continuous).strokeBorder(Color.hairline))
+    }
+
+    private func settingDisc(_ icon: String) -> some View {
+        Circle()
+            .fill(Color.fill)
+            .frame(width: 40, height: 40)
+            .overlay {
+                Image(systemName: icon)
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundStyle(Color.ink)
+            }
+            // The disc is furniture: a fixed circle with a fixed glyph and
+            // nowhere to reflow.
+            .plChrome()
     }
 }
 
