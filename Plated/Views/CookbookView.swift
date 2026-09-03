@@ -94,6 +94,7 @@ struct CookbookView: View {
     @Environment(\.modelContext) private var context
     @Query(sort: \Recipe.createdAt) private var recipes: [Recipe]
     @State private var selected: Recipe?
+    @Environment(\.dynamicTypeSize) private var typeSize
     @State private var filter = RecipeFilter()
     @State private var filterSheetShown = false
     @State private var importShown = false
@@ -208,11 +209,24 @@ struct CookbookView: View {
                     .buttonStyle(.pressable)
                     .accessibilityLabel("Add a recipe")
                 }
+                // Two chips in a header row are furniture: they hold a
+                // fixed capsule and have nowhere to reflow, so uncapped
+                // they grew until "Search and filter" read as "Searc...".
+                // A chip that truncates its own verb is worse than a small
+                // one. The grid below is content and keeps growing.
+                .plChrome()
                 .padding(.horizontal, 24)
                 .padding(.top, 12)
 
                 ScrollView(showsIndicators: false) {
-                    LazyVGrid(columns: [GridItem(.flexible(), spacing: 20), GridItem(.flexible())], spacing: 26) {
+                    // Two columns is about 170pt a tile, and at AX5 a
+                    // dish name sets at 47pt: "Sheet-pan chicken with
+                    // charred lemon" could not fit two lines of that in
+                    // half a screen, so the tile truncated to "Sheet...".
+                    // A grid that cannot hold its own content is the wrong
+                    // grid; at accessibility sizes it becomes one column
+                    // and the name gets the whole width.
+                    LazyVGrid(columns: tileColumns, spacing: 26) {
                         ForEach(shown, id: \.persistentModelID) { recipe in
                             recipeTile(recipe)
                                 .transition(.plArrive)
@@ -376,6 +390,31 @@ struct CookbookView: View {
         return recipes.isEmpty ? "" : "\(recipes.count) \(recipes.count == 1 ? "dish" : "dishes")"
     }
 
+    /// Two reserved lines while there are two columns: reserving is what
+    /// keeps neighbouring tiles on one baseline whether or not a name needs
+    /// the second line. At accessibility sizes the grid is a single column,
+    /// so there is no neighbour to line up with and no reason to stop at
+    /// two — the name takes the lines it needs rather than ending in an
+    /// ellipsis with the whole width to itself.
+    @ViewBuilder
+    private func tileTitle(_ title: String) -> some View {
+        let text = Text(title)
+            .plType(.body, .bold)
+            .foregroundStyle(Color.ink)
+            .multilineTextAlignment(.center)
+        if typeSize.isAccessibilitySize {
+            text.lineLimit(nil)
+        } else {
+            text.lineLimit(2, reservesSpace: true)
+        }
+    }
+
+    private var tileColumns: [GridItem] {
+        typeSize.isAccessibilitySize
+            ? [GridItem(.flexible())]
+            : [GridItem(.flexible(), spacing: 20), GridItem(.flexible())]
+    }
+
     private func recipeTile(_ recipe: Recipe) -> some View {
         Button {
             Haptic.tap()
@@ -413,18 +452,7 @@ struct CookbookView: View {
                     }
                 }
                 VStack(spacing: 2) {
-                    Text(recipe.title)
-                        .plType(.body, .bold)
-                        .foregroundStyle(Color.ink)
-                        // Two lines, and the space for both is always
-                        // reserved. One line turned "Sheet-pan chicken with
-                        // charred lemon" into "Sheet-pan chicken w..." beside
-                        // an empty half of the grid, and the plan row two
-                        // screens away has always given a dish name two.
-                        // Reserving keeps the tiles on one baseline whether
-                        // the name needs the second line or not.
-                        .lineLimit(2, reservesSpace: true)
-                        .multilineTextAlignment(.center)
+                    tileTitle(recipe.title)
                     Text(metaLine(recipe))
                         .plType(.caption, .semibold)
                         .foregroundStyle(Color.inkSecondary)
