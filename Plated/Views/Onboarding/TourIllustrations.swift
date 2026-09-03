@@ -117,6 +117,16 @@ struct TourWeek: View {
     /// The nights already cooked by the time you reach today.
     private let done = 3
 
+    /// The same source the month grid reads, rotated the same way, so the
+    /// tour shows the week starting on whichever day this person's calendar
+    /// starts on rather than a hard-coded SMTWTFS.
+    private var symbols: [String] {
+        let calendar = Calendar.current
+        let all = calendar.veryShortWeekdaySymbols
+        let first = calendar.firstWeekday - 1
+        return Array(all[first...] + all[..<first])
+    }
+
     var body: some View {
         HStack(spacing: 6) {
             ForEach(0..<nights, id: \.self) { day in
@@ -130,11 +140,20 @@ struct TourWeek: View {
                                           lineWidth: 1)
                     }
                     .overlay(alignment: .top) {
-                        Circle()
-                            .fill(day <= done ? Color.basil : Color.hairline)
-                            .frame(width: 6, height: 6)
-                            .padding(.top, 10)
-                            .scaleEffect(day < planned ? 1 : 0)
+                        VStack(spacing: 5) {
+                            Text(symbols[day])
+                                .plType(.micro)
+                                .foregroundStyle(isToday ? Color.tomato : Color.inkSecondary)
+                                // A 34pt chip is furniture with nowhere to
+                                // reflow, the same as the plan's own date
+                                // card.
+                                .plChrome()
+                            Circle()
+                                .fill(day <= done ? Color.basil : Color.hairline)
+                                .frame(width: 6, height: 6)
+                                .scaleEffect(day < planned ? 1 : 0)
+                        }
+                        .padding(.top, 9)
                     }
                     .scaleEffect(y: isToday && todayUp ? 1 : (isToday ? 0.88 : 1), anchor: .bottom)
                     .opacity(day < planned ? 1 : 0.35)
