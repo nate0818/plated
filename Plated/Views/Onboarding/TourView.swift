@@ -100,7 +100,7 @@ struct TourView: View {
         VStack(spacing: 0) {
             Spacer(minLength: 0)
 
-            illustration(index)
+            illustration(index, isActive: page == index)
                 .frame(height: 168)
                 // The arrival the rest of the app uses, so the tour moves
                 // the way the product moves.
@@ -130,11 +130,11 @@ struct TourView: View {
     }
 
     @ViewBuilder
-    private func illustration(_ index: Int) -> some View {
+    private func illustration(_ index: Int, isActive: Bool) -> some View {
         switch index {
         case 0: tonightPlate
-        case 1: weekStrip
-        case 2: tableSeats
+        case 1: TourWeek(isActive: isActive)
+        case 2: TourSeats(isActive: isActive)
         default: cookbookShelf
         }
     }
@@ -143,48 +143,6 @@ struct TourView: View {
     private var tonightPlate: some View {
         DishView(title: "Sheet-pan chicken", diameter: 132)
             .plDishShadow()
-    }
-
-    /// The week's date chips, with today tinted, at the geometry the list
-    /// uses: `Radius.small`, `hairline`, and the one standing exception
-    /// DESIGN.md allows for today's card.
-    private var weekStrip: some View {
-        HStack(spacing: 6) {
-            ForEach(0..<7, id: \.self) { day in
-                let today = day == 3
-                RoundedRectangle(cornerRadius: Radius.small, style: .continuous)
-                    .fill(today ? Color.tomatoTint : Color.cardFill)
-                    .frame(width: 34, height: today ? 78 : 62)
-                    .overlay {
-                        RoundedRectangle(cornerRadius: Radius.small, style: .continuous)
-                            .strokeBorder(today ? Color.tomato.opacity(0.16) : Color.hairline,
-                                          lineWidth: 1)
-                    }
-                    .overlay(alignment: .top) {
-                        Circle()
-                            .fill(day < 4 ? Color.basil : Color.hairline)
-                            .frame(width: 6, height: 6)
-                            .padding(.top, 10)
-                    }
-            }
-        }
-        .accessibilityHidden(true)
-    }
-
-    /// A table of four, one tone each from the person palette.
-    private let seats: [(String, PersonTone)] = [
-        ("A", .tomatoPair), ("C", .basilPair), ("N", .grapePair), ("A", .amberPair),
-    ]
-
-    /// The seat cluster the Table's masthead wears.
-    private var tableSeats: some View {
-        HStack(spacing: -12) {
-            ForEach(Array(seats.enumerated()), id: \.offset) { _, seat in
-                AvatarCircle(initials: seat.0, tone: seat.1, size: 62)
-                    .overlay(Circle().strokeBorder(Color.canvas, lineWidth: 3))
-            }
-        }
-        .accessibilityHidden(true)
     }
 
     /// Three plates, the way the cookbook grid holds them.
