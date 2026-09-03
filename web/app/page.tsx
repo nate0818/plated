@@ -6,9 +6,47 @@ import AppStoreMark from "./components/AppStoreMark";
 import AppStoreBadge from "./components/AppStoreBadge";
 import styles from "./page.module.css";
 
+// Structured data for the search engines that read it. A software
+// application with no offer attached: it is not on the store yet, and a
+// price or a download URL here would be a claim the badge cannot keep.
+const structuredData = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Organization",
+      "@id": "https://plated.food/#org",
+      name: "Plated",
+      url: "https://plated.food",
+      logo: "https://plated.food/apple-icon",
+    },
+    {
+      "@type": "WebSite",
+      "@id": "https://plated.food/#site",
+      url: "https://plated.food",
+      name: "Plated",
+      publisher: { "@id": "https://plated.food/#org" },
+      inLanguage: "en-US",
+    },
+    {
+      "@type": "SoftwareApplication",
+      name: "Plated",
+      applicationCategory: "LifestyleApplication",
+      operatingSystem: "iOS, iPadOS",
+      description:
+        "A dinner planner for households and the people they cook for. Plan the week together, keep the recipes you love, and share what you made with the people you invite.",
+      url: "https://plated.food",
+      publisher: { "@id": "https://plated.food/#org" },
+    },
+  ],
+};
+
 export default function Home() {
   return (
     <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+      />
       <header className={`${styles.header} wrap`}>
         <Link href="/" aria-label="Plated home" className={styles.home}>
           <Wordmark size={26} />

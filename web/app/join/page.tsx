@@ -13,6 +13,9 @@ export const metadata: Metadata = {
     title: "A seat at the table",
     description: "Someone kept you a seat at their table on Plated.",
   },
+  // An invitation is addressed to one person. Search engines are not invited.
+  robots: { index: false, follow: false },
+  alternates: { canonical: "/join" },
 };
 
 // A phone that has Plated never gets here: iOS opens the app straight from

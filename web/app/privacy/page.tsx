@@ -6,6 +6,7 @@ import styles from "./page.module.css";
 export const metadata: Metadata = {
   title: "Privacy",
   description: "What Plated keeps, where it keeps it, and what it never collects.",
+  alternates: { canonical: "/privacy" },
 };
 
 // Every sentence here is a claim about the running system, so it is written

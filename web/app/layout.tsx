@@ -18,19 +18,54 @@ const jakarta = Plus_Jakarta_Sans({
   display: "swap",
 });
 
+// What a stranger sees before the page: the tab title, the search snippet,
+// the card when the link is pasted into Messages. Every claim here is one
+// the homepage also makes, so the snippet never promises more than the site.
+const DESCRIPTION =
+  "Plated is a dinner planner for households and the people they cook for. Plan the week together, keep the recipes you love, and share what you made with the people you invite. Coming to iPhone and iPad.";
+
 export const metadata: Metadata = {
   metadataBase: new URL("https://plated.food"),
   title: {
-    default: "Plated",
+    default: "Plated: plan the week's dinners together",
     template: "%s · Plated",
   },
-  description:
-    "A week you plan together, a private Table you post dinner to, and the recipes worth making again. For iPhone.",
+  description: DESCRIPTION,
+  applicationName: "Plated",
+  keywords: [
+    "meal planner",
+    "dinner planner",
+    "weekly meal planning app",
+    "family meal planner",
+    "household meal planning",
+    "recipe app",
+    "grocery list app",
+    "iPhone",
+    "iPad",
+  ],
+  authors: [{ name: "Plated" }],
+  creator: "Plated",
+  category: "food",
+  alternates: { canonical: "/" },
   openGraph: {
     siteName: "Plated",
     type: "website",
+    locale: "en_US",
     url: "https://plated.food",
+    title: "Plated: plan the week's dinners together",
+    description: DESCRIPTION,
   },
+  twitter: {
+    card: "summary_large_image",
+    title: "Plated: plan the week's dinners together",
+    description: DESCRIPTION,
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: { index: true, follow: true, "max-image-preview": "large", "max-snippet": -1 },
+  },
+  formatDetection: { telephone: false, email: false, address: false },
 };
 
 export const viewport: Viewport = {
