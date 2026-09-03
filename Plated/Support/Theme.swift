@@ -749,19 +749,49 @@ struct CountDivider: View {
 /// of measured.
 struct PhotoWell: View {
     let image: UIImage
-    let height: CGFloat
+    /// A fixed band. Right where the photograph is furniture and the layout
+    /// around it must not move: a profile banner, a recipe hero, the
+    /// composer's preview.
+    var height: CGFloat?
+    /// The photograph's own shape, clamped to the range a feed can hold.
+    ///
+    /// Right where the photograph IS the content. The Table forced every
+    /// dinner into the same 300pt band with `scaledToFill`, so a portrait
+    /// photo — which is most photos of a plate taken standing over it — lost
+    /// its top and bottom to the crop, and a wide one lost its sides. This
+    /// is the one screen whose stated register is "a family's own
+    /// photographs are the only loud thing on screen", and the photographs
+    /// were the least considered thing on it.
+    ///
+    /// Clamped rather than free: 4:5 up and 1.91:1 across, which is
+    /// Instagram's range and exists so one very tall photo cannot take the
+    /// whole screen and push the next post out of the scroll.
+    var clamped = false
     var cornerRadius: CGFloat = Radius.card
 
+    /// Portrait ceiling and landscape floor, as width ÷ height.
+    private var ratio: CGFloat {
+        let natural = image.size.height > 0 ? image.size.width / image.size.height : 1
+        return min(max(natural, 4.0 / 5.0), 1.91)
+    }
+
     var body: some View {
-        Color.clear
-            .frame(maxWidth: .infinity)
-            .frame(height: height)
-            .overlay {
-                Image(uiImage: image)
-                    .resizable()
-                    .scaledToFill()
+        Group {
+            if clamped {
+                Color.clear
+                    .aspectRatio(ratio, contentMode: .fit)
+            } else {
+                Color.clear
+                    .frame(maxWidth: .infinity)
+                    .frame(height: height ?? 240)
             }
-            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        }
+        .overlay {
+            Image(uiImage: image)
+                .resizable()
+                .scaledToFill()
+        }
+        .clipShape(Radius.shape(cornerRadius))
     }
 }
 

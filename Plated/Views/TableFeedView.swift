@@ -674,7 +674,7 @@ struct TableFeedView: View {
                     Button {
                         openThread(post)
                     } label: {
-                        PhotoWell(image: image, height: 300)
+                        PhotoWell(image: image, clamped: true)
                             .plCardShadow()
                     }
                     .buttonStyle(.pressable)
@@ -777,9 +777,15 @@ struct TableFeedView: View {
                     openThread(post)
                 } label: {
                     HStack(spacing: 7) {
+                        // 20pt semibold, matched to PlateReactionGlyph's
+                        // stroke rather than to its own idea of a size. The
+                        // three controls on this row were a 26pt hand-drawn
+                        // glyph with a 2pt rim, an 18pt medium symbol and a
+                        // 14pt semibold one: three optical weights on one
+                        // baseline, where Instagram's row is one.
                         Image(systemName: "bubble.right")
                             .accessibilityLabel("Comments")
-                            .font(.system(size: 18, weight: .medium))
+                            .font(.system(size: 20, weight: .semibold))
                             .foregroundStyle(Color.inkSecondary)
                         // Same rule as the plate: the count is evidence, not
                         // furniture. The "Add a comment" row below already
@@ -812,7 +818,7 @@ struct TableFeedView: View {
                 } label: {
                     HStack(spacing: 5) {
                         Image(systemName: saved ? "bookmark.fill" : "bookmark")
-                            .font(.system(size: 14, weight: .semibold))
+                            .font(.system(size: 20, weight: .semibold))
                             .contentTransition(.symbolEffect(.replace.magic(fallback: .replace.downUp)))
                         Text(saved ? "Saved" : "Save")
                             .plType(.footnote, .bold)

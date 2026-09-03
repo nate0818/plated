@@ -63,7 +63,7 @@ struct PostThreadView: View {
                 VStack(alignment: .leading, spacing: 14) {
                     if let data = post.photoData, let image = UIImage(data: data) {
                         ZStack(alignment: .topTrailing) {
-                            PhotoWell(image: image, height: 320)
+                            PhotoWell(image: image, clamped: true)
                                 .plCardShadow()
                             if post.hasChefsKiss {
                                 chefsKissPill.offset(x: 6, y: -10)
