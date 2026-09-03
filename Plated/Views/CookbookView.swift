@@ -684,6 +684,11 @@ struct RecipeFilterSheet: View {
 
     @Environment(\.dismiss) private var dismiss
     @FocusState private var searchFocused: Bool
+    /// The masthead, the scroll content and the footer, measured separately
+    /// and added. See the detent at the bottom of this view.
+    @State private var mastheadHeight: CGFloat = 0
+    @State private var contentHeight: CGFloat = 0
+    @State private var footerHeight: CGFloat = 0
 
     private var presentGenres: [RecipeCategory] {
         RecipeCategory.allCases.filter { option in
@@ -701,6 +706,7 @@ struct RecipeFilterSheet: View {
             }
             .padding(.top, 22)
             .padding(.bottom, 10)
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { mastheadHeight = $0 }
 
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 18) {
@@ -774,6 +780,12 @@ struct RecipeFilterSheet: View {
                 }
                 .padding(.horizontal, 24)
                 .padding(.bottom, 16)
+                // The scroll content is the only thing here whose height is
+                // not already decided by the detent, so it is the only honest
+                // thing to measure. Measuring a sibling of the ScrollView
+                // measures the detent's own answer coming back around, and
+                // the sheet walks itself taller every pass.
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
             }
 
             VStack(spacing: 8) {
@@ -793,8 +805,14 @@ struct RecipeFilterSheet: View {
             }
             .padding(.horizontal, 24)
             .padding(.bottom, 14)
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { footerHeight = $0 }
         }
-        .presentationDetents([.large])
+        // Sized to its own content. `.large` on a panel of three short chip
+        // groups opened with five hundred points of nothing under the last
+        // row, which reads as a page that failed to load rather than as a
+        // filter. `.large` stays available for the type sizes that need it,
+        // and the sheet grows into it on its own.
+        .presentationDetents([.height(mastheadHeight + contentHeight + footerHeight), .large])
         .presentationDragIndicator(.visible)
         .presentationBackground(Color.canvas)
         .presentationCornerRadius(Radius.sheet)

@@ -35,6 +35,10 @@ struct PlanNightSheet: View {
         var id: String { rawValue }
     }
     @State private var route: Route?
+    /// The masthead and the scroll content, measured separately and added.
+    /// See the detent at the bottom of this view.
+    @State private var mastheadHeight: CGFloat = 0
+    @State private var contentHeight: CGFloat = 0
     @State private var events = DayEventsProvider.shared
     @State private var forecast = ForecastProvider.shared
 
@@ -57,6 +61,7 @@ struct PlanNightSheet: View {
             }
             .padding(.top, 22)
             .padding(.bottom, 14)
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { mastheadHeight = $0 }
 
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 10) {
@@ -106,9 +111,18 @@ struct PlanNightSheet: View {
                 }
                 .padding(.horizontal, 24)
                 .padding(.bottom, 24)
+                // The scroll content, not a sibling of the ScrollView: a
+                // ScrollView takes whatever height the detent gives it, so
+                // measuring beside it feeds the detent its own answer and the
+                // sheet walks itself taller every pass.
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
             }
         }
-        .presentationDetents([.large])
+        // Six rows, two of them conditional, under a masthead whose caption
+        // is conditional too. `.large` left roughly a third of the screen
+        // empty below the last option. Measured instead, with `.large` still
+        // available for the type sizes that need it.
+        .presentationDetents([.height(mastheadHeight + contentHeight), .large])
         .presentationDragIndicator(.visible)
         .presentationBackground(Color.canvas)
         .presentationCornerRadius(Radius.sheet)
