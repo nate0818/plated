@@ -90,13 +90,21 @@ struct PostThreadView: View {
                         Spacer()
                     }
 
-                    // Spelled out because concatenated Text takes a Font,
-                    // not a view modifier. TypeScale.body's numbers.
-                    (Text(post.authorName).font(.jakarta(TypeScale.body.size, .bold))
-                     + Text("  ").font(.jakarta(TypeScale.body.size))
-                     + Text(post.caption).font(.jakarta(TypeScale.body.size)))
-                        .foregroundStyle(Color.ink)
-                        .lineSpacing(3)
+                    // The byline-and-caption run, on the same condition the
+                    // feed card uses. Unguarded, a post with no caption drew
+                    // the bold name and its two trailing spaces and nothing
+                    // else: a name sitting alone under the plate, saying
+                    // nothing, while the same name is already in the bar
+                    // above it. The feed learned this and the thread did not.
+                    if !post.caption.isEmpty || post.dishTitle.isEmpty {
+                        // Spelled out because concatenated Text takes a Font,
+                        // not a view modifier. TypeScale.body's numbers.
+                        (Text(post.authorName).font(.jakarta(TypeScale.body.size, .bold))
+                         + Text("  ").font(.jakarta(TypeScale.body.size))
+                         + Text(post.caption).font(.jakarta(TypeScale.body.size)))
+                            .foregroundStyle(Color.ink)
+                            .lineSpacing(3)
+                    }
 
                     if !post.taggedNames.isEmpty {
                         HStack(spacing: 6) {
