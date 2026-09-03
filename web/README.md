@@ -8,9 +8,10 @@ project's Root Directory is `web`, so nothing above this folder is served.
 - `/join` is the invitation landing page. A phone with Plated never sees it,
   because `/join` is in `public/.well-known/apple-app-site-association` and
   iOS opens the app straight from the link.
-- `app/api/waitlist` writes to the `waitlist` table in the Supabase project
-  `plated` with the service role. The key lives in Vercel's environment and
-  in a local `.env.local`, never in the repo. See `.env.example`.
+- `app/api/waitlist` forwards to the `waitlist` edge function in the Supabase
+  project `plated`, which does the insert with the service role on Supabase's
+  side. The website holds no secrets: only the publishable key, which can
+  read nothing.
 
 Colour tokens in `app/globals.css` are copied from `Plated/Support/Theme.swift`
 by hand, light values only. Change one there, change it here.
