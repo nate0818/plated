@@ -196,14 +196,27 @@ final class TableComment {
     var mentions: [String] = []
     /// A photo in the comments — the "I made it and here's proof" move.
     @Attribute(.externalStorage) var photoData: Data?
+    /// This comment's name on the wire, minted at compose time.
+    ///
+    /// A UUID rather than anything derived, because two people commenting in
+    /// the same instant must not contend for a name — and because a save
+    /// whose response was lost has to replay as a no-op rather than as a
+    /// duplicate. It is the key a merge from the wire matches on, so nothing
+    /// else about a comment needs to be unique.
+    var shareRecordName: String = ""
+    /// Who wrote it, in CloudKit's terms rather than in first names.
+    var authorID: String = ""
 
     var post: TablePost?
 
     init(
         authorName: String = "", text: String = "", linkURL: String = "",
         createdAt: Date = .now, replyToName: String = "",
-        mentions: [String] = [], photoData: Data? = nil
+        mentions: [String] = [], photoData: Data? = nil,
+        authorID: String = ""
     ) {
+        self.shareRecordName = "note-\(UUID().uuidString)"
+        self.authorID = authorID
         self.authorName = authorName
         self.text = text
         self.linkURL = linkURL

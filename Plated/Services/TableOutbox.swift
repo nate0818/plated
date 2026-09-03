@@ -101,6 +101,10 @@ final class TableOutbox {
     /// sent: a plate attributed to `local-<uuid>` would arrive at the table
     /// as a stranger, and the re-attribution that fixes it happens the
     /// moment CloudKit answers who this is.
+    /// Finds a queued comment again by its wire name. Set by the view that
+    /// owns a ModelContext; the outbox has none and should not.
+    var resolveNote: (String) -> TableComment? = { _ in nil }
+
     func drain(authorName: String) async {
         let work = entries.sorted { $0.at < $1.at }
         for entry in work {
@@ -117,10 +121,18 @@ final class TableOutbox {
                     post: post, zoneOwner: owner, author: entry.author,
                     choice: choice, at: entry.at
                 )
-            case .note:
-                // Comments still travel with the post they belong to; the
-                // note record type is not on the wire yet.
-                ok = false
+            case let .note(post, owner, id):
+                // The comment row is the payload, so it has to be found
+                // again rather than carried in the queue: a queue that holds
+                // a copy of the text is a second place for the text to be
+                // wrong.
+                if let comment = await MainActor.run(body: { resolveNote(id) }) {
+                    ok = await TableShare.pushNote(comment, post: post, zoneOwner: owner)
+                } else {
+                    // Deleted before it ever went out. Nothing to send, and
+                    // that is a success rather than a failure to retry.
+                    ok = true
+                }
             }
             if ok { remove(entry.id) } else { failed(entry.id) }
         }

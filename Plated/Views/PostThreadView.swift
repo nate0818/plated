@@ -752,10 +752,24 @@ struct PostThreadView: View {
             linkURL: normalized,
             replyToName: replyTo ?? "",
             mentions: mentioned,
-            photoData: commentPhoto
+            photoData: commentPhoto,
+            authorID: TableIdentity.cached
         )
         comment.post = post
         context.insert(comment)
+        // Out to the table. Not awaited: the comment is already on screen
+        // and already saved, and a slow upload must never hold the composer.
+        // A refusal leaves it queued rather than lost.
+        let postRecord = post.shareRecordName
+        let zoneOwner = post.shareZoneOwner
+        Task {
+            if await TableShare.pushNote(comment, post: postRecord, zoneOwner: zoneOwner) == false {
+                TableOutbox.shared.enqueue(
+                    .note(post: postRecord, zoneOwner: zoneOwner, id: comment.shareRecordName),
+                    author: comment.authorID
+                )
+            }
+        }
         if post.authorName != author && post.firstName != author {
             Notifier.post(
                 .commentAdded, actor: author,

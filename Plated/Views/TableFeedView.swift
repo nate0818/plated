@@ -167,6 +167,14 @@ struct TableFeedView: View {
         // Everything tapped since the last pull, including everything
         // tapped with no signal at all. Before the posts, so a plate on a
         // dish somebody else is about to edit does not lose a round trip.
+        // The outbox holds a comment's NAME, not its text: a queue that
+        // carries a copy of what somebody wrote is a second place for it to
+        // be wrong. It asks for the row back here, where there is a context
+        // to ask with.
+        TableOutbox.shared.resolveNote = { [context] name in
+            let all = (try? context.fetch(FetchDescriptor<TableComment>())) ?? []
+            return all.first { $0.shareRecordName == name }
+        }
         await TableOutbox.shared.drain(
             authorName: members.first(where: \.isOwner)?.name ?? ""
         )

@@ -56,6 +56,7 @@ enum TableShare {
     /// than a thing somebody has to remember.
     private static let plateType = "PlatedDishPlate"
     private static let ballotType = "PlatedDishBallot"
+    private static let noteType = "PlatedDishNote"
 
     #if DEBUG
     /// The ghost post, made unrepeatable.
@@ -66,7 +67,7 @@ enum TableShare {
     /// going forward, not retroactively.
     static func assertNoEntityCollision() {
         let entities = Set(PlatedStore.schema.entities.map(\.name))
-        let written: Set<String> = [rootType, postType, plateType, ballotType]
+        let written: Set<String> = [rootType, postType, plateType, ballotType, noteType]
         let clash = entities.intersection(written)
         assert(clash.isEmpty, "CloudKit types collide with SwiftData entities: \(clash)")
     }
@@ -514,6 +515,87 @@ enum TableShare {
         }
     }
 
+    /// One comment on the table.
+    ///
+    /// Named `note-<UUID>`, minted when the comment is composed and reused
+    /// across every retry and every drain. Globally unique by construction,
+    /// so two people commenting in the same instant never contend, and a
+    /// save whose response was lost replays as a no-op instead of a
+    /// duplicate — which is the whole reason not to mint it at send time.
+    static func pushNote(_ comment: TableComment, post: String, zoneOwner: String) async -> Bool {
+        guard await TableSync.accountAvailable() else { return false }
+        guard let (db, zoneID) = await zone(ownedBy: zoneOwner) else { return false }
+        let record = CKRecord(
+            recordType: noteType,
+            recordID: CKRecord.ID(recordName: comment.shareRecordName, zoneID: zoneID)
+        )
+        record["postRecordName"] = post as CKRecordValue
+        record["authorID"] = comment.authorID as CKRecordValue
+        record["authorName"] = comment.authorName as CKRecordValue
+        record["text"] = comment.text as CKRecordValue
+        record["linkURL"] = comment.linkURL as CKRecordValue
+        record["replyToName"] = comment.replyToName as CKRecordValue
+        record["createdAt"] = comment.createdAt as CKRecordValue
+        // A list field minted empty is minted as the wrong type and stays
+        // that way, so the key is omitted rather than written empty.
+        if !comment.mentions.isEmpty {
+            record["mentions"] = comment.mentions as CKRecordValue
+        }
+        record["postRef"] = CKRecord.Reference(
+            recordID: CKRecord.ID(recordName: post, zoneID: zoneID),
+            action: .deleteSelf
+        )
+        record.setParent(CKRecord.ID(recordName: "table-root", zoneID: zoneID))
+
+        var temp: URL?
+        if let data = comment.photoData, let asset = asset(from: data) {
+            record["photo"] = asset
+            temp = asset.fileURL
+        }
+        defer { if let temp { try? FileManager.default.removeItem(at: temp) } }
+
+        do {
+            _ = try await db.save(record)
+            return true
+        } catch let error as CKError where error.code == .serverRecordChanged {
+            // The same note, already there. A replayed send, not a conflict.
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    /// A comment as it exists on the wire.
+    struct RemoteNote {
+        var recordName = ""
+        var post = ""
+        var authorID = ""
+        var authorName = ""
+        var text = ""
+        var linkURL = ""
+        var replyToName = ""
+        var mentions: [String] = []
+        var createdAt = Date.now
+        var photoData: Data?
+    }
+
+    private static func remoteNote(from record: CKRecord) -> RemoteNote {
+        var n = RemoteNote()
+        n.recordName = record.recordID.recordName
+        n.post = record["postRecordName"] as? String ?? ""
+        n.authorID = record["authorID"] as? String ?? ""
+        n.authorName = record["authorName"] as? String ?? ""
+        n.text = record["text"] as? String ?? ""
+        n.linkURL = record["linkURL"] as? String ?? ""
+        n.replyToName = record["replyToName"] as? String ?? ""
+        n.mentions = record["mentions"] as? [String] ?? []
+        n.createdAt = record["createdAt"] as? Date ?? .now
+        if let asset = record["photo"] as? CKAsset, let url = asset.fileURL {
+            n.photoData = try? Data(contentsOf: url)
+        }
+        return n
+    }
+
     /// A reaction as it exists on the wire.
     struct RemoteReaction {
         var post = ""
@@ -581,6 +663,7 @@ enum TableShare {
     struct Changes {
         var posts: [RemotePost] = []
         var reactions: [RemoteReaction] = []
+        var notes: [RemoteNote] = []
         var deleted: Set<String> = []
     }
 
@@ -592,6 +675,7 @@ enum TableShare {
             let part = await postChanges(in: db, isPrivate: isPrivate)
             all.posts += part.posts
             all.reactions += part.reactions
+            all.notes += part.notes
             all.deleted.formUnion(part.deleted)
         }
         return all
@@ -628,6 +712,8 @@ enum TableShare {
                             found.posts.append(post)
                         case plateType, ballotType:
                             found.reactions.append(remoteReaction(from: record))
+                        case noteType:
+                            found.notes.append(remoteNote(from: record))
                         default:
                             continue
                         }
@@ -893,8 +979,13 @@ enum TableShare {
                         var createdAt = Date.now; var photoData: Data? }
     struct RemoteReaction { var post = ""; var author = ""; var authorName = ""
                             var value = 0; var at = Date.now; var isBallot = false }
+    struct RemoteNote { var recordName = ""; var post = ""; var authorID = ""
+                        var authorName = ""; var text = ""; var linkURL = ""
+                        var replyToName = ""; var mentions: [String] = []
+                        var createdAt = Date.now; var photoData: Data? }
     struct Changes { var posts: [RemotePost] = []; var reactions: [RemoteReaction] = []
-                     var deleted: Set<String> = [] }
+                     var notes: [RemoteNote] = []; var deleted: Set<String> = [] }
+    static func pushNote(_ comment: TableComment, post: String, zoneOwner: String) async -> Bool { false }
     static func pushPlate(post: String, zoneOwner: String, author: String,
                           authorName: String, active: Bool, at: Date) async -> Bool { false }
     static func pushBallot(post: String, zoneOwner: String, author: String,
@@ -978,6 +1069,45 @@ enum TableShare {
                 context.insert(post)
             }
         }
+        // Comments, after the posts they belong to exist to hang them on.
+        //
+        // Keyed on the note's own record name, so a comment that arrives
+        // twice — two of one person's devices folding the same thread, or a
+        // page replayed after a token reset — updates rather than
+        // duplicating. That is the one race a mirrored TableComment brings
+        // with it, and it is answered here rather than discovered later.
+        if !changes.notes.isEmpty {
+            let posts = (try? context.fetch(FetchDescriptor<TablePost>())) ?? []
+            var postByRecord: [String: TablePost] = [:]
+            for post in posts where !post.shareRecordName.isEmpty {
+                postByRecord[post.shareRecordName] = post
+            }
+            let comments = (try? context.fetch(FetchDescriptor<TableComment>())) ?? []
+            var byRecord: [String: TableComment] = [:]
+            for c in comments where !c.shareRecordName.isEmpty {
+                byRecord[c.shareRecordName] = c
+            }
+            for n in changes.notes {
+                guard let parent = postByRecord[n.post] else { continue }
+                if let existing = byRecord[n.recordName] {
+                    existing.text = n.text
+                    existing.linkURL = n.linkURL
+                    existing.mentions = n.mentions
+                    continue
+                }
+                let comment = TableComment(
+                    authorName: n.authorName, text: n.text, linkURL: n.linkURL,
+                    createdAt: n.createdAt, replyToName: n.replyToName,
+                    mentions: n.mentions, photoData: n.photoData,
+                    authorID: n.authorID
+                )
+                comment.shareRecordName = n.recordName
+                comment.post = parent
+                context.insert(comment)
+                byRecord[n.recordName] = comment
+            }
+        }
+
         Persist.save(context, "table share merge")
     }
 }
