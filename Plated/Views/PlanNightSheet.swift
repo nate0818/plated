@@ -615,7 +615,6 @@ struct GatheringSheet: View {
                 save()
             }
             .disabled(title.trimmingCharacters(in: .whitespaces).isEmpty)
-            .opacity(title.trimmingCharacters(in: .whitespaces).isEmpty ? 0.4 : 1)
             .padding(.horizontal, 24)
             .padding(.bottom, 14)
         }

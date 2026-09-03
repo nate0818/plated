@@ -126,7 +126,6 @@ struct TableComposerSheet: View {
             TomatoPillButton(title: "Post") {
                 post()
             }
-            .opacity(canPost ? 1 : 0.4)
             .disabled(!canPost)
             .padding(.horizontal, 24)
             .padding(.bottom, 14)

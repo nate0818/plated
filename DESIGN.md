@@ -137,6 +137,16 @@ edge, so the dimmed app shows behind its lower corners. That happens with
 `presentationBackground` and `presentationCornerRadius` removed entirely: it
 was measured that way. Do not chase it with negative padding.
 
+**A disabled control changes colour; it does not fade.** `.opacity()` on a
+whole button fades its label and its ground by the same amount, so the two
+collapse toward each other. White on tomato is 3.10:1 awake and 1.80:1 at
+half opacity, and in the light room the label composites to exactly the
+canvas colour: 1.00:1 against the page. It is not dim, it is gone, and the
+first screen after sign-in opens with its primary button in that state.
+`TomatoPillButton` reads `\.isEnabled` and dresses its own off state —
+`inkSecondary` on `fill`, 4.11:1 and 5.83:1 — so a call site writes
+`.disabled(x)` and nothing else.
+
 ## Motion
 
 - Springs are `plPop`, `plSnap`, `plSettle`. Use them; don't hand-roll durations.

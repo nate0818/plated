@@ -967,7 +967,6 @@ struct AddMemberSheet: View {
                 startInvite()
             }
             .disabled(working != nil || !InviteComposer.isAvailable)
-            .opacity(working != nil ? 0.6 : (InviteComposer.isAvailable ? 1 : 0.4))
 
             Text(InviteComposer.isAvailable
                  ? "They get a text with a link to join."
@@ -1017,7 +1016,6 @@ struct AddMemberSheet: View {
                 dismiss()
             }
             .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
-            .opacity(name.trimmingCharacters(in: .whitespaces).isEmpty ? 0.4 : 1)
         }
     }
 

@@ -95,7 +95,6 @@ struct ProfileSetupView: View {
             VStack(spacing: 12) {
                 TomatoPillButton(title: "Continue") { finish() }
                     .disabled(trimmedName.isEmpty)
-                    .opacity(trimmedName.isEmpty ? 0.5 : 1)
 
                 // Was `finish()`, the same call Continue makes: it saved the
                 // name and parked the photo, so the two buttons did exactly

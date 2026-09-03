@@ -1005,6 +1005,10 @@ struct TomatoPillButton: View {
     var haptic: () -> Void = Haptic.tap
     let action: () -> Void
 
+    /// Set by `.disabled()` on the caller. Read here so the pill can dress
+    /// its own off state instead of every call site fading the whole thing.
+    @Environment(\.isEnabled) private var isEnabled
+
     var body: some View {
         Button {
             haptic()
@@ -1018,11 +1022,11 @@ struct TomatoPillButton: View {
                 }
                 Text(title).plType(.callout)
             }
-            .foregroundStyle(Color.onTomato)
+            .foregroundStyle(isEnabled ? Color.onTomato : Color.inkSecondary)
             .frame(maxWidth: .infinity)
             .frame(minHeight: 56)
         }
-        .buttonStyle(TomatoPillStyle())
+        .buttonStyle(TomatoPillStyle(enabled: isEnabled))
     }
 }
 
@@ -1063,11 +1067,31 @@ private struct InkPillStyle: ButtonStyle {
 }
 
 private struct TomatoPillStyle: ButtonStyle {
+    var enabled: Bool = true
+
+    /// A disabled pill changes colour; it does not fade.
+    ///
+    /// Every call site used to write `.disabled(x)` next to `.opacity(x ? 1 :
+    /// 0.4)`, and fading the whole pill fades the label and the fill by the
+    /// same amount, so the two collapse toward each other. Measured in the
+    /// light room: white on tomato is 3.10:1 enabled, 1.80:1 at 0.5 opacity,
+    /// and the label itself composites to exactly the canvas colour — 1.00:1
+    /// against the page. It is not dim, it is gone. The first screen after
+    /// sign-in opens with its primary button in that state.
+    ///
+    /// inkSecondary on fill measures 4.11:1 in the light room and 5.83:1
+    /// after dark, and the fill still reads as a capsule against canvas, so
+    /// the control is plainly present and plainly not ready.
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .background(configuration.isPressed ? Color.tomatoPressed : Color.tomato, in: Capsule())
+            .background(ground(pressed: configuration.isPressed), in: Capsule())
             .plFloatShadow()
-            .scaleEffect(configuration.isPressed ? 0.98 : 1)
+            .scaleEffect(configuration.isPressed && enabled ? 0.98 : 1)
             .animation(.plSnap, value: configuration.isPressed)
+    }
+
+    private func ground(pressed: Bool) -> Color {
+        guard enabled else { return .fill }
+        return pressed ? .tomatoPressed : .tomato
     }
 }

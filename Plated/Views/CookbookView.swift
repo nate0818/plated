@@ -1198,7 +1198,6 @@ struct PlateAssignSheet: View {
             // button — a second tap in the closing beat plated (and rang
             // the bell) twice.
             .disabled(chosenDate == nil || confirmation != nil)
-            .opacity(chosenDate == nil ? 0.4 : 1)
             .animation(.plSnap, value: chosenDate == nil)
             .padding(.horizontal, 24)
             .padding(.bottom, 14)

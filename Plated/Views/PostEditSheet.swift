@@ -93,7 +93,6 @@ struct PostEditSheet: View {
                     save()
                 }
                 .disabled(!changed || saving)
-                .opacity(changed && !saving ? 1 : 0.5)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 24)

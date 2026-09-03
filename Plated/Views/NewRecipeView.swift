@@ -167,7 +167,6 @@ struct RecipeEditorView: View {
                     save(plating: nil)
                 }
                 .disabled(!canSave)
-                .opacity(canSave ? 1 : 0.4)
                 if !isEditing, !hidePlateShortcut, let night = nextOpenNight {
                     Button {
                         save(plating: night)

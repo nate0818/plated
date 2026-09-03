@@ -155,7 +155,6 @@ struct RecipeImportSheet: View {
                 read(raw)
             }
             .disabled(raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || reading)
-            .opacity(raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0.5 : 1)
 
             // The last way in. It used to be its own row in the + menu,
             // sitting beside "Paste a recipe" — which asked people to pick
@@ -255,7 +254,6 @@ struct RecipeImportSheet: View {
                         save(bound.wrappedValue)
                     }
                     .disabled(unnamed)
-                    .opacity(unnamed ? 0.5 : 1)
                 }
                 .padding(.horizontal, 24)
                 .padding(.bottom, 24)
