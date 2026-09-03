@@ -23,6 +23,7 @@ struct ContactsView: View {
 
     @AppStorage("userFirstName") private var userFirstName = ""
     @Environment(\.modelContext) private var context
+    @Environment(\.openURL) private var openURL
     @State private var candidates: [Candidate] = []
     @State private var accessState: AccessState = .notAsked
     /// The live CKShare link and the message that carries it, once CloudKit
@@ -156,23 +157,23 @@ struct ContactsView: View {
                     }
                     }
                     TomatoPillButton(title: "Done") { finish() }
+                } else if accessState == .denied {
+                    // iOS asks once. After a refusal `requestContacts()`
+                    // raises no prompt and changes nothing, so the tomato
+                    // pill — the committing action on this screen — sat
+                    // there saying "Use Contacts" and doing nothing at all,
+                    // with the real route buried underneath it as a link.
+                    // The pill is the route now.
+                    Text("Plated can't see your contacts. You can turn that on in Settings, or invite people later.")
+                        .plType(.caption)
+                        .foregroundStyle(Color.inkSecondary)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if let settings = URL(string: UIApplication.openSettingsURLString) {
+                        TomatoPillButton(title: "Open Settings") { openURL(settings) }
+                    }
                 } else {
                     TomatoPillButton(title: "Use Contacts") { requestContacts() }
-                    if accessState == .denied {
-                        Text("Plated can't see your contacts. Allow access in iOS Settings, or invite people later.")
-                            .plType(.caption)
-                            .foregroundStyle(Color.inkSecondary)
-                            .multilineTextAlignment(.center)
-                            .fixedSize(horizontal: false, vertical: true)
-                        // Naming Settings without a route there is a dead
-                        // end dressed up as help.
-                        if let settings = URL(string: UIApplication.openSettingsURLString) {
-                            Link("Open Settings", destination: settings)
-                                .plType(.footnote, .bold)
-                                .foregroundStyle(Color.ink)
-                                .plTapTarget()
-                        }
-                    }
                 }
                 // Only before contacts are granted. Once the list is up,
                 // "Done" is directly above this and calls the

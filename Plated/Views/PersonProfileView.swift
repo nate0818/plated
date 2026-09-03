@@ -543,6 +543,10 @@ struct SettingsSheet: View {
 
     @Environment(\.dismiss) private var dismiss
     @AppStorage("appearance") private var appearanceRaw = Appearance.system.rawValue
+    /// Calendar access was asked for and refused. Not persisted: it is a
+    /// fact about this moment, and somebody who fixes it in Settings should
+    /// find the row plain again when they come back.
+    @State private var calendarRefused = false
 
     private var appearance: Appearance { Appearance(rawValue: appearanceRaw) ?? .system }
     @AppStorage("showCalendarEvents") private var showCalendarEvents = false
@@ -648,17 +652,33 @@ struct SettingsSheet: View {
                     settingRow(
                         icon: "calendar",
                         title: "Calendar on the plan",
-                        caption: "Show Apple Calendar events next to each night."
+                        // A switch that answers a tap by turning itself back
+                        // off, in silence, is the interface refusing without
+                        // saying so. iOS only ever asks once, so the second
+                        // attempt does not even raise a prompt: it just
+                        // flicks back. The reminders row above already says
+                        // where to go; this one says it too now.
+                        caption: calendarRefused
+                            ? "Plated can't see your calendar. Allow it in Settings, Privacy, Calendars."
+                            : "Show Apple Calendar events next to each night."
                     ) {
                         Toggle("Calendar on the plan", isOn: $showCalendarEvents)
                             .labelsHidden()
                             .sensoryFeedback(.selection, trigger: showCalendarEvents)
                             .tint(Color.basil)
                             .onChange(of: showCalendarEvents) { _, on in
-                                if on {
-                                    Task {
-                                        let granted = await DayEventsProvider.shared.requestAccess()
-                                        if !granted { showCalendarEvents = false }
+                                guard on else {
+                                    calendarRefused = false
+                                    return
+                                }
+                                Task {
+                                    let granted = await DayEventsProvider.shared.requestAccess()
+                                    if !granted {
+                                        withAnimation(.plSnap) {
+                                            showCalendarEvents = false
+                                            calendarRefused = true
+                                        }
+                                        Haptic.warn()
                                     }
                                 }
                             }
