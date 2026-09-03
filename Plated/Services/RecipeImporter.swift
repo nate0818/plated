@@ -43,9 +43,36 @@ struct ImportedIngredient: Equatable, Identifiable {
     var quantity: Double = 0
     var unit = ""
     var aisle = GroceryAisle.other.rawValue
+    /// What the review row's field shows once somebody has typed in it.
+    /// Same contract as `RecipeEditorView.DraftIngredient.edited`: the field
+    /// writes the text and nothing else, and the parse happens once, at save.
+    var edited: String?
 
     static func == (a: Self, b: Self) -> Bool {
-        a.name == b.name && a.quantity == b.quantity && a.unit == b.unit && a.aisle == b.aisle
+        a.name == b.name && a.quantity == b.quantity && a.unit == b.unit
+            && a.aisle == b.aisle && a.edited == b.edited
+    }
+
+    /// The line as somebody would write it down: "2 cups flour".
+    var text: String {
+        edited ?? Ingredient.line(quantity: quantity, unit: unit, name: name)
+    }
+
+    /// What to save: the typed line read once, or the parse untouched.
+    var resolved: ImportedIngredient {
+        guard let edited else { return self }
+        let parsed = RecipeImporter
+            .parseIngredientLine(edited.trimmingCharacters(in: .whitespacesAndNewlines))
+        var out = self
+        out.name = parsed.name
+        out.quantity = parsed.quantity
+        out.unit = parsed.unit
+        // A retyped row is a different food, so it is re-filed. An untouched
+        // one keeps the section the model gave it, which the keyword table
+        // cannot reproduce.
+        out.aisle = RecipeImporter.aisle(for: parsed.name).rawValue
+        out.edited = nil
+        return out
     }
 }
 
@@ -672,15 +699,23 @@ enum RecipeImporter {
         if inline.count > 1 { return inline }
 
         // "2 cups flour, 1 tsp salt, 3 eggs" — split only where the next
-        // fragment starts with its own amount, so "garlic, minced" and
-        // "salt and pepper, to taste" stay whole.
+        // fragment is its own ingredient, so "garlic, minced" and "salt and
+        // pepper, to taste" stay whole.
+        //
+        // The guard was `> 2`, which kept those two whole for the wrong
+        // reason and silently dropped the second half of every two-item line:
+        // "2 cups flour, 1 tsp salt" parsed as one ingredient named "flour, 1
+        // tsp salt", so the salt never reached the grocery list. Reachable
+        // from an inline "Ingredients:" heading, from any single ingredient
+        // line, and from the entry field on both the review and the editor,
+        // whose Add button then read "1".
         let parts = single.components(separatedBy: ",")
-        guard parts.count > 2 else { return [single] }
+        guard parts.count >= 2 else { return [single] }
         var out: [String] = []
         for part in parts {
             let piece = part.trimmingCharacters(in: .whitespaces)
             guard !piece.isEmpty else { continue }
-            if leadingAmount(piece) != nil || out.isEmpty {
+            if out.isEmpty || startsNewIngredient(piece) {
                 out.append(piece)
             } else {
                 out[out.count - 1] += ", " + piece
@@ -688,6 +723,32 @@ enum RecipeImporter {
         }
         return out.count > 1 ? out : [single]
     }
+
+    /// Whether a comma-separated fragment is a second ingredient rather than
+    /// a note about the first.
+    ///
+    /// A leading amount is not enough on its own: "2 chicken breasts, 1 inch
+    /// thick" and "2 lemons, 1 zested and juiced" both lead with a number and
+    /// neither tail is food. So the token after the amount may not be a
+    /// dimension, and what is left may not be nothing but preparation.
+    private static func startsNewIngredient(_ piece: String) -> Bool {
+        guard let (_, rest) = leadingAmount(piece) else { return false }
+        let head = (rest.split(separator: " ").first.map(String.init) ?? "")
+            .lowercased()
+            .trimmingCharacters(in: CharacterSet(charactersIn: "."))
+        guard !dimensionWords.contains(head) else { return false }
+        let name = parseIngredientLine(piece).name.lowercased()
+        guard !name.isEmpty else { return false }
+        let clauses = name.components(separatedBy: " and ")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+        return !clauses.allSatisfy { prepNotes.contains($0) }
+    }
+
+    /// Words that measure a piece rather than name a food.
+    private static let dimensionWords: Set<String> = [
+        "inch", "inches", "in", "cm", "mm", "ft", "foot", "feet",
+        "thick", "thin", "long", "wide", "square", "piece", "pieces"
+    ]
 
     private static func splitInlineBullets(_ s: String) -> [String] {
         for mark in [" • ", " · ", " ‣ ", "; "] where s.contains(mark) {
@@ -782,11 +843,9 @@ enum RecipeImporter {
         }
 
         // "1 (14.5 oz) can diced tomatoes" — the size belongs to the name.
-        var parenthetical = ""
-        if rest.hasPrefix("("), let close = rest.firstIndex(of: ")") {
-            parenthetical = String(rest[rest.index(after: rest.startIndex)..<close])
-            rest = String(rest[rest.index(after: close)...]).trimmingCharacters(in: .whitespaces)
-        }
+        var parentheticals: [String] = []
+        let beforeUnit = liftParenthetical(&rest)
+        if !beforeUnit.isEmpty { parentheticals.append(beforeUnit) }
 
         var unit = ""
         let tokens = rest.split(separator: " ", maxSplits: 1, omittingEmptySubsequences: true)
@@ -797,17 +856,38 @@ enum RecipeImporter {
                 rest = tokens.count > 1 ? String(tokens[1]).trimmingCharacters(in: .whitespaces) : ""
             }
         }
+        // And again on the other side of the unit: "1 can (15 oz) black
+        // beans" and "1/2 cup (1 stick) butter" put it here, and the lift
+        // only ran before, so the name came out as "(15 oz) black beans".
+        // The name is the grocery list's merge key, so a polluted one can
+        // never merge with the same food written plainly.
+        //
+        // Both passes are needed. Moving the single pass after the unit
+        // instead would break "1 (14.5 oz) can diced tomatoes": the head
+        // token becomes "(14.5", the unit lookup fails, and "can" is lost.
+        let afterUnit = liftParenthetical(&rest)
+        if !afterUnit.isEmpty { parentheticals.append(afterUnit) }
         if rest.lowercased().hasPrefix("of ") {
             rest = String(rest.dropFirst(3)).trimmingCharacters(in: .whitespaces)
         }
 
         var name = cleanedName(rest)
-        if !parenthetical.isEmpty {
-            name = name.isEmpty ? parenthetical : "\(name) (\(parenthetical))"
+        if !parentheticals.isEmpty {
+            let sizes = parentheticals.joined(separator: ", ")
+            name = name.isEmpty ? sizes : "\(name) (\(sizes))"
         }
         if name.isEmpty { name = cleanedName(s) }
         return ImportedIngredient(name: name, quantity: quantity, unit: unit,
                                   aisle: aisle(for: name).rawValue)
+    }
+
+    /// Takes a leading "(…)" off the front of what is left, if there is one,
+    /// and hands back what was inside it.
+    private static func liftParenthetical(_ rest: inout String) -> String {
+        guard rest.hasPrefix("("), let close = rest.firstIndex(of: ")") else { return "" }
+        let inner = String(rest[rest.index(after: rest.startIndex)..<close])
+        rest = String(rest[rest.index(after: close)...]).trimmingCharacters(in: .whitespaces)
+        return inner
     }
 
     /// Drops the trailing clause that says what to do to it rather than

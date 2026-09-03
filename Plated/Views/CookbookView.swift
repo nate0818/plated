@@ -88,9 +88,50 @@ struct RecipeFilter: Equatable {
 
 /// What the shelf's resettle animation keys on: the filter, and how many
 /// dishes exist at all. Both change the layout; neither costs a filter pass.
+/// What the shelf keys its animation on.
+///
+/// `filter` and `total` alone left two orderings unaccounted for: a pin
+/// outranks the sort and a favourite drives the default one, so toggling
+/// either reorders the grid — while this key does not change, the scoped
+/// `.animation(_:value:)` finds nothing to animate, and the tile teleports to
+/// position zero with every tile below it jumping down. That the scoped
+/// animation wins over an outer `withAnimation` in this subtree is measured
+/// in this file's own history: keying on `filter` alone is what stopped
+/// add/delete/import animating.
+///
+/// Both counts are computed over the `@Query` array, so neither runs
+/// `filter.apply` and the performance constraint that shaped this key holds.
 private struct FilterKey: Equatable {
     let filter: RecipeFilter
     let total: Int
+    let pinned: Int
+    let favorites: Int
+}
+
+/// A dish's name under its plate, in either grid.
+///
+/// Two reserved lines while there is a neighbour to line up with: reserving
+/// is what keeps tiles on one baseline whether or not a name needs the second
+/// line. At accessibility sizes the grid is a single column, so there is no
+/// neighbour and no reason to stop at two — the name takes the lines it needs
+/// rather than ending in an ellipsis with the whole width to itself.
+///
+/// File scope because two grids draw it. `RecipePickerSheet` never inherited
+/// the shelf's version and stayed at one hard-limited line, on the one screen
+/// whose entire job is choosing a dish by its name: at accessibility sizes a
+/// 12pt caption sets near 37pt in a ~103pt column, which is two characters
+/// and an ellipsis.
+@ViewBuilder
+func RecipeTileTitle(_ title: String, size: TypeScale, typeSize: DynamicTypeSize) -> some View {
+    let text = Text(title)
+        .plType(size, .bold)
+        .foregroundStyle(Color.ink)
+        .multilineTextAlignment(.center)
+    if typeSize.isAccessibilitySize {
+        text.lineLimit(nil)
+    } else {
+        text.lineLimit(2, reservesSpace: true)
+    }
 }
 
 /// The cookbook — every dish the household knows, as plates on a white
@@ -263,7 +304,12 @@ struct CookbookView: View {
                     // animating add/delete/import — the shelf teleported.
                     // `recipes.count` is the @Query array's own count, so it
                     // costs nothing: it never runs `filter.apply`.
-                    .animation(.plSnap, value: FilterKey(filter: filter, total: recipes.count))
+                    .animation(.plSnap, value: FilterKey(
+                        filter: filter,
+                        total: recipes.count,
+                        pinned: recipes.reduce(0) { $0 + ($1.isPinned ? 1 : 0) },
+                        favorites: recipes.reduce(0) { $0 + ($1.isFavorite ? 1 : 0) }
+                    ))
                     .padding(.horizontal, 24)
                     .padding(.top, 20)
                     .padding(.bottom, Layout.floatingChromeInset)
@@ -494,25 +540,6 @@ struct CookbookView: View {
         return recipes.count.things("dish", "dishes")
     }
 
-    /// Two reserved lines while there are two columns: reserving is what
-    /// keeps neighbouring tiles on one baseline whether or not a name needs
-    /// the second line. At accessibility sizes the grid is a single column,
-    /// so there is no neighbour to line up with and no reason to stop at
-    /// two — the name takes the lines it needs rather than ending in an
-    /// ellipsis with the whole width to itself.
-    @ViewBuilder
-    private func tileTitle(_ title: String) -> some View {
-        let text = Text(title)
-            .plType(.body, .bold)
-            .foregroundStyle(Color.ink)
-            .multilineTextAlignment(.center)
-        if typeSize.isAccessibilitySize {
-            text.lineLimit(nil)
-        } else {
-            text.lineLimit(2, reservesSpace: true)
-        }
-    }
-
     private var tileColumns: [GridItem] {
         typeSize.isAccessibilitySize
             ? [GridItem(.flexible())]
@@ -556,7 +583,7 @@ struct CookbookView: View {
                     }
                 }
                 VStack(spacing: 2) {
-                    tileTitle(recipe.title)
+                    RecipeTileTitle(recipe.title, size: .body, typeSize: typeSize)
                     Text(metaLine(recipe))
                         .plType(.caption, .semibold)
                         .foregroundStyle(Color.inkSecondary)
@@ -564,6 +591,15 @@ struct CookbookView: View {
             }
         }
         .buttonStyle(.pressable)
+        // Pinned and favourite decide this grid's order and were carried by
+        // two unlabelled badges. A Button already combines its label, so an
+        // explicit one is all this needs.
+        .accessibilityLabel(
+            [recipe.title, metaLine(recipe),
+             recipe.isPinned ? "Pinned" : nil,
+             recipe.isFavorite ? "Favorite" : nil]
+                .compactMap { $0 }.joined(separator: ", ")
+        )
         .matchedTransitionSource(id: recipe.persistentModelID, in: zoom)
         .contextMenu {
             Button {
@@ -683,12 +719,22 @@ struct RecipeFilterSheet: View {
                                     .accessibilityLabel("Clear search")
                                     .font(.system(size: 14))
                                     .foregroundStyle(Color.inkFaint)
+                                    // A bare 14pt glyph with no frame was
+                                    // tappable across about 17pt, and a miss
+                                    // fell through to the well's own
+                                    // tap-to-focus and raised the keyboard
+                                    // over the results.
+                                    .plTapTarget()
                             }
                             .buttonStyle(.pressable)
                         }
                     }
                     .padding(.horizontal, 14)
-                    .frame(height: 46)
+                    // A floor, not a height: `.body` reaches past 46 at
+                    // accessibility sizes and the text separated from the
+                    // stroke drawn around it. A search field is content, so
+                    // it is not capped with .plChrome().
+                    .frame(minHeight: 46)
                     .overlay(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous).strokeBorder(Color.hairline))
                     // A 46pt well whose tap target was the ~20pt text line
                     // inside it: the padding, the glyph and the bands above
@@ -1123,7 +1169,9 @@ struct RecipeDetailView: View {
                 }
                 .foregroundStyle(Color.ink)
                 .padding(.horizontal, 14)
-                .frame(height: 38)
+                // A floor. A hard 38 drew the capsule smaller than the label
+                // inside it once footnote outgrew it.
+                .frame(minHeight: 38)
                 .overlay(Capsule().strokeBorder(Color.hairline, lineWidth: 1.5))
                 .frame(minHeight: 44)
                 .contentShape(Capsule())
@@ -1132,6 +1180,11 @@ struct RecipeDetailView: View {
             .accessibilityLabel("Edit recipe")
 
         }
+        // A masthead's icon cluster is furniture with nowhere to reflow, the
+        // same as the shelf header two hundred lines up, which caps itself
+        // for exactly this reason. It changes what is drawn, never what
+        // VoiceOver reads, and every control here already has a label.
+        .plChrome()
         .padding(.horizontal, 24)
         .padding(.vertical, 4)
         .background(Color.canvas.opacity(0.94))
@@ -1177,23 +1230,33 @@ struct RecipeDetailView: View {
                     Haptic.tap()
                     editorShown = true
                 } label: {
-                    RoundedRectangle(cornerRadius: Radius.hero, style: .continuous)
-                        .strokeBorder(Color.hairlineDashed, style: StrokeStyle(lineWidth: 2, dash: [8, 7]))
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 210)
-                        .overlay {
-                            VStack(spacing: 12) {
-                                DishView(recipe: recipe, diameter: 92)
-                                VStack(spacing: 3) {
-                                    Text("Add a photo")
-                                        .plType(.body, .bold)
-                                        .foregroundStyle(Color.inkSecondary)
-                                    Text("It shows on your plan and on the tile.")
-                                        .plType(.caption)
-                                        .foregroundStyle(Color.inkSecondary)
-                                }
-                            }
+                    // The words are the content and the dashes are drawn
+                    // around them, not the other way round. A hard 210 with
+                    // the text in an overlay clipped the caption to "It shows
+                    // on your pla…" at accessibility sizes: a fixed height
+                    // that exactly fits its content overflows on a real
+                    // device, so this is a floor and the sentence wraps.
+                    VStack(spacing: 12) {
+                        DishView(recipe: recipe, diameter: 92)
+                        VStack(spacing: 3) {
+                            Text("Add a photo")
+                                .plType(.body, .bold)
+                                .foregroundStyle(Color.inkSecondary)
+                            Text("It shows on your plan and on the tile.")
+                                .plType(.caption)
+                                .foregroundStyle(Color.inkSecondary)
+                                .multilineTextAlignment(.center)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 18)
+                    .frame(maxWidth: .infinity)
+                    .frame(minHeight: 210)
+                    .overlay {
+                        RoundedRectangle(cornerRadius: Radius.hero, style: .continuous)
+                            .strokeBorder(Color.hairlineDashed, style: StrokeStyle(lineWidth: 2, dash: [8, 7]))
+                    }
                 }
                 .buttonStyle(.pressable)
             }
@@ -1245,7 +1308,9 @@ struct RecipeDetailView: View {
     private var byline: String {
         var parts: [String] = [recipe.mealTypeValue.rawValue]
         if let genre = recipe.categoryValue { parts.append(genre.rawValue) }
-        if recipe.isImported { parts.append("Saved from the Table") }
+        // Recipes are saved from Discover too, which is other households'
+        // open tables — not this household's Table.
+        if recipe.isImported { parts.append("Saved from a post") }
         if let meal {
             parts.append(platedLine(meal))
             if let cook = meal.cook {
@@ -1348,11 +1413,20 @@ struct PlateAssignSheet: View {
         VStack(spacing: 0) {
             VStack(spacing: 2) {
                 MicroLabel("Plan a night")
+                // A title wraps; it does not truncate. `.title` is 23pt, so
+                // an ordinary dish name ran out of room on a 393pt phone at
+                // the default size — and when the chosen night is occupied
+                // the button reads "Replace <the displaced dish>", so with
+                // this truncated nothing on the sheet named the dish being
+                // planted. Both sibling sheets already omit the line limit.
                 Text(recipe.title)
                     .plType(.title)
                     .foregroundStyle(Color.ink)
-                    .lineLimit(1)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+            // A single line never reached the edges; a wrapped one does.
+            .padding(.horizontal, 24)
             .padding(.top, 22)
             .padding(.bottom, 12)
 
@@ -1388,16 +1462,40 @@ struct PlateAssignSheet: View {
                 .padding(.bottom, 16)
             }
 
-            TomatoPillButton(title: confirmation ?? plateLabel) {
-                plate()
-            }
-            // "Plate it for Tuesday" → "Plated for Tuesday" morphs in place.
-            .contentTransition(.numericText())
-            .animation(.plSnap, value: confirmation)
             // Once it reads "Plated for Tuesday" it is a receipt, not a
-            // button — a second tap in the closing beat plated (and rang
-            // the bell) twice.
-            .disabled(chosenDate == nil || confirmation != nil)
+            // button — a second tap in the closing beat plated (and rang the
+            // bell) twice. Disabling it said that, but `.disabled` is how
+            // TomatoPillButton is told to wear "plainly not ready":
+            // inkSecondary on fill. So the app's payoff beat spent its whole
+            // closing second looking greyed out, and DESIGN.md names a seat
+            // turning real as a moment that earns colour.
+            //
+            // A receipt is a different view, not a disabled button. The page
+            // already owns this one, in basil, for the same kind of moment.
+            // (`.contentTransition(.numericText())` went with the swap: it
+            // spanned "Plan for Tuesday" → "Plated for Tuesday" and morphs
+            // nothing that is not a numeral.)
+            Group {
+                if let confirmation {
+                    HStack(spacing: 8) {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 16, weight: .semibold))
+                        Text(confirmation)
+                            .plType(.callout)
+                    }
+                    .foregroundStyle(Color.basil)
+                    .frame(maxWidth: .infinity)
+                    .frame(minHeight: 56)
+                    .background(Color.basilTint, in: Capsule())
+                    .accessibilityLabel(confirmation)
+                } else {
+                    TomatoPillButton(title: plateLabel) {
+                        plate()
+                    }
+                    .disabled(chosenDate == nil)
+                }
+            }
+            .animation(.plSnap, value: confirmation)
             .animation(.plSnap, value: chosenDate == nil)
             .padding(.horizontal, 24)
             .padding(.bottom, 14)
@@ -1558,7 +1656,14 @@ struct RecipePickerSheet: View {
     let onPick: (Recipe) -> Void
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var typeSize
     @Query(sort: \Recipe.title) private var recipes: [Recipe]
+
+    private var pickerColumns: [GridItem] {
+        typeSize.isAccessibilitySize
+            ? [GridItem(.flexible())]
+            : [GridItem(.flexible(), spacing: 18), GridItem(.flexible()), GridItem(.flexible())]
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -1601,7 +1706,9 @@ struct RecipePickerSheet: View {
                 Spacer()
             } else {
             ScrollView(showsIndicators: false) {
-                LazyVGrid(columns: [GridItem(.flexible(), spacing: 18), GridItem(.flexible()), GridItem(.flexible())], spacing: 20) {
+                // Three across normally; one at accessibility sizes, where a
+                // third of the width cannot hold a dish's name.
+                LazyVGrid(columns: pickerColumns, spacing: 20) {
                     ForEach(recipes, id: \.persistentModelID) { recipe in
                         Button {
                             Haptic.tap()
@@ -1621,10 +1728,7 @@ struct RecipePickerSheet: View {
                                     }
                                 }
                                 .plDishShadow()
-                                Text(recipe.title)
-                                    .plType(.caption, .bold)
-                                    .foregroundStyle(Color.ink)
-                                    .lineLimit(1)
+                                RecipeTileTitle(recipe.title, size: .caption, typeSize: typeSize)
                             }
                         }
                         .buttonStyle(.pressable)

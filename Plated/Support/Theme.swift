@@ -774,6 +774,67 @@ struct OptionRow: View {
     }
 }
 
+/// One line of a recipe you can actually type in: an ingredient, a step.
+///
+/// Four lists in this app draw lines like these, and all four drew them as
+/// `Text` with a remove button beside it — so fixing one word meant deleting
+/// the row and retyping the whole line. The import review's own doc comment
+/// says the opposite of what it did: "not read-only: the cook fixes the name
+/// and the list HERE, because the alternative — save it wrong, then go
+/// hunting through the editor — is the clunky path this screen exists to
+/// avoid."
+///
+/// The field writes its text straight through the binding it is handed and
+/// does nothing else with it. Parsing on the way in fights the person typing:
+/// "2 c" round-trips into something else under the cursor. Parsing on the way
+/// out through a second hop drops the last keystroke — typing "boneless" and
+/// saving stored "boneles", every time. So the line is what is stored, and
+/// each screen parses once, where it needs the values.
+struct EditableLine: View {
+    @Binding var text: String
+    var placeholder: String = ""
+    var lines: ClosedRange<Int> = 1...8
+
+    var body: some View {
+        TextField(placeholder, text: $text, axis: .vertical)
+            .plType(.body, .medium)
+            .foregroundStyle(Color.ink)
+            .lineLimit(lines)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 11)
+            .overlay(
+                RoundedRectangle(cornerRadius: Radius.chip, style: .continuous)
+                    .strokeBorder(Color.hairline)
+            )
+            .plTappableField()
+    }
+}
+
+/// The ✕ beside one of those lines.
+///
+/// 44x44 and `inkSecondary`, not 44x32 and `inkFaint`. `inkFaint` is for the
+/// icon on a control that is genuinely off; this one is live and is the row's
+/// only action, on the densest delete-repeatedly screen in the app, where the
+/// rows sit close enough that a miss lands on a neighbour.
+struct RemoveLineButton: View {
+    let label: String
+    let action: () -> Void
+
+    var body: some View {
+        Button {
+            Haptic.tap()
+            withAnimation(.plSnap) { action() }
+        } label: {
+            Image(systemName: "xmark")
+                .accessibilityLabel(label)
+                .font(.system(size: 11, weight: .bold))
+                .foregroundStyle(Color.inkSecondary)
+                .plTapTarget()
+        }
+        .buttonStyle(.pressable)
+    }
+}
+
 /// A chip that is on or off: a filter, a meal, a kind of dish, a sort.
 ///
 /// Two hand-kept copies of this control carried three defects between them,

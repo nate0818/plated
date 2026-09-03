@@ -65,13 +65,11 @@ struct RecipeImportSheet: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            ZStack {
-                VStack(spacing: 2) {
-                    MicroLabel(draft == nil ? "To your cookbook" : "New recipe")
-                    Text(draft == nil ? "Add a recipe" : "Does this look right?")
-                        .plType(.title)
-                        .foregroundStyle(Color.ink)
-                }
+            VStack(spacing: 2) {
+                // Its own row, not overlaid on the title. "Does this look
+                // right?" takes the full width at xxLarge, so a leading
+                // button sitting on top of it lands on the words.
+                //
                 // The masthead was an eyebrow over a title and nothing else,
                 // so the drag indicator was this sheet's only exit — and the
                 // drag threw away the whole import silently, which on the scan
@@ -88,9 +86,15 @@ struct RecipeImportSheet: View {
                     .buttonStyle(.pressable)
                     Spacer()
                 }
+                MicroLabel(draft == nil ? "To your cookbook" : "New recipe")
+                Text(draft == nil ? "Add a recipe" : "Does this look right?")
+                    .plType(.title)
+                    .foregroundStyle(Color.ink)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             .padding(.horizontal, 20)
-            .padding(.top, 22)
+            .padding(.top, 8)
             .padding(.bottom, 14)
 
             if draft != nil {
@@ -305,12 +309,32 @@ struct RecipeImportSheet: View {
                     VStack(alignment: .leading, spacing: 18) {
                         nameField(bound)
 
+                        // "0 / Prep min" and "0 / Cook min" were the ordinary
+                        // result of pasting a list out of a chat window — the
+                        // parser initialises both to zero and the model is told
+                        // to return zero when the recipe does not say — and
+                        // they were presented as measured facts on the screen
+                        // whose whole job is verification. The same rule is
+                        // applied twenty lines below this and on the recipe
+                        // page for this exact fact.
+                        //
+                        // The unit rides on the value, like the detail page,
+                        // rather than sitting in the label as the app's only
+                        // unit-in-label CountBlock.
                         HStack(spacing: 0) {
                             CountBlock(value: "\(bound.wrappedValue.servings)", label: "Serves")
                             CountDivider()
-                            CountBlock(value: "\(bound.wrappedValue.prepMinutes)", label: "Prep min")
+                            CountBlock(
+                                value: bound.wrappedValue.prepMinutes > 0
+                                    ? Recipe.durationText(bound.wrappedValue.prepMinutes) : "Not set",
+                                label: "Prep"
+                            )
                             CountDivider()
-                            CountBlock(value: "\(bound.wrappedValue.cookMinutes)", label: "Cook min")
+                            CountBlock(
+                                value: bound.wrappedValue.cookMinutes > 0
+                                    ? Recipe.durationText(bound.wrappedValue.cookMinutes) : "Not set",
+                                label: "Cook"
+                            )
                         }
 
                         ingredientsBlock(bound)
@@ -325,11 +349,16 @@ struct RecipeImportSheet: View {
                         Haptic.tap()
                         withAnimation(.plSnap) { draft = nil }
                     } label: {
+                        // 56, like the pill beside it. Two buttons in one row
+                        // are peers and a filled-versus-outlined pair already
+                        // carries which is primary; an 8pt height difference
+                        // carried nothing, and at xxLarge the tomato label
+                        // wraps to two lines and the gap becomes obvious.
                         Text("Start over")
                             .plType(.body, .bold)
                             .foregroundStyle(Color.ink)
                             .frame(maxWidth: .infinity)
-                            .frame(minHeight: 48)
+                            .frame(minHeight: 56)
                             .overlay(Capsule().strokeBorder(Color.hairline, lineWidth: 1.5))
                             .contentShape(Capsule())
                     }
@@ -342,7 +371,11 @@ struct RecipeImportSheet: View {
                     .disabled(unnamed)
                 }
                 .padding(.horizontal, 24)
+                .padding(.top, 10)
                 .padding(.bottom, 24)
+                // The scroll view runs under this row, so the last ingredient
+                // was drawn through the buttons.
+                .background(Color.canvas)
             }
         }
     }
@@ -385,17 +418,23 @@ struct RecipeImportSheet: View {
                        ? "Ingredients"
                        : draft.wrappedValue.ingredients.count.things("ingredient"))
             VStack(spacing: 0) {
-                ForEach(draft.wrappedValue.ingredients) { ingredient in
+                // Editable, which is what this screen's own doc comment says
+                // it is. The parser's hazards make it concrete: a "1 1/2 cups"
+                // read as "11/2 cups" is a quantity error a delete button
+                // cannot answer.
+                ForEach(draft.ingredients) { $ingredient in
                     HStack(spacing: 10) {
-                        Text(line(for: ingredient))
-                            .plType(.footnote, .semibold)
-                            .foregroundStyle(Color.ink)
-                        Spacer(minLength: 8)
-                        removeButton("Remove \(ingredient.name)") {
+                        EditableLine(text: Binding(
+                            get: { ingredient.text },
+                            set: { $ingredient.wrappedValue.edited = $0 }
+                        ), placeholder: "Ingredient", lines: 1...3)
+                        RemoveLineButton(
+                            label: "Remove \(ingredient.resolved.name.isEmpty ? "ingredient" : ingredient.resolved.name)"
+                        ) {
                             draft.wrappedValue.ingredients.removeAll { $0.id == ingredient.id }
                         }
                     }
-                    .padding(.vertical, 5)
+                    .padding(.vertical, 4)
                 }
                 IngredientEntryField { added in
                     draft.wrappedValue.ingredients.append(contentsOf: added)
@@ -412,25 +451,37 @@ struct RecipeImportSheet: View {
     private func stepsBlock(_ draft: Binding<ImportedRecipe>) -> some View {
         if !draft.wrappedValue.steps.isEmpty {
             VStack(alignment: .leading, spacing: 6) {
-                MicroLabel("\(draft.wrappedValue.steps.count) \(draft.wrappedValue.steps.count == 1 ? "step" : "steps")")
+                MicroLabel(draft.wrappedValue.steps.count.things("step"))
                 VStack(alignment: .leading, spacing: 10) {
-                    ForEach(Array(draft.wrappedValue.steps.enumerated()), id: \.offset) { i, step in
+                    ForEach(Array(draft.wrappedValue.steps.enumerated()), id: \.offset) { i, _ in
                         HStack(alignment: .top, spacing: 10) {
                             // Fixed-size first: a 16pt box broke "10"
                             // onto two lines, so every step past nine
                             // read as a stacked pair of digits.
+                            //
+                            // inkSecondary, not tomato: the same ordinal is
+                            // inkSecondary on the recipe page and in the
+                            // editor, and a static list ordinal is not an
+                            // event that has earned the accent.
                             Text("\(i + 1)")
-                                .plType(.micro, .extraBold)
-                                .foregroundStyle(Color.tomato)
+                                .plType(.micro, .extraBold, family: .display)
+                                .foregroundStyle(Color.inkSecondary)
                                 .monospacedDigit()
                                 .lineLimit(1)
                                 .fixedSize()
                                 .frame(minWidth: 18, alignment: .leading)
-                            Text(step)
-                                .plType(.footnote)
-                                .foregroundStyle(Color.ink)
-                            Spacer(minLength: 8)
-                            removeButton("Remove step \(i + 1)") {
+                                .padding(.top, 12)
+                            // Guarded rather than a raw `$steps[i]`: the
+                            // remove button on this same row shortens the
+                            // array while the row is still on screen.
+                            EditableLine(text: Binding(
+                                get: { draft.wrappedValue.steps.indices.contains(i)
+                                    ? draft.wrappedValue.steps[i] : "" },
+                                set: { if draft.wrappedValue.steps.indices.contains(i) {
+                                    draft.wrappedValue.steps[i] = $0
+                                } }
+                            ), placeholder: "Step \(i + 1)")
+                            RemoveLineButton(label: "Remove step \(i + 1)") {
                                 guard draft.wrappedValue.steps.indices.contains(i) else { return }
                                 draft.wrappedValue.steps.remove(at: i)
                             }
@@ -442,25 +493,6 @@ struct RecipeImportSheet: View {
                 .overlay(RoundedRectangle(cornerRadius: Radius.card, style: .continuous).strokeBorder(Color.hairline))
             }
         }
-    }
-
-    private func removeButton(_ label: String, action: @escaping () -> Void) -> some View {
-        Button {
-            Haptic.tap()
-            withAnimation(.plSnap) { action() }
-        } label: {
-            Image(systemName: "xmark")
-                .accessibilityLabel(label)
-                .font(.system(size: 11, weight: .bold))
-                .foregroundStyle(Color.inkFaint)
-                .frame(minWidth: 44, minHeight: 32)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.pressable)
-    }
-
-    private func line(for ing: ImportedIngredient) -> String {
-        Ingredient.line(quantity: ing.quantity, unit: ing.unit, name: ing.name)
     }
 
     // MARK: Work
@@ -534,9 +566,14 @@ struct RecipeImportSheet: View {
             prepMinutes: r.prepMinutes,
             cookMinutes: r.cookMinutes
         )
+        // Blank lines are not steps. An editable row can be emptied, and
+        // nothing else in the app can produce one.
         recipe.steps = r.steps
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
         context.insert(recipe)
-        for (i, ing) in r.ingredients.enumerated() {
+        // `resolved` reads each typed line once. See ImportedIngredient.
+        for (i, ing) in r.ingredients.map(\.resolved).filter({ !$0.name.isEmpty }).enumerated() {
             let row = Ingredient(name: ing.name, quantity: ing.quantity, unit: ing.unit)
             row.aisle = ing.aisle
             row.sortIndex = i

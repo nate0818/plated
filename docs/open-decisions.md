@@ -138,3 +138,80 @@ The gap is only that the person is never told they are running without an
 identity, and features that depend on one will quietly do nothing. Where to
 say so, and how loudly, is a design question about a screen somebody has
 already left.
+
+---
+
+## 10. The pin toggle buzzes `plate`, not `select`
+
+`CookbookView`'s pin action fires `Haptic.plate()`. The vocabulary in
+Theme.swift gives `select` to "the tick of moving between options" and
+`plate` to something landing.
+
+A pin is both. It is a change of position in a list, which is `select`, and
+it is the dish landing at the top of the shelf, which is `plate`. Favourite,
+one line away, is a state change and fires `tap`. Whichever way this goes,
+the three should agree, and picking one means saying what a pin *is*.
+
+## 11. `kiss` versus `plate` on a saved recipe
+
+`RecipeImportSheet` saves with `Haptic.kiss`; `RecipeEditorView` saves with
+`Haptic.plate`. Theme.swift explicitly defends letting a call site keep its
+own — "a save that earns the kiss must keep it. Flattening every pill to one
+buzz is how a shared component quietly costs a screen its voice."
+
+So the disagreement may be deliberate. Whether an imported recipe and a
+hand-written one have earned the same beat is a taste question, not a bug,
+and it is the kind of thing that should be felt on a phone rather than
+argued.
+
+## 12. Meal chips are not presence-filtered; genres are
+
+The filter sheet hides "Kind of dish" when no recipe carries a genre
+(`presentGenres`), and always shows all six Meal chips.
+
+For filtering: symmetry, and never offering a filter that cannot match.
+Against: genre is a set *discovered* from the data, while the meal taxonomy
+is a fixed filing system the cook chooses *from* — hiding "Dessert" until a
+dessert exists tells somebody the app has no idea what a dessert is. Left
+asymmetric deliberately.
+
+## 13. "Saved from a post" does not name who cooked it
+
+A recipe saved from the Table or from Discover shows "Saved from a post".
+Naming the household or the cook would be warmer and more specific, which
+DESIGN.md prefers.
+
+It needs the name stored on the `Recipe` at both save paths; the Discover
+author currently survives only as a parsed `tags` string, and the shared
+`prefill` initialiser that would have to carry it is also used by
+`TableFeedView`. That is real plumbing for a byline, so the neutral true noun
+ships until somebody decides the byline is worth it.
+
+## 14. An ingredient range is silently narrowed to its low end
+
+`parseIngredientLine` takes the lower bound of "2-3 cloves garlic" and stores
+2, with a comment saying so. Pasting that recipe gives a cookbook entry and a
+grocery line that both say 2, and nothing on screen records that the recipe
+said 2 to 3.
+
+For narrowing: one number is what a quantity field holds, a shopping list
+wants a number, and you can always use the third clove. Against: it is a
+quiet edit to what the recipe said, which is the class of thing this
+codebase is otherwise strict about — and the review step exists precisely so
+quiet edits are visible.
+
+Storing the range would mean a second quantity on `Ingredient` (CloudKit-safe
+if optional) and a decision about what the grocery aggregation does with it.
+Measured and left alone.
+
+## 15. The three-state Reach stops at the cookbook shelf
+
+`CookbookView` now distinguishes still-looking, empty, and could-not-reach.
+`RecipePickerSheet` deliberately does not: it is a modal opened mid-planning
+with no refresh path, where a spinner is arguably worse than the invitation
+it already offers.
+
+`DiscoverView` shows a third, cheaper answer — phrase the claim to what this
+phone actually knows and skip the machine entirely. Which of the three every
+remaining empty state deserves is a per-screen judgment, and doing it by rule
+would put a spinner in front of somebody choosing dinner.

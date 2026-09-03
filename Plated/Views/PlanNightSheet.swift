@@ -20,10 +20,21 @@ struct PlanNightSheet: View {
     @Query(sort: \HouseholdMember.createdAt) private var members: [HouseholdMember]
 
     @AppStorage("showCalendarEvents") private var showCalendarEvents = false
-    @State private var pickerShown = false
-    @State private var newRecipeShown = false
-    @State private var askShown = false
-    @State private var gatheringShown = false
+    /// One destination, not four flags.
+    ///
+    /// These were four `.sheet` modifiers stacked on one view, which CLAUDE.md
+    /// records as undefined behaviour, and the picker's own empty state calls
+    /// `dismiss()` and then asks this view to raise the editor — a dismissal
+    /// and a presentation landing in the same update on the same presenting
+    /// view. That path is not an edge case: "Choose a recipe" is offered
+    /// whether or not the cookbook has anything in it, so every first-run
+    /// user reaches the empty picker, where "Add a recipe" is the only
+    /// control on the screen. Same shape as MainShellView's CreateFlowSheet.
+    enum Route: String, Identifiable {
+        case picker, newRecipe, ask, gathering
+        var id: String { rawValue }
+    }
+    @State private var route: Route?
     @State private var events = DayEventsProvider.shared
     @State private var forecast = ForecastProvider.shared
 
@@ -67,13 +78,13 @@ struct PlanNightSheet: View {
                         icon: "book.closed",
                         title: "Choose a recipe",
                         detail: "\(recipes.count) \(recipes.count == 1 ? "dish" : "dishes") your household already knows."
-                    ) { pickerShown = true }
+                    ) { route = .picker }
 
                     OptionRow(
                         icon: "plus.circle",
                         title: "Add a recipe",
                         detail: "Save it and plan it in one go."
-                    ) { newRecipeShown = true }
+                    ) { route = .newRecipe }
 
                     OptionRow(
                         icon: "fork.knife.circle",
@@ -85,13 +96,13 @@ struct PlanNightSheet: View {
                         icon: "bubble.and.pencil",
                         title: "Ask the Table",
                         detail: "Ask what everyone wants, or put up a poll."
-                    ) { askShown = true }
+                    ) { route = .ask }
 
                     OptionRow(
                         icon: "party.popper",
                         title: "Plan a gathering",
                         detail: "Guests, a time, and an event in your calendar."
-                    ) { gatheringShown = true }
+                    ) { route = .gathering }
                 }
                 .padding(.horizontal, 24)
                 .padding(.bottom, 24)
@@ -101,27 +112,28 @@ struct PlanNightSheet: View {
         .presentationDragIndicator(.visible)
         .presentationBackground(Color.canvas)
         .presentationCornerRadius(Radius.sheet)
-        .sheet(isPresented: $pickerShown) {
-            RecipePickerSheet(date: date, onWriteNew: { newRecipeShown = true }) { recipe in
-                plate(recipe, tagline: "")
-                dismiss()
-            }
-        }
-        .sheet(isPresented: $newRecipeShown) {
-            RecipeEditorView(hidePlateShortcut: true) { recipe in
-                plate(recipe, tagline: "")
-                dismiss()
-            }
-        }
-        .sheet(isPresented: $askShown) {
-            AskComposerSheet(date: date) {
-                dismiss()
-                askTheTable()
-            }
-        }
-        .sheet(isPresented: $gatheringShown) {
-            GatheringSheet(date: date, attachedMeal: meal, slot: slot) {
-                dismiss()
+        .sheet(item: $route) { destination in
+            switch destination {
+            case .picker:
+                // Switches the route rather than dismissing itself first.
+                RecipePickerSheet(date: date, onWriteNew: { route = .newRecipe }) { recipe in
+                    plate(recipe, tagline: "")
+                    dismiss()
+                }
+            case .newRecipe:
+                RecipeEditorView(hidePlateShortcut: true) { recipe in
+                    plate(recipe, tagline: "")
+                    dismiss()
+                }
+            case .ask:
+                AskComposerSheet(date: date) {
+                    dismiss()
+                    askTheTable()
+                }
+            case .gathering:
+                GatheringSheet(date: date, attachedMeal: meal, slot: slot) {
+                    dismiss()
+                }
             }
         }
     }

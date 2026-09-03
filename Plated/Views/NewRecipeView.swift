@@ -34,7 +34,13 @@ struct RecipeEditorView: View {
     @State private var mealType: RecipeMealType = .dinner
     @State private var difficultyOverride: RecipeDifficulty?
     @State private var draftIngredients: [DraftIngredient] = []
-    @State private var steps: [String] = []
+    /// The steps, each one a thing rather than a position.
+    ///
+    /// `[String]` driving `ForEach(…enumerated(), id: \.offset)` made identity
+    /// the index. These rows are editable fields with a live cursor, so that
+    /// is not a cosmetic problem: removing a middle step moved everybody
+    /// else's text up under an unchanged view.
+    @State private var draftSteps: [DraftStep] = []
     @State private var stepEntry = ""
     @State private var addToGroceries = true
     @State private var loaded = false
@@ -107,6 +113,16 @@ struct RecipeEditorView: View {
         }
     }
 
+    struct DraftStep: Identifiable {
+        let id = UUID()
+        var text: String
+    }
+
+    /// Its place in the list as a person counts it.
+    private func stepNumber(_ step: DraftStep) -> Int {
+        (draftSteps.firstIndex { $0.id == step.id } ?? 0) + 1
+    }
+
     private var isEditing: Bool { editing != nil }
 
     var body: some View {
@@ -137,10 +153,15 @@ struct RecipeEditorView: View {
                     HStack(spacing: 8) {
                         Menu {
                             ForEach(minuteChoices, id: \.self) { choice in
-                                Button("\(choice) min") { minutes = choice }
+                                // The same formatter the recipe page and every
+                                // shelf tile use. Two of these five choices
+                                // cross the hour, so somebody picked "90 min"
+                                // and the dish called it "1 hr 30 min" one
+                                // screen later.
+                                Button(Recipe.durationText(choice)) { minutes = choice }
                             }
                         } label: {
-                            factPicker("Time", "\(minutes) min")
+                            factPicker("Time", Recipe.durationText(minutes))
                         }
                         Menu {
                             ForEach(1...12, id: \.self) { count in
@@ -204,15 +225,27 @@ struct RecipeEditorView: View {
                     Button {
                         save(plating: night)
                     } label: {
+                        // A disabled control changes colour; it does not
+                        // fade. `inkSecondary` at 0.4 composites to about
+                        // 1.68:1 on canvas, and `canSave` is false while the
+                        // title is empty — which is how this sheet opens, so
+                        // the one sentence explaining the shortcut was
+                        // unreadable until the recipe was already written.
+                        // Full-strength label on a `fill` capsule instead:
+                        // 4.11:1 light, 5.83:1 dark, plainly present and
+                        // plainly not ready. Never inkFaint on a word.
                         Text("Save and plan it for \(nightLabel(night))")
                             .plType(.footnote, .semibold)
                             .foregroundStyle(Color.inkSecondary)
+                            .padding(.horizontal, 16)
                             .frame(minHeight: 44)
+                            .background {
+                                if !canSave { Capsule().fill(Color.fill) }
+                            }
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.pressable)
                     .disabled(!canSave)
-                    .opacity(canSave ? 1 : 0.4)
                 }
             }
             .padding(.horizontal, 24)
@@ -271,7 +304,7 @@ struct RecipeEditorView: View {
             category = recipe.categoryValue
             mealType = recipe.mealTypeValue
             if !recipe.difficulty.isEmpty { difficultyOverride = recipe.difficultyValue }
-            steps = recipe.steps
+            draftSteps = recipe.steps.map { DraftStep(text: $0) }
             extraPhotoData = recipe.sortedExtraPhotos.compactMap(\.photoData)
             draftIngredients = recipe.sortedIngredients.map {
                 DraftIngredient(
@@ -296,7 +329,7 @@ struct RecipeEditorView: View {
         editing == nil && (
             !title.trimmingCharacters(in: .whitespaces).isEmpty
                 || !summary.trimmingCharacters(in: .whitespaces).isEmpty
-                || !steps.isEmpty
+                || !draftSteps.isEmpty
                 || !stepEntry.trimmingCharacters(in: .whitespaces).isEmpty
                 || !draftIngredients.isEmpty
                 || photoData != nil
@@ -394,54 +427,41 @@ struct RecipeEditorView: View {
         VStack(alignment: .leading, spacing: 8) {
             MicroLabel("The steps")
 
-            ForEach(Array(steps.enumerated()), id: \.offset) { index, _ in
+            // Identity is the step, not its position. With `id: \.offset`,
+            // removing a middle row kept the leading views' identities and
+            // destroyed the trailing one, so the container's animation faded
+            // the last row while every row below the deleted one silently
+            // swapped its text — and a cursor stayed on an index rather than
+            // on the sentence somebody was writing. That is also what the
+            // guarded binding here was working around.
+            ForEach($draftSteps) { $step in
                 HStack(alignment: .top, spacing: 10) {
-                    Text("\(index + 1)")
+                    Text("\(stepNumber(step))")
                         .plType(.footnote, .extraBold, family: .display)
                         .foregroundStyle(Color.inkSecondary)
-                        .frame(width: 20, alignment: .trailing)
+                        // fixedSize before the frame, and a floor rather than
+                        // a hard width: a hard 20 forces "10" to wrap rather
+                        // than overflow once footnote outgrows it.
+                        .monospacedDigit()
+                        .lineLimit(1)
+                        .fixedSize()
+                        .frame(minWidth: 20, alignment: .trailing)
                         // The numeral sits on the field's first line rather
                         // than on the top of its border.
                         .padding(.top, 12)
                     // A step you can only delete is a step you have to retype
                     // to fix one word in, which is what somebody hits when
                     // they open Edit because they spotted a mistake.
-                    //
-                    // The binding is guarded rather than a plain
-                    // `$steps[index]`: the remove button on this same row
-                    // shortens the array while the row is still on screen,
-                    // and a raw subscript reads past the end.
-                    TextField("Step \(index + 1)", text: Binding(
-                        get: { index < steps.count ? steps[index] : "" },
-                        set: { if index < steps.count { steps[index] = $0 } }
-                    ), axis: .vertical)
-                        .plType(.body, .medium)
-                        .foregroundStyle(Color.ink)
-                        .lineLimit(1...8)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 11)
-                        .overlay(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous).strokeBorder(Color.hairline))
-                        .plTappableField()
-                    Button {
-                        Haptic.tap()
-                        withAnimation(.plSnap) {
-                            steps.remove(at: index)
-                        }
-                    } label: {
-                        Image(systemName: "xmark")
-                            .accessibilityLabel("Remove step \(index + 1)")
-                            .font(.system(size: 11, weight: .bold))
-                            .foregroundStyle(Color.inkSecondary)
-                            .frame(minWidth: 44, minHeight: 44)
-                            .contentShape(Rectangle())
+                    EditableLine(text: $step.text, placeholder: "Step \(stepNumber(step))")
+                    RemoveLineButton(label: "Remove step \(stepNumber(step))") {
+                        draftSteps.removeAll { $0.id == step.id }
                     }
-                    .buttonStyle(.pressable)
                 }
                 .padding(.horizontal, 4)
             }
 
             HStack(spacing: 8) {
-                TextField(steps.isEmpty ? "Step 1. What happens first?" : "Step \(steps.count + 1)…", text: $stepEntry, axis: .vertical)
+                TextField(draftSteps.isEmpty ? "Step 1. What happens first?" : "Step \(draftSteps.count + 1)…", text: $stepEntry, axis: .vertical)
                     .plType(.body, .medium)
                     .lineLimit(1...3)
                     .padding(.horizontal, 14)
@@ -452,7 +472,7 @@ struct RecipeEditorView: View {
                 addRoundButton(disabled: stepEntry.trimmingCharacters(in: .whitespaces).isEmpty, label: "Add step", action: addStep)
             }
         }
-        .animation(.plSnap, value: steps.count)
+        .animation(.plSnap, value: draftSteps.count)
     }
 
     private func addRoundButton(disabled: Bool, label: String, action: @escaping () -> Void) -> some View {
@@ -468,7 +488,7 @@ struct RecipeEditorView: View {
         let entry = stepEntry.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !entry.isEmpty else { return }
         Haptic.tap()
-        steps.append(entry)
+        draftSteps.append(DraftStep(text: entry))
         stepEntry = ""
     }
 
@@ -656,8 +676,8 @@ struct RecipeEditorView: View {
         // Editing a step can leave it blank, and a blank step is not a step.
         // Nothing else in the app can produce one, so this is the only place
         // it has to be caught.
-        recipe.steps = steps
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        recipe.steps = draftSteps
+            .map { $0.text.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
         if let difficultyOverride {
             recipe.difficultyValue = difficultyOverride
@@ -789,26 +809,14 @@ private struct IngredientRow: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            TextField("Ingredient", text: Binding(
+            EditableLine(text: Binding(
                 get: { draft.text },
                 set: { draft.edited = $0 }
-            ), axis: .vertical)
-                .plType(.body, .medium)
-                .foregroundStyle(Color.ink)
-                .lineLimit(1...3)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 11)
-                .overlay(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous).strokeBorder(Color.hairline))
-                .plTappableField()
-            Button(action: onRemove) {
-                Image(systemName: "xmark")
-                    .accessibilityLabel("Remove \(draft.resolved.name.isEmpty ? "ingredient" : draft.resolved.name)")
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundStyle(Color.inkSecondary)
-                    .frame(minWidth: 44, minHeight: 44)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.pressable)
+            ), placeholder: "Ingredient", lines: 1...3)
+            RemoveLineButton(
+                label: "Remove \(draft.resolved.name.isEmpty ? "ingredient" : draft.resolved.name)",
+                action: onRemove
+            )
         }
         .padding(.horizontal, 4)
     }
