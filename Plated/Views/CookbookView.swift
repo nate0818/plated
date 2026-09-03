@@ -416,7 +416,15 @@ struct CookbookView: View {
                     Text(recipe.title)
                         .plType(.body, .bold)
                         .foregroundStyle(Color.ink)
-                        .lineLimit(1)
+                        // Two lines, and the space for both is always
+                        // reserved. One line turned "Sheet-pan chicken with
+                        // charred lemon" into "Sheet-pan chicken w..." beside
+                        // an empty half of the grid, and the plan row two
+                        // screens away has always given a dish name two.
+                        // Reserving keeps the tiles on one baseline whether
+                        // the name needs the second line or not.
+                        .lineLimit(2, reservesSpace: true)
+                        .multilineTextAlignment(.center)
                     Text(metaLine(recipe))
                         .plType(.caption, .semibold)
                         .foregroundStyle(Color.inkSecondary)
