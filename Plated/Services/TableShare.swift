@@ -432,6 +432,43 @@ enum TableShare {
         }
     }
 
+    // MARK: Being told, instead of asking
+
+    /// Subscribe to both databases so a change wakes the app.
+    ///
+    /// Without this the Table is a pull: Riley cooks, photographs it, posts
+    /// it, and nobody's phone does anything until somebody else happens to
+    /// open the app and drag down. Every craft improvement in the feed sits
+    /// on top of that, and a social product where posting produces no event
+    /// on anybody else's device is a diary several people can read.
+    ///
+    /// A DATABASE subscription rather than one per zone: a guest's zone
+    /// appears only after they accept, and a per-zone subscription would
+    /// have to be created at exactly that moment on exactly that device.
+    /// One per database covers every table this person can see, now and
+    /// later.
+    ///
+    /// `shouldSendContentAvailable` with no alert body is the silent kind.
+    /// It asks for no permission, shows nothing, and simply gives the app a
+    /// moment to fetch — which is right here, because the notification a
+    /// person should see is the one the app decides to raise after it knows
+    /// what actually arrived, not "something changed in a database".
+    static func subscribe() async {
+        for (db, id) in [(container.privateCloudDatabase, "plated-private-v1"),
+                         (container.sharedCloudDatabase, "plated-shared-v1")] {
+            // Already there is the common case, and CKError.serverRejectedRequest
+            // is what a duplicate looks like. Asking every launch is cheap
+            // and means a subscription lost to a signed-out account comes
+            // back on its own.
+            if (try? await db.subscription(for: id)) != nil { continue }
+            let subscription = CKDatabaseSubscription(subscriptionID: id)
+            let info = CKSubscription.NotificationInfo()
+            info.shouldSendContentAvailable = true
+            subscription.notificationInfo = info
+            _ = try? await db.save(subscription)
+        }
+    }
+
     // MARK: Reactions on the wire
 
     /// One person's plate on one dish.
@@ -990,6 +1027,7 @@ enum TableShare {
     struct Changes { var posts: [RemotePost] = []; var reactions: [RemoteReaction] = []
                      var notes: [RemoteNote] = []; var deleted: Set<String> = [] }
     static func pushNote(_ comment: TableComment, post: String, zoneOwner: String) async -> Bool { false }
+    static func subscribe() async {}
     static func pushPlate(post: String, zoneOwner: String, author: String,
                           authorName: String, active: Bool, at: Date) async -> Bool { false }
     static func pushBallot(post: String, zoneOwner: String, author: String,

@@ -433,6 +433,14 @@ struct TableFeedView: View {
                 }
                 // A seat accepted from Messages while the Table is already
                 // open would otherwise sit invisible until the next pull.
+                // A push says something changed; the fetch says what. The
+                // app never renders anything from a notification payload —
+                // a silent push carries no truth, only a reason to look.
+                .onReceive(NotificationCenter.default.publisher(
+                    for: ShareAcceptor.didChangeRemotely
+                )) { _ in
+                    Task { await refreshFeed() }
+                }
                 .onReceive(NotificationCenter.default.publisher(for: ShareAcceptor.didAccept)) { _ in
                     Task { TableShare.merge(await TableShare.fetchChanges(), into: context) }
                 }

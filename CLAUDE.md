@@ -45,6 +45,25 @@ rendering a hair larger so fixed-height layouts overflow, and Foundation Models.
 - **CloudKit needs table GRANTs, not just RLS** on the Supabase side; "expose new
   tables" being off locks out the service role too.
 - **Model changes must stay CloudKit-safe**: new properties optional or defaulted.
+- **Hand-written CloudKit types live in the `PlatedDish*` namespace and nothing
+  else may.** The SwiftData mirror adopts any private-database record whose
+  type matches one of its entity names, which is the ghost post in MEMORY.md.
+  `TableShare.assertNoEntityCollision()` makes that a DEBUG check rather than
+  something to remember. `TablePost` is the one exception and is read-only: it
+  IS the collision, and it cannot be renamed without abandoning tables shared
+  before the rename.
+- **Share-derived state does not go in the mirror.** Plates and ballots live in
+  `TableLedger`, a JSON book in the app group, and the queue in `TableOutbox`
+  beside it. Put them in a `@Model` and the mirror becomes a second writer to
+  a fact the shared zone already owns: two devices mid-propagation ping-pong a
+  recomputed count, and a person's own plate flickers on and off in front of
+  them. A mirrored outbox is worse — a distributed queue with no lease, where
+  two of one person's devices both drain the same row.
+- **A CloudKit list field minted from an empty array is minted as the wrong
+  type, permanently**, and every later save carrying a real list then fails
+  `.invalidArguments`. Omit the key instead of writing `[]`.
+- **CloudKit has no boolean type.** A Bool is stored as INT64 and
+  `record[key] as? Bool` is a bridging coin flip. Use `TableShare.int(_:_:)`.
 - **The widget is a second target and cannot import `Theme.swift`.** Its
   tokens are hand-copied into `PlatedWidgets/PlatedWidgets.swift`, and that
   copy has already drifted once: it shipped `inkSecondary` at the rejected
