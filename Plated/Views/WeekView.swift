@@ -28,10 +28,16 @@ struct WeekView: View {
     @State private var planDay: Date?
     /// The day whose detail page is pushed. Tapping a day used to raise a
     /// change/remove dialog; those two are swipe actions inside the day now.
+    @Environment(\.tabPop) private var tabPop
     @State private var dayShown: Date?
+    /// Once per appearance of the view, not once per redraw.
+    @State private var landedOnTonight = false
     @State private var swipedDay: Date?
     @State private var personShown: PersonRef?
     @State private var pushed: PlanDestination?
+    /// The night you tapped is the night that opens, and your own face is
+    /// the door to your own profile. See CookbookView for the reasoning.
+    @Namespace private var zoom
 
     enum PlanDestination: String, Identifiable {
         case activity
@@ -97,6 +103,7 @@ struct WeekView: View {
             .plSwipeBack()
             .navigationDestination(item: $personShown) { person in
                 PersonProfileView(personName: person.name, colorHex: person.colorHex, memberID: person.memberID)
+                    .navigationTransition(.zoom(sourceID: ZoomID.host, in: zoom))
             }
             .navigationDestination(item: $pushed) { destination in
                 switch destination {
@@ -105,6 +112,7 @@ struct WeekView: View {
             }
             .navigationDestination(item: $dayShown) { day in
                 DayDetailView(date: day, askTheTable: askTheTable)
+                    .navigationTransition(.zoom(sourceID: day, in: zoom))
             }
         }
         .sheet(isPresented: $groceryPresented) { GrocerySheet() }
@@ -112,6 +120,14 @@ struct WeekView: View {
             guard requested else { return }
             openGrocery.wrappedValue = false
             groceryPresented = true
+        }
+        // Tapping Plan while a day, a person or a pushed screen is open
+        // returns to the plan itself. See TabPopRequest.
+        .onChange(of: tabPop) { _, request in
+            guard request.tab == .week else { return }
+            dayShown = nil
+            personShown = nil
+            pushed = nil
         }
         .sheet(item: $planDay) { date in
             PlanNightSheet(date: date, askTheTable: askTheTable)
@@ -154,9 +170,46 @@ struct WeekView: View {
                 .padding(.horizontal, 24)
                 .padding(.top, 6)
 
+            ScrollViewReader { scroll in
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 8) {
-                    ForEach(weekDates, id: \.self) { date in
+                    // Everything already cooked, oldest first, so the plan is
+                    // one timeline you are standing in the middle of: scroll
+                    // up for what you ate, down for what is coming. The view
+                    // opens anchored on tonight, so none of it is in the way
+                    // until somebody reaches for it.
+                    ForEach(cookedHistory) { section in
+                        HStack {
+                            MicroLabel(section.label)
+                            Spacer()
+                        }
+                        .padding(.top, 18)
+                        .padding(.bottom, 2)
+                        ForEach(section.dates, id: \.self) { date in
+                            dayRow(date)
+                        }
+                    }
+
+                    let tonight = TonightAnswer.state(meals: meals,
+                                                       hasRecipes: !recipes.isEmpty)
+                    if let tonight {
+                        TonightCard(
+                            state: tonight,
+                            zoom: zoom,
+                            onOpenDish: { meal in dayShown = meal.date },
+                            onPlanTonight: { planDay = Calendar.current.startOfDay(for: .now) },
+                            dayLoad: showCalendarEvents
+                                ? events.load(on: Calendar.current.startOfDay(for: .now))
+                                : nil
+                        )
+                        .padding(.bottom, 4)
+                        .id(Self.tonightAnchor)
+                    }
+                    // Tonight is the card, so it is not also a row. Drawn
+                    // both ways it appeared twice in one scroll, and the
+                    // second time was underneath four nights already eaten,
+                    // which reads as the week having lost its order.
+                    ForEach(aheadThisWeek(skippingToday: tonight != nil), id: \.self) { date in
                         dayRow(date)
                     }
                     ForEach(Array(futureWeeks.enumerated()), id: \.offset) { index, week in
@@ -164,8 +217,8 @@ struct WeekView: View {
                             MicroLabel(weekSectionLabel(week, index: index))
                             Spacer()
                             Text("\(week.filter { dinner(on: $0) != nil }.count) of 7")
-                                .font(.jakarta(11, .bold))
-                                .foregroundStyle(Color.inkFaint)
+                                .plType(.micro)
+                                .foregroundStyle(Color.inkSecondary)
                         }
                         .padding(.top, 18)
                         .padding(.bottom, 2)
@@ -191,8 +244,21 @@ struct WeekView: View {
                     withAnimation(.plSnap) { swipedDay = nil }
                 }
             }
+            // Land on tonight, not on the oldest thing the household ever
+            // cooked. Without an anchor a timeline that grows upwards opens
+            // further from the answer every week it is used.
+            .onAppear {
+                guard !landedOnTonight else { return }
+                landedOnTonight = true
+                scroll.scrollTo(Self.tonightAnchor, anchor: .top)
+            }
+            }
         }
     }
+
+    /// The scroll's resting place.
+    private static let tonightAnchor = "tonight"
+
 
     @ViewBuilder
     private func dayRow(_ date: Date) -> some View {
@@ -208,7 +274,10 @@ struct WeekView: View {
     // MARK: Header
 
     private var header: some View {
-        HStack(alignment: .center, spacing: 10) {
+        // Aligned on the discs, not the blocks: the avatar carries a caption
+        // and the bell does not, so centring the blocks left the face
+        // sitting about 8pt high. See VerticalAlignment.discCentre.
+        HStack(alignment: .discCentre, spacing: 10) {
             VStack(alignment: .leading, spacing: 2) {
                 // "Aug 30 to Sep 5" is wider than a cross-month range has
                 // any right to be, and the header's icons leave it under
@@ -217,11 +286,24 @@ struct WeekView: View {
                 MicroLabel(weekRangeLabel)
                     .lineLimit(1)
                     .minimumScaleFactor(0.75)
+                    // Squeezed by four icon buttons, so it truncated to
+                    // "AUG 3..." at accessibility sizes. An eyebrow beside
+                    // a title is chrome; the title below it is not.
+                    .plChrome()
                 Text("Your week")
-                    .font(.gabarito(25, .semibold))
-                    .tracking(-0.3)
+                    // A step down from display and a weight lighter. At 27pt
+                    // semibold it needed two lines beside four icon buttons,
+                    // so the masthead stood taller than the answer under it.
+                    // The card below is where that size belongs now.
+                    .plType(.title, .medium)
                     .foregroundStyle(Color.ink)
-                    .lineLimit(1)
+                    // Two lines, not one. At normal sizes the title never
+                    // reaches the second, so nothing moves; at accessibility
+                    // sizes it wraps the way an iOS large title wraps instead
+                    // of truncating "Your week" to "Your...". A title is
+                    // content, so it keeps growing; the icons beside it are
+                    // chrome and hold at xxLarge.
+                    .lineLimit(2)
                     .minimumScaleFactor(0.7)
             }
             .layoutPriority(1)
@@ -249,13 +331,20 @@ struct WeekView: View {
                     AvatarCircle(initials: hostInitial, tone: .neutralPair, size: 42,
                                  photo: members.first(where: \.isOwner)?.photoData)
                     Text("HOST")
-                        .font(.jakarta(10, .bold))
-                        .tracking(0.7)
-                        .foregroundStyle(Color.inkFaint)
+                        .plType(.micro)
+                        .foregroundStyle(Color.inkSecondary)
+                        // One line, always. This sits in a squeezed masthead
+                        // HStack, so at XXXL it wrapped and broke the word
+                        // across two lines: "HO" over "ST".
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
                 }
                 .contentShape(Rectangle())
             }
             .buttonStyle(.pressable)
+            .matchedTransitionSource(id: ZoomID.host, in: zoom)
+            .plDiscAligned(42)
+            .plChrome()
         }
     }
 
@@ -298,7 +387,7 @@ struct WeekView: View {
                 .frame(width: 34, height: 34)
             Circle().fill(Color.canvas).frame(width: 26, height: 26)
             Text("\(plannedCount)")
-                .font(.jakarta(11, .extraBold))
+                .plType(.micro, .extraBold)
                 .foregroundStyle(Color.ink)
                 .contentTransition(.numericText())
         }
@@ -317,27 +406,45 @@ struct WeekView: View {
     private func plannedRow(_ meal: PlannedMeal, date: Date) -> some View {
         let today = Calendar.current.isDateInToday(date)
         let eatingOut = meal.recipe == nil && meal.customTitle.localizedCaseInsensitiveContains("eating out")
-        // The dish photo left this row: the date and its weather earned the
-        // width instead. The plate is still the first thing you see the
-        // moment you open the day.
         return SwipeRow(isOpen: swipeBinding(date), actions: [.remove { remove(on: date) }]) {
             HStack(spacing: 10) {
                 dateCard(date, dimmed: false)
 
+                // The dish is back, and in the same slot the open night puts
+                // its dashed plate: one skeleton down the list instead of
+                // two. It went away when the date card took the width, which
+                // left the week — the screen this app is mostly looked at —
+                // with no photograph on it at all.
+                dishCircle(for: meal, diameter: 48)
+                    // The cook belongs to the dish, not to the far edge of
+                    // the row. Moving them here also hands the title back the
+                    // 38pt that an edge avatar was costing it, which is the
+                    // difference between "Creamy Tuscan Chicken" and
+                    // "Creamy Tuscan Chick…".
+                    .overlay(alignment: .bottomTrailing) {
+                        // Not the owner: the tagline already refuses to say
+                        // "Nate cooks" to Nate, and your own face on your own
+                        // dish every night is decoration, not information.
+                        if let cook = meal.cook, !cook.isOwner, !eatingOut {
+                            AvatarCircle(member: cook, size: 22)
+                                // A face on a photograph needs its own edge
+                                // or it reads as part of the dish.
+                                .overlay { Circle().strokeBorder(Color.cardFill, lineWidth: 2) }
+                                .offset(x: 3, y: 3)
+                        }
+                    }
+
                 VStack(alignment: .leading, spacing: 2) {
                     Text(meal.title)
-                        .font(.jakarta(15, .bold))
+                        .plType(.body, .bold)
                         .foregroundStyle(Color.ink)
                         .lineLimit(2)
                     Text(tagLine(for: meal, today: today, date: date))
-                        .font(.jakarta(12, .semibold))
+                        .plType(.caption, .semibold)
                         .foregroundStyle(today ? Color.ink : Color.inkSecondary)
                         .lineLimit(1)
                 }
                 Spacer(minLength: 8)
-                if let cook = meal.cook, !eatingOut {
-                    AvatarCircle(member: cook, size: 30)
-                }
             }
             .padding(.vertical, 12)
             .padding(.leading, 8)
@@ -388,6 +495,7 @@ struct WeekView: View {
         }
         .scaleEffect(bounceDay == date ? 1.02 : (dropHoverDay == date ? 1.015 : 1))
         .animation(.plPop, value: bounceDay)
+        .matchedTransitionSource(id: date, in: zoom)
     }
 
     /// Two targets, deliberately. The dashed plate still plates dinner in one
@@ -403,7 +511,10 @@ struct WeekView: View {
             } label: {
                 Circle()
                     .strokeBorder(Color.hairlineDashed, style: StrokeStyle(lineWidth: 1.5, dash: [5, 5]))
-                    .frame(width: 52, height: 52)
+                    // 48, matching the planned night's dish. An empty plate
+                    // that is a different size from a full one makes the two
+                    // rows read as two lists.
+                    .frame(width: 48, height: 48)
                     .overlay {
                         Image(systemName: "plus")
                             .font(.system(size: 15, weight: .bold))
@@ -416,9 +527,14 @@ struct WeekView: View {
             // here would just be the same night read twice.
             .accessibilityHidden(true)
             Text(openLine(date))
-                .font(.jakarta(14, .semibold))
+                .plType(.body)
                 .foregroundStyle(Color.inkSecondary)
-                .lineLimit(1)
+                // No limit, the way the past row's own "Nothing plated"
+                // already has none. This is the app's copy, not a dish
+                // somebody named, and at AX5 one line turned "Nothing plated
+                // yet" into "Nothing...", which is the whole sentence gone.
+                // The row's 76pt is a floor, so it grows to hold it.
+                .fixedSize(horizontal: false, vertical: true)
             Spacer()
         }
         .padding(.vertical, 12)
@@ -478,6 +594,7 @@ struct WeekView: View {
             }
         }
         .scaleEffect(dropHoverDay == date ? 1.015 : 1)
+        .matchedTransitionSource(id: date, in: zoom)
     }
 
     /// Nights already gone. They stay on screen so the week keeps its real
@@ -490,20 +607,28 @@ struct WeekView: View {
         let meal = dinner(on: date)
         return HStack(spacing: 12) {
             VStack(spacing: 0) {
-                Text(date.formattedWeekday())
-                    .font(.jakarta(9, .bold))
-                    .tracking(0.3)
+                // Uppercase to match the live day's card. The scale's own
+                // micro tracking is set for caps, and two cases one row
+                // apart read as two different labels.
+                Text(date.formattedWeekday().uppercased())
+                    .plType(.micro)
                 Text(date.formattedDayNumber())
-                    .font(.gabarito(17, .bold))
+                    .plType(.heading, .bold)
                     .monospacedDigit()
             }
-            .foregroundStyle(Color.inkFaint)
+            .foregroundStyle(Color.inkSecondary)
             // Same width as a live day's card, so the whole left column
             // holds one line down the list — history is shorter, not
             // narrower.
-            .frame(width: 66, height: 38)
+            // Floored, not fixed: both lines grew with the scale and this
+            // held 38pt of text in a 38pt box. A hard height around type
+            // that now answers Dynamic Type is the overflow already logged
+            // in CLAUDE.md.
+            .plChrome()
+            .frame(width: 66)
+            .frame(minHeight: 40)
             .background {
-                RoundedRectangle(cornerRadius: 11, style: .continuous)
+                RoundedRectangle(cornerRadius: Radius.small, style: .continuous)
                     .fill(Color.chipFill)
             }
 
@@ -511,15 +636,15 @@ struct WeekView: View {
                 dishCircle(for: meal, diameter: 34)
                     .opacity(0.65)
                 Text(meal.title)
-                    .font(.jakarta(13, .semibold))
+                    .plType(.footnote, .semibold)
                     .foregroundStyle(Color.inkSecondary)
                     .lineLimit(1)
             } else {
                 // Past tense on purpose: "yet" promises a night you can
                 // still cook.
                 Text("Nothing plated")
-                    .font(.jakarta(13, .semibold))
-                    .foregroundStyle(Color.inkFaint)
+                    .plType(.footnote, .semibold)
+                    .foregroundStyle(Color.inkSecondary)
             }
             Spacer(minLength: 8)
         }
@@ -527,9 +652,18 @@ struct WeekView: View {
         .padding(.leading, 8)
         .padding(.trailing, 14)
         .frame(minHeight: 54)
+        // The same container as the rows above and below it. A past night is
+        // still a row in this list, and it had neither their fill nor their
+        // border: `hairlineSoft` measures 1.105:1 on canvas against
+        // `navHairline`'s 1.178, so history read as loose text between two
+        // cards rather than as a shorter card. Being past is carried by the
+        // things that belong to the content — the compression from 76pt to
+        // 54, the smaller type, no plate, no forecast, no plus — not by
+        // taking the container away.
+        .background(Color.cardFill, in: Radius.shape(Radius.row))
         .overlay {
-            RoundedRectangle(cornerRadius: Radius.row, style: .continuous)
-                .strokeBorder(Color.hairlineSoft, lineWidth: 1.5)
+            Radius.shape(Radius.row)
+                .strokeBorder(Color.navHairline, lineWidth: 1.5)
         }
         // History answers questions — "what was that thing we ate Monday?"
         // — so it opens the day like every other row. It just can't be
@@ -589,12 +723,45 @@ struct WeekView: View {
                   systemImage: planned == nil ? "plus.circle" : "arrow.2.squarepath")
         }
         if planned != nil {
+            // Dragging a plate from one night to another was the only way to
+            // move a dinner. That is a gesture nobody is told about and a
+            // gesture VoiceOver cannot perform, and `moveMeal` was already
+            // sitting here doing the work for the drop target.
+            Menu {
+                ForEach(movableNights(excluding: date), id: \.self) { target in
+                    Button(nightLabel(target)) {
+                        _ = moveMeal(from: DayTransfer.token(for: date), to: target)
+                    }
+                }
+            } label: {
+                Label("Move to another night", systemImage: "calendar")
+            }
             Button(role: .destructive) {
                 remove(on: date)
             } label: {
                 Label("Clear the night", systemImage: "trash")
             }
         }
+    }
+
+    /// Nights this dinner could move to: the rest of this week and the
+    /// weeks already on screen, today onward, minus the one it is on.
+    private func movableNights(excluding date: Date) -> [Date] {
+        let today = Calendar.current.startOfDay(for: .now)
+        return (weekDates + futureWeeks.flatMap { $0 })
+            .filter { $0 >= today && !Calendar.current.isSameDay($0, date) }
+    }
+
+    /// "Tonight", "Tomorrow", then the weekday, then the date once a
+    /// weekday name would be ambiguous.
+    private func nightLabel(_ date: Date) -> String {
+        let calendar = Calendar.current
+        if calendar.isDateInToday(date) { return "Tonight" }
+        if calendar.isDateInTomorrow(date) { return "Tomorrow" }
+        let formatter = DateFormatter()
+        let withinTheWeek = weekDates.contains { calendar.isSameDay($0, date) }
+        formatter.dateFormat = withinTheWeek ? "EEEE" : "EEEE, MMM d"
+        return formatter.string(from: date)
     }
 
     /// A night off the stove still counts as a plan for the week.
@@ -657,9 +824,8 @@ struct WeekView: View {
             HStack(spacing: 4) {
                 // Today is today whether or not the night is planned.
                 Text(date.formattedWeekday().uppercased())
-                    .font(.jakarta(9.5, .bold))
-                    .tracking(0.6)
-                    .foregroundStyle(today ? Color.tomato : Color.inkFaint)
+                    .plType(.micro)
+                    .foregroundStyle(today ? Color.tomato : Color.inkSecondary)
                 if showCalendarEvents && events.hasEvent(on: date) {
                     Circle().fill(Color.grape).frame(width: 5, height: 5)
                 }
@@ -669,7 +835,7 @@ struct WeekView: View {
             // open night no longer reads as disabled — the dashed plate and
             // the faint copy carry the emptiness on their own.
             Text(date.formattedDayNumber())
-                .font(.gabarito(25, .medium))
+                .plType(.display, .medium)
                 .monospacedDigit()
                 .foregroundStyle(dimmed && !today ? Color.inkSecondary : Color.ink)
                 // Gabarito's line box leaves the numeral floating below the
@@ -685,11 +851,10 @@ struct WeekView: View {
                             .font(.system(size: 10, weight: .medium))
                             .symbolRenderingMode(.hierarchical)
                         Text("\(Int(day.highF.rounded()))°")
-                            .font(.jakarta(10, .bold))
+                            .plType(.micro)
                             .monospacedDigit()
                     }
-                    // inkFaint disappears into the tomato tint.
-                    .foregroundStyle(today ? Color.inkSecondary : Color.inkFaint)
+                    .foregroundStyle(Color.inkSecondary)
                     // The row combines its children, so a bare "72°" would
                     // read as a stray number. Say the condition the way
                     // Weather does.
@@ -697,7 +862,7 @@ struct WeekView: View {
                     .accessibilityLabel("\(day.conditionDescription), high \(Int(day.highF.rounded())) degrees")
                 } else {
                     Text(" ")
-                        .font(.jakarta(10, .bold))
+                        .plType(.micro)
                         .accessibilityHidden(true)
                 }
             }
@@ -709,14 +874,18 @@ struct WeekView: View {
         // footnote, and no wider. 84x76 with a 32pt numeral was a card for
         // somebody who has been told to hold the phone further away.
         .padding(.vertical, 7)
+        // A 66pt chip is furniture: at AX5 it set "MON" as "M" over "O"
+        // over "N". The dish name beside it has a whole row to grow into
+        // and keeps going. See plChrome in Theme.swift.
+        .plChrome()
         .frame(width: 66)
         .frame(minHeight: 62)
         .background {
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
+            RoundedRectangle(cornerRadius: Radius.small, style: .continuous)
                 .fill(today ? Color.tomatoTint : Color.cardFill)
         }
         .overlay {
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
+            RoundedRectangle(cornerRadius: Radius.small, style: .continuous)
                 .strokeBorder(today ? Color.tomato.opacity(0.16) : Color.hairline, lineWidth: 1)
         }
         .plTileShadow()
@@ -745,12 +914,78 @@ struct WeekView: View {
                 AvatarCircle(member: first, size: 26)
             }
             Text(cooksLine)
-                .font(.jakarta(12, .semibold))
+                .plType(.caption, .semibold)
                 .foregroundStyle(Color.inkSecondary)
         }
     }
 
     // MARK: Data
+
+    /// What is left of this week. `weekDates` itself is untouched, because
+    /// the ring, the counts and the week label all measure the whole week
+    /// including tonight; it is only the list that reorders around the card.
+    private func aheadThisWeek(skippingToday: Bool) -> [Date] {
+        weekDates.filter { date in
+            if isPast(date) { return false }
+            if skippingToday, Calendar.current.isDateInToday(date) { return false }
+            return true
+        }
+    }
+
+    struct HistorySection: Identifiable {
+        let start: Date
+        let label: String
+        let dates: [Date]
+        var id: Date { start }
+    }
+
+    /// The weeks behind you, whole, oldest first.
+    ///
+    /// This used to be only the nights that had a dinner on them, which on a
+    /// household that has cooked twice is two rows floating above tonight
+    /// with no shape to them. History is a timeline, not a filtered list:
+    /// scrolling back should read like a calendar, so the weeks come back
+    /// whole and the gaps are part of the record. Which nights you did not
+    /// cook is as much of the rhythm as which nights you did.
+    ///
+    /// Starts at the first dinner the household ever planned, so a new
+    /// install has no history rather than an empty scrollback, and stops at
+    /// twelve weeks because the rows are drawn eagerly and a year of them is
+    /// three hundred and sixty-four views built to show four.
+    private var cookedHistory: [HistorySection] {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: .now)
+        let past = meals.filter { $0.slotValue == .dinner && $0.date < today }
+        guard let earliest = past.map(\.date).min() else { return [] }
+
+        let thisWeek = calendar.startOfWeek(for: today)
+        let floor = calendar.date(byAdding: .day, value: -7 * 12, to: thisWeek) ?? thisWeek
+        var weekStart = max(calendar.startOfWeek(for: earliest), floor)
+
+        var sections: [HistorySection] = []
+        while weekStart <= thisWeek {
+            let days = calendar.weekDays(for: weekStart).filter { $0 < today }
+            if !days.isEmpty {
+                sections.append(HistorySection(start: weekStart,
+                                               label: historyLabel(weekStart: weekStart),
+                                               dates: days))
+            }
+            guard let next = calendar.date(byAdding: .day, value: 7, to: weekStart) else { break }
+            weekStart = next
+        }
+        return sections
+    }
+
+    private func historyLabel(weekStart: Date) -> String {
+        let calendar = Calendar.current
+        let thisWeek = calendar.startOfWeek(for: .now)
+        if calendar.isSameDay(weekStart, thisWeek) { return "Earlier this week" }
+        if let lastWeek = calendar.date(byAdding: .day, value: -7, to: thisWeek),
+           calendar.isSameDay(weekStart, lastWeek) { return "Last week" }
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMM d"
+        return "Week of \(formatter.string(from: weekStart))"
+    }
 
     private func dinner(on date: Date) -> PlannedMeal? {
         meals.first {
@@ -761,8 +996,18 @@ struct WeekView: View {
     private func tagLine(for meal: PlannedMeal, today: Bool, date: Date) -> String {
         let base: String
         if today {
+            // Tonight names its cook like every other night does. This
+            // branch returned before it could reach the cook clause four
+            // lines below, so the one night the answer matters most was the
+            // only night the app would not give it — while the Home Screen
+            // widget beside it drew the cook's face the whole time.
+            var parts: [String] = ["Tonight"]
+            if let cook = meal.cook {
+                parts.append(cook.isOwner ? "you cook" : "\(cook.name) cooks")
+            }
             let minutes = meal.recipe?.totalMinutes ?? 0
-            base = minutes > 0 ? "Tonight · \(Recipe.durationText(minutes))" : "Tonight"
+            if minutes > 0 { parts.append(Recipe.durationText(minutes)) }
+            base = parts.joined(separator: " · ")
         } else if !meal.tagline.isEmpty {
             base = meal.tagline
         } else if let cook = meal.cook, !cook.isOwner {

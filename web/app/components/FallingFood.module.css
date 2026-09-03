@@ -1,0 +1,42 @@
+.sky {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+  /* Dissolve toward the bottom so the pieces never fall through the row of
+     features below the hero; they fade out where the reading starts. */
+  mask-image: linear-gradient(to bottom, #000 0%, #000 70%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 70%, transparent 100%);
+}
+
+.piece {
+  position: absolute;
+  top: -60px;
+  line-height: 1;
+  /* Apple's set on Apple devices, the platform's own elsewhere. The art
+     itself cannot be shipped as files. */
+  font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
+  opacity: 0.85;
+  will-change: transform;
+  animation:
+    fall var(--fall) linear var(--delay) infinite,
+    sway calc(var(--fall) / 4) ease-in-out var(--delay) infinite alternate;
+}
+
+/* Two animations on one element compose on transform, so the sway lives
+   on an inner axis: translateX in `sway` is applied through a margin
+   instead, which keeps `fall` free to own transform. */
+@keyframes fall {
+  from { transform: translateY(0) rotate(0deg); }
+  to   { transform: translateY(calc(100vh + 120px)) rotate(var(--spin)); }
+}
+
+@keyframes sway {
+  from { margin-left: calc(var(--sway) * -1); }
+  to   { margin-left: var(--sway); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sky { display: none; }
+}

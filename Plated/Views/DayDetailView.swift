@@ -29,6 +29,8 @@ struct DayDetailView: View {
     /// One row open at a time, same contract as the week's plan rows.
     @State private var swipedSlot: MealSlot?
     @State private var openMeal: PlannedMeal?
+    /// The dish you tapped is the dish that opens. See CookbookView.
+    @Namespace private var zoom
     @State private var events = DayEventsProvider.shared
     @State private var forecast = ForecastProvider.shared
 
@@ -63,7 +65,7 @@ struct DayDetailView: View {
                         .padding(.top, plannedSlots.isEmpty ? 0 : 16)
                     if let line = cooksLine {
                         Text(line)
-                            .font(.jakarta(12, .semibold))
+                            .plType(.caption, .semibold)
                             .foregroundStyle(Color.inkSecondary)
                             .padding(.top, 14)
                     }
@@ -87,13 +89,17 @@ struct DayDetailView: View {
             // which night it's cooking for.
             if let recipe = meal.recipe {
                 RecipeDetailView(recipe: recipe, meal: meal)
+                    .navigationTransition(.zoom(sourceID: meal.persistentModelID, in: zoom))
             }
         }
         .sheet(item: $planning) { plan in
             PlanNightSheet(date: plan.date, slot: plan.slot, askTheTable: askTheTable)
         }
         .task {
-            await forecast.refresh(days: 10)
+            // The only place Plated raises the location prompt. This
+            // screen shows the forecast and the suggestion that reads it,
+            // so the ask arrives with its answer already on screen.
+            await forecast.refresh(days: 10, mayAsk: true)
             if showCalendarEvents { events.refresh() }
         }
     }
@@ -103,31 +109,22 @@ struct DayDetailView: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 10) {
-                Button {
-                    Haptic.tap()
+                IconDiscButton(systemName: "chevron.left", label: "Back") {
                     dismiss()
-                } label: {
-                    Circle()
-                        .strokeBorder(Color.hairline, lineWidth: 1.5)
-                        .frame(width: 38, height: 38)
-                        .overlay {
-                            Image(systemName: "chevron.left")
-                                .accessibilityLabel("Back")
-                                .font(.system(size: 14, weight: .semibold))
-                                .foregroundStyle(Color.ink)
-                        }
-                        .frame(minWidth: 44, minHeight: 44)
-                        .contentShape(Rectangle())
                 }
-                .buttonStyle(.pressable)
 
                 VStack(alignment: .leading, spacing: 2) {
                     MicroLabel(fullDateLabel)
                     Text(dayTitle)
-                        .font(.gabarito(25, .semibold))
-                        .tracking(-0.3)
+                        .plType(.display)
                         .foregroundStyle(Color.ink)
-                        .lineLimit(1)
+                        // Two lines, not one. At normal sizes the title never
+                        // reaches the second, so nothing moves; at accessibility
+                        // sizes it wraps the way an iOS large title wraps instead
+                        // of truncating "Your week" to "Your...". A title is
+                        // content, so it keeps growing; the icons beside it are
+                        // chrome and hold at xxLarge.
+                        .lineLimit(2)
                         .minimumScaleFactor(0.7)
                 }
                 Spacer(minLength: 6)
@@ -145,7 +142,7 @@ struct DayDetailView: View {
                                 .font(.system(size: 19, weight: .medium))
                                 .symbolRenderingMode(.hierarchical)
                             Text("\(Int(day.highF.rounded()))°")
-                                .font(.jakarta(12, .bold))
+                                .plType(.micro)
                                 .monospacedDigit()
                         }
                         .foregroundStyle(Color.inkSecondary)
@@ -159,7 +156,7 @@ struct DayDetailView: View {
             }
             if let line = contextLine {
                 Text(line)
-                    .font(.jakarta(12, .semibold))
+                    .plType(.caption, .semibold)
                     .foregroundStyle(Color.inkSecondary)
                     .padding(.top, 6)
                     .padding(.leading, 2)
@@ -207,8 +204,8 @@ struct DayDetailView: View {
         if isPast {
             if plannedSlots.isEmpty {
                 Text("Nothing plated")
-                    .font(.jakarta(14, .semibold))
-                    .foregroundStyle(Color.inkFaint)
+                    .plType(.body)
+                    .foregroundStyle(Color.inkSecondary)
                     .padding(.top, 8)
             }
         } else if !openSlots.isEmpty {
@@ -224,23 +221,33 @@ struct DayDetailView: View {
                 HStack(spacing: 12) {
                     Circle()
                         .strokeBorder(Color.hairlineDashed, style: StrokeStyle(lineWidth: 1.5, dash: [5, 5]))
-                        .frame(width: 44, height: 44)
+                        // 52, the same as a real dish in this column. An
+                        // empty plate of a different size from a full one
+                        // starts its label 8pt off every label above it.
+                        .frame(width: 52, height: 52)
                         .overlay {
                             Image(systemName: "plus")
                                 .font(.system(size: 14, weight: .bold))
                                 .foregroundStyle(Color.inkFaint)
                         }
                     Text(plannedSlots.isEmpty ? "Add a meal" : "Add another meal")
-                        .font(.jakarta(14, .semibold))
+                        .plType(.body)
                         .foregroundStyle(Color.inkSecondary)
                     Spacer()
                 }
                 .padding(.horizontal, 14)
-                .padding(.vertical, 8)
-                .frame(minHeight: 64)
+                .padding(.vertical, 10)
+                // The same container the meal cards use, not a dashed ghost
+                // among solid rows. WeekView removed exactly this from the
+                // identical stack one screen away: an open row drawn as a
+                // failed card makes the list read as two lists, and the
+                // dashed plate inside is enough to carry the emptiness.
+                // One dashed thing per row.
+                .frame(minHeight: 72)
+                .background(Color.canvas, in: Radius.shape(Radius.row))
                 .overlay {
-                    RoundedRectangle(cornerRadius: Radius.row, style: .continuous)
-                        .strokeBorder(Color.hairlineDashed, style: StrokeStyle(lineWidth: 1.5, dash: [7, 6]))
+                    Radius.shape(Radius.row)
+                        .strokeBorder(Color.navHairline, lineWidth: 1.5)
                 }
                 .contentShape(Rectangle())
             }
@@ -278,18 +285,21 @@ struct DayDetailView: View {
             dish(for: meal)
             VStack(alignment: .leading, spacing: 3) {
                 Text(meal.title)
-                    .font(.jakarta(16, .bold))
+                    .plType(.body, .bold)
                     .foregroundStyle(Color.ink)
                     .lineLimit(2)
                 if let line = mealMeta(meal) {
                     Text(line)
-                        .font(.jakarta(12, .semibold))
+                        .plType(.caption, .semibold)
                         .foregroundStyle(Color.inkSecondary)
                         .lineLimit(1)
                 }
             }
             Spacer(minLength: 8)
-            if let cook = meal.cook {
+            // Not you. The meta line already says "You cook"; your own face
+            // beside it is the same fact twice. Same rule as the week's
+            // rows — see WeekView.plannedRow.
+            if let cook = meal.cook, !cook.isOwner {
                 AvatarCircle(member: cook, size: 30)
             }
             if meal.recipe != nil {
@@ -320,6 +330,7 @@ struct DayDetailView: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isButton)
+        .matchedTransitionSource(id: meal.persistentModelID, in: zoom)
     }
 
     @ViewBuilder
@@ -434,15 +445,18 @@ struct DayDetailView: View {
         return formatter.string(from: date)
     }
 
+    /// How full the day is, and nothing else.
+    ///
+    /// The forecast used to lead this line, which set "Clear · Busy day"
+    /// under a header already showing a sun and 97°: the same fact twice,
+    /// and the second time in a word the calendar also uses, so there was no
+    /// way to tell whether "clear" meant the sky or the schedule. The symbol
+    /// and the high carry the weather. This line is the calendar's.
     private var contextLine: String? {
-        var parts: [String] = []
-        if let day = forecast.forecast(for: date) {
-            parts.append(day.conditionDescription)
-        }
-        if showCalendarEvents, let event = events.firstEventTitle(on: date) {
-            parts.append("On the calendar: \(event)")
-        }
-        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+        // How full the day is, not the name of one thing on it. A day with
+        // six entries was being described by whichever one came back first.
+        guard showCalendarEvents else { return nil }
+        return events.load(on: date)
     }
 
     /// Whose night it is by the household's rota, when nobody has been named

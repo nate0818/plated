@@ -33,15 +33,14 @@ struct ProfileSetupView: View {
         VStack(spacing: 0) {
             VStack(spacing: 10) {
                 Text("Put a face to your name")
-                    .font(.gabarito(32, .extraBold))
-                    .tracking(-0.8)
+                    .plType(.hero)
                     .foregroundStyle(Color.ink)
                     .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
                 Text("This is how your household sees you everywhere in Plated.")
-                    .font(.jakarta(15, .medium))
+                    .plType(.body, .medium)
                     .foregroundStyle(Color.inkSecondary)
                     .multilineTextAlignment(.center)
-                    .lineSpacing(4)
                     .fixedSize(horizontal: false, vertical: true)
             }
             .padding(.top, 76)
@@ -77,12 +76,12 @@ struct ProfileSetupView: View {
             VStack(alignment: .leading, spacing: 8) {
                 MicroLabel("Your name")
                 TextField("First name", text: $name)
-                    .font(.jakarta(15, .semibold))
+                    .plType(.body)
                     .foregroundStyle(Color.ink)
                     .padding(.horizontal, 16)
                     .frame(minHeight: 52)
-                    .overlay(RoundedRectangle(cornerRadius: Radius.chip).strokeBorder(Color.hairline))
-                    .contentShape(RoundedRectangle(cornerRadius: Radius.chip))
+                    .overlay(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous).strokeBorder(Color.hairline))
+                    .contentShape(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous))
                     .onTapGesture { namingSelf = true }
                     .focused($namingSelf)
                     .submitLabel(.done)
@@ -96,22 +95,26 @@ struct ProfileSetupView: View {
             VStack(spacing: 12) {
                 TomatoPillButton(title: "Continue") { finish() }
                     .disabled(trimmedName.isEmpty)
-                    .opacity(trimmedName.isEmpty ? 0.5 : 1)
 
+                // Was `finish()`, the same call Continue makes: it saved the
+                // name and parked the photo, so the two buttons did exactly
+                // the same thing while promising opposite outcomes. "Not
+                // now" means later.
                 Button {
                     Haptic.tap()
-                    finish()
+                    onDone()
                 } label: {
                     Text("Not now")
-                        .font(.jakarta(14, .semibold))
+                        .plType(.body)
                         .foregroundStyle(Color.inkSecondary)
-                        .frame(minHeight: 44)
+                        .plTapTarget()
                 }
                 .buttonStyle(.pressable)
             }
             .padding(.horizontal, 24)
             .padding(.bottom, 28)
         }
+        .plFitsOrScrolls()
         .background(Color.canvas.ignoresSafeArea())
         .onAppear {
             name = userFirstName
@@ -151,12 +154,15 @@ struct ProfileSetupView: View {
             Image(systemName: icon)
                 .font(.system(size: 13, weight: .semibold))
             Text(title)
-                .font(.jakarta(13, .bold))
+                .plType(.footnote, .bold)
         }
         .foregroundStyle(Color.ink)
         .frame(maxWidth: .infinity)
         .frame(minHeight: 46)
         .overlay(Capsule().strokeBorder(Color.hairline, lineWidth: 1.5))
+        // A stroked capsule is a ring: without this the 46pt pill was
+        // tappable only across its letters. One line, both pills.
+        .contentShape(Capsule())
     }
 
     private func finish() {
@@ -191,7 +197,7 @@ struct ProfilePhotoWell: View {
                         .overlay {
                             Text(initials)
                                 .font(.gabarito(diameter * 0.32, .semibold))
-                                .foregroundStyle(Color.inkFaint)
+                                .foregroundStyle(Color.inkSecondary)
                         }
                         .overlay(
                             Circle().strokeBorder(
@@ -201,7 +207,7 @@ struct ProfilePhotoWell: View {
                         )
                 }
             }
-            .shadow(color: Color.shadowWarm.opacity(0.14), radius: 18, y: 10)
+            .plCardShadow()
 
             if photoData != nil {
                 Button {
@@ -229,14 +235,17 @@ struct ProfilePhotoWell: View {
     }
 }
 
-/// The system camera, for the selfie.
+/// The system camera. Front-facing for a selfie, rear for a plate of food,
+/// which is the only thing that differs between the two places the app opens
+/// a camera.
 struct CameraCapture: UIViewControllerRepresentable {
+    var device: UIImagePickerController.CameraDevice = .front
     var onCapture: (UIImage?) -> Void
 
     func makeUIViewController(context: Context) -> UIImagePickerController {
         let picker = UIImagePickerController()
         picker.sourceType = .camera
-        picker.cameraDevice = .front
+        picker.cameraDevice = device
         picker.delegate = context.coordinator
         return picker
     }

@@ -51,7 +51,7 @@ struct WeekWidgetView: View {
                         VStack(spacing: 4) {
                             Text(String(day.day.prefix(1)))
                                 .font(.jakarta(9, "ExtraBold"))
-                                .foregroundStyle(Plate.inkFaint)
+                                .foregroundStyle(Plate.inkSecondary)
                             if day.planned {
                                 CookDot(initial: day.cookInitial, hex: day.cookHex)
                             } else {
@@ -76,7 +76,7 @@ struct WeekWidgetView: View {
                 Spacer()
                 Text("\(entry.snapshot?.plannedCount ?? 0) of 7")
                     .font(.jakarta(11, "ExtraBold"))
-                    .foregroundStyle(Plate.inkFaint)
+                    .foregroundStyle(Plate.inkSecondary)
             }
             .padding(.bottom, 10)
 
@@ -97,7 +97,7 @@ struct WeekWidgetView: View {
         HStack(spacing: 10) {
             Text(isTonight ? "TON" : String(day.day.prefix(3)))
                 .font(.jakarta(10, "ExtraBold"))
-                .foregroundStyle(isTonight ? Plate.ink : Plate.inkFaint)
+                .foregroundStyle(isTonight ? Plate.ink : Plate.inkSecondary)
                 .frame(width: 30, alignment: .leading)
 
             if day.planned {
@@ -112,7 +112,7 @@ struct WeekWidgetView: View {
                     .frame(width: 20, height: 20)
                 Text("Nothing plated yet")
                     .font(.jakarta(13, "SemiBold"))
-                    .foregroundStyle(Plate.inkFaint)
+                    .foregroundStyle(Plate.inkSecondary)
                     .lineLimit(1)
             }
             Spacer(minLength: 0)

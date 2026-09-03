@@ -29,15 +29,18 @@ struct ActivityBellButton: View {
                 .overlay(alignment: .topTrailing) {
                     if !unread.isEmpty {
                         Text(unread.count > 9 ? "9+" : "\(unread.count)")
-                            .font(.jakarta(9, .extraBold))
+                            .plType(.micro, .extraBold)
                             .foregroundStyle(Color.onTomato)
                             .contentTransition(.numericText())
                             .padding(.horizontal, 4)
-                            .frame(minWidth: 16)
-                            .frame(height: 16)
+                            // Floored, not fixed: this held 32pt digits in
+                            // a 16pt capsule at AX5 and rendered as a red
+                            // smear. plChrome below stops the growth; the
+                            // floor stops the clip.
+                            .frame(minWidth: 16, minHeight: 16)
                             .background(Color.tomato, in: Capsule())
                             .offset(x: -1, y: 3)
-                            .transition(.scale(scale: 0.9).combined(with: .opacity))
+                            .transition(.plArrive)
                     }
                 }
                 // News lands with a pop, counts tick, read-all fades out.
@@ -46,5 +49,6 @@ struct ActivityBellButton: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.pressable)
+        .plChrome()
     }
 }

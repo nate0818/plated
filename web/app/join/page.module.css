@@ -1,0 +1,115 @@
+.page {
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+  padding: max(28px, env(safe-area-inset-top)) 28px max(28px, env(safe-area-inset-bottom));
+}
+
+.header { display: flex; }
+.home { display: inline-flex; text-decoration: none; }
+
+.main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  width: 100%;
+  max-width: 34rem;
+  margin: 0 auto;
+  padding: 48px 0;
+}
+
+.title {
+  font-size: clamp(2.5rem, 11vw, 4rem);
+  line-height: 1.02;
+  letter-spacing: -0.03em;
+  margin-bottom: 20px;
+}
+
+/* The host's name earns the one splash of tomato on the page. */
+.who { color: var(--tomato); }
+
+.lede {
+  font-size: 1.0625rem;
+  line-height: 1.55;
+  max-width: 30rem;
+}
+
+/* One committing action. The app's rule is that colour is earned, and this
+   page earns it once. */
+.actions {
+  margin-top: 40px;
+  display: grid;
+  justify-items: start;
+  gap: 18px;
+}
+
+.cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--tomato);
+  color: var(--on-tomato);
+  text-decoration: none;
+  font-weight: 700;
+  font-size: 1.0625rem;
+  letter-spacing: -0.01em;
+  padding: 18px 32px;
+  border-radius: 999px;
+  min-width: 15rem;
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.cta:hover { background: var(--tomato-pressed); }
+.cta:active { transform: scale(0.985); }
+
+.quiet {
+  color: var(--ink-secondary);
+  font-size: 0.9375rem;
+  text-decoration: none;
+  border-bottom: 1px solid var(--hairline);
+  padding-bottom: 2px;
+}
+
+.quiet:hover { color: var(--ink); }
+
+/* What they're actually joining. Three facts, not a feature list. */
+.facts {
+  margin-top: 56px;
+  border-top: 1px solid var(--hairline);
+  padding-top: 24px;
+  display: grid;
+  gap: 14px;
+}
+
+.fact {
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  color: var(--ink-secondary);
+}
+
+.fact b { color: var(--ink); font-weight: 600; }
+
+/* A dot is decoration, so inkFaint is allowed to paint it. */
+.dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--ink-faint);
+  flex: none;
+  transform: translateY(-2px);
+}
+
+.footer {
+  font-size: 0.8125rem;
+  color: var(--ink-secondary);
+  max-width: 34rem;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.footer a { color: inherit; text-decoration: none; }
+.footer a:hover { color: var(--ink); }

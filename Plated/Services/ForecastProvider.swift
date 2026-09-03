@@ -40,7 +40,15 @@ final class ForecastProvider: NSObject {
 
     /// Loads a multi-day forecast for the user's current location. Silently
     /// gives up when location or WeatherKit is unavailable.
-    func refresh(days: Int = 7) async {
+    ///
+    /// `mayAsk` decides whether this call is allowed to raise the system
+    /// location prompt. The prompt can only ever be shown once, so the
+    /// moment it is spent matters: the week list is the launch screen, and
+    /// asking there means a person's first sight of Plated is a permission
+    /// dialog for a feature they have not met yet. Opening a night is the
+    /// screen that actually shows the forecast and the suggestion built on
+    /// it, so that is where the ask is worth its one shot.
+    func refresh(days: Int = 7, mayAsk: Bool = false) async {
         isLoading = true
         defer { isLoading = false }
 
@@ -54,6 +62,12 @@ final class ForecastProvider: NSObject {
             return
         }
         #endif
+
+        // Nothing to show and nothing to ask for. Leaving `lastError` clear
+        // is deliberate: not having been asked yet is not a failure, and the
+        // date cards already hold the forecast's line empty rather than
+        // collapsing, so the week looks the same either way.
+        guard mayAsk || locationManager.authorizationStatus != .notDetermined else { return }
 
         do {
             let location = try await currentLocation()

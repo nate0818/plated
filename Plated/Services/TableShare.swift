@@ -46,6 +46,41 @@ enum TableShare {
     /// What `postType` used to be. Read, never written — tables shared
     /// before the rename still carry it, and their dishes are real.
     private static let legacyPostType = "TablePost"
+    /// Reactions, in the same reserved namespace as `PlatedDish`.
+    ///
+    /// The prefix is load-bearing, not decorative. The SwiftData mirror
+    /// adopts any private-database record whose type matches one of its
+    /// entity names — that is the ghost post in MEMORY.md, where blank cards
+    /// appeared in the feed — so a hand-written type may never be named
+    /// after a @Model. `assertNoEntityCollision` makes that a check rather
+    /// than a thing somebody has to remember.
+    private static let plateType = "PlatedDishPlate"
+    private static let ballotType = "PlatedDishBallot"
+    private static let noteType = "PlatedDishNote"
+
+    #if DEBUG
+    /// The ghost post, made unrepeatable.
+    ///
+    /// `legacyPostType` is deliberately excluded: "TablePost" IS the
+    /// collision, it is read-only, and asserting on it would fire on the one
+    /// type that can never be renamed. The reserved prefix closes the class
+    /// going forward, not retroactively.
+    static func assertNoEntityCollision() {
+        let entities = Set(PlatedStore.schema.entities.map(\.name))
+        let written: Set<String> = [rootType, postType, plateType, ballotType, noteType]
+        let clash = entities.intersection(written)
+        assert(clash.isEmpty, "CloudKit types collide with SwiftData entities: \(clash)")
+    }
+    #endif
+
+    /// CloudKit has no boolean type. A Bool field is stored as an INT64 and
+    /// `record[key] as? Bool` is a bridging coin flip.
+    private static func int(_ record: CKRecord, _ key: String) -> Int {
+        if let n = record[key] as? Int { return n }
+        if let n = record[key] as? Int64 { return Int(n) }
+        if let n = record[key] as? NSNumber { return n.intValue }
+        return 0
+    }
 
     #if PLATED_CLOUDKIT
     private static var container: CKContainer { .default() }
@@ -310,7 +345,18 @@ enum TableShare {
     /// single thing that most often goes wrong in a CKShare implementation.
     static func publish(_ post: TablePost, hostName: String) async -> String? {
         guard await TableSync.accountAvailable() else { return nil }
-        guard let (db, zoneID) = await writableZone() else { return nil }
+        // A post that has already been published goes back to the table it
+        // is on. Only a brand new one gets to ask where it should live.
+        let target: (CKDatabase, CKRecordZone.ID, String)?
+        if post.shareRecordName.isEmpty {
+            target = await myWritableZone()
+        } else if let (db, id) = await zone(ownedBy: post.shareZoneOwner) {
+            target = (db, id, post.shareZoneOwner)
+        } else {
+            target = nil
+        }
+        guard let (db, zoneID, owner) = target else { return nil }
+        await MainActor.run { post.shareZoneOwner = owner }
         do {
             let name = post.shareRecordName.isEmpty
                 ? "post-\(UUID().uuidString)" : post.shareRecordName
@@ -319,6 +365,22 @@ enum TableShare {
                 recordID: CKRecord.ID(recordName: name, zoneID: zoneID)
             )
             record["authorName"] = post.authorName as CKRecordValue
+            record["authorID"] = TableIdentity.cached as CKRecordValue
+            // An ask's poll never crossed the wire at all, so a guest saw
+            // the question with no answers under it and no way to vote —
+            // "Ask the Table" reaching everybody except the table.
+            //
+            // Omitted rather than written empty: a CloudKit list field
+            // minted from an empty array is minted as the WRONG TYPE and
+            // stays that way, and every later save carrying a real list
+            // then fails .invalidArguments. From a person's seat that looks
+            // exactly like "my post just didn't appear".
+            if !post.pollOptions.isEmpty {
+                record["pollOptions"] = post.pollOptions as CKRecordValue
+            }
+            if !post.taggedNames.isEmpty {
+                record["taggedNames"] = post.taggedNames as CKRecordValue
+            }
             record["authorColorHex"] = post.authorColorHex as CKRecordValue
             record["dishTitle"] = post.dishTitle as CKRecordValue
             record["caption"] = post.caption as CKRecordValue
@@ -345,13 +407,269 @@ enum TableShare {
         }
     }
 
-    /// Everything other people have put on tables this user can see.
+    /// Take a post back off the table. The inverse of `publish`.
     ///
-    /// Returns plain values, never model objects: the caller merges on the
-    /// main actor, and nothing here should touch a `ModelContext` from a
+    /// **Deleting locally is not deleting.** `merge` keys on
+    /// `shareRecordName`, so a row removed from this device while its record
+    /// still sits in the zone comes back on the very next pull — and comes
+    /// back as somebody ELSE's post, because the merge path that handles an
+    /// unmatched record stamps `isRemote = true`. It arrives stripped of its
+    /// plates and comments, attributed to "another table", and `isMine`
+    /// refuses remote posts, so the overflow no longer offers Delete and the
+    /// author can never remove it again. The confirmation said "The photo
+    /// and comments go too" and meant it about this phone only.
+    ///
+    /// Returns false only when the record exists and could not be reached.
+    /// A post that never published has an empty name and is already gone
+    /// everywhere, which is a success, not a no-op.
+    static func retract(recordName: String, zoneOwner: String) async -> Bool {
+        guard !recordName.isEmpty else { return true }
+        guard await TableSync.accountAvailable() else { return false }
+        // The post's own table, not "wherever I write". Routed through the
+        // old global answer, a host who had also joined a table deleted
+        // into their OWN zone, got `.unknownItem` from a record that was
+        // never there, and the catch below read that as "already gone" — so
+        // the local row went and the next pull brought the post back as a
+        // stranger's. That is the bug this function exists to fix, arriving
+        // by a second road.
+        guard let (db, zoneID) = await zone(ownedBy: zoneOwner) else { return false }
+        do {
+            _ = try await db.deleteRecord(
+                withID: CKRecord.ID(recordName: recordName, zoneID: zoneID)
+            )
+            return true
+        } catch let error as CKError where error.code == .unknownItem {
+            // Already gone: deleted from another device, or it never landed.
+            // Either way the caller's local delete is now honest.
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    // MARK: Being told, instead of asking
+
+    /// Subscribe to both databases so a change wakes the app.
+    ///
+    /// Without this the Table is a pull: Riley cooks, photographs it, posts
+    /// it, and nobody's phone does anything until somebody else happens to
+    /// open the app and drag down. Every craft improvement in the feed sits
+    /// on top of that, and a social product where posting produces no event
+    /// on anybody else's device is a diary several people can read.
+    ///
+    /// A DATABASE subscription rather than one per zone: a guest's zone
+    /// appears only after they accept, and a per-zone subscription would
+    /// have to be created at exactly that moment on exactly that device.
+    /// One per database covers every table this person can see, now and
+    /// later.
+    ///
+    /// `shouldSendContentAvailable` with no alert body is the silent kind.
+    /// It asks for no permission, shows nothing, and simply gives the app a
+    /// moment to fetch — which is right here, because the notification a
+    /// person should see is the one the app decides to raise after it knows
+    /// what actually arrived, not "something changed in a database".
+    static func subscribe() async {
+        for (db, id) in [(container.privateCloudDatabase, "plated-private-v1"),
+                         (container.sharedCloudDatabase, "plated-shared-v1")] {
+            // Already there is the common case, and CKError.serverRejectedRequest
+            // is what a duplicate looks like. Asking every launch is cheap
+            // and means a subscription lost to a signed-out account comes
+            // back on its own.
+            if (try? await db.subscription(for: id)) != nil { continue }
+            let subscription = CKDatabaseSubscription(subscriptionID: id)
+            let info = CKSubscription.NotificationInfo()
+            info.shouldSendContentAvailable = true
+            subscription.notificationInfo = info
+            _ = try? await db.save(subscription)
+        }
+    }
+
+    // MARK: Reactions on the wire
+
+    /// One person's plate on one dish.
+    ///
+    /// The record name is **deterministic** — `plate-<post>-<author>` — and
+    /// that is what makes the whole thing idempotent. A retry after a lost
+    /// response overwrites itself rather than adding a second plate, and two
+    /// devices of one person converge on one record instead of racing.
+    ///
+    /// Un-plating writes `active = 0`; it never deletes the record. A
+    /// deletion arrives with no timestamp and no ordering against a
+    /// concurrent write, so a delete-versus-write race has no defensible
+    /// resolution. A tombstone does: last-writer-wins on `changedAt` is
+    /// total, and identical on every device.
+    static func pushPlate(
+        post: String, zoneOwner: String, author: String, authorName: String,
+        active: Bool, at: Date
+    ) async -> Bool {
+        await push(
+            type: plateType, name: "plate-\(post)-\(author)",
+            post: post, zoneOwner: zoneOwner
+        ) { record in
+            record["authorID"] = author as CKRecordValue
+            record["authorName"] = authorName as CKRecordValue
+            record["active"] = (active ? 1 : 0) as CKRecordValue
+            record["changedAt"] = at as CKRecordValue
+        }
+    }
+
+    /// One person's vote in one poll. A `choice` of -1 is a withdrawn vote,
+    /// which is a value rather than an absence for the same reason a plate is
+    /// tombstoned rather than deleted.
+    static func pushBallot(
+        post: String, zoneOwner: String, author: String, choice: Int, at: Date
+    ) async -> Bool {
+        await push(
+            type: ballotType, name: "ballot-\(post)-\(author)",
+            post: post, zoneOwner: zoneOwner
+        ) { record in
+            record["authorID"] = author as CKRecordValue
+            record["choice"] = choice as CKRecordValue
+            record["changedAt"] = at as CKRecordValue
+        }
+    }
+
+    /// The shape both reactions share.
+    ///
+    /// Two parent links, doing two different jobs. `setParent(table-root)` is
+    /// the SHARE hierarchy: CloudKit walks it to find the CKShare, and
+    /// without it the record is private to whoever wrote it and no
+    /// participant ever sees it. The `.deleteSelf` reference to the post is a
+    /// referential constraint: it is what makes a deleted dish take its
+    /// reactions with it. Neither substitutes for the other, and the comment
+    /// on `publish` only half says so.
+    private static func push(
+        type: String, name: String, post: String, zoneOwner: String,
+        fill: (CKRecord) -> Void
+    ) async -> Bool {
+        guard await TableSync.accountAvailable() else { return false }
+        guard let (db, zoneID) = await zone(ownedBy: zoneOwner) else { return false }
+        let record = CKRecord(
+            recordType: type,
+            recordID: CKRecord.ID(recordName: name, zoneID: zoneID)
+        )
+        record["postRecordName"] = post as CKRecordValue
+        record["postRef"] = CKRecord.Reference(
+            recordID: CKRecord.ID(recordName: post, zoneID: zoneID),
+            action: .deleteSelf
+        )
+        record.setParent(CKRecord.ID(recordName: "table-root", zoneID: zoneID))
+        fill(record)
+        do {
+            _ = try await db.save(record)
+            return true
+        } catch let error as CKError where error.code == .serverRecordChanged {
+            // Somebody's copy of this exact record won. With a deterministic
+            // name that means one of this person's own devices got there
+            // first, and last-writer-wins has already settled it.
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    /// One comment on the table.
+    ///
+    /// Named `note-<UUID>`, minted when the comment is composed and reused
+    /// across every retry and every drain. Globally unique by construction,
+    /// so two people commenting in the same instant never contend, and a
+    /// save whose response was lost replays as a no-op instead of a
+    /// duplicate — which is the whole reason not to mint it at send time.
+    static func pushNote(_ comment: TableComment, post: String, zoneOwner: String) async -> Bool {
+        guard await TableSync.accountAvailable() else { return false }
+        guard let (db, zoneID) = await zone(ownedBy: zoneOwner) else { return false }
+        let record = CKRecord(
+            recordType: noteType,
+            recordID: CKRecord.ID(recordName: comment.shareRecordName, zoneID: zoneID)
+        )
+        record["postRecordName"] = post as CKRecordValue
+        record["authorID"] = comment.authorID as CKRecordValue
+        record["authorName"] = comment.authorName as CKRecordValue
+        record["text"] = comment.text as CKRecordValue
+        record["linkURL"] = comment.linkURL as CKRecordValue
+        record["replyToName"] = comment.replyToName as CKRecordValue
+        record["createdAt"] = comment.createdAt as CKRecordValue
+        // A list field minted empty is minted as the wrong type and stays
+        // that way, so the key is omitted rather than written empty.
+        if !comment.mentions.isEmpty {
+            record["mentions"] = comment.mentions as CKRecordValue
+        }
+        record["postRef"] = CKRecord.Reference(
+            recordID: CKRecord.ID(recordName: post, zoneID: zoneID),
+            action: .deleteSelf
+        )
+        record.setParent(CKRecord.ID(recordName: "table-root", zoneID: zoneID))
+
+        var temp: URL?
+        if let data = comment.photoData, let asset = asset(from: data) {
+            record["photo"] = asset
+            temp = asset.fileURL
+        }
+        defer { if let temp { try? FileManager.default.removeItem(at: temp) } }
+
+        do {
+            _ = try await db.save(record)
+            return true
+        } catch let error as CKError where error.code == .serverRecordChanged {
+            // The same note, already there. A replayed send, not a conflict.
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    /// A comment as it exists on the wire.
+    struct RemoteNote {
+        var recordName = ""
+        var post = ""
+        var authorID = ""
+        var authorName = ""
+        var text = ""
+        var linkURL = ""
+        var replyToName = ""
+        var mentions: [String] = []
+        var createdAt = Date.now
+        var photoData: Data?
+    }
+
+    private static func remoteNote(from record: CKRecord) -> RemoteNote {
+        var n = RemoteNote()
+        n.recordName = record.recordID.recordName
+        n.post = record["postRecordName"] as? String ?? ""
+        n.authorID = record["authorID"] as? String ?? ""
+        n.authorName = record["authorName"] as? String ?? ""
+        n.text = record["text"] as? String ?? ""
+        n.linkURL = record["linkURL"] as? String ?? ""
+        n.replyToName = record["replyToName"] as? String ?? ""
+        n.mentions = record["mentions"] as? [String] ?? []
+        n.createdAt = record["createdAt"] as? Date ?? .now
+        if let asset = record["photo"] as? CKAsset, let url = asset.fileURL {
+            n.photoData = try? Data(contentsOf: url)
+        }
+        return n
+    }
+
+    /// A reaction as it exists on the wire.
+    struct RemoteReaction {
+        var post = ""
+        var author = ""
+        var authorName = ""
+        /// A plate's on/off, or a ballot's option index.
+        var value = 0
+        var at = Date.now
+        var isBallot = false
+    }
+
+    /// A post as it exists on the wire.
+    ///
+    /// Plain values, never model objects: the caller merges on the main
+    /// actor, and nothing here should touch a `ModelContext` from a
     /// background task.
     struct RemotePost {
         var recordName = ""
+        /// Which table this arrived from. "" is my own.
+        var zoneOwner = ""
+        var authorID = ""
         var authorName = ""
         var authorColorHex = "FF5A3C"
         var dishTitle = ""
@@ -359,6 +677,8 @@ enum TableShare {
         var kind = "dish"
         var createdAt = Date.now
         var photoData: Data?
+        var pollOptions: [String] = []
+        var taggedNames: [String] = []
     }
 
     /// Everything other people have put on tables this user can see.
@@ -371,29 +691,102 @@ enum TableShare {
     /// looks exactly like "nobody has posted". `recordZoneChanges` needs no
     /// index at all, and is incremental into the bargain — the change token
     /// means the second pull costs the delta rather than the whole table.
+    /// **Both databases, deliberately.**
+    ///
+    /// The zone lives in the HOST's private database and appears in a
+    /// GUEST's shared database. This read the shared database alone, so
+    /// `allRecordZones()` came back empty for every host and the loop never
+    /// ran once: a guest's post never reached the person whose table it was.
+    /// The Table was one-directional and nothing on screen said so, because
+    /// an empty fetch is indistinguishable from a quiet table.
+    ///
+    /// Scanning the private database costs a host nothing they were not
+    /// already paying — the zone filter skips the SwiftData mirror's own
+    /// zone — and a host's own posts come back matching on
+    /// `shareRecordName`, so `merge` updates them rather than duplicating.
     static func fetchRemote() async -> [RemotePost] {
-        guard await TableSync.accountAvailable() else { return [] }
-        let db = container.sharedCloudDatabase
-        var found: [RemotePost] = []
-        do {
-            let zones = try await db.allRecordZones()
-            for zone in zones where zone.zoneID.zoneName == zoneName {
-                let changes = try await db.recordZoneChanges(
-                    inZoneWith: zone.zoneID, since: token(for: zone.zoneID)
-                )
-                for (_, result) in changes.modificationResultsByID {
-                    guard let record = try? result.get().record,
-                          record.recordType == postType
-                            || record.recordType == legacyPostType else { continue }
-                    found.append(remotePost(from: record))
+        await fetchChanges().posts
+    }
+
+    /// What the tables have said since we last asked: what changed, and what
+    /// was taken away.
+    ///
+    /// `deletions` used to be dropped on the floor, so a post the author
+    /// removed stayed on every other phone until that phone was reinstalled.
+    /// Now that deleting genuinely removes the record, ignoring the deletion
+    /// half of the same conversation would be the same lie from the other
+    /// end.
+    struct Changes {
+        var posts: [RemotePost] = []
+        var reactions: [RemoteReaction] = []
+        var notes: [RemoteNote] = []
+        var deleted: Set<String> = []
+    }
+
+    static func fetchChanges() async -> Changes {
+        guard await TableSync.accountAvailable() else { return Changes() }
+        var all = Changes()
+        for (db, isPrivate) in [(container.privateCloudDatabase, true),
+                                (container.sharedCloudDatabase, false)] {
+            let part = await postChanges(in: db, isPrivate: isPrivate)
+            all.posts += part.posts
+            all.reactions += part.reactions
+            all.notes += part.notes
+            all.deleted.formUnion(part.deleted)
+        }
+        return all
+    }
+
+    /// One database's worth of post changes, incrementally.
+    ///
+    /// A failure in one database must not cost the other its change token,
+    /// which is why the catch is scoped to a zone rather than to the whole
+    /// fetch: a host whose shared database throws should not re-read its
+    /// own table from the beginning on every pull.
+    private static func postChanges(in db: CKDatabase, isPrivate: Bool) async -> Changes {
+        var found = Changes()
+        guard let zones = try? await db.allRecordZones() else { return found }
+        for zone in zones where zone.zoneID.zoneName == zoneName {
+            let owner = canonicalOwner(zone.zoneID, isPrivate: isPrivate)
+            do {
+                // A page at a time until the server says there is no more.
+                // One call returns one page, so a table with more posts than
+                // a page holds used to arrive permanently truncated — and
+                // the token still advanced, so the rest never came at all.
+                var cursor = token(for: zone.zoneID)
+                var more = true
+                while more {
+                    let changes = try await db.recordZoneChanges(
+                        inZoneWith: zone.zoneID, since: cursor
+                    )
+                    for (_, result) in changes.modificationResultsByID {
+                        guard let record = try? result.get().record else { continue }
+                        switch record.recordType {
+                        case postType, legacyPostType:
+                            var post = remotePost(from: record)
+                            post.zoneOwner = owner
+                            found.posts.append(post)
+                        case plateType, ballotType:
+                            found.reactions.append(remoteReaction(from: record))
+                        case noteType:
+                            found.notes.append(remoteNote(from: record))
+                        default:
+                            continue
+                        }
+                    }
+                    for deleted in changes.deletions {
+                        found.deleted.insert(deleted.recordID.recordName)
+                    }
+                    cursor = changes.changeToken
+                    more = changes.moreComing
                 }
-                store(changes.changeToken, for: zone.zoneID)
+                store(cursor, for: zone.zoneID)
+            } catch {
+                // A stale token after a zone is re-shared is the common
+                // case. Forget this zone's and the next pull re-reads it
+                // whole; the other zone's token survives.
+                forgetToken(for: zone.zoneID)
             }
-        } catch {
-            // A stale token after a zone is re-shared is the common case.
-            // Forget it and the next pull re-reads the zone whole.
-            forgetTokens()
-            return found
         }
         return found
     }
@@ -491,19 +884,52 @@ enum TableShare {
         guard let url = await invitationURL(hostName: "Prime") else {
             return "PRIME SHARE FAILED: could not create the zone, root or share."
         }
+        assertNoEntityCollision()
+
+        // Every field on every type, populated. A field that is nil while
+        // priming does not exist in Production, and the first real save
+        // carrying it fails `.invalidArguments` — which, from a person's
+        // seat, looks exactly like "my comment just didn't appear". Lists
+        // must be NON-EMPTY here or the field is minted as the wrong type,
+        // permanently.
         let probe = TablePost(
             authorName: "Prime", authorColorHex: "FF5A3C",
             dishTitle: "Schema probe", caption: "Written to teach CloudKit the type.",
-            kind: "dish", createdAt: .now
+            kind: "ask", createdAt: .now
         )
+        probe.pollOptions = ["a", "b"]
+        probe.taggedNames = ["Prime"]
         guard let name = await publish(probe, hostName: "Prime") else {
             return "PRIME SHARE FAILED: zone exists, but the post would not save.\nShare URL: \(url)"
         }
+
+        let owner = probe.shareZoneOwner
+        let note = TableComment(
+            authorName: "Prime", text: "Schema probe.", linkURL: "https://plated.food",
+            replyToName: "Prime", mentions: ["Prime"], authorID: "prime"
+        )
+        let noteOK = await pushNote(note, post: name, zoneOwner: owner)
+        let plateOK = await pushPlate(
+            post: name, zoneOwner: owner, author: "prime",
+            authorName: "Prime", active: true, at: .now
+        )
+        let ballotOK = await pushBallot(
+            post: name, zoneOwner: owner, author: "prime", choice: 0, at: .now
+        )
+
+        // And it takes back what it wrote. The old primer left "Schema
+        // probe" sitting in a real household's real table forever.
+        _ = await retract(recordName: name, zoneOwner: owner)
+
         return """
-        PRIME SHARE OK
-          share URL : \(url)
-          post record: \(name)
-        Both record types now exist in Development. Deploy the schema to \
+        PRIME SHARE
+          share URL  : \(url)
+          PlatedDish : ok (\(name))
+          Note       : \(noteOK ? "ok" : "FAILED")
+          Plate      : \(plateOK ? "ok" : "FAILED")
+          Ballot     : \(ballotOK ? "ok" : "FAILED")
+        The probe post was retracted; its children cascade with it.
+        Every record type now exists in Development. Deploy the schema to \
         Production in the CloudKit console before shipping.
         """
     }
@@ -530,6 +956,10 @@ enum TableShare {
         UserDefaults.standard.set(data, forKey: tokenKey(id))
     }
 
+    private static func forgetToken(for id: CKRecordZone.ID) {
+        UserDefaults.standard.removeObject(forKey: tokenKey(id))
+    }
+
     private static func forgetTokens() {
         for key in UserDefaults.standard.dictionaryRepresentation().keys
         where key.hasPrefix("plated.zonetoken.") {
@@ -537,9 +967,25 @@ enum TableShare {
         }
     }
 
+    private static func remoteReaction(from record: CKRecord) -> RemoteReaction {
+        var r = RemoteReaction()
+        r.post = record["postRecordName"] as? String ?? ""
+        r.author = record["authorID"] as? String ?? ""
+        r.authorName = record["authorName"] as? String ?? ""
+        r.at = record["changedAt"] as? Date ?? .now
+        r.isBallot = record.recordType == ballotType
+        // `active` and `choice` are both INT64 on the wire; CloudKit has no
+        // boolean type and `as? Bool` on one is a bridging coin flip.
+        r.value = r.isBallot ? int(record, "choice") : int(record, "active")
+        return r
+    }
+
     private static func remotePost(from record: CKRecord) -> RemotePost {
         var p = RemotePost()
         p.recordName = record.recordID.recordName
+        p.authorID = record["authorID"] as? String ?? ""
+        p.pollOptions = record["pollOptions"] as? [String] ?? []
+        p.taggedNames = record["taggedNames"] as? [String] ?? []
         p.authorName = record["authorName"] as? String ?? ""
         p.authorColorHex = record["authorColorHex"] as? String ?? "FF5A3C"
         p.dishTitle = record["dishTitle"] as? String ?? ""
@@ -554,16 +1000,53 @@ enum TableShare {
 
     /// Which database and zone this user may write posts into: their own
     /// table if they host one, otherwise the first table they've joined.
-    private static func writableZone() async -> (CKDatabase, CKRecordZone.ID)? {
-        let mine = CKRecordZone.ID(zoneName: zoneName, ownerName: CKCurrentUserDefaultName)
-        if (try? await container.privateCloudDatabase.recordZone(for: mine)) != nil {
-            return (container.privateCloudDatabase, mine)
+    /// Canonical zone owner. "" always means MY OWN table.
+    ///
+    /// `zoneID.ownerName` is observer-relative: `__defaultOwner__` for the
+    /// host reading their private database, the host's real record name for
+    /// a guest reading the shared one. Canonicalising at the boundary keeps
+    /// the value stored on a TablePost stable across one person's devices,
+    /// and it is never compared across people.
+    static func canonicalOwner(_ zoneID: CKRecordZone.ID, isPrivate: Bool) -> String {
+        isPrivate ? "" : zoneID.ownerName
+    }
+
+    /// Where THIS post lives. Never "wherever I happen to write".
+    ///
+    /// This replaces a `writableZone()` that answered a question about the
+    /// PERSON — do I host a table? — and let hosting always win. Anyone who
+    /// has tapped Invite once hosts forever, so every write to a post on a
+    /// table they had JOINED was aimed at their own zone instead.
+    private static func zone(ownedBy owner: String) async -> (CKDatabase, CKRecordZone.ID)? {
+        if owner.isEmpty {
+            let id = CKRecordZone.ID(zoneName: zoneName, ownerName: CKCurrentUserDefaultName)
+            // `.zoneNotFound` means there is genuinely no table here. Any
+            // other error means we could not ask, and must never be read as
+            // "not a host": that is how a flaky network routes a host's own
+            // write into somebody else's zone.
+            do {
+                _ = try await container.privateCloudDatabase.recordZone(for: id)
+                return (container.privateCloudDatabase, id)
+            } catch {
+                return nil
+            }
         }
-        if let shared = try? await container.sharedCloudDatabase.allRecordZones(),
-           let zone = shared.first(where: { $0.zoneID.zoneName == zoneName }) {
-            return (container.sharedCloudDatabase, zone.zoneID)
-        }
-        return nil
+        guard let zones = try? await container.sharedCloudDatabase.allRecordZones(),
+              let z = zones.first(where: {
+                  $0.zoneID.zoneName == zoneName && $0.zoneID.ownerName == owner
+              })
+        else { return nil }
+        return (container.sharedCloudDatabase, z.zoneID)
+    }
+
+    /// Where a NEW post goes: my own table if I host one, otherwise the
+    /// table I have joined.
+    private static func myWritableZone() async -> (CKDatabase, CKRecordZone.ID, String)? {
+        if let (db, id) = await zone(ownedBy: "") { return (db, id, "") }
+        guard let zones = try? await container.sharedCloudDatabase.allRecordZones(),
+              let z = zones.first(where: { $0.zoneID.zoneName == zoneName })
+        else { return nil }
+        return (container.sharedCloudDatabase, z.zoneID, z.zoneID.ownerName)
     }
 
     private static func asset(from data: Data) -> CKAsset? {
@@ -581,10 +1064,29 @@ enum TableShare {
     static func invitationURL(hostName: String) async -> URL? { nil }
     static func accept(_ metadata: CKShare.Metadata) async -> Bool { false }
     static func publish(_ post: TablePost, hostName: String) async -> String? { nil }
-    struct RemotePost { var recordName = ""; var authorName = ""; var authorColorHex = "FF5A3C"
+    static func retract(recordName: String, zoneOwner: String) async -> Bool { true }
+    struct RemotePost { var recordName = ""; var zoneOwner = ""; var authorID = ""
+                        var pollOptions: [String] = []; var taggedNames: [String] = []
+                        var authorName = ""
+                        var authorColorHex = "FF5A3C"
                         var dishTitle = ""; var caption = ""; var kind = "dish"
                         var createdAt = Date.now; var photoData: Data? }
+    struct RemoteReaction { var post = ""; var author = ""; var authorName = ""
+                            var value = 0; var at = Date.now; var isBallot = false }
+    struct RemoteNote { var recordName = ""; var post = ""; var authorID = ""
+                        var authorName = ""; var text = ""; var linkURL = ""
+                        var replyToName = ""; var mentions: [String] = []
+                        var createdAt = Date.now; var photoData: Data? }
+    struct Changes { var posts: [RemotePost] = []; var reactions: [RemoteReaction] = []
+                     var notes: [RemoteNote] = []; var deleted: Set<String> = [] }
+    static func pushNote(_ comment: TableComment, post: String, zoneOwner: String) async -> Bool { false }
+    static func subscribe() async {}
+    static func pushPlate(post: String, zoneOwner: String, author: String,
+                          authorName: String, active: Bool, at: Date) async -> Bool { false }
+    static func pushBallot(post: String, zoneOwner: String, author: String,
+                           choice: Int, at: Date) async -> Bool { false }
     static func fetchRemote() async -> [RemotePost] { [] }
+    static func fetchChanges() async -> Changes { Changes() }
     struct Seat: Identifiable { var id = ""; var name = ""; var isOwner = false; var isMe = false }
     static func participants() async -> [Seat] { [] }
     static func shareMetadata(for url: URL) async throws -> CKShare.Metadata {
@@ -604,19 +1106,55 @@ enum TableShare {
     /// Fold what came back into the local store, keyed on the record name so
     /// a second fetch updates rather than duplicates.
     @MainActor
-    static func merge(_ remote: [RemotePost], into context: ModelContext) {
-        guard !remote.isEmpty else { return }
+    static func merge(_ changes: Changes, into context: ModelContext) {
+        guard !changes.posts.isEmpty || !changes.deleted.isEmpty else { return }
         let existing = (try? context.fetch(FetchDescriptor<TablePost>())) ?? []
         var byRecord: [String: TablePost] = [:]
         for post in existing where !post.shareRecordName.isEmpty {
             byRecord[post.shareRecordName] = post
         }
-        for r in remote {
+
+        // Taken off the table by whoever wrote it. Dropping these on the
+        // floor meant a post its author had deleted stayed on every other
+        // phone until that phone was reinstalled — the same lie as a delete
+        // that does not delete, told from the receiving end.
+        for name in changes.deleted {
+            if let post = byRecord[name] {
+                context.delete(post)
+                byRecord[name] = nil
+            }
+        }
+
+        // Fold what other people did into the ledger. Last-writer-wins on
+        // `changedAt` is applied inside `setPlate`/`setBallot`, so a page
+        // that arrives late cannot undo a newer tap.
+        for r in changes.reactions where !r.post.isEmpty && !r.author.isEmpty {
+            if r.isBallot {
+                TableLedger.shared.setBallot(r.post, author: r.author,
+                                             choice: r.value, at: r.at)
+            } else {
+                TableLedger.shared.setPlate(r.post, author: r.author,
+                                            active: r.value == 1, at: r.at)
+            }
+        }
+
+        // A post that is gone takes its reactions with it. The cascade
+        // removes the child records on the server, but the fold that would
+        // have noticed never runs — there is no post left to fold against.
+        for name in changes.deleted {
+            TableLedger.shared.forget(post: name)
+        }
+
+        for r in changes.posts {
             if let post = byRecord[r.recordName] {
                 // Someone edited their caption; plates and comments are ours
                 // and are deliberately not overwritten from the wire.
                 post.caption = r.caption
                 post.dishTitle = r.dishTitle
+                post.shareZoneOwner = r.zoneOwner
+                if !r.authorID.isEmpty { post.authorID = r.authorID }
+                if !r.pollOptions.isEmpty { post.pollOptions = r.pollOptions }
+                if !r.taggedNames.isEmpty { post.taggedNames = r.taggedNames }
             } else {
                 let post = TablePost(
                     authorName: r.authorName, authorColorHex: r.authorColorHex,
@@ -624,10 +1162,60 @@ enum TableShare {
                     isDiscover: false, createdAt: r.createdAt, photoData: r.photoData
                 )
                 post.shareRecordName = r.recordName
-                post.isRemote = true
+                post.shareZoneOwner = r.zoneOwner
+                post.authorID = r.authorID
+                post.pollOptions = r.pollOptions
+                post.taggedNames = r.taggedNames
+                // Remote only when the wire actually named somebody else.
+                // An unstamped record — one written before authorID existed
+                // — is left alone rather than assumed to be a stranger's,
+                // because that assumption is permanent and takes Delete with
+                // it. Better to offer Delete on somebody else's old post,
+                // which CloudKit will refuse, than to withhold it forever on
+                // your own.
+                post.isRemote = !r.authorID.isEmpty && r.authorID != TableIdentity.cached
                 context.insert(post)
             }
         }
+        // Comments, after the posts they belong to exist to hang them on.
+        //
+        // Keyed on the note's own record name, so a comment that arrives
+        // twice — two of one person's devices folding the same thread, or a
+        // page replayed after a token reset — updates rather than
+        // duplicating. That is the one race a mirrored TableComment brings
+        // with it, and it is answered here rather than discovered later.
+        if !changes.notes.isEmpty {
+            let posts = (try? context.fetch(FetchDescriptor<TablePost>())) ?? []
+            var postByRecord: [String: TablePost] = [:]
+            for post in posts where !post.shareRecordName.isEmpty {
+                postByRecord[post.shareRecordName] = post
+            }
+            let comments = (try? context.fetch(FetchDescriptor<TableComment>())) ?? []
+            var byRecord: [String: TableComment] = [:]
+            for c in comments where !c.shareRecordName.isEmpty {
+                byRecord[c.shareRecordName] = c
+            }
+            for n in changes.notes {
+                guard let parent = postByRecord[n.post] else { continue }
+                if let existing = byRecord[n.recordName] {
+                    existing.text = n.text
+                    existing.linkURL = n.linkURL
+                    existing.mentions = n.mentions
+                    continue
+                }
+                let comment = TableComment(
+                    authorName: n.authorName, text: n.text, linkURL: n.linkURL,
+                    createdAt: n.createdAt, replyToName: n.replyToName,
+                    mentions: n.mentions, photoData: n.photoData,
+                    authorID: n.authorID
+                )
+                comment.shareRecordName = n.recordName
+                comment.post = parent
+                context.insert(comment)
+                byRecord[n.recordName] = comment
+            }
+        }
+
         Persist.save(context, "table share merge")
     }
 }

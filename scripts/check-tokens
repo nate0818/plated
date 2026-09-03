@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+#
+# The widget is a second target and cannot import Theme.swift, so the design
+# tokens are hand-copied into PlatedWidgets.swift. That copy drifted: it kept
+# shipping inkSecondary 0x8A8074 for weeks after Theme.swift replaced it for
+# failing contrast, while receiving OTHER edits in the same enum — which is
+# the worst state a fork can be in, because nothing about it looks stale.
+#
+# This compares every token the two files share and fails on any difference.
+# Run it before putting a build on a phone or in TestFlight.
+#
+set -euo pipefail
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+python3 - "$ROOT" <<'PY'
+import re, sys, pathlib
+root = pathlib.Path(sys.argv[1])
+app = (root / "Plated/Support/Theme.swift").read_text()
+wid = (root / "PlatedWidgets/PlatedWidgets.swift").read_text()
+
+# Theme.swift:  static let ink = Color(light: 0x221B14, dark: 0xF4EDE3)
+a = {m[0]: (m[1].upper(), m[2].upper()) for m in re.findall(
+    r'static let (\w+)\s*=\s*Color\(light:\s*0x([0-9A-Fa-f]{6}),\s*dark:\s*0x([0-9A-Fa-f]{6})\)', app)}
+# widget:       static let ink = color(0x221B14, 0xF4EDE3)
+w = {m[0]: (m[1].upper(), m[2].upper()) for m in re.findall(
+    r'static let (\w+)\s*=\s*color\(0x([0-9A-Fa-f]{6}),\s*0x([0-9A-Fa-f]{6})\)', wid)}
+
+shared = sorted(set(a) & set(w))
+drift = [(k, a[k], w[k]) for k in shared if a[k] != w[k]]
+
+print(f"{len(shared)} tokens shared between Theme.swift and PlatedWidgets.swift")
+if drift:
+    print("\n\033[31m✗\033[0m the widget's copy has drifted:\n")
+    for k, av, wv in drift:
+        print(f"    {k}")
+        print(f"      Theme.swift      light #{av[0]}  dark #{av[1]}")
+        print(f"      PlatedWidgets    light #{wv[0]}  dark #{wv[1]}")
+    print("\n  Theme.swift is the source. Copy its values across.")
+    sys.exit(1)
+print("\033[32m✓\033[0m no drift")
+PY

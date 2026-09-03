@@ -15,28 +15,13 @@ struct NotificationsView: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 10) {
-                Button {
-                    Haptic.tap()
+                IconDiscButton(systemName: "chevron.left", label: "Back") {
                     dismiss()
-                } label: {
-                    Circle()
-                        .strokeBorder(Color.hairline, lineWidth: 1.5)
-                        .frame(width: 38, height: 38)
-                        .overlay {
-                            Image(systemName: "chevron.left")
-                                .accessibilityLabel("Back")
-                                .font(.system(size: 14, weight: .semibold))
-                                .foregroundStyle(Color.ink)
-                        }
-                        .frame(minWidth: 44, minHeight: 44)
-                        .contentShape(Rectangle())
                 }
-                .buttonStyle(.pressable)
                 VStack(alignment: .leading, spacing: 2) {
                     MicroLabel("Recent")
                     Text("Activity")
-                        .font(.gabarito(25, .semibold))
-                        .tracking(-0.3)
+                        .plType(.display)
                         .foregroundStyle(Color.ink)
                 }
                 Spacer()
@@ -53,14 +38,14 @@ struct NotificationsView: View {
                 Spacer()
                 VStack(spacing: 8) {
                     Image(systemName: "bell")
-                        .font(.system(size: 28, weight: .medium))
+                        .font(.system(size: 26, weight: .medium))
                         .foregroundStyle(Color.inkFaint)
                     Text("Nothing yet")
-                        .font(.jakarta(15, .bold))
-                        .foregroundStyle(Color.inkSecondary)
+                        .plType(.body, .bold)
+                        .foregroundStyle(Color.ink)
                     Text("Plates, comments, saves, and turn reminders land here.")
-                        .font(.jakarta(13, .medium))
-                        .foregroundStyle(Color.inkFaint)
+                        .plType(.footnote)
+                        .foregroundStyle(Color.inkSecondary)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 40)
                 }
@@ -127,12 +112,11 @@ struct NotificationsView: View {
             }
             VStack(alignment: .leading, spacing: 3) {
                 Text(note.body)
-                    .font(.jakarta(14, note.isRead ? .medium : .semibold))
+                    .plType(.body, note.isRead ? TypeWeight.medium : .semibold)
                     .foregroundStyle(Color.ink)
-                    .lineSpacing(2)
                 Text(relativeWhen(note.createdAt))
-                    .font(.jakarta(11, .medium))
-                    .foregroundStyle(Color.inkFaint)
+                    .plType(.micro, .medium)
+                    .foregroundStyle(Color.inkSecondary)
             }
             Spacer()
             // Quiet unread: weight and an ink dot — the tomato budget is

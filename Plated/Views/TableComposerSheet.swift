@@ -10,12 +10,15 @@ struct TableComposerSheet: View {
     @Query(sort: \HouseholdMember.createdAt) private var members: [HouseholdMember]
 
     @State private var photoItem: PhotosPickerItem?
+    @State private var cameraShown = false
+    @State private var libraryShown = false
     @State private var photoData: Data?
     @State private var photoLoading = false
     @State private var dishTitle = ""
     @State private var caption = ""
     @State private var tagged: Set<String> = []
     @State private var discardAsked = false
+    @State private var sourceAsked = false
 
     /// Anything worth losing. The sheet advertises the drag-down and used to
     /// let it destroy a filled post without a word.
@@ -37,30 +40,19 @@ struct TableComposerSheet: View {
             VStack(spacing: 2) {
                 MicroLabel("Post to the Table")
                 Text("What you cooked")
-                    .font(.gabarito(22, .semibold))
+                    .plType(.title)
                     .foregroundStyle(Color.ink)
             }
             .padding(.top, 22)
             .padding(.bottom, 12)
             .frame(maxWidth: .infinity)
             .overlay(alignment: .topTrailing) {
-                Button {
-                    Haptic.tap()
+                // 38 with a 14pt glyph, like every other header icon disc
+                // in the app. This one was 32 with a 12, including against
+                // the disc in the sheet it is most often opened beside.
+                IconDiscButton(systemName: "xmark", label: "Close") {
                     if hasContent { discardAsked = true } else { dismiss() }
-                } label: {
-                    Circle()
-                        .strokeBorder(Color.hairline, lineWidth: 1.5)
-                        .frame(width: 32, height: 32)
-                        .overlay {
-                            Image(systemName: "xmark")
-                                .accessibilityLabel("Close")
-                                .font(.system(size: 12, weight: .semibold))
-                                .foregroundStyle(Color.ink)
-                        }
-                        .frame(minWidth: 44, minHeight: 44)
-                        .contentShape(Rectangle())
                 }
-                .buttonStyle(.pressable)
                 .padding(.trailing, 16)
                 .padding(.top, 12)
             }
@@ -70,17 +62,20 @@ struct TableComposerSheet: View {
                     photoWell
 
                     TextField("Name the dish", text: $dishTitle)
-                        .font(.jakarta(15, .semibold))
+                        .plType(.body)
                         .padding(.horizontal, 14)
-                        .frame(height: 48)
-                        .overlay(RoundedRectangle(cornerRadius: Radius.chip).strokeBorder(Color.hairline))
+                        // Floored, not fixed. Every other field in the app is
+                    // floored; a hard height around type that answers
+                    // Dynamic Type is the overflow CLAUDE.md already logs.
+                    .frame(minHeight: 48)
+                        .overlay(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous).strokeBorder(Color.hairline))
                         .plTappableField()
 
                     TextField("Say something about it", text: $caption, axis: .vertical)
-                        .font(.jakarta(15, .medium))
+                        .plType(.body, .medium)
                         .lineLimit(2...4)
                         .padding(14)
-                        .overlay(RoundedRectangle(cornerRadius: Radius.chip).strokeBorder(Color.hairline))
+                        .overlay(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous).strokeBorder(Color.hairline))
                         .plTappableField()
 
                     if members.count > 1 {
@@ -101,7 +96,7 @@ struct TableComposerSheet: View {
                                             HStack(spacing: 5) {
                                                 AvatarCircle(member: member, size: 22)
                                                 Text("@\(member.name)")
-                                                    .font(.jakarta(12, .bold))
+                                                    .plType(.micro)
                                             }
                                             .foregroundStyle(active ? Color.canvas : Color.ink)
                                             .padding(.horizontal, 10)
@@ -117,6 +112,7 @@ struct TableComposerSheet: View {
                                             .contentShape(Capsule())
                                         }
                                         .buttonStyle(.pressable)
+                                        .accessibilityAddTraits(active ? .isSelected : [])
                                     }
                                 }
                             }
@@ -130,7 +126,6 @@ struct TableComposerSheet: View {
             TomatoPillButton(title: "Post") {
                 post()
             }
-            .opacity(canPost ? 1 : 0.4)
             .disabled(!canPost)
             .padding(.horizontal, 24)
             .padding(.bottom, 14)
@@ -143,8 +138,17 @@ struct TableComposerSheet: View {
         // rubber-bands instead. Leaving on purpose goes through the X,
         // which asks first. An empty composer still slides away freely.
         .interactiveDismissDisabled(hasContent)
+        .onAppear { restoreDraft() }
         .confirmationDialog("Discard this post?", isPresented: $discardAsked, titleVisibility: .visible) {
-            Button("Discard", role: .destructive) { dismiss() }
+            // A third way out. Backing out of a half-written post used to be
+            // unconditionally destructive: Discard or keep sitting here.
+            // `hasContent` already answers whether there is anything worth
+            // keeping, which is exactly Instagram's rule for when to make
+            // the offer at all. What does not transfer is a drafts shelf —
+            // at one dinner a night there is only ever one draft, so it
+            // restores silently the next time the composer opens.
+            Button("Save draft") { saveDraft(); dismiss() }
+            Button("Discard", role: .destructive) { clearDraft(); dismiss() }
             Button("Keep writing", role: .cancel) {}
         }
         .onChange(of: photoItem) { _, item in
@@ -172,8 +176,25 @@ struct TableComposerSheet: View {
         }
     }
 
+    /// The picture is the post, so the camera comes first.
+    ///
+    /// This was a bare `PhotosPicker` — the library and nothing else —
+    /// wearing a camera glyph and the words "Add a photo", on the composer
+    /// for an app whose whole prompt is "a photo of what you just cooked".
+    /// The dish is on the counter while you are using it. Offering the roll
+    /// alone means every post is something you cooked earlier.
     private var photoWell: some View {
-        PhotosPicker(selection: $photoItem, matching: .images) {
+        Button {
+            Haptic.tap()
+            if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                sourceAsked = true
+            } else {
+                // A simulator, or a device with no camera. One door, and it
+                // is the one that works: no menu offering a thing that
+                // cannot happen.
+                libraryShown = true
+            }
+        } label: {
             if let data = photoData, let image = UIImage(data: data) {
                 PhotoWell(image: image, height: 220, cornerRadius: Radius.hero)
                     .overlay(alignment: .bottomTrailing) {
@@ -181,35 +202,95 @@ struct TableComposerSheet: View {
                             Image(systemName: "camera")
                                 .font(.system(size: 11, weight: .semibold))
                             Text("Change")
-                                .font(.jakarta(11, .bold))
+                                .plType(.micro)
                         }
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color.onScrim)
                         .padding(.horizontal, 10)
                         .frame(height: 30)
-                        .background(.black.opacity(0.45), in: Capsule())
+                        .background(Color.scrim, in: Capsule())
                         .padding(10)
                     }
             } else {
-                RoundedRectangle(cornerRadius: Radius.hero)
+                RoundedRectangle(cornerRadius: Radius.hero, style: .continuous)
                     .strokeBorder(Color.hairlineDashed, style: StrokeStyle(lineWidth: 2, dash: [8, 7]))
                     .frame(maxWidth: .infinity)
                     .frame(minHeight: 150)
                     .overlay {
-                        VStack(spacing: 6) {
-                            Image(systemName: "camera")
-                                .font(.system(size: 20, weight: .medium))
-                            Text("Add a photo")
-                                .font(.jakarta(13, .bold))
+                        // Two states hid behind one dimmed Post button:
+                        // nothing chosen yet, which the dashed well below
+                        // explains perfectly well, and a photo chosen and
+                        // still resolving, where the well was empty and the
+                        // block had no visible cause at all. A disabled
+                        // primary only works when the unmet requirement is
+                        // visible on the same screen.
+                        if photoLoading {
+                            VStack(spacing: 8) {
+                                ProgressView().tint(Color.inkSecondary)
+                                Text("Getting the photo")
+                                    .plType(.footnote, .bold)
+                            }
+                            .foregroundStyle(Color.inkSecondary)
+                        } else {
+                            VStack(spacing: 6) {
+                                Image(systemName: "camera")
+                                    .font(.system(size: 20, weight: .medium))
+                                Text("Add a photo")
+                                    .plType(.footnote, .bold)
+                            }
+                            .foregroundStyle(Color.inkSecondary)
                         }
-                        .foregroundStyle(Color.inkFaint)
                     }
             }
         }
         .buttonStyle(.pressable)
+        .confirmationDialog("Add a photo", isPresented: $sourceAsked, titleVisibility: .visible) {
+            Button("Take a photo") { cameraShown = true }
+            Button("Choose from library") { libraryShown = true }
+            Button("Cancel", role: .cancel) {}
+        }
+        .fullScreenCover(isPresented: $cameraShown) {
+            CameraCapture(device: .rear) { image in
+                cameraShown = false
+                guard let data = image?.jpegData(compressionQuality: 0.86) else { return }
+                withAnimation(.plSnap) { photoData = data }
+            }
+            .ignoresSafeArea()
+        }
+        .photosPicker(isPresented: $libraryShown, selection: $photoItem, matching: .images)
+    }
+
+    // MARK: The one draft
+
+    /// One draft, because there is one dinner a night. Stored as plain
+    /// values rather than a model row: a half-written post is not a post,
+    /// and it has no business in the store the Table reads from.
+    @AppStorage("tableDraftTitle") private var draftTitle = ""
+    @AppStorage("tableDraftCaption") private var draftCaption = ""
+
+    private func saveDraft() {
+        draftTitle = dishTitle
+        draftCaption = caption
+        Haptic.tap()
+    }
+
+    private func clearDraft() {
+        draftTitle = ""
+        draftCaption = ""
+    }
+
+    /// The photo is deliberately not kept. A draft that restores a title and
+    /// a sentence is a convenience; one that silently holds on to a
+    /// photograph you chose and then walked away from is a surprise.
+    private func restoreDraft() {
+        guard dishTitle.isEmpty, caption.isEmpty else { return }
+        dishTitle = draftTitle
+        caption = draftCaption
     }
 
     private func post() {
         Haptic.plate()
+        // Posted is the one outcome that certainly retires the draft.
+        clearDraft()
         let owner = members.first(where: \.isOwner)
         let post = TablePost(
             authorName: owner?.name ?? "Me",
@@ -235,7 +316,13 @@ struct TableComposerSheet: View {
         }
         Notifier.post(
             .general, actor: owner?.name ?? "Me",
-            body: "\(owner?.name ?? "Someone") posted \(post.dishTitle.isEmpty ? "a dish" : post.dishTitle) to the Table.",
+            // "You", not your own name. PlatedNotification is mirrored to
+            // the private database, so this line only ever reaches the
+            // person who wrote it, and reading "Nate posted Sheet-pan
+            // chicken" in your own activity is the app talking about you in
+            // the third person. The plan's own line has always said "You
+            // cook"; see MonthPlannerView and PlanNightSheet.
+            body: "You posted \(post.dishTitle.isEmpty ? "a dish" : post.dishTitle) to the Table.",
             into: context
         )
         dismiss()

@@ -29,11 +29,22 @@ enum RecipeScanner {
 
     /// Every image read in order, as one block of text ready for
     /// `RecipeImporter.parse`.
-    static func read(_ images: [UIImage]) async -> String {
+    ///
+    /// Nil when Vision could not read a single one of the images — the
+    /// distinction `text(in:)` below is careful to make and this function
+    /// used to collapse into `""`. The caller then reported "No recipe found.
+    /// Check that the ingredients and steps are included." over a paste box
+    /// it had just emptied, sending the cook to check the contents of a card
+    /// the phone read zero characters of.
+    static func read(_ images: [UIImage]) async -> String? {
         var pages: [String] = []
+        var readSomething = false
         for image in images {
-            if let page = await text(in: image), !page.isEmpty { pages.append(page) }
+            guard let page = await text(in: image) else { continue }
+            readSomething = true
+            if !page.isEmpty { pages.append(page) }
         }
+        guard readSomething else { return nil }
         return pages.joined(separator: "\n")
     }
 

@@ -18,6 +18,49 @@ final class ShareAcceptor: NSObject, UIApplicationDelegate {
     /// even if it is already on screen and would otherwise sit still.
     @MainActor static let didAccept = Notification.Name("plated.share.accepted")
 
+    /// Something changed at a table. Fetch, do not guess.
+    @MainActor static let didChangeRemotely = Notification.Name("plated.table.remoteChange")
+
+    func application(
+        _ application: UIApplication,
+        didFinishLaunchingWithOptions options: [UIApplication.LaunchOptionsKey: Any]? = nil
+    ) -> Bool {
+        // Silent CloudKit pushes need no permission prompt: this asks APNs
+        // for a token, not the person for consent. Without it the
+        // subscriptions below have nowhere to deliver.
+        application.registerForRemoteNotifications()
+        Task { await TableShare.subscribe() }
+        // The Apple ID can change while the app is closed. Nothing observed
+        // this, so `TableIdentity.cached` kept answering with the previous
+        // account's id and the outbox would drain writes minted under it
+        // into the new account's zone.
+        NotificationCenter.default.addObserver(
+            forName: .CKAccountChanged, object: nil, queue: .main
+        ) { _ in
+            Task { @MainActor in
+                let before = TableIdentity.cached
+                guard let now = await TableIdentity.confirm() else { return }
+                guard now != before, !before.hasPrefix("local-") else { return }
+                TableIdentity.reset()
+            }
+        }
+        return true
+    }
+
+    func application(
+        _ application: UIApplication,
+        didReceiveRemoteNotification info: [AnyHashable: Any]
+    ) async -> UIBackgroundFetchResult {
+        // Only ours. A notification for another container is not a reason to
+        // spend somebody's battery on a fetch.
+        guard let note = CKNotification(fromRemoteNotificationDictionary: info),
+              note.subscriptionID?.hasPrefix("plated-") == true else { return .noData }
+        await MainActor.run {
+            NotificationCenter.default.post(name: Self.didChangeRemotely, object: nil)
+        }
+        return .newData
+    }
+
     func application(
         _ application: UIApplication,
         userDidAcceptCloudKitShareWith metadata: CKShare.Metadata

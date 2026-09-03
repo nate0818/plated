@@ -24,27 +24,39 @@ struct RecipeShareSheet: View {
     @State private var activityShown = false
     @State private var confirmingDiscover = false
     @State private var copied = false
+    /// The sheet's own height, measured rather than assumed.
+    ///
+    /// It was a literal 575, sized by hand for six rows. Two of those rows
+    /// are conditional — Messages needs an account, Print needs AirPrint —
+    /// so on a device without them the sheet drew the two hundred points of
+    /// nothing its own comment warned about. Dynamic Type moved it too.
+    /// Starts at a sensible guess so the first frame is not a jump.
+    @State private var measured: CGFloat = 520
 
     private var owner: HouseholdMember? { members.first(where: \.isOwner) }
+
+    /// The title block above the rows, measured the same way.
+    @State private var header: CGFloat = 92
 
     var body: some View {
         VStack(spacing: 0) {
             VStack(spacing: 2) {
                 MicroLabel("Share")
                 Text(recipe.title.isEmpty ? "This recipe" : recipe.title)
-                    .font(.gabarito(22, .semibold))
+                    .plType(.title)
                     .foregroundStyle(Color.ink)
                     .multilineTextAlignment(.center)
                     .lineLimit(2)
             }
             .padding(.top, 22)
             .padding(.bottom, 16)
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { header = $0 }
 
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 10) {
                     MicroLabel("On Plated")
-                    row(
-                        icon: "table.furniture", weighted: true,
+                    OptionRow(
+                        icon: "table.furniture",
                         title: "Post to your Table",
                         detail: "Your household and everyone with a seat"
                     ) {
@@ -52,7 +64,7 @@ struct RecipeShareSheet: View {
                         Haptic.plate()
                         dismiss()
                     }
-                    row(
+                    OptionRow(
                         icon: "globe",
                         title: "Share to Discover",
                         detail: "Every table on Plated can read it"
@@ -66,7 +78,7 @@ struct RecipeShareSheet: View {
                     // the composer presents as a blank sheet rather than
                     // saying so. Same guard the scanner row uses.
                     if RecipeMessageComposer.isAvailable {
-                        row(
+                        OptionRow(
                             icon: "message",
                             title: "Message it",
                             detail: "The photo and the whole recipe, in a text"
@@ -74,7 +86,7 @@ struct RecipeShareSheet: View {
                             messagesShown = true
                         }
                     }
-                    row(
+                    OptionRow(
                         icon: "square.and.arrow.up",
                         title: "More apps",
                         detail: "Instagram, Pinterest, X, Mail, wherever"
@@ -82,7 +94,7 @@ struct RecipeShareSheet: View {
                         activityShown = true
                     }
                     if RecipePrint.isAvailable {
-                        row(
+                        OptionRow(
                             icon: "printer",
                             title: "Print it",
                             detail: "A clean card for the fridge"
@@ -95,7 +107,7 @@ struct RecipeShareSheet: View {
                             RecipePrint.present(recipe)
                         }
                     }
-                    row(
+                    OptionRow(
                         icon: copied ? "checkmark" : "doc.on.doc",
                         title: copied ? "Copied" : "Copy the recipe",
                         detail: "Plain text, ready to paste"
@@ -106,12 +118,18 @@ struct RecipeShareSheet: View {
                 }
                 .padding(.horizontal, 24)
                 .padding(.bottom, 24)
+                // The scroll content is the only thing here with a height
+                // that is not already decided by the detent, so it is the
+                // only honest thing to measure.
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { rows in
+                    measured = header + rows
+                }
             }
         }
         // Sized to the rows rather than thrown to full height: a sheet with
         // 200pt of nothing under the last option reads as a page that failed
         // to load. `.large` stays available for the type sizes that need it.
-        .presentationDetents([.height(575), .large])
+        .presentationDetents([.height(measured), .large])
         .presentationDragIndicator(.visible)
         .presentationBackground(Color.canvas)
         .presentationCornerRadius(Radius.sheet)
@@ -137,45 +155,6 @@ struct RecipeShareSheet: View {
             ShareActivityView(items: RecipeShare.activityItems(for: recipe))
                 .ignoresSafeArea()
         }
-    }
-
-    /// Same register as the create menu: the glyph is the glyph, no circle
-    /// drawn around it, and no chevron promising a push that never happens.
-    private func row(
-        icon: String, weighted: Bool = false,
-        title: String, detail: String,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button {
-            Haptic.tap()
-            action()
-        } label: {
-            HStack(spacing: 14) {
-                Image(systemName: icon)
-                    .font(.system(size: 19, weight: .semibold))
-                    .foregroundStyle(Color.ink)
-                    .frame(width: 26)
-                    .contentTransition(.symbolEffect(.replace))
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .font(.jakarta(15, .bold))
-                        .foregroundStyle(Color.ink)
-                    Text(detail)
-                        .font(.jakarta(12, .medium))
-                        .foregroundStyle(Color.inkSecondary)
-                }
-                Spacer(minLength: 0)
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 14)
-            .background {
-                RoundedRectangle(cornerRadius: Radius.card)
-                    .fill(weighted ? Color.fill : Color.clear)
-            }
-            .overlay(RoundedRectangle(cornerRadius: Radius.card).strokeBorder(Color.hairline))
-            .contentShape(RoundedRectangle(cornerRadius: Radius.card))
-        }
-        .buttonStyle(.pressable)
     }
 }
 

@@ -79,7 +79,7 @@ enum RecipeShare {
         if audience == .table {
             Notifier.post(
                 .general, actor: owner?.name ?? "Me",
-                body: "\(owner?.name ?? "Someone") put \(recipe.title.isEmpty ? "a recipe" : recipe.title) on the Table.",
+                body: "You put \(recipe.title.isEmpty ? "a recipe" : recipe.title) on the Table.",
                 into: context
             )
         }

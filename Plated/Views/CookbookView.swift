@@ -68,6 +68,16 @@ struct RecipeFilter: Equatable {
             case .newest: return lhs.createdAt > rhs.createdAt
             case .quickest: return lhs.totalMinutes < rhs.totalMinutes
             case .easiest:
+                // Unknown effort ranks last rather than winning: an untimed
+                // recipe derives "Easy" from a zero and used to take the top
+                // of a sort it has told us nothing about.
+                // A sort order is not a claim to a reader, so this may keep
+                // deriving from minutes where the fact row may not. Ranking
+                // by what is known first still puts a recipe nobody has
+                // judged and nobody has timed last.
+                let lKnown = lhs.difficultyIsKnown || lhs.totalMinutes > 0
+                let rKnown = rhs.difficultyIsKnown || rhs.totalMinutes > 0
+                if lKnown != rKnown { return lKnown }
                 let l = lhs.difficultyValue.sortOrder, r = rhs.difficultyValue.sortOrder
                 return l == r ? lhs.totalMinutes < rhs.totalMinutes : l < r
             case .mostLoved:
@@ -82,9 +92,60 @@ struct RecipeFilter: Equatable {
 
 /// What the shelf's resettle animation keys on: the filter, and how many
 /// dishes exist at all. Both change the layout; neither costs a filter pass.
+/// What the shelf keys its animation on.
+///
+/// `filter` and `total` alone left two orderings unaccounted for: a pin
+/// outranks the sort and a favourite drives the default one, so toggling
+/// either reorders the grid — while this key does not change, the scoped
+/// `.animation(_:value:)` finds nothing to animate, and the tile teleports to
+/// position zero with every tile below it jumping down. That the scoped
+/// animation wins over an outer `withAnimation` in this subtree is measured
+/// in this file's own history: keying on `filter` alone is what stopped
+/// add/delete/import animating.
+///
+/// Both counts are computed over the `@Query` array, so neither runs
+/// `filter.apply` and the performance constraint that shaped this key holds.
 private struct FilterKey: Equatable {
     let filter: RecipeFilter
     let total: Int
+    let pinned: Int
+    let favorites: Int
+}
+
+/// A dish's name under its plate, in either grid.
+///
+/// Two reserved lines while there is a neighbour to line up with: reserving
+/// is what keeps tiles on one baseline whether or not a name needs the second
+/// line. At accessibility sizes the grid is a single column, so there is no
+/// neighbour and no reason to stop at two — the name takes the lines it needs
+/// rather than ending in an ellipsis with the whole width to itself.
+///
+/// File scope because two grids draw it. `RecipePickerSheet` never inherited
+/// the shelf's version and stayed at one hard-limited line, on the one screen
+/// whose entire job is choosing a dish by its name: at accessibility sizes a
+/// 12pt caption sets near 37pt in a ~103pt column, which is two characters
+/// and an ellipsis.
+/// Time and kind, under a dish's name. File scope because two grids draw it:
+/// the shelf and the picker, and the picker is the one screen whose entire
+/// job is telling two chicken dishes apart.
+func recipeMetaLine(_ recipe: Recipe) -> String {
+    var parts: [String] = []
+    if recipe.totalMinutes > 0 { parts.append(recipe.timeText) }
+    parts.append(recipe.categoryValue?.rawValue ?? recipe.mealTypeValue.rawValue)
+    return parts.joined(separator: " · ")
+}
+
+@ViewBuilder
+func RecipeTileTitle(_ title: String, size: TypeScale, typeSize: DynamicTypeSize) -> some View {
+    let text = Text(title)
+        .plType(size, .bold)
+        .foregroundStyle(Color.ink)
+        .multilineTextAlignment(.center)
+    if typeSize.isAccessibilitySize {
+        text.lineLimit(nil)
+    } else {
+        text.lineLimit(2, reservesSpace: true)
+    }
 }
 
 /// The cookbook — every dish the household knows, as plates on a white
@@ -93,7 +154,9 @@ private struct FilterKey: Equatable {
 struct CookbookView: View {
     @Environment(\.modelContext) private var context
     @Query(sort: \Recipe.createdAt) private var recipes: [Recipe]
+    @Environment(\.tabPop) private var tabPop
     @State private var selected: Recipe?
+    @Environment(\.dynamicTypeSize) private var typeSize
     @State private var filter = RecipeFilter()
     @State private var filterSheetShown = false
     @State private var importShown = false
@@ -104,6 +167,20 @@ struct CookbookView: View {
     @State private var plating: Recipe?
     @State private var editing: Recipe?
     @State private var pendingDelete: Recipe?
+    /// The dish you tapped is the dish that opens. Without a matched source
+    /// the recipe page slid in from the right with no relationship to the
+    /// plate under your finger, which is the single loudest way an app
+    /// reads as a stack of screens rather than one place.
+    @Namespace private var zoom
+    /// What this phone actually knows about the cookbook, as opposed to what
+    /// it can draw. "Nothing in the cookbook yet" was asserted the instant
+    /// the @Query came back empty, which on a second device is also the
+    /// window while the mirror is still importing — and it is the one screen
+    /// where being wrong reads as "your recipes are gone". Same machine as
+    /// TableFeedView.Reach, same three states.
+    @State private var reach: Reach = .looking
+
+    private enum Reach { case looking, reached, unreachable }
 
     private var shown: [Recipe] { filter.apply(to: recipes) }
 
@@ -112,10 +189,9 @@ struct CookbookView: View {
             VStack(spacing: 0) {
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
-                        MicroLabel(countLabel)
+                        if !countLabel.isEmpty { MicroLabel(countLabel) }
                         Text("Recipes")
-                            .font(.gabarito(25, .semibold))
-                            .tracking(-0.3)
+                            .plType(.display)
                             .foregroundStyle(Color.ink)
                     }
                     Spacer()
@@ -135,7 +211,7 @@ struct CookbookView: View {
                             Image(systemName: "magnifyingglass")
                                 .font(.system(size: 12, weight: .bold))
                             Text(filter.chipLabel)
-                                .font(.jakarta(13, .bold))
+                                .plType(.footnote, .bold)
                                 .lineLimit(1)
                             Image(systemName: "chevron.down")
                                 .accessibilityHidden(true)
@@ -188,7 +264,7 @@ struct CookbookView: View {
                             Image(systemName: "plus")
                                 .font(.system(size: 12, weight: .bold))
                             Text("Add")
-                                .font(.jakarta(13, .bold))
+                                .plType(.footnote, .bold)
                         }
                         // Outlined, not tomato. The tab bar's + is eight
                         // points below this and already wearing the accent;
@@ -204,14 +280,27 @@ struct CookbookView: View {
                     .buttonStyle(.pressable)
                     .accessibilityLabel("Add a recipe")
                 }
+                // Two chips in a header row are furniture: they hold a
+                // fixed capsule and have nowhere to reflow, so uncapped
+                // they grew until "Search and filter" read as "Searc...".
+                // A chip that truncates its own verb is worse than a small
+                // one. The grid below is content and keeps growing.
+                .plChrome()
                 .padding(.horizontal, 24)
                 .padding(.top, 12)
 
                 ScrollView(showsIndicators: false) {
-                    LazyVGrid(columns: [GridItem(.flexible(), spacing: 20), GridItem(.flexible())], spacing: 26) {
+                    // Two columns is about 170pt a tile, and at AX5 a
+                    // dish name sets at 47pt: "Sheet-pan chicken with
+                    // charred lemon" could not fit two lines of that in
+                    // half a screen, so the tile truncated to "Sheet...".
+                    // A grid that cannot hold its own content is the wrong
+                    // grid; at accessibility sizes it becomes one column
+                    // and the name gets the whole width.
+                    LazyVGrid(columns: tileColumns, spacing: 26) {
                         ForEach(shown, id: \.persistentModelID) { recipe in
                             recipeTile(recipe)
-                                .transition(.scale(scale: 0.92).combined(with: .opacity))
+                                .transition(.plArrive)
                         }
                     }
                     // Filtering resettles the shelf — dishes fade and slide
@@ -229,7 +318,12 @@ struct CookbookView: View {
                     // animating add/delete/import — the shelf teleported.
                     // `recipes.count` is the @Query array's own count, so it
                     // costs nothing: it never runs `filter.apply`.
-                    .animation(.plSnap, value: FilterKey(filter: filter, total: recipes.count))
+                    .animation(.plSnap, value: FilterKey(
+                        filter: filter,
+                        total: recipes.count,
+                        pinned: recipes.reduce(0) { $0 + ($1.isPinned ? 1 : 0) },
+                        favorites: recipes.reduce(0) { $0 + ($1.isFavorite ? 1 : 0) }
+                    ))
                     .padding(.horizontal, 24)
                     .padding(.top, 20)
                     .padding(.bottom, Layout.floatingChromeInset)
@@ -240,17 +334,34 @@ struct CookbookView: View {
                         // with nothing in it is an invitation — and the old
                         // state answered both with one line and a filter
                         // glyph, the wrong icon for "you own no recipes".
-                        if filter.isFiltering {
-                            noMatches
+                        //
+                        // The corpus is tested first. `isFiltering` never
+                        // consults `recipes`, and the filter chip is drawn
+                        // whether or not there is anything to filter, so one
+                        // tap on an empty cookbook turned the invitation into
+                        // "Nothing matches that filter" whose only exit was
+                        // "Clear filters" — losing both real ways in.
+                        if recipes.isEmpty || !filter.isFiltering {
+                            switch reach {
+                            case .looking: stillLooking
+                            case .reached: emptyCookbook
+                            case .unreachable: cannotReach
+                            }
                         } else {
-                            emptyCookbook
+                            noMatches
                         }
                     }
                 }
             }
             .background(Color.canvas)
+            .task { await look() }
+            // A recipe arriving mid-import settles the question on its own.
+            .onChange(of: recipes.count) { _, count in
+                if count > 0 { reach = .reached }
+            }
             .navigationDestination(item: $selected) { recipe in
                 RecipeDetailView(recipe: recipe)
+                    .navigationTransition(.zoom(sourceID: recipe.persistentModelID, in: zoom))
             }
             .navigationDestination(isPresented: $activityShown) {
                 NotificationsView()
@@ -262,6 +373,13 @@ struct CookbookView: View {
         .sheet(isPresented: $newRecipeShown) { RecipeEditorView() }
         .sheet(isPresented: $filterSheetShown) {
             RecipeFilterSheet(filter: $filter, recipes: recipes)
+        }
+        // See TabPopRequest: tapping Recipes from inside a recipe returns
+        // to the shelf.
+        .onChange(of: tabPop) { _, request in
+            guard request.tab == .cookbook else { return }
+            selected = nil
+            activityShown = false
         }
         .sheet(item: $plating) { recipe in
             PlateAssignSheet(recipe: recipe)
@@ -279,7 +397,15 @@ struct CookbookView: View {
                 Button("Cancel", role: .cancel) {}
             }
         } message: {
-            Text("Deletes it for everyone. Nights it's planned on keep the name.")
+            // "Deletes it for everyone" was a claim about a record that has
+            // never left this account: recipes live in the private database,
+            // and delete(_:) is a context.delete plus a title stamp onto the
+            // nights it was planned for. Posting to the Table makes an
+            // independent TablePost, which this does not touch, so the
+            // sentence was false in both directions — and it contradicted
+            // "Only you can see this" two taps away, in the direction that
+            // implies the household had been reading your cookbook all along.
+            Text("Nights it's planned on keep the name.")
         }
     }
 
@@ -289,14 +415,14 @@ struct CookbookView: View {
                 .font(.system(size: 26, weight: .medium))
                 .foregroundStyle(Color.inkFaint)
             Text("Nothing matches that filter")
-                .font(.jakarta(15, .bold))
-                .foregroundStyle(Color.inkSecondary)
+                .plType(.body, .bold)
+                .foregroundStyle(Color.ink)
             Button {
                 Haptic.tap()
                 withAnimation(.plSnap) { filter = RecipeFilter() }
             } label: {
                 Text("Clear filters")
-                    .font(.jakarta(13, .bold))
+                    .plType(.footnote, .bold)
                     .foregroundStyle(Color.ink)
                     .padding(.horizontal, 18)
                     .frame(minHeight: 44)
@@ -313,31 +439,91 @@ struct CookbookView: View {
     /// what to do, why it's worth doing, and offers both ways in — the paste
     /// route included, which is why that no longer needs a button loitering
     /// in the header on every screen, full or empty.
+    /// Still asking. A spinner and no words: the screen has no claim to make
+    /// yet. `waitForImport` floors at 450ms, so this is a beat, not a wait.
+    private var stillLooking: some View {
+        ProgressView()
+            .controlSize(.large)
+            .padding(.top, 60)
+            .accessibilityLabel("Looking for your recipes")
+    }
+
+    /// Asked and could not get an answer. Says so, rather than reporting the
+    /// absence of an answer as an answer.
+    private var cannotReach: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "icloud.slash")
+                .font(.system(size: 26, weight: .medium))
+                .foregroundStyle(Color.inkFaint)
+            Text("Couldn't check for your recipes")
+                .plType(.body, .bold)
+                .foregroundStyle(Color.ink)
+                .multilineTextAlignment(.center)
+            Text("What's here is what's on this phone.")
+                .plType(.footnote)
+                .foregroundStyle(Color.inkSecondary)
+                .multilineTextAlignment(.center)
+            Button {
+                Haptic.tap()
+                reach = .looking
+                Task { await look() }
+            } label: {
+                Text("Try again")
+                    .plType(.footnote, .semibold)
+                    .foregroundStyle(Color.ink)
+                    .plTapTarget()
+            }
+            .buttonStyle(.pressable)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, 40)
+        .padding(.horizontal, 24)
+    }
+
+    /// One pass at the mirror, so the empty state knows which of the three it
+    /// is. Recipes already on this phone are drawn immediately; this only
+    /// decides what to say when there are none.
+    private func look() async {
+        guard recipes.isEmpty else { reach = .reached; return }
+        switch await CloudSync.waitForImport() {
+        case .arrived, .quiet: reach = .reached
+        case .failed: reach = .unreachable
+        }
+    }
+
     private var emptyCookbook: some View {
         VStack(spacing: 12) {
             Image(systemName: "book.closed")
-                .font(.system(size: 30, weight: .medium))
+                .font(.system(size: 26, weight: .medium))
                 .foregroundStyle(Color.inkFaint)
             Text("Nothing in the cookbook yet")
-                .font(.gabarito(20, .semibold))
+                // .body/.bold, like the other six empty headlines in the
+                // app, including the identical sentence one sheet away in
+                // RecipePickerSheet. This was the only one set a step up.
+                .plType(.body, .bold)
                 .foregroundStyle(Color.ink)
                 .multilineTextAlignment(.center)
             Text("Start with the one your household asks for most.")
-                .font(.jakarta(14, .medium))
+                .plType(.footnote)
                 .foregroundStyle(Color.inkSecondary)
                 .multilineTextAlignment(.center)
-                .lineSpacing(3)
             VStack(spacing: 10) {
                 TomatoPillButton(title: "Add a recipe") { newRecipeShown = true }
                 Button {
                     Haptic.tap()
                     importShown = true
                 } label: {
+                    // 56 and .callout, matching the TomatoPillButton
+                    // directly above it. These are peers in one stack and
+                    // the fill-versus-outline already carries which is
+                    // primary; the 8pt height gap and the type step down
+                    // carried nothing. Discover and the seats sheet already
+                    // pair this filled/outlined couple at matched heights.
                     Text("Paste or scan")
-                        .font(.jakarta(14, .bold))
+                        .plType(.callout)
                         .foregroundStyle(Color.ink)
                         .frame(maxWidth: .infinity)
-                        .frame(minHeight: 48)
+                        .frame(minHeight: 56)
                         .overlay(Capsule().strokeBorder(Color.hairline, lineWidth: 1.5))
                         .contentShape(Capsule())
                 }
@@ -349,10 +535,29 @@ struct CookbookView: View {
         .padding(.top, 44)
     }
 
+    /// Empty when there is nothing to count.
+    ///
+    /// DESIGN.md retires the mounted zero by name — "0 plates", "COMMENTS ·
+    /// 0" — because in a room this small a zero is not neutral, it is a
+    /// verdict. "0 DISHES" over the word Recipes was the same shape, and it
+    /// was the first thing a new cookbook said about itself. The empty state
+    /// below already says it, warmly and with somewhere to go.
     private var countLabel: String {
-        filter.isFiltering
-            ? "\(shown.count) of \(recipes.count) \(recipes.count == 1 ? "dish" : "dishes")"
-            : "\(recipes.count) \(recipes.count == 1 ? "dish" : "dishes")"
+        // Emptiness first. The filtering branch used to run before this test
+        // and answered an empty cookbook with "0 of 0 dishes" — the mounted
+        // zero this screen's own history says was removed for being a verdict
+        // rather than a fact.
+        guard !recipes.isEmpty else { return "" }
+        if filter.isFiltering {
+            return "\(shown.count) of \(recipes.count.things("dish", "dishes"))"
+        }
+        return recipes.count.things("dish", "dishes")
+    }
+
+    private var tileColumns: [GridItem] {
+        typeSize.isAccessibilitySize
+            ? [GridItem(.flexible())]
+            : [GridItem(.flexible(), spacing: 20), GridItem(.flexible())]
     }
 
     private func recipeTile(_ recipe: Recipe) -> some View {
@@ -392,17 +597,24 @@ struct CookbookView: View {
                     }
                 }
                 VStack(spacing: 2) {
-                    Text(recipe.title)
-                        .font(.jakarta(15, .bold))
-                        .foregroundStyle(Color.ink)
-                        .lineLimit(1)
-                    Text(metaLine(recipe))
-                        .font(.jakarta(12, .semibold))
+                    RecipeTileTitle(recipe.title, size: .body, typeSize: typeSize)
+                    Text(recipeMetaLine(recipe))
+                        .plType(.caption, .semibold)
                         .foregroundStyle(Color.inkSecondary)
                 }
             }
         }
         .buttonStyle(.pressable)
+        // Pinned and favourite decide this grid's order and were carried by
+        // two unlabelled badges. A Button already combines its label, so an
+        // explicit one is all this needs.
+        .accessibilityLabel(
+            [recipe.title, recipeMetaLine(recipe),
+             recipe.isPinned ? "Pinned" : nil,
+             recipe.isFavorite ? "Favorite" : nil]
+                .compactMap { $0 }.joined(separator: ", ")
+        )
+        .matchedTransitionSource(id: recipe.persistentModelID, in: zoom)
         .contextMenu {
             Button {
                 Haptic.plate()
@@ -470,12 +682,6 @@ struct CookbookView: View {
         .plDishShadow()
     }
 
-    private func metaLine(_ recipe: Recipe) -> String {
-        var parts: [String] = []
-        if recipe.totalMinutes > 0 { parts.append(recipe.timeText) }
-        parts.append(recipe.categoryValue?.rawValue ?? recipe.mealTypeValue.rawValue)
-        return parts.joined(separator: " · ")
-    }
 }
 
 /// Search, filter, and sort in one place — opened from the "All dishes"
@@ -486,6 +692,11 @@ struct RecipeFilterSheet: View {
 
     @Environment(\.dismiss) private var dismiss
     @FocusState private var searchFocused: Bool
+    /// The masthead, the scroll content and the footer, measured separately
+    /// and added. See the detent at the bottom of this view.
+    @State private var mastheadHeight: CGFloat = 0
+    @State private var contentHeight: CGFloat = 0
+    @State private var footerHeight: CGFloat = 0
 
     private var presentGenres: [RecipeCategory] {
         RecipeCategory.allCases.filter { option in
@@ -498,11 +709,12 @@ struct RecipeFilterSheet: View {
             VStack(spacing: 2) {
                 MicroLabel("Your cookbook")
                 Text("Search and filters")
-                    .font(.gabarito(22, .semibold))
+                    .plType(.title)
                     .foregroundStyle(Color.ink)
             }
             .padding(.top, 22)
             .padding(.bottom, 10)
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { mastheadHeight = $0 }
 
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 18) {
@@ -511,7 +723,7 @@ struct RecipeFilterSheet: View {
                             .font(.system(size: 14, weight: .semibold))
                             .foregroundStyle(Color.inkFaint)
                         TextField("Search dishes and ingredients", text: $filter.searchText)
-                            .font(.jakarta(14, .medium))
+                            .plType(.body, .medium)
                             .focused($searchFocused)
                         if !filter.searchText.isEmpty {
                             Button {
@@ -521,13 +733,29 @@ struct RecipeFilterSheet: View {
                                     .accessibilityLabel("Clear search")
                                     .font(.system(size: 14))
                                     .foregroundStyle(Color.inkFaint)
+                                    // A bare 14pt glyph with no frame was
+                                    // tappable across about 17pt, and a miss
+                                    // fell through to the well's own
+                                    // tap-to-focus and raised the keyboard
+                                    // over the results.
+                                    .plTapTarget()
                             }
                             .buttonStyle(.pressable)
                         }
                     }
                     .padding(.horizontal, 14)
-                    .frame(height: 46)
-                    .overlay(RoundedRectangle(cornerRadius: Radius.chip).strokeBorder(Color.hairline))
+                    // A floor, not a height: `.body` reaches past 46 at
+                    // accessibility sizes and the text separated from the
+                    // stroke drawn around it. A search field is content, so
+                    // it is not capped with .plChrome().
+                    .frame(minHeight: 46)
+                    .overlay(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous).strokeBorder(Color.hairline))
+                    // A 46pt well whose tap target was the ~20pt text line
+                    // inside it: the padding, the glyph and the bands above
+                    // and below all swallowed the tap. `searchFocused` was
+                    // declared and bound here and never once assigned, so
+                    // nothing outside the text could raise the keyboard.
+                    .plTapToFocus { searchFocused = true }
 
                     chipGroup("Meal", options: RecipeMealType.allCases, selection: $filter.mealType) { $0.rawValue }
 
@@ -537,11 +765,13 @@ struct RecipeFilterSheet: View {
 
                     VStack(alignment: .leading, spacing: 8) {
                         MicroLabel("Source")
-                        HStack(spacing: 8) {
-                            ForEach(RecipeFilter.Source.allCases) { source in
-                                chip(source.rawValue, active: filter.source == source) {
-                                    filter.source = source
-                                }
+                        // A bare HStack until now, so these three had nowhere
+                        // to go when the type grew. Every other group on this
+                        // sheet wraps.
+                        FlowChips(items: RecipeFilter.Source.allCases.map(\.rawValue)) { label in
+                            let source = RecipeFilter.Source.allCases.first { $0.rawValue == label } ?? .all
+                            return chip(label, active: filter.source == source) {
+                                filter.source = source
                             }
                         }
                     }
@@ -558,6 +788,12 @@ struct RecipeFilterSheet: View {
                 }
                 .padding(.horizontal, 24)
                 .padding(.bottom, 16)
+                // The scroll content is the only thing here whose height is
+                // not already decided by the detent, so it is the only honest
+                // thing to measure. Measuring a sibling of the ScrollView
+                // measures the detent's own answer coming back around, and
+                // the sheet walks itself taller every pass.
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
             }
 
             VStack(spacing: 8) {
@@ -568,17 +804,23 @@ struct RecipeFilterSheet: View {
                         withAnimation(.plSnap) { filter = RecipeFilter() }
                     } label: {
                         Text("Clear filters")
-                            .font(.jakarta(13, .semibold))
+                            .plType(.footnote, .semibold)
                             .foregroundStyle(Color.inkSecondary)
-                            .frame(minHeight: 44)
+                            .plTapTarget()
                     }
                     .buttonStyle(.pressable)
                 }
             }
             .padding(.horizontal, 24)
             .padding(.bottom, 14)
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { footerHeight = $0 }
         }
-        .presentationDetents([.large])
+        // Sized to its own content. `.large` on a panel of three short chip
+        // groups opened with five hundred points of nothing under the last
+        // row, which reads as a page that failed to load rather than as a
+        // filter. `.large` stays available for the type sizes that need it,
+        // and the sheet grows into it on its own.
+        .presentationDetents([.height(mastheadHeight + contentHeight + footerHeight), .large])
         .presentationDragIndicator(.visible)
         .presentationBackground(Color.canvas)
         .presentationCornerRadius(Radius.sheet)
@@ -600,25 +842,9 @@ struct RecipeFilterSheet: View {
     }
 
     private func chip(_ label: String, active: Bool, action: @escaping () -> Void) -> some View {
-        Button {
-            Haptic.tap()
-            withAnimation(.plSnap) { action() }
-        } label: {
-            Text(label)
-                .font(.jakarta(13, .bold))
-                .fixedSize()
-                .foregroundStyle(active ? Color.canvas : Color.ink)
-                .padding(.horizontal, 13)
-                .frame(minHeight: 36)
-                .background {
-                    if active {
-                        Capsule().fill(Color.ink)
-                    } else {
-                        Capsule().strokeBorder(Color.hairline)
-                    }
-                }
+        SelectChip(active: active, action: action) {
+            Text(label).plType(.footnote, .bold)
         }
-        .buttonStyle(.pressable)
     }
 }
 
@@ -628,28 +854,78 @@ struct FlowChips<Chip: View>: View {
     @ViewBuilder let chip: (String) -> Chip
 
     var body: some View {
+        FlowLayout(spacing: 8) {
+            ForEach(items, id: \.self) { item in
+                chip(item)
+            }
+        }
+    }
+}
+
+/// Rows of subviews, wrapped at whatever width they are given.
+///
+/// This used to be arithmetic: `CGFloat(item.count) * 8 + 34` measured
+/// against a literal `330`. Both numbers describe a 13pt font on a 375pt
+/// phone, and the chips are `.fixedSize()` so they cannot compress when the
+/// guess is wrong. `plType` resolves through `Font.custom(_:relativeTo:
+/// .body)`, whose range runs to 3.118x, so at accessibility sizes a footnote
+/// chip sets near 40pt and a per-character estimate is out by a factor of
+/// three. The overflow ran off the right edge of a vertical ScrollView, with
+/// no horizontal scroll to reach what fell off it.
+///
+/// A Layout measures the real subviews against the real proposal, so both
+/// magic numbers go away and Dynamic Type is handled for nothing.
+struct FlowLayout: SwiftUI.Layout {
+    var spacing: CGFloat = 8
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: LayoutSubviews, cache: inout ()) -> CGSize {
+        let rows = rows(for: subviews, within: proposal.width ?? .infinity)
+        let height = rows.reduce(0) { $0 + $1.height } + spacing * CGFloat(max(0, rows.count - 1))
+        return CGSize(width: proposal.width ?? (rows.map(\.width).max() ?? 0), height: height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: LayoutSubviews, cache: inout ()) {
+        var y = bounds.minY
+        for row in rows(for: subviews, within: bounds.width) {
+            var x = bounds.minX
+            for index in row.indices {
+                let size = subviews[index].sizeThatFits(.unspecified)
+                subviews[index].place(
+                    at: CGPoint(x: x, y: y + (row.height - size.height) / 2),
+                    proposal: ProposedViewSize(size)
+                )
+                x += size.width + spacing
+            }
+            y += row.height + spacing
+        }
+    }
+
+    private struct Row {
+        var indices: [Int] = []
         var width: CGFloat = 0
-        var rows: [[String]] = [[]]
-        // Rough measure: 13pt bold Jakarta ≈ 8pt/char + 26 padding + 8 gap.
-        for item in items {
-            let itemWidth = CGFloat(item.count) * 8 + 34
-            if width + itemWidth > 330 {
-                rows.append([item])
-                width = itemWidth
+        var height: CGFloat = 0
+    }
+
+    private func rows(for subviews: LayoutSubviews, within limit: CGFloat) -> [Row] {
+        var rows: [Row] = []
+        var row = Row()
+        for index in subviews.indices {
+            let size = subviews[index].sizeThatFits(.unspecified)
+            let needed = row.indices.isEmpty ? size.width : row.width + spacing + size.width
+            // One chip wider than the whole row still gets a row of its own.
+            // A chip that overflows can at least be read; a chip that is
+            // never placed cannot.
+            if !row.indices.isEmpty, needed > limit {
+                rows.append(row)
+                row = Row(indices: [index], width: size.width, height: size.height)
             } else {
-                rows[rows.count - 1].append(item)
-                width += itemWidth
+                row.indices.append(index)
+                row.width = needed
+                row.height = max(row.height, size.height)
             }
         }
-        return VStack(alignment: .leading, spacing: 8) {
-            ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
-                HStack(spacing: 8) {
-                    ForEach(row, id: \.self) { item in
-                        chip(item)
-                    }
-                }
-            }
-        }
+        if !row.indices.isEmpty { rows.append(row) }
+        return rows
     }
 }
 
@@ -675,21 +951,66 @@ struct RecipeDetailView: View {
     @State private var assignShown = false
     @State private var swapShown = false
     @State private var shownPhoto: Data?
+    @Environment(\.scenePhase) private var scenePhase
+    /// Tonight's ticks, cursor and timer. Not in the mirror, deliberately —
+    /// see CookLedger.
+    @State private var ledger = CookLedger.shared
+    /// A servings lens with no plan behind it. Dies with the view and is
+    /// never persisted, which is why the header says "for 6" rather than
+    /// "scaled for 6": one is a lens, the other is a change to the plan.
+    @State private var servesLens: Int?
+    /// Nil until asked. The timer chip counts either way; this only decides
+    /// whether it also claims it will ring.
+    @State private var canRing: Bool?
+
+    /// The page takes a posture; it does not become a mode. There is no
+    /// button to enter, no button to leave and nothing to be trapped in.
+    private var cooking: Bool { ledger.isCooking(recipe) }
+
+    private var cursor: Int? { ledger.step(for: recipe) }
 
     var body: some View {
+        ScrollViewReader { proxy in
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 16) {
-                heroImage
-                gallery
+                // Out of the way while cooking. You are looking at the real
+                // dish; a photograph of somebody else's version of it is not
+                // what should be largest on a screen you are glancing at.
+                //
+                // COLLAPSED, not removed. This page is the destination of a
+                // `.zoom` navigation transition keyed on the recipe, and
+                // deleting the hero from the tree while that transition is
+                // still settling took the whole push down with it: the first
+                // tick popped the page and landed the app back on another
+                // tab. Measured on the simulator, twice. Keeping the views
+                // mounted and animating their height keeps the transition's
+                // geometry intact.
+                VStack(spacing: 16) {
+                    heroImage
+                    gallery
+                }
+                .frame(height: cooking ? 0 : nil, alignment: .top)
+                .opacity(cooking ? 0 : 1)
+                .clipped()
+                .accessibilityHidden(cooking)
 
                 VStack(alignment: .leading, spacing: 6) {
                     Text(recipe.title)
-                        .font(.gabarito(27, .semibold))
-                        .tracking(-0.5)
+                        .plType(.display)
                         .foregroundStyle(Color.ink)
                     Text(byline)
-                        .font(.jakarta(12, .bold))
+                        .plType(.caption, .bold)
                         .foregroundStyle(Color.inkSecondary)
+                    // Its own line, not a sixth clause on the byline: the
+                    // byline already joins up to five, and the fact row is
+                    // three things about the dish while this is a thing
+                    // about you.
+                    if let history = cookHistoryLine {
+                        Text(history)
+                            .plType(.footnote)
+                            .foregroundStyle(Color.inkSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
 
                 // The shared atoms, not a fourth dialect. A hairline box
@@ -703,30 +1024,29 @@ struct RecipeDetailView: View {
                     CountDivider()
                     CountBlock(value: "\(meal?.servings ?? recipe.servings)", label: "Serves")
                     CountDivider()
-                    CountBlock(value: recipe.difficultyValue.rawValue, label: "Effort")
+                    // Answers the same way "Time" does when the number
+                    // behind both of them is missing.
+                    CountBlock(
+                        value: recipe.difficultyIsKnown ? recipe.difficultyValue.rawValue : "Not set",
+                        label: "Effort"
+                    )
                 }
 
                 if !recipe.summary.isEmpty {
                     Text(recipe.summary)
-                        .font(.jakarta(14, .medium))
+                        .plType(.footnote)
                         .foregroundStyle(Color.inkSecondary)
-                        .lineSpacing(4)
                 }
 
                 if !ingredientRows.isEmpty {
                     VStack(alignment: .leading, spacing: 10) {
-                        MicroLabel(ingredientsLabel)
+                        HStack {
+                            MicroLabel(ingredientsLabel)
+                            Spacer()
+                            servesChip
+                        }
                         ForEach(ingredientRows, id: \.ingredient.persistentModelID) { row in
-                            HStack {
-                                Text(row.ingredient.name)
-                                    .font(.jakarta(14, .semibold))
-                                    .foregroundStyle(Color.ink)
-                                Spacer()
-                                Text(quantityText(row.ingredient, quantity: row.quantity))
-                                    .font(.jakarta(13, .medium))
-                                    .foregroundStyle(Color.inkSecondary)
-                            }
-                            .padding(.vertical, 4)
+                            ingredientRow(row.ingredient, quantity: row.quantity)
                         }
                     }
                     .padding(.top, 4)
@@ -736,19 +1056,8 @@ struct RecipeDetailView: View {
                     VStack(alignment: .leading, spacing: 12) {
                         MicroLabel("Steps")
                         ForEach(Array(recipe.steps.enumerated()), id: \.offset) { index, step in
-                            HStack(alignment: .top, spacing: 12) {
-                                Text("\(index + 1)")
-                                    .font(.gabarito(17, .bold))
-                                    .foregroundStyle(Color.inkFaint)
-                                    .monospacedDigit()
-                                    .lineLimit(1)
-                                    .fixedSize()
-                                    .frame(minWidth: 22, alignment: .trailing)
-                                Text(step)
-                                    .font(.jakarta(14, .medium))
-                                    .foregroundStyle(Color.ink)
-                                    .lineSpacing(3)
-                            }
+                            stepRow(index: index, step: step)
+                                .id(Self.stepAnchor(index))
                         }
                     }
                     .padding(.top, 4)
@@ -756,19 +1065,50 @@ struct RecipeDetailView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         MicroLabel("Steps")
                         Text(recipe.instructions)
-                            .font(.jakarta(14, .medium))
+                            .plType(.body, .medium)
                             .foregroundStyle(Color.ink)
-                            .lineSpacing(4)
                     }
+                }
+
+                // Asked once the cooking is over, which is the only moment a
+                // text field is a reasonable thing to hand somebody on this
+                // page. Type nothing and nothing is stored and nothing is
+                // drawn. It can be changed later in the editor, because a
+                // note you want to fix three weeks on should not require
+                // cooking the dish again.
+                if meal?.isCooked == true {
+                    VStack(alignment: .leading, spacing: 6) {
+                        MicroLabel("Notes")
+                        EditableLine(
+                            text: Bindable(recipe).cookNotes,
+                            placeholder: "Anything to remember?"
+                        )
+                    }
+                    .padding(.top, 4)
+                    .transition(.plUnfold)
+                } else if !recipe.cookNotes.isEmpty {
+                    VStack(alignment: .leading, spacing: 6) {
+                        MicroLabel("Notes")
+                        Text(recipe.cookNotes)
+                            .plType(.body, .medium)
+                            .foregroundStyle(Color.ink)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(14)
+                            // A filled well draws its own shape: hairline on
+                            // fill is 1.05:1 and is not on the screen.
+                            .background(Color.fill, in: Radius.shape(Radius.card))
+                    }
+                    .padding(.top, 4)
                 }
 
                 HStack(spacing: 6) {
                     Image(systemName: visibilityIcon)
                         .font(.system(size: 12, weight: .semibold))
                     Text(visibilityLine)
-                        .font(.jakarta(12, .semibold))
+                        .plType(.caption, .semibold)
                 }
-                .foregroundStyle(Color.inkFaint)
+                .foregroundStyle(Color.inkSecondary)
                 .padding(.top, 6)
             }
             .padding(.horizontal, 24)
@@ -776,6 +1116,31 @@ struct RecipeDetailView: View {
             .padding(.bottom, 24)
         }
         .background(Color.canvas)
+        .animation(.plSettle, value: cooking)
+        // A marker only helps once you have found it, so the page comes back
+        // where you left it rather than at the top.
+        .onAppear {
+            CookLedger.shared.pruneStale()
+            if let cursor { proxy.scrollTo(Self.stepAnchor(cursor), anchor: .top) }
+        }
+        .onChange(of: cursor) { _, now in
+            guard let now else { return }
+            withAnimation(.plSettle) { proxy.scrollTo(Self.stepAnchor(now), anchor: .top) }
+        }
+        .task { canRing = await NotificationScheduler.authorized() }
+        .onChange(of: scenePhase) { _, phase in
+            // A page left on the counter overnight redraws clean rather than
+            // showing last night's ticks under a finger.
+            if phase == .active { CookLedger.shared.pruneStale() }
+            updateIdleTimer()
+        }
+        .onChange(of: cooking) { _, _ in updateIdleTimer() }
+        .onDisappear {
+            // An idle timer left disabled is an invisible battery bug nobody
+            // will ever attribute to us.
+            UIApplication.shared.isIdleTimerDisabled = false
+            print("[CookAwake] released on disappear")
+        }
         .toolbar(.hidden, for: .navigationBar)
         .plSwipeBack()
         .safeAreaInset(edge: .top) { topBar }
@@ -809,6 +1174,7 @@ struct RecipeDetailView: View {
                 PlanNightSheet(date: meal.date, slot: meal.slotValue)
             }
         }
+        }
     }
 
     /// One docked action, chosen by why you're here. Browse → "Plan it".
@@ -828,7 +1194,7 @@ struct RecipeDetailView: View {
                         Image(systemName: "checkmark")
                             .font(.system(size: 16, weight: .semibold))
                         Text("Cooked")
-                            .font(.jakarta(17, .bold))
+                            .plType(.callout)
                     }
                     .foregroundStyle(Color.basil)
                     .frame(maxWidth: .infinity)
@@ -839,9 +1205,18 @@ struct RecipeDetailView: View {
                 .accessibilityLabel("Cooked")
                 .accessibilityHint("Marks it not cooked")
             } else if nightHasArrived {
-                TomatoPillButton(title: "Cooked it", systemImage: "checkmark") {
-                    Haptic.plate()
+                // The pill fires its own haptic before running the action,
+                // so opening the action with a second impact was two buzzes
+                // for one press. It takes the parameter that exists for this.
+                TomatoPillButton(title: "Cooked it", systemImage: "checkmark",
+                                 haptic: Haptic.plate) {
                     withAnimation(.plSnap) { meal.cookedAt = .now }
+                    // The evening is over: the ticks, the cursor and the
+                    // timer go with it, so the page cannot reopen on step 4
+                    // of a dinner that already happened.
+                    CookLedger.shared.forget(recipe)
+                    NotificationScheduler.cancelCookTimer()
+                    UIApplication.shared.isIdleTimerDisabled = false
                 }
             } else {
                 InkPillButton(title: "Change the dish", systemImage: "arrow.2.squarepath") {
@@ -862,23 +1237,9 @@ struct RecipeDetailView: View {
 
     private var topBar: some View {
         HStack(spacing: 10) {
-            Button {
-                Haptic.tap()
+            IconDiscButton(systemName: "chevron.left", label: "Back") {
                 dismiss()
-            } label: {
-                Circle()
-                    .strokeBorder(Color.hairline, lineWidth: 1.5)
-                    .frame(width: 38, height: 38)
-                    .overlay {
-                        Image(systemName: "chevron.left")
-                            .accessibilityLabel("Back")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(Color.ink)
-                    }
-                    .frame(minWidth: 44, minHeight: 44)
-                    .contentShape(Rectangle())
             }
-            .buttonStyle(.pressable)
             Spacer()
 
             Button {
@@ -893,35 +1254,20 @@ struct RecipeDetailView: View {
                             .accessibilityLabel(recipe.isFavorite ? "Remove from favorites" : "Add to favorites")
                             .font(.system(size: 14, weight: .semibold))
                             .foregroundStyle(recipe.isFavorite ? Color.tomato : Color.ink)
-                            // The fill pours in. It does NOT thump: an
-                            // icon that performs its own state change is
-                            // the same note as the tab bounce and the perch,
-                            // and we are done playing it. The color carries
-                            // the meaning, the haptic carries the feedback.
-                            .contentTransition(.symbolEffect(.replace))
+                            // The fill pours in. It does NOT thump: a
+                            // symbol may morph into its own opposite, which
+                            // is the state, and may not perform a flourish
+                            // about the tap, which is not. See DESIGN.md.
+                            .contentTransition(.symbolEffect(.replace.magic(fallback: .replace.downUp)))
                     }
                     .frame(minWidth: 44, minHeight: 44)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.pressable)
 
-            Button {
-                Haptic.tap()
+            IconDiscButton(systemName: "square.and.arrow.up", label: "Share recipe") {
                 sharePresented = true
-            } label: {
-                Circle()
-                    .strokeBorder(Color.hairline, lineWidth: 1.5)
-                    .frame(width: 38, height: 38)
-                    .overlay {
-                        Image(systemName: "square.and.arrow.up")
-                            .accessibilityLabel("Share recipe")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(Color.ink)
-                    }
-                    .frame(minWidth: 44, minHeight: 44)
-                    .contentShape(Rectangle())
             }
-            .buttonStyle(.pressable)
 
             // Labelled, not a lone pencil in a circle.
             //
@@ -940,11 +1286,13 @@ struct RecipeDetailView: View {
                     Image(systemName: "pencil")
                         .font(.system(size: 13, weight: .semibold))
                     Text("Edit")
-                        .font(.jakarta(13, .bold))
+                        .plType(.footnote, .bold)
                 }
                 .foregroundStyle(Color.ink)
                 .padding(.horizontal, 14)
-                .frame(height: 38)
+                // A floor. A hard 38 drew the capsule smaller than the label
+                // inside it once footnote outgrew it.
+                .frame(minHeight: 38)
                 .overlay(Capsule().strokeBorder(Color.hairline, lineWidth: 1.5))
                 .frame(minHeight: 44)
                 .contentShape(Capsule())
@@ -953,6 +1301,11 @@ struct RecipeDetailView: View {
             .accessibilityLabel("Edit recipe")
 
         }
+        // A masthead's icon cluster is furniture with nowhere to reflow, the
+        // same as the shelf header two hundred lines up, which caps itself
+        // for exactly this reason. It changes what is drawn, never what
+        // VoiceOver reads, and every control here already has a label.
+        .plChrome()
         .padding(.horizontal, 24)
         .padding(.vertical, 4)
         .background(Color.canvas.opacity(0.94))
@@ -973,9 +1326,23 @@ struct RecipeDetailView: View {
     /// its proportions whether or not there is a picture; and the whole
     /// thing is a button, because "there's no photo" and "add a photo" are
     /// the same thought.
+    /// One answer to "which photo is showing", used by the hero and by the
+    /// strip's selection ring.
+    ///
+    /// The hero read `shownPhoto ?? recipe.photoData` and never consulted the
+    /// extras, while the strip only draws itself at two or more photos. So a
+    /// recipe with no hero and one extra showed neither: a dashed "Add a
+    /// photo" over a photograph already in the store. With two extras it drew
+    /// the recipe's own photographs in a strip directly beneath the invitation
+    /// to add one. The editor makes it a one-step mistake — the hero well and
+    /// the extras well are independent, and nothing asks for a hero first.
+    private var heroData: Data? {
+        shownPhoto ?? recipe.photoData ?? recipe.sortedExtraPhotos.first?.photoData
+    }
+
     private var heroImage: some View {
         Group {
-            let data = shownPhoto ?? recipe.photoData
+            let data = heroData
             if let data, let image = UIImage(data: data) {
                 PhotoWell(image: image, height: 260, cornerRadius: Radius.hero)
                     .plCardShadow()
@@ -984,23 +1351,33 @@ struct RecipeDetailView: View {
                     Haptic.tap()
                     editorShown = true
                 } label: {
-                    RoundedRectangle(cornerRadius: Radius.hero)
-                        .strokeBorder(Color.hairlineDashed, style: StrokeStyle(lineWidth: 2, dash: [8, 7]))
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 210)
-                        .overlay {
-                            VStack(spacing: 12) {
-                                DishView(recipe: recipe, diameter: 92)
-                                VStack(spacing: 3) {
-                                    Text("Add a photo")
-                                        .font(.jakarta(14, .bold))
-                                        .foregroundStyle(Color.inkSecondary)
-                                    Text("It shows on your plan and on the Table.")
-                                        .font(.jakarta(12, .medium))
-                                        .foregroundStyle(Color.inkFaint)
-                                }
-                            }
+                    // The words are the content and the dashes are drawn
+                    // around them, not the other way round. A hard 210 with
+                    // the text in an overlay clipped the caption to "It shows
+                    // on your pla…" at accessibility sizes: a fixed height
+                    // that exactly fits its content overflows on a real
+                    // device, so this is a floor and the sentence wraps.
+                    VStack(spacing: 12) {
+                        DishView(recipe: recipe, diameter: 92)
+                        VStack(spacing: 3) {
+                            Text("Add a photo")
+                                .plType(.body, .bold)
+                                .foregroundStyle(Color.inkSecondary)
+                            Text("It shows on your plan and on the tile.")
+                                .plType(.caption)
+                                .foregroundStyle(Color.inkSecondary)
+                                .multilineTextAlignment(.center)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 18)
+                    .frame(maxWidth: .infinity)
+                    .frame(minHeight: 210)
+                    .overlay {
+                        RoundedRectangle(cornerRadius: Radius.hero, style: .continuous)
+                            .strokeBorder(Color.hairlineDashed, style: StrokeStyle(lineWidth: 2, dash: [8, 7]))
+                    }
                 }
                 .buttonStyle(.pressable)
             }
@@ -1014,8 +1391,11 @@ struct RecipeDetailView: View {
         if all.count > 1 {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
-                    ForEach(Array(all.enumerated()), id: \.offset) { _, data in
+                    ForEach(Array(all.enumerated()), id: \.offset) { index, data in
                         if let image = UIImage(data: data) {
+                            // Compared against the same value the hero draws,
+                            // so the ringed thumbnail is the one on screen.
+                            let isCurrent = heroData == data
                             Button {
                                 Haptic.tap()
                                 withAnimation(.plSnap) { shownPhoto = data }
@@ -1024,16 +1404,21 @@ struct RecipeDetailView: View {
                                     .resizable()
                                     .scaledToFill()
                                     .frame(width: 56, height: 56)
-                                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                                    .clipShape(RoundedRectangle(cornerRadius: Radius.small, style: .continuous))
                                     .overlay {
-                                        RoundedRectangle(cornerRadius: 12)
+                                        RoundedRectangle(cornerRadius: Radius.small, style: .continuous)
                                             .strokeBorder(
-                                                (shownPhoto ?? recipe.photoData) == data ? Color.ink : Color.hairline,
-                                                lineWidth: (shownPhoto ?? recipe.photoData) == data ? 2 : 1
+                                                isCurrent ? Color.ink : Color.hairline,
+                                                lineWidth: isCurrent ? 2 : 1
                                             )
                                     }
                             }
                             .buttonStyle(.pressable)
+                            // Which one is showing was carried by a 1pt
+                            // hairline becoming a 2pt ink stroke, and by
+                            // nothing else.
+                            .accessibilityLabel("Photo \(index + 1) of \(all.count)")
+                            .accessibilityAddTraits(isCurrent ? .isSelected : [])
                         }
                     }
                 }
@@ -1044,14 +1429,31 @@ struct RecipeDetailView: View {
     private var byline: String {
         var parts: [String] = [recipe.mealTypeValue.rawValue]
         if let genre = recipe.categoryValue { parts.append(genre.rawValue) }
-        if recipe.isImported { parts.append("Saved from the Table") }
+        // Recipes are saved from Discover too, which is other households'
+        // open tables — not this household's Table.
+        if recipe.isImported { parts.append("Saved from a post") }
         if let meal {
             parts.append(platedLine(meal))
             if let cook = meal.cook {
                 parts.append(cook.isOwner ? "You cook" : "\(cook.name) cooks")
             }
+        } else if let next = nextPlannedNight {
+            // Opened from the cookbook, so "Plan it" is still the right
+            // offer — you may well want it twice. But the page said nothing
+            // about the night this dish is already cooking on, which is the
+            // one fact a reader standing here would most want.
+            parts.append(platedLine(next))
         }
         return parts.joined(separator: " · ")
+    }
+
+    /// The soonest night this recipe is already plated on, today onward.
+    /// Nights that have been and gone are history, not a heads-up.
+    private var nextPlannedNight: PlannedMeal? {
+        let today = Calendar.current.startOfDay(for: .now)
+        return (recipe.plannedMeals ?? [])
+            .filter { $0.date >= today }
+            .min { $0.date < $1.date }
     }
 
     private func platedLine(_ meal: PlannedMeal) -> String {
@@ -1071,30 +1473,318 @@ struct RecipeDetailView: View {
            !meal.scaledIngredients.isEmpty {
             return meal.scaledIngredients
         }
+        // The lens: the same arithmetic PlannedMeal.scaledIngredients does,
+        // computed here because that one is an instance property and needs a
+        // meal. Somebody browsing the cookbook could not scale anything.
+        if let servesLens, recipe.servings > 0, servesLens != recipe.servings {
+            let factor = Double(servesLens) / Double(recipe.servings)
+            return recipe.sortedIngredients.map { ($0, $0.quantity * factor) }
+        }
         return recipe.sortedIngredients.map { ($0, $0.quantity) }
     }
 
+    /// One line, so the fact that changes moment to moment wins.
+    ///
+    /// The two-word split between "scaled for" and "for" is the honesty: one
+    /// is a change to the plan that the grocery list will agree with, the
+    /// other is a lens that dies with the view.
     private var ingredientsLabel: String {
         if let meal, meal.recipe === recipe, meal.servings != recipe.servings {
             return "Ingredients · scaled for \(meal.servings)"
         }
+        if let servesLens, servesLens != recipe.servings { return "Ingredients · for \(servesLens)" }
         return "Ingredients"
     }
 
-    private var visibilityIcon: String {
-        recipe.visibility == "private" ? "lock" : (recipe.visibility == "table" ? "person.3" : "house")
+    /// How often this has actually been cooked, and when.
+    ///
+    /// Nil at zero: a mounted "Never cooked" is a verdict on a dish nobody has
+    /// got to, and the count rule says no numeral until there is something to
+    /// count.
+    ///
+    /// The sentence says "Cooked 4 times" and not "you've made this 4 times"
+    /// because that is what the data supports. `timesCooked` counts planned
+    /// nights somebody marked cooked, and `cookedAt` has exactly two writers —
+    /// the docked button on this page and DayDetailView — both deliberate
+    /// human taps. Delete a plan entry and the number falls.
+    private var cookHistoryLine: String? {
+        let times = recipe.timesCooked
+        guard times > 0 else { return nil }
+        guard let last = recipe.lastCookedAt else {
+            return times == 1 ? "Cooked once." : "Cooked \(times) times."
+        }
+        return times == 1
+            ? "Cooked once, \(Stamp.dayPhrase(last))."
+            : "Cooked \(times) times, the last one \(Stamp.dayPhrase(last))."
     }
 
-    private var visibilityLine: String {
-        switch recipe.visibility {
-        case "private": return "Only you can see this"
-        case "table": return "Everyone on the Table can see this"
-        default:
-            return recipe.householdCanEdit
-                ? "Your household can see and edit this"
-                : "Your household can see this"
+    private static func stepAnchor(_ index: Int) -> String { "step-\(index)" }
+
+    /// The phone does not sleep in the middle of step 4.
+    ///
+    /// Held only while a session is live, this view is on screen and the
+    /// phone is not in Low Power Mode. Released on disappear, on background,
+    /// when the session is pruned, and when the dish is marked cooked. No
+    /// preference toggle: this is inferable.
+    private func updateIdleTimer() {
+        let hold = cooking
+            && scenePhase == .active
+            && !ProcessInfo.processInfo.isLowPowerModeEnabled
+        guard UIApplication.shared.isIdleTimerDisabled != hold else { return }
+        UIApplication.shared.isIdleTimerDisabled = hold
+        print("[CookAwake] \(hold ? "holding" : "released")")
+    }
+
+    // MARK: The cooking posture
+
+    /// One row of the ingredient list.
+    ///
+    /// It was briefly a Button that struck the line through when tapped. Nate
+    /// tried it and the verdict was flat: "that's meaningless to me." He is
+    /// right, and the argument for it was weaker than it looked — the question
+    /// at minute twenty is "did the salt already go in", which a box ticked
+    /// when you picked the jar up cannot answer. So the row is a row again.
+    ///
+    /// What stays is the part that costs nothing and answers the real problem:
+    /// while there is a live step cursor the hierarchy inverts. The amount is
+    /// the content and the name is the label, which is the exact opposite of
+    /// browsing, and it is what makes a quantity readable from three feet away
+    /// with a pan going.
+    @ViewBuilder
+    private func ingredientRow(_ ingredient: Ingredient, quantity: Double) -> some View {
+        HStack {
+            Text(ingredient.name)
+                .plType(.body)
+                .foregroundStyle(cooking ? Color.inkSecondary : Color.ink)
+            Spacer()
+            Text(quantityText(ingredient, quantity: quantity))
+                .plType(cooking ? .callout : .footnote)
+                .foregroundStyle(cooking ? Color.ink : Color.inkSecondary)
+        }
+        .padding(.vertical, 4)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(
+            Ingredient.line(quantity: quantity, unit: ingredient.unit, name: ingredient.name)
+        )
+    }
+
+    /// One numbered step. Tapping it marks where you are.
+    ///
+    /// No deck and no paging: the whole list stays scrollable, because a cook
+    /// glancing down wants to see what is coming as well as what is now — and
+    /// because with the ingredients one flick away, "how much stock?" at step
+    /// seven is a flick rather than six taps back to a card.
+    @ViewBuilder
+    private func stepRow(index: Int, step: String) -> some View {
+        let current = cursor == index
+        let behind = cursor.map { index < $0 } ?? false
+        Button {
+            Haptic.select()
+            withAnimation(.plSettle) {
+                ledger.setStep(current ? nil : index, in: recipe)
+            }
+        } label: {
+            HStack(alignment: .top, spacing: 12) {
+                Text("\(index + 1)")
+                    .plType(cooking ? .heading : .callout, .bold, family: .display)
+                    .foregroundStyle(current ? Color.ink : Color.inkSecondary)
+                    .monospacedDigit()
+                    .lineLimit(1)
+                    .fixedSize()
+                    .frame(minWidth: 22, alignment: .trailing)
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(step)
+                        .plType(cooking ? .callout : .body, .medium)
+                        .foregroundStyle(behind ? Color.inkSecondary : Color.ink)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    if current { timerChip(for: step, step: index) }
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 14)
+            // 44 is a floor; this posture treats it as one.
+            .frame(minHeight: 60)
+            .background {
+                // design-ok(selection-ground): a cursor, not a choice set. One
+                // row wears the SELECTION ground because one row is where you
+                // are; the peers are not competing options with one favoured.
+                // No border: hairline over fill is 1.05:1 and is not on the
+                // screen, and a filled ground draws its own shape.
+                if current {
+                    Radius.shape(Radius.row).fill(Color.chipFill)
+                }
+            }
+            .contentShape(Radius.shape(Radius.row))
+        }
+        .buttonStyle(.pressable)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Step \(index + 1). \(step)")
+        .accessibilityAddTraits(current ? .isSelected : [])
+        .accessibilityHint("Marks where you are.")
+    }
+
+    /// The duration this step names, if it names one.
+    ///
+    /// First integer followed by a minutes or hours word, and NEVER a range's
+    /// second number: "20 to 25 minutes" offers 20, because a timer ringing
+    /// early is a check and a timer ringing late is a burnt dinner. No number
+    /// in the step, no chip — the chip exists because the recipe said twenty
+    /// minutes, not because the app has a timer feature.
+    private static func duration(in step: String) -> Int? {
+        let pattern = #"(\d+)\s*(min|mins|minute|minutes|hr|hrs|hour|hours)\b"#
+        guard let match = step.range(of: pattern, options: [.regularExpression, .caseInsensitive])
+        else { return nil }
+        let hit = String(step[match]).lowercased()
+        let digits = hit.prefix { $0.isNumber }
+        guard let value = Int(digits), value > 0 else { return nil }
+        return hit.contains("h") ? value * 60 : value
+    }
+
+    /// Under the current step only, and only when that step named a time.
+    ///
+    /// Never auto-started: "rest 10 minutes, or up to an hour" is exactly
+    /// where starting on your behalf becomes a lie.
+    @ViewBuilder
+    private func timerChip(for step: String, step index: Int) -> some View {
+        if let minutes = Self.duration(in: step) {
+            let running = ledger.timer(for: recipe)
+            if let running, running.step == index {
+                TimelineView(.periodic(from: .now, by: 1)) { _ in
+                    let left = running.endsAt.timeIntervalSinceNow
+                    Button {
+                        Haptic.tap()
+                        withAnimation(.plSnap) { ledger.clearTimer(in: recipe) }
+                        NotificationScheduler.cancelCookTimer()
+                    } label: {
+                        Text(left > 0 ? Self.clock(left) : "Time's up")
+                            .plType(.footnote, .bold)
+                            .monospacedDigit()
+                            .foregroundStyle(left > 0 ? Color.ink : Color.basil)
+                            .padding(.horizontal, 13)
+                            .frame(minHeight: 38)
+                            .background {
+                                Capsule().strokeBorder(left > 0 ? Color.hairline : Color.basil.opacity(0.4))
+                            }
+                            .frame(minHeight: 44)
+                            .contentShape(Capsule())
+                            // A second re-announced every second is not
+                            // information; the value rides on the parent.
+                            .accessibilityHidden(true)
+                    }
+                    .buttonStyle(.pressable)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(
+                        left > 0 ? "\(Self.spokenClock(left)) left." : "Time's up. Clears the timer."
+                    )
+                }
+            } else {
+                VStack(alignment: .leading, spacing: 4) {
+                    Button {
+                        Haptic.tap()
+                        let ends = Date.now.addingTimeInterval(Double(minutes) * 60)
+                        withAnimation(.plSnap) {
+                            ledger.startTimer(endingAt: ends, step: index, in: recipe)
+                        }
+                        Task {
+                            await NotificationScheduler.scheduleCookTimer(
+                                in: Double(minutes) * 60,
+                                title: "Time's up",
+                                body: "\(recipe.title), step \(index + 1) of \(recipe.steps.count)."
+                            )
+                            canRing = await NotificationScheduler.authorized()
+                        }
+                    } label: {
+                        Text(minutes.things("minute"))
+                            .plType(.footnote, .bold)
+                            .foregroundStyle(Color.ink)
+                            .padding(.horizontal, 13)
+                            .frame(minHeight: 38)
+                            .background { Capsule().strokeBorder(Color.hairline) }
+                            .frame(minHeight: 44)
+                            .contentShape(Capsule())
+                    }
+                    .buttonStyle(.pressable)
+                    .accessibilityLabel("Start a \(minutes.things("minute")) timer.")
+                    // It counts either way; it just does not promise a ring
+                    // it cannot deliver.
+                    if canRing == false {
+                        Text("Counts on screen only. Plated needs notifications turned on to ring.")
+                            .plType(.caption)
+                            .foregroundStyle(Color.inkSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
         }
     }
+
+    private static func clock(_ seconds: TimeInterval) -> String {
+        let total = Int(seconds.rounded(.up))
+        return String(format: "%d:%02d", total / 60, total % 60)
+    }
+
+    private static func spokenClock(_ seconds: TimeInterval) -> String {
+        let total = Int(seconds.rounded(.up))
+        let m = total / 60, s = total % 60
+        if m == 0 { return s.things("second") }
+        return s == 0 ? m.things("minute") : "\(m.things("minute")) \(s.things("second"))"
+    }
+
+    /// Scaling without planning anything.
+    ///
+    /// A Menu rather than a pair of stepper discs: one large target, and
+    /// VoiceOver plus a non-gesture path for free. The `CountBlock` "Serves"
+    /// in the fact row stays inert — that component's own comment says a
+    /// hairline box round a number reads as a button that isn't one, and
+    /// making one of three identical blocks tappable is that mistake in the
+    /// mirror.
+    @ViewBuilder
+    private var servesChip: some View {
+        if recipe.sortedIngredients.contains(where: { $0.quantity > 0 }) {
+            let shown = meal?.servings ?? servesLens ?? recipe.servings
+            Menu {
+                ForEach([1, 2, 4, 6, 8, 12], id: \.self) { count in
+                    Button("Serves \(count)") {
+                        withAnimation(.plSnap) {
+                            // With a real night in hand this is a stored fact
+                            // the grocery list agrees with. Without one it is
+                            // a lens, and curiosity does not rewrite a recipe.
+                            if let meal, meal.recipe === recipe {
+                                meal.servings = count
+                            } else {
+                                servesLens = count
+                            }
+                        }
+                    }
+                }
+            } label: {
+                Text("Serves \(shown)")
+                    .plType(.footnote, .bold)
+                    .foregroundStyle(Color.ink)
+                    .padding(.horizontal, 13)
+                    .frame(minHeight: 38)
+                    .background { Capsule().strokeBorder(Color.hairline) }
+                    .frame(minHeight: 44)
+                    .contentShape(Capsule())
+            }
+            .accessibilityHint("Scales the ingredients.")
+        }
+    }
+
+    // A recipe has never left this account, so this is a constant rather
+    // than a lookup. There is no code path that puts a Recipe in a shared
+    // zone, and the row used to say "Everyone on the Table can see this"
+    // about a record living in the private database — the honesty rule in
+    // DESIGN.md, and the most expensive kind of break because the reader has
+    // no way to notice.
+    //
+    // The editor's Visibility picker wrote `visibility` and nothing read it;
+    // it has been removed for the same reason. The property stays on the
+    // model, written "private" on every save, because dropping a mirrored
+    // property is not CloudKit-safe.
+    private var visibilityIcon: String { "lock" }
+
+    private var visibilityLine: String { "Only you can see this" }
 
     private func quantityText(_ ingredient: Ingredient, quantity: Double) -> String {
         var parts: [String] = []
@@ -1132,11 +1822,20 @@ struct PlateAssignSheet: View {
         VStack(spacing: 0) {
             VStack(spacing: 2) {
                 MicroLabel("Plan a night")
+                // A title wraps; it does not truncate. `.title` is 23pt, so
+                // an ordinary dish name ran out of room on a 393pt phone at
+                // the default size — and when the chosen night is occupied
+                // the button reads "Replace <the displaced dish>", so with
+                // this truncated nothing on the sheet named the dish being
+                // planted. Both sibling sheets already omit the line limit.
                 Text(recipe.title)
-                    .font(.gabarito(22, .semibold))
+                    .plType(.title)
                     .foregroundStyle(Color.ink)
-                    .lineLimit(1)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+            // A single line never reached the edges; a wrapped one does.
+            .padding(.horizontal, 24)
             .padding(.top, 22)
             .padding(.bottom, 12)
 
@@ -1151,28 +1850,61 @@ struct PlateAssignSheet: View {
 
                     VStack(alignment: .leading, spacing: 8) {
                         MicroLabel("Who cooks")
-                        HStack(spacing: 10) {
-                            ForEach(members, id: \.persistentModelID) { member in
-                                cookChip(member)
+                        // The same predicate CookRotation opens with. This
+                        // row was unfiltered, so it offered the pan to the
+                        // people that file refuses to hand a night to, and
+                        // then a push announced them as tonight's cook.
+                        // Scrolls because six chips already walk off a 402pt
+                        // screen, and two do at AX5.
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 10) {
+                                ForEach(cookCandidates, id: \.persistentModelID) { member in
+                                    cookChip(member)
+                                }
                             }
+                            .padding(.vertical, 2)
                         }
+                        .scrollClipDisabled()
                     }
                 }
                 .padding(.horizontal, 24)
                 .padding(.bottom, 16)
             }
 
-            TomatoPillButton(title: confirmation ?? plateLabel) {
-                plate()
-            }
-            // "Plate it for Tuesday" → "Plated for Tuesday" morphs in place.
-            .contentTransition(.numericText())
-            .animation(.plSnap, value: confirmation)
             // Once it reads "Plated for Tuesday" it is a receipt, not a
-            // button — a second tap in the closing beat plated (and rang
-            // the bell) twice.
-            .disabled(chosenDate == nil || confirmation != nil)
-            .opacity(chosenDate == nil ? 0.4 : 1)
+            // button — a second tap in the closing beat plated (and rang the
+            // bell) twice. Disabling it said that, but `.disabled` is how
+            // TomatoPillButton is told to wear "plainly not ready":
+            // inkSecondary on fill. So the app's payoff beat spent its whole
+            // closing second looking greyed out, and DESIGN.md names a seat
+            // turning real as a moment that earns colour.
+            //
+            // A receipt is a different view, not a disabled button. The page
+            // already owns this one, in basil, for the same kind of moment.
+            // (`.contentTransition(.numericText())` went with the swap: it
+            // spanned "Plan for Tuesday" → "Plated for Tuesday" and morphs
+            // nothing that is not a numeral.)
+            Group {
+                if let confirmation {
+                    HStack(spacing: 8) {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 16, weight: .semibold))
+                        Text(confirmation)
+                            .plType(.callout)
+                    }
+                    .foregroundStyle(Color.basil)
+                    .frame(maxWidth: .infinity)
+                    .frame(minHeight: 56)
+                    .background(Color.basilTint, in: Capsule())
+                    .accessibilityLabel(confirmation)
+                } else {
+                    TomatoPillButton(title: plateLabel) {
+                        plate()
+                    }
+                    .disabled(chosenDate == nil)
+                }
+            }
+            .animation(.plSnap, value: confirmation)
             .animation(.plSnap, value: chosenDate == nil)
             .padding(.horizontal, 24)
             .padding(.bottom, 14)
@@ -1182,7 +1914,7 @@ struct PlateAssignSheet: View {
         .presentationBackground(Color.canvas)
         .presentationCornerRadius(Radius.sheet)
         .onAppear {
-            chosenCook = members.first(where: \.isOwner)
+            chosenCook = cookCandidates.first(where: \.isOwner) ?? cookCandidates.first
         }
     }
 
@@ -1207,17 +1939,17 @@ struct PlateAssignSheet: View {
         } label: {
             HStack(spacing: 10) {
                 Text(nightLabel(date))
-                    .font(.jakarta(14, .bold))
+                    .plType(.body, .bold)
                     .foregroundStyle(active ? Color.canvas : Color.ink)
                 Spacer()
                 if let occupied {
                     Text("\(occupied.title) planned")
-                        .font(.jakarta(11, .semibold))
-                        .foregroundStyle(active ? Color.canvas.opacity(0.8) : Color.inkFaint)
+                        .plType(.micro, .semibold)
+                        .foregroundStyle(active ? Color.canvas.opacity(0.8) : Color.inkSecondary)
                         .lineLimit(1)
                 } else {
                     Text("Open")
-                        .font(.jakarta(11, .bold))
+                        .plType(.micro)
                         .foregroundStyle(active ? Color.canvas.opacity(0.8) : Color.basil)
                 }
             }
@@ -1225,14 +1957,15 @@ struct PlateAssignSheet: View {
             .frame(minHeight: 46)
             .background {
                 if active {
-                    RoundedRectangle(cornerRadius: Radius.chip).fill(Color.ink)
+                    RoundedRectangle(cornerRadius: Radius.chip, style: .continuous).fill(Color.ink)
                 } else {
-                    RoundedRectangle(cornerRadius: Radius.chip).strokeBorder(Color.hairline)
+                    RoundedRectangle(cornerRadius: Radius.chip, style: .continuous).strokeBorder(Color.hairline)
                 }
             }
             .contentShape(Rectangle())
         }
         .buttonStyle(.pressable)
+        .accessibilityAddTraits(active ? .isSelected : [])
     }
 
     private func cookChip(_ member: HouseholdMember) -> some View {
@@ -1253,15 +1986,22 @@ struct PlateAssignSheet: View {
                         }
                     }
                 Text(member.isOwner ? "You" : member.name)
-                    .font(.jakarta(11, active ? .extraBold : .semibold))
+                    .plType(.micro, active ? .extraBold : .semibold)
                     .foregroundStyle(active ? Color.ink : Color.inkSecondary)
             }
         }
         .buttonStyle(.pressable)
+        .accessibilityAddTraits(active ? .isSelected : [])
     }
 
+    private var cookCandidates: [HouseholdMember] { members.filter(\.cooks) }
+
+    /// A button is a verb that names the outcome. This one said "Plan for
+    /// Saturday" over a Saturday that already had a dinner on it, and
+    /// pressing it took that dinner away without ever having said so.
     private var plateLabel: String {
         guard let chosenDate else { return "Pick a night" }
+        if let taken = dinner(on: chosenDate) { return "Replace \(taken.title)" }
         return "Plan for \(nightLabel(chosenDate))"
     }
 
@@ -1280,13 +2020,21 @@ struct PlateAssignSheet: View {
     private func plate() {
         guard let date = chosenDate else { return }
         Haptic.plate()
-        let cook = chosenCook ?? members.first(where: \.isOwner)
+        let cook = chosenCook ?? cookCandidates.first(where: \.isOwner) ?? cookCandidates.first
         if let existing = dinner(on: date) {
+            // A gathering names the night and counts its guests; the recipe
+            // is only what is being cooked at it. Blanking both turned
+            // "Anna's birthday · Cooking for 12" into the dish's own title
+            // while leaving the Gathering attached, so the night quietly
+            // stopped looking like a party it was still hosting.
+            let occasion = existing.gathering != nil
             existing.recipe = recipe
-            existing.customTitle = ""
-            existing.servings = recipe.servings
             existing.cook = cook
-            existing.tagline = ""
+            if !occasion {
+                existing.customTitle = ""
+                existing.servings = recipe.servings
+                existing.tagline = ""
+            }
         } else {
             context.insert(PlannedMeal(
                 date: date, slot: .dinner, recipe: recipe,
@@ -1317,26 +2065,87 @@ struct RecipePickerSheet: View {
     let onPick: (Recipe) -> Void
 
     @Environment(\.dismiss) private var dismiss
-    @Query(sort: \Recipe.title) private var recipes: [Recipe]
+    @Environment(\.dynamicTypeSize) private var typeSize
+    @Query private var all: [Recipe]
+    @Query private var meals: [PlannedMeal]
+    /// The shelf's own filter, so there is one search dialect rather than
+    /// two: title, summary and ingredient names, pinned first.
+    ///
+    /// Sorted by `loveScore` — favourites plus times cooked — because
+    /// alphabetical is the order that helps nobody choose a Friday.
+    @State private var filter = RecipeFilter(sort: .mostLoved)
+    @FocusState private var searchFocused: Bool
+    @State private var chromeHeight: CGFloat = 0
+    @State private var gridHeight: CGFloat = 0
+
+    private var recipes: [Recipe] { filter.apply(to: all) }
+
+    private var pickerColumns: [GridItem] {
+        typeSize.isAccessibilitySize
+            ? [GridItem(.flexible())]
+            : [GridItem(.flexible(), spacing: 18), GridItem(.flexible()), GridItem(.flexible())]
+    }
 
     var body: some View {
         VStack(spacing: 0) {
-            Text(titleLine)
-                .font(.gabarito(19, .bold))
-                .foregroundStyle(Color.ink)
-                .padding(.top, 22)
-                .padding(.bottom, 6)
+            // The masthead the app's other seven sheets wear: an eyebrow
+            // over a .title. This was a bare .heading with nothing above
+            // it, and it opens from PlanNightSheet, which does it the
+            // standard way — so one tap swapped the masthead for a
+            // different one.
+            VStack(spacing: 2) {
+                MicroLabel("Your cookbook")
+                Text(titleLine)
+                    .plType(.title)
+                    .foregroundStyle(Color.ink)
+                    .multilineTextAlignment(.center)
+            }
+            .padding(.top, 22)
+            .padding(.bottom, 12)
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { chromeHeight = $0 }
 
-            if recipes.isEmpty {
+            // The same well the filter sheet uses, not a second one. Not
+            // focused on open: a keyboard over a grid you came to browse is
+            // worse than no keyboard.
+            if !all.isEmpty {
+                HStack(spacing: 8) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(Color.inkFaint)
+                    TextField("Search dishes and ingredients", text: $filter.searchText)
+                        .plType(.body, .medium)
+                        .focused($searchFocused)
+                    if !filter.searchText.isEmpty {
+                        Button {
+                            filter.searchText = ""
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .accessibilityLabel("Clear search")
+                                .font(.system(size: 14))
+                                .foregroundStyle(Color.inkFaint)
+                                .plTapTarget()
+                        }
+                        .buttonStyle(.pressable)
+                    }
+                }
+                .padding(.horizontal, 14)
+                .frame(minHeight: 46)
+                .overlay(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous).strokeBorder(Color.hairline))
+                .plTapToFocus { searchFocused = true }
+                .padding(.horizontal, 24)
+                .padding(.bottom, 12)
+            }
+
+            if all.isEmpty {
                 VStack(spacing: 10) {
                     Image(systemName: "book.closed")
                         .font(.system(size: 26, weight: .medium))
                         .foregroundStyle(Color.inkFaint)
                     Text("Nothing in the cookbook yet")
-                        .font(.jakarta(15, .bold))
+                        .plType(.body, .bold)
                         .foregroundStyle(Color.ink)
                     Text("Add one and you can plan it in a tap.")
-                        .font(.jakarta(13, .medium))
+                        .plType(.footnote)
                         .foregroundStyle(Color.inkSecondary)
                         .multilineTextAlignment(.center)
                         .fixedSize(horizontal: false, vertical: true)
@@ -1349,9 +2158,34 @@ struct RecipePickerSheet: View {
                 .padding(.horizontal, 34)
                 .padding(.top, 36)
                 Spacer()
+            } else if recipes.isEmpty {
+                // A different claim from the one above, and an honest one:
+                // the corpus is local and was genuinely asked.
+                VStack(spacing: 10) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 26, weight: .medium))
+                        .foregroundStyle(Color.inkFaint)
+                    Text("Nothing matches \u{201C}\(filter.searchText)\u{201D}")
+                        .plType(.body, .bold)
+                        .foregroundStyle(Color.ink)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text("Try fewer letters, or a different word.")
+                        .plType(.footnote)
+                        .foregroundStyle(Color.inkSecondary)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                    InkPillButton(title: "Clear search") { filter.searchText = "" }
+                        .padding(.top, 8)
+                }
+                .padding(.horizontal, 34)
+                .padding(.top, 36)
+                Spacer()
             } else {
             ScrollView(showsIndicators: false) {
-                LazyVGrid(columns: [GridItem(.flexible(), spacing: 18), GridItem(.flexible()), GridItem(.flexible())], spacing: 20) {
+                // Three across normally; one at accessibility sizes, where a
+                // third of the width cannot hold a dish's name.
+                LazyVGrid(columns: pickerColumns, spacing: 20) {
                     ForEach(recipes, id: \.persistentModelID) { recipe in
                         Button {
                             Haptic.tap()
@@ -1371,10 +2205,21 @@ struct RecipePickerSheet: View {
                                     }
                                 }
                                 .plDishShadow()
-                                Text(recipe.title)
-                                    .font(.jakarta(12, .bold))
-                                    .foregroundStyle(Color.ink)
-                                    .lineLimit(1)
+                                RecipeTileTitle(recipe.title, size: .caption, typeSize: typeSize)
+                                // What tells two chicken dishes apart.
+                                Text(recipeMetaLine(recipe))
+                                    .plType(.caption, .semibold)
+                                    .foregroundStyle(Color.inkSecondary)
+                                    .multilineTextAlignment(.center)
+                                // In a household the ambiguity is rarely two
+                                // dishes with one name; it is did we just
+                                // have this.
+                                if let when = whenLine(for: recipe) {
+                                    Text(when)
+                                        .plType(.caption, .semibold)
+                                        .foregroundStyle(Color.inkSecondary)
+                                        .multilineTextAlignment(.center)
+                                }
                             }
                         }
                         .buttonStyle(.pressable)
@@ -1383,13 +2228,35 @@ struct RecipePickerSheet: View {
                 .padding(.horizontal, 24)
                 .padding(.top, 14)
                 .padding(.bottom, 30)
+                // The scroll content, not the ScrollView: measuring a
+                // sibling feeds the detent its own answer back.
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { gridHeight = $0 }
             }
             }
         }
-        .presentationDetents([.medium, .large])
+        // Sized to the grid rather than a fixed half-screen that cut a row
+        // in half. `.large` stays for the cookbooks that need it.
+        .presentationDetents([.height(chromeHeight + gridHeight), .large])
         .presentationDragIndicator(.visible)
         .presentationBackground(Color.canvas)
         .presentationCornerRadius(Radius.sheet)
+    }
+
+    /// The soonest night this is already on, or the last time it was cooked
+    /// — but only within a fortnight, beyond which it is not the ambiguity
+    /// this line exists for and becomes noise.
+    private func whenLine(for recipe: Recipe) -> String? {
+        let today = Calendar.current.startOfDay(for: .now)
+        let upcoming = meals
+            .filter { $0.recipe === recipe && $0.date >= today && $0.cookedAt == nil }
+            .map(\.date)
+            .min()
+        if let upcoming { return "On the plan \(Stamp.dayPhrase(upcoming).replacingOccurrences(of: "on ", with: ""))" }
+        guard let last = recipe.lastCookedAt,
+              let days = Calendar.current.dateComponents([.day], from: last, to: .now).day,
+              days <= 14
+        else { return nil }
+        return "Cooked \(Stamp.dayPhrase(last).replacingOccurrences(of: "on ", with: ""))"
     }
 
     private var titleLine: String {

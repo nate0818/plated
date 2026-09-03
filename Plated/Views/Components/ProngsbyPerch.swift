@@ -77,10 +77,10 @@ struct ProngsbyPerch: View {
                 glyph
                 if showsName {
                     Text("Prongsby")
-                        .font(.jakarta(12, .bold))
+                        .plType(.micro)
                         .foregroundStyle(Color.ink)
                         .fixedSize()
-                        .transition(.opacity.combined(with: .scale(scale: 0.8, anchor: .leading)))
+                        .transition(.plArrive)
                 }
             }
             .padding(.horizontal, showsName ? 14 : 0)
@@ -100,7 +100,7 @@ struct ProngsbyPerch: View {
                         .frame(width: 9, height: 9)
                         .overlay(Circle().strokeBorder(Color.canvas, lineWidth: 2))
                         .offset(x: 1, y: -1)
-                        .transition(.scale(scale: 0.4).combined(with: .opacity))
+                        .transition(.plArrive)
                 }
             }
             .plFloatShadow()

@@ -197,12 +197,25 @@ enum Plate {
 
     static let canvas = color(0xFFFFFF, 0x16120E)
     static let ink = color(0x221B14, 0xF4EDE3)
-    static let inkSecondary = color(0x8A8074, 0xA79B8B)
+    // 0x7F7364, not 0x8A8074. The old value measured 3.87:1 on canvas,
+    // under the 4.5:1 floor, and was replaced in Theme.swift. This copy kept
+    // shipping the failing one — and the amber note eleven lines down proves
+    // somebody edited this very enum afterwards and walked straight past it.
+    // A fork that receives SOME fixes is worse than one that receives none,
+    // because you cannot tell by looking which state it is in. See
+    // scripts/check-tokens, which now fails the build of a drift like this.
+    static let inkSecondary = color(0x7F7364, 0xA79B8B)
     static let inkFaint = color(0xB5AC9E, 0x6B6157)
     static let hairlineDashed = color(0xEFE7DD, 0x342C22)
     static let fill = color(0xF4F1EC, 0x282119)
     static let basil = color(0x3DA35D, 0x55BE76)
     static let tomato = color(0xFF5A3C, 0xF75434)
+    // A photograph is a photograph in both rooms, so these two do not flip.
+    // The app has carried them since the remove-photo button vanished after
+    // dark; the widget was still writing `.white` by hand over its own food
+    // photos, which is the same fork drift the note above is about.
+    static let scrimInk = color(0x241C12, 0x241C12)
+    static let onScrim = color(0xFFFFFF, 0xFFFFFF)
 
     static func person(_ hex: String) -> (tint: Color, tone: Color) {
         switch hex.uppercased() {
@@ -350,8 +363,14 @@ struct MicroCap: View {
     var body: some View {
         Text(text)
             .font(.jakarta(10))
-            .tracking(1.0)
-            .foregroundStyle(Plate.inkFaint)
+            // 0.05em, which is TypeScale.micro's tracking. This was a flat
+            // 1.0 at size 10, or 0.10em: every eyebrow in every widget set
+            // twice as loose as the same eyebrow in the app.
+            .tracking(10 * 0.05)
+            // Not inkFaint. It measures 2.24:1 and cannot carry a word, and
+            // MicroLabel's identical default is named in DESIGN.md as most
+            // of why the app read as washed out.
+            .foregroundStyle(Plate.inkSecondary)
     }
 }
 

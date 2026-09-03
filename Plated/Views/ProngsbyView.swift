@@ -26,7 +26,7 @@ struct ProngsbyGlyph: View {
                 }
             }
             // The head — the wide of the fork, with the face.
-            RoundedRectangle(cornerRadius: 6 * s)
+            RoundedRectangle(cornerRadius: 6 * s, style: .continuous)
                 .fill(tone)
                 .frame(width: 14 * s, height: 12 * s)
                 .overlay {
@@ -204,7 +204,7 @@ struct ProngsbyView: View {
                                 send(starter)
                             } label: {
                                 Text(starter)
-                                    .font(.jakarta(12, .bold))
+                                    .plType(.caption, .bold)
                                     .fixedSize()
                                     .foregroundStyle(Color.ink)
                                     .padding(.horizontal, 13)
@@ -224,17 +224,17 @@ struct ProngsbyView: View {
 
             HStack(spacing: 10) {
                 TextField("Ask Prongsby…", text: $session.draft, axis: .vertical)
-                    .font(.jakarta(14, .medium))
+                    .plType(.body, .medium)
                     .lineLimit(1...4)
                     .focused($composerFocused)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 10)
-                    .overlay(RoundedRectangle(cornerRadius: Radius.chip).strokeBorder(Color.hairline))
+                    .overlay(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous).strokeBorder(Color.hairline))
                     .plTapToFocus { composerFocused = true }
                     // The padding is part of the pill but not of the text
                     // field — without this, taps on it go nowhere and the
                     // keyboard never shows.
-                    .contentShape(RoundedRectangle(cornerRadius: Radius.chip))
+                    .contentShape(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous))
                     .onTapGesture { composerFocused = true }
                 Button {
                     send(session.draft)
@@ -296,15 +296,15 @@ struct ProngsbyView: View {
             ProngsbyGlyph(size: 30)
             VStack(alignment: .leading, spacing: 1) {
                 Text("Prongsby")
-                    .font(.gabarito(20, .semibold))
+                    .plType(.heading)
                     .foregroundStyle(Color.ink)
                 Text("Knows your recipes and your week")
-                    .font(.jakarta(11, .bold))
+                    .plType(.caption, .bold)
                     .foregroundStyle(Color.inkSecondary)
                 // A new joke every day. Quality not guaranteed; frequency is.
                 Text(ProngsbyBrain.taglineOfTheDay)
-                    .font(.jakarta(10, .medium))
-                    .foregroundStyle(Color.inkFaint)
+                    .plType(.micro, .medium)
+                    .foregroundStyle(Color.inkSecondary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.85)
             }
@@ -338,13 +338,12 @@ struct ProngsbyView: View {
             ProngsbyIdleGlyph(size: 56)
                 .padding(.top, 24)
             Text("Well hello. I'm Prongsby.")
-                .font(.gabarito(19, .bold))
+                .plType(.heading, .bold)
                 .foregroundStyle(Color.ink)
-            Text("Your sous chef and planning department. I know your \(recipes.count) recipes, the week's plan, and who's cooking when. Ask me to resize a dish, make it vegetarian, swap a protein, or plan the whole party.")
-                .font(.jakarta(13, .medium))
+            Text("Your sous chef and planning department. I know your \(recipes.count.things("recipe")), the week's plan, and who's cooking when. Ask me to resize a dish, make it vegetarian, swap a protein, or plan the whole party.")
+                .plType(.footnote)
                 .foregroundStyle(Color.inkSecondary)
                 .multilineTextAlignment(.center)
-                .lineSpacing(3)
                 .padding(.horizontal, 24)
         }
         .padding(.bottom, 12)
@@ -352,20 +351,25 @@ struct ProngsbyView: View {
 
     /// The fork at work — wiggling glyph, rotating kitchen-status puns.
     private var thinkingBubble: some View {
-        HStack {
-            HStack(spacing: 8) {
-                ProngsbyIdleGlyph(size: 20, tone: .inkSecondary)
-                Text(session.thinkingLine)
-                    .font(.jakarta(12, .semibold))
-                    .foregroundStyle(Color.inkSecondary)
-                    .contentTransition(.opacity)
-                    .id(session.thinkingLine)
-                    .transition(.opacity)
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 9)
-            .background(Color.fill, in: RoundedRectangle(cornerRadius: Radius.chip))
-            Spacer(minLength: 60)
+        // The same shell an incoming message wears, so the answer lands
+        // exactly where the thinking line stood. It used to seat the fork
+        // INSIDE the pill at 20pt with a 60pt trailing spacer, while the
+        // reply that replaces it puts the fork outside at 18 with 40 — so
+        // at the moment the answer arrived the bubble jumped 26pt to the
+        // right and the fork jumped out of it. See bubble(_:).
+        HStack(alignment: .bottom, spacing: 8) {
+            ProngsbyIdleGlyph(size: 18, tone: .inkSecondary)
+                .padding(.bottom, 4)
+            Text(session.thinkingLine)
+                .plType(.caption, .semibold)
+                .foregroundStyle(Color.inkSecondary)
+                .contentTransition(.opacity)
+                .id(session.thinkingLine)
+                .transition(.opacity)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 9)
+                .background(Color.fill, in: Radius.shape(Radius.chip))
+            Spacer(minLength: 40)
         }
         .task {
             // Rotate the status line while the fork thinks. The cancellation
@@ -392,14 +396,13 @@ struct ProngsbyView: View {
                     .padding(.bottom, 4)
             }
             Text(message.text)
-                .font(.jakarta(14, .medium))
+                .plType(.body, .medium)
                 .foregroundStyle(message.isMine ? Color.canvas : Color.ink)
-                .lineSpacing(3)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 9)
                 .background(
                     message.isMine ? Color.ink : Color.fill,
-                    in: RoundedRectangle(cornerRadius: Radius.chip)
+                    in: Radius.shape(Radius.chip)
                 )
             if !message.isMine { Spacer(minLength: 40) }
         }

@@ -1,0 +1,182 @@
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: max(24px, env(safe-area-inset-top));
+  padding-bottom: 8px;
+}
+
+.home {
+  display: inline-flex;
+  text-decoration: none;
+}
+
+/* Chrome stays quiet: an ink link, not a second tomato pill. */
+.headerLink {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--ink);
+  text-decoration: none;
+  padding: 10px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--hairline);
+  transition: background 0.15s ease;
+}
+
+.headerLink:hover { background: var(--chip-fill); }
+
+/* The band is the sky's frame; the hero inside it stays above the weather. */
+.heroBand {
+  position: relative;
+  overflow: hidden;
+}
+
+.hero {
+  position: relative;
+  z-index: 1;
+  padding-top: clamp(56px, 12vh, 128px);
+  padding-bottom: clamp(40px, 7vh, 72px);
+  display: grid;
+  gap: 20px;
+  justify-items: start;
+}
+
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.title {
+  font-size: clamp(2.75rem, 8.5vw, 6rem);
+  font-weight: 500;
+  letter-spacing: -0.03em;
+  line-height: 0.98;
+  max-width: 14ch;
+}
+
+.lede {
+  font-size: clamp(1.0625rem, 1.5vw, 1.3125rem);
+  line-height: 1.5;
+  max-width: 34rem;
+}
+
+.heroForm {
+  margin-top: 12px;
+  width: 100%;
+  scroll-margin-top: 40px;
+}
+
+.store {
+  margin-top: 8px;
+  display: grid;
+  gap: 10px;
+  justify-items: start;
+}
+
+.storeCenter {
+  margin-top: 0;
+  justify-items: center;
+}
+
+.soon {
+  font-size: 0.9375rem;
+}
+
+
+/* One row, directly under the badge: four peers, one treatment. */
+.features {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: clamp(20px, 3vw, 40px);
+  padding-top: 8px;
+  padding-bottom: clamp(56px, 10vh, 120px);
+}
+
+@media (max-width: 900px) {
+  .features { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 520px) {
+  .features { grid-template-columns: 1fr; }
+}
+
+.feature {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  padding-top: 20px;
+  border-top: 1px solid var(--hairline);
+}
+
+.feature h2 {
+  font-family: var(--font-jakarta), sans-serif;
+  font-size: 1.0625rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.4;
+}
+
+.feature p {
+  font-size: 0.9375rem;
+  line-height: 1.5;
+}
+
+.inlineLink {
+  color: var(--ink);
+  text-decoration: none;
+  border-bottom: 1px solid var(--ink-faint); /* a stroke, not a word: inkFaint is allowed here */
+  padding-bottom: 1px;
+}
+
+.inlineLink:hover { border-color: var(--ink); }
+
+.closer {
+  display: grid;
+  gap: 24px;
+  justify-items: center;
+  text-align: center;
+  padding-block: clamp(56px, 10vh, 120px);
+  border-top: 1px solid var(--hairline);
+}
+
+.closerTitle {
+  font-size: clamp(2rem, 4.5vw, 3.25rem);
+  font-weight: 500;
+  max-width: 16ch;
+}
+
+.footer {
+  display: grid;
+  gap: 20px;
+  padding-block: 32px max(32px, env(safe-area-inset-bottom));
+  border-top: 1px solid var(--hairline);
+}
+
+.footerRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.legal {
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  max-width: 44rem;
+}
+
+.footerNav {
+  display: flex;
+  gap: 24px;
+  font-size: 0.9375rem;
+  color: var(--ink-secondary);
+}
+
+.footerNav a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.footerNav a:hover { color: var(--ink); }

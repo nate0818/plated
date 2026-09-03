@@ -23,6 +23,7 @@ struct ContactsView: View {
 
     @AppStorage("userFirstName") private var userFirstName = ""
     @Environment(\.modelContext) private var context
+    @Environment(\.openURL) private var openURL
     @State private var candidates: [Candidate] = []
     @State private var accessState: AccessState = .notAsked
     /// The live CKShare link and the message that carries it, once CloudKit
@@ -74,16 +75,20 @@ struct ContactsView: View {
                 .padding(.bottom, 8)
 
                 Text("Invite your people")
-                    .font(.gabarito(32, .extraBold))
-                    .tracking(-0.8)
+                    .plType(.hero)
                     .foregroundStyle(Color.ink)
+                    .multilineTextAlignment(.center)
+                    // Without this the hero is compressed to one line and
+                    // truncated: at AX5 "Invite your people" was drawn as
+                    // "Invite...", which DESIGN.md names as the one thing a
+                    // title may never do. Its own subtitle already had it.
+                    .fixedSize(horizontal: false, vertical: true)
                 Text(accessState == .granted
                      ? "Anyone you invite sees your plan and what you cook."
                      : "Plated is invite only. Nobody sees your plan or your recipes unless you invite them.")
-                    .font(.jakarta(15, .medium))
+                    .plType(.body, .medium)
                     .foregroundStyle(Color.inkSecondary)
                     .multilineTextAlignment(.center)
-                    .lineSpacing(4)
                     .fixedSize(horizontal: false, vertical: true)
             }
             .padding(.top, 84)
@@ -93,10 +98,10 @@ struct ContactsView: View {
             if accessState == .granted && candidates.isEmpty {
                 VStack(spacing: 6) {
                     Text("Nobody here to suggest")
-                        .font(.jakarta(15, .bold))
+                        .plType(.body, .bold)
                         .foregroundStyle(Color.ink)
                     Text("We only suggest contacts with a phone number. Share a link instead.")
-                        .font(.jakarta(13, .medium))
+                        .plType(.footnote)
                         .foregroundStyle(Color.inkSecondary)
                         .multilineTextAlignment(.center)
                         .fixedSize(horizontal: false, vertical: true)
@@ -105,24 +110,24 @@ struct ContactsView: View {
                 .padding(.top, 30)
                 Spacer()
             } else if accessState == .granted && !candidates.isEmpty {
-                ScrollView {
-                    VStack(spacing: 0) {
-                        ForEach($candidates) { $candidate in
-                            candidateRow($candidate)
-                            if candidate.id != candidates.last?.id {
-                                Divider().overlay(Color.hairlineSoft)
-                            }
+                // The screen scrolls as a whole now, and a scroll view
+                // inside a scroll view is two things to drag one direction.
+                VStack(spacing: 0) {
+                    ForEach($candidates) { $candidate in
+                        candidateRow($candidate)
+                        if candidate.id != candidates.last?.id {
+                            Divider().overlay(Color.hairlineSoft)
                         }
                     }
-                    .padding(.horizontal, 18)
-                    .background(Color.canvas)
-                    .clipShape(RoundedRectangle(cornerRadius: Radius.hero))
-                    .overlay(RoundedRectangle(cornerRadius: Radius.hero).strokeBorder(Color.hairline))
-                    .plCardShadow()
-                    .padding(.horizontal, 24)
-                    .padding(.top, 22)
                 }
-                .transition(.opacity.combined(with: .scale(scale: 0.97)))
+                .padding(.horizontal, 18)
+                .background(Color.canvas)
+                .clipShape(RoundedRectangle(cornerRadius: Radius.hero, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: Radius.hero, style: .continuous).strokeBorder(Color.hairline))
+                .plCardShadow()
+                .padding(.horizontal, 24)
+                .padding(.top, 22)
+                .transition(.plArrive)
             } else {
                 Spacer()
             }
@@ -143,7 +148,7 @@ struct ContactsView: View {
                             Image(systemName: "square.and.arrow.up")
                                 .font(.system(size: 13, weight: .semibold))
                             Text("Share a link")
-                                .font(.jakarta(14, .bold))
+                                .plType(.body, .bold)
                         }
                         .foregroundStyle(Color.ink)
                         .frame(maxWidth: .infinity)
@@ -152,23 +157,23 @@ struct ContactsView: View {
                     }
                     }
                     TomatoPillButton(title: "Done") { finish() }
+                } else if accessState == .denied {
+                    // iOS asks once. After a refusal `requestContacts()`
+                    // raises no prompt and changes nothing, so the tomato
+                    // pill — the committing action on this screen — sat
+                    // there saying "Use Contacts" and doing nothing at all,
+                    // with the real route buried underneath it as a link.
+                    // The pill is the route now.
+                    Text("Plated can't see your contacts. You can turn that on in Settings, or invite people later.")
+                        .plType(.caption)
+                        .foregroundStyle(Color.inkSecondary)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if let settings = URL(string: UIApplication.openSettingsURLString) {
+                        TomatoPillButton(title: "Open Settings") { openURL(settings) }
+                    }
                 } else {
                     TomatoPillButton(title: "Use Contacts") { requestContacts() }
-                    if accessState == .denied {
-                        Text("Plated can't see your contacts. Allow access in iOS Settings, or invite people later.")
-                            .font(.jakarta(12, .medium))
-                            .foregroundStyle(Color.inkFaint)
-                            .multilineTextAlignment(.center)
-                            .fixedSize(horizontal: false, vertical: true)
-                        // Naming Settings without a route there is a dead
-                        // end dressed up as help.
-                        if let settings = URL(string: UIApplication.openSettingsURLString) {
-                            Link("Open Settings", destination: settings)
-                                .font(.jakarta(13, .bold))
-                                .foregroundStyle(Color.ink)
-                                .frame(minHeight: 44)
-                        }
-                    }
                 }
                 // Only before contacts are granted. Once the list is up,
                 // "Done" is directly above this and calls the
@@ -180,24 +185,30 @@ struct ContactsView: View {
                         finish()
                     } label: {
                         Text("Not now")
-                            .font(.jakarta(14, .semibold))
+                            .plType(.body)
                             .foregroundStyle(Color.inkSecondary)
-                            .frame(minHeight: 44)
+                            .plTapTarget()
                     }
                     .buttonStyle(.pressable)
                 }
                 HStack(spacing: 6) {
                     Image(systemName: "lock")
                         .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(Color.inkFaint)
+                        .foregroundStyle(Color.inkSecondary)
                     Text("Contacts are matched on your device. Never uploaded, never sold.")
-                        .font(.jakarta(12, .medium))
-                        .foregroundStyle(Color.inkFaint)
+                        .plType(.caption)
+                        .foregroundStyle(Color.inkSecondary)
+                        // A Text in an HStack beside a fixed-size icon
+                        // truncates before it wraps. This is a privacy
+                        // claim, and half of one is worse than none: the
+                        // sentence has to arrive whole at every text size.
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
             .padding(.horizontal, 24)
             .padding(.bottom, 28)
         }
+        .plFitsOrScrolls()
         .background {
             ZStack(alignment: .topLeading) {
                 DriftingFoodPattern()
@@ -257,7 +268,7 @@ struct ContactsView: View {
                 }
             }
             .overlay(Circle().strokeBorder(Color.canvas, lineWidth: 3))
-            .shadow(color: Color.shadowWarm.opacity(0.12), radius: 10, y: 8)
+            .plCardShadow()
     }
 
     private func candidateRow(_ candidate: Binding<Candidate>) -> some View {
@@ -278,31 +289,31 @@ struct ContactsView: View {
             // text carrying no information.
             Text(person.name)
                 .plName()
-                .font(.jakarta(15, .semibold))
+                .plType(.body)
                 .foregroundStyle(Color.ink)
             Spacer()
             if person.seated {
                 HStack(spacing: 5) {
                     Image(systemName: "checkmark").font(.system(size: 11, weight: .heavy))
-                    Text("Invited").font(.jakarta(13, .bold))
+                    Text("Invited").plType(.footnote, .bold)
                 }
                 .foregroundStyle(Color.basil)
                 .padding(.horizontal, 16)
                 .frame(minHeight: 36)
                 .background(Color.basilTint, in: Capsule())
-                .transition(.scale(scale: 0.8).combined(with: .opacity))
+                .transition(.plArrive)
             } else {
                 Button {
                     Haptic.plate()
                     inviteTarget = InviteTarget(name: person.name, phone: person.phone)
                 } label: {
                     Text("Invite")
-                        .font(.jakarta(13, .bold))
+                        .plType(.footnote, .bold)
                         .foregroundStyle(Color.onTomato)
                         .padding(.horizontal, 18)
                         .frame(minHeight: 36)
                         .background(Color.tomato, in: Capsule())
-                        .shadow(color: Color.shadowInk.opacity(0.14), radius: 7, y: 6)
+                        .plDishShadow()
                 }
                 .buttonStyle(.pressable)
             }

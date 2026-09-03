@@ -38,6 +38,9 @@ struct PersonProfileView: View {
     @State private var editShown = false
     @State private var bannerItem: PhotosPickerItem?
     @State private var openedPost: TablePost?
+    /// The grid tile you touched is the thread that opens. One source per
+    /// post, so the tile's own id is unambiguous here.
+    @Namespace private var zoom
 
     /// Who this page is about, right now. Identity first, and only then
     /// the name it was pushed with.
@@ -76,7 +79,7 @@ struct PersonProfileView: View {
         allPosts.filter { $0.kind == "dish" && ($0.authorName == name || $0.firstName == firstName) }
     }
 
-    private var kissCount: Int { posts.filter(\.hasChefsKiss).count }
+    private var kissCount: Int { posts.filter { $0.hasChefsKiss(seats: members.count) }.count }
     private var plateCount: Int { posts.reduce(0) { $0 + $1.totalPlates } }
 
     var body: some View {
@@ -117,8 +120,7 @@ struct PersonProfileView: View {
                             } label: {
                                 HStack(spacing: 6) {
                                     Text("Add your name")
-                                        .font(.gabarito(24, .semibold))
-                                        .tracking(-0.4)
+                                        .plType(.title)
                                         .foregroundStyle(Color.ink)
                                     Image(systemName: "pencil")
                                         .font(.system(size: 13, weight: .semibold))
@@ -131,16 +133,14 @@ struct PersonProfileView: View {
                         } else {
                             Text(displayName)
                                 .plName()
-                                .font(.gabarito(24, .semibold))
-                                .tracking(-0.4)
+                                .plType(.title)
                                 .foregroundStyle(Color.ink)
                         }
                         MicroLabel(roleLine)
                         if isMe && !myBio.isEmpty {
                             Text(myBio)
-                                .font(.jakarta(13, .medium))
+                                .plType(.footnote)
                                 .foregroundStyle(Color.inkSecondary)
-                                .lineSpacing(3)
                                 .padding(.top, 3)
                         }
                     }
@@ -174,8 +174,8 @@ struct PersonProfileView: View {
                     VStack(spacing: 8) {
                         PlateReactionGlyph(filled: false)
                         Text(emptyLine)
-                            .font(.jakarta(13, .medium))
-                            .foregroundStyle(Color.inkFaint)
+                            .plType(.footnote)
+                            .foregroundStyle(Color.inkSecondary)
                             .multilineTextAlignment(.center)
                     }
                     .padding(.top, 44)
@@ -199,6 +199,7 @@ struct PersonProfileView: View {
         .sheet(isPresented: $editShown) { EditProfileSheet() }
         .navigationDestination(item: $openedPost) { post in
             PostThreadView(post: post)
+                .navigationTransition(.zoom(sourceID: post.persistentModelID, in: zoom))
         }
         .onChange(of: bannerItem) { _, item in
             guard let item else { return }
@@ -275,7 +276,7 @@ struct PersonProfileView: View {
                         Image(systemName: "camera")
                             .font(.system(size: 11, weight: .semibold))
                         Text("Change")
-                            .font(.jakarta(11, .bold))
+                            .plType(.micro)
                     }
                     .foregroundStyle(Color.ink)
                     .padding(.horizontal, 12)
@@ -310,6 +311,7 @@ struct PersonProfileView: View {
             .aspectRatio(1, contentMode: .fit)
         }
         .buttonStyle(.pressable)
+        .matchedTransitionSource(id: post.persistentModelID, in: zoom)
     }
 
     private func outlineAction(_ label: String, action: @escaping () -> Void) -> some View {
@@ -318,7 +320,7 @@ struct PersonProfileView: View {
             action()
         } label: {
             Text(label)
-                .font(.jakarta(13, .bold))
+                .plType(.footnote, .bold)
                 .foregroundStyle(Color.ink)
                 .padding(.horizontal, 16)
                 .frame(minHeight: 36)
@@ -387,16 +389,17 @@ struct EditProfileSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Edit profile")
-                .font(.gabarito(19, .bold))
+                // .title at 22, like Settings one sheet away.
+                .plType(.title)
                 .foregroundStyle(Color.ink)
                 .frame(maxWidth: .infinity)
-                .padding(.top, 18)
+                .padding(.top, 22)
 
             PhotosPicker(selection: $pickerItem, matching: .images) {
                 VStack(spacing: 8) {
                     ProfilePhotoWell(photoData: $photoData, initials: draftInitials, diameter: 96)
                     Text(photoData == nil ? "Add your photo" : "Change your photo")
-                        .font(.jakarta(12, .bold))
+                        .plType(.caption, .bold)
                         .foregroundStyle(Color.inkSecondary)
                 }
                 .frame(maxWidth: .infinity)
@@ -406,17 +409,17 @@ struct EditProfileSheet: View {
             VStack(alignment: .leading, spacing: 8) {
                 MicroLabel("Your name")
                 TextField("First name", text: $draftName)
-                    .font(.jakarta(14, .semibold))
+                    .plType(.body)
                     .padding(.horizontal, 14)
                     .frame(minHeight: 48)
-                    .overlay(RoundedRectangle(cornerRadius: Radius.chip).strokeBorder(Color.hairline))
-                    .contentShape(RoundedRectangle(cornerRadius: Radius.chip))
+                    .overlay(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous).strokeBorder(Color.hairline))
+                    .contentShape(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous))
                     .onTapGesture { namingSelf = true }
                     .focused($namingSelf)
                     .submitLabel(.done)
                 if let nameError {
                     Text(nameError)
-                        .font(.jakarta(12, .semibold))
+                        .plType(.caption, .semibold)
                         .foregroundStyle(Color.tomato)
                         .transition(.opacity)
                 }
@@ -425,16 +428,16 @@ struct EditProfileSheet: View {
             VStack(alignment: .leading, spacing: 8) {
                 MicroLabel("Bio")
                 TextField("What kind of cook are you?", text: $bio, axis: .vertical)
-                    .font(.jakarta(14, .medium))
+                    .plType(.body, .medium)
                     .lineLimit(2...4)
                     .padding(14)
-                    .overlay(RoundedRectangle(cornerRadius: Radius.chip).strokeBorder(Color.hairline))
+                    .overlay(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous).strokeBorder(Color.hairline))
                     .plTappableField()
             }
 
             Text("Apple shares your name only at first sign-in, and never your photo. Set both here.")
-                .font(.jakarta(11, .medium))
-                .foregroundStyle(Color.inkFaint)
+                .plType(.micro, .medium)
+                .foregroundStyle(Color.inkSecondary)
 
             InkPillButton(title: "Done") {
                 // Only leave if it took. Dismissing regardless is how a
@@ -539,7 +542,15 @@ struct SettingsSheet: View {
     var focusHouseholdName = false
 
     @Environment(\.dismiss) private var dismiss
-    @AppStorage("afterDark") private var afterDark = false
+    @Environment(\.dynamicTypeSize) private var typeSize
+    @AppStorage("appearance") private var appearanceRaw = Appearance.system.rawValue
+    /// Calendar access was asked for and refused. Not persisted: it is a
+    /// fact about this moment, and somebody who fixes it in Settings should
+    /// find the row plain again when they come back.
+    @State private var calendarRefused = false
+    @State private var tourShown = false
+
+    private var appearance: Appearance { Appearance(rawValue: appearanceRaw) ?? .system }
     @AppStorage("showCalendarEvents") private var showCalendarEvents = false
     @AppStorage("householdName") private var householdName = ""
     /// The door flag RootView reads. Signing out flips this one only.
@@ -557,7 +568,7 @@ struct SettingsSheet: View {
             VStack(spacing: 2) {
                 MicroLabel("Plated")
                 Text("Settings")
-                    .font(.gabarito(22, .semibold))
+                    .plType(.title)
                     .foregroundStyle(Color.ink)
             }
             .padding(.top, 22)
@@ -574,7 +585,7 @@ struct SettingsSheet: View {
                         caption: "What your household is called on Home."
                     ) {
                         TextField("Family name", text: $householdName)
-                            .font(.jakarta(14, .bold))
+                            .plType(.body, .bold)
                             .foregroundStyle(Color.ink)
                             .multilineTextAlignment(.trailing)
                             .frame(width: 110)
@@ -591,14 +602,26 @@ struct SettingsSheet: View {
                     }
 
                     settingRow(
-                        icon: afterDark ? "moon.stars.fill" : "moon",
-                        title: "Dark mode",
-                        caption: "Easier on your eyes at night."
+                        icon: appearance == .dark ? "moon.stars.fill"
+                            : (appearance == .light ? "sun.max" : "circle.lefthalf.filled"),
+                        title: "Appearance",
+                        caption: appearance == .system
+                            ? "Following your phone."
+                            : "Always \(appearance.label.lowercased()), whatever your phone is set to."
                     ) {
-                        Toggle("", isOn: $afterDark)
-                            .labelsHidden()
-                            .tint(Color.basil)
-                            .onChange(of: afterDark) { _, _ in Haptic.plate() }
+                        // A menu rather than a switch: two states could not
+                        // express "follow the phone", which is the state
+                        // every other app on the Home Screen is in, and the
+                        // one this app's own widget has always been in.
+                        // Picker carries its own VoiceOver label and value.
+                        Picker("Appearance", selection: $appearanceRaw) {
+                            ForEach(Appearance.allCases) { option in
+                                Text(option.label).tag(option.rawValue)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .tint(Color.ink)
+                        .onChange(of: appearanceRaw) { _, _ in Haptic.select() }
                     }
 
                     settingRow(
@@ -608,7 +631,17 @@ struct SettingsSheet: View {
                             ? "The evening before someone cooks, and Sundays when the week's still open."
                             : "Turn on notifications for Plated in iOS Settings."
                     ) {
-                        Toggle("", isOn: $remindersOn)
+                        // Green and on while iOS refuses to deliver is the
+                        // honesty rule broken by a control: the caption
+                        // underneath already said to go to Settings, and the
+                        // switch above it was contradicting the caption.
+                        // Permission is revoked in Settings long after the
+                        // preference was set here, so the stored value alone
+                        // has never been the answer.
+                        Toggle("Cook reminders", isOn: Binding(
+                            get: { remindersOn && remindersAllowed },
+                            set: { remindersOn = $0 }
+                        ))
                             .labelsHidden()
                             .tint(Color.basil)
                             .disabled(!remindersAllowed)
@@ -621,17 +654,33 @@ struct SettingsSheet: View {
                     settingRow(
                         icon: "calendar",
                         title: "Calendar on the plan",
-                        caption: "Show Apple Calendar events next to each night."
+                        // A switch that answers a tap by turning itself back
+                        // off, in silence, is the interface refusing without
+                        // saying so. iOS only ever asks once, so the second
+                        // attempt does not even raise a prompt: it just
+                        // flicks back. The reminders row above already says
+                        // where to go; this one says it too now.
+                        caption: calendarRefused
+                            ? "Plated can't see your calendar. Allow it in Settings, Privacy, Calendars."
+                            : "Show Apple Calendar events next to each night."
                     ) {
-                        Toggle("", isOn: $showCalendarEvents)
+                        Toggle("Calendar on the plan", isOn: $showCalendarEvents)
                             .labelsHidden()
                             .sensoryFeedback(.selection, trigger: showCalendarEvents)
                             .tint(Color.basil)
                             .onChange(of: showCalendarEvents) { _, on in
-                                if on {
-                                    Task {
-                                        let granted = await DayEventsProvider.shared.requestAccess()
-                                        if !granted { showCalendarEvents = false }
+                                guard on else {
+                                    calendarRefused = false
+                                    return
+                                }
+                                Task {
+                                    let granted = await DayEventsProvider.shared.requestAccess()
+                                    if !granted {
+                                        withAnimation(.plSnap) {
+                                            showCalendarEvents = false
+                                            calendarRefused = true
+                                        }
+                                        Haptic.warn()
                                     }
                                 }
                             }
@@ -648,8 +697,7 @@ struct SettingsSheet: View {
                                 caption: plusActive ? "Active. Unlimited household members." : "Add your whole household."
                             ) {
                                 Text(plusActive ? "ACTIVE" : "JOIN")
-                                    .font(.jakarta(11, .extraBold))
-                                    .tracking(0.5)
+                                    .plType(.micro, .extraBold)
                                     .foregroundStyle(plusActive ? Color.basil : Color.tomato)
                             }
                         }
@@ -678,13 +726,38 @@ struct SettingsSheet: View {
                                 caption: "A recent change didn't save. It's still on screen, so try it once more."
                             ) {
                                 Text("DISMISS")
-                                    .font(.jakarta(11, .extraBold))
-                                    .tracking(0.5)
+                                    .plType(.micro, .extraBold)
                                     .foregroundStyle(Color.tomato)
                             }
                         }
                         .buttonStyle(.pressable)
                     }
+
+                    // The tour is owed once at the end of setting up, which
+                    // means anybody who has been using Plated since before it
+                    // existed has never seen it, and anybody who skipped it
+                    // has no way back. A walkthrough with exactly one showing
+                    // is a walkthrough most people never see.
+                    Button {
+                        Haptic.tap()
+                        tourShown = true
+                    } label: {
+                        settingRow(
+                            icon: "hand.wave",
+                            title: "Show me around",
+                            caption: "The four screens Plated is made of, in about a minute."
+                        ) {
+                            // A word, not a chevron. Above xxLarge the row
+                            // stacks and a lone arrow on its own line under
+                            // a sentence reads as a stray mark rather than a
+                            // control. The Sign out row beside it already
+                            // solves this with a word.
+                            Text("OPEN")
+                                .plType(.micro, .extraBold)
+                                .foregroundStyle(Color.inkSecondary)
+                        }
+                    }
+                    .buttonStyle(.pressable)
 
                     Button {
                         Haptic.tap()
@@ -696,16 +769,15 @@ struct SettingsSheet: View {
                             caption: "Ends this Apple sign-in. Nothing is deleted."
                         ) {
                             Text("SIGN OUT")
-                                .font(.jakarta(11, .extraBold))
-                                .tracking(0.5)
+                                .plType(.micro, .extraBold)
                                 .foregroundStyle(Color.tomato)
                         }
                     }
                     .buttonStyle(.pressable)
 
-                    Text("Plated 0.1.0")
-                        .font(.jakarta(11, .medium))
-                        .foregroundStyle(Color.inkFaint)
+                    Text(Self.versionLine)
+                        .plType(.micro, .medium)
+                        .foregroundStyle(Color.inkSecondary)
                         .frame(maxWidth: .infinity)
                         .padding(.top, 14)
                 }
@@ -713,6 +785,15 @@ struct SettingsSheet: View {
                 .padding(.bottom, 24)
             }
         }
+        // A sheet does not inherit the root's preferredColorScheme, so
+        // changing the appearance from the control inside this very sheet
+        // repainted the whole app behind it and left the sheet in the old
+        // room until it was dismissed. Which is the only moment this can
+        // happen, since this is where the control lives.
+        .fullScreenCover(isPresented: $tourShown) {
+            TourView { tourShown = false }
+        }
+        .preferredColorScheme(appearance.scheme)
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
         .presentationBackground(Color.canvas)
@@ -733,7 +814,7 @@ struct SettingsSheet: View {
             Button("Sign out", role: .destructive) { signOut() }
             Button("Stay", role: .cancel) {}
         } message: {
-            Text("Your recipes, your week and your household stay on this device.")
+            Text("Nothing is deleted. Your recipes, your week and your household stay where they are.")
         }
     }
 
@@ -759,33 +840,105 @@ struct SettingsSheet: View {
         }
     }
 
+    /// A settings row: a disc, a sentence, and the control it belongs to.
+    ///
+    /// The words take the width first. Without a layout priority the
+    /// trailing control won the negotiation and the text column was
+    /// compressed until it was narrower than its own title, so SwiftUI
+    /// broke the word rather than the line: "Appearance" set as "Appearanc"
+    /// over "e". A title breaking mid-word is the thing DESIGN.md says a
+    /// title may never do, one step worse than truncating.
+    ///
+    /// Above xxLarge the control moves under the sentence instead of
+    /// fighting it for the row. This is the same answer the cook rotation's
+    /// "Take turns automatically" needed on Home, and it belongs here, in
+    /// the component, rather than at each of the five call sites.
+    /// A settings row: a disc, a sentence, and the control it belongs to.
+    ///
+    /// Two failures, one after the other, both about who gets the width.
+    ///
+    /// First the trailing control won it outright, because nothing said
+    /// otherwise, and the text column was squeezed narrower than its own
+    /// title until SwiftUI broke the word rather than the line: "Appearance"
+    /// set as "Appearanc" over "e".
+    ///
+    /// Then the fix overcorrected. `maxWidth: .infinity` on the words takes
+    /// every available point, so the control was squeezed to nothing
+    /// instead. A Toggle has an intrinsic size and survived that; "SIGN OUT"
+    /// is a Text and disappeared completely, leaving a taller card with an
+    /// empty right-hand side.
+    ///
+    /// So: the words take their natural width and a Spacer holds the gap,
+    /// and `layoutPriority` settles it in the words' favour when the two of
+    /// them together do not fit. Above xxLarge they stop sharing a row at
+    /// all, which is the same answer the cook rotation needed on Home.
     private func settingRow(
         icon: String, title: String, caption: String,
         @ViewBuilder trailing: () -> some View
     ) -> some View {
-        HStack(spacing: 12) {
-            Circle()
-                .fill(Color.fill)
-                .frame(width: 40, height: 40)
-                .overlay {
-                    Image(systemName: icon)
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundStyle(Color.ink)
-                }
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.jakarta(14, .bold))
-                    .foregroundStyle(Color.ink)
-                Text(caption)
-                    .font(.jakarta(12, .medium))
-                    .foregroundStyle(Color.inkSecondary)
-            }
-            Spacer()
-            trailing()
+        let stacked = typeSize >= .xxLarge
+        let words = VStack(alignment: .leading, spacing: 2) {
+            Text(title)
+                .plType(.body, .bold)
+                .foregroundStyle(Color.ink)
+                .fixedSize(horizontal: false, vertical: true)
+            Text(caption)
+                .plType(.caption)
+                .foregroundStyle(Color.inkSecondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
+
+        return Group {
+            if stacked {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(spacing: 12) {
+                        settingDisc(icon)
+                        words
+                        Spacer(minLength: 0)
+                    }
+                    // Indented past the disc so the control starts where the
+                    // sentence starts. Flush left it sat under the icon with
+                    // the text above and to the right of it, which reads as
+                    // a control that came loose rather than one belonging to
+                    // the row it is in. 40 for the disc, 12 for the gap.
+                    trailing()
+                        .padding(.leading, 52)
+                }
+            } else {
+                // No priorities. Left to itself the trailing control takes
+                // its intrinsic width and the sentence wraps into what is
+                // left, which is correct at ordinary sizes: the only thing
+                // that ever broke here was a title squeezed narrower than
+                // one of its own words, and that happens above xxLarge,
+                // where this row no longer shares a line at all. Two
+                // attempts to arbitrate it with layoutPriority each just
+                // moved the damage to the other side of the row.
+                HStack(spacing: 12) {
+                    settingDisc(icon)
+                    words
+                    Spacer(minLength: 8)
+                    trailing()
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
-        .overlay(RoundedRectangle(cornerRadius: Radius.card).strokeBorder(Color.hairline))
+        .overlay(RoundedRectangle(cornerRadius: Radius.card, style: .continuous).strokeBorder(Color.hairline))
+    }
+
+    private func settingDisc(_ icon: String) -> some View {
+        Circle()
+            .fill(Color.fill)
+            .frame(width: 40, height: 40)
+            .overlay {
+                Image(systemName: icon)
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundStyle(Color.ink)
+            }
+            // The disc is furniture: a fixed circle with a fixed glyph and
+            // nowhere to reflow.
+            .plChrome()
     }
 }
 
@@ -808,11 +961,10 @@ struct PaywallSheet: View {
                         .foregroundStyle(Color.ink)
                 }
                 Text("Plated+")
-                    .font(.gabarito(26, .semibold))
-                    .tracking(-0.4)
+                    .plType(.display)
                     .foregroundStyle(Color.ink)
                 Text("Your seat is free. Plated+ adds everyone else.")
-                    .font(.jakarta(13, .medium))
+                    .plType(.footnote)
                     .foregroundStyle(Color.inkSecondary)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 30)
@@ -836,29 +988,33 @@ struct PaywallSheet: View {
                         Image(systemName: "checkmark.circle.fill")
                             .foregroundStyle(Color.basil)
                         Text("Plated+ is active on this table")
-                            .font(.jakarta(14, .bold))
+                            .plType(.body, .bold)
                             .foregroundStyle(Color.ink)
                     }
                     .frame(minHeight: 56)
                 } else {
-                    TomatoPillButton(title: "Start Plated+ · $2.99/mo") {
+                    TomatoPillButton(title: "Start Plated+ · $2.99/mo",
+                                     haptic: Haptic.kiss) {
                         PlatedPlus.isActive = true
                         withAnimation(.plPop) { active = true }
-                        Haptic.kiss()
                         Task {
                             try? await Task.sleep(for: .seconds(1.2))
                             dismiss()
                         }
                     }
                     Text("Preview only. No payment is taken.")
-                        .font(.jakarta(10, .medium))
-                        .foregroundStyle(Color.inkFaint)
+                        .plType(.micro, .medium)
+                        .foregroundStyle(Color.inkSecondary)
                         .multilineTextAlignment(.center)
                 }
             }
             .padding(.horizontal, 24)
             .padding(.bottom, 20)
         }
+        // The buy button was the last thing in a VStack that does not
+        // scroll, so above about AX1 it was off the bottom of the sheet with
+        // nothing to drag.
+        .plFitsOrScrolls()
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
         .presentationBackground(Color.canvas)
@@ -873,10 +1029,10 @@ struct PaywallSheet: View {
                 .frame(width: 26)
             VStack(alignment: .leading, spacing: 1) {
                 Text(title)
-                    .font(.jakarta(14, .bold))
+                    .plType(.body, .bold)
                     .foregroundStyle(Color.ink)
                 Text(caption)
-                    .font(.jakarta(12, .medium))
+                    .plType(.caption)
                     .foregroundStyle(Color.inkSecondary)
             }
         }
@@ -918,5 +1074,18 @@ struct PersonRef: Identifiable, Hashable {
             colorHex: colorHex,
             memberID: seat?.persistentModelID
         )
+    }
+}
+
+private extension SettingsSheet {
+    /// Read, not typed. `scripts/testflight.sh` bumps only CURRENT_PROJECT_VERSION,
+    /// so a literal here reported the same string for every build ever uploaded
+    /// and the one question this line exists to answer ("which build am I on?")
+    /// had no answer.
+    static var versionLine: String {
+        let info = Bundle.main.infoDictionary
+        let short = info?["CFBundleShortVersionString"] as? String ?? "0"
+        let build = info?["CFBundleVersion"] as? String ?? "0"
+        return "Plated \(short) (\(build))"
     }
 }

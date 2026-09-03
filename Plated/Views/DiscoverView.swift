@@ -11,6 +11,7 @@ struct DiscoverView: View {
     ) private var posts: [TablePost]
 
     @State private var query = ""
+    @FocusState private var searchFocused: Bool
     @State private var selected: TablePost?
 
     private var filtered: [TablePost] {
@@ -25,30 +26,24 @@ struct DiscoverView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack(spacing: 12) {
-                Button {
-                    Haptic.tap()
+            // The same masthead every other pushed page draws. This was a
+            // bare 17pt chevron in a 44pt box at spacing 12 and a 12pt
+            // leading inset, so arriving here from the Table put the back
+            // control in a different shape and the heading 10pt to the left
+            // of where Activity — one tap away from the same feed — puts it.
+            HStack(spacing: 10) {
+                IconDiscButton(systemName: "chevron.left", label: "Back") {
                     dismiss()
-                } label: {
-                    Image(systemName: "chevron.left")
-                        .accessibilityLabel("Back")
-                        .font(.system(size: 17, weight: .semibold))
-                        .foregroundStyle(Color.ink)
-                        .frame(width: 44, height: 44)
-                        .contentShape(Rectangle())
                 }
-                .buttonStyle(.pressable)
                 VStack(alignment: .leading, spacing: 2) {
                     MicroLabel("From open tables")
                     Text("Discover")
-                        .font(.gabarito(25, .semibold))
-                        .tracking(-0.3)
+                        .plType(.display)
                         .foregroundStyle(Color.ink)
                 }
                 Spacer()
             }
-            .padding(.leading, 12)
-            .padding(.trailing, 24)
+            .padding(.horizontal, 24)
             .padding(.top, 6)
 
             HStack(spacing: 8) {
@@ -56,10 +51,11 @@ struct DiscoverView: View {
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(Color.inkFaint)
                 TextField("Search dishes and cooks", text: $query)
-                    .font(.jakarta(15, .medium))
+                    .plType(.body, .medium)
                     .foregroundStyle(Color.ink)
                     .tint(Color.tomato)
                     .autocorrectionDisabled()
+                    .focused($searchFocused)
                 if !query.isEmpty {
                     Button {
                         query = ""
@@ -68,7 +64,7 @@ struct DiscoverView: View {
                             .accessibilityLabel("Clear search")
                             .font(.system(size: 16))
                             .foregroundStyle(Color.inkFaint)
-                            .frame(minWidth: 44, minHeight: 44)
+                            .plTapTarget()
                     }
                     .buttonStyle(.pressable)
                 }
@@ -77,21 +73,39 @@ struct DiscoverView: View {
             .frame(height: 48)
             .background(Color.chipFill, in: Capsule())
             .overlay(Capsule().strokeBorder(Color.navHairline))
+            // The pill is filled, so it was hit-testable — and tapping it
+            // anywhere but the ~20pt text line still did nothing, because
+            // nothing raised the keyboard. A surface that swallows a tap
+            // without answering it is worse than one that lets it through.
+            .plTapToFocus(radius: 24) { searchFocused = true }
             .padding(.horizontal, 24)
             .padding(.top, 14)
 
             if filtered.isEmpty {
                 Spacer()
+                // Two different nothings, and the app was answering both
+                // with the one that blames the reader. "Nothing found. Try
+                // a dish name" says a corpus exists and you searched it
+                // wrong. `TableShare` stamps every arriving post
+                // `isDiscover: false`, so no other household's open table
+                // has ever reached this phone, and telling somebody to
+                // search harder for it is the interface claiming something
+                // that did not happen.
                 VStack(spacing: 8) {
-                    Image(systemName: "magnifyingglass")
-                        .font(.system(size: 28, weight: .medium))
+                    Image(systemName: posts.isEmpty ? "table.furniture" : "magnifyingglass")
+                        .font(.system(size: 26, weight: .medium))
                         .foregroundStyle(Color.inkFaint)
-                    Text("Nothing found")
-                        .font(.jakarta(15, .bold))
+                    Text(posts.isEmpty ? "No open tables yet" : "Nothing found")
+                        .plType(.body, .bold)
+                        .foregroundStyle(Color.ink)
+                    Text(posts.isEmpty
+                         ? "An open table is a household that made its dinners public. None have reached this phone."
+                         : "Try a dish name or a cook's name.")
+                        .plType(.footnote)
                         .foregroundStyle(Color.inkSecondary)
-                    Text("Try a dish name or a cook's name.")
-                        .font(.jakarta(13, .medium))
-                        .foregroundStyle(Color.inkFaint)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.horizontal, 40)
                 }
                 Spacer()
             } else {
@@ -108,9 +122,10 @@ struct DiscoverView: View {
                         Image(systemName: "lock")
                             .font(.system(size: 11, weight: .semibold))
                         Text("Open tables share with everyone. Yours stays invite-only.")
-                            .font(.jakarta(12, .medium))
+                            .plType(.caption)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
-                    .foregroundStyle(Color.inkFaint)
+                    .foregroundStyle(Color.inkSecondary)
                     .padding(.top, 20)
                     .padding(.bottom, 30)
                 }
@@ -143,27 +158,23 @@ struct DiscoverView: View {
                                 Color.fill
                             }
                         }
-                        .clipShape(RoundedRectangle(cornerRadius: Radius.card))
+                        .clipShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
                         .plCardShadow()
-                    if post.hasChefsKiss {
-                        Image(systemName: "sparkles")
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundStyle(Color.mango)
-                            .frame(width: 28, height: 28)
-                            .background(Color.canvas, in: Circle())
-                            .overlay(Circle().strokeBorder(Color.navHairline))
-                            .padding(8)
-                    }
+                    // No kiss on a Discover post. The mark means "everyone
+                    // at that table plated it", and we know neither how many
+                    // people sit at a stranger's table nor what they did.
+                    // Guessing it would be the interface claiming something
+                    // it has no way to know.
                 }
                 VStack(alignment: .leading, spacing: 1) {
                     Text(post.dishTitle)
-                        .font(.jakarta(13, .bold))
+                        .plType(.footnote, .bold)
                         .foregroundStyle(Color.ink)
                         .lineLimit(1)
                     Text(post.authorName)
                         .plName()
-                        .font(.jakarta(11, .semibold))
-                        .foregroundStyle(Color.inkFaint)
+                        .plType(.micro, .semibold)
+                        .foregroundStyle(Color.inkSecondary)
                         .lineLimit(1)
                 }
                 .padding(.horizontal, 2)
@@ -201,24 +212,13 @@ struct DiscoverPostSheet: View {
                                 Color.fill
                             }
                         }
-                        .clipShape(RoundedRectangle(cornerRadius: Radius.hero))
+                        .clipShape(RoundedRectangle(cornerRadius: Radius.hero, style: .continuous))
                         .plCardShadow()
-                    if post.hasChefsKiss {
-                        HStack(spacing: 6) {
-                            Image(systemName: "sparkles")
-                                .font(.system(size: 14, weight: .bold))
-                                .foregroundStyle(Color.mango)
-                            Text("Chef's kiss")
-                                .font(.jakarta(13, .bold))
-                                .foregroundStyle(Color.ink)
-                        }
-                        .padding(.horizontal, 14)
-                        .frame(minHeight: 36)
-                        .background(Color.canvas, in: Capsule())
-                        .overlay(Capsule().strokeBorder(Color.navHairline))
-                        .shadow(color: Color.shadowInk.opacity(0.14), radius: 10, y: 8)
-                        .offset(x: 6, y: -10)
-                    }
+                    // No kiss on a Discover post. The mark means "everyone
+                    // at that table plated it", and we know neither how many
+                    // people sit at a stranger's table nor what they did.
+                    // Guessing it would be the interface claiming something
+                    // it has no way to know.
                 }
 
                 HStack(spacing: 10) {
@@ -226,45 +226,41 @@ struct DiscoverPostSheet: View {
                     VStack(alignment: .leading, spacing: 0) {
                         Text(post.authorName)
                             .plName()
-                            .font(.jakarta(14, .bold))
+                            .plType(.body, .bold)
                             .foregroundStyle(Color.ink)
                         Text("An open table")
-                            .font(.jakarta(11, .semibold))
-                            .foregroundStyle(Color.inkFaint)
+                            .plType(.micro, .semibold)
+                            .foregroundStyle(Color.inkSecondary)
                     }
                     Spacer()
                     Button {
                         togglePlate()
                     } label: {
                         HStack(spacing: 7) {
-                            ZStack {
-                                Circle()
-                                    .strokeBorder(post.platedByMe ? Color.tomato : Color.inkSecondary, lineWidth: 2)
-                                    .background(Circle().fill(post.platedByMe ? Color.tomato : Color.clear))
-                                    .frame(width: 26, height: 26)
-                                if post.platedByMe {
-                                    Circle().fill(Color.canvas).frame(width: 9, height: 9)
-                                }
-                            }
+                            // The app owns a plate. This was a hand-rebuilt
+                            // copy of it that had already drifted: the
+                            // component fills an unplated mark with a `fill`
+                            // well and this drew a bare ring, so the same
+                            // control looked like two different marks on two
+                            // screens one tap apart.
+                            PlateReactionGlyph(filled: post.platedByMeNow)
                             Text("\(post.totalPlates)")
-                                .font(.jakarta(14, .bold))
-                                .foregroundStyle(post.platedByMe ? Color.tomato : Color.inkSecondary)
+                                .plType(.body, .bold)
+                                .foregroundStyle(post.platedByMeNow ? Color.tomato : Color.inkSecondary)
                                 .contentTransition(.numericText())
                         }
-                        .frame(minWidth: 44, minHeight: 44)
+                        .plTapTarget()
                     }
                     .buttonStyle(.pressable)
                 }
 
                 Text(post.dishTitle)
-                    .font(.gabarito(27, .semibold))
-                    .tracking(-0.5)
+                    .plType(.display)
                     .foregroundStyle(Color.ink)
 
                 Text(post.caption)
-                    .font(.jakarta(14, .medium))
+                    .plType(.footnote)
                     .foregroundStyle(Color.inkSecondary)
-                    .lineSpacing(4)
 
                 // The tomato budget here is spent on the plate reaction, so the
                 // committing action takes the ink pill — and "plate" stays the
@@ -272,14 +268,14 @@ struct DiscoverPostSheet: View {
                 if saved {
                     HStack(spacing: 8) {
                         Image(systemName: "checkmark").font(.system(size: 15, weight: .semibold))
-                        Text("In your cookbook").font(.jakarta(16, .bold))
+                        Text("In your cookbook").plType(.callout)
                     }
                     .foregroundStyle(Color.inkSecondary)
                     .frame(maxWidth: .infinity)
                     .frame(minHeight: 56)
                     .overlay(Capsule().strokeBorder(Color.hairline, lineWidth: 1.5))
                     .padding(.top, 6)
-                    .transition(.scale(scale: 0.94).combined(with: .opacity))
+                    .transition(.plArrive)
                 } else {
                     InkPillButton(title: "Save to cookbook", systemImage: "book.closed") {
                         save()
@@ -301,12 +297,12 @@ struct DiscoverPostSheet: View {
     }
 
     private func togglePlate() {
-        let turningOn = !post.platedByMe
+        var turningOn = false
         withAnimation(.plPop) {
-            post.platedByMe.toggle()
+            turningOn = TableReactions.togglePlate(post)
             bounce = true
         }
-        turningOn ? (post.hasChefsKiss ? Haptic.kiss() : Haptic.plate()) : Haptic.tap()
+        turningOn ? Haptic.plate() : Haptic.tap()
         Task {
             try? await Task.sleep(for: .milliseconds(320))
             withAnimation(.plSnap) { bounce = false }

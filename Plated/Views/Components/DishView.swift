@@ -125,7 +125,7 @@ struct DishView: View {
                         // After dark the deep palette pools sink into the dark
                         // porcelain — a whisper of rim keeps the food's silhouette.
                         if scheme == .dark {
-                            Circle().strokeBorder(Color.white.opacity(0.10), lineWidth: 1)
+                            Circle().strokeBorder(Color.white.opacity(0.10), lineWidth: 1)  // design-ok(literal-colour): a rim highlight is light catching an edge, not a palette colour
                         }
                     }
             }
@@ -236,7 +236,7 @@ private struct PorcelainBase: View {
             .fill(Color.cardFill)
             .overlay {
                 if scheme == .dark {
-                    Circle().strokeBorder(Color.white.opacity(0.06), lineWidth: 1)
+                    Circle().strokeBorder(Color.white.opacity(0.06), lineWidth: 1)  // design-ok(literal-colour): same, on the empty plate
                 }
             }
             .overlay {
@@ -245,6 +245,10 @@ private struct PorcelainBase: View {
                     .strokeBorder(Color.hairline, lineWidth: 1 / displayScale)
                     .frame(width: diameter * 0.86, height: diameter * 0.86)
             }
+            // Not elevation, and deliberately outside the ramp: a two-layer
+            // contact shadow is part of how the plate reads as porcelain on a
+            // surface. It goes to zero after dark because the dark canvas is
+            // the table, and a lit plate does not cast onto it.
             .shadow(color: .black.opacity(scheme == .dark ? 0 : 0.06), radius: 20, y: 8)
             .shadow(color: .black.opacity(scheme == .dark ? 0 : 0.05), radius: 2, y: 1)
     }

@@ -72,17 +72,52 @@ struct HouseholdStatsView: View {
 
     @State private var opened: Badge?
 
-    private var dishPosts: [TablePost] { posts.filter { $0.kind == "dish" } }
-    private var kissCount: Int { posts.filter(\.hasChefsKiss).count }
-    private var platesEarned: Int { posts.reduce(0) { $0 + $1.totalPlates } }
-    private var nightsPlated: Int { meals.count }
+    /// This household's own work, not the whole table's.
+    ///
+    /// `posts` is the shared zone, so it carries every guest's dishes too,
+    /// and this shelf is explicitly "every number this household has run
+    /// up": it was crediting itself with other people's posts, other
+    /// people's plates and other people's chef's kisses, and the badge shelf
+    /// handed out awards for them. Ownership keys on first names, the same
+    /// way Awards and PersonRef do, until real user ids exist.
+    private var householdNames: Set<String> {
+        Set(members.map(Self.firstName))
+    }
+
+    private static func firstName(_ member: HouseholdMember) -> String { firstName(member.name) }
+
+    private static func firstName(_ name: String) -> String {
+        name.split(separator: " ").first.map { $0.lowercased() } ?? name.lowercased()
+    }
+
+    private var ourPosts: [TablePost] {
+        posts.filter { householdNames.contains(Self.firstName($0.authorName)) }
+    }
+
+    private var dishPosts: [TablePost] { ourPosts.filter { $0.kind == "dish" } }
+    private var kissCount: Int { ourPosts.filter { $0.hasChefsKiss(seats: members.count) }.count }
+    private var platesEarned: Int { ourPosts.reduce(0) { $0 + $1.totalPlates } }
+
+    /// Dinners that have actually happened.
+    ///
+    /// `meals` is every slot and every date, so a cell labelled "Dinners"
+    /// was counting Tuesday's breakfast and a Thursday nobody has cooked
+    /// yet. A count must count the real thing.
+    private var dinnersCooked: Int {
+        let today = Calendar.current.startOfDay(for: .now)
+        return dinners.filter { $0.cookedAt != nil || $0.date < today }.count
+    }
+
+    /// Dinners on the plan, which is the different question the first badge
+    /// asks: "put a night on the plan".
+    private var dinners: [PlannedMeal] { meals.filter { $0.slotValue == .dinner } }
 
     /// The most nights ever planned inside one calendar week — the badge
     /// says "a week, plated", so counting every dinner ever would be a
     /// different claim entirely.
     private var bestWeek: Int {
         let calendar = Calendar.current
-        let weeks = Dictionary(grouping: meals) { meal in
+        let weeks = Dictionary(grouping: dinners) { meal in
             calendar.dateInterval(of: .weekOfYear, for: meal.date)?.start ?? meal.date
         }
         return weeks.values.map(\.count).max() ?? 0
@@ -92,7 +127,7 @@ struct HouseholdStatsView: View {
         [
             Badge(id: "first-dinner", title: "First dinner",
                   detail: "Put a night on the plan.",
-                  mark: .symbol("fork.knife"), have: nightsPlated, need: 1),
+                  mark: .symbol("fork.knife"), have: dinners.count, need: 1),
             Badge(id: "first-recipe", title: "First recipe",
                   detail: "Add a dish to the cookbook.",
                   mark: .symbol("text.book.closed"), have: recipes.count, need: 1),
@@ -100,7 +135,7 @@ struct HouseholdStatsView: View {
                   detail: "Post something you cooked to the Table.",
                   mark: .symbol("table.furniture"), have: dishPosts.count, need: 1),
             Badge(id: "first-kiss", title: "First chef's kiss",
-                  detail: "Ten plates on one dish.",
+                  detail: "Everyone at the table plated the same dish.",
                   mark: .symbol("sparkles"), have: kissCount, need: 1),
             Badge(id: "first-save", title: "Saved elsewhere",
                   detail: "Someone saved your dish to their cookbook.",
@@ -185,7 +220,7 @@ struct HouseholdStatsView: View {
             VStack(alignment: .leading, spacing: 1) {
                 MicroLabel("\(earned) of \(total) earned")
                 Text("Stats and badges")
-                    .font(.gabarito(20, .semibold))
+                    .plType(.heading)
                     .foregroundStyle(Color.ink)
             }
             Spacer()
@@ -208,7 +243,7 @@ struct HouseholdStatsView: View {
                 columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: columns),
                 spacing: 22
             ) {
-                countCell("Dinners", nightsPlated, .symbol("fork.knife"))
+                countCell("Dinners", dinnersCooked, .symbol("fork.knife"))
                 countCell("Happy plates", platesEarned, .plate)
                 countCell("Chef's kisses", kissCount, .symbol("sparkles"), accent: kissCount > 0)
                 countCell("Recipes", recipes.count, .symbol("text.book.closed"))
@@ -222,7 +257,10 @@ struct HouseholdStatsView: View {
 
     private func countCell(_ label: String, _ value: Int, _ mark: BadgeMark, accent: Bool = false) -> some View {
         VStack(spacing: 5) {
-            BadgeMarkView(mark: mark, size: 13, color: accent ? .mango : .inkFaint)
+            // Amber, matching the numeral directly below it. This cell was
+            // drawing a mango glyph over an amber count: one idea in two
+            // colours, and the top one at 1.83:1 on canvas.
+            BadgeMarkView(mark: mark, size: 13, color: accent ? .amber : .inkFaint)
             CountBlock(value: "\(value)", label: label, accent: accent)
         }
     }
@@ -239,10 +277,10 @@ struct HouseholdStatsView: View {
                 VStack(alignment: .leading, spacing: 3) {
                     MicroLabel("Closest badge")
                     Text(badge.title)
-                        .font(.jakarta(15, .bold))
+                        .plType(.body, .bold)
                         .foregroundStyle(Color.ink)
                     Text(badge.progressLabel.map { "\($0) · \(badge.remainingLine)" } ?? badge.detail)
-                        .font(.jakarta(12, .medium))
+                        .plType(.caption)
                         .foregroundStyle(Color.inkSecondary)
                         .lineLimit(2)
                         .multilineTextAlignment(.leading)
@@ -254,8 +292,8 @@ struct HouseholdStatsView: View {
             }
             .padding(16)
             .background(Color.canvas)
-            .overlay(RoundedRectangle(cornerRadius: Radius.card).strokeBorder(Color.hairline))
-            .contentShape(RoundedRectangle(cornerRadius: Radius.card))
+            .overlay(RoundedRectangle(cornerRadius: Radius.card, style: .continuous).strokeBorder(Color.hairline))
+            .contentShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
         }
         .buttonStyle(.pressable)
         .accessibilityElement(children: .combine)
@@ -291,7 +329,7 @@ struct HouseholdStatsView: View {
             VStack(spacing: 8) {
                 BadgeMedal(badge: badge)
                 Text(badge.title)
-                    .font(.jakarta(11.5, .bold))
+                    .plType(.micro)
                     .foregroundStyle(badge.earned ? Color.ink : Color.inkSecondary)
                     .multilineTextAlignment(.center)
                     .lineLimit(2)
@@ -303,7 +341,7 @@ struct HouseholdStatsView: View {
                     // does not get the faint tone — inkFaint on canvas is
                     // about 2.2:1 and this is content, not chrome.
                     Text(label)
-                        .font(.jakarta(10, .semibold))
+                        .plType(.micro, .semibold)
                         .foregroundStyle(Color.inkSecondary)
                 }
             }
@@ -369,15 +407,14 @@ struct BadgeDetailSheet: View {
                     .padding(.top, 30)
 
                 Text(badge.title)
-                    .font(.gabarito(22, .semibold))
+                    .plType(.title)
                     .foregroundStyle(Color.ink)
                     .multilineTextAlignment(.center)
 
                 Text(badge.detail)
-                    .font(.jakarta(14, .medium))
+                    .plType(.footnote)
                     .foregroundStyle(Color.inkSecondary)
                     .multilineTextAlignment(.center)
-                    .lineSpacing(3)
                     .padding(.horizontal, 28)
 
                 if badge.earned {
@@ -385,7 +422,7 @@ struct BadgeDetailSheet: View {
                         Image(systemName: "checkmark.circle.fill")
                             .font(.system(size: 13, weight: .semibold))
                         Text("Earned")
-                            .font(.jakarta(13, .bold))
+                            .plType(.footnote, .bold)
                     }
                     .foregroundStyle(Color.basil)
                     .padding(.horizontal, 14)
@@ -393,7 +430,7 @@ struct BadgeDetailSheet: View {
                     .background(Color.basilTint, in: Capsule())
                 } else if let label = badge.progressLabel {
                     Text("\(label) · \(badge.remainingLine)")
-                        .font(.jakarta(13, .bold))
+                        .plType(.footnote, .bold)
                         .foregroundStyle(Color.inkSecondary)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 14)

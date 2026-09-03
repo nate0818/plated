@@ -19,8 +19,22 @@ struct ImportedRecipe: Equatable {
     var ingredients: [ImportedIngredient] = []
     var steps: [String] = []
 
-    /// Nothing worth showing. A paste of a shopping list or a URL lands here.
+    /// Nothing at all. Kept as the gate on the model result in `parse`,
+    /// where a draft with a good title and nothing under it is merged field
+    /// by field rather than discarded.
     var isEmpty: Bool { title.isEmpty && ingredients.isEmpty && steps.isEmpty }
+
+    /// Something a cook could actually work from.
+    ///
+    /// `isEmpty` needs the title AND the ingredients AND the steps to be
+    /// missing, so a title-only parse counted as a successful read. Pasting a
+    /// link produced exactly that: the URL is one undecorated line, so no
+    /// heading matches, the no-heading sweep drops it, and the address then
+    /// passes every shape test a title has to pass. The review step opened
+    /// over a web address with no ingredients, no steps and a live "Save to
+    /// cookbook" — and pasting a link is the first thing most people try,
+    /// while nothing in this app fetches one.
+    var hasContent: Bool { !ingredients.isEmpty || !steps.isEmpty }
 }
 
 struct ImportedIngredient: Equatable, Identifiable {
@@ -29,9 +43,36 @@ struct ImportedIngredient: Equatable, Identifiable {
     var quantity: Double = 0
     var unit = ""
     var aisle = GroceryAisle.other.rawValue
+    /// What the review row's field shows once somebody has typed in it.
+    /// Same contract as `RecipeEditorView.DraftIngredient.edited`: the field
+    /// writes the text and nothing else, and the parse happens once, at save.
+    var edited: String?
 
     static func == (a: Self, b: Self) -> Bool {
-        a.name == b.name && a.quantity == b.quantity && a.unit == b.unit && a.aisle == b.aisle
+        a.name == b.name && a.quantity == b.quantity && a.unit == b.unit
+            && a.aisle == b.aisle && a.edited == b.edited
+    }
+
+    /// The line as somebody would write it down: "2 cups flour".
+    var text: String {
+        edited ?? Ingredient.line(quantity: quantity, unit: unit, name: name)
+    }
+
+    /// What to save: the typed line read once, or the parse untouched.
+    var resolved: ImportedIngredient {
+        guard let edited else { return self }
+        let parsed = RecipeImporter
+            .parseIngredientLine(edited.trimmingCharacters(in: .whitespacesAndNewlines))
+        var out = self
+        out.name = parsed.name
+        out.quantity = parsed.quantity
+        out.unit = parsed.unit
+        // A retyped row is a different food, so it is re-filed. An untouched
+        // one keeps the section the model gave it, which the keyword table
+        // cannot reproduce.
+        out.aisle = RecipeImporter.aisle(for: parsed.name).rawValue
+        out.edited = nil
+        return out
     }
 }
 
@@ -106,7 +147,7 @@ enum RecipeImporter {
     static func sanitizedTitle(_ raw: String) -> String? {
         let t = raw.trimmingCharacters(in: CharacterSet(charactersIn: "#*_ \t"))
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !t.isEmpty, !t.contains("\n") else { return nil }
+        guard !t.isEmpty, !t.contains("\n"), !looksLikeURL(t) else { return nil }
         // One clause. A title that runs into a second sentence is prose that
         // happened to be first on the page.
         let firstSentence = t.components(separatedBy: ". ").first ?? t
@@ -456,13 +497,36 @@ enum RecipeImporter {
             }
         }
 
-        recipe.title = title(from: preamble.isEmpty ? lines : preamble)
+        // From the preamble only. The `preamble.isEmpty ? lines` fallback
+        // fired exactly when the very first content line was a heading — in
+        // the no-heading case every line lands in `preamble` and the sweep
+        // above handles it — so a paste beginning "Ingredients:" searched the
+        // ingredient list for a title and came back with "Olive oil". A wrong
+        // name looks deliberate enough to save without noticing, which is the
+        // failure this function's own comment says it exists to prevent. An
+        // empty title is a question the review step already asks in one tap.
+        recipe.title = title(from: preamble)
         recipe.summary = summary(from: preamble, excluding: recipe.title, consumed: consumed)
         for line in preamble {
             for fragment in factFragments(line.text) {
                 if let n = servings(in: fragment) { recipe.servings = n }
                 if let m = minutes(in: fragment, keyed: ["prep"]) { recipe.prepMinutes = m }
                 if let m = minutes(in: fragment, keyed: ["cook", "bake", "roast"]) { recipe.cookMinutes = m }
+            }
+        }
+        // "Ready in 20 minutes" names neither prep nor cook, so a paste that
+        // gives only a total imported with no time at all: the shelf tile lost
+        // its "· 20 min", the Quickest sort could not see the dish, and the
+        // effort block asserted "Easy" off a zero. A bare total is honest
+        // enough — it goes on cook, which is what `totalMinutes` adds up.
+        if recipe.prepMinutes == 0, recipe.cookMinutes == 0 {
+            outer: for line in preamble {
+                for fragment in factFragments(line.text) {
+                    if let m = minutes(in: fragment, keyed: totalMinuteLeaders) {
+                        recipe.cookMinutes = m
+                        break outer
+                    }
+                }
             }
         }
         recipe.ingredients = recipe.ingredients.filter { !$0.name.isEmpty }
@@ -541,6 +605,10 @@ enum RecipeImporter {
         "print", "rated", "difficulty", "category", "keyword", "time"
     ]
 
+    /// The ways a recipe states one number instead of two: "Ready in 20
+    /// minutes", "Total time: 1 hr 10 min", "Takes about 45 minutes".
+    private static let totalMinuteLeaders = ["ready", "total", "takes", "time"]
+
     /// The dish's name, or nothing at all.
     ///
     /// "Nothing at all" is a real answer and the important one. The old
@@ -565,7 +633,7 @@ enum RecipeImporter {
     private static func titleShaped(_ line: Line) -> String? {
         guard line.stepNumber == nil, !line.isBullet, heading(line) == nil else { return nil }
         let t = line.text.trimmingCharacters(in: CharacterSet(charactersIn: "#*_ "))
-        guard !t.isEmpty, t.count <= 70 else { return nil }
+        guard !t.isEmpty, t.count <= 70, !looksLikeURL(t) else { return nil }
         guard t.split(separator: " ").count <= 12 else { return nil }
         // Two sentences is prose. One sentence ending in a full stop, with
         // more than a title's worth of words, is prose too.
@@ -575,6 +643,22 @@ enum RecipeImporter {
         let lower = t.lowercased()
         guard !metadataLeaders.contains(where: { lower.hasPrefix($0) }) else { return nil }
         return t
+    }
+
+    /// A web address, in either faculty's sense.
+    ///
+    /// Nothing in the app fetches a URL, so one that survives into `title`
+    /// becomes a recipe named after a link. A single token carrying a dot and
+    /// a plausible suffix is enough; anything with a space in it is prose and
+    /// the other shape tests handle it.
+    private static func looksLikeURL(_ candidate: String) -> Bool {
+        if candidate.contains("://") { return true }
+        let lower = candidate.lowercased()
+        if lower.hasPrefix("www.") { return true }
+        guard !candidate.contains(" "), candidate.contains(".") else { return false }
+        return candidate.range(
+            of: #"\.[a-z]{2,}(/|$)"#, options: [.regularExpression, .caseInsensitive]
+        ) != nil
     }
 
     /// The one-line description, if the paste offered one.
@@ -615,15 +699,23 @@ enum RecipeImporter {
         if inline.count > 1 { return inline }
 
         // "2 cups flour, 1 tsp salt, 3 eggs" — split only where the next
-        // fragment starts with its own amount, so "garlic, minced" and
-        // "salt and pepper, to taste" stay whole.
+        // fragment is its own ingredient, so "garlic, minced" and "salt and
+        // pepper, to taste" stay whole.
+        //
+        // The guard was `> 2`, which kept those two whole for the wrong
+        // reason and silently dropped the second half of every two-item line:
+        // "2 cups flour, 1 tsp salt" parsed as one ingredient named "flour, 1
+        // tsp salt", so the salt never reached the grocery list. Reachable
+        // from an inline "Ingredients:" heading, from any single ingredient
+        // line, and from the entry field on both the review and the editor,
+        // whose Add button then read "1".
         let parts = single.components(separatedBy: ",")
-        guard parts.count > 2 else { return [single] }
+        guard parts.count >= 2 else { return [single] }
         var out: [String] = []
         for part in parts {
             let piece = part.trimmingCharacters(in: .whitespaces)
             guard !piece.isEmpty else { continue }
-            if leadingAmount(piece) != nil || out.isEmpty {
+            if out.isEmpty || startsNewIngredient(piece) {
                 out.append(piece)
             } else {
                 out[out.count - 1] += ", " + piece
@@ -631,6 +723,32 @@ enum RecipeImporter {
         }
         return out.count > 1 ? out : [single]
     }
+
+    /// Whether a comma-separated fragment is a second ingredient rather than
+    /// a note about the first.
+    ///
+    /// A leading amount is not enough on its own: "2 chicken breasts, 1 inch
+    /// thick" and "2 lemons, 1 zested and juiced" both lead with a number and
+    /// neither tail is food. So the token after the amount may not be a
+    /// dimension, and what is left may not be nothing but preparation.
+    private static func startsNewIngredient(_ piece: String) -> Bool {
+        guard let (_, rest) = leadingAmount(piece) else { return false }
+        let head = (rest.split(separator: " ").first.map(String.init) ?? "")
+            .lowercased()
+            .trimmingCharacters(in: CharacterSet(charactersIn: "."))
+        guard !dimensionWords.contains(head) else { return false }
+        let name = parseIngredientLine(piece).name.lowercased()
+        guard !name.isEmpty else { return false }
+        let clauses = name.components(separatedBy: " and ")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+        return !clauses.allSatisfy { prepNotes.contains($0) }
+    }
+
+    /// Words that measure a piece rather than name a food.
+    private static let dimensionWords: Set<String> = [
+        "inch", "inches", "in", "cm", "mm", "ft", "foot", "feet",
+        "thick", "thin", "long", "wide", "square", "piece", "pieces"
+    ]
 
     private static func splitInlineBullets(_ s: String) -> [String] {
         for mark in [" • ", " · ", " ‣ ", "; "] where s.contains(mark) {
@@ -725,11 +843,9 @@ enum RecipeImporter {
         }
 
         // "1 (14.5 oz) can diced tomatoes" — the size belongs to the name.
-        var parenthetical = ""
-        if rest.hasPrefix("("), let close = rest.firstIndex(of: ")") {
-            parenthetical = String(rest[rest.index(after: rest.startIndex)..<close])
-            rest = String(rest[rest.index(after: close)...]).trimmingCharacters(in: .whitespaces)
-        }
+        var parentheticals: [String] = []
+        let beforeUnit = liftParenthetical(&rest)
+        if !beforeUnit.isEmpty { parentheticals.append(beforeUnit) }
 
         var unit = ""
         let tokens = rest.split(separator: " ", maxSplits: 1, omittingEmptySubsequences: true)
@@ -740,17 +856,38 @@ enum RecipeImporter {
                 rest = tokens.count > 1 ? String(tokens[1]).trimmingCharacters(in: .whitespaces) : ""
             }
         }
+        // And again on the other side of the unit: "1 can (15 oz) black
+        // beans" and "1/2 cup (1 stick) butter" put it here, and the lift
+        // only ran before, so the name came out as "(15 oz) black beans".
+        // The name is the grocery list's merge key, so a polluted one can
+        // never merge with the same food written plainly.
+        //
+        // Both passes are needed. Moving the single pass after the unit
+        // instead would break "1 (14.5 oz) can diced tomatoes": the head
+        // token becomes "(14.5", the unit lookup fails, and "can" is lost.
+        let afterUnit = liftParenthetical(&rest)
+        if !afterUnit.isEmpty { parentheticals.append(afterUnit) }
         if rest.lowercased().hasPrefix("of ") {
             rest = String(rest.dropFirst(3)).trimmingCharacters(in: .whitespaces)
         }
 
         var name = cleanedName(rest)
-        if !parenthetical.isEmpty {
-            name = name.isEmpty ? parenthetical : "\(name) (\(parenthetical))"
+        if !parentheticals.isEmpty {
+            let sizes = parentheticals.joined(separator: ", ")
+            name = name.isEmpty ? sizes : "\(name) (\(sizes))"
         }
         if name.isEmpty { name = cleanedName(s) }
         return ImportedIngredient(name: name, quantity: quantity, unit: unit,
                                   aisle: aisle(for: name).rawValue)
+    }
+
+    /// Takes a leading "(…)" off the front of what is left, if there is one,
+    /// and hands back what was inside it.
+    private static func liftParenthetical(_ rest: inout String) -> String {
+        guard rest.hasPrefix("("), let close = rest.firstIndex(of: ")") else { return "" }
+        let inner = String(rest[rest.index(after: rest.startIndex)..<close])
+        rest = String(rest[rest.index(after: close)...]).trimmingCharacters(in: .whitespaces)
+        return inner
     }
 
     /// Drops the trailing clause that says what to do to it rather than

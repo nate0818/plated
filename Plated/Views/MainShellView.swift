@@ -5,13 +5,40 @@ enum AppTab: String, CaseIterable {
     case week, table, cookbook, home
 }
 
+/// A request to send a tab back to its own first screen.
+///
+/// Tapping the tab you are already on is how iOS says "take me to the top",
+/// and nothing in Plated was listening: the shell is a `switch` rather than a
+/// `TabView`, so there is no stack here to pop. Pushed screens are optional
+/// state owned by each root view, and only that view can clear it — so the
+/// shell raises a request and the roots answer it.
+///
+/// The tab is carried so a re-tap of Plan cannot also close the recipe
+/// somebody left open under Recipes. `count` is what changes: two re-taps of
+/// the same tab are two requests, not one.
+struct TabPopRequest: Equatable {
+    var tab: AppTab?
+    var count = 0
+}
+
+private struct TabPopKey: EnvironmentKey {
+    static let defaultValue = TabPopRequest()
+}
+
+extension EnvironmentValues {
+    var tabPop: TabPopRequest {
+        get { self[TabPopKey.self] }
+        set { self[TabPopKey.self] = newValue }
+    }
+}
+
 /// What the + can put into the world: two things, because there are two.
 /// A recipe arrives however it arrives — pasted, scanned, photographed,
 /// typed — and that is one door, not several; the import sheet already
 /// holds every way in. Asking the table went back to the plan, where the
 /// question has a night attached (see PlanNightSheet).
 enum CreateKind: String, Identifiable {
-    case tablePost, recipe
+    case tablePost, recipe, ask
     var id: String { rawValue }
 }
 
@@ -23,6 +50,9 @@ struct MainShellView: View {
     @Query private var members: [HouseholdMember]
 
     @State private var selection: AppTab = .week
+    /// Raised when the bar is tapped on the tab already showing. See
+    /// `TabPopRequest`.
+    @State private var tabPop = TabPopRequest()
     /// The tabs you came through, so a left-edge swipe has somewhere to go
     /// back to. The tab bar is a `switch`, so without this there is no
     /// history at all and the gesture would have nothing to pop.
@@ -62,10 +92,12 @@ struct MainShellView: View {
     @State private var askPresented = false
     /// A widget asked for the grocery list; the week picks it up on arrival.
     @State private var groceryRequested = false
-    /// Guards sample seeding so a slow CloudKit first-import can never race
-    /// an "empty" check into duplicating everything.
-    @AppStorage("didSeedSampleData") private var didSeedSampleData = false
-    @AppStorage("didSeedDiscover") private var didSeedDiscover = false
+    // `didSeedSampleData` and `didSeedDiscover` lived here, each with a
+    // careful comment about guarding a seed against a slow CloudKit import.
+    // Neither was ever read or written, and `SampleData` is called from
+    // SwiftUI previews and nowhere else — so a real first launch has always
+    // been a genuinely empty app, and the guard was for a race that could
+    // not happen. Two more comments describing machinery that was not there.
     /// Guards the legacy Discover repair so a slow CloudKit first-import can
     /// never race an "empty" check into skipping it forever.
     @AppStorage("didRepairLegacyDiscover") private var didRepairLegacyDiscover = false
@@ -105,15 +137,18 @@ struct MainShellView: View {
                 // cluster instead of two loose objects.
                 .padding(.trailing, 20)
                 .padding(.bottom, Layout.perchBottom)
-                .transition(.scale(scale: 0.8).combined(with: .opacity))
+                .transition(.plArrive)
             }
 
-            PlateTabBar(selection: $selection) {
+            PlateTabBar(selection: $selection, onReselect: { tab in
+                tabPop = TabPopRequest(tab: tab, count: tabPop.count + 1)
+            }) {
                 createPresented = true
             }
             .padding(.horizontal, 20)
             .padding(.bottom, 4)
         }
+        .environment(\.tabPop, tabPop)
         .environment(\.perchVisibility, perchVisibility)
         .animation(.plSnap, value: perchVisibility.isHidden)
         .onChange(of: selection) { previous, _ in
@@ -349,6 +384,9 @@ struct MainShellView: View {
 /// tap. The + is the one always-tomato element in the whole app.
 struct PlateTabBar: View {
     @Binding var selection: AppTab
+    /// Tapping the tab already showing. Selection does not change, so
+    /// `onChange(of: selection)` never fires and the tap was going nowhere.
+    var onReselect: (AppTab) -> Void = { _ in }
     let onCreate: () -> Void
 
 
@@ -356,7 +394,10 @@ struct PlateTabBar: View {
         HStack(spacing: 0) {
             tabItem(.week, label: "Plan") {
                 Image(systemName: "calendar")
-                    .font(.system(size: 21, weight: .medium))
+                    // 20, like the other three. It was 21 with nothing
+                    // recorded about why, and four peers built by one
+                    // helper should not disagree by a point.
+                    .font(.system(size: 20, weight: .medium))
             }
             tabItem(.table, label: "Table") {
                 Image(systemName: "table.furniture")
@@ -371,7 +412,7 @@ struct PlateTabBar: View {
                     Circle()
                         .fill(Color.tomato)
                         .frame(width: 54, height: 54)
-                        .shadow(color: Color.shadowInk.opacity(0.16), radius: 10, y: 8)
+                        .plFloatShadow()
                     Image(systemName: "plus")
                         .accessibilityLabel("Add")
                         .font(.system(size: 22, weight: .bold))
@@ -392,6 +433,9 @@ struct PlateTabBar: View {
         }
         .padding(.horizontal, 8)
         .frame(height: 68)
+        // At XXXL the five items had 68pt each and "Recipes" wanted 66 of
+        // them, so Recipes and Home touched. See plChrome in Theme.swift.
+        .plChrome()
         .background { barSurface }
         .plFloatShadow()
     }
@@ -422,103 +466,109 @@ struct PlateTabBar: View {
         let active = selection == tab
         return Button {
             // Selection is the state change; the tick that marks position
-            // is `select`, not the `tap` that marks an action.
+            // is `select`, not the `tap` that marks an action. Going back to
+            // the top of a tab is a change of position too.
             Haptic.select()
-            selection = tab
+            if active {
+                onReselect(tab)
+            } else {
+                selection = tab
+            }
         } label: {
             VStack(spacing: 2) {
                 icon()
                     .frame(height: 23)
                 Text(label)
-                    .font(.jakarta(10, active ? .extraBold : .bold))
+                    .plType(.micro, active ? TypeWeight.extraBold : .bold)
                     .lineLimit(1)
                     .minimumScaleFactor(0.75)
             }
-            .foregroundStyle(active ? Color.ink : Color.inkFaint)
+            .foregroundStyle(active ? Color.ink : Color.inkSecondary)
             .frame(maxWidth: .infinity, minHeight: 66)
+            // The most-touched control in the product, and only the glyphs
+            // were tappable: `.pressable` draws no surface, so a 66pt column
+            // was hit-testable across roughly 26x38pt of icon and label,
+            // with 14pt of dead strip along the top and bottom of the bar.
+            // That strip is where a thumb lands first.
+            .contentShape(Rectangle())
         }
         .buttonStyle(.pressable)
+        .accessibilityAddTraits(active ? .isSelected : [])
     }
 }
 
-/// The + asks before it assumes — a plated moment for the Table, or a dish
-/// for the cookbook. Two rows, because those are the two things there are
-/// to add: pasting a recipe and writing one out are ways of adding a
+/// The + asks before it assumes — a plated moment for the Table, a question
+/// for the Table, or a dish for the cookbook. Three rows, because those are
+/// the three things there are to add: pasting a recipe and writing one out are ways of adding a
 /// recipe, not separate things to add, and the import sheet already offers
-/// every one of them. No color until the choice; the first row carries
-/// weight instead, because posting is what the + is mostly reached for.
+/// every one of them.
+///
+/// All three rows are `OptionRow`, which is to say all three are the same row.
+/// Posting used to be drawn heavier because it is what the + is mostly
+/// reached for, and "heavier" meant a `fill` ground: this app's selection
+/// paint, on a row nobody had selected, with the side effect of erasing
+/// its own border. Two choices that are peers look like peers.
 struct CreateMenuSheet: View {
     let onChoose: (CreateKind) -> Void
 
-    var body: some View {
-        VStack(spacing: 0) {
-            Text("Add")
-                .font(.gabarito(22, .semibold))
-                .foregroundStyle(Color.ink)
-                .padding(.top, 26)
-                .padding(.bottom, 18)
+    /// The sheet's height, measured rather than typed.
+    ///
+    /// It was a literal 210 against 221 points of content, so this sheet
+    /// scrolled: two rows and a word, and you could drag them.
+    ///
+    /// The title lives INSIDE the scroll view so this measurement can be
+    /// taken. A greedy `ScrollView` beside a header in a `VStack` takes
+    /// whatever height the detent gives it, so measuring anything in that
+    /// stack measures the detent's own answer coming back around — set the
+    /// detent from it and the sheet walks itself taller every pass. Scroll
+    /// content has a natural height that owes the detent nothing.
+    @State private var measured: CGFloat = 210
 
-            // Large type outgrows the fixed detent — the rows scroll, and
-            // the grabber offers the full-height detent as a way out.
-            ScrollView(showsIndicators: false) {
+    var body: some View {
+        // Large type outgrows the sheet — the content scrolls, and the
+        // grabber offers the full-height detent as a way out.
+        ScrollView(showsIndicators: false) {
+            VStack(spacing: 0) {
+                Text("Add")
+                    .plType(.title)
+                    .foregroundStyle(Color.ink)
+                    // 22, the top padding every other sheet masthead uses.
+                    // These were 18, 20, 22 and 26 across four sheets.
+                    .padding(.top, 22)
+                    .padding(.bottom, 18)
+
                 VStack(spacing: 10) {
-                    row(
-                        .tablePost, icon: "camera", weighted: true,
+                    OptionRow(
+                        icon: "camera",
                         title: "Post to the Table",
                         detail: "A photo of what you just cooked"
-                    )
-                    row(
-                        .recipe, icon: "book.closed",
+                    ) { onChoose(.tablePost) }
+                    OptionRow(
+                        icon: "book.closed",
                         title: "Add a recipe",
                         detail: "Paste it, scan it, or write it out"
-                    )
+                    ) { onChoose(.recipe) }
+                    // The Table's other kind of post, which had no door.
+                    // `askPresented` was set by a debug launch flag and by
+                    // nothing else, so in a shipped build an ask could only
+                    // be reached from inside the Plan tab's night sheet —
+                    // three taps away, on the other side of the app from the
+                    // Table it posts to.
+                    OptionRow(
+                        icon: "bubble.and.pencil",
+                        title: "Ask the Table",
+                        detail: "What should we eat, or put up a poll"
+                    ) { onChoose(.ask) }
                 }
-                .padding(.horizontal, 24)
-                .padding(.bottom, 20)
             }
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 24)
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { measured = $0 }
         }
-        .presentationDetents([.height(210), .large])
+        .presentationDetents([.height(measured), .large])
         .presentationDragIndicator(.visible)
         .presentationBackground(Color.canvas)
         .presentationCornerRadius(Radius.sheet)
-    }
-
-    /// No circle around the glyph and no chevron beside it. The circle was
-    /// a stroke drawn around a stroke, and a chevron that appears on every
-    /// row says nothing — it also promised a push this sheet never made.
-    private func row(
-        _ kind: CreateKind, icon: String, weighted: Bool = false,
-        title: String, detail: String
-    ) -> some View {
-        Button {
-            Haptic.tap()
-            onChoose(kind)
-        } label: {
-            HStack(spacing: 14) {
-                Image(systemName: icon)
-                    .font(.system(size: 19, weight: .semibold))
-                    .foregroundStyle(Color.ink)
-                    .frame(width: 26)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .font(.jakarta(15, .bold))
-                        .foregroundStyle(Color.ink)
-                    Text(detail)
-                        .font(.jakarta(12, .medium))
-                        .foregroundStyle(Color.inkSecondary)
-                }
-                Spacer(minLength: 0)
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 14)
-            .background {
-                RoundedRectangle(cornerRadius: Radius.card)
-                    .fill(weighted ? Color.fill : Color.clear)
-            }
-            .overlay(RoundedRectangle(cornerRadius: Radius.card).strokeBorder(Color.hairline))
-            .contentShape(RoundedRectangle(cornerRadius: Radius.card))
-        }
-        .buttonStyle(.pressable)
     }
 }
 
@@ -544,6 +594,8 @@ struct CreateFlowSheet: View {
                 TableComposerSheet()
             case .recipe:
                 RecipeImportSheet()
+            case .ask:
+                AskComposerSheet(date: Calendar.current.startOfDay(for: .now))
             }
         } else {
             CreateMenuSheet { chosen in

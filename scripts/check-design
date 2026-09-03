@@ -1,0 +1,105 @@
+#!/usr/bin/env bash
+#
+# The DESIGN.md rules that a machine can actually check.
+#
+# Every rule here is one this codebase has already broken once, at scale:
+# sixty-one call sites painting sentences in inkFaint, em dashes across the
+# notification bodies, literal colours drifting away from the tokens. Finding
+# those cost a full audit each time. A grep costs nothing and runs before
+# every build that reaches a phone.
+#
+# A deliberate exception is allowed, but it has to say so at the site:
+#
+#     Circle().strokeBorder(Color.white.opacity(0.06))  // design-ok(literal-colour): dark-mode rim, a highlight rather than a palette colour
+#
+# which is CLAUDE.md's "flag deliberate deviations rather than making them
+# quietly", enforced instead of hoped for.
+#
+set -euo pipefail
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+python3 - "$ROOT" <<'PY'
+import re, sys, pathlib
+
+root = pathlib.Path(sys.argv[1])
+files = sorted(p for d in ("Plated", "PlatedWidgets")
+               for p in (root / d).rglob("*.swift"))
+
+THEME = "Plated/Support/Theme.swift"
+# DESIGN.md, verbatim: the no-em-dash rule "must never be applied to
+# RecipeImporter's separator character sets". It parses other people's
+# recipes, where an em dash is data rather than voice.
+IMPORTER = "Plated/Services/RecipeImporter.swift"
+
+findings = []
+
+
+def report(rule, path, n, line, why):
+    findings.append((rule, path, n, line.strip(), why))
+
+
+for path in files:
+    rel = str(path.relative_to(root))
+    lines = path.read_text(encoding="utf-8").splitlines()
+
+    for i, line in enumerate(lines, 1):
+        bare = line.strip()
+        if bare.startswith("//"):
+            continue
+        exempt = re.search(r'//\s*design-ok\(([\w-]+)\)', line)
+        allowed = exempt.group(1) if exempt else None
+        # Strip a trailing comment so a rule never fires on its own rationale.
+        code = line.split("//", 1)[0]
+
+        # --- em dashes anywhere a person can read them -------------------
+        # print() is exempt by DESIGN.md: it is console output, not voice.
+        if ("—" in code and '"' in code and rel != IMPORTER
+                and "print(" not in code and allowed != "em-dash"):
+            report("em-dash", rel, i, line,
+                   "an em dash in a string a person can read: use a colon, a comma, or a full stop")
+
+        # --- inkFaint may not paint a word -------------------------------
+        # It measures 2.24:1 on canvas. Walk back to whatever this modifier
+        # chain is decorating; a Text or a Label means it is carrying letters.
+        if "inkFaint" in code and ".foregroundStyle" in code and allowed != "ink-faint-text":
+            for j in range(i - 1, max(0, i - 13), -1):
+                m = re.search(r'\b(Text|Label|TextField|SecureField|Image|Circle|'
+                              r'RoundedRectangle|Capsule|Divider|ProgressView)\s*\(',
+                              lines[j - 1])
+                if m:
+                    if m.group(1) in ("Text", "Label", "TextField", "SecureField"):
+                        report("ink-faint-text", rel, i, line,
+                               f"inkFaint on a {m.group(1)}: it cannot legibly carry a letter, use inkSecondary")
+                    break
+
+        # --- colour comes from a token -----------------------------------
+        if rel != THEME and allowed != "literal-colour":
+            if re.search(r'Color\((?:red|hue|white):', code):
+                report("literal-colour", rel, i, line,
+                       "a colour spelled out in place: add it to Theme.swift, or use Color(rgb:) inside a named local palette")
+            elif re.search(r'\bColor\.(white|black)\b|\.foregroundStyle\(\.(white|black)\)', code):
+                report("literal-colour", rel, i, line,
+                       "a literal white or black: onTomato and the ink tokens carry both rooms")
+
+by_rule = {}
+for f in findings:
+    by_rule.setdefault(f[0], []).append(f)
+
+print(f"{len(files)} Swift files checked against DESIGN.md")
+
+if not findings:
+    print("\033[32m✓\033[0m nothing to answer for")
+    sys.exit(0)
+
+for rule in sorted(by_rule):
+    group = by_rule[rule]
+    print(f"\n\033[31m✗\033[0m {rule}  ({len(group)})\n")
+    for _, rel, n, text, why in group:
+        print(f"    {rel}:{n}")
+        print(f"      {text}")
+        print(f"      \033[2m{why}\033[0m")
+
+print("\n  If a deviation is deliberate, say so at the line:")
+print("      // design-ok(<rule>): why this one is right")
+sys.exit(1)
+PY

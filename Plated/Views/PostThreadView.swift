@@ -8,6 +8,13 @@ import PhotosUI
 /// profile. The back chevron is always top-left; no sheet to guess at.
 struct PostThreadView: View {
     let post: TablePost
+    /// Land with the keyboard up when the door said "Add a comment".
+    ///
+    /// That label is a verb naming an outcome, and tapping it used to push a
+    /// page and ask you to tap again. Instagram's equivalent line opens with
+    /// the field ready. Entering through the photo or the card body does not
+    /// set this, because there the intent was "read the thread".
+    var startWriting = false
     /// Provided by the feed (which owns its toast); when nil — a thread
     /// opened from a profile page — the thread runs the save flow itself.
     var onSave: ((TablePost) -> Void)?
@@ -19,6 +26,12 @@ struct PostThreadView: View {
     @Query private var recipes: [Recipe]
 
     @State private var draft = ""
+    /// Which face this profile was opened from. A thread offers four
+    /// doors to the same person — a tagged chip, the author's row, a
+    /// comment's avatar and that comment's name — and two sources may not
+    /// share one id in one namespace, so the tap records the one it used.
+    @State private var personDoor: ZoomID = .host
+    @Namespace private var zoom
     @State private var link = ""
     @State private var linkFieldShown = false
     @State private var replyTo: String?
@@ -56,9 +69,9 @@ struct PostThreadView: View {
                 VStack(alignment: .leading, spacing: 14) {
                     if let data = post.photoData, let image = UIImage(data: data) {
                         ZStack(alignment: .topTrailing) {
-                            PhotoWell(image: image, height: 320)
+                            PhotoWell(image: image, clamped: true)
                                 .plCardShadow()
-                            if post.hasChefsKiss {
+                            if post.hasChefsKiss(seats: members.count) {
                                 chefsKissPill.offset(x: 6, y: -10)
                             }
                         }
@@ -66,27 +79,53 @@ struct PostThreadView: View {
 
                     HStack(spacing: 14) {
                         PlateReactionButton(post: post, bounce: $bounce)
-                        Text(post.totalPlates == 1 ? "1 plate" : "\(post.totalPlates) plates")
-                            .font(.jakarta(13, .semibold))
-                            .foregroundStyle(Color.inkSecondary)
+                        // The same rule as the feed card: the line arrives
+                        // with the first plate. "0 plates" under somebody's
+                        // dinner is a sentence no social product writes.
+                        if post.totalPlates > 0 {
+                            Text(post.totalPlates == 1 ? "1 plate" : "\(post.totalPlates) plates")
+                                .plType(.footnote, .semibold)
+                                .foregroundStyle(Color.inkSecondary)
+                        }
                         Spacer()
                     }
 
-                    (Text(post.authorName).font(.jakarta(15, .bold))
-                     + Text("  ").font(.jakarta(15))
-                     + Text(post.caption).font(.jakarta(15)))
-                        .foregroundStyle(Color.ink)
-                        .lineSpacing(3)
+                    // The byline-and-caption run, on the same condition the
+                    // feed card uses. Unguarded, a post with no caption drew
+                    // the bold name and its two trailing spaces and nothing
+                    // else: a name sitting alone under the plate, saying
+                    // nothing, while the same name is already in the bar
+                    // above it. The feed learned this and the thread did not.
+                    if !post.caption.isEmpty || post.dishTitle.isEmpty {
+                        // Spelled out because concatenated Text takes a Font,
+                        // not a view modifier. TypeScale.body's numbers.
+                        (Text(post.authorName).font(.jakarta(TypeScale.body.size, .bold))
+                         + Text("  ").font(.jakarta(TypeScale.body.size))
+                         + Text(post.caption).font(.jakarta(TypeScale.body.size)))
+                            .foregroundStyle(Color.ink)
+                            .lineSpacing(3)
+                    }
 
                     if !post.taggedNames.isEmpty {
                         HStack(spacing: 6) {
                             ForEach(post.taggedNames, id: \.self) { name in
                                 Button {
-                                    openProfile(name)
+                                    openProfile(name, door: .person(name))
                                 } label: {
+                                    // The whole target was the glyph box:
+                                    // about 22 by 14 points for a short
+                                    // name. It is a chip inside a 44pt
+                                    // frame now, the same two-frame shape
+                                    // the Save pill above it uses.
                                     Text("@\(name)")
-                                        .font(.jakarta(12, .bold))
+                                        .matchedTransitionSource(id: ZoomID.person(name), in: zoom)
+                                        .plType(.micro)
                                         .foregroundStyle(Color.ink)
+                                        .padding(.horizontal, 10)
+                                        .frame(minHeight: 30)
+                                        .overlay(Capsule().strokeBorder(Color.hairline))
+                                        .frame(minHeight: 44)
+                                        .contentShape(Capsule())
                                 }
                                 .buttonStyle(.pressable)
                             }
@@ -98,13 +137,18 @@ struct PostThreadView: View {
                         pollCard
                     }
 
-                    MicroLabel("Comments · \(post.sortedComments.count)")
+                    // The count only once there is one. "COMMENTS · 0"
+                    // sitting directly above "No comments yet" says the same
+                    // nothing twice.
+                    MicroLabel(post.sortedComments.isEmpty
+                               ? "Comments"
+                               : "Comments · \(post.sortedComments.count)")
                         .padding(.top, 8)
 
                     if post.sortedComments.isEmpty {
                         Text(post.kind == "ask" ? "No suggestions yet" : "No comments yet")
-                            .font(.jakarta(13, .medium))
-                            .foregroundStyle(Color.inkFaint)
+                            .plType(.footnote)
+                            .foregroundStyle(Color.inkSecondary)
                     }
 
                     ForEach(post.sortedComments, id: \.persistentModelID) { comment in
@@ -122,12 +166,21 @@ struct PostThreadView: View {
         }
         .background(Color.canvas)
         .toolbar(.hidden, for: .navigationBar)
+        // A beat after the push, not during it: focusing mid-transition
+        // races the keyboard against the navigation animation and the page
+        // arrives already scrolled.
+        .task {
+            guard startWriting else { return }
+            try? await Task.sleep(for: .milliseconds(350))
+            composerFocused = true
+        }
         // This page docks its own composer at the bottom-trailing corner,
         // exactly where the perch lives.
         .hidesProngsbyPerch()
         .plSwipeBack()
         .navigationDestination(item: $personShown) { person in
             PersonProfileView(personName: person.name, colorHex: person.colorHex, memberID: person.memberID)
+                .navigationTransition(.zoom(sourceID: personDoor, in: zoom))
         }
         .sheet(item: $localSave) { post in
             RecipeEditorView(prefill: (
@@ -140,7 +193,7 @@ struct PostThreadView: View {
                 let me = members.first(where: \.isOwner)?.name ?? "Someone"
                 Notifier.post(
                     .saveReceived, actor: me,
-                    body: "\(me) saved \(post.firstName)'s \(post.dishTitle.isEmpty ? "dish" : post.dishTitle). They get the credit.",
+                    body: "You saved \(post.firstName)'s \(post.dishTitle.isEmpty ? "dish" : post.dishTitle). They get the credit.",
                     into: context
                 )
                 showSaveToast("Saved. \(post.firstName) gets the credit")
@@ -149,7 +202,7 @@ struct PostThreadView: View {
         .overlay(alignment: .bottom) {
             if let toast = saveToast {
                 Text(toast)
-                    .font(.jakarta(13, .bold))
+                    .plType(.footnote, .bold)
                     .foregroundStyle(Color.canvas)
                     .padding(.horizontal, 18)
                     .frame(minHeight: 40)
@@ -172,37 +225,25 @@ struct PostThreadView: View {
 
     private var topBar: some View {
         HStack(spacing: 10) {
-            Button {
-                Haptic.tap()
+            IconDiscButton(systemName: "chevron.left", label: "Back") {
                 dismiss()
-            } label: {
-                Circle()
-                    .strokeBorder(Color.hairline, lineWidth: 1.5)
-                    .frame(width: 38, height: 38)
-                    .overlay {
-                        Image(systemName: "chevron.left")
-                            .accessibilityLabel("Back")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(Color.ink)
-                    }
-                    .frame(minWidth: 44, minHeight: 44)
-                    .contentShape(Rectangle())
             }
-            .buttonStyle(.pressable)
 
             Button {
-                openProfile(post.authorName, colorHex: post.authorColorHex)
+                openProfile(post.authorName, colorHex: post.authorColorHex,
+                            door: .author(post.persistentModelID))
             } label: {
                 HStack(spacing: 10) {
                     AvatarCircle(initials: post.initials, tone: PersonTone.from(hex: post.authorColorHex), size: 38,
                                  photo: members.photo(forAuthor: post.authorName))
+                        .matchedTransitionSource(id: ZoomID.author(post.persistentModelID), in: zoom)
                     VStack(alignment: .leading, spacing: 0) {
                         Text(post.authorName)
                             .plName()
-                            .font(.jakarta(15, .bold))
+                            .plType(.body, .bold)
                             .foregroundStyle(Color.ink)
                         Text(post.dishTitle.isEmpty ? "Open ask" : post.dishTitle)
-                            .font(.jakarta(12, .semibold))
+                            .plType(.caption, .semibold)
                             .foregroundStyle(Color.inkSecondary)
                     }
                 }
@@ -217,9 +258,9 @@ struct PostThreadView: View {
                         Image(systemName: "checkmark")
                             .font(.system(size: 11, weight: .bold))
                         Text("Saved")
-                            .font(.jakarta(13, .bold))
+                            .plType(.footnote, .bold)
                     }
-                    .foregroundStyle(Color.inkFaint)
+                    .foregroundStyle(Color.inkSecondary)
                     .frame(minHeight: 44)
                     .accessibilityLabel("Already in your cookbook")
                 } else {
@@ -227,7 +268,7 @@ struct PostThreadView: View {
                         save()
                     } label: {
                         Text("Save")
-                            .font(.jakarta(13, .bold))
+                            .plType(.footnote, .bold)
                             .foregroundStyle(Color.ink)
                             .padding(.horizontal, 14)
                             .frame(minHeight: 36)
@@ -253,34 +294,37 @@ struct PostThreadView: View {
                 pollRow(index: index, option: option)
             }
             Text(post.totalPollVotes == 1 ? "1 vote" : "\(post.totalPollVotes) votes")
-                .font(.jakarta(11, .semibold))
-                .foregroundStyle(Color.inkFaint)
+                .plType(.micro, .semibold)
+                .foregroundStyle(Color.inkSecondary)
         }
         .padding(14)
-        .overlay(RoundedRectangle(cornerRadius: Radius.card).strokeBorder(Color.hairline))
+        .overlay(RoundedRectangle(cornerRadius: Radius.card, style: .continuous).strokeBorder(Color.hairline))
     }
 
     private func pollRow(index: Int, option: String) -> some View {
         let votes = post.votes(for: index)
         let total = max(post.totalPollVotes, 1)
         let fraction = Double(votes) / Double(total)
-        let mine = post.myPollChoice == index
+        let mine = post.myVote == index
         return Button {
             Haptic.plate()
             withAnimation(.plSnap) {
-                post.myPollChoice = mine ? -1 : index
+                TableReactions.vote(post, option: index)
             }
         } label: {
             HStack(spacing: 10) {
                 Image(systemName: mine ? "checkmark.circle.fill" : "circle")
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(mine ? Color.basil : Color.inkFaint)
+                    // The tick is drawn into the ring you already voted
+                    // against, rather than one symbol cutting to another.
+                    .contentTransition(.symbolEffect(.replace.magic(fallback: .replace.downUp)))
                 Text(option)
-                    .font(.jakarta(14, mine ? .bold : .semibold))
+                    .plType(.body, mine ? TypeWeight.bold : .semibold)
                     .foregroundStyle(Color.ink)
                 Spacer()
                 Text("\(votes)")
-                    .font(.jakarta(13, .bold))
+                    .plType(.footnote, .bold)
                     .foregroundStyle(mine ? Color.basil : Color.inkSecondary)
                     .contentTransition(.numericText())
             }
@@ -288,36 +332,38 @@ struct PostThreadView: View {
             .frame(minHeight: 44)
             .background(alignment: .leading) {
                 GeometryReader { proxy in
-                    RoundedRectangle(cornerRadius: 12)
+                    RoundedRectangle(cornerRadius: Radius.small, style: .continuous)
                         .fill(mine ? Color.basilTint : Color.hairlineSoft)
                         .frame(width: max(proxy.size.width * fraction, votes > 0 ? 20 : 0))
                         .animation(.plSnap, value: fraction)
                 }
             }
-            .clipShape(RoundedRectangle(cornerRadius: 12))
-            .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(mine ? Color.basil.opacity(0.4) : Color.hairline))
+            .clipShape(RoundedRectangle(cornerRadius: Radius.small, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: Radius.small, style: .continuous).strokeBorder(mine ? Color.basil.opacity(0.4) : Color.hairline))
             .contentShape(Rectangle())
         }
         .buttonStyle(.pressable)
+        .accessibilityAddTraits(mine ? .isSelected : [])
     }
 
     private func threadComment(_ comment: TableComment) -> some View {
         HStack(alignment: .top, spacing: 10) {
             Button {
-                openProfile(comment.authorName)
+                openProfile(comment.authorName, door: .author(comment.persistentModelID))
             } label: {
                 AvatarCircle(initials: initials(for: comment.authorName), tone: tone(for: comment.authorName), size: 30,
                              photo: members.photo(forAuthor: comment.authorName))
+                    .matchedTransitionSource(id: ZoomID.author(comment.persistentModelID), in: zoom)
             }
             .buttonStyle(.pressable)
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
                     Button {
-                        openProfile(comment.authorName)
+                        openProfile(comment.authorName, door: .author(comment.persistentModelID))
                     } label: {
                         Text(comment.authorName)
                             .plName()
-                            .font(.jakarta(13, .bold))
+                            .plType(.footnote, .bold)
                             .foregroundStyle(Color.ink)
                     }
                     .buttonStyle(.pressable)
@@ -326,13 +372,13 @@ struct PostThreadView: View {
                             Image(systemName: "arrowshape.turn.up.left.fill")
                                 .font(.system(size: 8))
                             Text(comment.replyToName)
-                                .font(.jakarta(11, .bold))
+                                .plType(.micro)
                         }
-                        .foregroundStyle(Color.inkFaint)
+                        .foregroundStyle(Color.inkSecondary)
                     }
                     Text(relativeWhen(comment.createdAt))
-                        .font(.jakarta(11, .medium))
-                        .foregroundStyle(Color.inkFaint)
+                        .plType(.micro, .medium)
+                        .foregroundStyle(Color.inkSecondary)
                 }
                 mentionedText(comment)
                     .lineSpacing(2)
@@ -341,7 +387,7 @@ struct PostThreadView: View {
                         .resizable()
                         .scaledToFill()
                         .frame(maxWidth: 200, maxHeight: 150)
-                        .clipShape(RoundedRectangle(cornerRadius: Radius.chip))
+                        .clipShape(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous))
                         .padding(.top, 2)
                 }
                 if let url = URL.webLink(comment.linkURL) {
@@ -350,7 +396,7 @@ struct PostThreadView: View {
                             Image(systemName: "link")
                                 .font(.system(size: 11, weight: .bold))
                             Text(comment.linkLabel)
-                                .font(.jakarta(12, .bold))
+                                .plType(.micro)
                         }
                         .foregroundStyle(Color.tomato)
                         .padding(.horizontal, 12)
@@ -367,8 +413,8 @@ struct PostThreadView: View {
                     }
                 } label: {
                     Text("Reply")
-                        .font(.jakarta(11, .bold))
-                        .foregroundStyle(Color.inkFaint)
+                        .plType(.micro)
+                        .foregroundStyle(Color.inkSecondary)
                         .frame(minWidth: 44, minHeight: 44, alignment: .leading)
                         .contentShape(Rectangle())
                 }
@@ -377,19 +423,82 @@ struct PostThreadView: View {
             Spacer(minLength: 0)
         }
         .padding(.vertical, 4)
+        // Take back what you said.
+        //
+        // There was no delete and no edit for a comment anywhere: not a
+        // context menu, not a swipe, not an overflow. The only path that
+        // removed one was deleting the whole post, which the cascade rule on
+        // TablePost.comments takes everybody else's words with. Instagram,
+        // Messages, WhatsApp and Slack all let an author remove their own
+        // message, and Instagram additionally lets the post's owner clear a
+        // comment on their own post. Both, here: your words are yours, and
+        // your post is your table.
+        //
+        // SwiftUI's context menu is bridged to VoiceOver on its own, and
+        // SwipeRow vends its actions through `.accessibilityActions`, so the
+        // gesture has a non-gesture equivalent either way.
+        .modifier(CommentActions(comment: comment, canRemove: canRemove(comment)) {
+            remove(comment)
+        })
     }
 
-    /// Renders @mentions ink-bold so they read as names, not alarms.
+    /// Your own comment, or any comment on your own post.
+    private func canRemove(_ comment: TableComment) -> Bool {
+        let me = members.first(where: \.isOwner)?.name ?? userFirstName
+        guard !me.isEmpty else { return false }
+        return comment.authorName == me || post.authorName == me
+    }
+
+    private func remove(_ comment: TableComment) {
+        Haptic.warn()
+        withAnimation(.plSnap) { context.delete(comment) }
+        Persist.save(context, "delete comment")
+    }
+
+    /// The comment body, with the names in it drawn as names.
+    ///
+    /// This split the body on spaces and tested each word, so "@Sam Meadows"
+    /// was resolved correctly on the way in — `send()` matches against the
+    /// full member name — and then drawn as ordinary text on the way out,
+    /// because `"Sam".hasPrefix("Sam Meadows")` is false. Every household
+    /// where somebody is stored with a surname had mentions that worked
+    /// everywhere except on screen.
+    ///
+    /// Ranged over the string rather than tokenised: a name is a range, not
+    /// a word. Longest first, so "@Sam Meadows" is matched before "@Sam"
+    /// eats its first half.
     private func mentionedText(_ comment: TableComment) -> Text {
-        var result = Text("")
-        for word in comment.text.split(separator: " ", omittingEmptySubsequences: false) {
-            let piece = String(word)
-            if piece.hasPrefix("@"), comment.mentions.contains(where: { piece.dropFirst().hasPrefix($0) }) {
-                result = result + Text(piece).font(.jakarta(14, .bold)).foregroundStyle(Color.ink)
-            } else {
-                result = result + Text(piece).font(.jakarta(14)).foregroundStyle(Color.ink)
+        let body = comment.text
+        let plain = Font.jakarta(TypeScale.body.size)
+        let bold = Font.jakarta(TypeScale.body.size, .bold)
+        guard !comment.mentions.isEmpty else {
+            return Text(body).font(plain).foregroundStyle(Color.ink)
+        }
+
+        // Every "@name" occurrence, longest name first.
+        var spans: [Range<String.Index>] = []
+        for name in comment.mentions.sorted(by: { $0.count > $1.count }) {
+            var from = body.startIndex
+            while let found = body.range(of: "@\(name)", range: from..<body.endIndex) {
+                if !spans.contains(where: { $0.overlaps(found) }) { spans.append(found) }
+                from = found.upperBound
             }
-            result = result + Text(" ")
+        }
+        spans.sort { $0.lowerBound < $1.lowerBound }
+
+        var result = Text("")
+        var cursor = body.startIndex
+        for span in spans {
+            if cursor < span.lowerBound {
+                result = result + Text(String(body[cursor..<span.lowerBound]))
+                    .font(plain).foregroundStyle(Color.ink)
+            }
+            result = result + Text(String(body[span]))
+                .font(bold).foregroundStyle(Color.ink)
+            cursor = span.upperBound
+        }
+        if cursor < body.endIndex {
+            result = result + Text(String(body[cursor...])).font(plain).foregroundStyle(Color.ink)
         }
         return result
     }
@@ -404,7 +513,7 @@ struct PostThreadView: View {
                         .font(.system(size: 10))
                         .foregroundStyle(Color.inkFaint)
                     Text("Replying to \(replyTo)")
-                        .font(.jakarta(12, .bold))
+                        .plType(.caption, .bold)
                         .foregroundStyle(Color.inkSecondary)
                     Spacer()
                     Button {
@@ -436,7 +545,7 @@ struct PostThreadView: View {
                                     AvatarCircle(member: member, size: 22)
                                     Text(member.name)
                                         .plName()
-                                        .font(.jakarta(12, .bold))
+                                        .plType(.micro)
                                         .foregroundStyle(Color.ink)
                                 }
                                 .padding(.horizontal, 10)
@@ -453,13 +562,16 @@ struct PostThreadView: View {
 
             if linkFieldShown {
                 TextField("Paste a link", text: $link)
-                    .font(.jakarta(13, .medium))
+                    // .body, like the other nineteen text inputs in the app.
+                    // This was the only one set a step down, so typing into
+                    // it felt like a different app.
+                    .plType(.body, .medium)
                     .keyboardType(.URL)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .padding(.horizontal, 14)
                     .frame(height: 40)
-                    .overlay(RoundedRectangle(cornerRadius: Radius.chip).strokeBorder(Color.hairline))
+                    .overlay(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous).strokeBorder(Color.hairline))
                     .padding(.horizontal, 24)
                     .plTappableField()
             }
@@ -470,19 +582,19 @@ struct PostThreadView: View {
                         .resizable()
                         .scaledToFill()
                         .frame(width: 52, height: 52)
-                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                        .clipShape(RoundedRectangle(cornerRadius: Radius.small, style: .continuous))
                         .overlay(alignment: .topTrailing) {
                             Button {
                                 withAnimation(.plSnap) { self.commentPhoto = nil }
                             } label: {
                                 Circle()
-                                    .fill(Color.ink.opacity(0.7))
+                                    .fill(Color.scrim)
                                     .frame(width: 18, height: 18)
                                     .overlay {
                                         Image(systemName: "xmark")
                                             .accessibilityLabel("Remove photo")
                                             .font(.system(size: 8, weight: .bold))
-                                            .foregroundStyle(.white)
+                                            .foregroundStyle(Color.onScrim)
                                     }
                                     .frame(width: 44, height: 44, alignment: .topTrailing)
                                     .contentShape(Rectangle())
@@ -532,16 +644,16 @@ struct PostThreadView: View {
                 .buttonStyle(.pressable)
 
                 TextField(placeholder, text: $draft, axis: .vertical)
-                    .font(.jakarta(14, .medium))
+                    .plType(.body, .medium)
                     .lineLimit(1...4)
                     .focused($composerFocused)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 10)
-                    .overlay(RoundedRectangle(cornerRadius: Radius.chip).strokeBorder(Color.hairline))
+                    .overlay(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous).strokeBorder(Color.hairline))
                     .plTapToFocus { composerFocused = true }
                     // The padding is part of the pill but not of the text
                     // field — without this, taps on it go nowhere.
-                    .contentShape(RoundedRectangle(cornerRadius: Radius.chip))
+                    .contentShape(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous))
                     .onTapGesture { composerFocused = true }
                     .onChange(of: draft) { _, text in
                         if text.hasSuffix("@") {
@@ -561,7 +673,7 @@ struct PostThreadView: View {
                                 .font(.system(size: 15, weight: .bold))
                                 .foregroundStyle(canSend ? Color.onTomato : Color.inkFaint)
                         }
-                        .frame(minWidth: 44, minHeight: 44)
+                        .plTapTarget()
                 }
                 .buttonStyle(.pressable)
                 .disabled(!canSend)
@@ -571,7 +683,14 @@ struct PostThreadView: View {
             // clears it. Derived, not hand-typed: the 92 that used to sit
             // here put the send button squarely under Prongsby's perch,
             // so tapping send opened him instead of posting the comment.
-            .padding(.bottom, Layout.tabBarInset)
+            //
+            // But only while the keyboard is down. Raised, the keyboard
+            // already covers the bar and the perch, so holding the clearance
+            // stranded the composer 84pt above the keys with a band of empty
+            // canvas under it — the one moment the bar is guaranteed not to
+            // be in the way is the one moment it was still being avoided.
+            .padding(.bottom, composerFocused ? 10 : Layout.tabBarInset)
+            .animation(.plSnap, value: composerFocused)
         }
     }
 
@@ -591,16 +710,16 @@ struct PostThreadView: View {
         HStack(spacing: 6) {
             Image(systemName: "sparkles")
                 .font(.system(size: 14, weight: .bold))
-                .foregroundStyle(Color.mango)
+                .foregroundStyle(Color.amber)
             Text("Chef's kiss")
-                .font(.jakarta(13, .bold))
+                .plType(.footnote, .bold)
                 .foregroundStyle(Color.ink)
         }
         .padding(.horizontal, 14)
         .frame(minHeight: 36)
         .background(Color.canvas, in: Capsule())
         .overlay(Capsule().strokeBorder(Color.navHairline))
-        .shadow(color: Color.shadowInk.opacity(0.14), radius: 10, y: 8)
+        .plCardShadow()
     }
 
     // MARK: Actions
@@ -642,14 +761,34 @@ struct PostThreadView: View {
         let mentioned = members.map(\.name).filter { draft.contains("@\($0)") }
         let comment = TableComment(
             authorName: author,
-            text: draft.isEmpty ? "📷" : draft,
+            // Not a camera emoji. `canSend` deliberately allows a comment
+            // that is only a link, and this stamped every one of them with
+            // a 📷 in the body — so a pasted recipe URL rendered as a
+            // photograph that was not there. An empty body with a link or a
+            // photo carrying the row is a valid comment and every renderer
+            // already handles it.
+            text: draft,
             linkURL: normalized,
             replyToName: replyTo ?? "",
             mentions: mentioned,
-            photoData: commentPhoto
+            photoData: commentPhoto,
+            authorID: TableIdentity.cached
         )
         comment.post = post
         context.insert(comment)
+        // Out to the table. Not awaited: the comment is already on screen
+        // and already saved, and a slow upload must never hold the composer.
+        // A refusal leaves it queued rather than lost.
+        let postRecord = post.shareRecordName
+        let zoneOwner = post.shareZoneOwner
+        Task {
+            if await TableShare.pushNote(comment, post: postRecord, zoneOwner: zoneOwner) == false {
+                TableOutbox.shared.enqueue(
+                    .note(post: postRecord, zoneOwner: zoneOwner, id: comment.shareRecordName),
+                    author: comment.authorID
+                )
+            }
+        }
         if post.authorName != author && post.firstName != author {
             Notifier.post(
                 .commentAdded, actor: author,
@@ -668,8 +807,9 @@ struct PostThreadView: View {
         withAnimation(.plSnap) { replyTo = nil }
     }
 
-    private func openProfile(_ name: String, colorHex: String? = nil) {
+    private func openProfile(_ name: String, colorHex: String? = nil, door: ZoomID) {
         Haptic.tap()
+        personDoor = door
         let hex = colorHex
             ?? members.first { $0.name == name || name.hasPrefix($0.name) }?.colorHex
             ?? "FF5A3C"
@@ -694,5 +834,32 @@ struct PostThreadView: View {
         let formatter = RelativeDateTimeFormatter()
         formatter.unitsStyle = .short
         return formatter.localizedString(for: date, relativeTo: .now)
+    }
+}
+
+/// A swipe and a long press over one comment row, or neither.
+///
+/// A modifier rather than a branch in the row body: `SwipeRow` wraps its
+/// content, so putting an `if` around it would swap SwiftUI's identity
+/// between a removable and a non-removable comment and tear the row down
+/// mid-scroll.
+private struct CommentActions: ViewModifier {
+    let comment: TableComment
+    let canRemove: Bool
+    let remove: () -> Void
+
+    func body(content: Content) -> some View {
+        if canRemove {
+            SwipeRow(isOpen: .constant(false), actions: [.remove(remove)]) {
+                content
+            }
+            .contextMenu {
+                Button(role: .destructive, action: remove) {
+                    Label("Delete comment", systemImage: "trash")
+                }
+            }
+        } else {
+            content
+        }
     }
 }

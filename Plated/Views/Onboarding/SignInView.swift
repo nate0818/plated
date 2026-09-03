@@ -32,6 +32,8 @@ struct SignInView: View {
                     foodChip("🍜", size: 44).offset(x: 306, y: 240 + bob(t, 5.1))
                     Circle().fill(Color.mango)
                         .frame(width: 30, height: 30)
+                        // A coloured glow on a drawn object, not a shadow
+                        // under a surface. The ramp does not apply to art.
                         .shadow(color: Color.mango.opacity(0.4), radius: 8, y: 8)
                         .offset(x: 322, y: 36 + bob(t, 2.0, amp: 5))
                     Circle().fill(Color.basil.opacity(0.85))
@@ -52,16 +54,14 @@ struct SignInView: View {
             VStack(spacing: 10) {
                 PlatedWordmark(size: 26)
                 Text("Dinner's better with your people.")
-                    .font(.gabarito(32, .extraBold))
-                    .tracking(-0.8)
+                    .plType(.hero)
                     .foregroundStyle(Color.ink)
                     .multilineTextAlignment(.center)
-                    .lineSpacing(2)
+                    .fixedSize(horizontal: false, vertical: true)
                 Text("Plan the week, cook together, and share your table with only the people you choose.")
-                    .font(.jakarta(15, .medium))
+                    .plType(.body, .medium)
                     .foregroundStyle(Color.inkSecondary)
                     .multilineTextAlignment(.center)
-                    .lineSpacing(4)
             }
             .padding(.horizontal, 32)
             .opacity(arrived ? 1 : 0)
@@ -123,14 +123,16 @@ struct SignInView: View {
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(Color.inkSecondary)
                     Text("No passwords. Nothing public. Just your people.")
-                        .font(.jakarta(12, .medium))
+                        .plType(.caption)
                         .foregroundStyle(Color.inkSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
             .padding(.horizontal, 24)
             .padding(.bottom, 32)
             .opacity(arrived ? 1 : 0)
         }
+        .plFitsOrScrolls()
         .onAppear { withAnimation(.plSettle.delay(0.1)) { arrived = true } }
     }
 
@@ -144,7 +146,7 @@ struct SignInView: View {
             .frame(width: size, height: size)
             .overlay(Text(emoji).font(.system(size: size * 0.5)))
             .overlay(Circle().strokeBorder(Color.canvas, lineWidth: 4))
-            .shadow(color: Color.shadowWarm.opacity(0.18), radius: 24, y: 18)
+            .plFloatShadow()
     }
 
     private func foodChip(_ emoji: String, size: CGFloat) -> some View {

@@ -25,6 +25,9 @@ rendering a hair larger so fixed-height layouts overflow, and Foundation Models.
 
 - `make phone` builds the working tree and installs it on Nate's iPhone.
 - `scripts/testflight.sh` bumps the build, archives, and uploads.
+- `make design` checks the DESIGN.md rules a machine can check, and both
+  ship paths refuse a build that breaks one. A deliberate exception is fine
+  but has to say so at the line: `// design-ok(<rule>): why this one is right`.
 - Prefer looking at a screenshot over reasoning about layout. Prefer touching the
   flow over trusting that it compiles.
 - When a flow crosses process boundaries — Contacts, CloudKit, Messages —
@@ -45,6 +48,33 @@ rendering a hair larger so fixed-height layouts overflow, and Foundation Models.
 - **CloudKit needs table GRANTs, not just RLS** on the Supabase side; "expose new
   tables" being off locks out the service role too.
 - **Model changes must stay CloudKit-safe**: new properties optional or defaulted.
+- **Hand-written CloudKit types live in the `PlatedDish*` namespace and nothing
+  else may.** The SwiftData mirror adopts any private-database record whose
+  type matches one of its entity names, which is the ghost post in MEMORY.md.
+  `TableShare.assertNoEntityCollision()` makes that a DEBUG check rather than
+  something to remember. `TablePost` is the one exception and is read-only: it
+  IS the collision, and it cannot be renamed without abandoning tables shared
+  before the rename.
+- **Share-derived state does not go in the mirror.** Plates and ballots live in
+  `TableLedger`, a JSON book in the app group, and the queue in `TableOutbox`
+  beside it. Put them in a `@Model` and the mirror becomes a second writer to
+  a fact the shared zone already owns: two devices mid-propagation ping-pong a
+  recomputed count, and a person's own plate flickers on and off in front of
+  them. A mirrored outbox is worse — a distributed queue with no lease, where
+  two of one person's devices both drain the same row.
+- **A CloudKit list field minted from an empty array is minted as the wrong
+  type, permanently**, and every later save carrying a real list then fails
+  `.invalidArguments`. Omit the key instead of writing `[]`.
+- **CloudKit has no boolean type.** A Bool is stored as INT64 and
+  `record[key] as? Bool` is a bridging coin flip. Use `TableShare.int(_:_:)`.
+- **The widget is a second target and cannot import `Theme.swift`.** Its
+  tokens are hand-copied into `PlatedWidgets/PlatedWidgets.swift`, and that
+  copy has already drifted once: it shipped `inkSecondary` at the rejected
+  `0x8A8074` for weeks after the app fixed it, while receiving other edits in
+  the same enum. A fork that gets *some* fixes is worse than one that gets
+  none, because nothing about it looks stale. `scripts/check-tokens` diffs the
+  two and both `make phone` and `scripts/testflight.sh` now refuse to ship on
+  drift. Change a colour in Theme.swift, change it there too.
 - The store migration in `PlatedStore` is precious. An unreadable live store must
   always abort. Never simplify it to an existence check.
 
@@ -65,3 +95,7 @@ git fetch . <branch>:main
   shape of the code. Do not narrate what the line already says.
 - Keep `MEMORY.md` notes for decisions; keep durable project law in this file or
   DESIGN.md so every session and every human can see it.
+- `docs/open-decisions.md` holds the questions that were measured and
+  deliberately left open. Read it before reopening one of them, and delete the
+  entry when it is decided. A judgment call with two defensible answers is not
+  a bug to be fixed quietly at 4am.

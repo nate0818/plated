@@ -1,0 +1,100 @@
+#!/usr/bin/env bash
+#
+# Put the tour's four food photographs into the asset catalog, at a size a
+# phone actually needs.
+#
+# The originals are two to four megapixels, which is between twenty and fifty
+# times more than the circles they are drawn in: the largest is 132pt, so
+# even at 3x it is 396 pixels. Shipping the originals would put several
+# megabytes into the app to draw four thumbnails.
+#
+#   scripts/tour-photos ~/Desktop/plated-photos
+#
+# The folder needs four files whose names contain nachos, pasta, salad and
+# ramen, in any case and any image format sips can read.
+#
+set -euo pipefail
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SRC="${1:-}"
+
+if [ -z "$SRC" ] || [ ! -d "$SRC" ]; then
+  echo "usage: scripts/tour-photos <folder of photos>" >&2
+  exit 1
+fi
+
+# 900px square: 3x for the 132pt hero with room to spare, and one file that
+# serves every plate on the tour rather than four sizes to keep in step.
+EDGE=900
+QUALITY=68
+
+# The photographs are named after the people who took them, not after what
+# is in them, so the mapping is written down here rather than guessed from a
+# filename. Each was identified by opening it.
+# install_one <filename fragment> <asset> [side offsetY offsetX]
+#
+# With no crop given the short edge is resized to EDGE and the square is
+# taken from the centre, which is right whenever the food is in the middle
+# of the frame. Pass an explicit crop when it is not: the penne sits low and
+# right of centre in a 6000x4000 frame with a laptop in the top-left corner,
+# so a centre square caught the laptop and pushed the bowl far enough down
+# that the circle clipped its rim.
+install_one() {
+  local match="$1" asset="$2" side="${3:-}" offy="${4:-0}" offx="${5:-0}"
+  local file
+  file="$(find "$SRC" -maxdepth 1 -type f -iname "*${match}*" | head -1)"
+  if [ -z "$file" ]; then
+    echo "  ✗ no file matching '${match}' in $SRC" >&2
+    return 1
+  fi
+  local out="$ROOT/Plated/Assets.xcassets/${asset}.imageset/${asset}.jpg"
+
+  # Square crop from the centre, because every one of these is drawn in a
+  # circle and an off-centre crop puts the food against the rim.
+  #
+  # The SHORT edge is resized to EDGE, not the long one. `sips -Z` scales the
+  # long edge, which leaves the short edge under EDGE, and `sips -c` PADS
+  # rather than crops when the source is smaller than the target: the
+  # portrait nachos came out 675 wide inside a 900 square with black bars
+  # down both sides, which the circle then framed.
+  if [ -n "$side" ]; then
+    # Crop in source pixels first, then scale the result down.
+    sips -s format jpeg -s formatOptions "$QUALITY" \
+         -c "$side" "$side" --cropOffset "$offy" "$offx" "$file" --out "$out" >/dev/null
+    sips -Z "$EDGE" "$out" >/dev/null
+  else
+    local w h
+    w=$(sips -g pixelWidth "$file" | awk '/pixelWidth/{print $2}')
+    h=$(sips -g pixelHeight "$file" | awk '/pixelHeight/{print $2}')
+    if [ "$w" -le "$h" ]; then
+      sips -s format jpeg -s formatOptions "$QUALITY" \
+           --resampleWidth "$EDGE" "$file" --out "$out" >/dev/null
+    else
+      sips -s format jpeg -s formatOptions "$QUALITY" \
+           --resampleHeight "$EDGE" "$file" --out "$out" >/dev/null
+    fi
+    sips -c "$EDGE" "$EDGE" "$out" >/dev/null
+  fi
+  printf "  ✓ %-12s %-34s %s\n" "$asset" "$(basename "$file")" "$(du -h "$out" | cut -f1)"
+}
+
+echo "Installing the tour's photographs from $SRC"
+install_one natasha-bhogal        TourNachos   # nachos, white plate
+# Cropped INSIDE the bowl, which is the only thing that works for this one.
+#
+# The bowl is about 3050px across, centred horizontally but 470px low, and
+# its bottom rim sits 7 pixels from the frame's own bottom edge. So no
+# square crop can leave the circle any margin below it: at every side length
+# the bowl's farthest point lands at 0.498 of the square against a circle
+# radius of 0.500, which is the sliced rim that showed on the phone. Padding
+# would put a flat band exactly where the rim is.
+#
+# A 2600 square from inside the bowl has no outer rim to slice. The pasta
+# fills the circle and what rim remains reads as the bowl's inner edge.
+# (An earlier attempt used offset x=1000, which on a 6000-wide frame is
+# exactly the centre, so it produced the identical crop.)
+install_one charlesdeluvio        TourPasta    2600 1168 1700
+install_one frames-for-your-heart TourSalad    # caesar, teal bowl
+install_one michele-blackwell     TourRamen    # ramen, chopsticks
+echo
+echo "Build and they appear. Until a file is present the tour falls back to"
+echo "the drawn plate, so a missing photograph is never a blank circle."

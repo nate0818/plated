@@ -24,6 +24,21 @@ final class TablePost {
     /// True when this arrived from somebody else's table. Guests may plate
     /// and comment; they may not edit or delete what isn't theirs.
     var isRemote: Bool = false
+    /// Which table's zone this post lives in. "" always means my own.
+    ///
+    /// Without it, writing back to a post is routed by asking "do I host a
+    /// zone?", which is a question about the person rather than about the
+    /// post. Anyone who has tapped Invite once hosts forever, so deleting a
+    /// post on a table they JOINED aimed the delete at their own zone, hit
+    /// `.unknownItem`, and read that as "already gone" — which removes the
+    /// local row and lets the next pull bring the post back as a stranger's,
+    /// undeletable. Verbatim the bug that made deleting a post a lie, down a
+    /// second road.
+    ///
+    /// Defaulted rather than optional so the mirror stays CloudKit-safe, and
+    /// "" is correct for every post that already exists: before tables could
+    /// be joined, every post was on your own.
+    var shareZoneOwner: String = ""
     var createdAt: Date = Date.now
     /// Household members called out in the caption ("@Riley made the sauce").
     var taggedNames: [String] = []
@@ -33,10 +48,34 @@ final class TablePost {
     var pollOptions: [String] = []
     var pollCounts: [Int] = []
     var myPollChoice: Int = -1
-    /// Plates from the rest of the table. Mine is tracked separately so the
-    /// toggle can't drift the count.
+    /// Plates and votes as they were before `TableLedger` existed.
+    ///
+    /// Never written again. A count is a lost update the moment two devices
+    /// hold one — an Int incremented in two places has no way to detect that
+    /// it was — so the truth moved to one entry per person per post in the
+    /// ledger, which merges by construction. These stay because removing a
+    /// mirrored property is a migration nobody needs, and because the
+    /// backfill reads them exactly once to seed the ledger.
     var plateCount: Int = 0
     var platedByMe: Bool = false
+    /// Who wrote it, in CloudKit's terms.
+    ///
+    /// Everything about ownership keys on first names today — `isMine`,
+    /// `seatCount`, `members.photo(forAuthor:)` — and the code already
+    /// carries comments admitting it. Names also cannot answer the question
+    /// the host-side fetch just created: a post written on the host's iPad
+    /// arrives on the host's iPhone through the shared zone, and without an
+    /// id there is nothing to recognise it by, so it is stamped
+    /// `isRemote` and its own author can never delete it.
+    var authorID: String = ""
+    /// Whether this has actually reached the table.
+    ///
+    /// `shareRecordName` used to carry two meanings at once — the record's
+    /// name AND whether it had ever been published — so a post could not
+    /// have a stable identity before it went out. It gets one at birth now,
+    /// which is what lets the ledger file reactions against a post that has
+    /// never left the phone.
+    var isPublished: Bool = false
     @Attribute(.externalStorage) var photoData: Data?
 
     @Relationship(deleteRule: .cascade, inverse: \TableComment.post)
@@ -62,6 +101,9 @@ final class TablePost {
         self.createdAt = createdAt
         self.plateCount = plateCount
         self.photoData = photoData
+        // Minted here, not at publish. Identity is not something a post
+        // earns by reaching the network.
+        self.shareRecordName = "post-\(UUID().uuidString)"
     }
 
     /// A post with nobody behind it and nothing in it.
@@ -76,10 +118,32 @@ final class TablePost {
             && photoData == nil && pollOptions.isEmpty
     }
 
-    var totalPlates: Int { plateCount + (platedByMe ? 1 : 0) }
+    /// How many people plated this, from the ledger.
+    ///
+    /// Was `plateCount + (platedByMe ? 1 : 0)`, and `plateCount` was written
+    /// by exactly one file in the whole app: SampleData. So on a real device
+    /// this was 0 or 1 for the life of every post, and the Chef's kiss below
+    /// — which needs ten — could never once fire for a real dinner.
+    @MainActor
+    var totalPlates: Int {
+        TableLedger.shared.plateCount(shareRecordName, me: TableIdentity.cached)
+    }
 
-    /// Ten plates from the table and the dish has officially made it.
-    var hasChefsKiss: Bool { totalPlates >= 10 }
+    @MainActor
+    var platedByMeNow: Bool {
+        TableLedger.shared.platedByMe(shareRecordName, me: TableIdentity.cached)
+    }
+
+    /// Everyone at the table plated it.
+    ///
+    /// Ten was unreachable by arithmetic, and it would have been unreachable
+    /// by product too: this is a household, not an audience. "Everybody who
+    /// could plate this did" is a thing that can actually happen at a table
+    /// of four, and it means more there than ten ever meant anywhere.
+    @MainActor
+    func hasChefsKiss(seats: Int) -> Bool {
+        seats >= 2 && totalPlates >= seats
+    }
 
     var initials: String {
         let parts = authorName.split(separator: " ")
@@ -108,14 +172,22 @@ final class TablePost {
 
     var hasPoll: Bool { !pollOptions.isEmpty }
 
-    /// Total votes for an option, my ballot included.
+    /// Votes for an option, from the ledger. `pollCounts` was only ever
+    /// `Array(repeating: 0, …)` — one phone's ballot printed as the table's.
+    @MainActor
     func votes(for option: Int) -> Int {
-        let base = pollCounts.indices.contains(option) ? pollCounts[option] : 0
-        return base + (myPollChoice == option ? 1 : 0)
+        let tally = TableLedger.shared.votes(shareRecordName, options: pollOptions.count)
+        return tally.indices.contains(option) ? tally[option] : 0
     }
 
+    @MainActor
     var totalPollVotes: Int {
-        pollOptions.indices.reduce(0) { $0 + votes(for: $1) }
+        TableLedger.shared.totalVotes(shareRecordName)
+    }
+
+    @MainActor
+    var myVote: Int {
+        TableLedger.shared.myVote(shareRecordName, me: TableIdentity.cached)
     }
 }
 
@@ -134,14 +206,27 @@ final class TableComment {
     var mentions: [String] = []
     /// A photo in the comments — the "I made it and here's proof" move.
     @Attribute(.externalStorage) var photoData: Data?
+    /// This comment's name on the wire, minted at compose time.
+    ///
+    /// A UUID rather than anything derived, because two people commenting in
+    /// the same instant must not contend for a name — and because a save
+    /// whose response was lost has to replay as a no-op rather than as a
+    /// duplicate. It is the key a merge from the wire matches on, so nothing
+    /// else about a comment needs to be unique.
+    var shareRecordName: String = ""
+    /// Who wrote it, in CloudKit's terms rather than in first names.
+    var authorID: String = ""
 
     var post: TablePost?
 
     init(
         authorName: String = "", text: String = "", linkURL: String = "",
         createdAt: Date = .now, replyToName: String = "",
-        mentions: [String] = [], photoData: Data? = nil
+        mentions: [String] = [], photoData: Data? = nil,
+        authorID: String = ""
     ) {
+        self.shareRecordName = "note-\(UUID().uuidString)"
+        self.authorID = authorID
         self.authorName = authorName
         self.text = text
         self.linkURL = linkURL

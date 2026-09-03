@@ -19,6 +19,12 @@ struct MonthPlannerView: View {
     @State private var dayShown: Date?
     @State private var events = DayEventsProvider.shared
     @State private var forecast = ForecastProvider.shared
+    /// The month was the one door in the plan that slid instead of zooming:
+    /// the week list has carried `matchedTransitionSource(id: date)` on its
+    /// rows since the Continuity rule was written, and tapping the same
+    /// night from the grid pushed a screen in from the right with no
+    /// relationship to the cell under your finger.
+    @Namespace private var zoom
 
     private var calendar: Calendar { Calendar.current }
 
@@ -46,6 +52,7 @@ struct MonthPlannerView: View {
         }
         .navigationDestination(item: $dayShown) { day in
             DayDetailView(date: day, askTheTable: askTheTable)
+                .navigationTransition(.zoom(sourceID: day, in: zoom))
         }
     }
 
@@ -55,8 +62,7 @@ struct MonthPlannerView: View {
         HStack(spacing: 14) {
             VStack(alignment: .leading, spacing: 3) {
                 Text(monthTitle)
-                    .font(.gabarito(25, .semibold))
-                    .tracking(-0.3)
+                    .plType(.display)
                     .foregroundStyle(Color.ink)
                 // Legend rides the header — visible before you scroll an inch.
                 legend
@@ -91,9 +97,8 @@ struct MonthPlannerView: View {
         HStack(spacing: 6) {
             ForEach(orderedWeekdaySymbols, id: \.self) { symbol in
                 Text(symbol.uppercased())
-                    .font(.jakarta(10, .extraBold))
-                    .tracking(0.5)
-                    .foregroundStyle(Color.inkFaint)
+                    .plType(.micro, .extraBold)
+                    .foregroundStyle(Color.inkSecondary)
                     .frame(maxWidth: .infinity)
             }
         }
@@ -120,18 +125,48 @@ struct MonthPlannerView: View {
         }
         .buttonStyle(.pressable)
         .disabled(past && meal == nil)
+        .matchedTransitionSource(id: date, in: zoom)
+        // Every cell in this grid was silent: VoiceOver read a bare numeral
+        // and nothing else, so the dish, the cook, the forecast and the
+        // calendar dot — the entire reason the month exists — were visible
+        // only to people who could see them. DESIGN.md: a row that combines
+        // its children needs a label that reads as a sentence.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(cellLabel(date, meal: meal, past: past))
+        .accessibilityHint(meal != nil ? "Opens the night" : (past ? "" : "Plans this night"))
+    }
+
+    private func cellLabel(_ date: Date, meal: PlannedMeal?, past: Bool) -> String {
+        var parts = [date.formatted(.dateTime.weekday(.wide).month(.wide).day())]
+        if let meal {
+            parts.append(meal.title)
+            if let cook = meal.cook {
+                parts.append(cook.isOwner ? "You cook" : "\(cook.name) cooks")
+            }
+        } else {
+            parts.append(past ? "Nothing was planned" : "Nothing planned yet")
+        }
+        if let day = forecast.forecast(for: date) {
+            parts.append("\(day.conditionDescription), high \(Int(day.highF.rounded())) degrees")
+        }
+        if showCalendarEvents && events.hasEvent(on: date) {
+            parts.append("Calendar event")
+        }
+        return parts.joined(separator: ". ")
     }
 
     private func dayCellContent(_ date: Date, today: Bool, meal: PlannedMeal?, past: Bool) -> some View {
         VStack(spacing: 3) {
             HStack(spacing: 3) {
                 Text(date.formattedDayNumber())
-                    .font(.gabarito(13, .extraBold))
-                    .foregroundStyle(today ? Color.tomato : (past ? Color.inkFaint : Color.ink))
+                    .plType(.footnote, .extraBold, family: .display)
+                    .foregroundStyle(today ? Color.tomato : (past ? Color.inkSecondary : Color.ink))
                 if let day = forecast.forecast(for: date) {
                     Image(systemName: day.symbolName)
+                        // The week list paints this same fact inkSecondary.
+                        // A forecast is information, not a stroke.
                         .font(.system(size: 8, weight: .semibold))
-                        .foregroundStyle(Color.inkFaint)
+                        .foregroundStyle(Color.inkSecondary)
                 }
                 Spacer(minLength: 0)
                 if showCalendarEvents && events.hasEvent(on: date) {
@@ -154,16 +189,22 @@ struct MonthPlannerView: View {
                 if meal?.gathering != nil {
                     Image(systemName: "party.popper.fill")
                         .font(.system(size: 9))
-                        .foregroundStyle(Color.mango)
+                        .foregroundStyle(Color.amber)
                 }
             }
         }
         .padding(6)
-        .frame(height: 64)
+        // Seven columns on a 402pt screen is 50pt a cell: furniture, and it
+        // cannot reflow. See plChrome in Theme.swift.
+        .plChrome()
+        // Floored: the cell's numeral and chips now scale with Dynamic
+        // Type. The leading blanks above stay fixed because they hold
+        // nothing and keep the grid's shape.
+        .frame(minHeight: 64)
         .background(today ? Color.todayTint : Color.canvas)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .clipShape(RoundedRectangle(cornerRadius: Radius.small, style: .continuous))
         .overlay {
-            RoundedRectangle(cornerRadius: 12)
+            RoundedRectangle(cornerRadius: Radius.small, style: .continuous)
                 .strokeBorder(today ? Color.tomato : Color.hairline, lineWidth: today ? 1.5 : 1)
         }
         .opacity(past ? 0.55 : 1)
@@ -194,7 +235,7 @@ struct MonthPlannerView: View {
             legendItem("Gathering") {
                 Image(systemName: "party.popper.fill")
                     .font(.system(size: 9))
-                    .foregroundStyle(Color.mango)
+                    .foregroundStyle(Color.amber)
             }
             Spacer()
         }
@@ -204,7 +245,7 @@ struct MonthPlannerView: View {
         HStack(spacing: 5) {
             marker()
             Text(label)
-                .font(.jakarta(11, .semibold))
+                .plType(.micro, .semibold)
                 .foregroundStyle(Color.inkSecondary)
                 .fixedSize()
         }

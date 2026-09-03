@@ -16,11 +16,37 @@ import PhotosUI
 struct RecipeImportSheet: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     @State private var raw = ""
     @State private var draft: ImportedRecipe?
     @State private var reading = false
-    @State private var readFailed = false
+    /// Why the read did not produce a recipe.
+    ///
+    /// One Bool used to answer three different questions with one sentence.
+    /// "No recipe found. Check that the ingredients and steps are included."
+    /// is true of a paste that had neither; it is a wrong instruction after a
+    /// photo Vision could not read a character of, and it is beside the point
+    /// when what was pasted is a link this app has no way to open.
+    enum ReadFailure {
+        case noRecipe
+        case unreadablePhoto
+        case pastedLink
+
+        var line: String {
+            switch self {
+            case .noRecipe:
+                return "No recipe found. Check that the ingredients and steps are included."
+            case .unreadablePhoto:
+                return "Couldn't read that photo. Try a straighter shot with more light."
+            case .pastedLink:
+                return "That's a link. Open it, copy the recipe text, and paste that."
+            }
+        }
+    }
+
+    @State private var failure: ReadFailure?
+    @State private var discardAsked = false
     @State private var nothingToPaste = false
     @State private var scannerShown = false
     @State private var editorShown = false
@@ -31,15 +57,44 @@ struct RecipeImportSheet: View {
     @FocusState private var editing: Bool
     @FocusState private var namingDish: Bool
 
+    /// Up to eight thousand characters of pasted or photographed source, plus
+    /// whatever the cook has corrected in the review. There is no other copy.
+    private var hasWork: Bool {
+        !raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || draft != nil
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             VStack(spacing: 2) {
+                // Its own row, not overlaid on the title. "Does this look
+                // right?" takes the full width at xxLarge, so a leading
+                // button sitting on top of it lands on the words.
+                //
+                // The masthead was an eyebrow over a title and nothing else,
+                // so the drag indicator was this sheet's only exit — and the
+                // drag threw away the whole import silently, which on the scan
+                // path costs another pass with the camera. The guard below
+                // needs a door to exist first, or it is a trap.
+                HStack {
+                    Button("Cancel") {
+                        Haptic.tap()
+                        if hasWork { discardAsked = true } else { dismiss() }
+                    }
+                    .plType(.callout, .medium)
+                    .foregroundStyle(Color.inkSecondary)
+                    .plTapTarget()
+                    .buttonStyle(.pressable)
+                    Spacer()
+                }
                 MicroLabel(draft == nil ? "To your cookbook" : "New recipe")
                 Text(draft == nil ? "Add a recipe" : "Does this look right?")
-                    .font(.gabarito(22, .semibold))
+                    .plType(.title)
                     .foregroundStyle(Color.ink)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            .padding(.top, 22)
+            .padding(.horizontal, 20)
+            .padding(.top, 8)
             .padding(.bottom, 14)
 
             if draft != nil {
@@ -53,6 +108,11 @@ struct RecipeImportSheet: View {
         .presentationDragIndicator(.visible)
         .presentationBackground(Color.canvas)
         .presentationCornerRadius(Radius.sheet)
+        .interactiveDismissDisabled(hasWork)
+        .confirmationDialog("Discard this import?", isPresented: $discardAsked, titleVisibility: .visible) {
+            Button("Discard", role: .destructive) { dismiss() }
+            Button("Keep it", role: .cancel) {}
+        }
         .fullScreenCover(isPresented: $scannerShown) {
             DocumentScanner(
                 onScan: { pages in
@@ -90,38 +150,49 @@ struct RecipeImportSheet: View {
                     // headed sections are read as sections, and "Notes",
                     // "Nutrition" and the story are dropped on the floor.
                     Text("Paste the whole thing. We'll keep the recipe and drop the rest.")
-                        .font(.jakarta(14, .medium))
-                        .foregroundStyle(Color.inkFaint)
+                        .plType(.body, .medium)
+                        .foregroundStyle(Color.inkSecondary)
                         .padding(.horizontal, 16)
                         .padding(.vertical, 16)
                         .allowsHitTesting(false)
                 }
                 TextEditor(text: $raw)
-                    .font(.jakarta(14, .medium))
+                    .plType(.body, .medium)
                     .foregroundStyle(Color.ink)
                     .scrollContentBackground(.hidden)
                     .padding(10)
                     .focused($editing)
             }
             .frame(maxHeight: .infinity)
-            .background(Color.fill, in: RoundedRectangle(cornerRadius: Radius.card))
-            .overlay(RoundedRectangle(cornerRadius: Radius.card).strokeBorder(Color.hairline))
+            // The fill IS the well. A `hairline` border on a `fill` ground
+            // measures 1.05:1, so this drew a stroke nobody has ever seen
+            // and the rounded rectangle was already being described twice.
+            .background(Color.fill, in: Radius.shape(Radius.card))
 
             if nothingToPaste {
                 Text("Nothing on the clipboard. Copy the recipe first.")
-                    .font(.jakarta(12, .semibold))
+                    .plType(.caption, .semibold)
                     .foregroundStyle(Color.inkSecondary)
                     .multilineTextAlignment(.center)
             }
 
-            if readFailed {
-                Text("No recipe found. Check that the ingredients and steps are included.")
-                    .font(.jakarta(12, .semibold))
+            if let failure {
+                Text(failure.line)
+                    .plType(.caption, .semibold)
                     .foregroundStyle(Color.tomato)
                     .multilineTextAlignment(.center)
+                    // No retry control: the Paste, Scan and Photos chips are
+                    // directly below this line.
             }
 
-            HStack(spacing: 8) {
+            // Three peers, one geometry. "Choose photo" needed about 108pt
+            // of content in a 111pt chip, so on a real phone — where text
+            // sets a hair wider than the simulator, the trap CLAUDE.md
+            // names — it wrapped to two lines and that one chip stood
+            // taller than the two beside it. The label is a word now, the
+            // labels cannot wrap at all, and above xxLarge the three stop
+            // sharing one row instead of crushing each other.
+            sourceRow {
                 ghostButton("Paste", icon: "doc.on.clipboard") {
                     // An empty clipboard used to be indistinguishable from a
                     // broken button: the tap did nothing and said nothing.
@@ -138,29 +209,24 @@ struct RecipeImportSheet: View {
                     ghostButton("Scan", icon: "doc.viewfinder") { scannerShown = true }
                 }
                 PhotosPicker(selection: $photoItem, matching: .images) {
-                    ghostLabel("Choose photo", icon: "photo")
+                    // "Photos" rather than "Choose photo": it names where
+                    // the picture comes from, which is the one thing that
+                    // distinguishes it from Scan beside it, and it fits.
+                    ghostLabel("Photos", icon: "photo")
                 }
                 .buttonStyle(.pressable)
             }
 
-            Button {
-                Haptic.plate()
+            // The shared pill. Hand-built at 48pt and .body/.bold, this
+            // lost TomatoPillStyle's pressed tomato and its float shadow,
+            // and stood 8pt shorter than every other committing action in
+            // the app.
+            TomatoPillButton(title: reading ? "Reading…" : "Read it",
+                             busy: reading, haptic: Haptic.plate) {
                 editing = false
                 read(raw)
-            } label: {
-                HStack(spacing: 8) {
-                    if reading { ProgressView().tint(Color.onTomato) }
-                    Text(reading ? "Reading…" : "Read it")
-                        .font(.jakarta(14, .bold))
-                }
-                .foregroundStyle(Color.onTomato)
-                .frame(maxWidth: .infinity)
-                .frame(minHeight: 48)
-                .background(Color.tomato, in: Capsule())
             }
-            .buttonStyle(.pressable)
             .disabled(raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || reading)
-            .opacity(raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0.5 : 1)
 
             // The last way in. It used to be its own row in the + menu,
             // sitting beside "Paste a recipe" — which asked people to pick
@@ -172,21 +238,35 @@ struct RecipeImportSheet: View {
                 editorShown = true
             } label: {
                 Text("Write it out")
-                    .font(.jakarta(13, .bold))
+                    .plType(.footnote, .bold)
                     .foregroundStyle(Color.ink)
                     .frame(maxWidth: .infinity)
-                    .frame(minHeight: 44)
+                    .plTapTarget()
             }
             .buttonStyle(.pressable)
 
             Text("Photos and scans are read on your phone. Nothing is uploaded.")
-                .font(.jakarta(11, .medium))
-                .foregroundStyle(Color.inkFaint)
+                .plType(.caption)
+                .foregroundStyle(Color.inkSecondary)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(.horizontal, 24)
         .padding(.bottom, 24)
+    }
+
+    /// Three ways in, side by side while they fit and stacked when they do
+    /// not. Chips this small have nowhere to reflow inside themselves, so
+    /// the row reflows instead: at accessibility sizes a third of a screen
+    /// cannot hold a word plus an icon, and squeezing them is how "Choose
+    /// photo" wrapped in the first place.
+    @ViewBuilder
+    private func sourceRow(@ViewBuilder _ content: () -> some View) -> some View {
+        if typeSize.isAccessibilitySize {
+            VStack(spacing: 8) { content() }
+        } else {
+            HStack(spacing: 8) { content() }
+        }
     }
 
     private func ghostButton(_ title: String, icon: String, action: @escaping () -> Void) -> some View {
@@ -204,12 +284,19 @@ struct RecipeImportSheet: View {
             Image(systemName: icon)
                 .font(.system(size: 12, weight: .semibold))
             Text(title)
-                .font(.jakarta(13, .bold))
+                .plType(.footnote, .bold)
+                // One line, always. A chip that grows a second line is a
+                // chip with different geometry from the two beside it, and
+                // DESIGN.md's rule is that peers look like peers.
+                .lineLimit(1)
         }
         .foregroundStyle(Color.ink)
         .frame(maxWidth: .infinity)
         .frame(minHeight: 44)
         .overlay(Capsule().strokeBorder(Color.hairline, lineWidth: 1.5))
+        // After the overlay, not before: a stroked capsule is a hollow ring,
+        // so without this the tap lands only where the letters are.
+        .contentShape(Capsule())
     }
 
     // MARK: Review — editable, because the parse is a first draft
@@ -222,12 +309,32 @@ struct RecipeImportSheet: View {
                     VStack(alignment: .leading, spacing: 18) {
                         nameField(bound)
 
+                        // "0 / Prep min" and "0 / Cook min" were the ordinary
+                        // result of pasting a list out of a chat window — the
+                        // parser initialises both to zero and the model is told
+                        // to return zero when the recipe does not say — and
+                        // they were presented as measured facts on the screen
+                        // whose whole job is verification. The same rule is
+                        // applied twenty lines below this and on the recipe
+                        // page for this exact fact.
+                        //
+                        // The unit rides on the value, like the detail page,
+                        // rather than sitting in the label as the app's only
+                        // unit-in-label CountBlock.
                         HStack(spacing: 0) {
                             CountBlock(value: "\(bound.wrappedValue.servings)", label: "Serves")
                             CountDivider()
-                            CountBlock(value: "\(bound.wrappedValue.prepMinutes)", label: "Prep min")
+                            CountBlock(
+                                value: bound.wrappedValue.prepMinutes > 0
+                                    ? Recipe.durationText(bound.wrappedValue.prepMinutes) : "Not set",
+                                label: "Prep"
+                            )
                             CountDivider()
-                            CountBlock(value: "\(bound.wrappedValue.cookMinutes)", label: "Cook min")
+                            CountBlock(
+                                value: bound.wrappedValue.cookMinutes > 0
+                                    ? Recipe.durationText(bound.wrappedValue.cookMinutes) : "Not set",
+                                label: "Cook"
+                            )
                         }
 
                         ingredientsBlock(bound)
@@ -242,32 +349,33 @@ struct RecipeImportSheet: View {
                         Haptic.tap()
                         withAnimation(.plSnap) { draft = nil }
                     } label: {
+                        // 56, like the pill beside it. Two buttons in one row
+                        // are peers and a filled-versus-outlined pair already
+                        // carries which is primary; an 8pt height difference
+                        // carried nothing, and at xxLarge the tomato label
+                        // wraps to two lines and the gap becomes obvious.
                         Text("Start over")
-                            .font(.jakarta(14, .bold))
+                            .plType(.body, .bold)
                             .foregroundStyle(Color.ink)
                             .frame(maxWidth: .infinity)
-                            .frame(minHeight: 48)
+                            .frame(minHeight: 56)
                             .overlay(Capsule().strokeBorder(Color.hairline, lineWidth: 1.5))
+                            .contentShape(Capsule())
                     }
                     .buttonStyle(.pressable)
 
-                    Button {
-                        Haptic.kiss()
+                    TomatoPillButton(title: unnamed ? "Name it to save" : "Save to cookbook",
+                                     haptic: Haptic.kiss) {
                         save(bound.wrappedValue)
-                    } label: {
-                        Text(unnamed ? "Name it to save" : "Save to cookbook")
-                            .font(.jakarta(14, .bold))
-                            .foregroundStyle(Color.onTomato)
-                            .frame(maxWidth: .infinity)
-                            .frame(minHeight: 48)
-                            .background(Color.tomato, in: Capsule())
                     }
-                    .buttonStyle(.pressable)
                     .disabled(unnamed)
-                    .opacity(unnamed ? 0.5 : 1)
                 }
                 .padding(.horizontal, 24)
+                .padding(.top, 10)
                 .padding(.bottom, 24)
+                // The scroll view runs under this row, so the last ingredient
+                // was drawn through the buttons.
+                .background(Color.canvas)
             }
         }
     }
@@ -286,19 +394,19 @@ struct RecipeImportSheet: View {
         VStack(alignment: .leading, spacing: 6) {
             MicroLabel("Name")
             TextField("Name the dish", text: draft.title)
-                .font(.gabarito(20, .semibold))
+                .plType(.heading)
                 .foregroundStyle(Color.ink)
                 .focused($namingDish)
                 .padding(.horizontal, 14)
                 .frame(minHeight: 52)
                 .overlay(
-                    RoundedRectangle(cornerRadius: Radius.card)
+                    RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
                         .strokeBorder(unnamed ? Color.tomato : Color.hairline, lineWidth: unnamed ? 1.5 : 1)
                 )
                 .plTapToFocus(radius: Radius.card) { namingDish = true }
             if !draft.wrappedValue.summary.isEmpty {
                 Text(draft.wrappedValue.summary)
-                    .font(.jakarta(13, .medium))
+                    .plType(.footnote)
                     .foregroundStyle(Color.inkSecondary)
             }
         }
@@ -308,19 +416,25 @@ struct RecipeImportSheet: View {
         VStack(alignment: .leading, spacing: 6) {
             MicroLabel(draft.wrappedValue.ingredients.isEmpty
                        ? "Ingredients"
-                       : "\(draft.wrappedValue.ingredients.count) ingredients")
+                       : draft.wrappedValue.ingredients.count.things("ingredient"))
             VStack(spacing: 0) {
-                ForEach(draft.wrappedValue.ingredients) { ingredient in
+                // Editable, which is what this screen's own doc comment says
+                // it is. The parser's hazards make it concrete: a "1 1/2 cups"
+                // read as "11/2 cups" is a quantity error a delete button
+                // cannot answer.
+                ForEach(draft.ingredients) { $ingredient in
                     HStack(spacing: 10) {
-                        Text(line(for: ingredient))
-                            .font(.jakarta(13, .semibold))
-                            .foregroundStyle(Color.ink)
-                        Spacer(minLength: 8)
-                        removeButton("Remove \(ingredient.name)") {
+                        EditableLine(text: Binding(
+                            get: { ingredient.text },
+                            set: { $ingredient.wrappedValue.edited = $0 }
+                        ), placeholder: "Ingredient")
+                        RemoveLineButton(
+                            label: "Remove \(ingredient.resolved.name.isEmpty ? "ingredient" : ingredient.resolved.name)"
+                        ) {
                             draft.wrappedValue.ingredients.removeAll { $0.id == ingredient.id }
                         }
                     }
-                    .padding(.vertical, 5)
+                    .padding(.vertical, 4)
                 }
                 IngredientEntryField { added in
                     draft.wrappedValue.ingredients.append(contentsOf: added)
@@ -329,7 +443,7 @@ struct RecipeImportSheet: View {
             }
             .padding(14)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .overlay(RoundedRectangle(cornerRadius: Radius.card).strokeBorder(Color.hairline))
+            .overlay(RoundedRectangle(cornerRadius: Radius.card, style: .continuous).strokeBorder(Color.hairline))
         }
     }
 
@@ -337,25 +451,37 @@ struct RecipeImportSheet: View {
     private func stepsBlock(_ draft: Binding<ImportedRecipe>) -> some View {
         if !draft.wrappedValue.steps.isEmpty {
             VStack(alignment: .leading, spacing: 6) {
-                MicroLabel("\(draft.wrappedValue.steps.count) \(draft.wrappedValue.steps.count == 1 ? "step" : "steps")")
+                MicroLabel(draft.wrappedValue.steps.count.things("step"))
                 VStack(alignment: .leading, spacing: 10) {
-                    ForEach(Array(draft.wrappedValue.steps.enumerated()), id: \.offset) { i, step in
+                    ForEach(Array(draft.wrappedValue.steps.enumerated()), id: \.offset) { i, _ in
                         HStack(alignment: .top, spacing: 10) {
                             // Fixed-size first: a 16pt box broke "10"
                             // onto two lines, so every step past nine
                             // read as a stacked pair of digits.
+                            //
+                            // inkSecondary, not tomato: the same ordinal is
+                            // inkSecondary on the recipe page and in the
+                            // editor, and a static list ordinal is not an
+                            // event that has earned the accent.
                             Text("\(i + 1)")
-                                .font(.jakarta(12, .extraBold))
-                                .foregroundStyle(Color.tomato)
+                                .plType(.micro, .extraBold, family: .display)
+                                .foregroundStyle(Color.inkSecondary)
                                 .monospacedDigit()
                                 .lineLimit(1)
                                 .fixedSize()
                                 .frame(minWidth: 18, alignment: .leading)
-                            Text(step)
-                                .font(.jakarta(13, .medium))
-                                .foregroundStyle(Color.ink)
-                            Spacer(minLength: 8)
-                            removeButton("Remove step \(i + 1)") {
+                                .padding(.top, 12)
+                            // Guarded rather than a raw `$steps[i]`: the
+                            // remove button on this same row shortens the
+                            // array while the row is still on screen.
+                            EditableLine(text: Binding(
+                                get: { draft.wrappedValue.steps.indices.contains(i)
+                                    ? draft.wrappedValue.steps[i] : "" },
+                                set: { if draft.wrappedValue.steps.indices.contains(i) {
+                                    draft.wrappedValue.steps[i] = $0
+                                } }
+                            ), placeholder: "Step \(i + 1)")
+                            RemoveLineButton(label: "Remove step \(i + 1)") {
                                 guard draft.wrappedValue.steps.indices.contains(i) else { return }
                                 draft.wrappedValue.steps.remove(at: i)
                             }
@@ -364,41 +490,32 @@ struct RecipeImportSheet: View {
                 }
                 .padding(14)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .overlay(RoundedRectangle(cornerRadius: Radius.card).strokeBorder(Color.hairline))
+                .overlay(RoundedRectangle(cornerRadius: Radius.card, style: .continuous).strokeBorder(Color.hairline))
             }
         }
-    }
-
-    private func removeButton(_ label: String, action: @escaping () -> Void) -> some View {
-        Button {
-            Haptic.tap()
-            withAnimation(.plSnap) { action() }
-        } label: {
-            Image(systemName: "xmark")
-                .accessibilityLabel(label)
-                .font(.system(size: 11, weight: .bold))
-                .foregroundStyle(Color.inkFaint)
-                .frame(minWidth: 44, minHeight: 32)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.pressable)
-    }
-
-    private func line(for ing: ImportedIngredient) -> String {
-        Ingredient.line(quantity: ing.quantity, unit: ing.unit, name: ing.name)
     }
 
     // MARK: Work
 
     private func read(_ text: String) {
+        // Caught before the parser rather than after it. A URL survives every
+        // shape test a title has to pass, so the review step used to open
+        // over a web address with no ingredients and a live Save button.
+        if Self.isLink(text) {
+            Haptic.warn()
+            withAnimation(.plSnap) { failure = .pastedLink }
+            return
+        }
         reading = true
-        readFailed = false
+        failure = nil
         Task {
             let parsed = await RecipeImporter.parse(text)
             reading = false
-            if parsed.isEmpty {
+            // `hasContent`, not `!isEmpty`: a title on its own is not a
+            // recipe. See ImportedRecipe.
+            if !parsed.hasContent {
                 Haptic.warn()
-                withAnimation(.plSnap) { readFailed = true }
+                withAnimation(.plSnap) { failure = .noRecipe }
             } else {
                 withAnimation(.plSettle) { draft = parsed }
                 // The parser leaves the name blank rather than guessing
@@ -408,6 +525,14 @@ struct RecipeImportSheet: View {
         }
     }
 
+    /// A pasted web address: one token, no spaces, and a scheme or a host.
+    private static func isLink(_ text: String) -> Bool {
+        let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !t.isEmpty, !t.contains(where: \.isNewline), !t.contains(" ") else { return false }
+        if t.contains("://") || t.lowercased().hasPrefix("www.") { return true }
+        return t.range(of: #"\.[a-z]{2,}(/|$)"#, options: [.regularExpression, .caseInsensitive]) != nil
+    }
+
     /// Photographed pages → text → structure.
     ///
     /// The OCR result is written back into the paste box on the way through,
@@ -415,17 +540,20 @@ struct RecipeImportSheet: View {
     private func scan(_ pages: [UIImage]) {
         guard !pages.isEmpty else { return }
         reading = true
-        readFailed = false
+        failure = nil
         Task {
             let text = await RecipeScanner.read(pages)
-            raw = text
-            if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                reading = false
+            reading = false
+            // `raw` is assigned only when there is something to assign.
+            // Writing it first meant scanning a blank photo silently
+            // destroyed whatever the cook had already pasted.
+            guard let text, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
                 Haptic.warn()
-                withAnimation(.plSnap) { readFailed = true }
-            } else {
-                read(text)
+                withAnimation(.plSnap) { failure = text == nil ? .unreadablePhoto : .noRecipe }
+                return
             }
+            raw = text
+            read(text)
         }
     }
 
@@ -438,9 +566,14 @@ struct RecipeImportSheet: View {
             prepMinutes: r.prepMinutes,
             cookMinutes: r.cookMinutes
         )
+        // Blank lines are not steps. An editable row can be emptied, and
+        // nothing else in the app can produce one.
         recipe.steps = r.steps
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
         context.insert(recipe)
-        for (i, ing) in r.ingredients.enumerated() {
+        // `resolved` reads each typed line once. See ImportedIngredient.
+        for (i, ing) in r.ingredients.map(\.resolved).filter({ !$0.name.isEmpty }).enumerated() {
             let row = Ingredient(name: ing.name, quantity: ing.quantity, unit: ing.unit)
             row.aisle = ing.aisle
             row.sortIndex = i
@@ -474,42 +607,23 @@ struct IngredientEntryField: View {
     var body: some View {
         HStack(spacing: 8) {
             TextField("Add one, or paste the whole list", text: $entry, axis: .vertical)
-                .font(.jakarta(14, .medium))
+                .plType(.body, .medium)
                 .lineLimit(1...6)
                 .focused($focused)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 11)
-                .overlay(RoundedRectangle(cornerRadius: Radius.chip).strokeBorder(Color.hairline))
+                .overlay(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous).strokeBorder(Color.hairline))
                 .onSubmit(commit)
                 .plTapToFocus { focused = true }
 
-            Button {
-                commit()
-            } label: {
-                Circle()
-                    .fill(pieces.isEmpty ? Color.fill : Color.ink)
-                    .frame(width: 36, height: 36)
-                    .overlay {
-                        // The count is the affordance: paste eight lines and
-                        // the button says 8, so what is about to happen is
-                        // visible before it happens.
-                        if pieces.count > 1 {
-                            Text("\(pieces.count)")
-                                .font(.jakarta(13, .extraBold))
-                                .foregroundStyle(Color.canvas)
-                        } else {
-                            Image(systemName: "plus")
-                                .font(.system(size: 14, weight: .bold))
-                                .foregroundStyle(pieces.isEmpty ? Color.inkFaint : Color.canvas)
-                        }
-                    }
-                    .frame(minWidth: 44, minHeight: 44)
-                    .contentShape(Rectangle())
-                    .animation(.plSnap, value: pieces.count)
-            }
-            .buttonStyle(.pressable)
-            .accessibilityLabel(pieces.count > 1 ? "Add \(pieces.count) ingredients" : "Add ingredient")
-            .disabled(pieces.isEmpty)
+            // The count is the affordance: paste eight lines and the button
+            // says 8, so what is about to happen is visible before it does.
+            AddCircleButton(
+                label: "Add ingredient",
+                count: pieces.count,
+                disabled: pieces.isEmpty,
+                action: commit
+            )
         }
     }
 

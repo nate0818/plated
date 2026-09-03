@@ -20,10 +20,25 @@ struct PlanNightSheet: View {
     @Query(sort: \HouseholdMember.createdAt) private var members: [HouseholdMember]
 
     @AppStorage("showCalendarEvents") private var showCalendarEvents = false
-    @State private var pickerShown = false
-    @State private var newRecipeShown = false
-    @State private var askShown = false
-    @State private var gatheringShown = false
+    /// One destination, not four flags.
+    ///
+    /// These were four `.sheet` modifiers stacked on one view, which CLAUDE.md
+    /// records as undefined behaviour, and the picker's own empty state calls
+    /// `dismiss()` and then asks this view to raise the editor — a dismissal
+    /// and a presentation landing in the same update on the same presenting
+    /// view. That path is not an edge case: "Choose a recipe" is offered
+    /// whether or not the cookbook has anything in it, so every first-run
+    /// user reaches the empty picker, where "Add a recipe" is the only
+    /// control on the screen. Same shape as MainShellView's CreateFlowSheet.
+    enum Route: String, Identifiable {
+        case picker, newRecipe, ask, gathering
+        var id: String { rawValue }
+    }
+    @State private var route: Route?
+    /// The masthead and the scroll content, measured separately and added.
+    /// See the detent at the bottom of this view.
+    @State private var mastheadHeight: CGFloat = 0
+    @State private var contentHeight: CGFloat = 0
     @State private var events = DayEventsProvider.shared
     @State private var forecast = ForecastProvider.shared
 
@@ -36,16 +51,17 @@ struct PlanNightSheet: View {
             VStack(spacing: 4) {
                 MicroLabel(meal == nil ? planLabel : "Planned")
                 Text(dayTitle)
-                    .font(.gabarito(22, .semibold))
+                    .plType(.title)
                     .foregroundStyle(Color.ink)
                 if let context = contextLine {
                     Text(context)
-                        .font(.jakarta(12, .semibold))
+                        .plType(.caption, .semibold)
                         .foregroundStyle(Color.inkSecondary)
                 }
             }
             .padding(.top, 22)
             .padding(.bottom, 14)
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { mastheadHeight = $0 }
 
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 10) {
@@ -56,72 +72,82 @@ struct PlanNightSheet: View {
                     }
 
                     if !recipes.isEmpty {
-                        actionRow(
-                            icon: "wand.and.stars", tint: Color.tomato,
+                        OptionRow(
+                            icon: "wand.and.stars",
                             title: "Pick for me",
-                            caption: "Matched to the weather and what your household eats."
+                            detail: "Matched to the weather and what your household eats."
                         ) { pickForMe() }
                     }
 
-                    actionRow(
-                        icon: "book.closed", tint: Color.ink,
+                    OptionRow(
+                        icon: "book.closed",
                         title: "Choose a recipe",
-                        caption: "\(recipes.count) \(recipes.count == 1 ? "dish" : "dishes") your household already knows."
-                    ) { pickerShown = true }
+                        detail: "\(recipes.count) \(recipes.count == 1 ? "dish" : "dishes") your household already knows."
+                    ) { route = .picker }
 
-                    actionRow(
-                        icon: "plus.circle", tint: Color.ink,
+                    OptionRow(
+                        icon: "plus.circle",
                         title: "Add a recipe",
-                        caption: "Save it and plan it in one go."
-                    ) { newRecipeShown = true }
+                        detail: "Save it and plan it in one go."
+                    ) { route = .newRecipe }
 
-                    actionRow(
-                        icon: "fork.knife.circle", tint: Color.ink,
+                    OptionRow(
+                        icon: "fork.knife.circle",
                         title: "Eating out",
-                        caption: "Counts as a planned night."
+                        detail: "Counts as a planned night."
                     ) { markEatingOut() }
 
-                    actionRow(
-                        icon: "bubble.and.pencil", tint: Color.ink,
+                    OptionRow(
+                        icon: "bubble.and.pencil",
                         title: "Ask the Table",
-                        caption: "Ask what everyone wants, or put up a poll."
-                    ) { askShown = true }
+                        detail: "Ask what everyone wants, or put up a poll."
+                    ) { route = .ask }
 
-                    actionRow(
-                        icon: "party.popper", tint: Color.ink,
+                    OptionRow(
+                        icon: "party.popper",
                         title: "Plan a gathering",
-                        caption: "Guests, a time, and an event in your calendar."
-                    ) { gatheringShown = true }
+                        detail: "Guests, a time, and an event in your calendar."
+                    ) { route = .gathering }
                 }
                 .padding(.horizontal, 24)
                 .padding(.bottom, 24)
+                // The scroll content, not a sibling of the ScrollView: a
+                // ScrollView takes whatever height the detent gives it, so
+                // measuring beside it feeds the detent its own answer and the
+                // sheet walks itself taller every pass.
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
             }
         }
-        .presentationDetents([.large])
+        // Six rows, two of them conditional, under a masthead whose caption
+        // is conditional too. `.large` left roughly a third of the screen
+        // empty below the last option. Measured instead, with `.large` still
+        // available for the type sizes that need it.
+        .presentationDetents([.height(mastheadHeight + contentHeight), .large])
         .presentationDragIndicator(.visible)
         .presentationBackground(Color.canvas)
         .presentationCornerRadius(Radius.sheet)
-        .sheet(isPresented: $pickerShown) {
-            RecipePickerSheet(date: date, onWriteNew: { newRecipeShown = true }) { recipe in
-                plate(recipe, tagline: "")
-                dismiss()
-            }
-        }
-        .sheet(isPresented: $newRecipeShown) {
-            RecipeEditorView(hidePlateShortcut: true) { recipe in
-                plate(recipe, tagline: "")
-                dismiss()
-            }
-        }
-        .sheet(isPresented: $askShown) {
-            AskComposerSheet(date: date) {
-                dismiss()
-                askTheTable()
-            }
-        }
-        .sheet(isPresented: $gatheringShown) {
-            GatheringSheet(date: date, attachedMeal: meal, slot: slot) {
-                dismiss()
+        .sheet(item: $route) { destination in
+            switch destination {
+            case .picker:
+                // Switches the route rather than dismissing itself first.
+                RecipePickerSheet(date: date, onWriteNew: { route = .newRecipe }) { recipe in
+                    plate(recipe, tagline: "")
+                    dismiss()
+                }
+            case .newRecipe:
+                RecipeEditorView(hidePlateShortcut: true) { recipe in
+                    plate(recipe, tagline: "")
+                    dismiss()
+                }
+            case .ask:
+                AskComposerSheet(date: date) {
+                    dismiss()
+                    askTheTable()
+                }
+            case .gathering:
+                GatheringSheet(date: date, attachedMeal: meal, slot: slot) {
+                    dismiss()
+                }
             }
         }
     }
@@ -153,11 +179,11 @@ struct PlanNightSheet: View {
             .plDishShadow()
             VStack(alignment: .leading, spacing: 2) {
                 Text(meal.title)
-                    .font(.jakarta(15, .bold))
+                    .plType(.body, .bold)
                     .foregroundStyle(Color.ink)
                 if let cook = meal.cook {
                     Text(cook.isOwner ? "You cook" : "\(cook.name) cooks")
-                        .font(.jakarta(12, .semibold))
+                        .plType(.caption, .semibold)
                         .foregroundStyle(Color.inkSecondary)
                 }
             }
@@ -177,47 +203,10 @@ struct PlanNightSheet: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
-        .background(Color.canvas, in: RoundedRectangle(cornerRadius: Radius.row))
-        .overlay(RoundedRectangle(cornerRadius: Radius.row).strokeBorder(Color.navHairline))
+        .background(Color.canvas, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: Radius.row, style: .continuous).strokeBorder(Color.navHairline))
     }
 
-    private func actionRow(
-        icon: String, tint: Color, title: String, caption: String,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button {
-            Haptic.tap()
-            action()
-        } label: {
-            HStack(spacing: 12) {
-                Circle()
-                    .fill(Color.fill)
-                    .frame(width: 42, height: 42)
-                    .overlay {
-                        Image(systemName: icon)
-                            .font(.system(size: 17, weight: .medium))
-                            .foregroundStyle(tint)
-                    }
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .font(.jakarta(15, .bold))
-                        .foregroundStyle(Color.ink)
-                    Text(caption)
-                        .font(.jakarta(12, .medium))
-                        .foregroundStyle(Color.inkSecondary)
-                }
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(Color.inkFaint)
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 12)
-            .overlay(RoundedRectangle(cornerRadius: Radius.card).strokeBorder(Color.hairline))
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.pressable)
-    }
 
     /// "Plan the night" is dinner's line and stays dinner's line; the other
     /// slots say what they are.
@@ -238,8 +227,10 @@ struct PlanNightSheet: View {
         if let day = forecast.forecast(for: date) {
             parts.append("\(day.conditionDescription), high \(Int(day.highF.rounded()))°")
         }
-        if showCalendarEvents, let event = events.firstEventTitle(on: date) {
-            parts.append("On the calendar: \(event)")
+        // How full the day is, not the name of one thing on it. A day with
+        // six entries was being described by whichever one came back first.
+        if showCalendarEvents, let load = events.load(on: date) {
+            parts.append(load)
         }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
@@ -354,7 +345,7 @@ struct AskComposerSheet: View {
             VStack(spacing: 2) {
                 MicroLabel("Ask the Table")
                 Text(dayName)
-                    .font(.gabarito(22, .semibold))
+                    .plType(.title)
                     .foregroundStyle(Color.ink)
             }
             .padding(.top, 22)
@@ -363,10 +354,10 @@ struct AskComposerSheet: View {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 14) {
                     TextField(defaultCaption, text: $caption, axis: .vertical)
-                        .font(.jakarta(15, .medium))
+                        .plType(.body, .medium)
                         .lineLimit(2...4)
                         .padding(14)
-                        .overlay(RoundedRectangle(cornerRadius: Radius.chip).strokeBorder(Color.hairline))
+                        .overlay(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous).strokeBorder(Color.hairline))
                         .plTappableField()
 
                     VStack(alignment: .leading, spacing: 8) {
@@ -377,7 +368,7 @@ struct AskComposerSheet: View {
                                     .font(.system(size: 13, weight: .semibold))
                                     .foregroundStyle(Color.inkFaint)
                                 Text(option)
-                                    .font(.jakarta(14, .semibold))
+                                    .plType(.body)
                                     .foregroundStyle(Color.ink)
                                 Spacer()
                                 Button {
@@ -387,7 +378,7 @@ struct AskComposerSheet: View {
                                     Image(systemName: "xmark")
                                         .accessibilityLabel("Remove option")
                                         .font(.system(size: 11, weight: .bold))
-                                        .foregroundStyle(Color.inkFaint)
+                                        .foregroundStyle(Color.inkSecondary)
                                         .frame(minWidth: 44, minHeight: 44)
                                         .contentShape(Rectangle())
                                 }
@@ -398,10 +389,10 @@ struct AskComposerSheet: View {
                         if options.count < 4 {
                             HStack(spacing: 8) {
                                 TextField("Add an option", text: $optionEntry)
-                                    .font(.jakarta(14, .medium))
+                                    .plType(.body, .medium)
                                     .padding(.horizontal, 14)
-                                    .frame(height: 44)
-                                    .overlay(RoundedRectangle(cornerRadius: Radius.chip).strokeBorder(Color.hairline))
+                                    .frame(minHeight: 44)
+                                    .overlay(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous).strokeBorder(Color.hairline))
                                     .onSubmit(addOption)
                                     .plTappableField()
                                 Button {
@@ -416,7 +407,7 @@ struct AskComposerSheet: View {
                                                 .font(.system(size: 14, weight: .bold))
                                                 .foregroundStyle(Color.ink)
                                         }
-                                        .frame(minWidth: 44, minHeight: 44)
+                                        .plTapTarget()
                                 }
                                 .buttonStyle(.pressable)
                                 .disabled(optionEntry.trimmingCharacters(in: .whitespaces).isEmpty)
@@ -439,7 +430,7 @@ struct AskComposerSheet: View {
                                         HStack(spacing: 5) {
                                             AvatarCircle(member: member, size: 22)
                                             Text("@\(member.name)")
-                                                .font(.jakarta(12, .bold))
+                                                .plType(.micro)
                                         }
                                         .foregroundStyle(active ? Color.canvas : Color.ink)
                                         .padding(.horizontal, 10)
@@ -453,6 +444,7 @@ struct AskComposerSheet: View {
                                         }
                                     }
                                     .buttonStyle(.pressable)
+                                    .accessibilityAddTraits(active ? .isSelected : [])
                                 }
                             }
                         }
@@ -561,7 +553,7 @@ struct GatheringSheet: View {
             VStack(spacing: 2) {
                 MicroLabel("Plan a gathering")
                 Text(dayLabel)
-                    .font(.gabarito(22, .semibold))
+                    .plType(.title)
                     .foregroundStyle(Color.ink)
             }
             .padding(.top, 22)
@@ -570,26 +562,26 @@ struct GatheringSheet: View {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 14) {
                     TextField("Sunday dinner party", text: $title)
-                        .font(.jakarta(16, .semibold))
+                        .plType(.body)
                         .padding(14)
-                        .overlay(RoundedRectangle(cornerRadius: Radius.chip).strokeBorder(Color.hairline))
+                        .overlay(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous).strokeBorder(Color.hairline))
                         .plTappableField()
 
                     TextField("Our place", text: $location)
-                        .font(.jakarta(14, .medium))
+                        .plType(.body, .medium)
                         .padding(14)
-                        .overlay(RoundedRectangle(cornerRadius: Radius.chip).strokeBorder(Color.hairline))
+                        .overlay(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous).strokeBorder(Color.hairline))
                         .plTappableField()
 
                     HStack {
                         Text("Guests")
-                            .font(.jakarta(14, .bold))
+                            .plType(.body, .bold)
                             .foregroundStyle(Color.ink)
                         Spacer()
                         HStack(spacing: 14) {
                             stepperButton("minus", "One fewer guest") { if guests > 1 { guests -= 1 } }
                             Text("\(guests)")
-                                .font(.gabarito(19, .bold))
+                                .plType(.heading, .bold)
                                 .foregroundStyle(Color.ink)
                                 .frame(minWidth: 30)
                                 .contentTransition(.numericText())
@@ -598,14 +590,14 @@ struct GatheringSheet: View {
                     }
                     .padding(.horizontal, 16)
                     .padding(.vertical, 10)
-                    .overlay(RoundedRectangle(cornerRadius: Radius.card).strokeBorder(Color.hairline))
+                    .overlay(RoundedRectangle(cornerRadius: Radius.card, style: .continuous).strokeBorder(Color.hairline))
 
                     DatePicker("Starts at", selection: $startTime, displayedComponents: .hourAndMinute)
-                        .font(.jakarta(14, .bold))
+                        .plType(.body, .bold)
                         .tint(Color.tomato)
                         .padding(.horizontal, 16)
                         .padding(.vertical, 10)
-                        .overlay(RoundedRectangle(cornerRadius: Radius.card).strokeBorder(Color.hairline))
+                        .overlay(RoundedRectangle(cornerRadius: Radius.card, style: .continuous).strokeBorder(Color.hairline))
 
                     HStack(spacing: 12) {
                         Circle()
@@ -618,10 +610,10 @@ struct GatheringSheet: View {
                             }
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Add to Apple Calendar")
-                                .font(.jakarta(14, .bold))
+                                .plType(.body, .bold)
                                 .foregroundStyle(Color.ink)
                             Text("Adds an event you can invite guests from.")
-                                .font(.jakarta(12, .medium))
+                                .plType(.caption)
                                 .foregroundStyle(Color.inkSecondary)
                         }
                         Spacer()
@@ -632,11 +624,11 @@ struct GatheringSheet: View {
                     }
                     .padding(.horizontal, 16)
                     .padding(.vertical, 12)
-                    .overlay(RoundedRectangle(cornerRadius: Radius.card).strokeBorder(Color.hairline))
+                    .overlay(RoundedRectangle(cornerRadius: Radius.card, style: .continuous).strokeBorder(Color.hairline))
 
                     if let syncResult {
                         Text(syncResult)
-                            .font(.jakarta(12, .semibold))
+                            .plType(.caption, .semibold)
                             .foregroundStyle(Color.inkSecondary)
                     }
                 }
@@ -651,7 +643,6 @@ struct GatheringSheet: View {
                 save()
             }
             .disabled(title.trimmingCharacters(in: .whitespaces).isEmpty)
-            .opacity(title.trimmingCharacters(in: .whitespaces).isEmpty ? 0.4 : 1)
             .padding(.horizontal, 24)
             .padding(.bottom, 14)
         }

@@ -1,0 +1,135 @@
+.form {
+  display: grid;
+  gap: 12px;
+  width: 100%;
+  max-width: 34rem;
+}
+
+.row {
+  display: flex;
+  gap: 8px;
+  padding: 6px;
+  background: var(--fill);
+  border-radius: 999px;
+}
+
+/* A filled well does not need a border: the fill already draws the shape. */
+.input {
+  flex: 1;
+  min-width: 0;
+  min-height: 48px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 1.0625rem;
+}
+
+.input::placeholder {
+  /* A placeholder is a word a person reads, so inkSecondary, never inkFaint. */
+  color: var(--ink-secondary);
+  opacity: 1;
+}
+
+.input:focus-visible {
+  outline: none;
+}
+
+.row:focus-within {
+  box-shadow: 0 0 0 2px var(--ink);
+}
+
+/* The one tomato element on the page, the same pill the app's
+   TomatoPillButton draws. Disabled changes colour, it does not fade. */
+.button {
+  flex: none;
+  min-height: 48px;
+  padding: 0 22px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--tomato);
+  color: var(--on-tomato);
+  font-weight: 700;
+  font-size: 1rem;
+  letter-spacing: -0.01em;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.button:hover { background: var(--tomato-pressed); }
+.button:active { transform: scale(0.985); }
+
+.button:disabled {
+  background: var(--raised-fill);
+  color: var(--ink-secondary);
+  cursor: default;
+  transform: none;
+}
+
+.note,
+.error {
+  font-size: 0.9375rem;
+  color: var(--ink-secondary);
+  padding-left: 18px;
+}
+
+.error { color: var(--ink); }
+
+.done {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 60px;
+  padding: 0 20px;
+  max-width: 34rem;
+  border-radius: 999px;
+  background: var(--basil-tint);
+  color: var(--ink);
+  font-weight: 600;
+}
+
+/* Basil earns its colour here: something good happened. */
+.check {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--basil);
+  position: relative;
+}
+
+.check::after {
+  content: "";
+  position: absolute;
+  left: 7px;
+  top: 4px;
+  width: 5px;
+  height: 10px;
+  border: solid #FFFFFF; /* design-ok(literal-colour): the tick on basil, same rule as onTomato */
+  border-width: 0 2.5px 2.5px 0;
+  transform: rotate(45deg);
+}
+
+.compact .row { max-width: 30rem; }
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+@media (max-width: 480px) {
+  .row {
+    flex-direction: column;
+    border-radius: var(--radius-hero);
+    padding: 8px;
+  }
+  .input { min-height: 50px; text-align: center; }
+  .button { min-height: 52px; }
+  .note, .error { padding-left: 0; text-align: center; }
+}

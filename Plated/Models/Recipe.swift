@@ -41,6 +41,15 @@ final class Recipe {
     /// Downsized JPEG. Kept small deliberately — CloudKit charges by the byte.
     @Attribute(.externalStorage) var photoData: Data?
 
+    /// What this kitchen learned cooking it: "160 not 180, this oven runs hot."
+    ///
+    /// Deliberately not `PlannedMeal.notes`, which is about one Tuesday
+    /// ("Riley's birthday, no chilli"). Re-reading eleven nights of notes to
+    /// find "always 190" is not a feature. Named `cookNotes` rather than
+    /// `notes` so a call site cannot grab the wrong one of two things wearing
+    /// one word. CloudKit-safe: non-optional with a default, purely additive.
+    var cookNotes: String = ""
+
     /// Weather conditions this dish suits, driving the daily suggestion.
     /// Stored as `WeatherMood` raw values.
     var weatherMoods: [String] = []
@@ -109,6 +118,18 @@ final class Recipe {
         get { RecipeCategory(rawValue: category) }
         set { category = newValue?.rawValue ?? "" }
     }
+
+    /// Whether anybody has said, or implied by a time, how hard this is.
+    ///
+    /// `difficultyValue` falls back to `from(minutes:)`, whose first case is
+    /// `..<30`, so a recipe with no time at all comes back "Easy". The fact
+    /// row then set "Not set" and "Easy" side by side, both derived from the
+    /// same missing number — one refusing to invent it, the other stating a
+    /// conclusion from it. Imports are the live path: they write parsed
+    /// minutes unfloored and never set a difficulty.
+    ///
+    /// Computed, so no schema change and nothing for the mirror to migrate.
+    var difficultyIsKnown: Bool { !difficulty.isEmpty }
 
     /// Stored difficulty when set, otherwise derived from total minutes.
     var difficultyValue: RecipeDifficulty {

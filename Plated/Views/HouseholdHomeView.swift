@@ -37,9 +37,15 @@ struct HouseholdHomeView: View {
     /// Item-based, not two `isPresented` booleans: a binding set
     /// asynchronously (the launch harness does exactly that) pops an
     /// isPresented destination straight back off.
+    @Environment(\.tabPop) private var tabPop
     @State private var pushed: HomeDestination?
+    /// The face you tapped is the face that opens. See CookbookView.
+    @Namespace private var zoom
+    /// Which door was used. The owner is on this screen twice — in the
+    /// masthead and in People — and two sources cannot share one id, so
+    /// the tap records which one it came through.
+    @State private var personDoor: ZoomID = .host
     @State private var personShown: PersonRef?
-    @State private var dmPeer: String?
     @State private var swipedMember: PersistentIdentifier?
     @State private var removingMember: HouseholdMember?
     #if DEBUG
@@ -54,7 +60,7 @@ struct HouseholdHomeView: View {
     }
 
     private var owner: HouseholdMember? { members.first(where: \.isOwner) }
-    private var kissCount: Int { posts.filter(\.hasChefsKiss).count }
+    private var kissCount: Int { posts.filter { $0.hasChefsKiss(seats: members.count) }.count }
     private var platesEarned: Int { posts.reduce(0) { $0 + $1.totalPlates } }
     /// Every dinner this household has ever put on the plan.
     private var nightsPlated: Int { meals.count }
@@ -90,6 +96,7 @@ struct HouseholdHomeView: View {
                 }
                 .navigationDestination(item: $personShown) { person in
                     PersonProfileView(personName: person.name, colorHex: person.colorHex, memberID: person.memberID)
+                        .navigationTransition(.zoom(sourceID: personDoor, in: zoom))
                 }
                 .toolbar(.hidden, for: .navigationBar)
                 .plSwipeBack()
@@ -127,6 +134,12 @@ struct HouseholdHomeView: View {
         .sheet(isPresented: $addPresented) {
             AddMemberSheet()
         }
+        // See TabPopRequest: tapping Home from a pushed screen returns home.
+        .onChange(of: tabPop) { _, request in
+            guard request.tab == .home else { return }
+            pushed = nil
+            personShown = nil
+        }
         .sheet(item: $resendTarget) { target in
             InviteComposer(
                 recipients: [target.phone].compactMap { $0 },
@@ -139,9 +152,6 @@ struct HouseholdHomeView: View {
         }
         .sheet(isPresented: $settingsPresented, onDismiss: { namingFromMasthead = false }) {
             SettingsSheet(focusHouseholdName: namingFromMasthead)
-        }
-        .sheet(item: $dmPeer) { peer in
-            DMThreadView(peerName: peer)
         }
         .confirmationDialog(
             "Remove \(removingMember?.name ?? "") from the household?",
@@ -230,7 +240,7 @@ struct HouseholdHomeView: View {
                 }
             }
         } else {
-            HStack(alignment: .center, spacing: 10) {
+            HStack(alignment: .discCentre, spacing: 10) {
                 mastheadTitle
                 Spacer(minLength: 6)
                 mastheadControls
@@ -250,8 +260,7 @@ struct HouseholdHomeView: View {
                     MicroLabel("Household")
                     HStack(spacing: 5) {
                         Text(householdDisplayName)
-                            .font(.gabarito(26, .semibold))
-                            .tracking(-0.3)
+                            .plType(.display)
                             .foregroundStyle(Color.ink)
                             // One line at ordinary sizes — it wrapped
                             // "Your / Household" the moment two were
@@ -312,15 +321,22 @@ struct HouseholdHomeView: View {
                     AvatarCircle(initials: ownerInitial, tone: .neutralPair, size: 40,
                                  photo: members.first(where: \.isOwner)?.photoData)
                     Text("You")
-                        .font(.jakarta(10, .bold))
-                        .tracking(0.7)
-                        .foregroundStyle(Color.inkFaint)
+                        .plType(.micro)
+                        .foregroundStyle(Color.inkSecondary)
+                        // One line, always. This sits in a squeezed masthead
+                        // HStack, so at XXXL it wrapped and broke the word
+                        // across two lines: "HO" over "ST".
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
                 }
                 .frame(minWidth: 44, minHeight: 44)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.pressable)
             .accessibilityLabel("Your profile")
+            .matchedTransitionSource(id: ZoomID.host, in: zoom)
+            .plDiscAligned(40)
+            .plChrome()
     }
 
     private var ownerInitial: String {
@@ -328,6 +344,7 @@ struct HouseholdHomeView: View {
     }
 
     private func openOwnProfile() {
+        personDoor = .host
         personShown = PersonRef(
             name: owner?.name ?? "You",
             colorHex: owner?.colorHex ?? "",
@@ -352,14 +369,14 @@ struct HouseholdHomeView: View {
                                     .resizable()
                                     .scaledToFill()
                             }
-                            .clipShape(RoundedRectangle(cornerRadius: Radius.hero))
+                            .clipShape(RoundedRectangle(cornerRadius: Radius.hero, style: .continuous))
                             .plCardShadow()
 
                         HStack(spacing: 5) {
                             Image(systemName: "camera")
                                 .font(.system(size: 11, weight: .semibold))
                             Text("Change")
-                                .font(.jakarta(11, .bold))
+                                .plType(.micro)
                         }
                         .foregroundStyle(Color.ink)
                         .padding(.horizontal, 12)
@@ -367,7 +384,7 @@ struct HouseholdHomeView: View {
                         .background(.ultraThinMaterial, in: Capsule())
                         .padding(10)
                     } else {
-                        RoundedRectangle(cornerRadius: Radius.hero)
+                        RoundedRectangle(cornerRadius: Radius.hero, style: .continuous)
                             .strokeBorder(Color.hairlineDashed, style: StrokeStyle(lineWidth: 2, dash: [8, 7]))
                             .aspectRatio(BannerFocus.aspect, contentMode: .fit)
                             .overlay {
@@ -375,9 +392,9 @@ struct HouseholdHomeView: View {
                                     Image(systemName: "photo")
                                         .font(.system(size: 18, weight: .medium))
                                     Text("Add a photo")
-                                        .font(.jakarta(13, .bold))
+                                        .plType(.footnote, .bold)
                                 }
-                                .foregroundStyle(Color.inkFaint)
+                                .foregroundStyle(Color.inkSecondary)
                             }
                     }
                 }
@@ -386,8 +403,8 @@ struct HouseholdHomeView: View {
             .accessibilityLabel("Household photo")
 
             Text(HouseholdIdentity.seatedLine(names: members.map(\.name)))
-                .font(.jakarta(12, .medium))
-                .foregroundStyle(Color.inkFaint)
+                .plType(.caption)
+                .foregroundStyle(Color.inkSecondary)
                 .padding(.horizontal, 2)
         }
     }
@@ -445,7 +462,7 @@ struct HouseholdHomeView: View {
 
                 HStack(spacing: 4) {
                     Text("All stats and badges")
-                        .font(.jakarta(12, .semibold))
+                        .plType(.caption, .semibold)
                     Image(systemName: "chevron.right")
                         .font(.system(size: 9, weight: .bold))
                 }
@@ -479,8 +496,8 @@ struct HouseholdHomeView: View {
             }
             .padding(.horizontal, 18)
             .background(Color.canvas)
-            .clipShape(RoundedRectangle(cornerRadius: Radius.hero))
-            .overlay(RoundedRectangle(cornerRadius: Radius.hero).strokeBorder(Color.hairline))
+            .clipShape(RoundedRectangle(cornerRadius: Radius.hero, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: Radius.hero, style: .continuous).strokeBorder(Color.hairline))
             .plCardShadow()
             .animation(.plSnap, value: members.count)
 
@@ -503,12 +520,11 @@ struct HouseholdHomeView: View {
             VStack(alignment: .leading, spacing: 1) {
                 Text(member.name)
                     .plName()
-                    .font(.jakarta(15, .bold))
+                    .plType(.body, .bold)
                     .foregroundStyle(Color.ink)
                 if member.isOwner, HouseholdIdentity.isPlaceholder(member.name) {
                     Text("Head of table")
-                        .font(.jakarta(12, .bold))
-                        .tracking(0.5)
+                        .plType(.caption, .bold)
                         .foregroundStyle(Color.inkSecondary)
                         .lineLimit(2)
                 } else {
@@ -517,15 +533,22 @@ struct HouseholdHomeView: View {
                     // seconds earlier about somebody with no account and
                     // nothing to plan with.
                     Text(member.subtitle)
-                        .font(.jakarta(12, .semibold))
+                        .plType(.caption, .semibold)
                         .foregroundStyle(Color.inkSecondary)
                 }
             }
             Spacer(minLength: 6)
             if !member.isOwner, member.cooks, !member.cookWeekdays.isEmpty {
                 Text(dayChipLabel(member))
-                    .font(.jakarta(12, .bold))
+                    .plType(.caption, .bold)
                     .foregroundStyle(member.tone.tone)
+                    // One line. A status chip squeezed between a name and a
+                    // chevron has nowhere to reflow, and at accessibility
+                    // sizes "Sun + Mon" came apart into "Sun / + / Mo / n".
+                    // Same reason the cook grid beside it holds.
+                    .lineLimit(1)
+                    .fixedSize()
+                    .plChrome()
                     .padding(.horizontal, 12)
                     .frame(minHeight: 30)
                     .background(member.tone.tint, in: Capsule())
@@ -538,11 +561,13 @@ struct HouseholdHomeView: View {
         .contentShape(Rectangle())
         .onTapGesture {
             Haptic.tap()
+            personDoor = .person(member.name)
             personShown = PersonRef(name: member.name, colorHex: member.colorHex, memberID: member.persistentModelID)
         }
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isButton)
         .accessibilityHint("Opens \(member.name)'s profile")
+        .matchedTransitionSource(id: ZoomID.person(member.name), in: zoom)
     }
 
     /// The head of table keeps their seat — you cannot swipe away the
@@ -604,7 +629,7 @@ struct HouseholdHomeView: View {
                 Image(systemName: "plus")
                     .font(.system(size: 14, weight: .bold))
                 Text("Add someone")
-                    .font(.jakarta(15, .bold))
+                    .plType(.body, .bold)
                     .lineLimit(1)
             }
             .foregroundStyle(Color.inkSecondary)
@@ -643,37 +668,57 @@ struct HouseholdHomeView: View {
             cookGrid
 
             Text("Tap a day to hand it to someone else. Nobody is notified.")
-                .font(.jakarta(12, .medium))
-                .foregroundStyle(Color.inkFaint)
+                .plType(.caption)
+                .foregroundStyle(Color.inkSecondary)
 
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Take turns automatically")
-                        .font(.jakarta(14, .bold))
-                        .foregroundStyle(Color.ink)
-                    Text("Open nights go to whoever has cooked least")
-                        .font(.jakarta(12, .medium))
-                        .foregroundStyle(Color.inkSecondary)
+            // A 51pt switch beside a sentence is a fixed-width companion,
+            // and at accessibility sizes it squeezed the label until
+            // "automatically" broke across two lines as "automatical / ly".
+            // The switch goes underneath rather than the words getting
+            // narrower: it is the same answer the cook grid needed.
+            let stacked = typeSize.isAccessibilitySize
+            let label = VStack(alignment: .leading, spacing: 2) {
+                Text("Take turns automatically")
+                    .plType(.body, .bold)
+                    .foregroundStyle(Color.ink)
+                Text("Open nights go to whoever has cooked least")
+                    .plType(.caption)
+                    .foregroundStyle(Color.inkSecondary)
+            }
+            // Named, then hidden: labelsHidden() takes it off the screen and
+            // leaves it for VoiceOver, which was otherwise reading an
+            // anonymous switch.
+            let control = Toggle("Take turns automatically", isOn: $autoRotate)
+                .labelsHidden()
+                .sensoryFeedback(.selection, trigger: autoRotate)
+                .tint(Color.basil)
+
+            Group {
+                if stacked {
+                    VStack(alignment: .leading, spacing: 12) {
+                        label
+                        control
+                    }
+                } else {
+                    HStack {
+                        label
+                        Spacer()
+                        control
+                    }
                 }
-                Spacer()
-                Toggle("", isOn: $autoRotate)
-                    .labelsHidden()
-                    .sensoryFeedback(.selection, trigger: autoRotate)
-                    .tint(Color.basil)
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 14)
-            .overlay(RoundedRectangle(cornerRadius: Radius.card).strokeBorder(Color.hairline))
+            .overlay(RoundedRectangle(cornerRadius: Radius.card, style: .continuous).strokeBorder(Color.hairline))
             .padding(.top, 8)
 
             if turnsTipShown {
                 Text("A day with a standing cook always goes to them. Open nights go to whoever has cooked least that week, or to you with this off.")
-                    .font(.jakarta(12, .medium))
+                    .plType(.caption)
                     .foregroundStyle(Color.inkSecondary)
-                    .lineSpacing(3)
                     .padding(14)
-                    .background(Color.hairlineSoft, in: RoundedRectangle(cornerRadius: Radius.card))
-                    .transition(.opacity.combined(with: .move(edge: .top)))
+                    .background(Color.hairlineSoft, in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
+                    .transition(.plUnfold)
             }
         }
     }
@@ -695,16 +740,25 @@ struct HouseholdHomeView: View {
         } label: {
             VStack(spacing: 6) {
                 Text(shortDay(weekday).uppercased())
-                    .font(.jakarta(10, .extraBold))
-                    .tracking(0.4)
-                    .foregroundStyle(isToday ? Color.tomato : Color.inkFaint)
+                    .plType(.micro, .extraBold)
+                    .foregroundStyle(isToday ? Color.tomato : Color.inkSecondary)
+                    // One line, always. Seven cells share the page width, so
+                    // a cell is about 44pt wide on a 393pt phone and 32 of
+                    // that is content. "MON" and "WED" are the two widest
+                    // labels, and at a large text size they were the two
+                    // that broke: "MO" over "N". Worse, a wrapped label made
+                    // its own cell wider and taller than the five beside it,
+                    // so the whole strip went ragged.
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+                    .fixedSize(horizontal: false, vertical: true)
                 // The seat swap animates — a new cook scales in rather than
                 // hard-cutting inside the spring.
                 ZStack {
                     if let cook {
                         AvatarCircle(member: cook, size: 28)
                             .id(cook.name)
-                            .transition(.scale(scale: 0.92).combined(with: .opacity))
+                            .transition(.plArrive)
                     } else {
                         Circle()
                             .strokeBorder(Color.hairlineDashed, style: StrokeStyle(lineWidth: 2, dash: [4, 4]))
@@ -715,10 +769,15 @@ struct HouseholdHomeView: View {
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 10)
+            // Seven fixed cells across one row: furniture, and it cannot
+            // reflow. This is the grid plChrome was written for and the one
+            // I did not apply it to. See VerticalAlignment.discCentre's
+            // neighbour in Theme.swift.
+            .plChrome()
             .background(isToday ? Color.todayTint : Color.canvas)
-            .clipShape(RoundedRectangle(cornerRadius: Radius.chip))
+            .clipShape(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous))
             .overlay {
-                RoundedRectangle(cornerRadius: Radius.chip)
+                RoundedRectangle(cornerRadius: Radius.chip, style: .continuous)
                     .strokeBorder(isToday ? Color.tomato : Color.hairline, lineWidth: isToday ? 2 : 1)
             }
         }
@@ -749,8 +808,19 @@ struct HouseholdHomeView: View {
         return (0..<7).map { (first - 1 + $0) % 7 + 1 }
     }
 
+    /// One letter, the way every seven-across weekday row in this app
+    /// already does it: the month grid reads `veryShortWeekdaySymbols` and
+    /// the week widget takes `prefix(1)`. This row was the only one asking
+    /// for three letters, and seven cells split a 393pt page into about 44pt
+    /// each — 32pt of content — which has to hold the label AND a 28pt
+    /// avatar. It was tight at the default size and crowded above it.
+    ///
+    /// A single letter is ambiguous read alone and completely unambiguous in
+    /// an ordered row of seven, which is why every calendar on the platform
+    /// does this. VoiceOver is unaffected: the cell ignores its children and
+    /// announces the full weekday name.
     private func shortDay(_ weekday: Int) -> String {
-        Calendar.current.shortWeekdaySymbols[weekday - 1]
+        Calendar.current.veryShortWeekdaySymbols[weekday - 1]
     }
 
     private func dayChipLabel(_ member: HouseholdMember) -> String {
@@ -762,8 +832,12 @@ struct HouseholdHomeView: View {
         // shows Wednesday to the left of Saturday.
         let order = weekdaysInOrder
         return member.cookWeekdays
+            // Three letters, not the grid's one. `shortDay` is a calendar
+            // header, where an ordered row of seven makes "S" unambiguous;
+            // this chip is a sentence about a person and reads "Sun + Mon".
+            // It borrowed shortDay and briefly became "S + M".
             .sorted { (order.firstIndex(of: $0) ?? 0) < (order.firstIndex(of: $1) ?? 0) }
-            .map { shortDay($0) }
+            .map { Calendar.current.shortWeekdaySymbols[$0 - 1] }
             .joined(separator: " + ")
     }
 
@@ -841,10 +915,11 @@ struct AddMemberSheet: View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 18) {
                 Text("Add someone")
-                    .font(.gabarito(21, .semibold))
+                    // .title at 22, the app's sheet masthead.
+                    .plType(.title)
                     .foregroundStyle(Color.ink)
                     .frame(maxWidth: .infinity)
-                    .padding(.top, 20)
+                    .padding(.top, 22)
 
                 inviteDoor
 
@@ -855,21 +930,21 @@ struct AddMemberSheet: View {
                             .font(.system(size: 15, weight: .semibold))
                             .foregroundStyle(Color.tomato)
                         Text(problem)
-                            .font(.jakarta(13, .semibold))
+                            .plType(.footnote, .semibold)
                             .foregroundStyle(Color.ink)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     .padding(14)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color.tomatoTint, in: RoundedRectangle(cornerRadius: Radius.card))
+                    .background(Color.tomatoTint, in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
                     .transition(.opacity)
                 }
 
                 HStack(spacing: 10) {
                     Rectangle().fill(Color.hairline).frame(height: 1)
                     Text("No phone?")
-                        .font(.jakarta(12, .bold))
-                        .foregroundStyle(Color.inkFaint)
+                        .plType(.caption, .bold)
+                        .foregroundStyle(Color.inkSecondary)
                     Rectangle().fill(Color.hairline).frame(height: 1)
                 }
                 .padding(.vertical, 2)
@@ -899,12 +974,11 @@ struct AddMemberSheet: View {
                 startInvite()
             }
             .disabled(working != nil || !InviteComposer.isAvailable)
-            .opacity(working != nil ? 0.6 : (InviteComposer.isAvailable ? 1 : 0.4))
 
             Text(InviteComposer.isAvailable
                  ? "They get a text with a link to join."
                  : "This iPhone can't send messages. Add them by name below.")
-                .font(.jakarta(12, .medium))
+                .plType(.caption)
                 .foregroundStyle(Color.inkSecondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -914,17 +988,17 @@ struct AddMemberSheet: View {
     private var byNameDoor: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Add by name")
-                .font(.jakarta(15, .bold))
+                .plType(.body, .bold)
                 .foregroundStyle(Color.ink)
             Text("For a kid, a grandparent, anyone without the app. Nothing gets sent to them.")
-                .font(.jakarta(12, .medium))
+                .plType(.caption)
                 .foregroundStyle(Color.inkSecondary)
                 .fixedSize(horizontal: false, vertical: true)
 
             TextField("Their name", text: $name)
-                .font(.jakarta(16, .semibold))
+                .plType(.body)
                 .padding(14)
-                .overlay(RoundedRectangle(cornerRadius: Radius.chip).strokeBorder(Color.hairline))
+                .overlay(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous).strokeBorder(Color.hairline))
                 .plTappableField()
 
             HStack(spacing: 8) {
@@ -933,8 +1007,8 @@ struct AddMemberSheet: View {
                 roleChip("member", "Guest")
             }
             Text("Kids and guests don't get cook nights.")
-                .font(.jakarta(11, .medium))
-                .foregroundStyle(Color.inkFaint)
+                .plType(.micro, .medium)
+                .foregroundStyle(Color.inkSecondary)
 
             InkPillButton(title: "Add") {
                 let clean = name.trimmingCharacters(in: .whitespaces)
@@ -949,7 +1023,6 @@ struct AddMemberSheet: View {
                 dismiss()
             }
             .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
-            .opacity(name.trimmingCharacters(in: .whitespaces).isEmpty ? 0.4 : 1)
         }
     }
 
@@ -1062,7 +1135,7 @@ struct AddMemberSheet: View {
             withAnimation(.plSnap) { role = value }
         } label: {
             Text(label)
-                .font(.jakarta(13, .bold))
+                .plType(.footnote, .bold)
                 .foregroundStyle(active ? Color.canvas : Color.ink)
                 .frame(maxWidth: .infinity)
                 .frame(minHeight: 40)
@@ -1073,7 +1146,14 @@ struct AddMemberSheet: View {
                         Capsule().strokeBorder(Color.hairline)
                     }
                 }
+                // Only the SELECTED chip was tappable. A filled capsule hit
+                // tests; a stroked one hit tests its ring and nothing else,
+                // so the two chips a person actually needs to reach were the
+                // two that ignored them.
+                .frame(minHeight: 44)
+                .contentShape(Capsule())
         }
         .buttonStyle(.pressable)
+        .accessibilityAddTraits(active ? .isSelected : [])
     }
 }
