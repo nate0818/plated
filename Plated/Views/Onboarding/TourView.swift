@@ -44,7 +44,12 @@ struct TourView: View {
               line: "Post what you cooked. Only the people you invite can see it."),
         Panel(eyebrow: "Recipes",
               title: "Dishes you'll cook again",
-              line: "Paste a link, scan a card, or write it out."),
+              // 59 characters, like its three siblings. At 43 it was too
+              // long for one line and too short to fill two, so the second
+              // line was "it out." on its own: the only card in the set
+              // whose copy did not wrap evenly, which is what made it look
+              // broken rather than short.
+              line: "Paste a link, scan a recipe card, or write one out by hand."),
     ]
 
     var body: some View {
@@ -120,7 +125,14 @@ struct TourView: View {
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            .padding(.horizontal, 32)
+            // A measure, not just a margin. At the full width minus 32 a
+            // line held about fifty characters, so a two-line sentence put
+            // forty-odd on the first line and two words on the second. The
+            // fix is not shorter copy, it is a narrower column: the break
+            // then lands near the middle at every text size instead of only
+            // at the one the copy was counted against.
+            .frame(maxWidth: 300)
+            .padding(.horizontal, 24)
 
             Spacer(minLength: 0)
         }

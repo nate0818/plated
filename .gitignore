@@ -24,3 +24,7 @@ Package.resolved
 # Secrets / local config
 *.local.xcconfig
 secrets.plist
+
+# The tour photograph originals. Kept out of the repo (about 12MB) but
+# kept ON DISK so a crop can be retuned without fetching them again.
+tour-photos/
