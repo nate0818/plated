@@ -884,19 +884,52 @@ enum TableShare {
         guard let url = await invitationURL(hostName: "Prime") else {
             return "PRIME SHARE FAILED: could not create the zone, root or share."
         }
+        assertNoEntityCollision()
+
+        // Every field on every type, populated. A field that is nil while
+        // priming does not exist in Production, and the first real save
+        // carrying it fails `.invalidArguments` — which, from a person's
+        // seat, looks exactly like "my comment just didn't appear". Lists
+        // must be NON-EMPTY here or the field is minted as the wrong type,
+        // permanently.
         let probe = TablePost(
             authorName: "Prime", authorColorHex: "FF5A3C",
             dishTitle: "Schema probe", caption: "Written to teach CloudKit the type.",
-            kind: "dish", createdAt: .now
+            kind: "ask", createdAt: .now
         )
+        probe.pollOptions = ["a", "b"]
+        probe.taggedNames = ["Prime"]
         guard let name = await publish(probe, hostName: "Prime") else {
             return "PRIME SHARE FAILED: zone exists, but the post would not save.\nShare URL: \(url)"
         }
+
+        let owner = probe.shareZoneOwner
+        let note = TableComment(
+            authorName: "Prime", text: "Schema probe.", linkURL: "https://plated.food",
+            replyToName: "Prime", mentions: ["Prime"], authorID: "prime"
+        )
+        let noteOK = await pushNote(note, post: name, zoneOwner: owner)
+        let plateOK = await pushPlate(
+            post: name, zoneOwner: owner, author: "prime",
+            authorName: "Prime", active: true, at: .now
+        )
+        let ballotOK = await pushBallot(
+            post: name, zoneOwner: owner, author: "prime", choice: 0, at: .now
+        )
+
+        // And it takes back what it wrote. The old primer left "Schema
+        // probe" sitting in a real household's real table forever.
+        _ = await retract(recordName: name, zoneOwner: owner)
+
         return """
-        PRIME SHARE OK
-          share URL : \(url)
-          post record: \(name)
-        Both record types now exist in Development. Deploy the schema to \
+        PRIME SHARE
+          share URL  : \(url)
+          PlatedDish : ok (\(name))
+          Note       : \(noteOK ? "ok" : "FAILED")
+          Plate      : \(plateOK ? "ok" : "FAILED")
+          Ballot     : \(ballotOK ? "ok" : "FAILED")
+        The probe post was retracted; its children cascade with it.
+        Every record type now exists in Development. Deploy the schema to \
         Production in the CloudKit console before shipping.
         """
     }
