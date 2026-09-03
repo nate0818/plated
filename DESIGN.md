@@ -217,6 +217,45 @@ Corollary: **state is recorded, never asserted.** `HouseholdMember.Seat` is set
 from a composer reporting `.sent` or CloudKit reporting `.accepted` — never from
 optimism. See `Plated/Services/Seats.swift`.
 
+## The Table
+
+The social surface, and the one place the app invites comparison with
+products built by much larger teams. Take their craft; refuse their scale.
+
+**The Table is eight people, not eight thousand.** Invite-only, a household
+plus the seats it gave away. So the Instagram patterns that exist to manage
+scale do not transfer and must not be copied: follower counts, algorithmic
+ranking, Explore, story rings as a growth device, likes as social proof. The
+patterns that exist for craft do transfer and are the whole point: post card
+anatomy, the overflow menu, comment threading, double-tap to react, the
+composer flow, edit versus delete, relative timestamps, optimistic posting.
+A feed of eight people posting dinner is closer to a family group chat with
+photographs than to Instagram, so where the two disagree, study Messages.
+
+**A count is evidence, never furniture.** No numeral until there is something
+to count. Instagram draws no like row at zero, Slack no pill, Messages no
+chip. In a room this small a mounted zero is not neutral: it is a verdict on
+a dinner nobody has got to yet. The same rule retires "0 plates" and
+"COMMENTS · 0".
+
+**A reaction notice goes to the author or it goes nowhere.** A like never
+appears in the liker's own activity, because you already know what you did.
+
+**A relative timestamp runs only while it is unambiguous.** Weekday for six
+days, then a date, then a date with a year. "Thursday" on a three-week-old
+post asserts a week that is not the week it means.
+
+**Your own post's menu is not everyone else's menu.** One menu with items
+conditionally hidden is how a product ends up offering Nate a link to Nate's
+profile. Own-post actions get their own section, destructive last.
+
+**The photograph is the content, so it keeps its own shape**, clamped to 4:5
+and 1.91:1 so one tall picture cannot take the whole screen. A fixed band is
+for photographs that are furniture: a banner, a hero, a preview.
+
+**Delete means everyone.** See the Honesty section: a local delete of a
+published post is not a delete, it is a post that comes back.
+
 ## Components to reuse
 
 `AvatarCircle` · `DishView` · `SwipeRow` · `MicroLabel` · `OptionRow` ·
