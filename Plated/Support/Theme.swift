@@ -593,6 +593,68 @@ extension View {
 /// object — a masthead avatar, a person row. Anything backed by SwiftData
 /// uses its own `persistentModelID` instead, which is already stable and
 /// already unique.
+/// Weekday for six days, then a date, then a date with a year.
+///
+/// DESIGN.md states this as law for the Table — "a relative timestamp runs
+/// only while it is unambiguous; 'Thursday' on a three-week-old post asserts
+/// a week that is not the week it means" — and the recipe page now needs the
+/// same ladder to say when a dish was last cooked. Two hand-kept copies of a
+/// formatting rule is exactly how OptionRow ended up with two hand-kept
+/// copies of a row.
+///
+/// The formatters are static because these run inside a body pass and
+/// `DateFormatter()` is expensive to build.
+enum Stamp {
+    /// "Today", "Yesterday", "Thursday", "12 Aug", "12 Aug 2025".
+    static func day(_ date: Date) -> String {
+        let calendar = Calendar.current
+        if calendar.isDateInToday(date) { return "Today" }
+        if calendar.isDateInYesterday(date) { return "Yesterday" }
+        if isRecent(date) { return weekdayFormat.string(from: date) }
+        if calendar.isDate(date, equalTo: .now, toGranularity: .year) {
+            return dateFormat.string(from: date)
+        }
+        return datedYearFormat.string(from: date)
+    }
+
+    /// The same ladder as a clause inside a sentence: "today", "yesterday",
+    /// "on Thursday", "on 12 Aug", "in Aug 2025". One switch behind both, so
+    /// the two can never disagree about how far back a weekday still means
+    /// one thing.
+    static func dayPhrase(_ date: Date) -> String {
+        let calendar = Calendar.current
+        if calendar.isDateInToday(date) { return "today" }
+        if calendar.isDateInYesterday(date) { return "yesterday" }
+        if isRecent(date) { return "on \(weekdayFormat.string(from: date))" }
+        if calendar.isDate(date, equalTo: .now, toGranularity: .year) {
+            return "on \(dateFormat.string(from: date))"
+        }
+        return "on \(datedYearFormat.string(from: date))"
+    }
+
+    /// Within six days back, so a weekday name can never collide with the
+    /// same weekday before it — and so a time of day still means one thing.
+    static func isRecent(_ date: Date) -> Bool {
+        let calendar = Calendar.current
+        let days = calendar.dateComponents(
+            [.day],
+            from: calendar.startOfDay(for: date),
+            to: calendar.startOfDay(for: .now)
+        ).day ?? 0
+        return days < 6
+    }
+
+    static let weekdayFormat: DateFormatter = {
+        let f = DateFormatter(); f.dateFormat = "EEEE"; return f
+    }()
+    static let dateFormat: DateFormatter = {
+        let f = DateFormatter(); f.setLocalizedDateFormatFromTemplate("d MMM"); return f
+    }()
+    static let datedYearFormat: DateFormatter = {
+        let f = DateFormatter(); f.setLocalizedDateFormatFromTemplate("d MMM yyyy"); return f
+    }()
+}
+
 enum ZoomID: Hashable {
     /// The masthead avatar that opens your own profile.
     case host

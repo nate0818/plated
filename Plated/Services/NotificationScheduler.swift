@@ -20,6 +20,41 @@ enum NotificationScheduler {
     private static let ritualID = "plated.ritual.week"
     private static let turnPrefix = "plated.turn."
     private static let askedKey = "plated.notifications.asked"
+    /// The cook timer's namespace, declared here so the next person can see
+    /// it. `rebuild` and `cancelAll` below remove only `ritualID` and things
+    /// prefixed `turnPrefix`, so a timer somebody started thirty seconds ago
+    /// survives a plan rebuild — which is the whole reason the timer is cheap.
+    static let cookPrefix = "plated.cook."
+    static let cookTimerID = cookPrefix + "timer"
+
+    /// One alarm for the one running cook timer.
+    ///
+    /// Replaces rather than stacks: one timer at a time is a deliberate
+    /// limit, and re-adding the same identifier is how UNUserNotificationCenter
+    /// spells "replace".
+    static func scheduleCookTimer(in seconds: TimeInterval, title: String, body: String) async {
+        guard seconds > 0, await authorized() else {
+            print("[CookTimer] not scheduling: seconds=\(seconds) authorized=\(await authorized())")
+            return
+        }
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.body = body
+        content.sound = .default
+        let request = UNNotificationRequest(
+            identifier: cookTimerID,
+            content: content,
+            trigger: UNTimeIntervalNotificationTrigger(timeInterval: seconds, repeats: false)
+        )
+        try? await UNUserNotificationCenter.current().add(request)
+        print("[CookTimer] scheduled in \(Int(seconds))s")
+    }
+
+    static func cancelCookTimer() {
+        UNUserNotificationCenter.current()
+            .removePendingNotificationRequests(withIdentifiers: [cookTimerID])
+        print("[CookTimer] cancelled")
+    }
 
     /// Whether the user has opted in, as far as the system is concerned.
     static func authorized() async -> Bool {

@@ -121,6 +121,16 @@ private struct FilterKey: Equatable {
 /// whose entire job is choosing a dish by its name: at accessibility sizes a
 /// 12pt caption sets near 37pt in a ~103pt column, which is two characters
 /// and an ellipsis.
+/// Time and kind, under a dish's name. File scope because two grids draw it:
+/// the shelf and the picker, and the picker is the one screen whose entire
+/// job is telling two chicken dishes apart.
+func recipeMetaLine(_ recipe: Recipe) -> String {
+    var parts: [String] = []
+    if recipe.totalMinutes > 0 { parts.append(recipe.timeText) }
+    parts.append(recipe.categoryValue?.rawValue ?? recipe.mealTypeValue.rawValue)
+    return parts.joined(separator: " · ")
+}
+
 @ViewBuilder
 func RecipeTileTitle(_ title: String, size: TypeScale, typeSize: DynamicTypeSize) -> some View {
     let text = Text(title)
@@ -584,7 +594,7 @@ struct CookbookView: View {
                 }
                 VStack(spacing: 2) {
                     RecipeTileTitle(recipe.title, size: .body, typeSize: typeSize)
-                    Text(metaLine(recipe))
+                    Text(recipeMetaLine(recipe))
                         .plType(.caption, .semibold)
                         .foregroundStyle(Color.inkSecondary)
                 }
@@ -595,7 +605,7 @@ struct CookbookView: View {
         // two unlabelled badges. A Button already combines its label, so an
         // explicit one is all this needs.
         .accessibilityLabel(
-            [recipe.title, metaLine(recipe),
+            [recipe.title, recipeMetaLine(recipe),
              recipe.isPinned ? "Pinned" : nil,
              recipe.isFavorite ? "Favorite" : nil]
                 .compactMap { $0 }.joined(separator: ", ")
@@ -668,12 +678,6 @@ struct CookbookView: View {
         .plDishShadow()
     }
 
-    private func metaLine(_ recipe: Recipe) -> String {
-        var parts: [String] = []
-        if recipe.totalMinutes > 0 { parts.append(recipe.timeText) }
-        parts.append(recipe.categoryValue?.rawValue ?? recipe.mealTypeValue.rawValue)
-        return parts.joined(separator: " · ")
-    }
 }
 
 /// Search, filter, and sort in one place — opened from the "All dishes"
@@ -943,12 +947,48 @@ struct RecipeDetailView: View {
     @State private var assignShown = false
     @State private var swapShown = false
     @State private var shownPhoto: Data?
+    @Environment(\.scenePhase) private var scenePhase
+    /// Tonight's ticks, cursor and timer. Not in the mirror, deliberately —
+    /// see CookLedger.
+    @State private var ledger = CookLedger.shared
+    /// A servings lens with no plan behind it. Dies with the view and is
+    /// never persisted, which is why the header says "for 6" rather than
+    /// "scaled for 6": one is a lens, the other is a change to the plan.
+    @State private var servesLens: Int?
+    /// Nil until asked. The timer chip counts either way; this only decides
+    /// whether it also claims it will ring.
+    @State private var canRing: Bool?
+
+    /// The page takes a posture; it does not become a mode. There is no
+    /// button to enter, no button to leave and nothing to be trapped in.
+    private var cooking: Bool { ledger.isCooking(recipe) }
+
+    private var cursor: Int? { ledger.step(for: recipe) }
 
     var body: some View {
+        ScrollViewReader { proxy in
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 16) {
-                heroImage
-                gallery
+                // Out of the way while cooking. You are looking at the real
+                // dish; a photograph of somebody else's version of it is not
+                // what should be largest on a screen you are glancing at.
+                //
+                // COLLAPSED, not removed. This page is the destination of a
+                // `.zoom` navigation transition keyed on the recipe, and
+                // deleting the hero from the tree while that transition is
+                // still settling took the whole push down with it: the first
+                // tick popped the page and landed the app back on another
+                // tab. Measured on the simulator, twice. Keeping the views
+                // mounted and animating their height keeps the transition's
+                // geometry intact.
+                VStack(spacing: 16) {
+                    heroImage
+                    gallery
+                }
+                .frame(height: cooking ? 0 : nil, alignment: .top)
+                .opacity(cooking ? 0 : 1)
+                .clipped()
+                .accessibilityHidden(cooking)
 
                 VStack(alignment: .leading, spacing: 6) {
                     Text(recipe.title)
@@ -957,6 +997,16 @@ struct RecipeDetailView: View {
                     Text(byline)
                         .plType(.caption, .bold)
                         .foregroundStyle(Color.inkSecondary)
+                    // Its own line, not a sixth clause on the byline: the
+                    // byline already joins up to five, and the fact row is
+                    // three things about the dish while this is a thing
+                    // about you.
+                    if let history = cookHistoryLine {
+                        Text(history)
+                            .plType(.footnote)
+                            .foregroundStyle(Color.inkSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
 
                 // The shared atoms, not a fourth dialect. A hairline box
@@ -986,18 +1036,13 @@ struct RecipeDetailView: View {
 
                 if !ingredientRows.isEmpty {
                     VStack(alignment: .leading, spacing: 10) {
-                        MicroLabel(ingredientsLabel)
+                        HStack {
+                            MicroLabel(ingredientsLabel)
+                            Spacer()
+                            servesChip
+                        }
                         ForEach(ingredientRows, id: \.ingredient.persistentModelID) { row in
-                            HStack {
-                                Text(row.ingredient.name)
-                                    .plType(.body)
-                                    .foregroundStyle(Color.ink)
-                                Spacer()
-                                Text(quantityText(row.ingredient, quantity: row.quantity))
-                                    .plType(.footnote)
-                                    .foregroundStyle(Color.inkSecondary)
-                            }
-                            .padding(.vertical, 4)
+                            ingredientRow(row.ingredient, quantity: row.quantity)
                         }
                     }
                     .padding(.top, 4)
@@ -1007,18 +1052,8 @@ struct RecipeDetailView: View {
                     VStack(alignment: .leading, spacing: 12) {
                         MicroLabel("Steps")
                         ForEach(Array(recipe.steps.enumerated()), id: \.offset) { index, step in
-                            HStack(alignment: .top, spacing: 12) {
-                                Text("\(index + 1)")
-                                    .plType(.callout, .bold, family: .display)
-                                    .foregroundStyle(Color.inkSecondary)
-                                    .monospacedDigit()
-                                    .lineLimit(1)
-                                    .fixedSize()
-                                    .frame(minWidth: 22, alignment: .trailing)
-                                Text(step)
-                                    .plType(.body, .medium)
-                                    .foregroundStyle(Color.ink)
-                            }
+                            stepRow(index: index, step: step)
+                                .id(Self.stepAnchor(index))
                         }
                     }
                     .padding(.top, 4)
@@ -1029,6 +1064,39 @@ struct RecipeDetailView: View {
                             .plType(.body, .medium)
                             .foregroundStyle(Color.ink)
                     }
+                }
+
+                // Asked once the cooking is over, which is the only moment a
+                // text field is a reasonable thing to hand somebody on this
+                // page. Type nothing and nothing is stored and nothing is
+                // drawn. It can be changed later in the editor, because a
+                // note you want to fix three weeks on should not require
+                // cooking the dish again.
+                if meal?.isCooked == true {
+                    VStack(alignment: .leading, spacing: 6) {
+                        MicroLabel("Notes")
+                        EditableLine(
+                            text: Bindable(recipe).cookNotes,
+                            placeholder: "Anything to remember?",
+                            lines: 1...6
+                        )
+                    }
+                    .padding(.top, 4)
+                    .transition(.plUnfold)
+                } else if !recipe.cookNotes.isEmpty {
+                    VStack(alignment: .leading, spacing: 6) {
+                        MicroLabel("Notes")
+                        Text(recipe.cookNotes)
+                            .plType(.body, .medium)
+                            .foregroundStyle(Color.ink)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(14)
+                            // A filled well draws its own shape: hairline on
+                            // fill is 1.05:1 and is not on the screen.
+                            .background(Color.fill, in: Radius.shape(Radius.card))
+                    }
+                    .padding(.top, 4)
                 }
 
                 HStack(spacing: 6) {
@@ -1045,6 +1113,31 @@ struct RecipeDetailView: View {
             .padding(.bottom, 24)
         }
         .background(Color.canvas)
+        .animation(.plSettle, value: cooking)
+        // A marker only helps once you have found it, so the page comes back
+        // where you left it rather than at the top.
+        .onAppear {
+            CookLedger.shared.pruneStale()
+            if let cursor { proxy.scrollTo(Self.stepAnchor(cursor), anchor: .top) }
+        }
+        .onChange(of: cursor) { _, now in
+            guard let now else { return }
+            withAnimation(.plSettle) { proxy.scrollTo(Self.stepAnchor(now), anchor: .top) }
+        }
+        .task { canRing = await NotificationScheduler.authorized() }
+        .onChange(of: scenePhase) { _, phase in
+            // A page left on the counter overnight redraws clean rather than
+            // showing last night's ticks under a finger.
+            if phase == .active { CookLedger.shared.pruneStale() }
+            updateIdleTimer()
+        }
+        .onChange(of: cooking) { _, _ in updateIdleTimer() }
+        .onDisappear {
+            // An idle timer left disabled is an invisible battery bug nobody
+            // will ever attribute to us.
+            UIApplication.shared.isIdleTimerDisabled = false
+            print("[CookAwake] released on disappear")
+        }
         .toolbar(.hidden, for: .navigationBar)
         .plSwipeBack()
         .safeAreaInset(edge: .top) { topBar }
@@ -1077,6 +1170,7 @@ struct RecipeDetailView: View {
             if let meal {
                 PlanNightSheet(date: meal.date, slot: meal.slotValue)
             }
+        }
         }
     }
 
@@ -1114,6 +1208,12 @@ struct RecipeDetailView: View {
                 TomatoPillButton(title: "Cooked it", systemImage: "checkmark",
                                  haptic: Haptic.plate) {
                     withAnimation(.plSnap) { meal.cookedAt = .now }
+                    // The evening is over: the ticks, the cursor and the
+                    // timer go with it, so the page cannot reopen on step 4
+                    // of a dinner that already happened.
+                    CookLedger.shared.forget(recipe)
+                    NotificationScheduler.cancelCookTimer()
+                    UIApplication.shared.isIdleTimerDisabled = false
                 }
             } else {
                 InkPillButton(title: "Change the dish", systemImage: "arrow.2.squarepath") {
@@ -1370,14 +1470,316 @@ struct RecipeDetailView: View {
            !meal.scaledIngredients.isEmpty {
             return meal.scaledIngredients
         }
+        // The lens: the same arithmetic PlannedMeal.scaledIngredients does,
+        // computed here because that one is an instance property and needs a
+        // meal. Somebody browsing the cookbook could not scale anything.
+        if let servesLens, recipe.servings > 0, servesLens != recipe.servings {
+            let factor = Double(servesLens) / Double(recipe.servings)
+            return recipe.sortedIngredients.map { ($0, $0.quantity * factor) }
+        }
         return recipe.sortedIngredients.map { ($0, $0.quantity) }
     }
 
+    /// One line, so the fact that changes moment to moment wins.
+    ///
+    /// The two-word split between "scaled for" and "for" is the honesty: one
+    /// is a change to the plan that the grocery list will agree with, the
+    /// other is a lens that dies with the view.
     private var ingredientsLabel: String {
+        let checked = ledger.checkedCount(for: recipe)
+        if checked > 0 { return "Ingredients · \(checked) of \(ingredientRows.count)" }
         if let meal, meal.recipe === recipe, meal.servings != recipe.servings {
             return "Ingredients · scaled for \(meal.servings)"
         }
+        if let servesLens, servesLens != recipe.servings { return "Ingredients · for \(servesLens)" }
         return "Ingredients"
+    }
+
+    /// How often this has actually been cooked, and when.
+    ///
+    /// Nil at zero: a mounted "Never cooked" is a verdict on a dish nobody has
+    /// got to, and the count rule says no numeral until there is something to
+    /// count.
+    ///
+    /// The sentence says "Cooked 4 times" and not "you've made this 4 times"
+    /// because that is what the data supports. `timesCooked` counts planned
+    /// nights somebody marked cooked, and `cookedAt` has exactly two writers —
+    /// the docked button on this page and DayDetailView — both deliberate
+    /// human taps. Delete a plan entry and the number falls.
+    private var cookHistoryLine: String? {
+        let times = recipe.timesCooked
+        guard times > 0 else { return nil }
+        guard let last = recipe.lastCookedAt else {
+            return times == 1 ? "Cooked once." : "Cooked \(times) times."
+        }
+        return times == 1
+            ? "Cooked once, \(Stamp.dayPhrase(last))."
+            : "Cooked \(times) times, the last one \(Stamp.dayPhrase(last))."
+    }
+
+    private static func stepAnchor(_ index: Int) -> String { "step-\(index)" }
+
+    /// The phone does not sleep in the middle of step 4.
+    ///
+    /// Held only while a session is live, this view is on screen and the
+    /// phone is not in Low Power Mode. Released on disappear, on background,
+    /// when the session is pruned, and when the dish is marked cooked. No
+    /// preference toggle: this is inferable.
+    private func updateIdleTimer() {
+        let hold = cooking
+            && scenePhase == .active
+            && !ProcessInfo.processInfo.isLowPowerModeEnabled
+        guard UIApplication.shared.isIdleTimerDisabled != hold else { return }
+        UIApplication.shared.isIdleTimerDisabled = hold
+        print("[CookAwake] \(hold ? "holding" : "released")")
+    }
+
+    // MARK: The cooking posture
+
+    /// One row of the ingredient list, and the whole row is the target.
+    ///
+    /// No glyph, no circle, no box is added: on a browsing visit this is
+    /// byte-for-byte the row it has always been. The affordance is the
+    /// content, which is what "reuse before you invent" looks like when the
+    /// thing to reuse is the row itself.
+    ///
+    /// While cooking, the hierarchy inverts. The amount is the content and
+    /// the name is the label, which is the exact opposite of browsing — two
+    /// text colours throughout, and no third grey appears.
+    @ViewBuilder
+    private func ingredientRow(_ ingredient: Ingredient, quantity: Double) -> some View {
+        let checked = ledger.isChecked(ingredient, in: recipe)
+        Button {
+            // A change of position, not a commit.
+            Haptic.select()
+            withAnimation(.plSnap) { ledger.toggle(ingredient, in: recipe) }
+        } label: {
+            HStack {
+                Text(ingredient.name)
+                    .plType(.body)
+                    .foregroundStyle(cooking && !checked ? Color.inkSecondary : Color.ink)
+                    .strikethrough(checked, color: Color.inkSecondary)
+                Spacer()
+                Text(quantityText(ingredient, quantity: quantity))
+                    // Struck names, unstruck amounts: you still need to read
+                    // how much of the thing you already have.
+                    .plType(cooking ? .callout : .footnote)
+                    .foregroundStyle(checked || !cooking ? Color.inkSecondary : Color.ink)
+            }
+            .padding(.vertical, 4)
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.pressable)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(
+            Ingredient.line(quantity: quantity, unit: ingredient.unit, name: ingredient.name)
+        )
+        .accessibilityAddTraits(checked ? .isSelected : [])
+        .accessibilityHint(checked ? "Puts it back on the list." : "Marks it off the list.")
+    }
+
+    /// One numbered step. Tapping it marks where you are.
+    ///
+    /// No deck and no paging: the whole list stays scrollable, because a cook
+    /// glancing down wants to see what is coming as well as what is now — and
+    /// because with the ingredients one flick away, "how much stock?" at step
+    /// seven is a flick rather than six taps back to a card.
+    @ViewBuilder
+    private func stepRow(index: Int, step: String) -> some View {
+        let current = cursor == index
+        let behind = cursor.map { index < $0 } ?? false
+        Button {
+            Haptic.select()
+            withAnimation(.plSettle) {
+                ledger.setStep(current ? nil : index, in: recipe)
+            }
+        } label: {
+            HStack(alignment: .top, spacing: 12) {
+                Text("\(index + 1)")
+                    .plType(cooking ? .heading : .callout, .bold, family: .display)
+                    .foregroundStyle(current ? Color.ink : Color.inkSecondary)
+                    .monospacedDigit()
+                    .lineLimit(1)
+                    .fixedSize()
+                    .frame(minWidth: 22, alignment: .trailing)
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(step)
+                        .plType(cooking ? .callout : .body, .medium)
+                        .foregroundStyle(behind ? Color.inkSecondary : Color.ink)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    if current { timerChip(for: step, step: index) }
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 14)
+            // 44 is a floor; this posture treats it as one.
+            .frame(minHeight: 60)
+            .background {
+                // design-ok(selection-ground): a cursor, not a choice set. One
+                // row wears the SELECTION ground because one row is where you
+                // are; the peers are not competing options with one favoured.
+                // No border: hairline over fill is 1.05:1 and is not on the
+                // screen, and a filled ground draws its own shape.
+                if current {
+                    Radius.shape(Radius.row).fill(Color.chipFill)
+                }
+            }
+            .contentShape(Radius.shape(Radius.row))
+        }
+        .buttonStyle(.pressable)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Step \(index + 1). \(step)")
+        .accessibilityAddTraits(current ? .isSelected : [])
+        .accessibilityHint("Marks where you are.")
+    }
+
+    /// The duration this step names, if it names one.
+    ///
+    /// First integer followed by a minutes or hours word, and NEVER a range's
+    /// second number: "20 to 25 minutes" offers 20, because a timer ringing
+    /// early is a check and a timer ringing late is a burnt dinner. No number
+    /// in the step, no chip — the chip exists because the recipe said twenty
+    /// minutes, not because the app has a timer feature.
+    private static func duration(in step: String) -> Int? {
+        let pattern = #"(\d+)\s*(min|mins|minute|minutes|hr|hrs|hour|hours)\b"#
+        guard let match = step.range(of: pattern, options: [.regularExpression, .caseInsensitive])
+        else { return nil }
+        let hit = String(step[match]).lowercased()
+        let digits = hit.prefix { $0.isNumber }
+        guard let value = Int(digits), value > 0 else { return nil }
+        return hit.contains("h") ? value * 60 : value
+    }
+
+    /// Under the current step only, and only when that step named a time.
+    ///
+    /// Never auto-started: "rest 10 minutes, or up to an hour" is exactly
+    /// where starting on your behalf becomes a lie.
+    @ViewBuilder
+    private func timerChip(for step: String, step index: Int) -> some View {
+        if let minutes = Self.duration(in: step) {
+            let running = ledger.timer(for: recipe)
+            if let running, running.step == index {
+                TimelineView(.periodic(from: .now, by: 1)) { _ in
+                    let left = running.endsAt.timeIntervalSinceNow
+                    Button {
+                        Haptic.tap()
+                        withAnimation(.plSnap) { ledger.clearTimer(in: recipe) }
+                        NotificationScheduler.cancelCookTimer()
+                    } label: {
+                        Text(left > 0 ? Self.clock(left) : "Time's up")
+                            .plType(.footnote, .bold)
+                            .monospacedDigit()
+                            .foregroundStyle(left > 0 ? Color.ink : Color.basil)
+                            .padding(.horizontal, 13)
+                            .frame(minHeight: 38)
+                            .background {
+                                Capsule().strokeBorder(left > 0 ? Color.hairline : Color.basil.opacity(0.4))
+                            }
+                            .frame(minHeight: 44)
+                            .contentShape(Capsule())
+                            // A second re-announced every second is not
+                            // information; the value rides on the parent.
+                            .accessibilityHidden(true)
+                    }
+                    .buttonStyle(.pressable)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(
+                        left > 0 ? "\(Self.spokenClock(left)) left." : "Time's up. Clears the timer."
+                    )
+                }
+            } else {
+                VStack(alignment: .leading, spacing: 4) {
+                    Button {
+                        Haptic.tap()
+                        let ends = Date.now.addingTimeInterval(Double(minutes) * 60)
+                        withAnimation(.plSnap) {
+                            ledger.startTimer(endingAt: ends, step: index, in: recipe)
+                        }
+                        Task {
+                            await NotificationScheduler.scheduleCookTimer(
+                                in: Double(minutes) * 60,
+                                title: "Time's up",
+                                body: "\(recipe.title), step \(index + 1) of \(recipe.steps.count)."
+                            )
+                            canRing = await NotificationScheduler.authorized()
+                        }
+                    } label: {
+                        Text(minutes.things("minute"))
+                            .plType(.footnote, .bold)
+                            .foregroundStyle(Color.ink)
+                            .padding(.horizontal, 13)
+                            .frame(minHeight: 38)
+                            .background { Capsule().strokeBorder(Color.hairline) }
+                            .frame(minHeight: 44)
+                            .contentShape(Capsule())
+                    }
+                    .buttonStyle(.pressable)
+                    .accessibilityLabel("Start a \(minutes.things("minute")) timer.")
+                    // It counts either way; it just does not promise a ring
+                    // it cannot deliver.
+                    if canRing == false {
+                        Text("Counts on screen only. Plated needs notifications turned on to ring.")
+                            .plType(.caption)
+                            .foregroundStyle(Color.inkSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
+        }
+    }
+
+    private static func clock(_ seconds: TimeInterval) -> String {
+        let total = Int(seconds.rounded(.up))
+        return String(format: "%d:%02d", total / 60, total % 60)
+    }
+
+    private static func spokenClock(_ seconds: TimeInterval) -> String {
+        let total = Int(seconds.rounded(.up))
+        let m = total / 60, s = total % 60
+        if m == 0 { return s.things("second") }
+        return s == 0 ? m.things("minute") : "\(m.things("minute")) \(s.things("second"))"
+    }
+
+    /// Scaling without planning anything.
+    ///
+    /// A Menu rather than a pair of stepper discs: one large target, and
+    /// VoiceOver plus a non-gesture path for free. The `CountBlock` "Serves"
+    /// in the fact row stays inert — that component's own comment says a
+    /// hairline box round a number reads as a button that isn't one, and
+    /// making one of three identical blocks tappable is that mistake in the
+    /// mirror.
+    @ViewBuilder
+    private var servesChip: some View {
+        if recipe.sortedIngredients.contains(where: { $0.quantity > 0 }) {
+            let shown = meal?.servings ?? servesLens ?? recipe.servings
+            Menu {
+                ForEach([1, 2, 4, 6, 8, 12], id: \.self) { count in
+                    Button("Serves \(count)") {
+                        withAnimation(.plSnap) {
+                            // With a real night in hand this is a stored fact
+                            // the grocery list agrees with. Without one it is
+                            // a lens, and curiosity does not rewrite a recipe.
+                            if let meal, meal.recipe === recipe {
+                                meal.servings = count
+                            } else {
+                                servesLens = count
+                            }
+                        }
+                    }
+                }
+            } label: {
+                Text("Serves \(shown)")
+                    .plType(.footnote, .bold)
+                    .foregroundStyle(Color.ink)
+                    .padding(.horizontal, 13)
+                    .frame(minHeight: 38)
+                    .background { Capsule().strokeBorder(Color.hairline) }
+                    .frame(minHeight: 44)
+                    .contentShape(Capsule())
+            }
+            .accessibilityHint("Scales the ingredients.")
+        }
     }
 
     // A recipe has never left this account, so this is a constant rather
@@ -1675,7 +2077,19 @@ struct RecipePickerSheet: View {
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.dynamicTypeSize) private var typeSize
-    @Query(sort: \Recipe.title) private var recipes: [Recipe]
+    @Query private var all: [Recipe]
+    @Query private var meals: [PlannedMeal]
+    /// The shelf's own filter, so there is one search dialect rather than
+    /// two: title, summary and ingredient names, pinned first.
+    ///
+    /// Sorted by `loveScore` — favourites plus times cooked — because
+    /// alphabetical is the order that helps nobody choose a Friday.
+    @State private var filter = RecipeFilter(sort: .mostLoved)
+    @FocusState private var searchFocused: Bool
+    @State private var chromeHeight: CGFloat = 0
+    @State private var gridHeight: CGFloat = 0
+
+    private var recipes: [Recipe] { filter.apply(to: all) }
 
     private var pickerColumns: [GridItem] {
         typeSize.isAccessibilitySize
@@ -1699,8 +2113,41 @@ struct RecipePickerSheet: View {
             }
             .padding(.top, 22)
             .padding(.bottom, 12)
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { chromeHeight = $0 }
 
-            if recipes.isEmpty {
+            // The same well the filter sheet uses, not a second one. Not
+            // focused on open: a keyboard over a grid you came to browse is
+            // worse than no keyboard.
+            if !all.isEmpty {
+                HStack(spacing: 8) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(Color.inkFaint)
+                    TextField("Search dishes and ingredients", text: $filter.searchText)
+                        .plType(.body, .medium)
+                        .focused($searchFocused)
+                    if !filter.searchText.isEmpty {
+                        Button {
+                            filter.searchText = ""
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .accessibilityLabel("Clear search")
+                                .font(.system(size: 14))
+                                .foregroundStyle(Color.inkFaint)
+                                .plTapTarget()
+                        }
+                        .buttonStyle(.pressable)
+                    }
+                }
+                .padding(.horizontal, 14)
+                .frame(minHeight: 46)
+                .overlay(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous).strokeBorder(Color.hairline))
+                .plTapToFocus { searchFocused = true }
+                .padding(.horizontal, 24)
+                .padding(.bottom, 12)
+            }
+
+            if all.isEmpty {
                 VStack(spacing: 10) {
                     Image(systemName: "book.closed")
                         .font(.system(size: 26, weight: .medium))
@@ -1718,6 +2165,29 @@ struct RecipePickerSheet: View {
                         onWriteNew()
                     }
                     .padding(.top, 8)
+                }
+                .padding(.horizontal, 34)
+                .padding(.top, 36)
+                Spacer()
+            } else if recipes.isEmpty {
+                // A different claim from the one above, and an honest one:
+                // the corpus is local and was genuinely asked.
+                VStack(spacing: 10) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 26, weight: .medium))
+                        .foregroundStyle(Color.inkFaint)
+                    Text("Nothing matches \u{201C}\(filter.searchText)\u{201D}")
+                        .plType(.body, .bold)
+                        .foregroundStyle(Color.ink)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text("Try fewer letters, or a different word.")
+                        .plType(.footnote)
+                        .foregroundStyle(Color.inkSecondary)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                    InkPillButton(title: "Clear search") { filter.searchText = "" }
+                        .padding(.top, 8)
                 }
                 .padding(.horizontal, 34)
                 .padding(.top, 36)
@@ -1747,6 +2217,20 @@ struct RecipePickerSheet: View {
                                 }
                                 .plDishShadow()
                                 RecipeTileTitle(recipe.title, size: .caption, typeSize: typeSize)
+                                // What tells two chicken dishes apart.
+                                Text(recipeMetaLine(recipe))
+                                    .plType(.caption, .semibold)
+                                    .foregroundStyle(Color.inkSecondary)
+                                    .multilineTextAlignment(.center)
+                                // In a household the ambiguity is rarely two
+                                // dishes with one name; it is did we just
+                                // have this.
+                                if let when = whenLine(for: recipe) {
+                                    Text(when)
+                                        .plType(.caption, .semibold)
+                                        .foregroundStyle(Color.inkSecondary)
+                                        .multilineTextAlignment(.center)
+                                }
                             }
                         }
                         .buttonStyle(.pressable)
@@ -1755,13 +2239,35 @@ struct RecipePickerSheet: View {
                 .padding(.horizontal, 24)
                 .padding(.top, 14)
                 .padding(.bottom, 30)
+                // The scroll content, not the ScrollView: measuring a
+                // sibling feeds the detent its own answer back.
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { gridHeight = $0 }
             }
             }
         }
-        .presentationDetents([.medium, .large])
+        // Sized to the grid rather than a fixed half-screen that cut a row
+        // in half. `.large` stays for the cookbooks that need it.
+        .presentationDetents([.height(chromeHeight + gridHeight), .large])
         .presentationDragIndicator(.visible)
         .presentationBackground(Color.canvas)
         .presentationCornerRadius(Radius.sheet)
+    }
+
+    /// The soonest night this is already on, or the last time it was cooked
+    /// — but only within a fortnight, beyond which it is not the ambiguity
+    /// this line exists for and becomes noise.
+    private func whenLine(for recipe: Recipe) -> String? {
+        let today = Calendar.current.startOfDay(for: .now)
+        let upcoming = meals
+            .filter { $0.recipe === recipe && $0.date >= today && $0.cookedAt == nil }
+            .map(\.date)
+            .min()
+        if let upcoming { return "On the plan \(Stamp.dayPhrase(upcoming).replacingOccurrences(of: "on ", with: ""))" }
+        guard let last = recipe.lastCookedAt,
+              let days = Calendar.current.dateComponents([.day], from: last, to: .now).day,
+              days <= 14
+        else { return nil }
+        return "Cooked \(Stamp.dayPhrase(last).replacingOccurrences(of: "on ", with: ""))"
     }
 
     private var titleLine: String {

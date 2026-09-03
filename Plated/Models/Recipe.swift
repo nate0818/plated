@@ -41,6 +41,15 @@ final class Recipe {
     /// Downsized JPEG. Kept small deliberately — CloudKit charges by the byte.
     @Attribute(.externalStorage) var photoData: Data?
 
+    /// What this kitchen learned cooking it: "160 not 180, this oven runs hot."
+    ///
+    /// Deliberately not `PlannedMeal.notes`, which is about one Tuesday
+    /// ("Riley's birthday, no chilli"). Re-reading eleven nights of notes to
+    /// find "always 190" is not a feature. Named `cookNotes` rather than
+    /// `notes` so a call site cannot grab the wrong one of two things wearing
+    /// one word. CloudKit-safe: non-optional with a default, purely additive.
+    var cookNotes: String = ""
+
     /// Weather conditions this dish suits, driving the daily suggestion.
     /// Stored as `WeatherMood` raw values.
     var weatherMoods: [String] = []

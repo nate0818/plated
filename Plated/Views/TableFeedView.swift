@@ -1381,15 +1381,6 @@ struct TableFeedView: View {
     private static let timeFormat: DateFormatter = {
         let f = DateFormatter(); f.dateFormat = "h:mm a"; return f
     }()
-    private static let weekdayFormat: DateFormatter = {
-        let f = DateFormatter(); f.dateFormat = "EEEE"; return f
-    }()
-    private static let dateFormat: DateFormatter = {
-        let f = DateFormatter(); f.setLocalizedDateFormatFromTemplate("d MMM"); return f
-    }()
-    private static let datedYearFormat: DateFormatter = {
-        let f = DateFormatter(); f.setLocalizedDateFormatFromTemplate("d MMM yyyy"); return f
-    }()
 
     /// The byline-and-caption run, built once so the visible copy and the
     /// hidden measuring copy can never drift apart.
@@ -1420,26 +1411,18 @@ struct TableFeedView: View {
     }
 
     private func postWhen(_ date: Date) -> String {
-        let calendar = Calendar.current
-        let time = Self.timeFormat.string(from: date)
-        if calendar.isDateInToday(date) {
-            let hour = calendar.component(.hour, from: date)
-            return "\(hour >= 17 ? "Tonight" : "Today") · \(time)"
+        // The ladder itself lives in `Stamp` now, because the recipe page
+        // needs the same rule and DESIGN.md states it as law. What stays here
+        // is the one thing that is a fact about a POST rather than about a
+        // date: dinner posted after five is "Tonight", not "Today". The clock
+        // time rides along only while a weekday still means one thing.
+        if Calendar.current.isDateInToday(date) {
+            let hour = Calendar.current.component(.hour, from: date)
+            return "\(hour >= 17 ? "Tonight" : "Today") · \(Self.timeFormat.string(from: date))"
         }
-        if calendar.isDateInYesterday(date) {
-            return "Yesterday · \(time)"
-        }
-        // A weekday only while it still means one thing: six days back, so
-        // "Thursday" can never collide with the Thursday before it.
-        let days = calendar.dateComponents([.day], from: calendar.startOfDay(for: date),
-                                           to: calendar.startOfDay(for: .now)).day ?? 0
-        if days < 6 {
-            return "\(Self.weekdayFormat.string(from: date)) · \(time)"
-        }
-        if calendar.isDate(date, equalTo: .now, toGranularity: .year) {
-            return Self.dateFormat.string(from: date)
-        }
-        return Self.datedYearFormat.string(from: date)
+        let day = Stamp.day(date)
+        guard Stamp.isRecent(date) else { return day }
+        return "\(day) · \(Self.timeFormat.string(from: date))"
     }
 }
 

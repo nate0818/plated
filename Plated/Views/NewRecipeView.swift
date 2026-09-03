@@ -41,6 +41,9 @@ struct RecipeEditorView: View {
     /// is not a cosmetic problem: removing a middle step moved everybody
     /// else's text up under an unchanged view.
     @State private var draftSteps: [DraftStep] = []
+    /// What this kitchen learned cooking it. Captured at the receipt on the
+    /// recipe page; changed here.
+    @State private var cookNotes = ""
     @State private var stepEntry = ""
     @State private var addToGroceries = true
     @State private var loaded = false
@@ -207,6 +210,15 @@ struct RecipeEditorView: View {
 
                     ingredientsSection
                     stepsSection
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        MicroLabel("Notes")
+                        EditableLine(
+                            text: $cookNotes,
+                            placeholder: "Anything worth remembering next time.",
+                            lines: 1...6
+                        )
+                    }
                 }
                 .padding(.horizontal, 24)
                 .padding(.top, 16)
@@ -305,6 +317,7 @@ struct RecipeEditorView: View {
             mealType = recipe.mealTypeValue
             if !recipe.difficulty.isEmpty { difficultyOverride = recipe.difficultyValue }
             draftSteps = recipe.steps.map { DraftStep(text: $0) }
+            cookNotes = recipe.cookNotes
             extraPhotoData = recipe.sortedExtraPhotos.compactMap(\.photoData)
             draftIngredients = recipe.sortedIngredients.map {
                 DraftIngredient(
@@ -330,6 +343,7 @@ struct RecipeEditorView: View {
             !title.trimmingCharacters(in: .whitespaces).isEmpty
                 || !summary.trimmingCharacters(in: .whitespaces).isEmpty
                 || !draftSteps.isEmpty
+                || !cookNotes.isEmpty
                 || !stepEntry.trimmingCharacters(in: .whitespaces).isEmpty
                 || !draftIngredients.isEmpty
                 || photoData != nil
@@ -679,6 +693,7 @@ struct RecipeEditorView: View {
         recipe.steps = draftSteps
             .map { $0.text.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
+        recipe.cookNotes = cookNotes.trimmingCharacters(in: .whitespacesAndNewlines)
         if let difficultyOverride {
             recipe.difficultyValue = difficultyOverride
         }
