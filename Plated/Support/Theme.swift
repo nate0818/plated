@@ -863,17 +863,25 @@ struct PhotoWell: View {
 /// Gabarito medium is the wordmark's register, matching the opener.
 struct PlatedWordmark: View {
     var size: CGFloat = 26
+    /// `Font.custom(_:size:)` scales against the body style on its own, so
+    /// the word grew with Dynamic Type while the dot, its gap and its
+    /// baseline offset were all plain points and stayed put: by AX5 the
+    /// wordmark had a tiny dot floating beside a large word, at the wrong
+    /// height. Everything geometric here is measured in the same unit the
+    /// text is.
+    @ScaledMetric(relativeTo: .body) private var unit: CGFloat = 1
 
     var body: some View {
-        HStack(alignment: .top, spacing: size * 0.10) {
+        let s = size * unit
+        return HStack(alignment: .top, spacing: s * 0.10) {
             Text("plated")
                 .font(.gabarito(size, .medium))
-                .tracking(-0.022 * size)
+                .tracking(-0.022 * s)
                 .foregroundStyle(Color.ink)
             Circle()
                 .fill(Color.tomato)
-                .frame(width: size * 0.27, height: size * 0.27)
-                .padding(.top, size * 0.34)
+                .frame(width: s * 0.27, height: s * 0.27)
+                .padding(.top, s * 0.34)
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Plated")

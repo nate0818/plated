@@ -868,6 +868,10 @@ struct PaywallSheet: View {
             .padding(.horizontal, 24)
             .padding(.bottom, 20)
         }
+        // The buy button was the last thing in a VStack that does not
+        // scroll, so above about AX1 it was off the bottom of the sheet with
+        // nothing to drag.
+        .plFitsOrScrolls()
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
         .presentationBackground(Color.canvas)

@@ -97,9 +97,13 @@ struct ProfileSetupView: View {
                     .disabled(trimmedName.isEmpty)
                     .opacity(trimmedName.isEmpty ? 0.5 : 1)
 
+                // Was `finish()`, the same call Continue makes: it saved the
+                // name and parked the photo, so the two buttons did exactly
+                // the same thing while promising opposite outcomes. "Not
+                // now" means later.
                 Button {
                     Haptic.tap()
-                    finish()
+                    onDone()
                 } label: {
                     Text("Not now")
                         .plType(.body)
