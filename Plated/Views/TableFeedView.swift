@@ -212,7 +212,6 @@ struct TableFeedView: View {
         ProgressView()
             .controlSize(.regular)
             .tint(Color.inkFaint)
-            .padding(.top, 80)
             .accessibilityLabel("Looking for new posts")
     }
 
@@ -244,7 +243,6 @@ struct TableFeedView: View {
             .buttonStyle(.pressable)
             .padding(.top, 4)
         }
-        .padding(.top, 60)
     }
 
     /// Couldn't ask. Says exactly that and no more: it does not know whether
@@ -285,7 +283,6 @@ struct TableFeedView: View {
             .buttonStyle(.pressable)
             .padding(.top, 4)
         }
-        .padding(.top, 60)
     }
 
     /// The people you granted and invited when you set your table.
@@ -409,14 +406,28 @@ struct TableFeedView: View {
                             .matchedTransitionSource(id: post.persistentModelID, in: zoom)
                         }
                         if shownPosts.isEmpty {
-                            switch reach {
-                            case .looking: lookingForPosts
-                            case .unreachable: cannotReachTable
-                            case .reached: nothingPlatedYet
+                            Group {
+                                switch reach {
+                                case .looking: lookingForPosts
+                                case .unreachable: cannotReachTable
+                                case .reached: nothingPlatedYet
+                                }
+                            }
+                            .frame(maxWidth: .infinity)
+                            // Centred in what a person can actually see,
+                            // rather than nudged down the page by a typed
+                            // 60. The three of these sat in the top third
+                            // with the rest of the screen empty under them;
+                            // the height is the scroll view's own, less the
+                            // clearance the floating bar takes out of it.
+                            .containerRelativeFrame(.vertical, alignment: .center) { height, _ in
+                                height - Layout.tabBarInset
                             }
                         }
                     }
-                    .padding(.bottom, Layout.floatingChromeInset)
+                    // An empty table is one screen and does not scroll; the
+                    // clearance is for a list that runs under the bar.
+                    .padding(.bottom, shownPosts.isEmpty ? 0 : Layout.floatingChromeInset)
                 }
                 .refreshable { await refreshFeed() }
                 .task {

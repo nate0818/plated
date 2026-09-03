@@ -117,7 +117,7 @@ struct CookbookView: View {
             VStack(spacing: 0) {
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
-                        MicroLabel(countLabel)
+                        if !countLabel.isEmpty { MicroLabel(countLabel) }
                         Text("Recipes")
                             .plType(.display)
                             .foregroundStyle(Color.ink)
@@ -362,10 +362,18 @@ struct CookbookView: View {
         .padding(.top, 44)
     }
 
+    /// Empty when there is nothing to count.
+    ///
+    /// DESIGN.md retires the mounted zero by name — "0 plates", "COMMENTS ·
+    /// 0" — because in a room this small a zero is not neutral, it is a
+    /// verdict. "0 DISHES" over the word Recipes was the same shape, and it
+    /// was the first thing a new cookbook said about itself. The empty state
+    /// below already says it, warmly and with somewhere to go.
     private var countLabel: String {
-        filter.isFiltering
-            ? "\(shown.count) of \(recipes.count) \(recipes.count == 1 ? "dish" : "dishes")"
-            : "\(recipes.count) \(recipes.count == 1 ? "dish" : "dishes")"
+        if filter.isFiltering {
+            return "\(shown.count) of \(recipes.count) \(recipes.count == 1 ? "dish" : "dishes")"
+        }
+        return recipes.isEmpty ? "" : "\(recipes.count) \(recipes.count == 1 ? "dish" : "dishes")"
     }
 
     private func recipeTile(_ recipe: Recipe) -> some View {
