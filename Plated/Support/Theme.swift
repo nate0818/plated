@@ -262,20 +262,41 @@ extension Animation {
     /// What changes is the travel, not the change: a spring overshoots and
     /// settles, which is exactly the movement the setting asks us to drop.
     /// The state still changes, and it still takes a moment doing it.
+    ///
+    /// Known and deliberately not fixed here: SwiftUI does not observe
+    /// `UIAccessibility.isReduceMotionEnabled`, so a body already on screen
+    /// keeps whatever Animation it captured until something else invalidates
+    /// it. Driving this from an `@Observable` on
+    /// `reduceMotionStatusDidChangeNotification` is the right answer; the
+    /// setting is almost always chosen before the app is opened, so the cost
+    /// of the gap is one relaunch.
     private static var wantsReduced: Bool { UIAccessibility.isReduceMotionEnabled }
-    private static let reduced = Animation.easeInOut(duration: 0.2)
+
+    /// Reduced does not mean uniform.
+    ///
+    /// All three springs used to collapse into one `easeInOut(duration: 0.2)`,
+    /// so for the readers who asked for less motion a chip and a sheet moved
+    /// at exactly the same speed: 123 `withAnimation` calls and 38
+    /// `.animation` modifiers flattened to a single pace, which is not the
+    /// app with its overshoot removed, it is a different app. Bounce 0 is
+    /// precisely what the setting asks for — the travel stops overshooting
+    /// and settling — and each step keeps the duration that made it feel
+    /// like itself.
+    private static func calm(_ duration: TimeInterval) -> Animation {
+        .spring(duration: duration, bounce: 0)
+    }
 
     /// Icon and reaction bounce.
     static var plPop: Animation {
-        wantsReduced ? reduced : .spring(response: 0.32, dampingFraction: 0.55)
+        wantsReduced ? calm(0.32) : .spring(response: 0.32, dampingFraction: 0.55)
     }
     /// State changes without theater.
     static var plSnap: Animation {
-        wantsReduced ? reduced : .spring(response: 0.28, dampingFraction: 0.75)
+        wantsReduced ? calm(0.28) : .spring(response: 0.28, dampingFraction: 0.75)
     }
     /// Sheets, splash, big arrivals.
     static var plSettle: Animation {
-        wantsReduced ? reduced : .spring(response: 0.55, dampingFraction: 0.8)
+        wantsReduced ? calm(0.55) : .spring(response: 0.55, dampingFraction: 0.8)
     }
 }
 
@@ -291,19 +312,27 @@ extension AnyTransition {
             : .scale(scale: 0.92).combined(with: .opacity)
     }
 
+    /// A slide is not the movement Reduce Motion is about.
+    ///
+    /// `prefersCrossFadeTransitions` is documented as the conjunction of
+    /// Reduce Motion and Prefer Cross-Fade Transitions, which is the exact
+    /// question these two are asking: iOS itself keeps sliding a pushed view
+    /// in under Reduce Motion alone and only cross-fades when the second
+    /// switch is on. Gating on the first one made the app read flatter than
+    /// the OS around it for people who never asked for that.
+    /// `plArrive` is a scale — the zoom the setting genuinely targets — so it
+    /// stays on Reduce Motion.
+    private static var wantsCrossFade: Bool { UIAccessibility.prefersCrossFadeTransitions }
+
     /// Something arriving from off the bottom edge: a toast, a composer bar.
     static var plRise: AnyTransition {
-        UIAccessibility.isReduceMotionEnabled
-            ? .opacity
-            : .move(edge: .bottom).combined(with: .opacity)
+        wantsCrossFade ? .opacity : .move(edge: .bottom).combined(with: .opacity)
     }
 
     /// Something unfolding downward under the control that revealed it:
     /// an explanation, a draft row.
     static var plUnfold: AnyTransition {
-        UIAccessibility.isReduceMotionEnabled
-            ? .opacity
-            : .opacity.combined(with: .move(edge: .top))
+        wantsCrossFade ? .opacity : .opacity.combined(with: .move(edge: .top))
     }
 }
 
@@ -516,6 +545,28 @@ extension View {
     /// label that says the whole thing.
     func plChrome() -> some View {
         dynamicTypeSize(...DynamicTypeSize.xxLarge)
+    }
+
+    /// A fixed composition until the text outgrows the screen.
+    ///
+    /// The counterpart to `plChrome()`. Chrome caps its Dynamic Type because
+    /// it has nowhere to reflow; a whole screen cannot cap — a title is
+    /// content and DESIGN.md says it keeps growing — so instead it has to be
+    /// draggable once it stops fitting. Onboarding was the one part of the
+    /// app with neither answer: at accessibility sizes the hero, the
+    /// illustration and the button do not fit together on any iPhone, so the
+    /// button left the screen and there was nothing to scroll to reach it.
+    /// The keyboard did the same thing at the default size.
+    ///
+    /// The content is floored to the viewport, so a layout that already fits
+    /// is untouched, Spacers still push, and nothing bounces.
+    func plFitsOrScrolls() -> some View {
+        GeometryReader { proxy in
+            ScrollView {
+                frame(minHeight: proxy.size.height)
+            }
+            .scrollBounceBehavior(.basedOnSize)
+        }
     }
 }
 

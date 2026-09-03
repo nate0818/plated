@@ -57,6 +57,7 @@ struct SignInView: View {
                     .plType(.hero)
                     .foregroundStyle(Color.ink)
                     .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
                 Text("Plan the week, cook together, and share your table with only the people you choose.")
                     .plType(.body, .medium)
                     .foregroundStyle(Color.inkSecondary)
@@ -130,6 +131,7 @@ struct SignInView: View {
             .padding(.bottom, 32)
             .opacity(arrived ? 1 : 0)
         }
+        .plFitsOrScrolls()
         .onAppear { withAnimation(.plSettle.delay(0.1)) { arrived = true } }
     }
 

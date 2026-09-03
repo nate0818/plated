@@ -36,6 +36,7 @@ struct ProfileSetupView: View {
                     .plType(.hero)
                     .foregroundStyle(Color.ink)
                     .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
                 Text("This is how your household sees you everywhere in Plated.")
                     .plType(.body, .medium)
                     .foregroundStyle(Color.inkSecondary)
@@ -110,6 +111,7 @@ struct ProfileSetupView: View {
             .padding(.horizontal, 24)
             .padding(.bottom, 28)
         }
+        .plFitsOrScrolls()
         .background(Color.canvas.ignoresSafeArea())
         .onAppear {
             name = userFirstName

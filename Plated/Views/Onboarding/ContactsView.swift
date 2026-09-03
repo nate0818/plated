@@ -76,6 +76,12 @@ struct ContactsView: View {
                 Text("Invite your people")
                     .plType(.hero)
                     .foregroundStyle(Color.ink)
+                    .multilineTextAlignment(.center)
+                    // Without this the hero is compressed to one line and
+                    // truncated: at AX5 "Invite your people" was drawn as
+                    // "Invite...", which DESIGN.md names as the one thing a
+                    // title may never do. Its own subtitle already had it.
+                    .fixedSize(horizontal: false, vertical: true)
                 Text(accessState == .granted
                      ? "Anyone you invite sees your plan and what you cook."
                      : "Plated is invite only. Nobody sees your plan or your recipes unless you invite them.")
@@ -103,23 +109,23 @@ struct ContactsView: View {
                 .padding(.top, 30)
                 Spacer()
             } else if accessState == .granted && !candidates.isEmpty {
-                ScrollView {
-                    VStack(spacing: 0) {
-                        ForEach($candidates) { $candidate in
-                            candidateRow($candidate)
-                            if candidate.id != candidates.last?.id {
-                                Divider().overlay(Color.hairlineSoft)
-                            }
+                // The screen scrolls as a whole now, and a scroll view
+                // inside a scroll view is two things to drag one direction.
+                VStack(spacing: 0) {
+                    ForEach($candidates) { $candidate in
+                        candidateRow($candidate)
+                        if candidate.id != candidates.last?.id {
+                            Divider().overlay(Color.hairlineSoft)
                         }
                     }
-                    .padding(.horizontal, 18)
-                    .background(Color.canvas)
-                    .clipShape(RoundedRectangle(cornerRadius: Radius.hero, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: Radius.hero, style: .continuous).strokeBorder(Color.hairline))
-                    .plCardShadow()
-                    .padding(.horizontal, 24)
-                    .padding(.top, 22)
                 }
+                .padding(.horizontal, 18)
+                .background(Color.canvas)
+                .clipShape(RoundedRectangle(cornerRadius: Radius.hero, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: Radius.hero, style: .continuous).strokeBorder(Color.hairline))
+                .plCardShadow()
+                .padding(.horizontal, 24)
+                .padding(.top, 22)
                 .transition(.plArrive)
             } else {
                 Spacer()
@@ -196,6 +202,7 @@ struct ContactsView: View {
             .padding(.horizontal, 24)
             .padding(.bottom, 28)
         }
+        .plFitsOrScrolls()
         .background {
             ZStack(alignment: .topLeading) {
                 DriftingFoodPattern()

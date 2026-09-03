@@ -172,20 +172,58 @@ enum TypeScale {
     }
 
     /// The system style this step scales against under Dynamic Type.
-    var relativeTo: Font.TextStyle {
-        switch self {
-        case .micro: return .caption2
-        case .caption: return .caption
-        case .footnote: return .footnote
-        case .body: return .subheadline
-        case .callout: return .callout
-        case .heading: return .title3
-        case .title: return .title2
-        case .display: return .title
-        case .hero: return .largeTitle
+    ///
+    /// One anchor for all nine, and it has to be one: `UIFontMetrics`
+    /// multiplies each text style by a different curve, so picking the
+    /// nearest-named style per step made the steps cross each other. As
+    /// shipped, the scale was non-monotone at six of the twelve content
+    /// sizes. At AX5 `callout` resolved to 54.2pt against `heading` at 47.0,
+    /// `title` at 52.3 and `display` at 52.1 — the callout was the third
+    /// largest thing on the screen and the display step was smaller than the
+    /// title above it. At the three smallest sizes `micro`, `caption` and
+    /// `footnote` all collapsed onto 11pt and became one step.
+    ///
+    /// `.body` scales 0.824x to 3.118x, which is the widest range iOS
+    /// offers, so the ratios 11/12/13/15/17/20/23/27/32 hold at every
+    /// setting. **At Large this changes nothing**: `Font.custom(_:size:
+    /// relativeTo:)` resolves to exactly `size` at the default content
+    /// size, whatever the anchor, so a default phone renders identically to
+    /// before. `assertMonotone()` keeps it that way.
+    var relativeTo: Font.TextStyle { .body }
+}
+
+#if DEBUG
+extension TypeScale {
+    /// The scale is a scale at every size, or it is not one.
+    ///
+    /// Same shape as `TableShare.assertNoEntityCollision()`: a fact the
+    /// codebase depends on, checked once at launch in DEBUG rather than
+    /// trusted. There is no test target in this project, so this is where a
+    /// proof of this kind lives.
+    static func assertMonotone() {
+        let ordered: [TypeScale] = [.micro, .caption, .footnote, .body,
+                                    .callout, .heading, .title, .display, .hero]
+        let categories: [UIContentSizeCategory] = [
+            .extraSmall, .small, .medium, .large, .extraLarge, .extraExtraLarge,
+            .extraExtraExtraLarge, .accessibilityMedium, .accessibilityLarge,
+            .accessibilityExtraLarge, .accessibilityExtraExtraLarge,
+            .accessibilityExtraExtraExtraLarge
+        ]
+        for category in categories {
+            let traits = UITraitCollection(preferredContentSizeCategory: category)
+            let metrics = UIFontMetrics(forTextStyle: .body)
+            var previous: CGFloat = 0
+            for step in ordered {
+                let resolved = metrics.scaledValue(for: step.size, compatibleWith: traits)
+                assert(resolved > previous,
+                       "TypeScale is not monotone at \(category.rawValue): "
+                       + "\(step) resolved to \(resolved) behind \(previous)")
+                previous = resolved
+            }
         }
     }
 }
+#endif
 
 /// The five weights, spoken once rather than per family.
 enum TypeWeight {
@@ -223,13 +261,19 @@ private struct PLTypeModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         let size = style.size
+        // Tracking and leading were computed from the nominal size while the
+        // glyphs scaled, so the whole optical system evaporated as text grew:
+        // micro shipped +0.050em at Large and +0.014em at AX5, which is the
+        // one number DESIGN.md names for the eyebrow, arriving at a seventh
+        // of it exactly where the reader needs it most.
+        let scaled = UIFontMetrics(forTextStyle: .body).scaledValue(for: size)
         let font: Font = family == .display
             ? .custom(weight.gabarito.rawValue, size: size, relativeTo: style.relativeTo)
             : .custom(weight.jakarta.rawValue, size: size, relativeTo: style.relativeTo)
         return content
             .font(font)
-            .tracking(size * style.trackingEm)
-            .lineSpacing(style.lineSpacing)
+            .tracking(scaled * style.trackingEm)
+            .lineSpacing(style.lineSpacing * scaled / size)
     }
 }
 

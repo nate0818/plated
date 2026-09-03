@@ -17,6 +17,12 @@ struct PlatedApp: App {
 
     init() {
         BrandFonts.registerAll()
+        #if DEBUG
+        // The nine steps are a scale at every content size, or the app has
+        // a callout bigger than its display and nobody notices until a
+        // screenshot at AX5.
+        TypeScale.assertMonotone()
+        #endif
     }
 
     @MainActor
