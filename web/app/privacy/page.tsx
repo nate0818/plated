@@ -21,7 +21,11 @@ export default function Privacy() {
       </header>
 
       <main className={`${styles.article} wrap`}>
-        <p className="micro">Privacy</p>
+        <nav className={styles.crumbs} aria-label="Breadcrumb">
+          <Link href="/">Home</Link>
+          <span aria-hidden="true">/</span>
+          <span aria-current="page">Privacy</span>
+        </nav>
         <h1 className={styles.title}>What Plated keeps, and where.</h1>
         <p className={`${styles.updated} secondary`}>Last updated 3 September 2026</p>
 

@@ -954,20 +954,34 @@ struct DurationField: View {
 struct EditableLine: View {
     @Binding var text: String
     var placeholder: String = ""
-    var lines: ClosedRange<Int> = 1...8
+    /// Which field this is, for the screen's own `@FocusState`. `AnyHashable`
+    /// rather than a generic so the editor and the import review keep sharing
+    /// one component: one addresses its rows by UUID, the other by index.
+    var focus: FocusState<AnyHashable?>.Binding? = nil
+    var focusID: AnyHashable? = nil
 
     var body: some View {
-        TextField(placeholder, text: $text, axis: .vertical)
+        let field = TextField(placeholder, text: $text, axis: .vertical)
             .plType(.body, .medium)
             .foregroundStyle(Color.ink)
-            .lineLimit(lines)
+            // No upper line limit. It was 1...3 for an ingredient, and a
+            // three-line ingredient — "3 lb boneless pork shoulder or pork
+            // butt, trimmed of most excess fat" — was drawn with its last
+            // line sliced in half. A field that hides the text you are
+            // editing is not a field.
+            .lineLimit(1...)
             .padding(.horizontal, 14)
             .padding(.vertical, 11)
             .overlay(
                 RoundedRectangle(cornerRadius: Radius.chip, style: .continuous)
                     .strokeBorder(Color.hairline)
             )
-            .plTappableField()
+
+        if let focus, let focusID {
+            field.focused(focus, equals: focusID).plTapToFocus { focus.wrappedValue = focusID }
+        } else {
+            field.plTappableField()
+        }
     }
 }
 

@@ -1081,8 +1081,7 @@ struct RecipeDetailView: View {
                         MicroLabel("Notes")
                         EditableLine(
                             text: Bindable(recipe).cookNotes,
-                            placeholder: "Anything to remember?",
-                            lines: 1...6
+                            placeholder: "Anything to remember?"
                         )
                     }
                     .padding(.top, 4)

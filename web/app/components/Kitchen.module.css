@@ -1,0 +1,90 @@
+.kitchen {
+  --pop: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --plate: clamp(220px, 36vw, 360px);
+  --dish: calc(var(--plate) * 0.5);
+  --silver: calc(var(--plate) * 0.64);
+  display: grid;
+  gap: 12px;
+  justify-items: start;
+  padding: 12px 0 4px;
+}
+
+/* The whole setting is the button, so the fork is a target too. */
+.plate {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--plate) * 0.04);
+  padding: 8px;
+  margin: -8px;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  border-radius: 999px;
+  transition: transform 0.15s var(--pop);
+}
+
+.plate:active:not(:disabled) { transform: scale(0.96); }
+
+.plate:disabled { cursor: default; }
+
+/* Circles are dishes. Same plate as the waitlist's, one size up. */
+.dishWell {
+  width: var(--plate);
+  height: var(--plate);
+  border-radius: 50%;
+  background: var(--canvas);
+  border: 1px solid var(--hairline);
+  box-shadow:
+    inset 0 0 0 calc(var(--plate) * 0.07) var(--canvas),
+    inset 0 0 0 calc(var(--plate) * 0.08) var(--hairline-soft),
+    0 6px 10px rgba(var(--shadow-ink) / 0.11);
+  display: grid;
+  place-items: center;
+  transition: box-shadow 0.2s ease;
+}
+
+.plate:hover:not(:disabled) .dishWell {
+  box-shadow:
+    inset 0 0 0 calc(var(--plate) * 0.07) var(--canvas),
+    inset 0 0 0 calc(var(--plate) * 0.08) var(--hairline-soft),
+    0 10px 18px rgba(var(--shadow-ink) / 0.14);
+}
+
+/* A closed kitchen: the plate goes back to a well. */
+.plateClosed .dishWell {
+  background: var(--fill);
+  border-color: transparent;
+  box-shadow: none;
+}
+
+/* The error code is the first thing on the plate, written in ketchup, and
+   the first tap replaces it with dinner. */
+.code {
+  display: block;
+  width: calc(var(--plate) * 0.8);
+}
+
+.dish {
+  font-size: var(--dish);
+  line-height: 1;
+  font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
+  transform: scale(0) translateY(-40px);
+  animation: land 0.5s var(--pop) forwards;
+}
+
+@keyframes land { to { transform: scale(1) translateY(0); } }
+
+.line {
+  font-size: 1.0625rem;
+  font-weight: 600;
+  color: var(--ink);
+  max-width: 32rem;
+  min-height: 1.6em;
+}
+
+.count { font-size: 0.9375rem; }
+
+@media (prefers-reduced-motion: reduce) {
+  .dish { animation: none; transform: none; }
+  .plate { transition: none; }
+}

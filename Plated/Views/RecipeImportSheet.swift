@@ -427,7 +427,7 @@ struct RecipeImportSheet: View {
                         EditableLine(text: Binding(
                             get: { ingredient.text },
                             set: { $ingredient.wrappedValue.edited = $0 }
-                        ), placeholder: "Ingredient", lines: 1...3)
+                        ), placeholder: "Ingredient")
                         RemoveLineButton(
                             label: "Remove \(ingredient.resolved.name.isEmpty ? "ingredient" : ingredient.resolved.name)"
                         ) {

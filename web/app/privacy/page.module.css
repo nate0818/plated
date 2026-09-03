@@ -15,6 +15,21 @@
   gap: 16px;
 }
 
+.crumbs {
+  display: flex;
+  gap: 10px;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--ink-secondary);
+}
+
+.crumbs a {
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.crumbs a:hover { text-decoration: underline; text-underline-offset: 3px; }
+
 .title {
   font-size: clamp(2.25rem, 5vw, 3.5rem);
   font-weight: 500;

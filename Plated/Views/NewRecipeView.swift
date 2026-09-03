@@ -45,6 +45,106 @@ struct RecipeEditorView: View {
     /// What this kitchen learned cooking it. Captured at the receipt on the
     /// recipe page; changed here.
     @State private var cookNotes = ""
+    /// Which field the keyboard is in. `AnyHashable` because the rows are
+    /// addressed by their own ids and the fixed fields by name.
+    @FocusState private var focused: AnyHashable?
+
+    /// The row the keyboard is currently in, if it is one that can move.
+    private var movableRow: (list: RowList, index: Int)? {
+        if let id = focused as? UUID {
+            if let i = draftIngredients.firstIndex(where: { $0.id == id }) {
+                return (.ingredients, i)
+            }
+            if let i = draftSteps.firstIndex(where: { $0.id == id }) {
+                return (.steps, i)
+            }
+        }
+        return nil
+    }
+
+    private enum RowList { case ingredients, steps }
+
+    /// What sits above the keyboard while a line is being edited.
+    ///
+    /// It replaces the Save bar rather than joining it: with the keyboard up,
+    /// the Save button was pushed straight onto the row being typed in, so
+    /// the sentence you were editing was behind a tomato pill.
+    ///
+    /// `ToolbarItemGroup(placement: .keyboard)` would be the idiomatic home
+    /// for this, and it draws nothing here — the editor is a sheet with its
+    /// own masthead and no navigation container for a toolbar to attach to.
+    ///
+    /// Move up and move down rather than a drag: a drag on these rows would
+    /// fight the caret, which SwipeRow already records happening, and
+    /// DESIGN.md wants a non-gesture equivalent for every gesture anyway.
+    private var editingBar: some View {
+        HStack(spacing: 8) {
+            if movableRow != nil {
+                barButton("arrow.up", label: "Move up", enabled: canMove(-1)) { move(-1) }
+                barButton("arrow.down", label: "Move down", enabled: canMove(1)) { move(1) }
+            }
+            Spacer()
+            Button("Done") {
+                Haptic.tap()
+                focused = nil
+            }
+            .plType(.callout, .semibold)
+            .foregroundStyle(Color.ink)
+            .plTapTarget()
+            .buttonStyle(.pressable)
+        }
+        .padding(.horizontal, 24)
+        .padding(.vertical, 6)
+        .background(Color.canvas)
+        .overlay(alignment: .top) {
+            Rectangle().fill(Color.navHairline).frame(height: 1)
+        }
+    }
+
+    private func barButton(
+        _ symbol: String, label: String, enabled: Bool, action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: 15, weight: .semibold))
+                // A disabled control changes colour; it does not fade.
+                .foregroundStyle(enabled ? Color.ink : Color.inkSecondary)
+                .plTapTarget()
+        }
+        .buttonStyle(.pressable)
+        .disabled(!enabled)
+        .accessibilityLabel(label)
+    }
+
+    /// Reordering without a drag.
+    ///
+    /// A drag on these rows would fight the caret — SwipeRow already records
+    /// a `.draggable` lift stealing a touch — and DESIGN.md wants a
+    /// non-gesture equivalent for any gesture anyway. So the move lives in
+    /// the keyboard bar, where it appears the moment you tap the row you want
+    /// to move and costs no chrome on the other twenty rows.
+    private func move(_ by: Int) {
+        guard let row = movableRow else { return }
+        let to = row.index + by
+        switch row.list {
+        case .ingredients:
+            guard draftIngredients.indices.contains(to) else { return }
+            Haptic.select()
+            withAnimation(.plSnap) { draftIngredients.swapAt(row.index, to) }
+        case .steps:
+            guard draftSteps.indices.contains(to) else { return }
+            Haptic.select()
+            withAnimation(.plSnap) { draftSteps.swapAt(row.index, to) }
+        }
+    }
+
+    private func canMove(_ by: Int) -> Bool {
+        guard let row = movableRow else { return false }
+        let to = row.index + by
+        return row.list == .ingredients
+            ? draftIngredients.indices.contains(to)
+            : draftSteps.indices.contains(to)
+    }
     @State private var stepEntry = ""
     @State private var addToGroceries = true
     @State private var loaded = false
@@ -235,8 +335,7 @@ struct RecipeEditorView: View {
                         MicroLabel("Notes")
                         EditableLine(
                             text: $cookNotes,
-                            placeholder: "Anything worth remembering next time.",
-                            lines: 1...6
+                            placeholder: "Anything worth remembering next time."
                         )
                     }
                 }
@@ -244,7 +343,14 @@ struct RecipeEditorView: View {
                 .padding(.top, 16)
                 .padding(.bottom, 20)
             }
+            // The row you are typing in comes up above the keyboard. Nothing
+            // did this before, so you edited the fourth ingredient with the
+            // keyboard sitting on top of it.
+            .scrollDismissesKeyboard(.interactively)
 
+            if focused != nil {
+                editingBar
+            } else {
             VStack(spacing: 10) {
                 TomatoPillButton(
                     title: isEditing ? "Save changes" : "Save to cookbook",
@@ -281,8 +387,14 @@ struct RecipeEditorView: View {
                 }
             }
             .padding(.horizontal, 24)
+            .padding(.top, 10)
             .padding(.bottom, 16)
+            // The scroll view runs under this bar, so the last row was drawn
+            // through the Save button.
+            .background(Color.canvas)
+            }
         }
+        .animation(.plSnap, value: focused == nil)
         .presentationDragIndicator(.visible)
         .presentationBackground(Color.canvas)
         .presentationCornerRadius(Radius.sheet)
@@ -435,12 +547,13 @@ struct RecipeEditorView: View {
             MicroLabel("Ingredients")
 
             ForEach($draftIngredients) { $draft in
-                IngredientRow(draft: $draft) {
+                IngredientRow(draft: $draft, focus: $focused) {
                     Haptic.tap()
                     withAnimation(.plSnap) {
                         draftIngredients.removeAll { $0.id == draft.id }
                     }
                 }
+                .id(draft.id)
             }
 
             // The same field the import review uses, and for the same
@@ -507,12 +620,18 @@ struct RecipeEditorView: View {
                     // A step you can only delete is a step you have to retype
                     // to fix one word in, which is what somebody hits when
                     // they open Edit because they spotted a mistake.
-                    EditableLine(text: $step.text, placeholder: "Step \(stepNumber(step))")
+                    EditableLine(
+                        text: $step.text,
+                        placeholder: "Step \(stepNumber(step))",
+                        focus: $focused,
+                        focusID: step.id
+                    )
                     RemoveLineButton(label: "Remove step \(stepNumber(step))") {
                         draftSteps.removeAll { $0.id == step.id }
                     }
                 }
                 .padding(.horizontal, 4)
+                .id(step.id)
             }
 
             HStack(spacing: 8) {
@@ -862,6 +981,7 @@ struct RecipeEditorView: View {
 /// `DraftIngredient.resolved` reads it once, at save.
 private struct IngredientRow: View {
     @Binding var draft: RecipeEditorView.DraftIngredient
+    var focus: FocusState<AnyHashable?>.Binding
     var onRemove: () -> Void
 
     var body: some View {
@@ -869,7 +989,7 @@ private struct IngredientRow: View {
             EditableLine(text: Binding(
                 get: { draft.text },
                 set: { draft.edited = $0 }
-            ), placeholder: "Ingredient", lines: 1...3)
+            ), placeholder: "Ingredient", focus: focus, focusID: draft.id)
             RemoveLineButton(
                 label: "Remove \(draft.resolved.name.isEmpty ? "ingredient" : draft.resolved.name)",
                 action: onRemove

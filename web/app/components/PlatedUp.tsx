@@ -4,8 +4,9 @@ import { useMemo } from "react";
 import styles from "./PlatedUp.module.css";
 
 // The dish that lands on the plate. Picked once per mount, so it stays put
-// through re-renders.
-const DISHES = ["🍝", "🍕", "🥘", "🍲", "🥗", "🍜", "🌮", "🍛", "🍣", "🥞", "🍔", "🫕"];
+// through re-renders. Only things that sit on a plate: no bowls, no pans,
+// nothing that already comes with its own dish drawn in.
+const DISHES = ["🌮", "🌭", "🍔", "🍕", "🍗", "🥩", "🍖", "🥞", "🧇", "🥪", "🌯", "🍤", "🍳", "🥐"];
 const BURST = ["🍅", "🧄", "🧅", "🥕", "🌽", "🍄", "🥦", "🫑", "🍋", "🥑", "🌶️", "🥬", "🧀", "🍤", "🔥", "🥄"];
 
 type Bit = { glyph: string; dx: number; dy: number; rot: number; delay: number; size: number };
@@ -60,10 +61,12 @@ export default function PlatedUp() {
         </div>
       </div>
 
-      <p className={styles.title}>Plated.</p>
-      <p className={styles.note}>
-        You&rsquo;re on the list. One email when dinner&rsquo;s ready.
-      </p>
+      <div className={styles.words}>
+        <p className={styles.title}>Plated.</p>
+        <p className={styles.note}>
+          You&rsquo;re on the list. One email when we&rsquo;re live.
+        </p>
+      </div>
     </div>
   );
 }

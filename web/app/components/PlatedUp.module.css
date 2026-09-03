@@ -1,19 +1,29 @@
 /* The canvas spring, the same curve Theme.swift's plPop is the twin of. */
 .stage {
   --pop: cubic-bezier(0.34, 1.56, 0.64, 1);
+  /* One measurement. The dish and the silverware are fractions of the
+     plate, so the three can only ever grow or shrink together. */
+  --plate: clamp(96px, 12vw, 128px);
+  --dish: calc(var(--plate) * 0.5);
+  --silver: calc(var(--plate) * 0.64);
   position: relative;
-  display: grid;
-  justify-items: center;
-  gap: 6px;
-  padding: 8px 0 4px;
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  padding: 4px 0;
   max-width: 34rem;
   width: 100%;
 }
 
+.words {
+  display: grid;
+  gap: 6px;
+}
+
 .burst {
   position: absolute;
-  left: 50%;
-  top: 60px;
+  left: calc(var(--plate) * 0.65);
+  top: 50%;
   width: 0;
   height: 0;
   pointer-events: none;
@@ -37,22 +47,23 @@
 }
 
 .setting {
+  flex: none;
   display: flex;
   align-items: center;
-  gap: 14px;
-  height: 128px;
+  gap: calc(var(--plate) * 0.04);
+  height: calc(var(--plate) + 8px);
 }
 
 /* Circles are dishes. A plate: canvas, a hairline rim, and the dish shadow. */
 .plate {
-  width: 112px;
-  height: 112px;
+  width: var(--plate);
+  height: var(--plate);
   border-radius: 50%;
   background: var(--canvas);
   border: 1px solid var(--hairline);
   box-shadow:
-    inset 0 0 0 8px var(--canvas),
-    inset 0 0 0 9px var(--hairline-soft),
+    inset 0 0 0 calc(var(--plate) * 0.07) var(--canvas),
+    inset 0 0 0 calc(var(--plate) * 0.08) var(--hairline-soft),
     0 6px 10px rgba(var(--shadow-ink) / 0.11);
   display: grid;
   place-items: center;
@@ -61,15 +72,16 @@
 }
 
 .dish {
-  font-size: 52px;
+  font-size: var(--dish);
   line-height: 1;
   font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
   transform: scale(0) translateY(-40px);
   animation: land 0.5s var(--pop) 0.55s forwards;
 }
 
+/* A place setting, so the silverware is to the plate's scale, not an icon's. */
 .fork {
-  font-size: 30px;
+  font-size: var(--silver);
   line-height: 1;
   font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
   opacity: 0;
@@ -94,7 +106,6 @@
 .note {
   color: var(--ink-secondary);
   font-size: 1rem;
-  text-align: center;
   opacity: 0;
   animation: rise 0.45s ease-out 1.2s forwards;
 }
@@ -106,6 +117,11 @@
 
 /* Under Reduce Motion nothing flies and nothing springs: the plate, the
    dish and the words are simply there. */
+@media (max-width: 480px) {
+  .stage { flex-direction: column; align-items: flex-start; gap: 8px; }
+  .burst { left: calc(var(--plate) * 0.5); top: calc(var(--plate) * 0.5); }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .burst { display: none; }
   .plate, .dish, .fork, .title, .note {

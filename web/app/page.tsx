@@ -93,7 +93,6 @@ export default function Home() {
           <Wordmark size={20} />
           <nav className={styles.footerNav} aria-label="Footer">
             <Link href="/privacy">Privacy</Link>
-            <a href="mailto:privacy@getplated.food">Contact</a>
           </nav>
         </div>
         {/* Required wherever Apple's badge appears, in their wording. */}
