@@ -71,35 +71,66 @@ final class DayEventsProvider {
         !events(on: date).isEmpty
     }
 
-    /// How busy the day is, in one line, or nil when there is nothing on it.
+    /// How busy the day is, in a word, or nil when there is nothing on it.
     ///
-    /// The count is the whole day; the second clause is the only part that
-    /// bears on dinner, so it is only offered when it is true and useful.
-    /// "Clear after" is the end of the last thing scheduled, which is a fact
-    /// about the calendar rather than a claim about the person: they may
-    /// well be busy with something the calendar has never heard of.
+    /// A count is the raw data, not the answer. "3 things on" makes a person
+    /// do the arithmetic the app already did, and the arithmetic is the
+    /// whole point: what somebody deciding dinner wants to know is whether
+    /// they have an evening, not how many rows their calendar holds.
     ///
-    /// All-day entries count toward how full the day looks but never toward
-    /// when it frees up, because a birthday does not occupy an evening.
+    /// The verdict is measured, not guessed: overlapping events are merged
+    /// so a double-booked hour counts once, all-day entries are excluded
+    /// because a birthday occupies no time, and only the waking part of the
+    /// day is considered. It describes the calendar and nothing else. A
+    /// quiet calendar is not a promise that the day is quiet.
     func load(on date: Date) -> String? {
         let all = events(on: date)
         guard !all.isEmpty else { return nil }
 
-        var parts = [all.count.things("thing") + " on"]
-
+        let calendar = Calendar.current
         let timed = all.filter { !$0.isAllDay }
-        if let lastEnd = timed.map(\.end).max() {
-            let calendar = Calendar.current
+        guard !timed.isEmpty else {
+            // Only all-day entries: something is marked on the day, but
+            // none of it takes an hour away from cooking.
+            return "Quiet day"
+        }
+
+        // Merge overlaps so a triple-booked hour is one hour.
+        let day = calendar.startOfDay(for: date)
+        let waking = (calendar.date(byAdding: .hour, value: 6, to: day) ?? day)
+            ... (calendar.date(byAdding: .hour, value: 21, to: day) ?? day)
+        var spans: [(Date, Date)] = []
+        for event in timed.sorted(by: { $0.start < $1.start }) {
+            let from = max(event.start, waking.lowerBound)
+            let to = min(event.end, waking.upperBound)
+            guard to > from else { continue }
+            if let last = spans.last, from <= last.1 {
+                spans[spans.count - 1].1 = max(last.1, to)
+            } else {
+                spans.append((from, to))
+            }
+        }
+        let booked = spans.reduce(0.0) { $0 + $1.1.timeIntervalSince($1.0) } / 3600
+
+        let verdict: String
+        switch booked {
+        case ..<2:  verdict = "Quiet day"
+        case ..<5:  verdict = "Busy day"
+        default:    verdict = "Packed day"
+        }
+
+        // The one clause that changes what gets cooked: when the day lets go.
+        // Only while it still leaves an evening — a day running to ten is not
+        // "clear after ten", it is just full.
+        if let lastEnd = spans.last?.1 {
             let hour = calendar.component(.hour, from: lastEnd)
-            // Only worth saying while it still leaves an evening. A day that
-            // runs to ten o'clock is not "clear after ten", it is just full.
             if hour < 20, calendar.isDate(lastEnd, inSameDayAs: date) {
                 let formatter = DateFormatter()
                 formatter.dateFormat = calendar.component(.minute, from: lastEnd) == 0
                     ? "h a" : "h:mm a"
-                parts.append("clear after \(formatter.string(from: lastEnd))")
+                return "\(verdict) · clear after \(formatter.string(from: lastEnd))"
             }
         }
-        return parts.joined(separator: " · ")
+        return verdict
     }
 }

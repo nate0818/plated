@@ -930,32 +930,41 @@ struct WeekView: View {
         var id: Date { start }
     }
 
-    /// Every dinner already cooked, grouped by its week, oldest first.
+    /// The weeks behind you, whole, oldest first.
     ///
-    /// Only nights that have a dinner on them. An empty past night is not
-    /// history: `pastRow` disables it so it cannot be planned, and it
-    /// records nothing, so a wall of "Nothing plated" above tonight would
-    /// be scrollback with nothing in it.
+    /// This used to be only the nights that had a dinner on them, which on a
+    /// household that has cooked twice is two rows floating above tonight
+    /// with no shape to them. History is a timeline, not a filtered list:
+    /// scrolling back should read like a calendar, so the weeks come back
+    /// whole and the gaps are part of the record. Which nights you did not
+    /// cook is as much of the rhythm as which nights you did.
     ///
-    /// Not bounded to a fixed number of weeks. It is exactly as long as the
-    /// household has cooked: nothing on a new install, a year after a year.
+    /// Starts at the first dinner the household ever planned, so a new
+    /// install has no history rather than an empty scrollback, and stops at
+    /// twelve weeks because the rows are drawn eagerly and a year of them is
+    /// three hundred and sixty-four views built to show four.
     private var cookedHistory: [HistorySection] {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: .now)
         let past = meals.filter { $0.slotValue == .dinner && $0.date < today }
-        guard !past.isEmpty else { return [] }
+        guard let earliest = past.map(\.date).min() else { return [] }
 
-        let grouped = Dictionary(grouping: past) { calendar.startOfWeek(for: $0.date) }
-        return grouped.keys.sorted().map { start in
-            var seen = Set<Date>()
-            let dates = grouped[start, default: []]
-                .map { calendar.startOfDay(for: $0.date) }
-                .filter { seen.insert($0).inserted }
-                .sorted()
-            return HistorySection(start: start,
-                                  label: historyLabel(weekStart: start),
-                                  dates: dates)
+        let thisWeek = calendar.startOfWeek(for: today)
+        let floor = calendar.date(byAdding: .day, value: -7 * 12, to: thisWeek) ?? thisWeek
+        var weekStart = max(calendar.startOfWeek(for: earliest), floor)
+
+        var sections: [HistorySection] = []
+        while weekStart <= thisWeek {
+            let days = calendar.weekDays(for: weekStart).filter { $0 < today }
+            if !days.isEmpty {
+                sections.append(HistorySection(start: weekStart,
+                                               label: historyLabel(weekStart: weekStart),
+                                               dates: days))
+            }
+            guard let next = calendar.date(byAdding: .day, value: 7, to: weekStart) else { break }
+            weekStart = next
         }
+        return sections
     }
 
     private func historyLabel(weekStart: Date) -> String {
