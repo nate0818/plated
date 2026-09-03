@@ -310,7 +310,18 @@ enum TableShare {
     /// single thing that most often goes wrong in a CKShare implementation.
     static func publish(_ post: TablePost, hostName: String) async -> String? {
         guard await TableSync.accountAvailable() else { return nil }
-        guard let (db, zoneID) = await writableZone() else { return nil }
+        // A post that has already been published goes back to the table it
+        // is on. Only a brand new one gets to ask where it should live.
+        let target: (CKDatabase, CKRecordZone.ID, String)?
+        if post.shareRecordName.isEmpty {
+            target = await myWritableZone()
+        } else if let (db, id) = await zone(ownedBy: post.shareZoneOwner) {
+            target = (db, id, post.shareZoneOwner)
+        } else {
+            target = nil
+        }
+        guard let (db, zoneID, owner) = target else { return nil }
+        await MainActor.run { post.shareZoneOwner = owner }
         do {
             let name = post.shareRecordName.isEmpty
                 ? "post-\(UUID().uuidString)" : post.shareRecordName
@@ -360,10 +371,17 @@ enum TableShare {
     /// Returns false only when the record exists and could not be reached.
     /// A post that never published has an empty name and is already gone
     /// everywhere, which is a success, not a no-op.
-    static func retract(recordName: String) async -> Bool {
+    static func retract(recordName: String, zoneOwner: String) async -> Bool {
         guard !recordName.isEmpty else { return true }
         guard await TableSync.accountAvailable() else { return false }
-        guard let (db, zoneID) = await writableZone() else { return false }
+        // The post's own table, not "wherever I write". Routed through the
+        // old global answer, a host who had also joined a table deleted
+        // into their OWN zone, got `.unknownItem` from a record that was
+        // never there, and the catch below read that as "already gone" — so
+        // the local row went and the next pull brought the post back as a
+        // stranger's. That is the bug this function exists to fix, arriving
+        // by a second road.
+        guard let (db, zoneID) = await zone(ownedBy: zoneOwner) else { return false }
         do {
             _ = try await db.deleteRecord(
                 withID: CKRecord.ID(recordName: recordName, zoneID: zoneID)
@@ -385,6 +403,8 @@ enum TableShare {
     /// background task.
     struct RemotePost {
         var recordName = ""
+        /// Which table this arrived from. "" is my own.
+        var zoneOwner = ""
         var authorName = ""
         var authorColorHex = "FF5A3C"
         var dishTitle = ""
@@ -418,12 +438,32 @@ enum TableShare {
     /// zone — and a host's own posts come back matching on
     /// `shareRecordName`, so `merge` updates them rather than duplicating.
     static func fetchRemote() async -> [RemotePost] {
-        guard await TableSync.accountAvailable() else { return [] }
-        var found: [RemotePost] = []
-        for db in [container.privateCloudDatabase, container.sharedCloudDatabase] {
-            found += await postChanges(in: db)
+        await fetchChanges().posts
+    }
+
+    /// What the tables have said since we last asked: what changed, and what
+    /// was taken away.
+    ///
+    /// `deletions` used to be dropped on the floor, so a post the author
+    /// removed stayed on every other phone until that phone was reinstalled.
+    /// Now that deleting genuinely removes the record, ignoring the deletion
+    /// half of the same conversation would be the same lie from the other
+    /// end.
+    struct Changes {
+        var posts: [RemotePost] = []
+        var deleted: Set<String> = []
+    }
+
+    static func fetchChanges() async -> Changes {
+        guard await TableSync.accountAvailable() else { return Changes() }
+        var all = Changes()
+        for (db, isPrivate) in [(container.privateCloudDatabase, true),
+                                (container.sharedCloudDatabase, false)] {
+            let part = await postChanges(in: db, isPrivate: isPrivate)
+            all.posts += part.posts
+            all.deleted.formUnion(part.deleted)
         }
-        return found
+        return all
     }
 
     /// One database's worth of post changes, incrementally.
@@ -432,21 +472,37 @@ enum TableShare {
     /// which is why the catch is scoped to a zone rather than to the whole
     /// fetch: a host whose shared database throws should not re-read its
     /// own table from the beginning on every pull.
-    private static func postChanges(in db: CKDatabase) async -> [RemotePost] {
-        var found: [RemotePost] = []
+    private static func postChanges(in db: CKDatabase, isPrivate: Bool) async -> Changes {
+        var found = Changes()
         guard let zones = try? await db.allRecordZones() else { return found }
         for zone in zones where zone.zoneID.zoneName == zoneName {
+            let owner = canonicalOwner(zone.zoneID, isPrivate: isPrivate)
             do {
-                let changes = try await db.recordZoneChanges(
-                    inZoneWith: zone.zoneID, since: token(for: zone.zoneID)
-                )
-                for (_, result) in changes.modificationResultsByID {
-                    guard let record = try? result.get().record,
-                          record.recordType == postType
-                            || record.recordType == legacyPostType else { continue }
-                    found.append(remotePost(from: record))
+                // A page at a time until the server says there is no more.
+                // One call returns one page, so a table with more posts than
+                // a page holds used to arrive permanently truncated — and
+                // the token still advanced, so the rest never came at all.
+                var cursor = token(for: zone.zoneID)
+                var more = true
+                while more {
+                    let changes = try await db.recordZoneChanges(
+                        inZoneWith: zone.zoneID, since: cursor
+                    )
+                    for (_, result) in changes.modificationResultsByID {
+                        guard let record = try? result.get().record,
+                              record.recordType == postType
+                                || record.recordType == legacyPostType else { continue }
+                        var post = remotePost(from: record)
+                        post.zoneOwner = owner
+                        found.posts.append(post)
+                    }
+                    for deleted in changes.deletions {
+                        found.deleted.insert(deleted.recordID.recordName)
+                    }
+                    cursor = changes.changeToken
+                    more = changes.moreComing
                 }
-                store(changes.changeToken, for: zone.zoneID)
+                store(cursor, for: zone.zoneID)
             } catch {
                 // A stale token after a zone is re-shared is the common
                 // case. Forget this zone's and the next pull re-reads it
@@ -617,16 +673,53 @@ enum TableShare {
 
     /// Which database and zone this user may write posts into: their own
     /// table if they host one, otherwise the first table they've joined.
-    private static func writableZone() async -> (CKDatabase, CKRecordZone.ID)? {
-        let mine = CKRecordZone.ID(zoneName: zoneName, ownerName: CKCurrentUserDefaultName)
-        if (try? await container.privateCloudDatabase.recordZone(for: mine)) != nil {
-            return (container.privateCloudDatabase, mine)
+    /// Canonical zone owner. "" always means MY OWN table.
+    ///
+    /// `zoneID.ownerName` is observer-relative: `__defaultOwner__` for the
+    /// host reading their private database, the host's real record name for
+    /// a guest reading the shared one. Canonicalising at the boundary keeps
+    /// the value stored on a TablePost stable across one person's devices,
+    /// and it is never compared across people.
+    static func canonicalOwner(_ zoneID: CKRecordZone.ID, isPrivate: Bool) -> String {
+        isPrivate ? "" : zoneID.ownerName
+    }
+
+    /// Where THIS post lives. Never "wherever I happen to write".
+    ///
+    /// This replaces a `writableZone()` that answered a question about the
+    /// PERSON — do I host a table? — and let hosting always win. Anyone who
+    /// has tapped Invite once hosts forever, so every write to a post on a
+    /// table they had JOINED was aimed at their own zone instead.
+    private static func zone(ownedBy owner: String) async -> (CKDatabase, CKRecordZone.ID)? {
+        if owner.isEmpty {
+            let id = CKRecordZone.ID(zoneName: zoneName, ownerName: CKCurrentUserDefaultName)
+            // `.zoneNotFound` means there is genuinely no table here. Any
+            // other error means we could not ask, and must never be read as
+            // "not a host": that is how a flaky network routes a host's own
+            // write into somebody else's zone.
+            do {
+                _ = try await container.privateCloudDatabase.recordZone(for: id)
+                return (container.privateCloudDatabase, id)
+            } catch {
+                return nil
+            }
         }
-        if let shared = try? await container.sharedCloudDatabase.allRecordZones(),
-           let zone = shared.first(where: { $0.zoneID.zoneName == zoneName }) {
-            return (container.sharedCloudDatabase, zone.zoneID)
-        }
-        return nil
+        guard let zones = try? await container.sharedCloudDatabase.allRecordZones(),
+              let z = zones.first(where: {
+                  $0.zoneID.zoneName == zoneName && $0.zoneID.ownerName == owner
+              })
+        else { return nil }
+        return (container.sharedCloudDatabase, z.zoneID)
+    }
+
+    /// Where a NEW post goes: my own table if I host one, otherwise the
+    /// table I have joined.
+    private static func myWritableZone() async -> (CKDatabase, CKRecordZone.ID, String)? {
+        if let (db, id) = await zone(ownedBy: "") { return (db, id, "") }
+        guard let zones = try? await container.sharedCloudDatabase.allRecordZones(),
+              let z = zones.first(where: { $0.zoneID.zoneName == zoneName })
+        else { return nil }
+        return (container.sharedCloudDatabase, z.zoneID, z.zoneID.ownerName)
     }
 
     private static func asset(from data: Data) -> CKAsset? {
@@ -644,11 +737,14 @@ enum TableShare {
     static func invitationURL(hostName: String) async -> URL? { nil }
     static func accept(_ metadata: CKShare.Metadata) async -> Bool { false }
     static func publish(_ post: TablePost, hostName: String) async -> String? { nil }
-    static func retract(recordName: String) async -> Bool { true }
-    struct RemotePost { var recordName = ""; var authorName = ""; var authorColorHex = "FF5A3C"
+    static func retract(recordName: String, zoneOwner: String) async -> Bool { true }
+    struct RemotePost { var recordName = ""; var zoneOwner = ""; var authorName = ""
+                        var authorColorHex = "FF5A3C"
                         var dishTitle = ""; var caption = ""; var kind = "dish"
                         var createdAt = Date.now; var photoData: Data? }
+    struct Changes { var posts: [RemotePost] = []; var deleted: Set<String> = [] }
     static func fetchRemote() async -> [RemotePost] { [] }
+    static func fetchChanges() async -> Changes { Changes() }
     struct Seat: Identifiable { var id = ""; var name = ""; var isOwner = false; var isMe = false }
     static func participants() async -> [Seat] { [] }
     static func shareMetadata(for url: URL) async throws -> CKShare.Metadata {
@@ -668,19 +764,32 @@ enum TableShare {
     /// Fold what came back into the local store, keyed on the record name so
     /// a second fetch updates rather than duplicates.
     @MainActor
-    static func merge(_ remote: [RemotePost], into context: ModelContext) {
-        guard !remote.isEmpty else { return }
+    static func merge(_ changes: Changes, into context: ModelContext) {
+        guard !changes.posts.isEmpty || !changes.deleted.isEmpty else { return }
         let existing = (try? context.fetch(FetchDescriptor<TablePost>())) ?? []
         var byRecord: [String: TablePost] = [:]
         for post in existing where !post.shareRecordName.isEmpty {
             byRecord[post.shareRecordName] = post
         }
-        for r in remote {
+
+        // Taken off the table by whoever wrote it. Dropping these on the
+        // floor meant a post its author had deleted stayed on every other
+        // phone until that phone was reinstalled — the same lie as a delete
+        // that does not delete, told from the receiving end.
+        for name in changes.deleted {
+            if let post = byRecord[name] {
+                context.delete(post)
+                byRecord[name] = nil
+            }
+        }
+
+        for r in changes.posts {
             if let post = byRecord[r.recordName] {
                 // Someone edited their caption; plates and comments are ours
                 // and are deliberately not overwritten from the wire.
                 post.caption = r.caption
                 post.dishTitle = r.dishTitle
+                post.shareZoneOwner = r.zoneOwner
             } else {
                 let post = TablePost(
                     authorName: r.authorName, authorColorHex: r.authorColorHex,
@@ -688,6 +797,7 @@ enum TableShare {
                     isDiscover: false, createdAt: r.createdAt, photoData: r.photoData
                 )
                 post.shareRecordName = r.recordName
+                post.shareZoneOwner = r.zoneOwner
                 post.isRemote = true
                 context.insert(post)
             }

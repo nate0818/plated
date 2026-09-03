@@ -24,6 +24,21 @@ final class TablePost {
     /// True when this arrived from somebody else's table. Guests may plate
     /// and comment; they may not edit or delete what isn't theirs.
     var isRemote: Bool = false
+    /// Which table's zone this post lives in. "" always means my own.
+    ///
+    /// Without it, writing back to a post is routed by asking "do I host a
+    /// zone?", which is a question about the person rather than about the
+    /// post. Anyone who has tapped Invite once hosts forever, so deleting a
+    /// post on a table they JOINED aimed the delete at their own zone, hit
+    /// `.unknownItem`, and read that as "already gone" — which removes the
+    /// local row and lets the next pull bring the post back as a stranger's,
+    /// undeletable. Verbatim the bug that made deleting a post a lie, down a
+    /// second road.
+    ///
+    /// Defaulted rather than optional so the mirror stays CloudKit-safe, and
+    /// "" is correct for every post that already exists: before tables could
+    /// be joined, every post was on your own.
+    var shareZoneOwner: String = ""
     var createdAt: Date = Date.now
     /// Household members called out in the caption ("@Riley made the sauce").
     var taggedNames: [String] = []

@@ -167,7 +167,7 @@ struct TableFeedView: View {
         // Two different pipes, pulled together because the user pulled once.
         // The mirror carries this household's own devices; TableShare
         // carries everybody else's table. Neither knows about the other.
-        async let remote = TableShare.fetchRemote()
+        async let remote = TableShare.fetchChanges()
         let outcome = await CloudSync.waitForImport()
         TableShare.merge(await remote, into: context)
         // Let go mid-pull and there is nothing to confirm — the tick used
@@ -409,7 +409,7 @@ struct TableFeedView: View {
                 // A seat accepted from Messages while the Table is already
                 // open would otherwise sit invisible until the next pull.
                 .onReceive(NotificationCenter.default.publisher(for: ShareAcceptor.didAccept)) { _ in
-                    Task { TableShare.merge(await TableShare.fetchRemote(), into: context) }
+                    Task { TableShare.merge(await TableShare.fetchChanges(), into: context) }
                 }
             }
             .background(Color.canvas)
@@ -1021,9 +1021,10 @@ struct TableFeedView: View {
     /// not: DESIGN.md's rule is that state is recorded, never asserted.
     private func deletePost(_ post: TablePost) {
         let recordName = post.shareRecordName
+        let zoneOwner = post.shareZoneOwner
         pendingDelete = nil
         Task {
-            guard await TableShare.retract(recordName: recordName) else {
+            guard await TableShare.retract(recordName: recordName, zoneOwner: zoneOwner) else {
                 Haptic.warn()
                 showToast("Couldn't reach iCloud. The post is still on the table.")
                 return
