@@ -404,13 +404,39 @@ enum TableShare {
     /// looks exactly like "nobody has posted". `recordZoneChanges` needs no
     /// index at all, and is incremental into the bargain — the change token
     /// means the second pull costs the delta rather than the whole table.
+    /// **Both databases, deliberately.**
+    ///
+    /// The zone lives in the HOST's private database and appears in a
+    /// GUEST's shared database. This read the shared database alone, so
+    /// `allRecordZones()` came back empty for every host and the loop never
+    /// ran once: a guest's post never reached the person whose table it was.
+    /// The Table was one-directional and nothing on screen said so, because
+    /// an empty fetch is indistinguishable from a quiet table.
+    ///
+    /// Scanning the private database costs a host nothing they were not
+    /// already paying — the zone filter skips the SwiftData mirror's own
+    /// zone — and a host's own posts come back matching on
+    /// `shareRecordName`, so `merge` updates them rather than duplicating.
     static func fetchRemote() async -> [RemotePost] {
         guard await TableSync.accountAvailable() else { return [] }
-        let db = container.sharedCloudDatabase
         var found: [RemotePost] = []
-        do {
-            let zones = try await db.allRecordZones()
-            for zone in zones where zone.zoneID.zoneName == zoneName {
+        for db in [container.privateCloudDatabase, container.sharedCloudDatabase] {
+            found += await postChanges(in: db)
+        }
+        return found
+    }
+
+    /// One database's worth of post changes, incrementally.
+    ///
+    /// A failure in one database must not cost the other its change token,
+    /// which is why the catch is scoped to a zone rather than to the whole
+    /// fetch: a host whose shared database throws should not re-read its
+    /// own table from the beginning on every pull.
+    private static func postChanges(in db: CKDatabase) async -> [RemotePost] {
+        var found: [RemotePost] = []
+        guard let zones = try? await db.allRecordZones() else { return found }
+        for zone in zones where zone.zoneID.zoneName == zoneName {
+            do {
                 let changes = try await db.recordZoneChanges(
                     inZoneWith: zone.zoneID, since: token(for: zone.zoneID)
                 )
@@ -421,12 +447,12 @@ enum TableShare {
                     found.append(remotePost(from: record))
                 }
                 store(changes.changeToken, for: zone.zoneID)
+            } catch {
+                // A stale token after a zone is re-shared is the common
+                // case. Forget this zone's and the next pull re-reads it
+                // whole; the other zone's token survives.
+                forgetToken(for: zone.zoneID)
             }
-        } catch {
-            // A stale token after a zone is re-shared is the common case.
-            // Forget it and the next pull re-reads the zone whole.
-            forgetTokens()
-            return found
         }
         return found
     }
@@ -561,6 +587,10 @@ enum TableShare {
                 withRootObject: token, requiringSecureCoding: true
               ) else { return }
         UserDefaults.standard.set(data, forKey: tokenKey(id))
+    }
+
+    private static func forgetToken(for id: CKRecordZone.ID) {
+        UserDefaults.standard.removeObject(forKey: tokenKey(id))
     }
 
     private static func forgetTokens() {
