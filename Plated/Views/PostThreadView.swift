@@ -601,7 +601,14 @@ struct PostThreadView: View {
             // clears it. Derived, not hand-typed: the 92 that used to sit
             // here put the send button squarely under Prongsby's perch,
             // so tapping send opened him instead of posting the comment.
-            .padding(.bottom, Layout.tabBarInset)
+            //
+            // But only while the keyboard is down. Raised, the keyboard
+            // already covers the bar and the perch, so holding the clearance
+            // stranded the composer 84pt above the keys with a band of empty
+            // canvas under it — the one moment the bar is guaranteed not to
+            // be in the way is the one moment it was still being avoided.
+            .padding(.bottom, composerFocused ? 10 : Layout.tabBarInset)
+            .animation(.plSnap, value: composerFocused)
         }
     }
 
