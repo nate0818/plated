@@ -8,6 +8,13 @@ import PhotosUI
 /// profile. The back chevron is always top-left; no sheet to guess at.
 struct PostThreadView: View {
     let post: TablePost
+    /// Land with the keyboard up when the door said "Add a comment".
+    ///
+    /// That label is a verb naming an outcome, and tapping it used to push a
+    /// page and ask you to tap again. Instagram's equivalent line opens with
+    /// the field ready. Entering through the photo or the card body does not
+    /// set this, because there the intent was "read the thread".
+    var startWriting = false
     /// Provided by the feed (which owns its toast); when nil — a thread
     /// opened from a profile page — the thread runs the save flow itself.
     var onSave: ((TablePost) -> Void)?
@@ -66,9 +73,14 @@ struct PostThreadView: View {
 
                     HStack(spacing: 14) {
                         PlateReactionButton(post: post, bounce: $bounce)
-                        Text(post.totalPlates == 1 ? "1 plate" : "\(post.totalPlates) plates")
-                            .plType(.footnote, .semibold)
-                            .foregroundStyle(Color.inkSecondary)
+                        // The same rule as the feed card: the line arrives
+                        // with the first plate. "0 plates" under somebody's
+                        // dinner is a sentence no social product writes.
+                        if post.totalPlates > 0 {
+                            Text(post.totalPlates == 1 ? "1 plate" : "\(post.totalPlates) plates")
+                                .plType(.footnote, .semibold)
+                                .foregroundStyle(Color.inkSecondary)
+                        }
                         Spacer()
                     }
 
@@ -110,7 +122,12 @@ struct PostThreadView: View {
                         pollCard
                     }
 
-                    MicroLabel("Comments · \(post.sortedComments.count)")
+                    // The count only once there is one. "COMMENTS · 0"
+                    // sitting directly above "No comments yet" says the same
+                    // nothing twice.
+                    MicroLabel(post.sortedComments.isEmpty
+                               ? "Comments"
+                               : "Comments · \(post.sortedComments.count)")
                         .padding(.top, 8)
 
                     if post.sortedComments.isEmpty {
@@ -134,6 +151,14 @@ struct PostThreadView: View {
         }
         .background(Color.canvas)
         .toolbar(.hidden, for: .navigationBar)
+        // A beat after the push, not during it: focusing mid-transition
+        // races the keyboard against the navigation animation and the page
+        // arrives already scrolled.
+        .task {
+            guard startWriting else { return }
+            try? await Task.sleep(for: .milliseconds(350))
+            composerFocused = true
+        }
         // This page docks its own composer at the bottom-trailing corner,
         // exactly where the perch lives.
         .hidesProngsbyPerch()
@@ -647,7 +672,13 @@ struct PostThreadView: View {
         let mentioned = members.map(\.name).filter { draft.contains("@\($0)") }
         let comment = TableComment(
             authorName: author,
-            text: draft.isEmpty ? "📷" : draft,
+            // Not a camera emoji. `canSend` deliberately allows a comment
+            // that is only a link, and this stamped every one of them with
+            // a 📷 in the body — so a pasted recipe URL rendered as a
+            // photograph that was not there. An empty body with a link or a
+            // photo carrying the row is a valid comment and every renderer
+            // already handles it.
+            text: draft,
             linkURL: normalized,
             replyToName: replyTo ?? "",
             mentions: mentioned,

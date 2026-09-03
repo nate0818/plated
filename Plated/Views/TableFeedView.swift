@@ -24,6 +24,10 @@ struct TableFeedView: View {
     @Namespace private var scopePill
     @State private var bouncePost: PersistentIdentifier?
     @State private var threadPost: TablePost?
+    /// Set only when the door was the "Add a comment" line, so the thread
+    /// opens with the field ready. Reading a thread should not raise a
+    /// keyboard over it.
+    @State private var threadStartsWriting = false
     @State private var personShown: PersonRef?
     @State private var seatsPresented = false
     /// The composer, opened straight from the empty state. The + in the tab
@@ -358,7 +362,7 @@ struct TableFeedView: View {
             .plSwipeBack()
             .sheet(isPresented: $composerShown) { TableComposerSheet() }
             .navigationDestination(item: $threadPost) { post in
-                PostThreadView(post: post) { beginSave($0) }
+                PostThreadView(post: post, startWriting: threadStartsWriting) { beginSave($0) }
                     .navigationTransition(.zoom(sourceID: post.persistentModelID, in: zoom))
             }
             .navigationDestination(item: $personShown) { person in
@@ -664,8 +668,7 @@ struct TableFeedView: View {
                 if let data = post.photoData, let image = UIImage(data: data) {
                     // The photo is the door to the thread.
                     Button {
-                        Haptic.tap()
-                        threadPost = post
+                        openThread(post)
                     } label: {
                         PhotoWell(image: image, height: 300)
                             .plCardShadow()
@@ -708,8 +711,7 @@ struct TableFeedView: View {
             // thread at all. Threads solves it the same way: with no media
             // the text becomes the tap target.
             Button {
-                Haptic.tap()
-                threadPost = post
+                openThread(post)
             } label: {
                 VStack(alignment: .leading, spacing: 1) {
                     if !post.dishTitle.isEmpty {
@@ -768,8 +770,7 @@ struct TableFeedView: View {
             HStack(spacing: 14) {
                 plateButton(post)
                 Button {
-                    Haptic.tap()
-                    threadPost = post
+                    openThread(post)
                 } label: {
                     HStack(spacing: 7) {
                         Image(systemName: "bubble.right")
@@ -833,8 +834,7 @@ struct TableFeedView: View {
             }
 
             Button {
-                Haptic.tap()
-                threadPost = post
+                openThread(post, writing: post.sortedComments.count <= 2)
             } label: {
                 Text(post.sortedComments.count > 2
                      ? "See all \(post.sortedComments.count) comments"
@@ -857,8 +857,7 @@ struct TableFeedView: View {
     @ViewBuilder
     private func postMenu(_ post: TablePost, canSave: Bool) -> some View {
         Button {
-            Haptic.tap()
-            threadPost = post
+            openThread(post)
         } label: {
             Label("Comments", systemImage: "bubble.right")
         }
@@ -987,8 +986,7 @@ struct TableFeedView: View {
                 .accessibilityLabel("More")
             }
             Button {
-                Haptic.tap()
-                threadPost = post
+                openThread(post)
             } label: {
                 VStack(alignment: .leading, spacing: 8) {
                     Text(post.caption)
@@ -1018,8 +1016,7 @@ struct TableFeedView: View {
                 commentLine(comment)
             }
             Button {
-                Haptic.tap()
-                threadPost = post
+                openThread(post, writing: post.sortedComments.count <= 2)
             } label: {
                 // The same branch the dish card already has, worded for
                 // an ask. This always said "Suggest a dish", so a question
@@ -1231,6 +1228,20 @@ struct TableFeedView: View {
          + Text(post.caption).font(.jakarta(TypeScale.body.size)))
             .foregroundStyle(Color.ink)
             .lineSpacing(3)
+    }
+
+    /// One door into a thread, and whether it was a reading door or a
+    /// writing one.
+    ///
+    /// "Add a comment" is a verb naming an outcome and it used to push a page
+    /// and ask you to tap again. It arrives with the field ready now. The
+    /// photograph, the words, the comment glyph and the overflow all mean
+    /// "let me read this", and a keyboard over a thread you came to read is
+    /// worse than no keyboard at all.
+    private func openThread(_ post: TablePost, writing: Bool = false) {
+        Haptic.tap()
+        threadStartsWriting = writing
+        threadPost = post
     }
 
     private func postWhen(_ date: Date) -> String {
