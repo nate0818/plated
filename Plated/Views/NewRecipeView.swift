@@ -48,6 +48,12 @@ struct RecipeEditorView: View {
     /// Which field the keyboard is in. `AnyHashable` because the rows are
     /// addressed by their own ids and the fixed fields by name.
     @FocusState private var focused: AnyHashable?
+    /// The step being dragged, where the finger is, and where each row's slot
+    /// sits. Slots are keyed by position rather than by step, because the
+    /// slots stay put while the steps move between them.
+    @State private var dragStepID: UUID?
+    @State private var dragY: CGFloat = 0
+    @State private var stepSlots: [Int: CGRect] = [:]
 
     /// The row the keyboard is currently in, if it is one that can move.
     private var movableRow: (list: RowList, index: Int)? {
@@ -63,6 +69,69 @@ struct RecipeEditorView: View {
     }
 
     private enum RowList { case ingredients, steps }
+
+    static let stepSpace = "plated.editor.steps"
+
+    /// Long press a step's number and drag it up or down the list.
+    ///
+    /// Long press first, so an ordinary tap still reaches the field beside
+    /// it. Lifting clears the keyboard: typing in a row and dragging it are
+    /// not the same activity, and leaving a caret in a moving row is how a
+    /// text selection ends up fighting a reorder.
+    private func stepDrag(_ id: UUID) -> some Gesture {
+        LongPressGesture(minimumDuration: 0.3)
+            .sequenced(before: DragGesture(minimumDistance: 0,
+                                           coordinateSpace: .named(Self.stepSpace)))
+            .onChanged { value in
+                switch value {
+                case .first(true):
+                    lift(id)
+                case let .second(true, drag):
+                    lift(id)
+                    if let drag { dragStep(id, to: drag.location.y) }
+                default:
+                    break
+                }
+            }
+            .onEnded { _ in drop() }
+    }
+
+    private func lift(_ id: UUID) {
+        guard dragStepID != id else { return }
+        focused = nil
+        Haptic.plate()
+        withAnimation(.plPop) { dragStepID = id }
+        dragY = stepSlots[draftSteps.firstIndex { $0.id == id } ?? 0]?.midY ?? 0
+    }
+
+    /// The lifted row follows the finger, and the row whose slot the finger
+    /// is over trades places with it.
+    private func dragStep(_ id: UUID, to y: CGFloat) {
+        dragY = y
+        guard let from = draftSteps.firstIndex(where: { $0.id == id }) else { return }
+        guard let to = stepSlots.first(where: { $0.value.minY...$0.value.maxY ~= y })?.key,
+              to != from, draftSteps.indices.contains(to)
+        else { return }
+        Haptic.select()
+        withAnimation(.plSnap) {
+            let moved = draftSteps.remove(at: from)
+            draftSteps.insert(moved, at: to)
+        }
+    }
+
+    private func drop() {
+        guard dragStepID != nil else { return }
+        Haptic.plate()
+        withAnimation(.plSnap) { dragStepID = nil }
+    }
+
+    private func moveStep(_ id: UUID, by offset: Int) {
+        guard let from = draftSteps.firstIndex(where: { $0.id == id }) else { return }
+        let to = from + offset
+        guard draftSteps.indices.contains(to) else { return }
+        Haptic.select()
+        withAnimation(.plSnap) { draftSteps.swapAt(from, to) }
+    }
 
     /// What sits above the keyboard while a line is being edited.
     ///
@@ -603,34 +672,66 @@ struct RecipeEditorView: View {
             // on the sentence somebody was writing. That is also what the
             // guarded binding here was working around.
             ForEach($draftSteps) { $step in
+                let index = stepNumber(step) - 1
+                let lifted = dragStepID == step.id
                 HStack(alignment: .top, spacing: 10) {
-                    Text("\(stepNumber(step))")
+                    // The number is the grab handle. Long press it and drag.
+                    //
+                    // The handle is here rather than on the whole row because
+                    // the rest of the row is a live text field: a long press
+                    // there is how iOS starts a selection, and SwipeRow in
+                    // this repo already records a lift stealing a touch. The
+                    // numeral column has no keyboard behind it, so nothing is
+                    // competing for the gesture.
+                    Text("\(index + 1)")
                         .plType(.footnote, .extraBold, family: .display)
-                        .foregroundStyle(Color.inkSecondary)
+                        .foregroundStyle(lifted ? Color.ink : Color.inkSecondary)
                         // fixedSize before the frame, and a floor rather than
                         // a hard width: a hard 20 forces "10" to wrap rather
                         // than overflow once footnote outgrows it.
                         .monospacedDigit()
                         .lineLimit(1)
                         .fixedSize()
-                        .frame(minWidth: 20, alignment: .trailing)
-                        // The numeral sits on the field's first line rather
-                        // than on the top of its border.
-                        .padding(.top, 12)
+                        .frame(minWidth: 26, minHeight: 44)
+                        .contentShape(Rectangle())
+                        .padding(.top, 4)
+                        .gesture(stepDrag(step.id))
+                        .accessibilityLabel("Step \(index + 1), reorder handle")
+                        // A drag is a gesture, so it needs an equivalent that
+                        // is not one. The keyboard bar carries the same two
+                        // moves; these put them on the handle as well.
+                        .accessibilityActions {
+                            Button("Move up") { moveStep(step.id, by: -1) }
+                            Button("Move down") { moveStep(step.id, by: 1) }
+                        }
                     // A step you can only delete is a step you have to retype
                     // to fix one word in, which is what somebody hits when
                     // they open Edit because they spotted a mistake.
                     EditableLine(
                         text: $step.text,
-                        placeholder: "Step \(stepNumber(step))",
+                        placeholder: "Step \(index + 1)",
                         focus: $focused,
                         focusID: step.id
                     )
-                    RemoveLineButton(label: "Remove step \(stepNumber(step))") {
+                    RemoveLineButton(label: "Remove step \(index + 1)") {
                         draftSteps.removeAll { $0.id == step.id }
                     }
                 }
                 .padding(.horizontal, 4)
+                .offset(y: lifted ? dragY - (stepSlots[index]?.midY ?? dragY) : 0)
+                .scaleEffect(lifted ? 1.02 : 1, anchor: .center)
+                .shadow(color: Color.ink.opacity(lifted ? 0.14 : 0), radius: 12, y: 4)
+                .zIndex(lifted ? 1 : 0)
+                .background {
+                    // The slot this row sits in. Not updated while the row is
+                    // lifted, because a lifted row's frame includes its own
+                    // offset and would chase itself.
+                    Color.clear.onGeometryChange(for: CGRect.self) {
+                        $0.frame(in: .named(Self.stepSpace))
+                    } action: { frame in
+                        if !lifted { stepSlots[index] = frame }
+                    }
+                }
                 .id(step.id)
             }
 
@@ -647,6 +748,7 @@ struct RecipeEditorView: View {
             }
         }
         .animation(.plSnap, value: draftSteps.count)
+        .coordinateSpace(name: Self.stepSpace)
     }
 
     private func addRoundButton(disabled: Bool, label: String, action: @escaping () -> Void) -> some View {
