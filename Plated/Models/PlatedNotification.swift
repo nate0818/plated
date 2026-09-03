@@ -45,7 +45,9 @@ enum PlatedNotificationKind: String, Codable, CaseIterable {
         case .mealPlanned: return "calendar.badge.checkmark"
         case .turnReminder: return "frying.pan"
         case .groceriesAdded: return "basket"
-        case .groceriesOrdered: return "shippingbox"
+        // A list was copied, not shipped. The raw value stays put because
+        // it is stored, but the icon does not have to keep overstating it.
+        case .groceriesOrdered: return "list.clipboard"
         case .plateReaction: return "circle.circle"
         case .saveReceived: return "arrow.down.heart"
         case .prongsbyReplied: return "fork.knife"

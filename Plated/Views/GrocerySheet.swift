@@ -8,7 +8,17 @@ struct GrocerySheet: View {
     @Environment(\.modelContext) private var context
     @Environment(\.openURL) private var openURL
     @Query(sort: \GroceryItem.name) private var items: [GroceryItem]
+    /// Only to tell the two empty lists apart: a week with nights on it and
+    /// nothing left to buy is a different sentence from a week with no plan.
+    @Query private var meals: [PlannedMeal]
 
+    /// Three states, never one. DESIGN.md: "Nothing here" is a claim, and it
+    /// is only true when the app actually asked and got an answer. The list
+    /// is built on appear, so before that finishes there is nothing to say,
+    /// and if the build throws there is something quite different to say.
+    /// Same shape as TableFeedView.Reach.
+    private enum Build { case building, built, failed }
+    @State private var build: Build = .building
     @State private var exportResult: String?
     @State private var exporting = false
     @State private var newItemName = ""
@@ -51,16 +61,43 @@ struct GrocerySheet: View {
 
             if currentItems.isEmpty {
                 Spacer()
-                VStack(spacing: 8) {
-                    Image(systemName: "basket")
-                        .font(.system(size: 26, weight: .medium))
-                        .foregroundStyle(Color.inkFaint)
-                    Text("Nothing to shop for yet")
-                        .plType(.body, .bold)
-                        .foregroundStyle(Color.ink)
-                    Text("Plan a few nights and the list builds itself.")
-                        .plType(.footnote)
-                        .foregroundStyle(Color.inkSecondary)
+                switch build {
+                case .building:
+                    // Still asking. A spinner, no words: a sentence here
+                    // would be a claim the app cannot make yet.
+                    ProgressView().tint(Color.inkSecondary)
+                case .failed:
+                    VStack(spacing: 8) {
+                        Image(systemName: "basket")
+                            .font(.system(size: 26, weight: .medium))
+                            .foregroundStyle(Color.inkFaint)
+                        Text("Couldn't build the list")
+                            .plType(.body, .bold)
+                            .foregroundStyle(Color.ink)
+                        Text("The week is still there. This is just the list.")
+                            .plType(.footnote)
+                            .foregroundStyle(Color.inkSecondary)
+                        Button("Try again") { rebuild() }
+                            .plType(.footnote, .bold)
+                            .foregroundStyle(Color.tomato)
+                            .plTapTarget()
+                            .padding(.top, 2)
+                    }
+                case .built:
+                    VStack(spacing: 8) {
+                        Image(systemName: "basket")
+                            .font(.system(size: 26, weight: .medium))
+                            .foregroundStyle(Color.inkFaint)
+                        Text(hasPlannedNights ? "Nothing left to buy" : "Nothing to shop for yet")
+                            .plType(.body, .bold)
+                            .foregroundStyle(Color.ink)
+                        Text(hasPlannedNights
+                             ? "This week's dishes need nothing you don't have."
+                             : "Plan a few nights and the list builds itself.")
+                            .plType(.footnote)
+                            .foregroundStyle(Color.inkSecondary)
+                            .multilineTextAlignment(.center)
+                    }
                 }
                 Spacer()
             } else {
@@ -92,9 +129,9 @@ struct GrocerySheet: View {
                             .frame(minHeight: 50)
                     } else {
                     TomatoPillButton(
-                        title: exporting ? "Sending…"
-                            : "Send \(unchecked.count) item\(unchecked.count == 1 ? "" : "s") to Reminders",
-                        systemImage: "checklist"
+                        title: "Send \(unchecked.count) item\(unchecked.count == 1 ? "" : "s") to Reminders",
+                        systemImage: "checklist",
+                        busy: exporting
                     ) {
                         exportToReminders()
                     }
@@ -129,13 +166,10 @@ struct GrocerySheet: View {
         .presentationDragIndicator(.visible)
         .presentationBackground(Color.canvas)
         .presentationCornerRadius(Radius.sheet)
-        .task {
-            do {
-                try GroceryListBuilder(context: context).rebuild(weekOf: .now)
-            } catch {
-                assertionFailure("Grocery rebuild failed: \(error)")
-            }
-        }
+        .task { rebuild() }
+        // A receipt must not outlive its truth: "12 items sent to Reminders"
+        // stayed on screen while the list underneath it changed.
+        .onChange(of: currentItems.count) { exportResult = nil }
     }
 
     /// "We're out of olive oil" — the single most obvious grocery job, and
@@ -273,7 +307,29 @@ struct GrocerySheet: View {
         }
     }
 
+    private func rebuild() {
+        do {
+            try GroceryListBuilder(context: context).rebuild(weekOf: .now)
+            build = .built
+        } catch {
+            // assertionFailure here was a crash under `make phone` and total
+            // silence in TestFlight: the two worst answers, one per build
+            // configuration.
+            print("PLATED GROCERY: rebuild failed — \(error)")
+            build = .failed
+        }
+    }
+
+    private var hasPlannedNights: Bool {
+        let start = Calendar.current.startOfDay(for: .now)
+        guard let end = Calendar.current.date(byAdding: .day, value: 7, to: start) else { return false }
+        return meals.contains { $0.date >= start && $0.date < end }
+    }
+
     private func exportToReminders() {
+        // The pill stays tappable while it works, and Reminders has no
+        // deduplication: two taps was two copies of the shopping list.
+        guard !exporting else { return }
         exporting = true
         Task {
             do {
@@ -282,7 +338,13 @@ struct GrocerySheet: View {
                 withAnimation(.plSnap) { exportResult = "\(count) \(count == 1 ? "item" : "items") sent to Reminders" }
                 Haptic.kiss()
             } catch {
-                withAnimation(.plSnap) { exportResult = "Couldn't add to Reminders. Check access in iOS Settings." }
+                // The typed reason, not one guess covering both:
+                // `noWritableList` has nothing to do with access, and telling
+                // somebody to open Settings for it sends them nowhere.
+                withAnimation(.plSnap) {
+                    exportResult = (error as? LocalizedError)?.errorDescription
+                        ?? "Couldn't add to Reminders."
+                }
                 Haptic.warn()
             }
             exporting = false

@@ -1148,11 +1148,21 @@ struct PlateAssignSheet: View {
 
                     VStack(alignment: .leading, spacing: 8) {
                         MicroLabel("Who cooks")
-                        HStack(spacing: 10) {
-                            ForEach(members, id: \.persistentModelID) { member in
-                                cookChip(member)
+                        // The same predicate CookRotation opens with. This
+                        // row was unfiltered, so it offered the pan to the
+                        // people that file refuses to hand a night to, and
+                        // then a push announced them as tonight's cook.
+                        // Scrolls because six chips already walk off a 402pt
+                        // screen, and two do at AX5.
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 10) {
+                                ForEach(cookCandidates, id: \.persistentModelID) { member in
+                                    cookChip(member)
+                                }
                             }
+                            .padding(.vertical, 2)
                         }
+                        .scrollClipDisabled()
                     }
                 }
                 .padding(.horizontal, 24)
@@ -1179,7 +1189,7 @@ struct PlateAssignSheet: View {
         .presentationBackground(Color.canvas)
         .presentationCornerRadius(Radius.sheet)
         .onAppear {
-            chosenCook = members.first(where: \.isOwner)
+            chosenCook = cookCandidates.first(where: \.isOwner) ?? cookCandidates.first
         }
     }
 
@@ -1259,8 +1269,14 @@ struct PlateAssignSheet: View {
         .accessibilityAddTraits(active ? .isSelected : [])
     }
 
+    private var cookCandidates: [HouseholdMember] { members.filter(\.cooks) }
+
+    /// A button is a verb that names the outcome. This one said "Plan for
+    /// Saturday" over a Saturday that already had a dinner on it, and
+    /// pressing it took that dinner away without ever having said so.
     private var plateLabel: String {
         guard let chosenDate else { return "Pick a night" }
+        if let taken = dinner(on: chosenDate) { return "Replace \(taken.title)" }
         return "Plan for \(nightLabel(chosenDate))"
     }
 
@@ -1279,13 +1295,21 @@ struct PlateAssignSheet: View {
     private func plate() {
         guard let date = chosenDate else { return }
         Haptic.plate()
-        let cook = chosenCook ?? members.first(where: \.isOwner)
+        let cook = chosenCook ?? cookCandidates.first(where: \.isOwner) ?? cookCandidates.first
         if let existing = dinner(on: date) {
+            // A gathering names the night and counts its guests; the recipe
+            // is only what is being cooked at it. Blanking both turned
+            // "Anna's birthday · Cooking for 12" into the dish's own title
+            // while leaving the Gathering attached, so the night quietly
+            // stopped looking like a party it was still hosting.
+            let occasion = existing.gathering != nil
             existing.recipe = recipe
-            existing.customTitle = ""
-            existing.servings = recipe.servings
             existing.cook = cook
-            existing.tagline = ""
+            if !occasion {
+                existing.customTitle = ""
+                existing.servings = recipe.servings
+                existing.tagline = ""
+            }
         } else {
             context.insert(PlannedMeal(
                 date: date, slot: .dinner, recipe: recipe,
