@@ -46,6 +46,40 @@ enum TableShare {
     /// What `postType` used to be. Read, never written — tables shared
     /// before the rename still carry it, and their dishes are real.
     private static let legacyPostType = "TablePost"
+    /// Reactions, in the same reserved namespace as `PlatedDish`.
+    ///
+    /// The prefix is load-bearing, not decorative. The SwiftData mirror
+    /// adopts any private-database record whose type matches one of its
+    /// entity names — that is the ghost post in MEMORY.md, where blank cards
+    /// appeared in the feed — so a hand-written type may never be named
+    /// after a @Model. `assertNoEntityCollision` makes that a check rather
+    /// than a thing somebody has to remember.
+    private static let plateType = "PlatedDishPlate"
+    private static let ballotType = "PlatedDishBallot"
+
+    #if DEBUG
+    /// The ghost post, made unrepeatable.
+    ///
+    /// `legacyPostType` is deliberately excluded: "TablePost" IS the
+    /// collision, it is read-only, and asserting on it would fire on the one
+    /// type that can never be renamed. The reserved prefix closes the class
+    /// going forward, not retroactively.
+    static func assertNoEntityCollision() {
+        let entities = Set(PlatedStore.schema.entities.map(\.name))
+        let written: Set<String> = [rootType, postType, plateType, ballotType]
+        let clash = entities.intersection(written)
+        assert(clash.isEmpty, "CloudKit types collide with SwiftData entities: \(clash)")
+    }
+    #endif
+
+    /// CloudKit has no boolean type. A Bool field is stored as an INT64 and
+    /// `record[key] as? Bool` is a bridging coin flip.
+    private static func int(_ record: CKRecord, _ key: String) -> Int {
+        if let n = record[key] as? Int { return n }
+        if let n = record[key] as? Int64 { return Int(n) }
+        if let n = record[key] as? NSNumber { return n.intValue }
+        return 0
+    }
 
     #if PLATED_CLOUDKIT
     private static var container: CKContainer { .default() }
@@ -396,10 +430,105 @@ enum TableShare {
         }
     }
 
-    /// Everything other people have put on tables this user can see.
+    // MARK: Reactions on the wire
+
+    /// One person's plate on one dish.
     ///
-    /// Returns plain values, never model objects: the caller merges on the
-    /// main actor, and nothing here should touch a `ModelContext` from a
+    /// The record name is **deterministic** — `plate-<post>-<author>` — and
+    /// that is what makes the whole thing idempotent. A retry after a lost
+    /// response overwrites itself rather than adding a second plate, and two
+    /// devices of one person converge on one record instead of racing.
+    ///
+    /// Un-plating writes `active = 0`; it never deletes the record. A
+    /// deletion arrives with no timestamp and no ordering against a
+    /// concurrent write, so a delete-versus-write race has no defensible
+    /// resolution. A tombstone does: last-writer-wins on `changedAt` is
+    /// total, and identical on every device.
+    static func pushPlate(
+        post: String, zoneOwner: String, author: String, authorName: String,
+        active: Bool, at: Date
+    ) async -> Bool {
+        await push(
+            type: plateType, name: "plate-\(post)-\(author)",
+            post: post, zoneOwner: zoneOwner
+        ) { record in
+            record["authorID"] = author as CKRecordValue
+            record["authorName"] = authorName as CKRecordValue
+            record["active"] = (active ? 1 : 0) as CKRecordValue
+            record["changedAt"] = at as CKRecordValue
+        }
+    }
+
+    /// One person's vote in one poll. A `choice` of -1 is a withdrawn vote,
+    /// which is a value rather than an absence for the same reason a plate is
+    /// tombstoned rather than deleted.
+    static func pushBallot(
+        post: String, zoneOwner: String, author: String, choice: Int, at: Date
+    ) async -> Bool {
+        await push(
+            type: ballotType, name: "ballot-\(post)-\(author)",
+            post: post, zoneOwner: zoneOwner
+        ) { record in
+            record["authorID"] = author as CKRecordValue
+            record["choice"] = choice as CKRecordValue
+            record["changedAt"] = at as CKRecordValue
+        }
+    }
+
+    /// The shape both reactions share.
+    ///
+    /// Two parent links, doing two different jobs. `setParent(table-root)` is
+    /// the SHARE hierarchy: CloudKit walks it to find the CKShare, and
+    /// without it the record is private to whoever wrote it and no
+    /// participant ever sees it. The `.deleteSelf` reference to the post is a
+    /// referential constraint: it is what makes a deleted dish take its
+    /// reactions with it. Neither substitutes for the other, and the comment
+    /// on `publish` only half says so.
+    private static func push(
+        type: String, name: String, post: String, zoneOwner: String,
+        fill: (CKRecord) -> Void
+    ) async -> Bool {
+        guard await TableSync.accountAvailable() else { return false }
+        guard let (db, zoneID) = await zone(ownedBy: zoneOwner) else { return false }
+        let record = CKRecord(
+            recordType: type,
+            recordID: CKRecord.ID(recordName: name, zoneID: zoneID)
+        )
+        record["postRecordName"] = post as CKRecordValue
+        record["postRef"] = CKRecord.Reference(
+            recordID: CKRecord.ID(recordName: post, zoneID: zoneID),
+            action: .deleteSelf
+        )
+        record.setParent(CKRecord.ID(recordName: "table-root", zoneID: zoneID))
+        fill(record)
+        do {
+            _ = try await db.save(record)
+            return true
+        } catch let error as CKError where error.code == .serverRecordChanged {
+            // Somebody's copy of this exact record won. With a deterministic
+            // name that means one of this person's own devices got there
+            // first, and last-writer-wins has already settled it.
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    /// A reaction as it exists on the wire.
+    struct RemoteReaction {
+        var post = ""
+        var author = ""
+        var authorName = ""
+        /// A plate's on/off, or a ballot's option index.
+        var value = 0
+        var at = Date.now
+        var isBallot = false
+    }
+
+    /// A post as it exists on the wire.
+    ///
+    /// Plain values, never model objects: the caller merges on the main
+    /// actor, and nothing here should touch a `ModelContext` from a
     /// background task.
     struct RemotePost {
         var recordName = ""
@@ -451,6 +580,7 @@ enum TableShare {
     /// end.
     struct Changes {
         var posts: [RemotePost] = []
+        var reactions: [RemoteReaction] = []
         var deleted: Set<String> = []
     }
 
@@ -461,6 +591,7 @@ enum TableShare {
                                 (container.sharedCloudDatabase, false)] {
             let part = await postChanges(in: db, isPrivate: isPrivate)
             all.posts += part.posts
+            all.reactions += part.reactions
             all.deleted.formUnion(part.deleted)
         }
         return all
@@ -489,12 +620,17 @@ enum TableShare {
                         inZoneWith: zone.zoneID, since: cursor
                     )
                     for (_, result) in changes.modificationResultsByID {
-                        guard let record = try? result.get().record,
-                              record.recordType == postType
-                                || record.recordType == legacyPostType else { continue }
-                        var post = remotePost(from: record)
-                        post.zoneOwner = owner
-                        found.posts.append(post)
+                        guard let record = try? result.get().record else { continue }
+                        switch record.recordType {
+                        case postType, legacyPostType:
+                            var post = remotePost(from: record)
+                            post.zoneOwner = owner
+                            found.posts.append(post)
+                        case plateType, ballotType:
+                            found.reactions.append(remoteReaction(from: record))
+                        default:
+                            continue
+                        }
                     }
                     for deleted in changes.deletions {
                         found.deleted.insert(deleted.recordID.recordName)
@@ -656,6 +792,19 @@ enum TableShare {
         }
     }
 
+    private static func remoteReaction(from record: CKRecord) -> RemoteReaction {
+        var r = RemoteReaction()
+        r.post = record["postRecordName"] as? String ?? ""
+        r.author = record["authorID"] as? String ?? ""
+        r.authorName = record["authorName"] as? String ?? ""
+        r.at = record["changedAt"] as? Date ?? .now
+        r.isBallot = record.recordType == ballotType
+        // `active` and `choice` are both INT64 on the wire; CloudKit has no
+        // boolean type and `as? Bool` on one is a bridging coin flip.
+        r.value = r.isBallot ? int(record, "choice") : int(record, "active")
+        return r
+    }
+
     private static func remotePost(from record: CKRecord) -> RemotePost {
         var p = RemotePost()
         p.recordName = record.recordID.recordName
@@ -742,7 +891,14 @@ enum TableShare {
                         var authorColorHex = "FF5A3C"
                         var dishTitle = ""; var caption = ""; var kind = "dish"
                         var createdAt = Date.now; var photoData: Data? }
-    struct Changes { var posts: [RemotePost] = []; var deleted: Set<String> = [] }
+    struct RemoteReaction { var post = ""; var author = ""; var authorName = ""
+                            var value = 0; var at = Date.now; var isBallot = false }
+    struct Changes { var posts: [RemotePost] = []; var reactions: [RemoteReaction] = []
+                     var deleted: Set<String> = [] }
+    static func pushPlate(post: String, zoneOwner: String, author: String,
+                          authorName: String, active: Bool, at: Date) async -> Bool { false }
+    static func pushBallot(post: String, zoneOwner: String, author: String,
+                           choice: Int, at: Date) async -> Bool { false }
     static func fetchRemote() async -> [RemotePost] { [] }
     static func fetchChanges() async -> Changes { Changes() }
     struct Seat: Identifiable { var id = ""; var name = ""; var isOwner = false; var isMe = false }
@@ -781,6 +937,26 @@ enum TableShare {
                 context.delete(post)
                 byRecord[name] = nil
             }
+        }
+
+        // Fold what other people did into the ledger. Last-writer-wins on
+        // `changedAt` is applied inside `setPlate`/`setBallot`, so a page
+        // that arrives late cannot undo a newer tap.
+        for r in changes.reactions where !r.post.isEmpty && !r.author.isEmpty {
+            if r.isBallot {
+                TableLedger.shared.setBallot(r.post, author: r.author,
+                                             choice: r.value, at: r.at)
+            } else {
+                TableLedger.shared.setPlate(r.post, author: r.author,
+                                            active: r.value == 1, at: r.at)
+            }
+        }
+
+        // A post that is gone takes its reactions with it. The cascade
+        // removes the child records on the server, but the fold that would
+        // have noticed never runs — there is no post left to fold against.
+        for name in changes.deleted {
+            TableLedger.shared.forget(post: name)
         }
 
         for r in changes.posts {

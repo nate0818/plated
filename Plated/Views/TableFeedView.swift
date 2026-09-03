@@ -164,6 +164,12 @@ struct TableFeedView: View {
     private func refreshFeed() async {
         Persist.save(context)
         await publishBacklog()
+        // Everything tapped since the last pull, including everything
+        // tapped with no signal at all. Before the posts, so a plate on a
+        // dish somebody else is about to edit does not lose a round trip.
+        await TableOutbox.shared.drain(
+            authorName: members.first(where: \.isOwner)?.name ?? ""
+        )
         // Two different pipes, pulled together because the user pulled once.
         // The mirror carries this household's own devices; TableShare
         // carries everybody else's table. Neither knows about the other.

@@ -90,6 +90,42 @@ final class TableOutbox {
         save()
     }
 
+    /// Put everything queued on the table.
+    ///
+    /// Ordered oldest first, and an entry is only removed once the write is
+    /// confirmed. A refusal keeps it, so it goes out on the next pull rather
+    /// than vanishing — the whole point of a queue is that "later" is a real
+    /// answer and "never, silently" is not.
+    ///
+    /// Entries minted under a placeholder identity are held back rather than
+    /// sent: a plate attributed to `local-<uuid>` would arrive at the table
+    /// as a stranger, and the re-attribution that fixes it happens the
+    /// moment CloudKit answers who this is.
+    func drain(authorName: String) async {
+        let work = entries.sorted { $0.at < $1.at }
+        for entry in work {
+            guard !entry.author.hasPrefix("local-") else { continue }
+            let ok: Bool
+            switch entry.work {
+            case let .plate(post, owner, active):
+                ok = await TableShare.pushPlate(
+                    post: post, zoneOwner: owner, author: entry.author,
+                    authorName: authorName, active: active, at: entry.at
+                )
+            case let .ballot(post, owner, choice):
+                ok = await TableShare.pushBallot(
+                    post: post, zoneOwner: owner, author: entry.author,
+                    choice: choice, at: entry.at
+                )
+            case .note:
+                // Comments still travel with the post they belong to; the
+                // note record type is not on the wire yet.
+                ok = false
+            }
+            if ok { remove(entry.id) } else { failed(entry.id) }
+        }
+    }
+
     private static func key(for work: Work) -> String {
         switch work {
         case let .plate(post, _, _):  return "plate:\(post)"
