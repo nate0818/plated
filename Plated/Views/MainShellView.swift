@@ -11,7 +11,7 @@ enum AppTab: String, CaseIterable {
 /// holds every way in. Asking the table went back to the plan, where the
 /// question has a night attached (see PlanNightSheet).
 enum CreateKind: String, Identifiable {
-    case tablePost, recipe
+    case tablePost, recipe, ask
     var id: String { rawValue }
 }
 
@@ -454,13 +454,13 @@ struct PlateTabBar: View {
     }
 }
 
-/// The + asks before it assumes — a plated moment for the Table, or a dish
-/// for the cookbook. Two rows, because those are the two things there are
-/// to add: pasting a recipe and writing one out are ways of adding a
+/// The + asks before it assumes — a plated moment for the Table, a question
+/// for the Table, or a dish for the cookbook. Three rows, because those are
+/// the three things there are to add: pasting a recipe and writing one out are ways of adding a
 /// recipe, not separate things to add, and the import sheet already offers
 /// every one of them.
 ///
-/// Both rows are `OptionRow`, which is to say both rows are the same row.
+/// All three rows are `OptionRow`, which is to say all three are the same row.
 /// Posting used to be drawn heavier because it is what the + is mostly
 /// reached for, and "heavier" meant a `fill` ground: this app's selection
 /// paint, on a row nobody had selected, with the side effect of erasing
@@ -505,6 +505,17 @@ struct CreateMenuSheet: View {
                         title: "Add a recipe",
                         detail: "Paste it, scan it, or write it out"
                     ) { onChoose(.recipe) }
+                    // The Table's other kind of post, which had no door.
+                    // `askPresented` was set by a debug launch flag and by
+                    // nothing else, so in a shipped build an ask could only
+                    // be reached from inside the Plan tab's night sheet —
+                    // three taps away, on the other side of the app from the
+                    // Table it posts to.
+                    OptionRow(
+                        icon: "bubble.and.pencil",
+                        title: "Ask the Table",
+                        detail: "What should we eat, or put up a poll"
+                    ) { onChoose(.ask) }
                 }
             }
             .frame(maxWidth: .infinity)
@@ -540,6 +551,8 @@ struct CreateFlowSheet: View {
                 TableComposerSheet()
             case .recipe:
                 RecipeImportSheet()
+            case .ask:
+                AskComposerSheet(date: Calendar.current.startOfDay(for: .now))
             }
         } else {
             CreateMenuSheet { chosen in
