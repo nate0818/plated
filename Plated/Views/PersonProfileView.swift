@@ -548,6 +548,7 @@ struct SettingsSheet: View {
     /// fact about this moment, and somebody who fixes it in Settings should
     /// find the row plain again when they come back.
     @State private var calendarRefused = false
+    @State private var tourShown = false
 
     private var appearance: Appearance { Appearance(rawValue: appearanceRaw) ?? .system }
     @AppStorage("showCalendarEvents") private var showCalendarEvents = false
@@ -732,6 +733,28 @@ struct SettingsSheet: View {
                         .buttonStyle(.pressable)
                     }
 
+                    // The tour is owed once at the end of setting up, which
+                    // means anybody who has been using Plated since before it
+                    // existed has never seen it, and anybody who skipped it
+                    // has no way back. A walkthrough with exactly one showing
+                    // is a walkthrough most people never see.
+                    Button {
+                        Haptic.tap()
+                        tourShown = true
+                    } label: {
+                        settingRow(
+                            icon: "hand.wave",
+                            title: "Show me around",
+                            caption: "The four screens Plated is made of, in about a minute."
+                        ) {
+                            Image(systemName: "chevron.right")
+                                .accessibilityHidden(true)
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(Color.inkSecondary)
+                        }
+                    }
+                    .buttonStyle(.pressable)
+
                     Button {
                         Haptic.tap()
                         signOutAsked = true
@@ -763,6 +786,9 @@ struct SettingsSheet: View {
         // repainted the whole app behind it and left the sheet in the old
         // room until it was dismissed. Which is the only moment this can
         // happen, since this is where the control lives.
+        .fullScreenCover(isPresented: $tourShown) {
+            TourView { tourShown = false }
+        }
         .preferredColorScheme(appearance.scheme)
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
@@ -823,6 +849,25 @@ struct SettingsSheet: View {
     /// fighting it for the row. This is the same answer the cook rotation's
     /// "Take turns automatically" needed on Home, and it belongs here, in
     /// the component, rather than at each of the five call sites.
+    /// A settings row: a disc, a sentence, and the control it belongs to.
+    ///
+    /// Two failures, one after the other, both about who gets the width.
+    ///
+    /// First the trailing control won it outright, because nothing said
+    /// otherwise, and the text column was squeezed narrower than its own
+    /// title until SwiftUI broke the word rather than the line: "Appearance"
+    /// set as "Appearanc" over "e".
+    ///
+    /// Then the fix overcorrected. `maxWidth: .infinity` on the words takes
+    /// every available point, so the control was squeezed to nothing
+    /// instead. A Toggle has an intrinsic size and survived that; "SIGN OUT"
+    /// is a Text and disappeared completely, leaving a taller card with an
+    /// empty right-hand side.
+    ///
+    /// So: the words take their natural width and a Spacer holds the gap,
+    /// and `layoutPriority` settles it in the words' favour when the two of
+    /// them together do not fit. Above xxLarge they stop sharing a row at
+    /// all, which is the same answer the cook rotation needed on Home.
     private func settingRow(
         icon: String, title: String, caption: String,
         @ViewBuilder trailing: () -> some View
@@ -838,7 +883,6 @@ struct SettingsSheet: View {
                 .foregroundStyle(Color.inkSecondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
 
         return Group {
             if stacked {
@@ -846,20 +890,28 @@ struct SettingsSheet: View {
                     HStack(spacing: 12) {
                         settingDisc(icon)
                         words
+                        Spacer(minLength: 0)
                     }
                     trailing()
                 }
             } else {
+                // No priorities. Left to itself the trailing control takes
+                // its intrinsic width and the sentence wraps into what is
+                // left, which is correct at ordinary sizes: the only thing
+                // that ever broke here was a title squeezed narrower than
+                // one of its own words, and that happens above xxLarge,
+                // where this row no longer shares a line at all. Two
+                // attempts to arbitrate it with layoutPriority each just
+                // moved the damage to the other side of the row.
                 HStack(spacing: 12) {
                     settingDisc(icon)
                     words
-                        // The sentence wins the width; the control takes
-                        // what is left.
-                        .layoutPriority(1)
+                    Spacer(minLength: 8)
                     trailing()
                 }
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
         .overlay(RoundedRectangle(cornerRadius: Radius.card, style: .continuous).strokeBorder(Color.hairline))
