@@ -230,14 +230,17 @@ struct ProfilePhotoWell: View {
     }
 }
 
-/// The system camera, for the selfie.
+/// The system camera. Front-facing for a selfie, rear for a plate of food,
+/// which is the only thing that differs between the two places the app opens
+/// a camera.
 struct CameraCapture: UIViewControllerRepresentable {
+    var device: UIImagePickerController.CameraDevice = .front
     var onCapture: (UIImage?) -> Void
 
     func makeUIViewController(context: Context) -> UIImagePickerController {
         let picker = UIImagePickerController()
         picker.sourceType = .camera
-        picker.cameraDevice = .front
+        picker.cameraDevice = device
         picker.delegate = context.coordinator
         return picker
     }

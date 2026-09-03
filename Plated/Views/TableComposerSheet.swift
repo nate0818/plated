@@ -10,12 +10,15 @@ struct TableComposerSheet: View {
     @Query(sort: \HouseholdMember.createdAt) private var members: [HouseholdMember]
 
     @State private var photoItem: PhotosPickerItem?
+    @State private var cameraShown = false
+    @State private var libraryShown = false
     @State private var photoData: Data?
     @State private var photoLoading = false
     @State private var dishTitle = ""
     @State private var caption = ""
     @State private var tagged: Set<String> = []
     @State private var discardAsked = false
+    @State private var sourceAsked = false
 
     /// Anything worth losing. The sheet advertises the drag-down and used to
     /// let it destroy a filled post without a word.
@@ -136,8 +139,17 @@ struct TableComposerSheet: View {
         // rubber-bands instead. Leaving on purpose goes through the X,
         // which asks first. An empty composer still slides away freely.
         .interactiveDismissDisabled(hasContent)
+        .onAppear { restoreDraft() }
         .confirmationDialog("Discard this post?", isPresented: $discardAsked, titleVisibility: .visible) {
-            Button("Discard", role: .destructive) { dismiss() }
+            // A third way out. Backing out of a half-written post used to be
+            // unconditionally destructive: Discard or keep sitting here.
+            // `hasContent` already answers whether there is anything worth
+            // keeping, which is exactly Instagram's rule for when to make
+            // the offer at all. What does not transfer is a drafts shelf —
+            // at one dinner a night there is only ever one draft, so it
+            // restores silently the next time the composer opens.
+            Button("Save draft") { saveDraft(); dismiss() }
+            Button("Discard", role: .destructive) { clearDraft(); dismiss() }
             Button("Keep writing", role: .cancel) {}
         }
         .onChange(of: photoItem) { _, item in
@@ -165,8 +177,25 @@ struct TableComposerSheet: View {
         }
     }
 
+    /// The picture is the post, so the camera comes first.
+    ///
+    /// This was a bare `PhotosPicker` — the library and nothing else —
+    /// wearing a camera glyph and the words "Add a photo", on the composer
+    /// for an app whose whole prompt is "a photo of what you just cooked".
+    /// The dish is on the counter while you are using it. Offering the roll
+    /// alone means every post is something you cooked earlier.
     private var photoWell: some View {
-        PhotosPicker(selection: $photoItem, matching: .images) {
+        Button {
+            Haptic.tap()
+            if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                sourceAsked = true
+            } else {
+                // A simulator, or a device with no camera. One door, and it
+                // is the one that works: no menu offering a thing that
+                // cannot happen.
+                libraryShown = true
+            }
+        } label: {
             if let data = photoData, let image = UIImage(data: data) {
                 PhotoWell(image: image, height: 220, cornerRadius: Radius.hero)
                     .overlay(alignment: .bottomTrailing) {
@@ -199,10 +228,54 @@ struct TableComposerSheet: View {
             }
         }
         .buttonStyle(.pressable)
+        .confirmationDialog("Add a photo", isPresented: $sourceAsked, titleVisibility: .visible) {
+            Button("Take a photo") { cameraShown = true }
+            Button("Choose from library") { libraryShown = true }
+            Button("Cancel", role: .cancel) {}
+        }
+        .fullScreenCover(isPresented: $cameraShown) {
+            CameraCapture(device: .rear) { image in
+                cameraShown = false
+                guard let data = image?.jpegData(compressionQuality: 0.86) else { return }
+                withAnimation(.plSnap) { photoData = data }
+            }
+            .ignoresSafeArea()
+        }
+        .photosPicker(isPresented: $libraryShown, selection: $photoItem, matching: .images)
+    }
+
+    // MARK: The one draft
+
+    /// One draft, because there is one dinner a night. Stored as plain
+    /// values rather than a model row: a half-written post is not a post,
+    /// and it has no business in the store the Table reads from.
+    @AppStorage("tableDraftTitle") private var draftTitle = ""
+    @AppStorage("tableDraftCaption") private var draftCaption = ""
+
+    private func saveDraft() {
+        draftTitle = dishTitle
+        draftCaption = caption
+        Haptic.tap()
+    }
+
+    private func clearDraft() {
+        draftTitle = ""
+        draftCaption = ""
+    }
+
+    /// The photo is deliberately not kept. A draft that restores a title and
+    /// a sentence is a convenience; one that silently holds on to a
+    /// photograph you chose and then walked away from is a surprise.
+    private func restoreDraft() {
+        guard dishTitle.isEmpty, caption.isEmpty else { return }
+        dishTitle = draftTitle
+        caption = draftCaption
     }
 
     private func post() {
         Haptic.plate()
+        // Posted is the one outcome that certainly retires the draft.
+        clearDraft()
         let owner = members.first(where: \.isOwner)
         let post = TablePost(
             authorName: owner?.name ?? "Me",
