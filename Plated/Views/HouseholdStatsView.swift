@@ -72,17 +72,52 @@ struct HouseholdStatsView: View {
 
     @State private var opened: Badge?
 
-    private var dishPosts: [TablePost] { posts.filter { $0.kind == "dish" } }
-    private var kissCount: Int { posts.filter { $0.hasChefsKiss(seats: members.count) }.count }
-    private var platesEarned: Int { posts.reduce(0) { $0 + $1.totalPlates } }
-    private var nightsPlated: Int { meals.count }
+    /// This household's own work, not the whole table's.
+    ///
+    /// `posts` is the shared zone, so it carries every guest's dishes too,
+    /// and this shelf is explicitly "every number this household has run
+    /// up": it was crediting itself with other people's posts, other
+    /// people's plates and other people's chef's kisses, and the badge shelf
+    /// handed out awards for them. Ownership keys on first names, the same
+    /// way Awards and PersonRef do, until real user ids exist.
+    private var householdNames: Set<String> {
+        Set(members.map(Self.firstName))
+    }
+
+    private static func firstName(_ member: HouseholdMember) -> String { firstName(member.name) }
+
+    private static func firstName(_ name: String) -> String {
+        name.split(separator: " ").first.map { $0.lowercased() } ?? name.lowercased()
+    }
+
+    private var ourPosts: [TablePost] {
+        posts.filter { householdNames.contains(Self.firstName($0.authorName)) }
+    }
+
+    private var dishPosts: [TablePost] { ourPosts.filter { $0.kind == "dish" } }
+    private var kissCount: Int { ourPosts.filter { $0.hasChefsKiss(seats: members.count) }.count }
+    private var platesEarned: Int { ourPosts.reduce(0) { $0 + $1.totalPlates } }
+
+    /// Dinners that have actually happened.
+    ///
+    /// `meals` is every slot and every date, so a cell labelled "Dinners"
+    /// was counting Tuesday's breakfast and a Thursday nobody has cooked
+    /// yet. A count must count the real thing.
+    private var dinnersCooked: Int {
+        let today = Calendar.current.startOfDay(for: .now)
+        return dinners.filter { $0.cookedAt != nil || $0.date < today }.count
+    }
+
+    /// Dinners on the plan, which is the different question the first badge
+    /// asks: "put a night on the plan".
+    private var dinners: [PlannedMeal] { meals.filter { $0.slotValue == .dinner } }
 
     /// The most nights ever planned inside one calendar week — the badge
     /// says "a week, plated", so counting every dinner ever would be a
     /// different claim entirely.
     private var bestWeek: Int {
         let calendar = Calendar.current
-        let weeks = Dictionary(grouping: meals) { meal in
+        let weeks = Dictionary(grouping: dinners) { meal in
             calendar.dateInterval(of: .weekOfYear, for: meal.date)?.start ?? meal.date
         }
         return weeks.values.map(\.count).max() ?? 0
@@ -92,7 +127,7 @@ struct HouseholdStatsView: View {
         [
             Badge(id: "first-dinner", title: "First dinner",
                   detail: "Put a night on the plan.",
-                  mark: .symbol("fork.knife"), have: nightsPlated, need: 1),
+                  mark: .symbol("fork.knife"), have: dinners.count, need: 1),
             Badge(id: "first-recipe", title: "First recipe",
                   detail: "Add a dish to the cookbook.",
                   mark: .symbol("text.book.closed"), have: recipes.count, need: 1),
@@ -208,7 +243,7 @@ struct HouseholdStatsView: View {
                 columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: columns),
                 spacing: 22
             ) {
-                countCell("Dinners", nightsPlated, .symbol("fork.knife"))
+                countCell("Dinners", dinnersCooked, .symbol("fork.knife"))
                 countCell("Happy plates", platesEarned, .plate)
                 countCell("Chef's kisses", kissCount, .symbol("sparkles"), accent: kissCount > 0)
                 countCell("Recipes", recipes.count, .symbol("text.book.closed"))

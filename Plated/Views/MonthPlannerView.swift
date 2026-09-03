@@ -118,6 +118,33 @@ struct MonthPlannerView: View {
         }
         .buttonStyle(.pressable)
         .disabled(past && meal == nil)
+        // Every cell in this grid was silent: VoiceOver read a bare numeral
+        // and nothing else, so the dish, the cook, the forecast and the
+        // calendar dot — the entire reason the month exists — were visible
+        // only to people who could see them. DESIGN.md: a row that combines
+        // its children needs a label that reads as a sentence.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(cellLabel(date, meal: meal, past: past))
+        .accessibilityHint(meal != nil ? "Opens the night" : (past ? "" : "Plans this night"))
+    }
+
+    private func cellLabel(_ date: Date, meal: PlannedMeal?, past: Bool) -> String {
+        var parts = [date.formatted(.dateTime.weekday(.wide).month(.wide).day())]
+        if let meal {
+            parts.append(meal.title)
+            if let cook = meal.cook {
+                parts.append(cook.isOwner ? "You cook" : "\(cook.name) cooks")
+            }
+        } else {
+            parts.append(past ? "Nothing was planned" : "Nothing planned yet")
+        }
+        if let day = forecast.forecast(for: date) {
+            parts.append("\(day.conditionDescription), high \(Int(day.highF.rounded())) degrees")
+        }
+        if showCalendarEvents && events.hasEvent(on: date) {
+            parts.append("Calendar event")
+        }
+        return parts.joined(separator: ". ")
     }
 
     private func dayCellContent(_ date: Date, today: Bool, meal: PlannedMeal?, past: Bool) -> some View {

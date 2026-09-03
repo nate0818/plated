@@ -593,7 +593,12 @@ struct SettingsSheet: View {
                         title: "Dark mode",
                         caption: "Easier on your eyes at night."
                     ) {
-                        Toggle("", isOn: $afterDark)
+                        Toggle("Dark mode", isOn: $afterDark)
+                            // Named, then hidden. `labelsHidden()` takes the
+                            // label off the screen and leaves it for
+                            // VoiceOver; an empty string leaves VoiceOver
+                            // reading "switch, on" three times in a column
+                            // and never saying which is which.
                             .labelsHidden()
                             .tint(Color.basil)
                             .onChange(of: afterDark) { _, _ in Haptic.plate() }
@@ -606,7 +611,17 @@ struct SettingsSheet: View {
                             ? "The evening before someone cooks, and Sundays when the week's still open."
                             : "Turn on notifications for Plated in iOS Settings."
                     ) {
-                        Toggle("", isOn: $remindersOn)
+                        // Green and on while iOS refuses to deliver is the
+                        // honesty rule broken by a control: the caption
+                        // underneath already said to go to Settings, and the
+                        // switch above it was contradicting the caption.
+                        // Permission is revoked in Settings long after the
+                        // preference was set here, so the stored value alone
+                        // has never been the answer.
+                        Toggle("Cook reminders", isOn: Binding(
+                            get: { remindersOn && remindersAllowed },
+                            set: { remindersOn = $0 }
+                        ))
                             .labelsHidden()
                             .tint(Color.basil)
                             .disabled(!remindersAllowed)
@@ -621,7 +636,7 @@ struct SettingsSheet: View {
                         title: "Calendar on the plan",
                         caption: "Show Apple Calendar events next to each night."
                     ) {
-                        Toggle("", isOn: $showCalendarEvents)
+                        Toggle("Calendar on the plan", isOn: $showCalendarEvents)
                             .labelsHidden()
                             .sensoryFeedback(.selection, trigger: showCalendarEvents)
                             .tint(Color.basil)
