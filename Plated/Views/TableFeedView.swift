@@ -1325,7 +1325,7 @@ struct TableFeedView: View {
         let me = members.first(where: \.isOwner)?.name ?? "Someone"
         Notifier.post(
             .saveReceived, actor: me,
-            body: "\(me) saved \(post.firstName)'s \(post.dishTitle.isEmpty ? "dish" : post.dishTitle).",
+            body: "You saved \(post.firstName)'s \(post.dishTitle.isEmpty ? "dish" : post.dishTitle).",
             into: context
         )
         showToast("Saved to your cookbook")

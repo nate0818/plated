@@ -699,7 +699,7 @@ struct RecipeEditorView: View {
                 let owner = members.first(where: \.isOwner)?.name ?? "Someone"
                 Notifier.post(
                     .recipeAdded, actor: owner,
-                    body: "\(owner) added \(recipe.title) to the cookbook.",
+                    body: "You added \(recipe.title) to the cookbook.",
                     into: context
                 )
             }

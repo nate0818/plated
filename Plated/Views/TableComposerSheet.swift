@@ -316,7 +316,13 @@ struct TableComposerSheet: View {
         }
         Notifier.post(
             .general, actor: owner?.name ?? "Me",
-            body: "\(owner?.name ?? "Someone") posted \(post.dishTitle.isEmpty ? "a dish" : post.dishTitle) to the Table.",
+            // "You", not your own name. PlatedNotification is mirrored to
+            // the private database, so this line only ever reaches the
+            // person who wrote it, and reading "Nate posted Sheet-pan
+            // chicken" in your own activity is the app talking about you in
+            // the third person. The plan's own line has always said "You
+            // cook"; see MonthPlannerView and PlanNightSheet.
+            body: "You posted \(post.dishTitle.isEmpty ? "a dish" : post.dishTitle) to the Table.",
             into: context
         )
         dismiss()

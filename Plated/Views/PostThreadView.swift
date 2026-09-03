@@ -185,7 +185,7 @@ struct PostThreadView: View {
                 let me = members.first(where: \.isOwner)?.name ?? "Someone"
                 Notifier.post(
                     .saveReceived, actor: me,
-                    body: "\(me) saved \(post.firstName)'s \(post.dishTitle.isEmpty ? "dish" : post.dishTitle). They get the credit.",
+                    body: "You saved \(post.firstName)'s \(post.dishTitle.isEmpty ? "dish" : post.dishTitle). They get the credit.",
                     into: context
                 )
                 showSaveToast("Saved. \(post.firstName) gets the credit")
