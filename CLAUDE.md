@@ -25,6 +25,9 @@ rendering a hair larger so fixed-height layouts overflow, and Foundation Models.
 
 - `make phone` builds the working tree and installs it on Nate's iPhone.
 - `scripts/testflight.sh` bumps the build, archives, and uploads.
+- `make design` checks the DESIGN.md rules a machine can check, and both
+  ship paths refuse a build that breaks one. A deliberate exception is fine
+  but has to say so at the line: `// design-ok(<rule>): why this one is right`.
 - Prefer looking at a screenshot over reasoning about layout. Prefer touching the
   flow over trusting that it compiles.
 - When a flow crosses process boundaries — Contacts, CloudKit, Messages —

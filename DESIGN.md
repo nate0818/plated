@@ -256,6 +256,22 @@ for photographs that are furniture: a banner, a hero, a preview.
 **Delete means everyone.** See the Honesty section: a local delete of a
 published post is not a delete, it is a post that comes back.
 
+## Checked, not remembered
+
+Three of the rules above are greppable, and each was broken at scale before
+anybody noticed: sentences painted in `inkFaint`, em dashes through the
+notification bodies, colours spelled out where a token belonged.
+`scripts/check-design` enforces those three on every build that reaches a
+phone or TestFlight. A rule a hundred call sites have to remember is a rule
+that gets forgotten at the hundred and first.
+
+A deviation is still allowed. It just has to be visible:
+
+    Circle().strokeBorder(Color.white.opacity(0.06))  // design-ok(literal-colour): a rim highlight is light, not a palette colour
+
+The rest of this file is not checkable and never will be. Voice, register and
+continuity need somebody to look.
+
 ## Components to reuse
 
 `AvatarCircle` · `DishView` · `SwipeRow` · `MicroLabel` · `OptionRow` ·
