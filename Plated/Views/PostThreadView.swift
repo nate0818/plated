@@ -404,9 +404,38 @@ struct PostThreadView: View {
             Spacer(minLength: 0)
         }
         .padding(.vertical, 4)
+        // Take back what you said.
+        //
+        // There was no delete and no edit for a comment anywhere: not a
+        // context menu, not a swipe, not an overflow. The only path that
+        // removed one was deleting the whole post, which the cascade rule on
+        // TablePost.comments takes everybody else's words with. Instagram,
+        // Messages, WhatsApp and Slack all let an author remove their own
+        // message, and Instagram additionally lets the post's owner clear a
+        // comment on their own post. Both, here: your words are yours, and
+        // your post is your table.
+        //
+        // SwiftUI's context menu is bridged to VoiceOver on its own, and
+        // SwipeRow vends its actions through `.accessibilityActions`, so the
+        // gesture has a non-gesture equivalent either way.
+        .modifier(CommentActions(comment: comment, canRemove: canRemove(comment)) {
+            remove(comment)
+        })
     }
 
-    /// Renders @mentions ink-bold so they read as names, not alarms.
+    /// Your own comment, or any comment on your own post.
+    private func canRemove(_ comment: TableComment) -> Bool {
+        let me = members.first(where: \.isOwner)?.name ?? userFirstName
+        guard !me.isEmpty else { return false }
+        return comment.authorName == me || post.authorName == me
+    }
+
+    private func remove(_ comment: TableComment) {
+        Haptic.warn()
+        withAnimation(.plSnap) { context.delete(comment) }
+        Persist.save(context, "delete comment")
+    }
+
     /// The comment body, with the names in it drawn as names.
     ///
     /// This split the body on spaces and tested each word, so "@Sam Meadows"
@@ -771,5 +800,32 @@ struct PostThreadView: View {
         let formatter = RelativeDateTimeFormatter()
         formatter.unitsStyle = .short
         return formatter.localizedString(for: date, relativeTo: .now)
+    }
+}
+
+/// A swipe and a long press over one comment row, or neither.
+///
+/// A modifier rather than a branch in the row body: `SwipeRow` wraps its
+/// content, so putting an `if` around it would swap SwiftUI's identity
+/// between a removable and a non-removable comment and tear the row down
+/// mid-scroll.
+private struct CommentActions: ViewModifier {
+    let comment: TableComment
+    let canRemove: Bool
+    let remove: () -> Void
+
+    func body(content: Content) -> some View {
+        if canRemove {
+            SwipeRow(isOpen: .constant(false), actions: [.remove(remove)]) {
+                content
+            }
+            .contextMenu {
+                Button(role: .destructive, action: remove) {
+                    Label("Delete comment", systemImage: "trash")
+                }
+            }
+        } else {
+            content
+        }
     }
 }
