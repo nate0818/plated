@@ -464,7 +464,12 @@ struct WeekView: View {
             Text(openLine(date))
                 .plType(.body)
                 .foregroundStyle(Color.inkSecondary)
-                .lineLimit(1)
+                // No limit, the way the past row's own "Nothing plated"
+                // already has none. This is the app's copy, not a dish
+                // somebody named, and at AX5 one line turned "Nothing plated
+                // yet" into "Nothing...", which is the whole sentence gone.
+                // The row's 76pt is a floor, so it grows to hold it.
+                .fixedSize(horizontal: false, vertical: true)
             Spacer()
         }
         .padding(.vertical, 12)

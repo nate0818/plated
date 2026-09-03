@@ -668,20 +668,41 @@ struct HouseholdHomeView: View {
                 .plType(.caption)
                 .foregroundStyle(Color.inkSecondary)
 
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Take turns automatically")
-                        .plType(.body, .bold)
-                        .foregroundStyle(Color.ink)
-                    Text("Open nights go to whoever has cooked least")
-                        .plType(.caption)
-                        .foregroundStyle(Color.inkSecondary)
+            // A 51pt switch beside a sentence is a fixed-width companion,
+            // and at accessibility sizes it squeezed the label until
+            // "automatically" broke across two lines as "automatical / ly".
+            // The switch goes underneath rather than the words getting
+            // narrower: it is the same answer the cook grid needed.
+            let stacked = typeSize.isAccessibilitySize
+            let label = VStack(alignment: .leading, spacing: 2) {
+                Text("Take turns automatically")
+                    .plType(.body, .bold)
+                    .foregroundStyle(Color.ink)
+                Text("Open nights go to whoever has cooked least")
+                    .plType(.caption)
+                    .foregroundStyle(Color.inkSecondary)
+            }
+            // Named, then hidden: labelsHidden() takes it off the screen and
+            // leaves it for VoiceOver, which was otherwise reading an
+            // anonymous switch.
+            let control = Toggle("Take turns automatically", isOn: $autoRotate)
+                .labelsHidden()
+                .sensoryFeedback(.selection, trigger: autoRotate)
+                .tint(Color.basil)
+
+            Group {
+                if stacked {
+                    VStack(alignment: .leading, spacing: 12) {
+                        label
+                        control
+                    }
+                } else {
+                    HStack {
+                        label
+                        Spacer()
+                        control
+                    }
                 }
-                Spacer()
-                Toggle("", isOn: $autoRotate)
-                    .labelsHidden()
-                    .sensoryFeedback(.selection, trigger: autoRotate)
-                    .tint(Color.basil)
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 14)
