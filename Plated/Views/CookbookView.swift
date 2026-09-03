@@ -855,8 +855,11 @@ struct RecipeDetailView: View {
                 .accessibilityLabel("Cooked")
                 .accessibilityHint("Marks it not cooked")
             } else if nightHasArrived {
-                TomatoPillButton(title: "Cooked it", systemImage: "checkmark") {
-                    Haptic.plate()
+                // The pill fires its own haptic before running the action,
+                // so opening the action with a second impact was two buzzes
+                // for one press. It takes the parameter that exists for this.
+                TomatoPillButton(title: "Cooked it", systemImage: "checkmark",
+                                 haptic: Haptic.plate) {
                     withAnimation(.plSnap) { meal.cookedAt = .now }
                 }
             } else {

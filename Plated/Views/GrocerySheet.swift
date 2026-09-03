@@ -201,7 +201,10 @@ struct GrocerySheet: View {
     private func addManualItem() {
         let name = newItemName.trimmingCharacters(in: .whitespaces)
         guard !name.isEmpty else { return }
-        Haptic.tap()
+        // A line arriving on the list is something landing. This fired the
+        // chrome tap while remove() fired the landing buzz, which is the
+        // vocabulary exactly backwards.
+        Haptic.plate()
         withAnimation(.plSnap) {
             context.insert(GroceryItem(
                 name: name,
@@ -235,7 +238,7 @@ struct GrocerySheet: View {
     /// plan on every open, so they carry a flag; a hand-typed line has nothing
     /// behind it and can simply go.
     private func remove(_ item: GroceryItem) {
-        Haptic.plate()
+        Haptic.tap()
         withAnimation(.plSnap) {
             swipedItem = nil
             if item.isManual {
@@ -248,7 +251,8 @@ struct GrocerySheet: View {
 
     private func checkRow(_ item: GroceryItem) -> some View {
         Button {
-            Haptic.tap()
+            // A tick is a toggle, and DESIGN.md gives toggles `select`.
+            Haptic.select()
             withAnimation(.plSnap) { item.isChecked.toggle() }
         } label: {
             HStack(spacing: 12) {

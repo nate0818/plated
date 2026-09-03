@@ -855,10 +855,10 @@ struct PaywallSheet: View {
                     }
                     .frame(minHeight: 56)
                 } else {
-                    TomatoPillButton(title: "Start Plated+ · $2.99/mo") {
+                    TomatoPillButton(title: "Start Plated+ · $2.99/mo",
+                                     haptic: Haptic.kiss) {
                         PlatedPlus.isActive = true
                         withAnimation(.plPop) { active = true }
-                        Haptic.kiss()
                         Task {
                             try? await Task.sleep(for: .seconds(1.2))
                             dismiss()

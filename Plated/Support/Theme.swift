@@ -342,8 +342,13 @@ extension AnyTransition {
 // success tap when the kiss is earned.
 
 enum Haptic {
-    // Stored generators stay warm — a fresh generator per call pays
-    // first-fire latency on every single tap.
+    // Stored generators avoid paying allocation on every tap, which is
+    // necessary but not sufficient: the Taptic Engine itself idles a
+    // couple of seconds after any fire, and the next impact then pays the
+    // wake-up and lands a beat AFTER the animation it was meant to
+    // accompany. `prepare()` is the API for that window and `PressableStyle`
+    // calls it on the press, which is exactly that window — the finger is
+    // down before the action runs.
     private static let light = UIImpactFeedbackGenerator(style: .light)
     private static let medium = UIImpactFeedbackGenerator(style: .medium)
     private static let notice = UINotificationFeedbackGenerator()
@@ -357,6 +362,14 @@ enum Haptic {
     static func select() { selector.selectionChanged() }
     /// Something didn't take — a denied permission, a failed export.
     static func warn() { notice.notificationOccurred(.warning) }
+
+    /// The finger is down; whatever fires next should land on time.
+    static func prepare() {
+        light.prepare()
+        medium.prepare()
+        notice.prepare()
+        selector.prepare()
+    }
 }
 
 // MARK: - Press feedback
@@ -370,6 +383,9 @@ struct PressableStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .scaleEffect(configuration.isPressed ? 0.965 : 1)
+            .onChange(of: configuration.isPressed) { _, pressed in
+                if pressed { Haptic.prepare() }
+            }
             .opacity(configuration.isPressed ? 0.85 : 1)
             .animation(.plSnap, value: configuration.isPressed)
     }
