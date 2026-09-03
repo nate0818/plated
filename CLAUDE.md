@@ -95,3 +95,7 @@ git fetch . <branch>:main
   shape of the code. Do not narrate what the line already says.
 - Keep `MEMORY.md` notes for decisions; keep durable project law in this file or
   DESIGN.md so every session and every human can see it.
+- `docs/open-decisions.md` holds the questions that were measured and
+  deliberately left open. Read it before reopening one of them, and delete the
+  entry when it is decided. A judgment call with two defensible answers is not
+  a bug to be fixed quietly at 4am.
