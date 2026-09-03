@@ -110,6 +110,18 @@ final class Recipe {
         set { category = newValue?.rawValue ?? "" }
     }
 
+    /// Whether anybody has said, or implied by a time, how hard this is.
+    ///
+    /// `difficultyValue` falls back to `from(minutes:)`, whose first case is
+    /// `..<30`, so a recipe with no time at all comes back "Easy". The fact
+    /// row then set "Not set" and "Easy" side by side, both derived from the
+    /// same missing number — one refusing to invent it, the other stating a
+    /// conclusion from it. Imports are the live path: they write parsed
+    /// minutes unfloored and never set a difficulty.
+    ///
+    /// Computed, so no schema change and nothing for the mirror to migrate.
+    var difficultyIsKnown: Bool { !difficulty.isEmpty || totalMinutes > 0 }
+
     /// Stored difficulty when set, otherwise derived from total minutes.
     var difficultyValue: RecipeDifficulty {
         get { RecipeDifficulty(rawValue: difficulty) ?? RecipeDifficulty.from(minutes: totalMinutes) }

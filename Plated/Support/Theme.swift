@@ -774,6 +774,63 @@ struct OptionRow: View {
     }
 }
 
+/// A chip that is on or off: a filter, a meal, a kind of dish, a sort.
+///
+/// Two hand-kept copies of this control carried three defects between them,
+/// and the first is why it lives here rather than in a comment at each site.
+///
+/// **It was barely tappable.** An unselected chip draws
+/// `Capsule().strokeBorder`, and a stroked shape hit-tests its ring and
+/// nothing else. With no `contentShape` the live area collapsed to the
+/// label's own layout box — roughly 18pt inside a 36pt control on the
+/// cookbook filter, across about twenty controls on the tab's only filtering
+/// surface. The one chip that answered a tap reliably was the one already
+/// selected, because a filled capsule does hit-test. Two other copies in the
+/// app already carried the fix, one with a comment naming this mechanism.
+///
+/// **It never said it was on.** Neither copy set `.isSelected`, so VoiceOver
+/// read twenty identical buttons and never said which filter was applied.
+/// Colour is the only other carrier and colour is inaudible.
+///
+/// **It buzzed like a commit.** Both opened with `Haptic.tap`. Moving
+/// between options is a change of position, which is what `select` is for.
+struct SelectChip<Label: View>: View {
+    let active: Bool
+    /// The height of the drawn capsule. The touch target is always 44; this
+    /// only sets how big the chip looks.
+    var height: CGFloat = 38
+    let action: () -> Void
+    @ViewBuilder let label: () -> Label
+
+    var body: some View {
+        Button {
+            Haptic.select()
+            withAnimation(.plSnap) { action() }
+        } label: {
+            label()
+                .fixedSize()
+                .foregroundStyle(active ? Color.canvas : Color.ink)
+                .padding(.horizontal, 13)
+                .frame(minHeight: height)
+                .background {
+                    if active {
+                        Capsule().fill(Color.ink)
+                    } else {
+                        Capsule().strokeBorder(Color.hairline)
+                    }
+                }
+                // The target goes outside the drawn capsule, and stays a
+                // capsule: `plTapTarget` forces `minWidth: 44` and a
+                // Rectangle, which would square off the hit area and widen
+                // short chips inside a flow layout.
+                .frame(minHeight: 44)
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.pressable)
+        .accessibilityAddTraits(active ? .isSelected : [])
+    }
+}
+
 /// A number and the thing it counts. No glyph, no box.
 ///
 /// Instagram's profile triad and X's metric row agree on this: a count
@@ -1014,24 +1071,42 @@ struct TomatoPillButton: View {
     /// its own off state instead of every call site fading the whole thing.
     @Environment(\.isEnabled) private var isEnabled
 
+    /// Working is not the same as not ready, and the two states were wearing
+    /// one dress.
+    ///
+    /// Every call site that shows a spinner also disables the pill so the
+    /// action cannot be fired twice — `busy: reading` beside
+    /// `.disabled(… || reading)`. That drove `isEnabled` false, so the ground
+    /// went to `fill` and the spinner kept its `onTomato` tint: white on
+    /// 0xF4F1EC, about 1.13:1, which is not a spinner, it is nothing. For the
+    /// twenty seconds `RecipeImporter` allows a parse, the import sheet's
+    /// primary control sat greyed out and apparently idle while it worked.
+    ///
+    /// So busy wins the paint and disabled keeps the tap. Nothing changes at
+    /// a call site.
+    private var awake: Bool { isEnabled || busy }
+
     var body: some View {
         Button {
+            // A pill can be busy without being disabled. Guard here rather
+            // than trusting every future call site to pair the two.
+            guard !busy else { return }
             haptic()
             action()
         } label: {
             HStack(spacing: 8) {
                 if busy {
-                    ProgressView().tint(Color.onTomato)
+                    ProgressView().tint(awake ? Color.onTomato : Color.inkSecondary)
                 } else if let systemImage {
                     Image(systemName: systemImage).font(.system(size: 16, weight: .semibold))
                 }
                 Text(title).plType(.callout)
             }
-            .foregroundStyle(isEnabled ? Color.onTomato : Color.inkSecondary)
+            .foregroundStyle(awake ? Color.onTomato : Color.inkSecondary)
             .frame(maxWidth: .infinity)
             .frame(minHeight: 56)
         }
-        .buttonStyle(TomatoPillStyle(enabled: isEnabled))
+        .buttonStyle(TomatoPillStyle(enabled: awake))
     }
 }
 

@@ -61,8 +61,28 @@ struct GroceryListBuilder {
         }
         for item in stale { context.delete(item) }
 
+        // The manual rows the grocery sheet is actually showing right now.
+        //
+        // Saving a recipe with "Add to this week's grocery list" on inserts a
+        // manual row per ingredient, and saving-and-planning in the same tap
+        // also inserts the PlannedMeal this builder aggregates from. Both
+        // sides take their names from the same drafts, so with equal servings
+        // the names and quantities match exactly and the pairs sort adjacent:
+        // the whole ingredient list, listed twice, for the seven days the
+        // sheet keeps manual rows.
+        //
+        // The window has to match the sheet's, not this week's: a manual row
+        // from four days ago is still on screen and would still be doubled.
+        let manualWindow = Calendar.current.date(byAdding: .day, value: -7, to: weekStart) ?? weekStart
+        let manual = try context.fetch(
+            FetchDescriptor<GroceryItem>(
+                predicate: #Predicate { $0.isManual && $0.weekStart >= manualWindow }
+            )
+        )
+        let manualKeys = Set(manual.map { Self.key(name: $0.name, unit: $0.unit) })
+
         var created: [GroceryItem] = []
-        for line in aggregated {
+        for line in aggregated where !manualKeys.contains(Self.key(name: line.name, unit: line.unit)) {
             let item = GroceryItem(
                 name: line.name,
                 quantity: line.quantity,

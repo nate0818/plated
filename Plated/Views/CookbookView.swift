@@ -68,6 +68,12 @@ struct RecipeFilter: Equatable {
             case .newest: return lhs.createdAt > rhs.createdAt
             case .quickest: return lhs.totalMinutes < rhs.totalMinutes
             case .easiest:
+                // Unknown effort ranks last rather than winning: an untimed
+                // recipe derives "Easy" from a zero and used to take the top
+                // of a sort it has told us nothing about.
+                if lhs.difficultyIsKnown != rhs.difficultyIsKnown {
+                    return lhs.difficultyIsKnown
+                }
                 let l = lhs.difficultyValue.sortOrder, r = rhs.difficultyValue.sortOrder
                 return l == r ? lhs.totalMinutes < rhs.totalMinutes : l < r
             case .mostLoved:
@@ -111,6 +117,15 @@ struct CookbookView: View {
     /// plate under your finger, which is the single loudest way an app
     /// reads as a stack of screens rather than one place.
     @Namespace private var zoom
+    /// What this phone actually knows about the cookbook, as opposed to what
+    /// it can draw. "Nothing in the cookbook yet" was asserted the instant
+    /// the @Query came back empty, which on a second device is also the
+    /// window while the mirror is still importing — and it is the one screen
+    /// where being wrong reads as "your recipes are gone". Same machine as
+    /// TableFeedView.Reach, same three states.
+    @State private var reach: Reach = .looking
+
+    private enum Reach { case looking, reached, unreachable }
 
     private var shown: [Recipe] { filter.apply(to: recipes) }
 
@@ -259,15 +274,31 @@ struct CookbookView: View {
                         // with nothing in it is an invitation — and the old
                         // state answered both with one line and a filter
                         // glyph, the wrong icon for "you own no recipes".
-                        if filter.isFiltering {
-                            noMatches
+                        //
+                        // The corpus is tested first. `isFiltering` never
+                        // consults `recipes`, and the filter chip is drawn
+                        // whether or not there is anything to filter, so one
+                        // tap on an empty cookbook turned the invitation into
+                        // "Nothing matches that filter" whose only exit was
+                        // "Clear filters" — losing both real ways in.
+                        if recipes.isEmpty || !filter.isFiltering {
+                            switch reach {
+                            case .looking: stillLooking
+                            case .reached: emptyCookbook
+                            case .unreachable: cannotReach
+                            }
                         } else {
-                            emptyCookbook
+                            noMatches
                         }
                     }
                 }
             }
             .background(Color.canvas)
+            .task { await look() }
+            // A recipe arriving mid-import settles the question on its own.
+            .onChange(of: recipes.count) { _, count in
+                if count > 0 { reach = .reached }
+            }
             .navigationDestination(item: $selected) { recipe in
                 RecipeDetailView(recipe: recipe)
                     .navigationTransition(.zoom(sourceID: recipe.persistentModelID, in: zoom))
@@ -306,7 +337,15 @@ struct CookbookView: View {
                 Button("Cancel", role: .cancel) {}
             }
         } message: {
-            Text("Deletes it for everyone. Nights it's planned on keep the name.")
+            // "Deletes it for everyone" was a claim about a record that has
+            // never left this account: recipes live in the private database,
+            // and delete(_:) is a context.delete plus a title stamp onto the
+            // nights it was planned for. Posting to the Table makes an
+            // independent TablePost, which this does not touch, so the
+            // sentence was false in both directions — and it contradicted
+            // "Only you can see this" two taps away, in the direction that
+            // implies the household had been reading your cookbook all along.
+            Text("Nights it's planned on keep the name.")
         }
     }
 
@@ -340,6 +379,58 @@ struct CookbookView: View {
     /// what to do, why it's worth doing, and offers both ways in — the paste
     /// route included, which is why that no longer needs a button loitering
     /// in the header on every screen, full or empty.
+    /// Still asking. A spinner and no words: the screen has no claim to make
+    /// yet. `waitForImport` floors at 450ms, so this is a beat, not a wait.
+    private var stillLooking: some View {
+        ProgressView()
+            .controlSize(.large)
+            .padding(.top, 60)
+            .accessibilityLabel("Looking for your recipes")
+    }
+
+    /// Asked and could not get an answer. Says so, rather than reporting the
+    /// absence of an answer as an answer.
+    private var cannotReach: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "icloud.slash")
+                .font(.system(size: 26, weight: .medium))
+                .foregroundStyle(Color.inkFaint)
+            Text("Couldn't check for your recipes")
+                .plType(.body, .bold)
+                .foregroundStyle(Color.ink)
+                .multilineTextAlignment(.center)
+            Text("What's here is what's on this phone.")
+                .plType(.footnote)
+                .foregroundStyle(Color.inkSecondary)
+                .multilineTextAlignment(.center)
+            Button {
+                Haptic.tap()
+                reach = .looking
+                Task { await look() }
+            } label: {
+                Text("Try again")
+                    .plType(.footnote, .semibold)
+                    .foregroundStyle(Color.ink)
+                    .plTapTarget()
+            }
+            .buttonStyle(.pressable)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, 40)
+        .padding(.horizontal, 24)
+    }
+
+    /// One pass at the mirror, so the empty state knows which of the three it
+    /// is. Recipes already on this phone are drawn immediately; this only
+    /// decides what to say when there are none.
+    private func look() async {
+        guard recipes.isEmpty else { reach = .reached; return }
+        switch await CloudSync.waitForImport() {
+        case .arrived, .quiet: reach = .reached
+        case .failed: reach = .unreachable
+        }
+    }
+
     private var emptyCookbook: some View {
         VStack(spacing: 12) {
             Image(systemName: "book.closed")
@@ -392,10 +483,15 @@ struct CookbookView: View {
     /// was the first thing a new cookbook said about itself. The empty state
     /// below already says it, warmly and with somewhere to go.
     private var countLabel: String {
+        // Emptiness first. The filtering branch used to run before this test
+        // and answered an empty cookbook with "0 of 0 dishes" — the mounted
+        // zero this screen's own history says was removed for being a verdict
+        // rather than a fact.
+        guard !recipes.isEmpty else { return "" }
         if filter.isFiltering {
-            return "\(shown.count) of \(recipes.count) \(recipes.count == 1 ? "dish" : "dishes")"
+            return "\(shown.count) of \(recipes.count.things("dish", "dishes"))"
         }
-        return recipes.isEmpty ? "" : "\(recipes.count) \(recipes.count == 1 ? "dish" : "dishes")"
+        return recipes.count.things("dish", "dishes")
     }
 
     /// Two reserved lines while there are two columns: reserving is what
@@ -609,11 +705,13 @@ struct RecipeFilterSheet: View {
 
                     VStack(alignment: .leading, spacing: 8) {
                         MicroLabel("Source")
-                        HStack(spacing: 8) {
-                            ForEach(RecipeFilter.Source.allCases) { source in
-                                chip(source.rawValue, active: filter.source == source) {
-                                    filter.source = source
-                                }
+                        // A bare HStack until now, so these three had nowhere
+                        // to go when the type grew. Every other group on this
+                        // sheet wraps.
+                        FlowChips(items: RecipeFilter.Source.allCases.map(\.rawValue)) { label in
+                            let source = RecipeFilter.Source.allCases.first { $0.rawValue == label } ?? .all
+                            return chip(label, active: filter.source == source) {
+                                filter.source = source
                             }
                         }
                     }
@@ -672,25 +770,9 @@ struct RecipeFilterSheet: View {
     }
 
     private func chip(_ label: String, active: Bool, action: @escaping () -> Void) -> some View {
-        Button {
-            Haptic.tap()
-            withAnimation(.plSnap) { action() }
-        } label: {
-            Text(label)
-                .plType(.footnote, .bold)
-                .fixedSize()
-                .foregroundStyle(active ? Color.canvas : Color.ink)
-                .padding(.horizontal, 13)
-                .frame(minHeight: 36)
-                .background {
-                    if active {
-                        Capsule().fill(Color.ink)
-                    } else {
-                        Capsule().strokeBorder(Color.hairline)
-                    }
-                }
+        SelectChip(active: active, action: action) {
+            Text(label).plType(.footnote, .bold)
         }
-        .buttonStyle(.pressable)
     }
 }
 
@@ -700,28 +782,78 @@ struct FlowChips<Chip: View>: View {
     @ViewBuilder let chip: (String) -> Chip
 
     var body: some View {
+        FlowLayout(spacing: 8) {
+            ForEach(items, id: \.self) { item in
+                chip(item)
+            }
+        }
+    }
+}
+
+/// Rows of subviews, wrapped at whatever width they are given.
+///
+/// This used to be arithmetic: `CGFloat(item.count) * 8 + 34` measured
+/// against a literal `330`. Both numbers describe a 13pt font on a 375pt
+/// phone, and the chips are `.fixedSize()` so they cannot compress when the
+/// guess is wrong. `plType` resolves through `Font.custom(_:relativeTo:
+/// .body)`, whose range runs to 3.118x, so at accessibility sizes a footnote
+/// chip sets near 40pt and a per-character estimate is out by a factor of
+/// three. The overflow ran off the right edge of a vertical ScrollView, with
+/// no horizontal scroll to reach what fell off it.
+///
+/// A Layout measures the real subviews against the real proposal, so both
+/// magic numbers go away and Dynamic Type is handled for nothing.
+struct FlowLayout: SwiftUI.Layout {
+    var spacing: CGFloat = 8
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: LayoutSubviews, cache: inout ()) -> CGSize {
+        let rows = rows(for: subviews, within: proposal.width ?? .infinity)
+        let height = rows.reduce(0) { $0 + $1.height } + spacing * CGFloat(max(0, rows.count - 1))
+        return CGSize(width: proposal.width ?? (rows.map(\.width).max() ?? 0), height: height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: LayoutSubviews, cache: inout ()) {
+        var y = bounds.minY
+        for row in rows(for: subviews, within: bounds.width) {
+            var x = bounds.minX
+            for index in row.indices {
+                let size = subviews[index].sizeThatFits(.unspecified)
+                subviews[index].place(
+                    at: CGPoint(x: x, y: y + (row.height - size.height) / 2),
+                    proposal: ProposedViewSize(size)
+                )
+                x += size.width + spacing
+            }
+            y += row.height + spacing
+        }
+    }
+
+    private struct Row {
+        var indices: [Int] = []
         var width: CGFloat = 0
-        var rows: [[String]] = [[]]
-        // Rough measure: 13pt bold Jakarta ≈ 8pt/char + 26 padding + 8 gap.
-        for item in items {
-            let itemWidth = CGFloat(item.count) * 8 + 34
-            if width + itemWidth > 330 {
-                rows.append([item])
-                width = itemWidth
+        var height: CGFloat = 0
+    }
+
+    private func rows(for subviews: LayoutSubviews, within limit: CGFloat) -> [Row] {
+        var rows: [Row] = []
+        var row = Row()
+        for index in subviews.indices {
+            let size = subviews[index].sizeThatFits(.unspecified)
+            let needed = row.indices.isEmpty ? size.width : row.width + spacing + size.width
+            // One chip wider than the whole row still gets a row of its own.
+            // A chip that overflows can at least be read; a chip that is
+            // never placed cannot.
+            if !row.indices.isEmpty, needed > limit {
+                rows.append(row)
+                row = Row(indices: [index], width: size.width, height: size.height)
             } else {
-                rows[rows.count - 1].append(item)
-                width += itemWidth
+                row.indices.append(index)
+                row.width = needed
+                row.height = max(row.height, size.height)
             }
         }
-        return VStack(alignment: .leading, spacing: 8) {
-            ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
-                HStack(spacing: 8) {
-                    ForEach(row, id: \.self) { item in
-                        chip(item)
-                    }
-                }
-            }
-        }
+        if !row.indices.isEmpty { rows.append(row) }
+        return rows
     }
 }
 
@@ -774,7 +906,12 @@ struct RecipeDetailView: View {
                     CountDivider()
                     CountBlock(value: "\(meal?.servings ?? recipe.servings)", label: "Serves")
                     CountDivider()
-                    CountBlock(value: recipe.difficultyValue.rawValue, label: "Effort")
+                    // Answers the same way "Time" does when the number
+                    // behind both of them is missing.
+                    CountBlock(
+                        value: recipe.difficultyIsKnown ? recipe.difficultyValue.rawValue : "Not set",
+                        label: "Effort"
+                    )
                 }
 
                 if !recipe.summary.isEmpty {
@@ -1015,9 +1152,23 @@ struct RecipeDetailView: View {
     /// its proportions whether or not there is a picture; and the whole
     /// thing is a button, because "there's no photo" and "add a photo" are
     /// the same thought.
+    /// One answer to "which photo is showing", used by the hero and by the
+    /// strip's selection ring.
+    ///
+    /// The hero read `shownPhoto ?? recipe.photoData` and never consulted the
+    /// extras, while the strip only draws itself at two or more photos. So a
+    /// recipe with no hero and one extra showed neither: a dashed "Add a
+    /// photo" over a photograph already in the store. With two extras it drew
+    /// the recipe's own photographs in a strip directly beneath the invitation
+    /// to add one. The editor makes it a one-step mistake — the hero well and
+    /// the extras well are independent, and nothing asks for a hero first.
+    private var heroData: Data? {
+        shownPhoto ?? recipe.photoData ?? recipe.sortedExtraPhotos.first?.photoData
+    }
+
     private var heroImage: some View {
         Group {
-            let data = shownPhoto ?? recipe.photoData
+            let data = heroData
             if let data, let image = UIImage(data: data) {
                 PhotoWell(image: image, height: 260, cornerRadius: Radius.hero)
                     .plCardShadow()
@@ -1037,7 +1188,7 @@ struct RecipeDetailView: View {
                                     Text("Add a photo")
                                         .plType(.body, .bold)
                                         .foregroundStyle(Color.inkSecondary)
-                                    Text("It shows on your plan and on the Table.")
+                                    Text("It shows on your plan and on the tile.")
                                         .plType(.caption)
                                         .foregroundStyle(Color.inkSecondary)
                                 }
@@ -1056,8 +1207,11 @@ struct RecipeDetailView: View {
         if all.count > 1 {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
-                    ForEach(Array(all.enumerated()), id: \.offset) { _, data in
+                    ForEach(Array(all.enumerated()), id: \.offset) { index, data in
                         if let image = UIImage(data: data) {
+                            // Compared against the same value the hero draws,
+                            // so the ringed thumbnail is the one on screen.
+                            let isCurrent = heroData == data
                             Button {
                                 Haptic.tap()
                                 withAnimation(.plSnap) { shownPhoto = data }
@@ -1070,12 +1224,17 @@ struct RecipeDetailView: View {
                                     .overlay {
                                         RoundedRectangle(cornerRadius: Radius.small, style: .continuous)
                                             .strokeBorder(
-                                                (shownPhoto ?? recipe.photoData) == data ? Color.ink : Color.hairline,
-                                                lineWidth: (shownPhoto ?? recipe.photoData) == data ? 2 : 1
+                                                isCurrent ? Color.ink : Color.hairline,
+                                                lineWidth: isCurrent ? 2 : 1
                                             )
                                     }
                             }
                             .buttonStyle(.pressable)
+                            // Which one is showing was carried by a 1pt
+                            // hairline becoming a 2pt ink stroke, and by
+                            // nothing else.
+                            .accessibilityLabel("Photo \(index + 1) of \(all.count)")
+                            .accessibilityAddTraits(isCurrent ? .isSelected : [])
                         }
                     }
                 }
@@ -1138,12 +1297,17 @@ struct RecipeDetailView: View {
         return "Ingredients"
     }
 
-    // A recipe has never left this account. `visibility` is written by the
-    // picker in NewRecipeView and read here, and by nothing else in the app:
-    // there is no code path that puts a Recipe in a shared zone. So the row
-    // said "Everyone on the Table can see this" about a record living in the
-    // private database, which is the honesty rule in DESIGN.md, and the most
-    // expensive kind of break because the reader has no way to notice.
+    // A recipe has never left this account, so this is a constant rather
+    // than a lookup. There is no code path that puts a Recipe in a shared
+    // zone, and the row used to say "Everyone on the Table can see this"
+    // about a record living in the private database — the honesty rule in
+    // DESIGN.md, and the most expensive kind of break because the reader has
+    // no way to notice.
+    //
+    // The editor's Visibility picker wrote `visibility` and nothing read it;
+    // it has been removed for the same reason. The property stays on the
+    // model, written "private" on every save, because dropping a mirrored
+    // property is not CloudKit-safe.
     private var visibilityIcon: String { "lock" }
 
     private var visibilityLine: String { "Only you can see this" }

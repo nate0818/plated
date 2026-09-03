@@ -19,8 +19,22 @@ struct ImportedRecipe: Equatable {
     var ingredients: [ImportedIngredient] = []
     var steps: [String] = []
 
-    /// Nothing worth showing. A paste of a shopping list or a URL lands here.
+    /// Nothing at all. Kept as the gate on the model result in `parse`,
+    /// where a draft with a good title and nothing under it is merged field
+    /// by field rather than discarded.
     var isEmpty: Bool { title.isEmpty && ingredients.isEmpty && steps.isEmpty }
+
+    /// Something a cook could actually work from.
+    ///
+    /// `isEmpty` needs the title AND the ingredients AND the steps to be
+    /// missing, so a title-only parse counted as a successful read. Pasting a
+    /// link produced exactly that: the URL is one undecorated line, so no
+    /// heading matches, the no-heading sweep drops it, and the address then
+    /// passes every shape test a title has to pass. The review step opened
+    /// over a web address with no ingredients, no steps and a live "Save to
+    /// cookbook" — and pasting a link is the first thing most people try,
+    /// while nothing in this app fetches one.
+    var hasContent: Bool { !ingredients.isEmpty || !steps.isEmpty }
 }
 
 struct ImportedIngredient: Equatable, Identifiable {
@@ -106,7 +120,7 @@ enum RecipeImporter {
     static func sanitizedTitle(_ raw: String) -> String? {
         let t = raw.trimmingCharacters(in: CharacterSet(charactersIn: "#*_ \t"))
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !t.isEmpty, !t.contains("\n") else { return nil }
+        guard !t.isEmpty, !t.contains("\n"), !looksLikeURL(t) else { return nil }
         // One clause. A title that runs into a second sentence is prose that
         // happened to be first on the page.
         let firstSentence = t.components(separatedBy: ". ").first ?? t
@@ -456,13 +470,36 @@ enum RecipeImporter {
             }
         }
 
-        recipe.title = title(from: preamble.isEmpty ? lines : preamble)
+        // From the preamble only. The `preamble.isEmpty ? lines` fallback
+        // fired exactly when the very first content line was a heading — in
+        // the no-heading case every line lands in `preamble` and the sweep
+        // above handles it — so a paste beginning "Ingredients:" searched the
+        // ingredient list for a title and came back with "Olive oil". A wrong
+        // name looks deliberate enough to save without noticing, which is the
+        // failure this function's own comment says it exists to prevent. An
+        // empty title is a question the review step already asks in one tap.
+        recipe.title = title(from: preamble)
         recipe.summary = summary(from: preamble, excluding: recipe.title, consumed: consumed)
         for line in preamble {
             for fragment in factFragments(line.text) {
                 if let n = servings(in: fragment) { recipe.servings = n }
                 if let m = minutes(in: fragment, keyed: ["prep"]) { recipe.prepMinutes = m }
                 if let m = minutes(in: fragment, keyed: ["cook", "bake", "roast"]) { recipe.cookMinutes = m }
+            }
+        }
+        // "Ready in 20 minutes" names neither prep nor cook, so a paste that
+        // gives only a total imported with no time at all: the shelf tile lost
+        // its "· 20 min", the Quickest sort could not see the dish, and the
+        // effort block asserted "Easy" off a zero. A bare total is honest
+        // enough — it goes on cook, which is what `totalMinutes` adds up.
+        if recipe.prepMinutes == 0, recipe.cookMinutes == 0 {
+            outer: for line in preamble {
+                for fragment in factFragments(line.text) {
+                    if let m = minutes(in: fragment, keyed: totalMinuteLeaders) {
+                        recipe.cookMinutes = m
+                        break outer
+                    }
+                }
             }
         }
         recipe.ingredients = recipe.ingredients.filter { !$0.name.isEmpty }
@@ -541,6 +578,10 @@ enum RecipeImporter {
         "print", "rated", "difficulty", "category", "keyword", "time"
     ]
 
+    /// The ways a recipe states one number instead of two: "Ready in 20
+    /// minutes", "Total time: 1 hr 10 min", "Takes about 45 minutes".
+    private static let totalMinuteLeaders = ["ready", "total", "takes", "time"]
+
     /// The dish's name, or nothing at all.
     ///
     /// "Nothing at all" is a real answer and the important one. The old
@@ -565,7 +606,7 @@ enum RecipeImporter {
     private static func titleShaped(_ line: Line) -> String? {
         guard line.stepNumber == nil, !line.isBullet, heading(line) == nil else { return nil }
         let t = line.text.trimmingCharacters(in: CharacterSet(charactersIn: "#*_ "))
-        guard !t.isEmpty, t.count <= 70 else { return nil }
+        guard !t.isEmpty, t.count <= 70, !looksLikeURL(t) else { return nil }
         guard t.split(separator: " ").count <= 12 else { return nil }
         // Two sentences is prose. One sentence ending in a full stop, with
         // more than a title's worth of words, is prose too.
@@ -575,6 +616,22 @@ enum RecipeImporter {
         let lower = t.lowercased()
         guard !metadataLeaders.contains(where: { lower.hasPrefix($0) }) else { return nil }
         return t
+    }
+
+    /// A web address, in either faculty's sense.
+    ///
+    /// Nothing in the app fetches a URL, so one that survives into `title`
+    /// becomes a recipe named after a link. A single token carrying a dot and
+    /// a plausible suffix is enough; anything with a space in it is prose and
+    /// the other shape tests handle it.
+    private static func looksLikeURL(_ candidate: String) -> Bool {
+        if candidate.contains("://") { return true }
+        let lower = candidate.lowercased()
+        if lower.hasPrefix("www.") { return true }
+        guard !candidate.contains(" "), candidate.contains(".") else { return false }
+        return candidate.range(
+            of: #"\.[a-z]{2,}(/|$)"#, options: [.regularExpression, .caseInsensitive]
+        ) != nil
     }
 
     /// The one-line description, if the paste offered one.

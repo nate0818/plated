@@ -21,7 +21,32 @@ struct RecipeImportSheet: View {
     @State private var raw = ""
     @State private var draft: ImportedRecipe?
     @State private var reading = false
-    @State private var readFailed = false
+    /// Why the read did not produce a recipe.
+    ///
+    /// One Bool used to answer three different questions with one sentence.
+    /// "No recipe found. Check that the ingredients and steps are included."
+    /// is true of a paste that had neither; it is a wrong instruction after a
+    /// photo Vision could not read a character of, and it is beside the point
+    /// when what was pasted is a link this app has no way to open.
+    enum ReadFailure {
+        case noRecipe
+        case unreadablePhoto
+        case pastedLink
+
+        var line: String {
+            switch self {
+            case .noRecipe:
+                return "No recipe found. Check that the ingredients and steps are included."
+            case .unreadablePhoto:
+                return "Couldn't read that photo. Try a straighter shot with more light."
+            case .pastedLink:
+                return "That's a link. Open it, copy the recipe text, and paste that."
+            }
+        }
+    }
+
+    @State private var failure: ReadFailure?
+    @State private var discardAsked = false
     @State private var nothingToPaste = false
     @State private var scannerShown = false
     @State private var editorShown = false
@@ -32,14 +57,39 @@ struct RecipeImportSheet: View {
     @FocusState private var editing: Bool
     @FocusState private var namingDish: Bool
 
+    /// Up to eight thousand characters of pasted or photographed source, plus
+    /// whatever the cook has corrected in the review. There is no other copy.
+    private var hasWork: Bool {
+        !raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || draft != nil
+    }
+
     var body: some View {
         VStack(spacing: 0) {
-            VStack(spacing: 2) {
-                MicroLabel(draft == nil ? "To your cookbook" : "New recipe")
-                Text(draft == nil ? "Add a recipe" : "Does this look right?")
-                    .plType(.title)
-                    .foregroundStyle(Color.ink)
+            ZStack {
+                VStack(spacing: 2) {
+                    MicroLabel(draft == nil ? "To your cookbook" : "New recipe")
+                    Text(draft == nil ? "Add a recipe" : "Does this look right?")
+                        .plType(.title)
+                        .foregroundStyle(Color.ink)
+                }
+                // The masthead was an eyebrow over a title and nothing else,
+                // so the drag indicator was this sheet's only exit — and the
+                // drag threw away the whole import silently, which on the scan
+                // path costs another pass with the camera. The guard below
+                // needs a door to exist first, or it is a trap.
+                HStack {
+                    Button("Cancel") {
+                        Haptic.tap()
+                        if hasWork { discardAsked = true } else { dismiss() }
+                    }
+                    .plType(.callout, .medium)
+                    .foregroundStyle(Color.inkSecondary)
+                    .plTapTarget()
+                    .buttonStyle(.pressable)
+                    Spacer()
+                }
             }
+            .padding(.horizontal, 20)
             .padding(.top, 22)
             .padding(.bottom, 14)
 
@@ -54,6 +104,11 @@ struct RecipeImportSheet: View {
         .presentationDragIndicator(.visible)
         .presentationBackground(Color.canvas)
         .presentationCornerRadius(Radius.sheet)
+        .interactiveDismissDisabled(hasWork)
+        .confirmationDialog("Discard this import?", isPresented: $discardAsked, titleVisibility: .visible) {
+            Button("Discard", role: .destructive) { dismiss() }
+            Button("Keep it", role: .cancel) {}
+        }
         .fullScreenCover(isPresented: $scannerShown) {
             DocumentScanner(
                 onScan: { pages in
@@ -117,11 +172,13 @@ struct RecipeImportSheet: View {
                     .multilineTextAlignment(.center)
             }
 
-            if readFailed {
-                Text("No recipe found. Check that the ingredients and steps are included.")
+            if let failure {
+                Text(failure.line)
                     .plType(.caption, .semibold)
                     .foregroundStyle(Color.tomato)
                     .multilineTextAlignment(.center)
+                    // No retry control: the Paste, Scan and Photos chips are
+                    // directly below this line.
             }
 
             // Three peers, one geometry. "Choose photo" needed about 108pt
@@ -409,14 +466,24 @@ struct RecipeImportSheet: View {
     // MARK: Work
 
     private func read(_ text: String) {
+        // Caught before the parser rather than after it. A URL survives every
+        // shape test a title has to pass, so the review step used to open
+        // over a web address with no ingredients and a live Save button.
+        if Self.isLink(text) {
+            Haptic.warn()
+            withAnimation(.plSnap) { failure = .pastedLink }
+            return
+        }
         reading = true
-        readFailed = false
+        failure = nil
         Task {
             let parsed = await RecipeImporter.parse(text)
             reading = false
-            if parsed.isEmpty {
+            // `hasContent`, not `!isEmpty`: a title on its own is not a
+            // recipe. See ImportedRecipe.
+            if !parsed.hasContent {
                 Haptic.warn()
-                withAnimation(.plSnap) { readFailed = true }
+                withAnimation(.plSnap) { failure = .noRecipe }
             } else {
                 withAnimation(.plSettle) { draft = parsed }
                 // The parser leaves the name blank rather than guessing
@@ -426,6 +493,14 @@ struct RecipeImportSheet: View {
         }
     }
 
+    /// A pasted web address: one token, no spaces, and a scheme or a host.
+    private static func isLink(_ text: String) -> Bool {
+        let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !t.isEmpty, !t.contains(where: \.isNewline), !t.contains(" ") else { return false }
+        if t.contains("://") || t.lowercased().hasPrefix("www.") { return true }
+        return t.range(of: #"\.[a-z]{2,}(/|$)"#, options: [.regularExpression, .caseInsensitive]) != nil
+    }
+
     /// Photographed pages → text → structure.
     ///
     /// The OCR result is written back into the paste box on the way through,
@@ -433,17 +508,20 @@ struct RecipeImportSheet: View {
     private func scan(_ pages: [UIImage]) {
         guard !pages.isEmpty else { return }
         reading = true
-        readFailed = false
+        failure = nil
         Task {
             let text = await RecipeScanner.read(pages)
-            raw = text
-            if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                reading = false
+            reading = false
+            // `raw` is assigned only when there is something to assign.
+            // Writing it first meant scanning a blank photo silently
+            // destroyed whatever the cook had already pasted.
+            guard let text, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
                 Haptic.warn()
-                withAnimation(.plSnap) { readFailed = true }
-            } else {
-                read(text)
+                withAnimation(.plSnap) { failure = text == nil ? .unreadablePhoto : .noRecipe }
+                return
             }
+            raw = text
+            read(text)
         }
     }
 

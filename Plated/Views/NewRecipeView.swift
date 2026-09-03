@@ -25,9 +25,6 @@ struct RecipeEditorView: View {
     @State private var summary = ""
     @State private var minutes = 25
     @State private var serves = 4
-    @State private var visibility = "household"
-    @Namespace private var visibilityPill
-    @State private var householdCanEdit = true
     @State private var photoItem: PhotosPickerItem?
     @State private var photoData: Data?
     @State private var photoLoading = false
@@ -68,6 +65,18 @@ struct RecipeEditorView: View {
         /// recipe is written back exactly as it was rather than round-tripping
         /// through the parser because some other field on the screen changed.
         var edited: String?
+        /// The store section this ingredient arrived filed under, and whether
+        /// it is a staple.
+        ///
+        /// Save rebuilds every `Ingredient` wholesale, which is the simple
+        /// thing and worth keeping — but it used to rebuild them from three
+        /// fields, so an untouched "Save changes" overwrote a model-assigned
+        /// aisle with a keyword guess that falls back to Other, and reset
+        /// `isPantryStaple` to false. The import writes an aisle straight from
+        /// the Foundation Models draft, which the ~130-entry table here cannot
+        /// reproduce.
+        var aisle: GroceryAisle?
+        var isPantryStaple = false
 
         /// The line as somebody would write it down: "2 cups flour".
         var text: String {
@@ -81,11 +90,20 @@ struct RecipeEditorView: View {
         }
 
         /// What to save: the typed line read once, or the untouched parts.
-        var resolved: (name: String, quantity: Double, unit: String) {
-            guard let edited else { return (name, quantity, unit) }
+        var resolved: (
+            name: String, quantity: Double, unit: String,
+            aisle: GroceryAisle, isPantryStaple: Bool
+        ) {
+            guard let edited else {
+                return (name, quantity, unit,
+                        aisle ?? RecipeImporter.aisle(for: name), isPantryStaple)
+            }
             let parsed = RecipeImporter
                 .parseIngredientLine(edited.trimmingCharacters(in: .whitespacesAndNewlines))
-            return (parsed.name, parsed.quantity, parsed.unit)
+            // A retyped row is a different food, so it is re-guessed rather
+            // than carrying the previous row's section.
+            return (parsed.name, parsed.quantity, parsed.unit,
+                    RecipeImporter.aisle(for: parsed.name), isPantryStaple)
         }
     }
 
@@ -168,24 +186,6 @@ struct RecipeEditorView: View {
 
                     ingredientsSection
                     stepsSection
-
-                    VStack(alignment: .leading, spacing: 8) {
-                        MicroLabel("Visibility")
-                        visibilityPicker
-                        HStack {
-                            Text("Household can edit")
-                                .plType(.body)
-                                .foregroundStyle(Color.ink)
-                            Spacer()
-                            Toggle("", isOn: $householdCanEdit)
-                                .labelsHidden()
-                                .sensoryFeedback(.selection, trigger: householdCanEdit)
-                                .tint(Color.basil)
-                        }
-                        .padding(.horizontal, 4)
-                        .opacity(visibility == "private" ? 0.35 : 1)
-                        .disabled(visibility == "private")
-                    }
                 }
                 .padding(.horizontal, 24)
                 .padding(.top, 16)
@@ -267,8 +267,6 @@ struct RecipeEditorView: View {
             summary = recipe.summary
             minutes = max(recipe.totalMinutes, 15)
             serves = recipe.servings
-            visibility = recipe.visibility
-            householdCanEdit = recipe.householdCanEdit
             photoData = recipe.photoData
             category = recipe.categoryValue
             mealType = recipe.mealTypeValue
@@ -276,7 +274,10 @@ struct RecipeEditorView: View {
             steps = recipe.steps
             extraPhotoData = recipe.sortedExtraPhotos.compactMap(\.photoData)
             draftIngredients = recipe.sortedIngredients.map {
-                DraftIngredient(name: $0.name, quantity: $0.quantity, unit: $0.unit)
+                DraftIngredient(
+                    name: $0.name, quantity: $0.quantity, unit: $0.unit,
+                    aisle: $0.aisleValue, isPantryStaple: $0.isPantryStaple
+                )
             }
             addToGroceries = false
         } else if let prefill {
@@ -329,35 +330,14 @@ struct RecipeEditorView: View {
     }
 
     private func selectChip(_ label: String, icon: String, active: Bool, action: @escaping () -> Void) -> some View {
-        Button {
-            Haptic.tap()
-            withAnimation(.plSnap) { action() }
-        } label: {
+        SelectChip(active: active, action: action) {
             HStack(spacing: 5) {
                 Image(systemName: icon)
                     .font(.system(size: 11, weight: .bold))
                 Text(label)
                     .plType(.footnote, .bold)
             }
-            .fixedSize()
-            .foregroundStyle(active ? Color.canvas : Color.ink)
-            .padding(.horizontal, 13)
-            .frame(minHeight: 38)
-            .background {
-                if active {
-                    Capsule().fill(Color.ink)
-                } else {
-                    Capsule().strokeBorder(Color.hairline)
-                }
-            }
-            // The drawn capsule stays 38 so these match the identical chips
-            // in the cookbook filter; the TARGET goes outside it. An
-            // unselected chip is a stroked ring with nothing behind it, so
-            // without this the tap landed on the glyphs alone.
-            .frame(minHeight: 44)
-            .contentShape(Capsule())
         }
-        .buttonStyle(.pressable)
     }
 
     /// Quick ingredient capture — "2 lb chicken thighs" in one line, parsed
@@ -612,47 +592,6 @@ struct RecipeEditorView: View {
         .contentShape(Rectangle())
     }
 
-    private var visibilityPicker: some View {
-        HStack(spacing: 0) {
-            visibilitySegment("private", label: "Only me", icon: "lock")
-            visibilitySegment("household", label: "Household", icon: nil)
-            visibilitySegment("table", label: "The Table", icon: nil)
-        }
-        .padding(2)
-        .background(Color.hairlineSoft, in: Capsule())
-    }
-
-    private func visibilitySegment(_ value: String, label: String, icon: String?) -> some View {
-        let active = visibility == value
-        return Button {
-            Haptic.select()
-            withAnimation(.plSnap) { visibility = value }
-        } label: {
-            HStack(spacing: 5) {
-                if let icon {
-                    Image(systemName: icon).font(.system(size: 11, weight: .bold))
-                }
-                Text(label).plType(.footnote, .bold)
-            }
-            .foregroundStyle(active ? Color.ink : Color.inkSecondary)
-            .frame(maxWidth: .infinity)
-            .frame(minHeight: 44)
-            .contentShape(Capsule())
-            .background {
-                if active {
-                    Capsule()
-                        .fill(Color.raisedFill)
-                        .overlay(Capsule().strokeBorder(Color.navHairline))
-                        .plTileShadow()
-                        // One pill, three seats — it slides, never blinks.
-                        .matchedGeometryEffect(id: "visibilityPill", in: visibilityPill)
-                }
-            }
-        }
-        .buttonStyle(.pressable)
-        .accessibilityAddTraits(active ? .isSelected : [])
-    }
-
     /// Saving waits for the photo to finish processing so a picked photo is
     /// never silently dropped.
     private var canSave: Bool {
@@ -695,8 +634,22 @@ struct RecipeEditorView: View {
             recipe.prepMinutes = minutes / 2
             recipe.cookMinutes = minutes - minutes / 2
         }
-        recipe.visibility = visibility
-        recipe.householdCanEdit = visibility == "private" ? false : householdCanEdit
+        // The editor used to offer "Only me / Household / The Table" and a
+        // "Household can edit" toggle. Nothing in the app could honour any of
+        // it: a Recipe lives in the private database and no code path puts one
+        // in a shared zone, so `visibility` and `householdCanEdit` were written
+        // here and read nowhere. Posting to the Table copies the dish into an
+        // independent TablePost; it does not share the recipe. So a cook chose
+        // "The Table", saved, opened the dish, and was told "Only you can see
+        // this" — DESIGN.md's "a control that quietly does nothing", about the
+        // one subject a person cannot check from inside the app.
+        //
+        // The properties stay on the model because dropping a mirrored
+        // property is not CloudKit-safe. Writing the honest value on every
+        // save also clears the stale "table"/"household" left on recipes saved
+        // before this, which nothing else in the app can now reach.
+        recipe.visibility = "private"
+        recipe.householdCanEdit = false
         recipe.photoData = photoData
         recipe.categoryValue = category
         recipe.mealTypeValue = mealType
@@ -722,7 +675,8 @@ struct RecipeEditorView: View {
             .enumerated().map { index, item in
                 Ingredient(
                     name: item.name, quantity: item.quantity, unit: item.unit,
-                    aisle: Self.guessAisle(for: item.name), sortIndex: index
+                    aisle: item.aisle, isPantryStaple: item.isPantryStaple,
+                    sortIndex: index
                 )
             }
         (recipe.extraPhotos ?? []).forEach(context.delete)
@@ -753,7 +707,7 @@ struct RecipeEditorView: View {
             for line in draftIngredients.map(\.resolved) where !line.name.isEmpty {
                 let item = GroceryItem(
                     name: line.name, quantity: line.quantity, unit: line.unit,
-                    aisle: Self.guessAisle(for: line.name),
+                    aisle: line.aisle,
                     weekStart: weekStart, isManual: true
                 )
                 item.originTitle = recipe.title
@@ -795,7 +749,19 @@ struct RecipeEditorView: View {
         let maxSide: CGFloat = 1200
         let scale = min(1, maxSide / max(image.size.width, image.size.height))
         let size = CGSize(width: image.size.width * scale, height: image.size.height * scale)
-        let renderer = UIGraphicsImageRenderer(size: size)
+        // Scale 1, explicitly. `UIGraphicsImageRenderer(size:)` with no format
+        // takes the device's default, whose scale is the screen's — 3 on these
+        // phones — while `UIImage(data:)` comes back at scale 1, so `size` is
+        // already in pixels and the renderer multiplied them again. A photo
+        // this function promises to hold at 1200px was written at 3600,
+        // roughly six to nine times the bytes, into external storage and on to
+        // CloudKit, with a ~39MB transient bitmap on the way. The Table's
+        // composer borrows this function, so the inflated blobs crossed the
+        // shared zone too. Every other renderer in the app sets this.
+        let format = UIGraphicsImageRendererFormat.default()
+        format.scale = 1
+        format.opaque = true
+        let renderer = UIGraphicsImageRenderer(size: size, format: format)
         let resized = renderer.image { _ in image.draw(in: CGRect(origin: .zero, size: size)) }
         return resized.jpegData(compressionQuality: 0.75)
     }
