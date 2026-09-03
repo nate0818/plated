@@ -71,6 +71,7 @@ struct TableFeedView: View {
     /// Long-press on a post. Feed cards aren't swipeable — a plate is a tap
     /// and the photo is a door — so the menu carries the rest.
     @State private var pendingDelete: TablePost?
+    @State private var editingPost: TablePost?
     @AppStorage("pendingSeats") private var pendingSeatsRaw = ""
 
     /// Everything worth showing. A post with no author, no dish, no words
@@ -395,6 +396,9 @@ struct TableFeedView: View {
             // "Everyone" is now a promise the code keeps. It used to delete
             // the local row only, and the post came back on the next pull.
             Text("It comes off the table for everyone. The photo and comments go too.")
+        }
+        .sheet(item: $editingPost) { post in
+            PostEditSheet(post: post)
         }
         .sheet(item: $editingSave) { post in
             RecipeEditorView(prefill: (
@@ -862,12 +866,10 @@ struct TableFeedView: View {
             Label("Comments", systemImage: "bubble.right")
         }
         if canSave {
-            if isSaved(post) {
-                Button {} label: {
-                    Label("In your cookbook", systemImage: "checkmark")
-                }
-                .disabled(true)
-            } else {
+            // Only when there is something to do. A dimmed, inert
+            // "In your cookbook" row was a label wearing a button's clothes,
+            // and it sat in the menu forever once a dish was saved.
+            if !isSaved(post) {
                 Button {
                     beginSave(post)
                 } label: {
@@ -875,16 +877,31 @@ struct TableFeedView: View {
                 }
             }
         }
-        Button {
-            openProfile(post)
-        } label: {
-            Label("See \(post.firstName)'s profile", systemImage: "person")
+        // Not on your own post. This offered "See Nate's profile" to Nate,
+        // which is the tell that one menu was being conditionally hidden
+        // rather than two menus being written.
+        if !isMine(post) {
+            Button {
+                openProfile(post)
+            } label: {
+                Label("See \(post.firstName)'s profile", systemImage: "person")
+            }
         }
         if isMine(post) {
-            Button(role: .destructive) {
-                pendingDelete = post
-            } label: {
-                Label("Delete post", systemImage: "trash")
+            // Your own post's actions, in their own section. A menu that
+            // mixes "see Nate's profile" with "delete Nate's post" while
+            // Nate is reading it is one menu doing two jobs.
+            Section {
+                Button {
+                    editingPost = post
+                } label: {
+                    Label("Edit", systemImage: "pencil")
+                }
+                Button(role: .destructive) {
+                    pendingDelete = post
+                } label: {
+                    Label("Delete post", systemImage: "trash")
+                }
             }
         }
     }
