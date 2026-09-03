@@ -29,8 +29,8 @@ struct WeekView: View {
     /// The day whose detail page is pushed. Tapping a day used to raise a
     /// change/remove dialog; those two are swipe actions inside the day now.
     @State private var dayShown: Date?
-    /// Nights already eaten start folded. They are history, not plan.
-    @State private var earlierShown = false
+    /// Once per appearance of the view, not once per redraw.
+    @State private var landedOnTonight = false
     @State private var swipedDay: Date?
     @State private var personShown: PersonRef?
     @State private var pushed: PlanDestination?
@@ -161,17 +161,40 @@ struct WeekView: View {
                 .padding(.horizontal, 24)
                 .padding(.top, 6)
 
+            ScrollViewReader { scroll in
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 8) {
+                    // Everything already cooked, oldest first, so the plan is
+                    // one timeline you are standing in the middle of: scroll
+                    // up for what you ate, down for what is coming. The view
+                    // opens anchored on tonight, so none of it is in the way
+                    // until somebody reaches for it.
+                    ForEach(cookedHistory) { section in
+                        HStack {
+                            MicroLabel(section.label)
+                            Spacer()
+                        }
+                        .padding(.top, 18)
+                        .padding(.bottom, 2)
+                        ForEach(section.dates, id: \.self) { date in
+                            dayRow(date)
+                        }
+                    }
+
                     let tonight = TonightAnswer.state(meals: meals,
                                                        hasRecipes: !recipes.isEmpty)
                     if let tonight {
-                        TonightCard(state: tonight, zoom: zoom) { meal in
-                            dayShown = meal.date
-                        } onPlanTonight: {
-                            planDay = Calendar.current.startOfDay(for: .now)
-                        }
+                        TonightCard(
+                            state: tonight,
+                            zoom: zoom,
+                            onOpenDish: { meal in dayShown = meal.date },
+                            onPlanTonight: { planDay = Calendar.current.startOfDay(for: .now) },
+                            dayLoad: showCalendarEvents
+                                ? events.load(on: Calendar.current.startOfDay(for: .now))
+                                : nil
+                        )
                         .padding(.bottom, 4)
+                        .id(Self.tonightAnchor)
                     }
                     // Tonight is the card, so it is not also a row. Drawn
                     // both ways it appeared twice in one scroll, and the
@@ -180,14 +203,6 @@ struct WeekView: View {
                     ForEach(aheadThisWeek(skippingToday: tonight != nil), id: \.self) { date in
                         dayRow(date)
                     }
-                    // The nights already eaten, folded away. A plan reads
-                    // forward: putting Sunday and Monday directly under the
-                    // answer to "what is tonight" opened the screen with
-                    // four days nobody can act on. They are still here
-                    // because history answers questions — see pastRow — and
-                    // they are one tap from the end of the week they belong
-                    // to rather than the top of it.
-                    if !earlierThisWeek.isEmpty { earlierSection }
                     ForEach(Array(futureWeeks.enumerated()), id: \.offset) { index, week in
                         HStack {
                             MicroLabel(weekSectionLabel(week, index: index))
@@ -220,8 +235,21 @@ struct WeekView: View {
                     withAnimation(.plSnap) { swipedDay = nil }
                 }
             }
+            // Land on tonight, not on the oldest thing the household ever
+            // cooked. Without an anchor a timeline that grows upwards opens
+            // further from the answer every week it is used.
+            .onAppear {
+                guard !landedOnTonight else { return }
+                landedOnTonight = true
+                scroll.scrollTo(Self.tonightAnchor, anchor: .top)
+            }
+            }
         }
     }
+
+    /// The scroll's resting place.
+    private static let tonightAnchor = "tonight"
+
 
     @ViewBuilder
     private func dayRow(_ date: Date) -> some View {
@@ -254,7 +282,11 @@ struct WeekView: View {
                     // a title is chrome; the title below it is not.
                     .plChrome()
                 Text("Your week")
-                    .plType(.display)
+                    // A step down from display and a weight lighter. At 27pt
+                    // semibold it needed two lines beside four icon buttons,
+                    // so the masthead stood taller than the answer under it.
+                    // The card below is where that size belongs now.
+                    .plType(.title, .medium)
                     .foregroundStyle(Color.ink)
                     // Two lines, not one. At normal sizes the title never
                     // reaches the second, so nothing moves; at accessibility
@@ -891,48 +923,50 @@ struct WeekView: View {
         }
     }
 
-    /// What was actually eaten earlier this week.
-    ///
-    /// Only the nights with a dinner on them. An empty past night is not
-    /// history, it is nothing: it cannot be planned (pastRow disables it)
-    /// and it records nothing, so offering to unfold a list of them was
-    /// offering to open an empty drawer. That also retires the "0 dinners"
-    /// this section used to carry, which is the mounted zero DESIGN.md
-    /// names, and makes the remaining count identical to the row count and
-    /// therefore not worth printing.
-    private var earlierThisWeek: [Date] {
-        weekDates.filter { isPast($0) && dinner(on: $0) != nil }
+    struct HistorySection: Identifiable {
+        let start: Date
+        let label: String
+        let dates: [Date]
+        var id: Date { start }
     }
 
-    @ViewBuilder
-    private var earlierSection: some View {
-        Button {
-            Haptic.select()
-            withAnimation(.plSnap) { earlierShown.toggle() }
-        } label: {
-            HStack(spacing: 6) {
-                MicroLabel("Earlier this week")
-                Image(systemName: "chevron.down")
-                    .accessibilityHidden(true)
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(Color.inkSecondary)
-                    .rotationEffect(.degrees(earlierShown ? 0 : -90))
-                Spacer()
-            }
-            .frame(minHeight: 44)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.pressable)
-        .accessibilityLabel("Earlier this week")
-        .accessibilityValue(earlierShown ? "Showing" : "Hidden")
-        .padding(.top, 10)
+    /// Every dinner already cooked, grouped by its week, oldest first.
+    ///
+    /// Only nights that have a dinner on them. An empty past night is not
+    /// history: `pastRow` disables it so it cannot be planned, and it
+    /// records nothing, so a wall of "Nothing plated" above tonight would
+    /// be scrollback with nothing in it.
+    ///
+    /// Not bounded to a fixed number of weeks. It is exactly as long as the
+    /// household has cooked: nothing on a new install, a year after a year.
+    private var cookedHistory: [HistorySection] {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: .now)
+        let past = meals.filter { $0.slotValue == .dinner && $0.date < today }
+        guard !past.isEmpty else { return [] }
 
-        if earlierShown {
-            ForEach(earlierThisWeek, id: \.self) { date in
-                dayRow(date)
-            }
-            .transition(.plUnfold)
+        let grouped = Dictionary(grouping: past) { calendar.startOfWeek(for: $0.date) }
+        return grouped.keys.sorted().map { start in
+            var seen = Set<Date>()
+            let dates = grouped[start, default: []]
+                .map { calendar.startOfDay(for: $0.date) }
+                .filter { seen.insert($0).inserted }
+                .sorted()
+            return HistorySection(start: start,
+                                  label: historyLabel(weekStart: start),
+                                  dates: dates)
         }
+    }
+
+    private func historyLabel(weekStart: Date) -> String {
+        let calendar = Calendar.current
+        let thisWeek = calendar.startOfWeek(for: .now)
+        if calendar.isSameDay(weekStart, thisWeek) { return "Earlier this week" }
+        if let lastWeek = calendar.date(byAdding: .day, value: -7, to: thisWeek),
+           calendar.isSameDay(weekStart, lastWeek) { return "Last week" }
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMM d"
+        return "Week of \(formatter.string(from: weekStart))"
     }
 
     private func dinner(on date: Date) -> PlannedMeal? {

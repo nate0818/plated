@@ -201,8 +201,10 @@ struct PlanNightSheet: View {
         if let day = forecast.forecast(for: date) {
             parts.append("\(day.conditionDescription), high \(Int(day.highF.rounded()))°")
         }
-        if showCalendarEvents, let event = events.firstEventTitle(on: date) {
-            parts.append("On the calendar: \(event)")
+        // How full the day is, not the name of one thing on it. A day with
+        // six entries was being described by whichever one came back first.
+        if showCalendarEvents, let load = events.load(on: date) {
+            parts.append(load)
         }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }

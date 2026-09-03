@@ -27,6 +27,11 @@ struct TonightCard: View {
     /// Tapping the dish opens it. Nil states draw no door.
     var onOpenDish: (PlannedMeal) -> Void = { _ in }
     var onPlanTonight: () -> Void = {}
+    /// How full today already is, when the calendar is switched on. Shown
+    /// only on an unplanned night, because that is the moment it changes
+    /// what somebody picks: a day that is clear after four and a day that
+    /// runs to seven are two different dinners.
+    var dayLoad: String? = nil
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -148,7 +153,7 @@ struct TonightCard: View {
             // Past tense, because it happened. The cook still gets the credit.
             guard let cook = meal.cook else { return "Cooked" }
             return cook.isOwner ? "You cooked it" : "\(cook.name) cooked it"
-        case .open: return nil
+        case .open: return dayLoad
         }
     }
 }
