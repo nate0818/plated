@@ -38,6 +38,9 @@ struct PersonProfileView: View {
     @State private var editShown = false
     @State private var bannerItem: PhotosPickerItem?
     @State private var openedPost: TablePost?
+    /// The grid tile you touched is the thread that opens. One source per
+    /// post, so the tile's own id is unambiguous here.
+    @Namespace private var zoom
 
     /// Who this page is about, right now. Identity first, and only then
     /// the name it was pushed with.
@@ -196,6 +199,7 @@ struct PersonProfileView: View {
         .sheet(isPresented: $editShown) { EditProfileSheet() }
         .navigationDestination(item: $openedPost) { post in
             PostThreadView(post: post)
+                .navigationTransition(.zoom(sourceID: post.persistentModelID, in: zoom))
         }
         .onChange(of: bannerItem) { _, item in
             guard let item else { return }
@@ -307,6 +311,7 @@ struct PersonProfileView: View {
             .aspectRatio(1, contentMode: .fit)
         }
         .buttonStyle(.pressable)
+        .matchedTransitionSource(id: post.persistentModelID, in: zoom)
     }
 
     private func outlineAction(_ label: String, action: @escaping () -> Void) -> some View {

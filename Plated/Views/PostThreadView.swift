@@ -26,6 +26,12 @@ struct PostThreadView: View {
     @Query private var recipes: [Recipe]
 
     @State private var draft = ""
+    /// Which face this profile was opened from. A thread offers four
+    /// doors to the same person — a tagged chip, the author's row, a
+    /// comment's avatar and that comment's name — and two sources may not
+    /// share one id in one namespace, so the tap records the one it used.
+    @State private var personDoor: ZoomID = .host
+    @Namespace private var zoom
     @State private var link = ""
     @State private var linkFieldShown = false
     @State private var replyTo: String?
@@ -96,7 +102,7 @@ struct PostThreadView: View {
                         HStack(spacing: 6) {
                             ForEach(post.taggedNames, id: \.self) { name in
                                 Button {
-                                    openProfile(name)
+                                    openProfile(name, door: .person(name))
                                 } label: {
                                     // The whole target was the glyph box:
                                     // about 22 by 14 points for a short
@@ -104,6 +110,7 @@ struct PostThreadView: View {
                                     // frame now, the same two-frame shape
                                     // the Save pill above it uses.
                                     Text("@\(name)")
+                                        .matchedTransitionSource(id: ZoomID.person(name), in: zoom)
                                         .plType(.micro)
                                         .foregroundStyle(Color.ink)
                                         .padding(.horizontal, 10)
@@ -165,6 +172,7 @@ struct PostThreadView: View {
         .plSwipeBack()
         .navigationDestination(item: $personShown) { person in
             PersonProfileView(personName: person.name, colorHex: person.colorHex, memberID: person.memberID)
+                .navigationTransition(.zoom(sourceID: personDoor, in: zoom))
         }
         .sheet(item: $localSave) { post in
             RecipeEditorView(prefill: (
@@ -214,11 +222,13 @@ struct PostThreadView: View {
             }
 
             Button {
-                openProfile(post.authorName, colorHex: post.authorColorHex)
+                openProfile(post.authorName, colorHex: post.authorColorHex,
+                            door: .author(post.persistentModelID))
             } label: {
                 HStack(spacing: 10) {
                     AvatarCircle(initials: post.initials, tone: PersonTone.from(hex: post.authorColorHex), size: 38,
                                  photo: members.photo(forAuthor: post.authorName))
+                        .matchedTransitionSource(id: ZoomID.author(post.persistentModelID), in: zoom)
                     VStack(alignment: .leading, spacing: 0) {
                         Text(post.authorName)
                             .plName()
@@ -331,16 +341,17 @@ struct PostThreadView: View {
     private func threadComment(_ comment: TableComment) -> some View {
         HStack(alignment: .top, spacing: 10) {
             Button {
-                openProfile(comment.authorName)
+                openProfile(comment.authorName, door: .author(comment.persistentModelID))
             } label: {
                 AvatarCircle(initials: initials(for: comment.authorName), tone: tone(for: comment.authorName), size: 30,
                              photo: members.photo(forAuthor: comment.authorName))
+                    .matchedTransitionSource(id: ZoomID.author(comment.persistentModelID), in: zoom)
             }
             .buttonStyle(.pressable)
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
                     Button {
-                        openProfile(comment.authorName)
+                        openProfile(comment.authorName, door: .author(comment.persistentModelID))
                     } label: {
                         Text(comment.authorName)
                             .plName()
@@ -788,8 +799,9 @@ struct PostThreadView: View {
         withAnimation(.plSnap) { replyTo = nil }
     }
 
-    private func openProfile(_ name: String, colorHex: String? = nil) {
+    private func openProfile(_ name: String, colorHex: String? = nil, door: ZoomID) {
         Haptic.tap()
+        personDoor = door
         let hex = colorHex
             ?? members.first { $0.name == name || name.hasPrefix($0.name) }?.colorHex
             ?? "FF5A3C"

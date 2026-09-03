@@ -19,6 +19,12 @@ struct MonthPlannerView: View {
     @State private var dayShown: Date?
     @State private var events = DayEventsProvider.shared
     @State private var forecast = ForecastProvider.shared
+    /// The month was the one door in the plan that slid instead of zooming:
+    /// the week list has carried `matchedTransitionSource(id: date)` on its
+    /// rows since the Continuity rule was written, and tapping the same
+    /// night from the grid pushed a screen in from the right with no
+    /// relationship to the cell under your finger.
+    @Namespace private var zoom
 
     private var calendar: Calendar { Calendar.current }
 
@@ -46,6 +52,7 @@ struct MonthPlannerView: View {
         }
         .navigationDestination(item: $dayShown) { day in
             DayDetailView(date: day, askTheTable: askTheTable)
+                .navigationTransition(.zoom(sourceID: day, in: zoom))
         }
     }
 
@@ -118,6 +125,7 @@ struct MonthPlannerView: View {
         }
         .buttonStyle(.pressable)
         .disabled(past && meal == nil)
+        .matchedTransitionSource(id: date, in: zoom)
         // Every cell in this grid was silent: VoiceOver read a bare numeral
         // and nothing else, so the dish, the cook, the forecast and the
         // calendar dot — the entire reason the month exists — were visible

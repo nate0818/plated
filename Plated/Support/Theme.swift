@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import SwiftData
 
 // MARK: - Palette · "quiet chrome, earned color"
 // Chrome is near-monochrome so every family's photos carry the color.
@@ -582,6 +583,14 @@ enum ZoomID: Hashable {
     /// A row or avatar that opens somebody's profile. Keyed on the name,
     /// which `Seats.isTaken` already keeps unique at one table.
     case person(String)
+    /// An author's face on one specific post.
+    ///
+    /// Keyed on the post rather than the name, because a feed routinely
+    /// shows two dinners by the same person and two sources may not share
+    /// one id in one namespace. It is deliberately not the post's own id
+    /// either: that already belongs to the card, which is the door to the
+    /// thread, and the face beside it goes somewhere else.
+    case author(PersistentIdentifier)
 }
 
 // MARK: - Shared atoms

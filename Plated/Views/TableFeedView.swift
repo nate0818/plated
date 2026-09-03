@@ -43,6 +43,11 @@ struct TableFeedView: View {
     /// keyboard over it.
     @State private var threadStartsWriting = false
     @State private var personShown: PersonRef?
+    /// Which door this profile was opened through. The Table offers two —
+    /// the masthead face and an author's face on a post — and DESIGN.md's
+    /// rule is that the tap records which one, rather than two sources
+    /// sharing an id.
+    @State private var personDoor: ZoomID = .host
     @State private var seatsPresented = false
     /// The composer, opened straight from the empty state. The + in the tab
     /// bar owns the same sheet, but an empty screen that can only be
@@ -454,6 +459,7 @@ struct TableFeedView: View {
             }
             .navigationDestination(item: $personShown) { person in
                 PersonProfileView(personName: person.name, colorHex: person.colorHex, memberID: person.memberID)
+                    .navigationTransition(.zoom(sourceID: personDoor, in: zoom))
             }
             // Discover and Activity both read as pushed screens — they wear
             // the back chevron — so they are, and they inherit the edge swipe
@@ -639,6 +645,7 @@ struct TableFeedView: View {
                 VStack(spacing: 2) {
                     AvatarCircle(initials: hostInitial, tone: .neutralPair, size: 38,
                                  photo: members.first(where: \.isOwner)?.photoData)
+                        .matchedTransitionSource(id: ZoomID.host, in: zoom)
                     Text("HOST")
                         .plType(.micro)
                         .foregroundStyle(Color.inkSecondary)
@@ -663,6 +670,7 @@ struct TableFeedView: View {
 
     private func openOwnProfile() {
         let me = members.first(where: \.isOwner)
+        personDoor = .host
         personShown = PersonRef(name: me?.name ?? "You", colorHex: me?.colorHex ?? "", memberID: me?.persistentModelID)
     }
 
@@ -712,6 +720,7 @@ struct TableFeedView: View {
                     HStack(spacing: 10) {
                         AvatarCircle(initials: post.initials, tone: PersonTone.from(hex: post.authorColorHex), size: 38,
                                      photo: members.photo(forAuthor: post.authorName))
+                            .matchedTransitionSource(id: ZoomID.author(post.persistentModelID), in: zoom)
                         VStack(alignment: .leading, spacing: 0) {
                             Text(post.authorName)
                                 .plName()
@@ -1085,6 +1094,7 @@ struct TableFeedView: View {
                     HStack(spacing: 10) {
                         AvatarCircle(initials: post.initials, tone: PersonTone.from(hex: post.authorColorHex), size: 38,
                                      photo: members.photo(forAuthor: post.authorName))
+                            .matchedTransitionSource(id: ZoomID.author(post.persistentModelID), in: zoom)
                         VStack(alignment: .leading, spacing: 0) {
                             Text(post.authorName)
                                 .plName()
@@ -1326,6 +1336,7 @@ struct TableFeedView: View {
 
     private func openProfile(_ post: TablePost) {
         Haptic.tap()
+        personDoor = .author(post.persistentModelID)
         personShown = PersonRef.author(
             post.authorName, colorHex: post.authorColorHex, in: members
         )
