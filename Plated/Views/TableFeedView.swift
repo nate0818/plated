@@ -122,8 +122,48 @@ struct TableFeedView: View {
     /// The week and Home are this device's own data — a pull there would
     /// have no mirror to wait on. The asymmetry is deliberate; please
     /// don't tidy it into symmetry.
+    /// Anything of ours that never made it out of the phone.
+    ///
+    /// `publish` is fire-and-forget from the composer, deliberately, so a
+    /// post written with no signal, no iCloud account or a dropped
+    /// connection keeps an empty `shareRecordName` forever. The comment at
+    /// that call site says a failure "leaves shareRecordName empty, which is
+    /// exactly the state the next publish attempt looks for" — and there was
+    /// no next publish attempt anywhere in the app. The post sat on one
+    /// phone, looking exactly like a post that had gone out, for good.
+    ///
+    /// This is that attempt. It runs on every pull and on the feed's first
+    /// appearance, and it is idempotent: `publish` reuses a name it is
+    /// given, so a post that turns out to have gone after all is overwritten
+    /// with itself rather than duplicated.
+    /// Ours, minted more than a minute ago, and still not on the table.
+    ///
+    /// The retry above will keep trying, but a person is entitled to know
+    /// that the thing they posted is not somewhere anybody else can see it.
+    /// Silence here would be the app claiming a post happened.
+    private func stranded(_ post: TablePost) -> Bool {
+        !post.isRemote
+            && post.shareRecordName.isEmpty
+            && Date.now.timeIntervalSince(post.createdAt) > 60
+    }
+
+    private func publishBacklog() async {
+        let stranded = posts.filter { !$0.isRemote && $0.shareRecordName.isEmpty }
+        guard !stranded.isEmpty else { return }
+        let hostName = members.first(where: \.isOwner)?.name ?? ""
+        var sent = false
+        for post in stranded {
+            if let name = await TableShare.publish(post, hostName: hostName) {
+                post.shareRecordName = name
+                sent = true
+            }
+        }
+        if sent { Persist.save(context, "publish backlog") }
+    }
+
     private func refreshFeed() async {
         Persist.save(context)
+        await publishBacklog()
         // Two different pipes, pulled together because the user pulled once.
         // The mirror carries this household's own devices; TableShare
         // carries everybody else's table. Neither knows about the other.
@@ -650,6 +690,16 @@ struct TableFeedView: View {
                                 // ranking it.
                                 if post.isRemote {
                                     Text("· another table")
+                                        .plType(.micro, .semibold)
+                                        .foregroundStyle(Color.inkSecondary)
+                                }
+                                // Only once it has genuinely been sitting.
+                                // Publishing is attempted the moment a post
+                                // is written, so a marker with no delay
+                                // would flash on every single post; a minute
+                                // means it really has not gone.
+                                if stranded(post) {
+                                    Text("· Not sent yet")
                                         .plType(.micro, .semibold)
                                         .foregroundStyle(Color.inkSecondary)
                                 }
