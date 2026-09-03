@@ -340,7 +340,7 @@ struct ProngsbyView: View {
             Text("Well hello. I'm Prongsby.")
                 .plType(.heading, .bold)
                 .foregroundStyle(Color.ink)
-            Text("Your sous chef and planning department. I know your \(recipes.count) recipes, the week's plan, and who's cooking when. Ask me to resize a dish, make it vegetarian, swap a protein, or plan the whole party.")
+            Text("Your sous chef and planning department. I know your \(recipes.count.things("recipe")), the week's plan, and who's cooking when. Ask me to resize a dish, make it vegetarian, swap a protein, or plan the whole party.")
                 .plType(.footnote)
                 .foregroundStyle(Color.inkSecondary)
                 .multilineTextAlignment(.center)

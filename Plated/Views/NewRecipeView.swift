@@ -375,7 +375,7 @@ struct RecipeEditorView: View {
                         Text("Add to this week's grocery list")
                             .plType(.body, .bold)
                             .foregroundStyle(Color.ink)
-                        Text("These \(draftIngredients.count) ingredients go on the list when you save.")
+                        Text("\(draftIngredients.count == 1 ? "This" : "These") \(draftIngredients.count.things("ingredient")) \(draftIngredients.count == 1 ? "goes" : "go") on the list when you save.")
                             .plType(.caption)
                             .foregroundStyle(Color.inkSecondary)
                     }
@@ -723,7 +723,7 @@ struct RecipeEditorView: View {
                 let owner = members.first(where: \.isOwner)?.name ?? "Someone"
                 Notifier.post(
                     .groceriesAdded, actor: owner,
-                    body: "\(draftIngredients.count) ingredients from \(recipe.title) added to the grocery list.",
+                    body: "\(draftIngredients.count.things("ingredient")) from \(recipe.title) added to the grocery list.",
                     into: context
                 )
             }

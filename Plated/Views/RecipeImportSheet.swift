@@ -326,7 +326,7 @@ struct RecipeImportSheet: View {
         VStack(alignment: .leading, spacing: 6) {
             MicroLabel(draft.wrappedValue.ingredients.isEmpty
                        ? "Ingredients"
-                       : "\(draft.wrappedValue.ingredients.count) ingredients")
+                       : draft.wrappedValue.ingredients.count.things("ingredient"))
             VStack(spacing: 0) {
                 ForEach(draft.wrappedValue.ingredients) { ingredient in
                     HStack(spacing: 10) {

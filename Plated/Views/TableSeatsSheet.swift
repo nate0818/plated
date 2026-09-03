@@ -53,7 +53,8 @@ struct TableSeatsSheet: View {
     var body: some View {
         VStack(spacing: 0) {
             VStack(spacing: 2) {
-                MicroLabel("\(members.count + guestSeats.count + pendingSeats.count) people")
+                MicroLabel((members.count + guestSeats.count + pendingSeats.count)
+                    .things("person", "people"))
                 Text(amGuest ? "This table" : "Your table")
                     .plType(.title)
                     .foregroundStyle(Color.ink)

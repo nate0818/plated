@@ -1163,7 +1163,7 @@ struct TableFeedView: View {
                         HStack(spacing: 6) {
                             Image(systemName: "chart.bar.xaxis")
                                 .font(.system(size: 11, weight: .bold))
-                            Text("\(post.pollOptions.count) choices · \(post.totalPollVotes) votes")
+                            Text("\(post.pollOptions.count.things("choice")) · \(post.totalPollVotes.things("vote"))")
                                 .plType(.micro)
                         }
                         .foregroundStyle(Color.basil)

@@ -72,7 +72,7 @@ struct ProngsbyBrain {
 
         if text.contains("hello") || text.contains("hi ") || text == "hi" || text == "hey"
             || text.contains("who are you") || text.contains("what can you do") {
-            return "I'm Prongsby. I know your \(recipes.count) recipes, your week, and who's cooking when. Ask me for dinner ideas, swaps, resizing a dish, making something vegetarian, or planning a gathering. \(Self.taglineOfTheDay)"
+            return "I'm Prongsby. I know your \(recipes.count.things("recipe")), your week, and who's cooking when. Ask me for dinner ideas, swaps, resizing a dish, making something vegetarian, or planning a gathering. \(Self.taglineOfTheDay)"
         }
         if let swap = substitution(in: text) { return swap }
         if let scaled = scaleRecipe(text) { return scaled }
