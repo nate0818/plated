@@ -542,7 +542,9 @@ struct SettingsSheet: View {
     var focusHouseholdName = false
 
     @Environment(\.dismiss) private var dismiss
-    @AppStorage("afterDark") private var afterDark = false
+    @AppStorage("appearance") private var appearanceRaw = Appearance.system.rawValue
+
+    private var appearance: Appearance { Appearance(rawValue: appearanceRaw) ?? .system }
     @AppStorage("showCalendarEvents") private var showCalendarEvents = false
     @AppStorage("householdName") private var householdName = ""
     /// The door flag RootView reads. Signing out flips this one only.
@@ -594,19 +596,26 @@ struct SettingsSheet: View {
                     }
 
                     settingRow(
-                        icon: afterDark ? "moon.stars.fill" : "moon",
-                        title: "Dark mode",
-                        caption: "Easier on your eyes at night."
+                        icon: appearance == .dark ? "moon.stars.fill"
+                            : (appearance == .light ? "sun.max" : "circle.lefthalf.filled"),
+                        title: "Appearance",
+                        caption: appearance == .system
+                            ? "Following your phone."
+                            : "Always \(appearance.label.lowercased()), whatever your phone is set to."
                     ) {
-                        Toggle("Dark mode", isOn: $afterDark)
-                            // Named, then hidden. `labelsHidden()` takes the
-                            // label off the screen and leaves it for
-                            // VoiceOver; an empty string leaves VoiceOver
-                            // reading "switch, on" three times in a column
-                            // and never saying which is which.
-                            .labelsHidden()
-                            .tint(Color.basil)
-                            .onChange(of: afterDark) { _, _ in Haptic.plate() }
+                        // A menu rather than a switch: two states could not
+                        // express "follow the phone", which is the state
+                        // every other app on the Home Screen is in, and the
+                        // one this app's own widget has always been in.
+                        // Picker carries its own VoiceOver label and value.
+                        Picker("Appearance", selection: $appearanceRaw) {
+                            ForEach(Appearance.allCases) { option in
+                                Text(option.label).tag(option.rawValue)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .tint(Color.ink)
+                        .onChange(of: appearanceRaw) { _, _ in Haptic.select() }
                     }
 
                     settingRow(
@@ -728,6 +737,12 @@ struct SettingsSheet: View {
                 .padding(.bottom, 24)
             }
         }
+        // A sheet does not inherit the root's preferredColorScheme, so
+        // changing the appearance from the control inside this very sheet
+        // repainted the whole app behind it and left the sheet in the old
+        // room until it was dismissed. Which is the only moment this can
+        // happen, since this is where the control lives.
+        .preferredColorScheme(appearance.scheme)
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
         .presentationBackground(Color.canvas)
