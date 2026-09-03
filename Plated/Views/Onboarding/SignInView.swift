@@ -125,6 +125,7 @@ struct SignInView: View {
                     Text("No passwords. Nothing public. Just your people.")
                         .plType(.caption)
                         .foregroundStyle(Color.inkSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
             .padding(.horizontal, 24)

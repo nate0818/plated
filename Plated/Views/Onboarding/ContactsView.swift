@@ -198,6 +198,11 @@ struct ContactsView: View {
                     Text("Contacts are matched on your device. Never uploaded, never sold.")
                         .plType(.caption)
                         .foregroundStyle(Color.inkSecondary)
+                        // A Text in an HStack beside a fixed-size icon
+                        // truncates before it wraps. This is a privacy
+                        // claim, and half of one is worse than none: the
+                        // sentence has to arrive whole at every text size.
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
             .padding(.horizontal, 24)

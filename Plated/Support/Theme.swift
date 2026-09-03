@@ -663,6 +663,11 @@ struct IconDiscButton: View {
         }
         .buttonStyle(.pressable)
         .accessibilityLabel(label)
+        // A 38pt disc with a fixed glyph is furniture, and furniture caps.
+        // ActivityBellButton beside it already did; this one did not, so a
+        // masthead holding both grew unevenly. Capping the component rather
+        // than each masthead is the point of having a component.
+        .plChrome()
     }
 }
 

@@ -647,6 +647,7 @@ struct TableFeedView: View {
             }
             .buttonStyle(.pressable)
             .accessibilityLabel("Everyone at the Table")
+            .plChrome()
 
             // The host's own door, the same one the plan and home offer.
             Button {
@@ -673,6 +674,11 @@ struct TableFeedView: View {
             .buttonStyle(.pressable)
             .accessibilityLabel("Your profile")
             .plDiscAligned(38)
+            // Home's identical control has carried this since plChrome was
+            // written. The Table's did not, so at AX5 the host avatar and
+            // its HOST label kept growing while every other masthead in the
+            // app held.
+            .plChrome()
     }
 
     private var hostInitial: String {

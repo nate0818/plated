@@ -123,6 +123,7 @@ struct DiscoverView: View {
                             .font(.system(size: 11, weight: .semibold))
                         Text("Open tables share with everyone. Yours stays invite-only.")
                             .plType(.caption)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                     .foregroundStyle(Color.inkSecondary)
                     .padding(.top, 20)
