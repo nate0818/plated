@@ -37,6 +37,7 @@ struct HouseholdHomeView: View {
     /// Item-based, not two `isPresented` booleans: a binding set
     /// asynchronously (the launch harness does exactly that) pops an
     /// isPresented destination straight back off.
+    @Environment(\.tabPop) private var tabPop
     @State private var pushed: HomeDestination?
     /// The face you tapped is the face that opens. See CookbookView.
     @Namespace private var zoom
@@ -132,6 +133,12 @@ struct HouseholdHomeView: View {
         }
         .sheet(isPresented: $addPresented) {
             AddMemberSheet()
+        }
+        // See TabPopRequest: tapping Home from a pushed screen returns home.
+        .onChange(of: tabPop) { _, request in
+            guard request.tab == .home else { return }
+            pushed = nil
+            personShown = nil
         }
         .sheet(item: $resendTarget) { target in
             InviteComposer(

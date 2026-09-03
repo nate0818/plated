@@ -93,6 +93,7 @@ private struct FilterKey: Equatable {
 struct CookbookView: View {
     @Environment(\.modelContext) private var context
     @Query(sort: \Recipe.createdAt) private var recipes: [Recipe]
+    @Environment(\.tabPop) private var tabPop
     @State private var selected: Recipe?
     @Environment(\.dynamicTypeSize) private var typeSize
     @State private var filter = RecipeFilter()
@@ -281,6 +282,13 @@ struct CookbookView: View {
         .sheet(isPresented: $newRecipeShown) { RecipeEditorView() }
         .sheet(isPresented: $filterSheetShown) {
             RecipeFilterSheet(filter: $filter, recipes: recipes)
+        }
+        // See TabPopRequest: tapping Recipes from inside a recipe returns
+        // to the shelf.
+        .onChange(of: tabPop) { _, request in
+            guard request.tab == .cookbook else { return }
+            selected = nil
+            activityShown = false
         }
         .sheet(item: $plating) { recipe in
             PlateAssignSheet(recipe: recipe)

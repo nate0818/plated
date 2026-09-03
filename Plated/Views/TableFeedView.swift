@@ -37,6 +37,7 @@ struct TableFeedView: View {
     /// tap on the plate button itself gets no burst, because there the
     /// control you touched is the thing that changed.
     @State private var burstPost: PersistentIdentifier?
+    @Environment(\.tabPop) private var tabPop
     @State private var threadPost: TablePost?
     /// Set only when the door was the "Add a comment" line, so the thread
     /// opens with the field ready. Reading a thread should not raise a
@@ -499,6 +500,14 @@ struct TableFeedView: View {
             // "Everyone" is now a promise the code keeps. It used to delete
             // the local row only, and the post came back on the next pull.
             Text("It comes off the table for everyone. The photo and comments go too.")
+        }
+        // See TabPopRequest: tapping Table while a thread or a profile is
+        // pushed returns to the feed.
+        .onChange(of: tabPop) { _, request in
+            guard request.tab == .table else { return }
+            threadPost = nil
+            personShown = nil
+            pushed = nil
         }
         .sheet(item: $editingPost) { post in
             PostEditSheet(post: post)

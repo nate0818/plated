@@ -121,14 +121,17 @@ final class DayEventsProvider {
 
         // The one clause that changes what gets cooked: when the day lets go.
         // Only while it still leaves an evening — a day running to ten is not
-        // "clear after ten", it is just full.
+        // "free after ten", it is just full.
+        //
+        // "free", not "clear": this line sits beside the forecast on the day
+        // screen, where "clear" is a sky.
         if let lastEnd = spans.last?.1 {
             let hour = calendar.component(.hour, from: lastEnd)
             if hour < 20, calendar.isDate(lastEnd, inSameDayAs: date) {
                 let formatter = DateFormatter()
                 formatter.dateFormat = calendar.component(.minute, from: lastEnd) == 0
                     ? "h a" : "h:mm a"
-                return "\(verdict) · clear after \(formatter.string(from: lastEnd))"
+                return "\(verdict) · free after \(formatter.string(from: lastEnd))"
             }
         }
         return verdict

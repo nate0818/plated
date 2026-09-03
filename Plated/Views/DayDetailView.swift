@@ -445,17 +445,18 @@ struct DayDetailView: View {
         return formatter.string(from: date)
     }
 
+    /// How full the day is, and nothing else.
+    ///
+    /// The forecast used to lead this line, which set "Clear · Busy day"
+    /// under a header already showing a sun and 97°: the same fact twice,
+    /// and the second time in a word the calendar also uses, so there was no
+    /// way to tell whether "clear" meant the sky or the schedule. The symbol
+    /// and the high carry the weather. This line is the calendar's.
     private var contextLine: String? {
-        var parts: [String] = []
-        if let day = forecast.forecast(for: date) {
-            parts.append(day.conditionDescription)
-        }
         // How full the day is, not the name of one thing on it. A day with
         // six entries was being described by whichever one came back first.
-        if showCalendarEvents, let load = events.load(on: date) {
-            parts.append(load)
-        }
-        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+        guard showCalendarEvents else { return nil }
+        return events.load(on: date)
     }
 
     /// Whose night it is by the household's rota, when nobody has been named

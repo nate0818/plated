@@ -5,6 +5,33 @@ enum AppTab: String, CaseIterable {
     case week, table, cookbook, home
 }
 
+/// A request to send a tab back to its own first screen.
+///
+/// Tapping the tab you are already on is how iOS says "take me to the top",
+/// and nothing in Plated was listening: the shell is a `switch` rather than a
+/// `TabView`, so there is no stack here to pop. Pushed screens are optional
+/// state owned by each root view, and only that view can clear it — so the
+/// shell raises a request and the roots answer it.
+///
+/// The tab is carried so a re-tap of Plan cannot also close the recipe
+/// somebody left open under Recipes. `count` is what changes: two re-taps of
+/// the same tab are two requests, not one.
+struct TabPopRequest: Equatable {
+    var tab: AppTab?
+    var count = 0
+}
+
+private struct TabPopKey: EnvironmentKey {
+    static let defaultValue = TabPopRequest()
+}
+
+extension EnvironmentValues {
+    var tabPop: TabPopRequest {
+        get { self[TabPopKey.self] }
+        set { self[TabPopKey.self] = newValue }
+    }
+}
+
 /// What the + can put into the world: two things, because there are two.
 /// A recipe arrives however it arrives — pasted, scanned, photographed,
 /// typed — and that is one door, not several; the import sheet already
@@ -23,6 +50,9 @@ struct MainShellView: View {
     @Query private var members: [HouseholdMember]
 
     @State private var selection: AppTab = .week
+    /// Raised when the bar is tapped on the tab already showing. See
+    /// `TabPopRequest`.
+    @State private var tabPop = TabPopRequest()
     /// The tabs you came through, so a left-edge swipe has somewhere to go
     /// back to. The tab bar is a `switch`, so without this there is no
     /// history at all and the gesture would have nothing to pop.
@@ -110,12 +140,15 @@ struct MainShellView: View {
                 .transition(.plArrive)
             }
 
-            PlateTabBar(selection: $selection) {
+            PlateTabBar(selection: $selection, onReselect: { tab in
+                tabPop = TabPopRequest(tab: tab, count: tabPop.count + 1)
+            }) {
                 createPresented = true
             }
             .padding(.horizontal, 20)
             .padding(.bottom, 4)
         }
+        .environment(\.tabPop, tabPop)
         .environment(\.perchVisibility, perchVisibility)
         .animation(.plSnap, value: perchVisibility.isHidden)
         .onChange(of: selection) { previous, _ in
@@ -351,6 +384,9 @@ struct MainShellView: View {
 /// tap. The + is the one always-tomato element in the whole app.
 struct PlateTabBar: View {
     @Binding var selection: AppTab
+    /// Tapping the tab already showing. Selection does not change, so
+    /// `onChange(of: selection)` never fires and the tap was going nowhere.
+    var onReselect: (AppTab) -> Void = { _ in }
     let onCreate: () -> Void
 
 
@@ -430,9 +466,14 @@ struct PlateTabBar: View {
         let active = selection == tab
         return Button {
             // Selection is the state change; the tick that marks position
-            // is `select`, not the `tap` that marks an action.
+            // is `select`, not the `tap` that marks an action. Going back to
+            // the top of a tab is a change of position too.
             Haptic.select()
-            selection = tab
+            if active {
+                onReselect(tab)
+            } else {
+                selection = tab
+            }
         } label: {
             VStack(spacing: 2) {
                 icon()

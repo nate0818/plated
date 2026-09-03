@@ -28,6 +28,7 @@ struct WeekView: View {
     @State private var planDay: Date?
     /// The day whose detail page is pushed. Tapping a day used to raise a
     /// change/remove dialog; those two are swipe actions inside the day now.
+    @Environment(\.tabPop) private var tabPop
     @State private var dayShown: Date?
     /// Once per appearance of the view, not once per redraw.
     @State private var landedOnTonight = false
@@ -119,6 +120,14 @@ struct WeekView: View {
             guard requested else { return }
             openGrocery.wrappedValue = false
             groceryPresented = true
+        }
+        // Tapping Plan while a day, a person or a pushed screen is open
+        // returns to the plan itself. See TabPopRequest.
+        .onChange(of: tabPop) { _, request in
+            guard request.tab == .week else { return }
+            dayShown = nil
+            personShown = nil
+            pushed = nil
         }
         .sheet(item: $planDay) { date in
             PlanNightSheet(date: date, askTheTable: askTheTable)

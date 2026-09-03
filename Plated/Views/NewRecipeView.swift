@@ -54,6 +54,39 @@ struct RecipeEditorView: View {
         var name: String
         var quantity: Double
         var unit: String
+        /// What the row's field shows once somebody has typed in it, and the
+        /// only thing that field writes.
+        ///
+        /// The first version kept `name`/`quantity`/`unit` in step with the
+        /// text through an `onChange` on the row's own state. That hop has to
+        /// land between the last keystroke and Save, and it did not: typing
+        /// "boneless" and saving stored "boneles", one character short, every
+        /// time. A field that writes straight through its binding, the way
+        /// the steps below do, cannot lose a keystroke.
+        ///
+        /// Nil until somebody edits, so an ingredient loaded from an existing
+        /// recipe is written back exactly as it was rather than round-tripping
+        /// through the parser because some other field on the screen changed.
+        var edited: String?
+
+        /// The line as somebody would write it down: "2 cups flour".
+        var text: String {
+            if let edited { return edited }
+            var parts: [String] = []
+            if quantity > 0 { parts.append(Ingredient.format(quantity)) }
+            let unitText = Ingredient.unitText(unit, for: quantity)
+            if !unitText.isEmpty { parts.append(unitText) }
+            parts.append(name)
+            return parts.joined(separator: " ")
+        }
+
+        /// What to save: the typed line read once, or the untouched parts.
+        var resolved: (name: String, quantity: Double, unit: String) {
+            guard let edited else { return (name, quantity, unit) }
+            let parsed = RecipeImporter
+                .parseIngredientLine(edited.trimmingCharacters(in: .whitespacesAndNewlines))
+            return (parsed.name, parsed.quantity, parsed.unit)
+        }
     }
 
     private var isEditing: Bool { editing != nil }
@@ -333,31 +366,13 @@ struct RecipeEditorView: View {
         VStack(alignment: .leading, spacing: 8) {
             MicroLabel("Ingredients")
 
-            ForEach(draftIngredients) { draft in
-                HStack {
-                    Text(draft.name)
-                        .plType(.body)
-                        .foregroundStyle(Color.ink)
-                    Spacer()
-                    Text(draftQuantityText(draft))
-                        .plType(.footnote)
-                        .foregroundStyle(Color.inkSecondary)
-                    Button {
-                        Haptic.tap()
-                        withAnimation(.plSnap) {
-                            draftIngredients.removeAll { $0.id == draft.id }
-                        }
-                    } label: {
-                        Image(systemName: "xmark")
-                            .accessibilityLabel("Remove \(draft.name)")
-                            .font(.system(size: 11, weight: .bold))
-                            .foregroundStyle(Color.inkSecondary)
-                            .frame(minWidth: 44, minHeight: 44)
-                            .contentShape(Rectangle())
+            ForEach($draftIngredients) { $draft in
+                IngredientRow(draft: $draft) {
+                    Haptic.tap()
+                    withAnimation(.plSnap) {
+                        draftIngredients.removeAll { $0.id == draft.id }
                     }
-                    .buttonStyle(.pressable)
                 }
-                .padding(.horizontal, 4)
             }
 
             // The same field the import review uses, and for the same
@@ -399,16 +414,34 @@ struct RecipeEditorView: View {
         VStack(alignment: .leading, spacing: 8) {
             MicroLabel("The steps")
 
-            ForEach(Array(steps.enumerated()), id: \.offset) { index, step in
+            ForEach(Array(steps.enumerated()), id: \.offset) { index, _ in
                 HStack(alignment: .top, spacing: 10) {
                     Text("\(index + 1)")
                         .plType(.footnote, .extraBold, family: .display)
                         .foregroundStyle(Color.inkSecondary)
                         .frame(width: 20, alignment: .trailing)
-                    Text(step)
+                        // The numeral sits on the field's first line rather
+                        // than on the top of its border.
+                        .padding(.top, 12)
+                    // A step you can only delete is a step you have to retype
+                    // to fix one word in, which is what somebody hits when
+                    // they open Edit because they spotted a mistake.
+                    //
+                    // The binding is guarded rather than a plain
+                    // `$steps[index]`: the remove button on this same row
+                    // shortens the array while the row is still on screen,
+                    // and a raw subscript reads past the end.
+                    TextField("Step \(index + 1)", text: Binding(
+                        get: { index < steps.count ? steps[index] : "" },
+                        set: { if index < steps.count { steps[index] = $0 } }
+                    ), axis: .vertical)
                         .plType(.body, .medium)
                         .foregroundStyle(Color.ink)
-                    Spacer()
+                        .lineLimit(1...8)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 11)
+                        .overlay(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous).strokeBorder(Color.hairline))
+                        .plTappableField()
                     Button {
                         Haptic.tap()
                         withAnimation(.plSnap) {
@@ -447,19 +480,16 @@ struct RecipeEditorView: View {
     }
 
     private func addStep() {
-        let entry = stepEntry.trimmingCharacters(in: .whitespaces)
+        // Newlines, not just spaces. The entry field is `axis: .vertical`, so
+        // Return both submits and leaves its newline in the text: every step
+        // added by pressing Return carried a trailing blank line into the
+        // recipe. Invisible while a step was drawn as `Text`; a step is a
+        // field now, and the empty line is a hole in the middle of the list.
+        let entry = stepEntry.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !entry.isEmpty else { return }
         Haptic.tap()
         steps.append(entry)
         stepEntry = ""
-    }
-
-    private func draftQuantityText(_ draft: DraftIngredient) -> String {
-        var parts: [String] = []
-        if draft.quantity > 0 { parts.append(Ingredient.format(draft.quantity)) }
-        let unit = Ingredient.unitText(draft.unit, for: draft.quantity)
-        if !unit.isEmpty { parts.append(unit) }
-        return parts.joined(separator: " ")
     }
 
     private var photoWell: some View {
@@ -670,7 +700,12 @@ struct RecipeEditorView: View {
         recipe.photoData = photoData
         recipe.categoryValue = category
         recipe.mealTypeValue = mealType
+        // Editing a step can leave it blank, and a blank step is not a step.
+        // Nothing else in the app can produce one, so this is the only place
+        // it has to be caught.
         recipe.steps = steps
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
         if let difficultyOverride {
             recipe.difficultyValue = difficultyOverride
         }
@@ -679,12 +714,17 @@ struct RecipeEditorView: View {
         // Rebuild children wholesale — simpler than diffing, and cascade
         // delete keeps the store clean.
         (recipe.ingredients ?? []).forEach(context.delete)
-        recipe.ingredients = draftIngredients.enumerated().map { index, draft in
-            Ingredient(
-                name: draft.name, quantity: draft.quantity, unit: draft.unit,
-                aisle: Self.guessAisle(for: draft.name), sortIndex: index
-            )
-        }
+        // An edited row can be left blank, and a blank row is not an
+        // ingredient.
+        recipe.ingredients = draftIngredients
+            .map(\.resolved)
+            .filter { !$0.name.isEmpty }
+            .enumerated().map { index, item in
+                Ingredient(
+                    name: item.name, quantity: item.quantity, unit: item.unit,
+                    aisle: Self.guessAisle(for: item.name), sortIndex: index
+                )
+            }
         (recipe.extraPhotos ?? []).forEach(context.delete)
         recipe.extraPhotos = extraPhotoData.enumerated().map { index, data in
             RecipePhoto(photoData: data, sortIndex: index)
@@ -710,10 +750,10 @@ struct RecipeEditorView: View {
         // auto-rebuild by design.
         if !isEditing && addToGroceries {
             let weekStart = Calendar.current.startOfDay(for: .now)
-            for draft in draftIngredients {
+            for line in draftIngredients.map(\.resolved) where !line.name.isEmpty {
                 let item = GroceryItem(
-                    name: draft.name, quantity: draft.quantity, unit: draft.unit,
-                    aisle: Self.guessAisle(for: draft.name),
+                    name: line.name, quantity: line.quantity, unit: line.unit,
+                    aisle: Self.guessAisle(for: line.name),
                     weekStart: weekStart, isManual: true
                 )
                 item.originTitle = recipe.title
@@ -758,5 +798,52 @@ struct RecipeEditorView: View {
         let renderer = UIGraphicsImageRenderer(size: size)
         let resized = renderer.image { _ in image.draw(in: CGRect(origin: .zero, size: size)) }
         return resized.jpegData(compressionQuality: 0.75)
+    }
+}
+
+/// One ingredient, editable as the line somebody would type.
+///
+/// The list used to be a `Text` and an `xmark`, so a wrong quantity meant
+/// deleting the row and retyping the whole thing — the same complaint the
+/// steps earned, one section up.
+///
+/// It edits as a single line rather than as three fields because that is the
+/// shape these arrive in: pasted, "2 cups flour". A correction goes back
+/// through `parseIngredientLine`, the same parser the entry field below runs,
+/// so a fixed line and a fresh one end up in identical shape.
+///
+/// The field writes the text and nothing else, straight through the binding.
+/// Parsing on the way in would fight the person typing: "2 c" would round-trip
+/// into something else under the cursor. Parsing on the way out, through a
+/// second hop, drops the last keystroke. So the line is what gets stored, and
+/// `DraftIngredient.resolved` reads it once, at save.
+private struct IngredientRow: View {
+    @Binding var draft: RecipeEditorView.DraftIngredient
+    var onRemove: () -> Void
+
+    var body: some View {
+        HStack(spacing: 10) {
+            TextField("Ingredient", text: Binding(
+                get: { draft.text },
+                set: { draft.edited = $0 }
+            ), axis: .vertical)
+                .plType(.body, .medium)
+                .foregroundStyle(Color.ink)
+                .lineLimit(1...3)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 11)
+                .overlay(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous).strokeBorder(Color.hairline))
+                .plTappableField()
+            Button(action: onRemove) {
+                Image(systemName: "xmark")
+                    .accessibilityLabel("Remove \(draft.resolved.name.isEmpty ? "ingredient" : draft.resolved.name)")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(Color.inkSecondary)
+                    .frame(minWidth: 44, minHeight: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.pressable)
+        }
+        .padding(.horizontal, 4)
     }
 }

@@ -29,13 +29,50 @@ struct TonightCard: View {
     var onPlanTonight: () -> Void = {}
     /// How full today already is, when the calendar is switched on. Shown
     /// only on an unplanned night, because that is the moment it changes
-    /// what somebody picks: a day that is clear after four and a day that
+    /// what somebody picks: a day that is free after four and a day that
     /// runs to seven are two different dinners.
     var dayLoad: String? = nil
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
+        switch state {
+        case let .plated(meal), let .cooked(meal):
+            // The whole card is the door, not just the plate. Somebody who
+            // taps the name of the food, or the line naming tonight's cook,
+            // is asking for the same thing as somebody who taps the picture:
+            // every word in this card is about one dinner. Only the 140pt
+            // circle answered, so the rest of it looked tappable and was not.
+            Button {
+                Haptic.tap()
+                onOpenDish(meal)
+            } label: {
+                card
+            }
+            .buttonStyle(.pressable)
+            // The source moves with the door. DESIGN.md's rule is that the
+            // thing you tapped is the thing that opens, and what gets tapped
+            // now is the card.
+            .matchedTransitionSource(id: meal.date, in: zoom)
+            .accessibilityLabel(voiceLabel)
+            .accessibilityHint("Opens tonight's dinner")
+        case .open:
+            // Deliberately not a Button: "Plan tonight" is one, and a button
+            // inside a button is undefined. A tap gesture on the container
+            // leaves the pill its own hit area and its own press while giving
+            // the rest of the card the same outcome. It also stops combining
+            // the children, which had been swallowing the pill into one
+            // VoiceOver element.
+            card
+                .onTapGesture {
+                    Haptic.plate()
+                    onPlanTonight()
+                }
+        }
+    }
+
+    /// The card itself, with no opinion about what tapping it does.
+    private var card: some View {
         VStack(spacing: 12) {
             MicroLabel(eyebrow)
 
@@ -76,7 +113,6 @@ struct TonightCard: View {
         }
         .plCardShadow()
         .contentShape(Radius.shape(Radius.row))
-        .accessibilityElement(children: .combine)
     }
 
     // MARK: Pieces
@@ -85,15 +121,7 @@ struct TonightCard: View {
     private var plate: some View {
         switch state {
         case let .plated(meal), let .cooked(meal):
-            Button {
-                Haptic.tap()
-                onOpenDish(meal)
-            } label: {
-                dish(for: meal)
-            }
-            .buttonStyle(.pressable)
-            .matchedTransitionSource(id: meal.date, in: zoom)
-            .accessibilityLabel("Open \(meal.title)")
+            dish(for: meal)
         case .open:
             // The same dashed invitation an open night wears in the list, at
             // the card's scale. One dashed thing per state is enough to say
@@ -144,6 +172,19 @@ struct TonightCard: View {
         case let .plated(meal), let .cooked(meal): return meal.title
         case .open: return "Nothing plated for tonight"
         }
+    }
+
+    /// One sentence for the whole card, now that the whole card is one
+    /// control. Built from the same three facts it draws.
+    private var voiceLabel: String {
+        var parts: [String] = []
+        switch state {
+        case .cooked: parts.append("Tonight, cooked")
+        case .plated, .open: parts.append("Tonight")
+        }
+        parts.append(headline)
+        if let line = factLine { parts.append(line) }
+        return parts.joined(separator: ". ")
     }
 
     private var factLine: String? {
