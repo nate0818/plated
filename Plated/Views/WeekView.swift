@@ -161,7 +161,21 @@ struct WeekView: View {
 
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 8) {
-                    ForEach(weekDates, id: \.self) { date in
+                    let tonight = TonightAnswer.state(meals: meals,
+                                                       hasRecipes: !recipes.isEmpty)
+                    if let tonight {
+                        TonightCard(state: tonight, zoom: zoom) { meal in
+                            dayShown = meal.date
+                        } onPlanTonight: {
+                            planDay = Calendar.current.startOfDay(for: .now)
+                        }
+                        .padding(.bottom, 4)
+                    }
+                    // Tonight is the card, so it is not also a row. Drawn
+                    // both ways it appeared twice in one scroll, and the
+                    // second time was underneath four nights already eaten,
+                    // which reads as the week having lost its order.
+                    ForEach(rowDates(skippingToday: tonight != nil), id: \.self) { date in
                         dayRow(date)
                     }
                     ForEach(Array(futureWeeks.enumerated()), id: \.offset) { index, week in
@@ -856,6 +870,14 @@ struct WeekView: View {
 
     // MARK: Data
 
+    /// The week's rows. `weekDates` itself is untouched, because the ring,
+    /// the counts and the week label all measure the whole week including
+    /// tonight; it is only the list that hands tonight to the card.
+    private func rowDates(skippingToday: Bool) -> [Date] {
+        guard skippingToday else { return weekDates }
+        return weekDates.filter { !Calendar.current.isDateInToday($0) }
+    }
+
     private func dinner(on date: Date) -> PlannedMeal? {
         meals.first {
             Calendar.current.isSameDay($0.date, date) && $0.slotValue == .dinner
@@ -865,8 +887,18 @@ struct WeekView: View {
     private func tagLine(for meal: PlannedMeal, today: Bool, date: Date) -> String {
         let base: String
         if today {
+            // Tonight names its cook like every other night does. This
+            // branch returned before it could reach the cook clause four
+            // lines below, so the one night the answer matters most was the
+            // only night the app would not give it — while the Home Screen
+            // widget beside it drew the cook's face the whole time.
+            var parts: [String] = ["Tonight"]
+            if let cook = meal.cook {
+                parts.append(cook.isOwner ? "you cook" : "\(cook.name) cooks")
+            }
             let minutes = meal.recipe?.totalMinutes ?? 0
-            base = minutes > 0 ? "Tonight · \(Recipe.durationText(minutes))" : "Tonight"
+            if minutes > 0 { parts.append(Recipe.durationText(minutes)) }
+            base = parts.joined(separator: " · ")
         } else if !meal.tagline.isEmpty {
             base = meal.tagline
         } else if let cook = meal.cook, !cook.isOwner {
