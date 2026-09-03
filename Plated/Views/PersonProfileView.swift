@@ -747,9 +747,13 @@ struct SettingsSheet: View {
                             title: "Show me around",
                             caption: "The four screens Plated is made of, in about a minute."
                         ) {
-                            Image(systemName: "chevron.right")
-                                .accessibilityHidden(true)
-                                .font(.system(size: 13, weight: .semibold))
+                            // A word, not a chevron. Above xxLarge the row
+                            // stacks and a lone arrow on its own line under
+                            // a sentence reads as a stray mark rather than a
+                            // control. The Sign out row beside it already
+                            // solves this with a word.
+                            Text("OPEN")
+                                .plType(.micro, .extraBold)
                                 .foregroundStyle(Color.inkSecondary)
                         }
                     }
@@ -892,7 +896,13 @@ struct SettingsSheet: View {
                         words
                         Spacer(minLength: 0)
                     }
+                    // Indented past the disc so the control starts where the
+                    // sentence starts. Flush left it sat under the icon with
+                    // the text above and to the right of it, which reads as
+                    // a control that came loose rather than one belonging to
+                    // the row it is in. 40 for the disc, 12 for the gap.
                     trailing()
+                        .padding(.leading, 52)
                 }
             } else {
                 // No priorities. Left to itself the trailing control takes

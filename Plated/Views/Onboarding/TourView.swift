@@ -171,25 +171,18 @@ struct TourView: View {
         .accessibilityHidden(true)
     }
 
-    /// The seat cluster the Table's masthead wears, ending in the dashed
-    /// invitation that is the real control for asking somebody in.
+    /// A table of four, one tone each from the person palette.
+    private let seats: [(String, PersonTone)] = [
+        ("A", .tomatoPair), ("C", .basilPair), ("N", .grapePair), ("A", .amberPair),
+    ]
+
+    /// The seat cluster the Table's masthead wears.
     private var tableSeats: some View {
         HStack(spacing: -12) {
-            AvatarCircle(initials: "N", tone: .tomatoPair, size: 62)
-                .overlay(Circle().strokeBorder(Color.canvas, lineWidth: 3))
-            AvatarCircle(initials: "S", tone: .basilPair, size: 62)
-                .overlay(Circle().strokeBorder(Color.canvas, lineWidth: 3))
-            AvatarCircle(initials: "R", tone: .grapePair, size: 62)
-                .overlay(Circle().strokeBorder(Color.canvas, lineWidth: 3))
-            Circle()
-                .strokeBorder(Color.hairlineDashed, style: StrokeStyle(lineWidth: 2, dash: [6, 6]))
-                .frame(width: 62, height: 62)
-                .background(Circle().fill(Color.canvas))
-                .overlay {
-                    Image(systemName: "plus")
-                        .font(.system(size: 18, weight: .bold))
-                        .foregroundStyle(Color.inkFaint)
-                }
+            ForEach(Array(seats.enumerated()), id: \.offset) { _, seat in
+                AvatarCircle(initials: seat.0, tone: seat.1, size: 62)
+                    .overlay(Circle().strokeBorder(Color.canvas, lineWidth: 3))
+            }
         }
         .accessibilityHidden(true)
     }
