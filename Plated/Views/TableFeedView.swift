@@ -22,7 +22,21 @@ struct TableFeedView: View {
 
     @State private var scope: FeedScope = .everyone
     @Namespace private var scopePill
-    @State private var bouncePost: PersistentIdentifier?
+    /// The plate that just landed on a photograph, for the 320ms it shows.
+    ///
+    /// This existed as `bouncePost`: set, timed and torn down at two sites,
+    /// and read by no modifier anywhere. The animation wrapper, the timer and
+    /// the teardown were all there and the visual never was. It is spent on
+    /// the double-tap now, which is the one gesture in the app whose control
+    /// is nowhere near the finger — the plate button is at the other end of
+    /// the card, so without a mark on the photo a double-tap looks like
+    /// nothing happened.
+    ///
+    /// DESIGN.md permits this and only this: the mark is what changed, drawn
+    /// where the change was asked for. It is not a flourish about a tap; a
+    /// tap on the plate button itself gets no burst, because there the
+    /// control you touched is the thing that changed.
+    @State private var burstPost: PersistentIdentifier?
     @State private var threadPost: TablePost?
     /// Set only when the door was the "Add a comment" line, so the thread
     /// opens with the field ready. Reading a thread should not raise a
@@ -687,8 +701,18 @@ struct TableFeedView: View {
                         TapGesture(count: 2).onEnded {
                             guard !post.platedByMe else { return }
                             togglePlate(post)
+                            withAnimation(.plPop) {
+                                burstPost = post.persistentModelID
+                            }
                         }
                     )
+                }
+                if burstPost == post.persistentModelID {
+                    PlateReactionGlyph(filled: true, size: 92)
+                        .plFloatShadow()
+                        .transition(.plArrive)
+                        .allowsHitTesting(false)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
                 if post.hasChefsKiss {
                     chefsKissPill
@@ -1134,7 +1158,7 @@ struct TableFeedView: View {
         let turningOn = !post.platedByMe
         withAnimation(.plPop) {
             post.platedByMe.toggle()
-            bouncePost = post.persistentModelID
+            burstPost = post.persistentModelID
         }
         if turningOn {
             post.hasChefsKiss ? Haptic.kiss() : Haptic.plate()
@@ -1157,8 +1181,8 @@ struct TableFeedView: View {
         }
         Task {
             try? await Task.sleep(for: .milliseconds(320))
-            if bouncePost == post.persistentModelID {
-                withAnimation(.plSnap) { bouncePost = nil }
+            if burstPost == post.persistentModelID {
+                withAnimation(.plSnap) { burstPost = nil }
             }
         }
     }

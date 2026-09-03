@@ -217,13 +217,29 @@ struct TableComposerSheet: View {
                     .frame(maxWidth: .infinity)
                     .frame(minHeight: 150)
                     .overlay {
-                        VStack(spacing: 6) {
-                            Image(systemName: "camera")
-                                .font(.system(size: 20, weight: .medium))
-                            Text("Add a photo")
-                                .plType(.footnote, .bold)
+                        // Two states hid behind one dimmed Post button:
+                        // nothing chosen yet, which the dashed well below
+                        // explains perfectly well, and a photo chosen and
+                        // still resolving, where the well was empty and the
+                        // block had no visible cause at all. A disabled
+                        // primary only works when the unmet requirement is
+                        // visible on the same screen.
+                        if photoLoading {
+                            VStack(spacing: 8) {
+                                ProgressView().tint(Color.inkSecondary)
+                                Text("Getting the photo")
+                                    .plType(.footnote, .bold)
+                            }
+                            .foregroundStyle(Color.inkSecondary)
+                        } else {
+                            VStack(spacing: 6) {
+                                Image(systemName: "camera")
+                                    .font(.system(size: 20, weight: .medium))
+                                Text("Add a photo")
+                                    .plType(.footnote, .bold)
+                            }
+                            .foregroundStyle(Color.inkSecondary)
                         }
-                        .foregroundStyle(Color.inkSecondary)
                     }
             }
         }

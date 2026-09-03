@@ -407,16 +407,50 @@ struct PostThreadView: View {
     }
 
     /// Renders @mentions ink-bold so they read as names, not alarms.
+    /// The comment body, with the names in it drawn as names.
+    ///
+    /// This split the body on spaces and tested each word, so "@Sam Meadows"
+    /// was resolved correctly on the way in — `send()` matches against the
+    /// full member name — and then drawn as ordinary text on the way out,
+    /// because `"Sam".hasPrefix("Sam Meadows")` is false. Every household
+    /// where somebody is stored with a surname had mentions that worked
+    /// everywhere except on screen.
+    ///
+    /// Ranged over the string rather than tokenised: a name is a range, not
+    /// a word. Longest first, so "@Sam Meadows" is matched before "@Sam"
+    /// eats its first half.
     private func mentionedText(_ comment: TableComment) -> Text {
-        var result = Text("")
-        for word in comment.text.split(separator: " ", omittingEmptySubsequences: false) {
-            let piece = String(word)
-            if piece.hasPrefix("@"), comment.mentions.contains(where: { piece.dropFirst().hasPrefix($0) }) {
-                result = result + Text(piece).font(.jakarta(TypeScale.body.size, .bold)).foregroundStyle(Color.ink)
-            } else {
-                result = result + Text(piece).font(.jakarta(TypeScale.body.size)).foregroundStyle(Color.ink)
+        let body = comment.text
+        let plain = Font.jakarta(TypeScale.body.size)
+        let bold = Font.jakarta(TypeScale.body.size, .bold)
+        guard !comment.mentions.isEmpty else {
+            return Text(body).font(plain).foregroundStyle(Color.ink)
+        }
+
+        // Every "@name" occurrence, longest name first.
+        var spans: [Range<String.Index>] = []
+        for name in comment.mentions.sorted(by: { $0.count > $1.count }) {
+            var from = body.startIndex
+            while let found = body.range(of: "@\(name)", range: from..<body.endIndex) {
+                if !spans.contains(where: { $0.overlaps(found) }) { spans.append(found) }
+                from = found.upperBound
             }
-            result = result + Text(" ")
+        }
+        spans.sort { $0.lowerBound < $1.lowerBound }
+
+        var result = Text("")
+        var cursor = body.startIndex
+        for span in spans {
+            if cursor < span.lowerBound {
+                result = result + Text(String(body[cursor..<span.lowerBound]))
+                    .font(plain).foregroundStyle(Color.ink)
+            }
+            result = result + Text(String(body[span]))
+                .font(bold).foregroundStyle(Color.ink)
+            cursor = span.upperBound
+        }
+        if cursor < body.endIndex {
+            result = result + Text(String(body[cursor...])).font(plain).foregroundStyle(Color.ink)
         }
         return result
     }
