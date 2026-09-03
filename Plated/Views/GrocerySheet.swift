@@ -97,6 +97,17 @@ struct GrocerySheet: View {
                             .plType(.footnote)
                             .foregroundStyle(Color.inkSecondary)
                             .multilineTextAlignment(.center)
+                        // "We're out of olive oil" is the most obvious job
+                        // this sheet has, and it lived only in the branch
+                        // that draws an existing list — so it was missing
+                        // exactly when the list was empty, which is when
+                        // somebody most wants to type a line into it. An
+                        // empty state that knows why it is empty should
+                        // still offer the thing you came to do.
+                        addRow
+                            .frame(maxWidth: .infinity)
+                            .padding(.horizontal, 40)
+                            .padding(.top, 10)
                     }
                 }
                 Spacer()
