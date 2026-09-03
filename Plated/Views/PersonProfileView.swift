@@ -76,7 +76,7 @@ struct PersonProfileView: View {
         allPosts.filter { $0.kind == "dish" && ($0.authorName == name || $0.firstName == firstName) }
     }
 
-    private var kissCount: Int { posts.filter(\.hasChefsKiss).count }
+    private var kissCount: Int { posts.filter { $0.hasChefsKiss(seats: members.count) }.count }
     private var plateCount: Int { posts.reduce(0) { $0 + $1.totalPlates } }
 
     var body: some View {

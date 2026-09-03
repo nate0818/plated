@@ -65,7 +65,7 @@ struct PostThreadView: View {
                         ZStack(alignment: .topTrailing) {
                             PhotoWell(image: image, clamped: true)
                                 .plCardShadow()
-                            if post.hasChefsKiss {
+                            if post.hasChefsKiss(seats: members.count) {
                                 chefsKissPill.offset(x: 6, y: -10)
                             }
                         }
@@ -287,11 +287,11 @@ struct PostThreadView: View {
         let votes = post.votes(for: index)
         let total = max(post.totalPollVotes, 1)
         let fraction = Double(votes) / Double(total)
-        let mine = post.myPollChoice == index
+        let mine = post.myVote == index
         return Button {
             Haptic.plate()
             withAnimation(.plSnap) {
-                post.myPollChoice = mine ? -1 : index
+                TableReactions.vote(post, option: index)
             }
         } label: {
             HStack(spacing: 10) {

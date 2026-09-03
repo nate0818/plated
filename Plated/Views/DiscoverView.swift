@@ -159,15 +159,11 @@ struct DiscoverView: View {
                         }
                         .clipShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
                         .plCardShadow()
-                    if post.hasChefsKiss {
-                        Image(systemName: "sparkles")
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundStyle(Color.mango)
-                            .frame(width: 28, height: 28)
-                            .background(Color.canvas, in: Circle())
-                            .overlay(Circle().strokeBorder(Color.navHairline))
-                            .padding(8)
-                    }
+                    // No kiss on a Discover post. The mark means "everyone
+                    // at that table plated it", and we know neither how many
+                    // people sit at a stranger's table nor what they did.
+                    // Guessing it would be the interface claiming something
+                    // it has no way to know.
                 }
                 VStack(alignment: .leading, spacing: 1) {
                     Text(post.dishTitle)
@@ -217,22 +213,11 @@ struct DiscoverPostSheet: View {
                         }
                         .clipShape(RoundedRectangle(cornerRadius: Radius.hero, style: .continuous))
                         .plCardShadow()
-                    if post.hasChefsKiss {
-                        HStack(spacing: 6) {
-                            Image(systemName: "sparkles")
-                                .font(.system(size: 14, weight: .bold))
-                                .foregroundStyle(Color.mango)
-                            Text("Chef's kiss")
-                                .plType(.footnote, .bold)
-                                .foregroundStyle(Color.ink)
-                        }
-                        .padding(.horizontal, 14)
-                        .frame(minHeight: 36)
-                        .background(Color.canvas, in: Capsule())
-                        .overlay(Capsule().strokeBorder(Color.navHairline))
-                        .plCardShadow()
-                        .offset(x: 6, y: -10)
-                    }
+                    // No kiss on a Discover post. The mark means "everyone
+                    // at that table plated it", and we know neither how many
+                    // people sit at a stranger's table nor what they did.
+                    // Guessing it would be the interface claiming something
+                    // it has no way to know.
                 }
 
                 HStack(spacing: 10) {
@@ -257,10 +242,10 @@ struct DiscoverPostSheet: View {
                             // well and this drew a bare ring, so the same
                             // control looked like two different marks on two
                             // screens one tap apart.
-                            PlateReactionGlyph(filled: post.platedByMe)
+                            PlateReactionGlyph(filled: post.platedByMeNow)
                             Text("\(post.totalPlates)")
                                 .plType(.body, .bold)
-                                .foregroundStyle(post.platedByMe ? Color.tomato : Color.inkSecondary)
+                                .foregroundStyle(post.platedByMeNow ? Color.tomato : Color.inkSecondary)
                                 .contentTransition(.numericText())
                         }
                         .plTapTarget()
@@ -311,12 +296,12 @@ struct DiscoverPostSheet: View {
     }
 
     private func togglePlate() {
-        let turningOn = !post.platedByMe
+        var turningOn = false
         withAnimation(.plPop) {
-            post.platedByMe.toggle()
+            turningOn = TableReactions.togglePlate(post)
             bounce = true
         }
-        turningOn ? (post.hasChefsKiss ? Haptic.kiss() : Haptic.plate()) : Haptic.tap()
+        turningOn ? Haptic.plate() : Haptic.tap()
         Task {
             try? await Task.sleep(for: .milliseconds(320))
             withAnimation(.plSnap) { bounce = false }

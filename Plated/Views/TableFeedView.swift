@@ -404,6 +404,17 @@ struct TableFeedView: View {
                 .task {
                     guard !hasLooked else { return }
                     hasLooked = true
+                    // Seed the ledger from the fields that used to hold
+                    // this, once, before anything reads it.
+                    TableReactions.backfill(posts, context: context)
+                    // Ask CloudKit who we are. A placeholder minted while
+                    // offline is re-attributed the moment a real id arrives,
+                    // so nothing tapped on a plane is orphaned.
+                    let before = TableIdentity.cached
+                    if let real = await TableIdentity.confirm(), real != before {
+                        TableLedger.shared.reattribute(from: before, to: real)
+                        TableOutbox.shared.reattribute(from: before, to: real)
+                    }
                     await refreshFeed()
                 }
                 // A seat accepted from Messages while the Table is already
@@ -749,7 +760,7 @@ struct TableFeedView: View {
                     // it swallows the first tap and opens the thread.
                     .highPriorityGesture(
                         TapGesture(count: 2).onEnded {
-                            guard !post.platedByMe else { return }
+                            guard !post.platedByMeNow else { return }
                             togglePlate(post)
                             withAnimation(.plPop) {
                                 burstPost = post.persistentModelID
@@ -764,7 +775,7 @@ struct TableFeedView: View {
                         .allowsHitTesting(false)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
-                if post.hasChefsKiss {
+                if post.hasChefsKiss(seats: members.count) {
                     chefsKissPill
                         .offset(x: 6, y: -10)
                         // Appears; does not launch. 0.01 threw it in from
@@ -934,7 +945,7 @@ struct TableFeedView: View {
         .padding(.horizontal, 24)
         .padding(.top, 16)
         .padding(.bottom, 6)
-        .animation(.plPop, value: post.hasChefsKiss)
+        .animation(.plPop, value: post.hasChefsKiss(seats: members.count))
         .contextMenu { postMenu(post, canSave: true) }
     }
 
@@ -1155,7 +1166,7 @@ struct TableFeedView: View {
             togglePlate(post)
         } label: {
             HStack(spacing: 7) {
-                PlateReactionGlyph(filled: post.platedByMe)
+                PlateReactionGlyph(filled: post.platedByMeNow)
                 // The numeral arrives with the first plate and not before.
                 // A mounted zero beside every dinner somebody cooked is not
                 // neutral in a room of eight people; it reads as a verdict
@@ -1166,7 +1177,7 @@ struct TableFeedView: View {
                 if post.totalPlates > 0 {
                     Text("\(post.totalPlates)")
                         .plType(.body, .bold)
-                        .foregroundStyle(post.platedByMe ? Color.tomato : Color.inkSecondary)
+                        .foregroundStyle(post.platedByMeNow ? Color.tomato : Color.inkSecondary)
                         .contentTransition(.numericText())
                 }
             }
@@ -1206,13 +1217,12 @@ struct TableFeedView: View {
     // MARK: Actions
 
     private func togglePlate(_ post: TablePost) {
-        let turningOn = !post.platedByMe
+        var turningOn = false
         withAnimation(.plPop) {
-            post.platedByMe.toggle()
-            burstPost = post.persistentModelID
+            turningOn = TableReactions.togglePlate(post)
         }
         if turningOn {
-            post.hasChefsKiss ? Haptic.kiss() : Haptic.plate()
+            post.hasChefsKiss(seats: members.count) ? Haptic.kiss() : Haptic.plate()
             // NO notification here, deliberately.
             //
             // `Notifier.postOnce` writes into the LOCAL context, and plates
@@ -1409,13 +1419,13 @@ struct PlateReactionButton: View {
 
     var body: some View {
         Button {
-            let turningOn = !post.platedByMe
+            var turningOn = false
             withAnimation(.plPop) {
-                post.platedByMe.toggle()
+                turningOn = TableReactions.togglePlate(post)
                 bounce = true
             }
             if turningOn {
-                post.hasChefsKiss ? Haptic.kiss() : Haptic.plate()
+                post.hasChefsKiss(seats: members.count) ? Haptic.kiss() : Haptic.plate()
                 // The second copy of the notification removed in
                 // togglePlate above, and the same reason: it was written
                 // into the local context, so it only ever reached the
@@ -1428,7 +1438,7 @@ struct PlateReactionButton: View {
                 withAnimation(.plSnap) { bounce = false }
             }
         } label: {
-            PlateReactionGlyph(filled: post.platedByMe)
+            PlateReactionGlyph(filled: post.platedByMeNow)
                 .plTapTarget()
         }
         .buttonStyle(.pressable)

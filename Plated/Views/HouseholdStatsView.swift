@@ -73,7 +73,7 @@ struct HouseholdStatsView: View {
     @State private var opened: Badge?
 
     private var dishPosts: [TablePost] { posts.filter { $0.kind == "dish" } }
-    private var kissCount: Int { posts.filter(\.hasChefsKiss).count }
+    private var kissCount: Int { posts.filter { $0.hasChefsKiss(seats: members.count) }.count }
     private var platesEarned: Int { posts.reduce(0) { $0 + $1.totalPlates } }
     private var nightsPlated: Int { meals.count }
 

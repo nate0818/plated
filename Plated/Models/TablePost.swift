@@ -48,10 +48,24 @@ final class TablePost {
     var pollOptions: [String] = []
     var pollCounts: [Int] = []
     var myPollChoice: Int = -1
-    /// Plates from the rest of the table. Mine is tracked separately so the
-    /// toggle can't drift the count.
+    /// Plates and votes as they were before `TableLedger` existed.
+    ///
+    /// Never written again. A count is a lost update the moment two devices
+    /// hold one — an Int incremented in two places has no way to detect that
+    /// it was — so the truth moved to one entry per person per post in the
+    /// ledger, which merges by construction. These stay because removing a
+    /// mirrored property is a migration nobody needs, and because the
+    /// backfill reads them exactly once to seed the ledger.
     var plateCount: Int = 0
     var platedByMe: Bool = false
+    /// Whether this has actually reached the table.
+    ///
+    /// `shareRecordName` used to carry two meanings at once — the record's
+    /// name AND whether it had ever been published — so a post could not
+    /// have a stable identity before it went out. It gets one at birth now,
+    /// which is what lets the ledger file reactions against a post that has
+    /// never left the phone.
+    var isPublished: Bool = false
     @Attribute(.externalStorage) var photoData: Data?
 
     @Relationship(deleteRule: .cascade, inverse: \TableComment.post)
@@ -77,6 +91,9 @@ final class TablePost {
         self.createdAt = createdAt
         self.plateCount = plateCount
         self.photoData = photoData
+        // Minted here, not at publish. Identity is not something a post
+        // earns by reaching the network.
+        self.shareRecordName = "post-\(UUID().uuidString)"
     }
 
     /// A post with nobody behind it and nothing in it.
@@ -91,10 +108,32 @@ final class TablePost {
             && photoData == nil && pollOptions.isEmpty
     }
 
-    var totalPlates: Int { plateCount + (platedByMe ? 1 : 0) }
+    /// How many people plated this, from the ledger.
+    ///
+    /// Was `plateCount + (platedByMe ? 1 : 0)`, and `plateCount` was written
+    /// by exactly one file in the whole app: SampleData. So on a real device
+    /// this was 0 or 1 for the life of every post, and the Chef's kiss below
+    /// — which needs ten — could never once fire for a real dinner.
+    @MainActor
+    var totalPlates: Int {
+        TableLedger.shared.plateCount(shareRecordName, me: TableIdentity.cached)
+    }
 
-    /// Ten plates from the table and the dish has officially made it.
-    var hasChefsKiss: Bool { totalPlates >= 10 }
+    @MainActor
+    var platedByMeNow: Bool {
+        TableLedger.shared.platedByMe(shareRecordName, me: TableIdentity.cached)
+    }
+
+    /// Everyone at the table plated it.
+    ///
+    /// Ten was unreachable by arithmetic, and it would have been unreachable
+    /// by product too: this is a household, not an audience. "Everybody who
+    /// could plate this did" is a thing that can actually happen at a table
+    /// of four, and it means more there than ten ever meant anywhere.
+    @MainActor
+    func hasChefsKiss(seats: Int) -> Bool {
+        seats >= 2 && totalPlates >= seats
+    }
 
     var initials: String {
         let parts = authorName.split(separator: " ")
@@ -123,14 +162,22 @@ final class TablePost {
 
     var hasPoll: Bool { !pollOptions.isEmpty }
 
-    /// Total votes for an option, my ballot included.
+    /// Votes for an option, from the ledger. `pollCounts` was only ever
+    /// `Array(repeating: 0, …)` — one phone's ballot printed as the table's.
+    @MainActor
     func votes(for option: Int) -> Int {
-        let base = pollCounts.indices.contains(option) ? pollCounts[option] : 0
-        return base + (myPollChoice == option ? 1 : 0)
+        let tally = TableLedger.shared.votes(shareRecordName, options: pollOptions.count)
+        return tally.indices.contains(option) ? tally[option] : 0
     }
 
+    @MainActor
     var totalPollVotes: Int {
-        pollOptions.indices.reduce(0) { $0 + votes(for: $1) }
+        TableLedger.shared.totalVotes(shareRecordName)
+    }
+
+    @MainActor
+    var myVote: Int {
+        TableLedger.shared.myVote(shareRecordName, me: TableIdentity.cached)
     }
 }
 
