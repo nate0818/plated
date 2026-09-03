@@ -27,6 +27,9 @@ fi
 EDGE=900
 QUALITY=68
 
+# The photographs are named after the people who took them, not after what
+# is in them, so the mapping is written down here rather than guessed from a
+# filename. Each was identified by opening it.
 install_one() {
   local match="$1" asset="$2"
   local file
@@ -36,19 +39,34 @@ install_one() {
     return 1
   fi
   local out="$ROOT/Plated/Assets.xcassets/${asset}.imageset/${asset}.jpg"
+
   # Square crop from the centre, because every one of these is drawn in a
   # circle and an off-centre crop puts the food against the rim.
-  sips -s format jpeg -s formatOptions "$QUALITY" \
-       -Z "$EDGE" "$file" --out "$out" >/dev/null
+  #
+  # The SHORT edge is resized to EDGE, not the long one. `sips -Z` scales the
+  # long edge, which leaves the short edge under EDGE, and `sips -c` PADS
+  # rather than crops when the source is smaller than the target: the
+  # portrait nachos came out 675 wide inside a 900 square with black bars
+  # down both sides, which the circle then framed.
+  local w h
+  w=$(sips -g pixelWidth "$file" | awk '/pixelWidth/{print $2}')
+  h=$(sips -g pixelHeight "$file" | awk '/pixelHeight/{print $2}')
+  if [ "$w" -le "$h" ]; then
+    sips -s format jpeg -s formatOptions "$QUALITY" \
+         --resampleWidth "$EDGE" "$file" --out "$out" >/dev/null
+  else
+    sips -s format jpeg -s formatOptions "$QUALITY" \
+         --resampleHeight "$EDGE" "$file" --out "$out" >/dev/null
+  fi
   sips -c "$EDGE" "$EDGE" "$out" >/dev/null
   printf "  ✓ %-12s %-34s %s\n" "$asset" "$(basename "$file")" "$(du -h "$out" | cut -f1)"
 }
 
 echo "Installing the tour's photographs from $SRC"
-install_one nachos TourNachos
-install_one pasta  TourPasta
-install_one salad  TourSalad
-install_one ramen  TourRamen
+install_one natasha-bhogal        TourNachos   # nachos, white plate
+install_one charlesdeluvio        TourPasta    # penne, marble
+install_one frames-for-your-heart TourSalad    # caesar, teal bowl
+install_one michele-blackwell     TourRamen    # ramen, chopsticks
 echo
 echo "Build and they appear. Until a file is present the tour falls back to"
 echo "the drawn plate, so a missing photograph is never a blank circle."
