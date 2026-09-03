@@ -696,7 +696,8 @@ struct RecipeEditorView: View {
                         .contentShape(Rectangle())
                         .padding(.top, 4)
                         .gesture(stepDrag(step.id))
-                        .accessibilityLabel("Step \(index + 1), reorder handle")
+                        .accessibilityLabel("Step \(index + 1)")
+                        .accessibilityHint("Long press and drag to move it.")
                         // A drag is a gesture, so it needs an equivalent that
                         // is not one. The keyboard bar carries the same two
                         // moves; these put them on the handle as well.
@@ -713,6 +714,30 @@ struct RecipeEditorView: View {
                         focus: $focused,
                         focusID: step.id
                     )
+                    // Long press the step itself, which is what anybody
+                    // actually reaches for. The grab used to be on the
+                    // numeral alone, which is a 26pt target with nothing
+                    // about it that says "handle" — Nate held the step, the
+                    // right instinct, and the app did nothing.
+                    //
+                    // A long press straight on a TextField is how iOS starts
+                    // a text selection, so while the row is NOT being typed
+                    // in, this clear layer takes the gesture instead: a tap
+                    // puts the caret in, a hold picks the step up. Once the
+                    // row is focused the layer is gone and selection,
+                    // magnifier and everything else behave normally.
+                    .overlay {
+                        if focused as? UUID != step.id {
+                            Color.clear
+                                .contentShape(Rectangle())
+                                .gesture(
+                                    ExclusiveGesture(
+                                        stepDrag(step.id),
+                                        TapGesture().onEnded { focused = step.id }
+                                    )
+                                )
+                        }
+                    }
                     RemoveLineButton(label: "Remove step \(index + 1)") {
                         draftSteps.removeAll { $0.id == step.id }
                     }
