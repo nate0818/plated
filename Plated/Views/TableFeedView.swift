@@ -34,6 +34,9 @@ struct TableFeedView: View {
     @State private var savedToast: String?
     /// The post you tapped is the post that opens. See CookbookView.
     @Namespace private var zoom
+    /// Captions clipped to three lines, and the ones a reader has opened.
+    @State private var truncatedCaptions: Set<PersistentIdentifier> = []
+    @State private var expandedCaptions: Set<PersistentIdentifier> = []
     /// What the app actually knows about the Table right now, as opposed to
     /// what it can show. These were one screen: an empty table, a table that
     /// hadn't been checked yet, and a table we couldn't reach all drew the
@@ -306,9 +309,17 @@ struct TableFeedView: View {
                     LazyVStack(spacing: 0) {
                         if scope == .everyone, !invitedSeats.isEmpty {
                             invitedStrip
-                            Divider().overlay(Color.hairlineSoft)
                         }
-                        ForEach(shownPosts, id: \.persistentModelID) { post in
+                        ForEach(Array(shownPosts.enumerated()),
+                                id: \.element.persistentModelID) { index, post in
+                            // Before each card except the very first thing in
+                            // the list, never after the last. A separator marks
+                            // the boundary BETWEEN two rows; trailing the final
+                            // one, the feed ended on a hairline with nothing
+                            // under it but the floating bar's inset.
+                            if index > 0 || (scope == .everyone && !invitedSeats.isEmpty) {
+                                Divider().overlay(Color.hairlineSoft)
+                            }
                             Group {
                                 if post.kind == "ask" {
                                     askCard(post)
@@ -319,7 +330,6 @@ struct TableFeedView: View {
                             // Both card kinds are doors to the same thread,
                             // so the source sits above the branch.
                             .matchedTransitionSource(id: post.persistentModelID, in: zoom)
-                            Divider().overlay(Color.hairlineSoft)
                         }
                         if shownPosts.isEmpty {
                             switch reach {
@@ -368,7 +378,8 @@ struct TableFeedView: View {
             TableSeatsSheet()
         }
         .confirmationDialog(
-            "Delete this post?",
+            pendingDelete.map { $0.dishTitle.isEmpty ? "Delete this post?" : "Delete \($0.dishTitle)?" }
+                ?? "Delete this post?",
             isPresented: Binding(get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } }),
             titleVisibility: .visible
         ) {
@@ -660,6 +671,17 @@ struct TableFeedView: View {
                             .plCardShadow()
                     }
                     .buttonStyle(.pressable)
+                    // Double-tap plates it, add-only, the way Instagram and
+                    // Messages both do: a second double-tap is a no-op and
+                    // the button in the row below stays the only way to
+                    // take a plate back. highPriority, or the Button under
+                    // it swallows the first tap and opens the thread.
+                    .highPriorityGesture(
+                        TapGesture(count: 2).onEnded {
+                            guard !post.platedByMe else { return }
+                            togglePlate(post)
+                        }
+                    )
                 }
                 if post.hasChefsKiss {
                     chefsKissPill
@@ -678,22 +700,68 @@ struct TableFeedView: View {
             // what you thought of it before you were told what it was.
             // The composer led with "Name the dish" and then the card never
             // showed the name. What you named is what the table sees.
-            if !post.dishTitle.isEmpty {
-                Text(post.dishTitle)
-                    .plType(.heading)
-                    .foregroundStyle(Color.ink)
-                    .padding(.top, 4)
+            // The words are a door too, not just the photograph.
+            //
+            // A dish posted without a photo rendered no well, no placeholder
+            // and no outline, and its title and caption were plain Text, so
+            // the card had a hole where the image goes and no way into the
+            // thread at all. Threads solves it the same way: with no media
+            // the text becomes the tap target.
+            Button {
+                Haptic.tap()
+                threadPost = post
+            } label: {
+                VStack(alignment: .leading, spacing: 1) {
+                    if !post.dishTitle.isEmpty {
+                        Text(post.dishTitle)
+                            .plType(.heading)
+                            .foregroundStyle(Color.ink)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.top, 4)
+                    }
+                    if !post.caption.isEmpty || post.dishTitle.isEmpty {
+                        captionText(post)
+                            // Three lines, then "more". Unbounded, a twelve
+                            // line caption pushed the plate, the comments
+                            // and Save clean off the bottom of the card.
+                            // Three rather than Instagram's one: these are
+                            // sentences about food from people you know, and
+                            // clipping at one would make the expander a
+                            // required tap on nearly every post.
+                            .lineLimit(expandedCaptions.contains(post.persistentModelID) ? nil : 3)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.top, post.dishTitle.isEmpty ? 4 : 1)
+                            .background {
+                                // Did the unclipped text fit in the space the
+                                // clipped one took? If not, this branch loses
+                                // and we know to offer "more".
+                                ViewThatFits(in: .vertical) {
+                                    captionText(post).hidden()
+                                    Color.clear.onAppear {
+                                        truncatedCaptions.insert(post.persistentModelID)
+                                    }
+                                }
+                            }
+                    }
+                }
+                .contentShape(Rectangle())
             }
-            if !post.caption.isEmpty || post.dishTitle.isEmpty {
-                // Concatenated Text takes a Font, not a view modifier, so
-                // the scale is spelled out here rather than applied. These
-                // are TypeScale.body's numbers; keep them in step with it.
-                (Text(post.authorName).font(.jakarta(TypeScale.body.size, .bold))
-                 + Text("  ").font(.jakarta(TypeScale.body.size))
-                 + Text(post.caption).font(.jakarta(TypeScale.body.size)))
-                    .foregroundStyle(Color.ink)
-                    .lineSpacing(3)
-                    .padding(.top, post.dishTitle.isEmpty ? 4 : 1)
+            .buttonStyle(.pressable)
+
+            if truncatedCaptions.contains(post.persistentModelID),
+               !expandedCaptions.contains(post.persistentModelID) {
+                Button {
+                    withAnimation(.plSnap) {
+                        _ = expandedCaptions.insert(post.persistentModelID)
+                    }
+                } label: {
+                    Text("more")
+                        .plType(.footnote, .semibold)
+                        .foregroundStyle(Color.inkSecondary)
+                        .frame(minHeight: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.pressable)
             }
 
 
@@ -754,7 +822,13 @@ struct TableFeedView: View {
             }
             .padding(.top, 10)
             .animation(.plSnap, value: isSaved(post))
-            ForEach(post.sortedComments.prefix(2), id: \.persistentModelID) { comment in
+            // The newest two, not the oldest two. `sortedComments` is
+            // ascending, so `prefix(2)` pinned the preview to the first
+            // two things ever said and it never changed again however
+            // busy the thread got. Instagram previews the most recent,
+            // and in a table of eight the line that just changed is the
+            // whole point.
+            ForEach(post.sortedComments.suffix(2), id: \.persistentModelID) { comment in
                 commentLine(comment)
             }
 
@@ -940,14 +1014,19 @@ struct TableFeedView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.pressable)
-            ForEach(post.sortedComments.prefix(2), id: \.persistentModelID) { comment in
+            ForEach(post.sortedComments.suffix(2), id: \.persistentModelID) { comment in
                 commentLine(comment)
             }
             Button {
                 Haptic.tap()
                 threadPost = post
             } label: {
-                Text("Suggest a dish…")
+                // The same branch the dish card already has, worded for
+                // an ask. This always said "Suggest a dish", so a question
+                // with five answers on it looked exactly like one with none.
+                Text(post.sortedComments.count > 2
+                     ? "See all \(post.sortedComments.count) suggestions"
+                     : "Suggest a dish")
                     .plType(.caption, .semibold)
                     .foregroundStyle(Color.inkSecondary)
                     .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
@@ -1117,19 +1196,64 @@ struct TableFeedView: View {
         )
     }
 
+    /// A stamp is never allowed to be ambiguous about which week it means.
+    ///
+    /// This fell through to a bare weekday with no bound on age, so a post
+    /// from three Thursdays ago read "Thursday · 7:42 PM" and asserted it
+    /// was last Thursday. Instagram, Threads, Slack and Messages all run a
+    /// relative stamp only while it can mean one thing and then hand off to
+    /// something absolute; that hand-off is the whole invariant.
+    ///
+    /// The formatters are static because this runs once per card per body
+    /// pass and `DateFormatter()` is expensive to build.
+    private static let timeFormat: DateFormatter = {
+        let f = DateFormatter(); f.dateFormat = "h:mm a"; return f
+    }()
+    private static let weekdayFormat: DateFormatter = {
+        let f = DateFormatter(); f.dateFormat = "EEEE"; return f
+    }()
+    private static let dateFormat: DateFormatter = {
+        let f = DateFormatter(); f.setLocalizedDateFormatFromTemplate("d MMM"); return f
+    }()
+    private static let datedYearFormat: DateFormatter = {
+        let f = DateFormatter(); f.setLocalizedDateFormatFromTemplate("d MMM yyyy"); return f
+    }()
+
+    /// The byline-and-caption run, built once so the visible copy and the
+    /// hidden measuring copy can never drift apart.
+    ///
+    /// Concatenated Text takes a Font, not a view modifier, so the scale is
+    /// spelled out rather than applied. These are TypeScale.body's numbers;
+    /// keep them in step with it.
+    private func captionText(_ post: TablePost) -> some View {
+        (Text(post.authorName).font(.jakarta(TypeScale.body.size, .bold))
+         + Text("  ").font(.jakarta(TypeScale.body.size))
+         + Text(post.caption).font(.jakarta(TypeScale.body.size)))
+            .foregroundStyle(Color.ink)
+            .lineSpacing(3)
+    }
+
     private func postWhen(_ date: Date) -> String {
-        let time = DateFormatter()
-        time.dateFormat = "h:mm a"
-        if Calendar.current.isDateInToday(date) {
-            let hour = Calendar.current.component(.hour, from: date)
-            return "\(hour >= 17 ? "Tonight" : "Today") · \(time.string(from: date))"
+        let calendar = Calendar.current
+        let time = Self.timeFormat.string(from: date)
+        if calendar.isDateInToday(date) {
+            let hour = calendar.component(.hour, from: date)
+            return "\(hour >= 17 ? "Tonight" : "Today") · \(time)"
         }
-        if Calendar.current.isDateInYesterday(date) {
-            return "Yesterday · \(time.string(from: date))"
+        if calendar.isDateInYesterday(date) {
+            return "Yesterday · \(time)"
         }
-        let day = DateFormatter()
-        day.dateFormat = "EEEE"
-        return "\(day.string(from: date)) · \(time.string(from: date))"
+        // A weekday only while it still means one thing: six days back, so
+        // "Thursday" can never collide with the Thursday before it.
+        let days = calendar.dateComponents([.day], from: calendar.startOfDay(for: date),
+                                           to: calendar.startOfDay(for: .now)).day ?? 0
+        if days < 6 {
+            return "\(Self.weekdayFormat.string(from: date)) · \(time)"
+        }
+        if calendar.isDate(date, equalTo: .now, toGranularity: .year) {
+            return Self.dateFormat.string(from: date)
+        }
+        return Self.datedYearFormat.string(from: date)
     }
 }
 
