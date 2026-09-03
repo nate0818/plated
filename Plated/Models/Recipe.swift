@@ -129,7 +129,7 @@ final class Recipe {
     /// minutes unfloored and never set a difficulty.
     ///
     /// Computed, so no schema change and nothing for the mirror to migrate.
-    var difficultyIsKnown: Bool { !difficulty.isEmpty || totalMinutes > 0 }
+    var difficultyIsKnown: Bool { !difficulty.isEmpty }
 
     /// Stored difficulty when set, otherwise derived from total minutes.
     var difficultyValue: RecipeDifficulty {

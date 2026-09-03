@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import styles from "./WaitlistForm.module.css";
+import PlatedUp from "./PlatedUp";
 
 type Phase = "idle" | "sending" | "done" | "failed";
 
@@ -36,13 +37,9 @@ export default function WaitlistForm({ compact = false }: { compact?: boolean })
     }
   }
 
+  // The good thing happened, so this is where the page earns its theatre.
   if (phase === "done") {
-    return (
-      <p className={styles.done} role="status">
-        <span className={styles.check} aria-hidden="true" />
-        You&rsquo;re on the list. One email when Plated is ready.
-      </p>
-    );
+    return <PlatedUp />;
   }
 
   return (

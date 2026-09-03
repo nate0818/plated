@@ -5,14 +5,13 @@ import SwiftData
 /// What happened while somebody was cooking one dish, one evening, on this
 /// phone. Deliberately **not** SwiftData, for the reason CLAUDE.md gives.
 ///
-/// A checked ingredient is a fact about tonight, not a fact about the recipe.
-/// Put `isChecked` on `Ingredient` and the SwiftData mirror becomes a second
-/// writer to it: "I have the garlic" syncs to the iPad, nothing ever clears
-/// it, and next March the page opens with half its list struck through by a
-/// cook in March. A mirrored step cursor is worse — it is an index into an
-/// array that can be edited, so it can point confidently at the wrong
-/// sentence, and a silently wrong instruction is the worst failure this app
-/// has available.
+/// Where you are in the steps, and any timer you started. Facts about one
+/// evening on one phone, so deliberately **not** SwiftData.
+///
+/// A mirrored step cursor would be a second writer to a fact one evening
+/// owns, and worse than that: it is an index into an array that can be
+/// edited, so it can point confidently at the wrong sentence, and a silently
+/// wrong instruction is the worst failure this app has available.
 ///
 /// Same shape as `TableLedger` for the same reasons: one JSON book in the app
 /// group beside it, synchronous reads so touching the book inside a SwiftUI
@@ -24,23 +23,9 @@ import SwiftData
 final class CookLedger {
     static let shared = CookLedger()
 
-    /// One checked ingredient, identified by BOTH its position and its name.
-    ///
-    /// Either alone is a quiet lie waiting to happen. Position alone puts a
-    /// tick on whatever ingredient moved into slot three; name alone puts it
-    /// on the second of two lines that both say "salt". A tick is drawn only
-    /// when both still match, so editing a recipe mid-cook loses a tick
-    /// rather than moving it somewhere wrong.
-    struct Line: Codable, Hashable {
-        var sortIndex: Int
-        /// `Ingredient.normalizedName` at the moment it was ticked.
-        var name: String
-    }
-
     struct Session: Codable {
         var startedAt: Date
         var lastTouched: Date
-        var checked: [Line] = []
         /// Nil until a step is actually tapped. There is no step 1 by default,
         /// because "you are on step 1" is a claim about somebody who has not
         /// started.
@@ -146,24 +131,11 @@ final class CookLedger {
         return s
     }
 
-    /// Something is actually going on: at least one tick, or a cursor.
+    /// Somebody is working through the steps.
     ///
     /// A servings lens on its own does not count. Browsing curiosity is not
     /// cooking, and the page's posture should not change for it.
-    func isCooking(_ recipe: Recipe) -> Bool {
-        guard let s = session(for: recipe) else { return false }
-        return !s.checked.isEmpty || s.step != nil
-    }
-
-    func isChecked(_ ingredient: Ingredient, in recipe: Recipe) -> Bool {
-        session(for: recipe)?.checked.contains(
-            Line(sortIndex: ingredient.sortIndex, name: ingredient.normalizedName)
-        ) ?? false
-    }
-
-    func checkedCount(for recipe: Recipe) -> Int {
-        session(for: recipe)?.checked.count ?? 0
-    }
+    func isCooking(_ recipe: Recipe) -> Bool { session(for: recipe)?.step != nil }
 
     func step(for recipe: Recipe) -> Int? { session(for: recipe)?.step }
 
@@ -175,18 +147,6 @@ final class CookLedger {
     }
 
     // MARK: Writing
-
-    func toggle(_ ingredient: Ingredient, in recipe: Recipe) {
-        let line = Line(sortIndex: ingredient.sortIndex, name: ingredient.normalizedName)
-        mutate(recipe) { s in
-            if let at = s.checked.firstIndex(of: line) {
-                s.checked.remove(at: at)
-            } else {
-                s.checked.append(line)
-            }
-        }
-        print("[CookLedger] toggle \(ingredient.normalizedName) -> \(isChecked(ingredient, in: recipe))")
-    }
 
     func setStep(_ index: Int?, in recipe: Recipe) {
         mutate(recipe) { s in
@@ -251,9 +211,9 @@ final class CookLedger {
         }
         body(&s)
         s.lastTouched = .now
-        // An empty session is no session: nothing checked, no cursor and no
-        // timer means the page is back to browsing.
-        if s.checked.isEmpty, s.step == nil, s.timerEndsAt == nil {
+        // An empty session is no session: no cursor and no timer means the
+        // page is back to browsing.
+        if s.step == nil, s.timerEndsAt == nil {
             book.sessions[key] = nil
         } else {
             book.sessions[key] = s

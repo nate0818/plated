@@ -836,6 +836,105 @@ struct OptionRow: View {
     }
 }
 
+/// How long something takes, typed, with no ceiling.
+///
+/// This replaces a `Menu` of five fixed choices — 15, 25, 40, 60, 90 minutes
+/// — which meant a slow-cooker dish could not be written down at all. The
+/// closest the control allowed was "25 min" for eight hours, and because
+/// `RecipeDifficulty.from(minutes:)` reads the same number, the dish then
+/// called itself "Easy" *because* its time was wrong. One broken input, three
+/// wrong facts.
+///
+/// Hours and minutes as two separate number fields rather than one parsed
+/// string: this app has already been bitten once by a parser quietly changing
+/// what somebody typed, and "1h30" versus "1:30" versus "90" is exactly that
+/// class of guess. Two fields cannot be misread.
+///
+/// Empty is empty. Nothing is defaulted, nothing is halved, and a duration
+/// nobody entered stays zero rather than becoming a number the app then
+/// speaks aloud as though it were measured.
+struct DurationField: View {
+    let label: String
+    @Binding var minutes: Int
+
+    /// The two boxes own their own text. Deriving it from `minutes` on every
+    /// keystroke made the field fight the typing: inserting a digit before an
+    /// existing one produced "512 min", which then carried into the hours box
+    /// and read 16 hr. Text in, number out, once.
+    @State private var hourText = ""
+    @State private var minText = ""
+    @FocusState private var focused: Part?
+
+    private enum Part { case hours, mins }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            MicroLabel(label)
+            HStack(spacing: 8) {
+                box(text: $hourText, unit: "hr", spoken: "hours", part: .hours)
+                box(text: $minText, unit: "min", spoken: "minutes", part: .mins)
+            }
+        }
+        .onAppear(perform: pull)
+        .onChange(of: hourText) { _, _ in push() }
+        .onChange(of: minText) { _, _ in push() }
+        .onChange(of: minutes) { _, new in
+            // Only re-read when somebody else wrote it — loading a recipe —
+            // rather than echoing our own push back into the boxes.
+            if new != composed { pull() }
+        }
+    }
+
+    private var composed: Int { (Int(hourText) ?? 0) * 60 + (Int(minText) ?? 0) }
+
+    private func push() {
+        // Minutes clamp at 59 rather than carrying. A box that silently turns
+        // 90 into "1 hr 30" while you are still typing is the same class of
+        // surprise as a parser rewriting an ingredient.
+        let cleaned = String(minText.filter(\.isNumber).prefix(2))
+        if cleaned != minText { minText = cleaned; return }
+        if let m = Int(minText), m > 59 { minText = "59"; return }
+        let cleanedHours = String(hourText.filter(\.isNumber).prefix(2))
+        if cleanedHours != hourText { hourText = cleanedHours; return }
+        minutes = composed
+    }
+
+    private func pull() {
+        hourText = minutes / 60 == 0 ? "" : String(minutes / 60)
+        minText = minutes % 60 == 0 ? "" : String(minutes % 60)
+    }
+
+    private func box(
+        text: Binding<String>, unit: String, spoken: String, part: Part
+    ) -> some View {
+        HStack(spacing: 5) {
+            TextField("0", text: text)
+                .keyboardType(.numberPad)
+                .plType(.heading)
+                .foregroundStyle(Color.ink)
+                .multilineTextAlignment(.trailing)
+                .focused($focused, equals: part)
+                .frame(minWidth: 30)
+            Text(unit)
+                .plType(.footnote, .semibold)
+                .foregroundStyle(Color.inkSecondary)
+                .lineLimit(1)
+                .fixedSize()
+        }
+        .padding(.horizontal, 14)
+        .frame(maxWidth: .infinity, alignment: .trailing)
+        .frame(minHeight: 52)
+        .overlay(
+            RoundedRectangle(cornerRadius: Radius.chip, style: .continuous)
+                .strokeBorder(Color.hairline)
+        )
+        .contentShape(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous))
+        .onTapGesture { focused = part }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(label) \(spoken)")
+    }
+}
+
 /// One line of a recipe you can actually type in: an ingredient, a step.
 ///
 /// Four lists in this app draw lines like these, and all four drew them as

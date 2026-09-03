@@ -82,7 +82,20 @@ struct ProngsbyBrain {
         if let party = gatheringPlan(text) { return party }
         if let recipe = recipeMatch(in: text) {
             if text.contains("how long") || text.contains("time") {
-                return "\(recipe.title) runs about \(Recipe.spokenDuration(recipe.totalMinutes)). \(recipe.prepMinutes) of prep, \(recipe.cookMinutes) on the heat. \(recipe.difficultyValue.rawValue) night. You've got this."
+                // The split is only spoken when somebody actually entered
+                // both halves. It used to be spoken always, off a 50/50 the
+                // editor invented by halving one picker's answer — so a
+                // 25-minute dish was read aloud as "12 of prep, 13 on the
+                // heat", two numbers nobody had ever typed.
+                var parts = ["\(recipe.title) runs about \(Recipe.spokenDuration(recipe.totalMinutes))."]
+                if recipe.prepMinutes > 0, recipe.cookMinutes > 0 {
+                    parts.append("\(Recipe.spokenDuration(recipe.prepMinutes)) of prep, \(Recipe.spokenDuration(recipe.cookMinutes)) on the heat.")
+                }
+                if recipe.difficultyIsKnown {
+                    parts.append("\(recipe.difficultyValue.rawValue) night.")
+                }
+                parts.append("You've got this.")
+                return parts.joined(separator: " ")
             }
             return describe(recipe)
         }

@@ -3,7 +3,7 @@
 import { useSearchParams } from "next/navigation";
 import styles from "./page.module.css";
 
-import { APP_STORE_URL } from "./store";
+import { APP_STORE_URL } from "../lib/store";
 
 // ?h= is the host's first name, ?s= the share URL. Read on the client so the
 // page can be statically served and still say "Nate kept you a seat."

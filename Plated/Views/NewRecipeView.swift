@@ -23,7 +23,8 @@ struct RecipeEditorView: View {
 
     @State private var title = ""
     @State private var summary = ""
-    @State private var minutes = 25
+    @State private var prepMinutes = 0
+    @State private var cookMinutes = 0
     @State private var serves = 4
     @State private var photoItem: PhotosPickerItem?
     @State private var photoData: Data?
@@ -50,10 +51,8 @@ struct RecipeEditorView: View {
     /// What the dial showed when the sheet opened. The dial floors at 15,
     /// so comparing against the recipe's own total let an untouched save
     /// rewrite a 10-minute dish into a fabricated 7/8 split.
-    @State private var initialMinutes = -1
     @State private var discardAsked = false
 
-    private let minuteChoices = [15, 25, 40, 60, 90]
 
     struct DraftIngredient: Identifiable {
         let id = UUID()
@@ -153,33 +152,36 @@ struct RecipeEditorView: View {
                         .overlay(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous).strokeBorder(Color.hairline))
                         .plTappableField()
 
-                    HStack(spacing: 8) {
-                        Menu {
-                            ForEach(minuteChoices, id: \.self) { choice in
-                                // The same formatter the recipe page and every
-                                // shelf tile use. Two of these five choices
-                                // cross the hour, so somebody picked "90 min"
-                                // and the dish called it "1 hr 30 min" one
-                                // screen later.
-                                Button(Recipe.durationText(choice)) { minutes = choice }
-                            }
-                        } label: {
-                            factPicker("Time", Recipe.durationText(minutes))
+                    // Prep and cook are two numbers on the model and were
+                    // written by halving one picker's answer, so every recipe
+                    // carried a 50/50 split nobody typed — which Prongsby then
+                    // read aloud. Two fields, each typed, neither invented.
+                    // One per row. Four number fields across one row is too
+                    // tight at xxLarge, and these are the two facts the whole
+                    // screen was wrong about.
+                    DurationField(label: "Prep", minutes: $prepMinutes)
+                    DurationField(label: "Cook", minutes: $cookMinutes)
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        MicroLabel("Serves")
+                        HStack(spacing: 10) {
+                            servesStep("minus", enabled: serves > 1) { serves -= 1 }
+                            Text("\(serves)")
+                                .plType(.heading)
+                                .foregroundStyle(Color.ink)
+                                .monospacedDigit()
+                                .frame(minWidth: 44)
+                                .accessibilityHidden(true)
+                            servesStep("plus", enabled: true) { serves += 1 }
+                            Spacer()
+                            Text("what these quantities make")
+                                .plType(.caption)
+                                .foregroundStyle(Color.inkSecondary)
+                                .multilineTextAlignment(.trailing)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
-                        Menu {
-                            ForEach(1...12, id: \.self) { count in
-                                Button("\(count)") { serves = count }
-                            }
-                        } label: {
-                            factPicker("Serves", "\(serves)")
-                        }
-                        Menu {
-                            ForEach(RecipeDifficulty.allCases) { level in
-                                Button(level.rawValue) { difficultyOverride = level }
-                            }
-                        } label: {
-                            factPicker("Effort", effectiveDifficulty.rawValue)
-                        }
+                        .accessibilityElement(children: .contain)
+                        .accessibilityLabel("Serves \(serves)")
                     }
 
                     VStack(alignment: .leading, spacing: 8) {
@@ -191,6 +193,24 @@ struct RecipeEditorView: View {
                                         mealType = option
                                     }
                                 }
+                            }
+                        }
+                    }
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        MicroLabel("Effort")
+                        // Effort is a judgement, not a fact with a number
+                        // behind it, so its peers are these chips and not the
+                        // durations above. Unselected until somebody says —
+                        // it used to display a level derived from the minutes
+                        // as though a person had chosen it, which on a slow
+                        // cooker entered as "25 min" read "Easy".
+                        FlowChips(items: RecipeDifficulty.allCases.map(\.rawValue)) { label in
+                            let level = RecipeDifficulty.allCases.first { $0.rawValue == label } ?? .easy
+                            return SelectChip(active: difficultyOverride == level) {
+                                difficultyOverride = difficultyOverride == level ? nil : level
+                            } label: {
+                                Text(label).plType(.footnote, .bold)
                             }
                         }
                     }
@@ -306,11 +326,11 @@ struct RecipeEditorView: View {
     private func loadOnce() {
         guard !loaded else { return }
         loaded = true
-        defer { initialMinutes = minutes }
         if let recipe = editing {
             title = recipe.title
             summary = recipe.summary
-            minutes = max(recipe.totalMinutes, 15)
+            prepMinutes = recipe.prepMinutes
+            cookMinutes = recipe.cookMinutes
             serves = recipe.servings
             photoData = recipe.photoData
             category = recipe.categoryValue
@@ -372,8 +392,29 @@ struct RecipeEditorView: View {
         .padding(.top, 18)
     }
 
-    private var effectiveDifficulty: RecipeDifficulty {
-        difficultyOverride ?? RecipeDifficulty.from(minutes: minutes)
+    /// One step of the serves stepper. A stepper, not a twelve-row menu: a
+    /// number you nudge by one is not a list you choose from, and the menu had
+    /// a ceiling of twelve for no reason anybody recorded.
+    private func servesStep(
+        _ symbol: String, enabled: Bool, action: @escaping () -> Void
+    ) -> some View {
+        Button {
+            Haptic.select()
+            withAnimation(.plSnap) { action() }
+        } label: {
+            Image(systemName: symbol)
+                .font(.system(size: 15, weight: .bold))
+                // A disabled control changes colour; it does not fade.
+                .foregroundStyle(enabled ? Color.ink : Color.inkSecondary)
+                .frame(width: 44, height: 44)
+                .background {
+                    Circle().strokeBorder(Color.hairline)
+                }
+                .contentShape(Circle())
+        }
+        .buttonStyle(.pressable)
+        .disabled(!enabled)
+        .accessibilityLabel(symbol == "plus" ? "One more" : "One fewer")
     }
 
     private func selectChip(_ label: String, icon: String, active: Bool, action: @escaping () -> Void) -> some View {
@@ -664,10 +705,11 @@ struct RecipeEditorView: View {
         // recipe's own total wasn't enough: the dial floors at 15, so a
         // 10-minute dish loaded as 15 and an untouched save fabricated a
         // 7/8 split. Prongsby then reads those numbers back aloud.
-        if minutes != initialMinutes || editing == nil {
-            recipe.prepMinutes = minutes / 2
-            recipe.cookMinutes = minutes - minutes / 2
-        }
+        // What was typed, and nothing else. These used to be one picker's
+        // answer halved, so a 25-minute dish stored prep 12 / cook 13 and
+        // Prongsby read those invented halves out loud.
+        recipe.prepMinutes = prepMinutes
+        recipe.cookMinutes = cookMinutes
         // The editor used to offer "Only me / Household / The Table" and a
         // "Household can edit" toggle. Nothing in the app could honour any of
         // it: a Recipe lives in the private database and no code path puts one

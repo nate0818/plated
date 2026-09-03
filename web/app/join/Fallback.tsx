@@ -1,5 +1,5 @@
 import styles from "./page.module.css";
-import { APP_STORE_URL } from "./store";
+import { APP_STORE_URL } from "../lib/store";
 
 // What the server renders before the query string is known. Same shape, no
 // name, so nothing jumps when the client fills the name in. A server

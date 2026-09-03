@@ -71,9 +71,13 @@ struct RecipeFilter: Equatable {
                 // Unknown effort ranks last rather than winning: an untimed
                 // recipe derives "Easy" from a zero and used to take the top
                 // of a sort it has told us nothing about.
-                if lhs.difficultyIsKnown != rhs.difficultyIsKnown {
-                    return lhs.difficultyIsKnown
-                }
+                // A sort order is not a claim to a reader, so this may keep
+                // deriving from minutes where the fact row may not. Ranking
+                // by what is known first still puts a recipe nobody has
+                // judged and nobody has timed last.
+                let lKnown = lhs.difficultyIsKnown || lhs.totalMinutes > 0
+                let rKnown = rhs.difficultyIsKnown || rhs.totalMinutes > 0
+                if lKnown != rKnown { return lKnown }
                 let l = lhs.difficultyValue.sortOrder, r = rhs.difficultyValue.sortOrder
                 return l == r ? lhs.totalMinutes < rhs.totalMinutes : l < r
             case .mostLoved:
@@ -1486,8 +1490,6 @@ struct RecipeDetailView: View {
     /// is a change to the plan that the grocery list will agree with, the
     /// other is a lens that dies with the view.
     private var ingredientsLabel: String {
-        let checked = ledger.checkedCount(for: recipe)
-        if checked > 0 { return "Ingredients · \(checked) of \(ingredientRows.count)" }
         if let meal, meal.recipe === recipe, meal.servings != recipe.servings {
             return "Ingredients · scaled for \(meal.servings)"
         }
@@ -1536,47 +1538,35 @@ struct RecipeDetailView: View {
 
     // MARK: The cooking posture
 
-    /// One row of the ingredient list, and the whole row is the target.
+    /// One row of the ingredient list.
     ///
-    /// No glyph, no circle, no box is added: on a browsing visit this is
-    /// byte-for-byte the row it has always been. The affordance is the
-    /// content, which is what "reuse before you invent" looks like when the
-    /// thing to reuse is the row itself.
+    /// It was briefly a Button that struck the line through when tapped. Nate
+    /// tried it and the verdict was flat: "that's meaningless to me." He is
+    /// right, and the argument for it was weaker than it looked — the question
+    /// at minute twenty is "did the salt already go in", which a box ticked
+    /// when you picked the jar up cannot answer. So the row is a row again.
     ///
-    /// While cooking, the hierarchy inverts. The amount is the content and
-    /// the name is the label, which is the exact opposite of browsing — two
-    /// text colours throughout, and no third grey appears.
+    /// What stays is the part that costs nothing and answers the real problem:
+    /// while there is a live step cursor the hierarchy inverts. The amount is
+    /// the content and the name is the label, which is the exact opposite of
+    /// browsing, and it is what makes a quantity readable from three feet away
+    /// with a pan going.
     @ViewBuilder
     private func ingredientRow(_ ingredient: Ingredient, quantity: Double) -> some View {
-        let checked = ledger.isChecked(ingredient, in: recipe)
-        Button {
-            // A change of position, not a commit.
-            Haptic.select()
-            withAnimation(.plSnap) { ledger.toggle(ingredient, in: recipe) }
-        } label: {
-            HStack {
-                Text(ingredient.name)
-                    .plType(.body)
-                    .foregroundStyle(cooking && !checked ? Color.inkSecondary : Color.ink)
-                    .strikethrough(checked, color: Color.inkSecondary)
-                Spacer()
-                Text(quantityText(ingredient, quantity: quantity))
-                    // Struck names, unstruck amounts: you still need to read
-                    // how much of the thing you already have.
-                    .plType(cooking ? .callout : .footnote)
-                    .foregroundStyle(checked || !cooking ? Color.inkSecondary : Color.ink)
-            }
-            .padding(.vertical, 4)
-            .frame(minHeight: 44)
-            .contentShape(Rectangle())
+        HStack {
+            Text(ingredient.name)
+                .plType(.body)
+                .foregroundStyle(cooking ? Color.inkSecondary : Color.ink)
+            Spacer()
+            Text(quantityText(ingredient, quantity: quantity))
+                .plType(cooking ? .callout : .footnote)
+                .foregroundStyle(cooking ? Color.ink : Color.inkSecondary)
         }
-        .buttonStyle(.pressable)
+        .padding(.vertical, 4)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
             Ingredient.line(quantity: quantity, unit: ingredient.unit, name: ingredient.name)
         )
-        .accessibilityAddTraits(checked ? .isSelected : [])
-        .accessibilityHint(checked ? "Puts it back on the list." : "Marks it off the list.")
     }
 
     /// One numbered step. Tapping it marks where you are.

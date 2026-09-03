@@ -67,13 +67,29 @@
   scroll-margin-top: 40px;
 }
 
+.store {
+  margin-top: 8px;
+  display: grid;
+  gap: 10px;
+  justify-items: start;
+}
 
-/* One row, directly under the form: four peers, one treatment. */
+.storeCenter {
+  margin-top: 0;
+  justify-items: center;
+}
+
+.soon {
+  font-size: 0.9375rem;
+}
+
+
+/* One row, directly under the badge: four peers, one treatment. */
 .features {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: clamp(20px, 3vw, 40px);
-  padding-top: 0;
+  padding-top: 8px;
   padding-bottom: clamp(56px, 10vh, 120px);
 }
 
@@ -87,17 +103,21 @@
 
 .feature {
   display: grid;
-  gap: 10px;
+  gap: 8px;
   align-content: start;
-  padding-top: 24px;
+  padding-top: 20px;
   border-top: 1px solid var(--hairline);
 }
 
 .feature h2 {
-  font-size: clamp(1.25rem, 1.6vw, 1.5rem);
+  font-family: var(--font-jakarta), sans-serif;
+  font-size: 1.0625rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.4;
 }
 
-.feature p:last-child {
+.feature p {
   font-size: 0.9375rem;
   line-height: 1.5;
 }
@@ -127,13 +147,24 @@
 }
 
 .footer {
+  display: grid;
+  gap: 20px;
+  padding-block: 32px max(32px, env(safe-area-inset-bottom));
+  border-top: 1px solid var(--hairline);
+}
+
+.footerRow {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding-block: 32px max(32px, env(safe-area-inset-bottom));
-  border-top: 1px solid var(--hairline);
+}
+
+.legal {
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  max-width: 44rem;
 }
 
 .footerNav {
