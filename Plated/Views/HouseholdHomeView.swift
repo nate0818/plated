@@ -45,7 +45,6 @@ struct HouseholdHomeView: View {
     /// the tap records which one it came through.
     @State private var personDoor: ZoomID = .host
     @State private var personShown: PersonRef?
-    @State private var dmPeer: String?
     @State private var swipedMember: PersistentIdentifier?
     @State private var removingMember: HouseholdMember?
     #if DEBUG
@@ -146,9 +145,6 @@ struct HouseholdHomeView: View {
         }
         .sheet(isPresented: $settingsPresented, onDismiss: { namingFromMasthead = false }) {
             SettingsSheet(focusHouseholdName: namingFromMasthead)
-        }
-        .sheet(item: $dmPeer) { peer in
-            DMThreadView(peerName: peer)
         }
         .confirmationDialog(
             "Remove \(removingMember?.name ?? "") from the household?",

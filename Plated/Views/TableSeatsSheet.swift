@@ -7,6 +7,7 @@ import Contacts
 /// invites, each one a row you can message or manage.
 struct TableSeatsSheet: View {
     @Environment(\.modelContext) private var context
+    @Environment(\.openURL) private var openURL
     @Query(sort: \HouseholdMember.createdAt) private var members: [HouseholdMember]
     // An author is the one thing every real post has. The empty-name
     // rows are blanks the CloudKit mirror adopts (TablePost.isBlank),
@@ -18,7 +19,6 @@ struct TableSeatsSheet: View {
     @State private var invite: Invitation.Ready?
     @State private var inviteTarget: InviteTarget?
     @State private var pickingContact = false
-    @State private var dmPeer: String?
     @State private var removingMember: HouseholdMember?
     /// Real CloudKit seats — people who accepted a share, as opposed to the
     /// household members and the invites that haven't landed yet.
@@ -80,7 +80,7 @@ struct TableSeatsSheet: View {
                                     : (member.roleLine.isEmpty ? member.role.capitalized : member.roleLine),
                                 tone: member.isOwner ? .neutralPair : member.tone,
                                 canRemove: !member.isOwner,
-                                canMessage: !member.isOwner
+                                messageURL: member.messageURL
                             ) {
                                 removingMember = member
                             }
@@ -95,7 +95,9 @@ struct TableSeatsSheet: View {
                                     subtitle: "Shares dishes here",
                                     tone: PersonTone.from(hex: guest.colorHex),
                                     canRemove: false,
-                                    canMessage: true
+                                    // A guest is not a HouseholdMember, so
+                                    // there is no number and no address.
+                                    messageURL: nil
                                 ) {}
                             }
                         }
@@ -109,7 +111,7 @@ struct TableSeatsSheet: View {
                                     subtitle: "Not joined yet",
                                     tone: .neutralPair,
                                     canRemove: true,
-                                    canMessage: false
+                                    messageURL: nil
                                 ) {
                                     withAnimation(.plSnap) { cancelInvite(name) }
                                 }
@@ -127,7 +129,10 @@ struct TableSeatsSheet: View {
                                         : "Sees this too",
                                     tone: .basilPair,
                                     canRemove: !seat.isOwner && !seat.isMe,
-                                    canMessage: false
+                                    // A CloudKit participant is an identity,
+                                    // not a contact: the share carries no
+                                    // number we are allowed to open.
+                                    messageURL: nil
                                 ) {
                                     Task {
                                         if await TableShare.remove(seatID: seat.id) {
@@ -170,9 +175,6 @@ struct TableSeatsSheet: View {
         .presentationDragIndicator(.visible)
         .presentationBackground(Color.canvas)
         .presentationCornerRadius(Radius.sheet)
-        .sheet(item: $dmPeer) { peer in
-            DMThreadView(peerName: peer)
-        }
         .task {
             sharedSeats = await TableShare.participants()
             amGuest = await TableShare.isGuest()
@@ -239,9 +241,18 @@ struct TableSeatsSheet: View {
         }
     }
 
+    /// `messageURL` rather than a boolean: a Message button is only honest
+    /// where there is somewhere for the message to go. The flag it replaces
+    /// was inverted against reality — household rows got the button with or
+    /// without a number, guests got it with no HouseholdMember behind them
+    /// at all, and the people who had actually joined the table got `false`.
+    /// All four opened the same device-local thread, so none of them sent
+    /// anything. `HouseholdMember.messageURL` carries the note about why:
+    /// "Nil means no Message button, which is most rows, and is why the
+    /// button used to be a lie." PersonProfileView fixed this months ago.
     private func seatRow(
         name: String, subtitle: String, tone: PersonTone,
-        canRemove: Bool, canMessage: Bool, onRemove: @escaping () -> Void
+        canRemove: Bool, messageURL: URL?, onRemove: @escaping () -> Void
     ) -> some View {
         HStack(spacing: 12) {
             AvatarCircle(initials: initials(for: name), tone: tone, size: 40,
@@ -256,10 +267,10 @@ struct TableSeatsSheet: View {
                     .foregroundStyle(Color.inkSecondary)
             }
             Spacer()
-            if canMessage {
+            if let messageURL {
                 Button {
                     Haptic.tap()
-                    dmPeer = name
+                    openURL(messageURL)
                 } label: {
                     Circle()
                         .strokeBorder(Color.hairline, lineWidth: 1.5)
@@ -486,6 +497,19 @@ extension String: @retroactive Identifiable {
 /// A direct line to one seat. The full Instagram-style inbox is a network
 /// feature; this is its honest local seed — your side of the conversation,
 /// stored and synced through your own iCloud.
+///
+/// **Parked: nothing opens this right now.** The seat row's bubble button
+/// used to, and it was the only door. That button draws `bubble.right`,
+/// which promises a message, and every variant of it landed here instead —
+/// a thread the other person cannot see. `HouseholdMember.messageURL` and
+/// PersonProfileView had already settled what Message means in this app, so
+/// the seat row now opens Messages where there is somewhere to send and
+/// draws nothing where there is not.
+///
+/// Kept rather than deleted, for the same reason ProngsbyFeature is: a
+/// private thread per person may well deserve a door of its own, and the
+/// decision about what to call it is a product one. Whatever that control
+/// ends up being, it cannot be a `bubble.right` with no label.
 struct DMThreadView: View {
     let peerName: String
 
