@@ -1083,20 +1083,15 @@ struct RecipeDetailView: View {
         return "Ingredients"
     }
 
-    private var visibilityIcon: String {
-        recipe.visibility == "private" ? "lock" : (recipe.visibility == "table" ? "person.3" : "house")
-    }
+    // A recipe has never left this account. `visibility` is written by the
+    // picker in NewRecipeView and read here, and by nothing else in the app:
+    // there is no code path that puts a Recipe in a shared zone. So the row
+    // said "Everyone on the Table can see this" about a record living in the
+    // private database, which is the honesty rule in DESIGN.md, and the most
+    // expensive kind of break because the reader has no way to notice.
+    private var visibilityIcon: String { "lock" }
 
-    private var visibilityLine: String {
-        switch recipe.visibility {
-        case "private": return "Only you can see this"
-        case "table": return "Everyone on the Table can see this"
-        default:
-            return recipe.householdCanEdit
-                ? "Your household can see and edit this"
-                : "Your household can see this"
-        }
-    }
+    private var visibilityLine: String { "Only you can see this" }
 
     private func quantityText(_ ingredient: Ingredient, quantity: Double) -> String {
         var parts: [String] = []

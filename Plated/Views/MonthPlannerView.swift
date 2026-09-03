@@ -128,8 +128,10 @@ struct MonthPlannerView: View {
                     .foregroundStyle(today ? Color.tomato : (past ? Color.inkSecondary : Color.ink))
                 if let day = forecast.forecast(for: date) {
                     Image(systemName: day.symbolName)
+                        // The week list paints this same fact inkSecondary.
+                        // A forecast is information, not a stroke.
                         .font(.system(size: 8, weight: .semibold))
-                        .foregroundStyle(Color.inkFaint)
+                        .foregroundStyle(Color.inkSecondary)
                 }
                 Spacer(minLength: 0)
                 if showCalendarEvents && events.hasEvent(on: date) {
@@ -152,7 +154,7 @@ struct MonthPlannerView: View {
                 if meal?.gathering != nil {
                     Image(systemName: "party.popper.fill")
                         .font(.system(size: 9))
-                        .foregroundStyle(Color.mango)
+                        .foregroundStyle(Color.amber)
                 }
             }
         }
@@ -198,7 +200,7 @@ struct MonthPlannerView: View {
             legendItem("Gathering") {
                 Image(systemName: "party.popper.fill")
                     .font(.system(size: 9))
-                    .foregroundStyle(Color.mango)
+                    .foregroundStyle(Color.amber)
             }
             Spacer()
         }

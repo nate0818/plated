@@ -100,7 +100,7 @@ struct HouseholdStatsView: View {
                   detail: "Post something you cooked to the Table.",
                   mark: .symbol("table.furniture"), have: dishPosts.count, need: 1),
             Badge(id: "first-kiss", title: "First chef's kiss",
-                  detail: "Ten plates on one dish.",
+                  detail: "Everyone at the table plated the same dish.",
                   mark: .symbol("sparkles"), have: kissCount, need: 1),
             Badge(id: "first-save", title: "Saved elsewhere",
                   detail: "Someone saved your dish to their cookbook.",
@@ -222,7 +222,10 @@ struct HouseholdStatsView: View {
 
     private func countCell(_ label: String, _ value: Int, _ mark: BadgeMark, accent: Bool = false) -> some View {
         VStack(spacing: 5) {
-            BadgeMarkView(mark: mark, size: 13, color: accent ? .mango : .inkFaint)
+            // Amber, matching the numeral directly below it. This cell was
+            // drawing a mango glyph over an amber count: one idea in two
+            // colours, and the top one at 1.83:1 on canvas.
+            BadgeMarkView(mark: mark, size: 13, color: accent ? .amber : .inkFaint)
             CountBlock(value: "\(value)", label: label, accent: accent)
         }
     }

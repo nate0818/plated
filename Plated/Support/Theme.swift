@@ -366,7 +366,14 @@ enum Layout {
     /// How much room the floating chrome needs at the bottom of a scroll.
     /// Derived, not typed: a hand-written constant drifted 6pt short of
     /// the chrome it was supposed to clear the first time.
-    static let floatingChromeInset: CGFloat = perchBottom + perchHeight + 8
+    ///
+    /// It follows the perch's own switch, because the perch is the taller
+    /// half of that sum and it is currently parked. Reserving its 58pt
+    /// anyway left eleven scroll views ending two thumbs above the bar with
+    /// nothing in the gap — the clearance was real, the thing it cleared
+    /// was not.
+    static let floatingChromeInset: CGFloat =
+        ProngsbyFeature.isEnabled ? perchBottom + perchHeight + 8 : tabBarInset + 8
 }
 
 // PLBreathing lived here: a 2.4s pulse on every empty-state glyph. Deleted

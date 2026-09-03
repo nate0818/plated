@@ -350,7 +350,7 @@ struct AskComposerSheet: View {
                                     Image(systemName: "xmark")
                                         .accessibilityLabel("Remove option")
                                         .font(.system(size: 11, weight: .bold))
-                                        .foregroundStyle(Color.inkFaint)
+                                        .foregroundStyle(Color.inkSecondary)
                                         .frame(minWidth: 44, minHeight: 44)
                                         .contentShape(Rectangle())
                                 }

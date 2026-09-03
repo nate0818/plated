@@ -1179,7 +1179,7 @@ struct TableFeedView: View {
         HStack(spacing: 6) {
             Image(systemName: "sparkles")
                 .font(.system(size: 14, weight: .bold))
-                .foregroundStyle(Color.mango)
+                .foregroundStyle(Color.amber)
             Text("Chef's kiss")
                 .plType(.footnote, .bold)
                 .foregroundStyle(Color.ink)

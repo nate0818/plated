@@ -352,7 +352,7 @@ struct RecipeEditorView: View {
                         Image(systemName: "xmark")
                             .accessibilityLabel("Remove \(draft.name)")
                             .font(.system(size: 11, weight: .bold))
-                            .foregroundStyle(Color.inkFaint)
+                            .foregroundStyle(Color.inkSecondary)
                             .frame(minWidth: 44, minHeight: 44)
                             .contentShape(Rectangle())
                     }
@@ -419,7 +419,7 @@ struct RecipeEditorView: View {
                         Image(systemName: "xmark")
                             .accessibilityLabel("Remove step \(index + 1)")
                             .font(.system(size: 11, weight: .bold))
-                            .foregroundStyle(Color.inkFaint)
+                            .foregroundStyle(Color.inkSecondary)
                             .frame(minWidth: 44, minHeight: 44)
                             .contentShape(Rectangle())
                     }

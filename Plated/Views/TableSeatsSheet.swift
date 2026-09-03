@@ -518,7 +518,7 @@ struct DMThreadView: View {
 
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 8) {
-                    Text("These messages stay on this device. \(peerName.split(separator: " ").first.map(String.init) ?? peerName) can't see them yet.")
+                    Text("Only you can see these. \(peerName.split(separator: " ").first.map(String.init) ?? peerName) can't see them yet.")
                         .plType(.micro, .medium)
                         .foregroundStyle(Color.inkSecondary)
                         .multilineTextAlignment(.center)

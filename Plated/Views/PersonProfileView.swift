@@ -698,7 +698,7 @@ struct SettingsSheet: View {
                     }
                     .buttonStyle(.pressable)
 
-                    Text("Plated 0.1.0")
+                    Text(Self.versionLine)
                         .plType(.micro, .medium)
                         .foregroundStyle(Color.inkSecondary)
                         .frame(maxWidth: .infinity)
@@ -728,7 +728,7 @@ struct SettingsSheet: View {
             Button("Sign out", role: .destructive) { signOut() }
             Button("Stay", role: .cancel) {}
         } message: {
-            Text("Your recipes, your week and your household stay on this device.")
+            Text("Nothing is deleted. Your recipes, your week and your household stay where they are.")
         }
     }
 
@@ -912,5 +912,18 @@ struct PersonRef: Identifiable, Hashable {
             colorHex: colorHex,
             memberID: seat?.persistentModelID
         )
+    }
+}
+
+private extension SettingsSheet {
+    /// Read, not typed. `scripts/testflight.sh` bumps only CURRENT_PROJECT_VERSION,
+    /// so a literal here reported the same string for every build ever uploaded
+    /// and the one question this line exists to answer ("which build am I on?")
+    /// had no answer.
+    static var versionLine: String {
+        let info = Bundle.main.infoDictionary
+        let short = info?["CFBundleShortVersionString"] as? String ?? "0"
+        let build = info?["CFBundleVersion"] as? String ?? "0"
+        return "Plated \(short) (\(build))"
     }
 }
