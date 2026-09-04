@@ -20,6 +20,16 @@ All 13 checks in `scripts/check-preview-gestures.cjs` passed against the final s
 
 Signed simulator and device builds passed. Week/light and Month/dark action trays were inspected using a DEBUG-only reveal flag; this verifies native layout, not physical gesture behavior. The updated app installed on Nate's iPhone, but launch was blocked because the phone was locked. Open Plated after unlocking to test the native swipe feel. `make design` passed for 115 Swift files; all 10 shared widget tokens matched.
 
+## Long-hold and date-spacing follow-up
+
+The circled Today numeral is smaller: 17px in the preview and the 17pt display-family callout token in the native Week planner. The circle, date column, and other date numerals retain their sizes.
+
+Native Week retains its existing press-and-drag movement and now offers cook assignment and a full date picker in its context menu. Month meals can be lifted onto a calendar date, with a visible destination highlight; occupied matching slots swap while cooked meals and past destinations are protected. Breakfast, lunch, and other slots retain their identity during a Month drop. The recipe editor retains its existing long-press step reordering and keyboard move controls; the step number now includes a visible grip with a 44pt target. Gesture-state cleanup settles the lift after interruption.
+
+In the preview, hold a planned meal for 350ms, then release for Edit, Move, cook assignment, or Remove. Hold and drag to move onto a Week row or Month date, with destination/swap feedback, scrolling near the edge, and Undo. Quick swipes still reveal their original action trays. In Edit recipe, hold a step grip to drag it before or after another step; tap the grip for Move up/down. Native text selection stays available in the text fields. Step moves stay in the draft until Save, and cancelling a preview drag leaves the draft unchanged. Undo restores both meal data and the original calendar selection after a move.
+
+The 11 checks in `scripts/check-preview-holds.cjs` passed, covering cook assignment, pointer and touch meal moves, Week swaps, Month drops, cancellation, pointer and touch step reordering, menu alternatives, saved step order, and runtime errors. All 13 existing swipe checks also passed after the hold changes. Both scripts require Playwright and Chrome and accept `PLATED_PREVIEW_URL`; they use isolated browser profiles and sample data. Native simulator and device builds passed. The latest device build installed; launch remained blocked by the locked phone. Native touch feel and drag cancellation still require physical-device interaction checks.
+
 ## Native work included
 
 - **Groceries:** selectable seven-day window, meal filtering, ingredient-to-meal provenance, US shopping measures, upward rounding, per-meal purchased quantities, stable rows, checkmark undo, manual-item drafts, expanded initial sheet, scoped Reminders export, and the authenticated Instacart handoff.

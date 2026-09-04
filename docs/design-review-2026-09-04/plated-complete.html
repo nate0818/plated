@@ -402,7 +402,7 @@
 #plated-complete .p-agenda-date{flex:0 0 38px;display:flex;flex-direction:column;align-items:center;gap:4px}
 #plated-complete .p-agenda-date small{font-size:10px;font-weight:650;line-height:1;letter-spacing:.5px;text-transform:uppercase;color:var(--p-muted)}
 #plated-complete .p-agenda-date>span{height:30px;width:30px;display:grid;place-items:center;font-family:'Gabarito',sans-serif;font-size:21px;font-weight:600;line-height:1;color:var(--p-ink);border-radius:50%}
-#plated-complete .p-agenda-today .p-agenda-date>span{background:var(--p-brand);color:var(--p-onbrand)}
+#plated-complete .p-agenda-today .p-agenda-date>span{background:var(--p-brand);color:var(--p-onbrand);font-size:17px}
 #plated-complete .p-agenda-photo{width:46px;height:46px;flex:0 0 46px;object-fit:cover;border-radius:12px}
 #plated-complete .p-agenda-empty{width:46px;height:46px;flex:0 0 46px;display:grid;place-items:center;color:var(--p-muted)}
 #plated-complete .p-agenda-empty svg{width:18px;height:18px;stroke-width:1.4}
@@ -417,6 +417,20 @@
 #plated-complete .p-week-agenda .p-agenda-row:disabled{min-height:54px;padding:5px 0}
 #plated-complete .p-agenda-row:disabled .p-agenda-date>span{font-size:19px;height:25px}
 #plated-complete .p-dismiss-backdrop{height:auto;bottom:60%;}
+
+#plated-complete .p-step-grip{display:flex;align-items:center;gap:7px;min-height:44px;padding:0 8px 0 0;touch-action:none;cursor:grab}
+#plated-complete .p-hold-option{display:flex;align-items:center;gap:12px;width:100%;min-height:54px;text-align:left;border-bottom:1px solid var(--p-rule)}
+#plated-complete .p-hold-option svg:last-child{margin-left:auto}
+#plated-complete .p-hold-option svg:first-child{margin-left:0}
+#plated-complete .p-hold-option[aria-pressed] svg{margin-left:auto}
+#plated-complete .p-drag-ghost{position:absolute;z-index:35;pointer-events:none;user-select:none;background:var(--p-surface);color:var(--p-ink);border-radius:16px;box-shadow:0 14px 36px var(--p-shadow);transform:scale(1.02);margin:0;padding:12px;opacity:.98}
+#plated-complete .p-drag-ghost.p-mealrow{display:flex;align-items:center;gap:12px}
+#plated-complete .p-drag-source{opacity:.22}
+#plated-complete .p-drop-target{outline:2px solid var(--p-brand);outline-offset:-2px;background:var(--p-well);border-radius:14px}
+#plated-complete .p-step-drop{position:relative}
+#plated-complete .p-step-drop:before{content:"";position:absolute;left:0;right:0;height:2px;background:var(--p-brand);top:-8px}
+#plated-complete .p-step-drop[data-drop-position=after]:before{top:auto;bottom:-8px}
+#plated-complete .p-drag-status{position:absolute;left:16px;right:16px;bottom:98px;z-index:36;background:var(--p-ink);color:var(--p-paper);padding:12px 16px;border-radius:16px;font-size:13px;pointer-events:none;text-align:center}
 </style>
 <div id="plated-complete" data-palette="tomato">
   <p class="p-caption">Plated · App design concept · Sample household</p>
@@ -467,7 +481,7 @@ if(options.scenario==='empty')clearSample();
 function icons(){if(globalThis.lucide)lucide.createIcons({attrs:{width:20,height:20}})}
 function remember(){route().scroll=main.scrollTop}
 function announce(message,canUndo=false){toast.innerHTML=`<span>${esc(message)}</span>${canUndo?btn('undo','Undo'):''}${btn('dismiss-toast',icon('x'),'p-icon','aria-label="Dismiss message"')}`;toast.style.bottom=(footer.offsetHeight+resume.offsetHeight+(nav.hidden?0:nav.offsetHeight)+12)+'px';toast.hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>toast.hidden=true,5500)}
-function commit(label,fn){undo.push({label,data:clone(data)});if(undo.length>30)undo.shift();fn();options.scenario=options.scenario==='empty'?'ready':options.scenario}
+function commit(label,fn){undo.push({label,data:clone(data),selectedDate,calendarAnchor});if(undo.length>30)undo.shift();fn();options.scenario=options.scenario==='empty'?'ready':options.scenario}
 function dateLabel(d,full=false){if(d==='2026-09-04')return full?'Today, September 4':'Tonight';return new Date(d+'T12:00:00').toLocaleDateString('en-US',full?{weekday:'long',month:'long',day:'numeric'}:{weekday:'long'})}
 function shortDate(d){return new Date(d+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'})}
 function dayNum(d){return Number(d.slice(-2))}
@@ -502,7 +516,7 @@ function purchaseCoverage(item){
   return covered+(['','each','whole','piece','pieces','bunch','bunches','can','cans','bag','bags','package','packages'].includes(u)?Math.ceil(q-1e-9):q);
 }
 
-function editorView(){toolbar.innerHTML=btn('cancel-edit','Cancel')+'<strong>'+ (editorDraft.isNew?'New recipe':'Edit recipe')+'</strong>'+btn('save-edit','Save','p-link accent');main.innerHTML=`<p class="p-fine">${editorDraft.importSample?'Sample extraction. Review every field before saving.':'Your private kitchen copy.'}</p>${editorDraft.importSample?'<div class="p-callout">Check the yield and ingredient amounts. An import is a starting point, and you stay in control.</div>':''}${field('title','Recipe name',editorDraft.title)}<label class="p-formlabel" for="pc-photo">Recipe photo</label><input id="pc-photo" class="p-input" type="file" accept="image/*" data-recipe-photo>${editorDraft.photo?`<div style="margin-top:12px">${image(editorDraft,'p-thumb')}</div>`:''}<div class="p-fieldrow"><div>${field('base','Recipe makes',editorDraft.base,'type="number" min="1" max="99" inputmode="numeric"')}</div><div>${field('prep','Prep minutes',editorDraft.prep,'type="number" min="0" max="2880" inputmode="numeric"')}</div></div>${field('cook','Cook minutes',editorDraft.cook,'type="number" min="0" max="2880" inputmode="numeric"')}<p class="p-fine" style="margin-top:10px">Yield describes these amounts. Changing it does not scale the ingredients.</p><div class="p-sectionhead"><h2>Ingredients</h2></div><p class="p-fine">One ingredient per line. Keep your fractions and notes.</p>${editorDraft.ingredients.map((i,n)=>`<div class="p-editor-row"><input class="p-input" data-ingredient="${i.id}" aria-label="Ingredient ${n+1}" value="${esc(ingredientLine(i))}" placeholder="2 tbsp butter">${btn('ingredient-menu:'+i.id,icon('ellipsis'),'p-icon',`aria-label="Options for ingredient ${n+1}"`)}</div>`).join('')}${btn('add-ingredient',icon('plus')+'Add ingredient','p-link accent')}<div class="p-sectionhead"><h2>Method</h2></div>${editorDraft.steps.map((s,n)=>`<div class="p-stepedit"><div class="p-edit-tools"><span>Step ${n+1}</span><div>${btn('step-up:'+s.id,icon('arrow-up'),'p-icon',`aria-label="Move step ${n+1} up" ${n===0?'disabled':''}`)}${btn('step-down:'+s.id,icon('arrow-down'),'p-icon',`aria-label="Move step ${n+1} down" ${n===editorDraft.steps.length-1?'disabled':''}`)}${btn('step-remove:'+s.id,icon('trash-2'),'p-icon',`aria-label="Remove step ${n+1}"`)}</div></div><textarea data-step="${s.id}" aria-label="Step ${n+1}">${esc(s.text)}</textarea></div>`).join('')}${btn('add-step',icon('plus')+'Add step','p-link accent')}<label class="p-formlabel" for="pc-note">Kitchen note</label><textarea data-field="note" id="pc-note">${esc(editorDraft.note)}</textarea><div class="p-error" role="alert">${esc(editorError)}</div>`;footer.innerHTML='<p class="p-fine">'+(editorDraft.isNew?'Save first, then choose a night.':'Planned dinners keep their current recipe until you update them.')+'</p>'}
+function editorView(){toolbar.innerHTML=btn('cancel-edit','Cancel')+'<strong>'+ (editorDraft.isNew?'New recipe':'Edit recipe')+'</strong>'+btn('save-edit','Save','p-link accent');main.innerHTML=`<p class="p-fine">${editorDraft.importSample?'Sample extraction. Review every field before saving.':'Your private kitchen copy.'}</p>${editorDraft.importSample?'<div class="p-callout">Check the yield and ingredient amounts. An import is a starting point, and you stay in control.</div>':''}${field('title','Recipe name',editorDraft.title)}<label class="p-formlabel" for="pc-photo">Recipe photo</label><input id="pc-photo" class="p-input" type="file" accept="image/*" data-recipe-photo>${editorDraft.photo?`<div style="margin-top:12px">${image(editorDraft,'p-thumb')}</div>`:''}<div class="p-fieldrow"><div>${field('base','Recipe makes',editorDraft.base,'type="number" min="1" max="99" inputmode="numeric"')}</div><div>${field('prep','Prep minutes',editorDraft.prep,'type="number" min="0" max="2880" inputmode="numeric"')}</div></div>${field('cook','Cook minutes',editorDraft.cook,'type="number" min="0" max="2880" inputmode="numeric"')}<p class="p-fine" style="margin-top:10px">Yield describes these amounts. Changing it does not scale the ingredients.</p><div class="p-sectionhead"><h2>Ingredients</h2></div><p class="p-fine">One ingredient per line. Keep your fractions and notes.</p>${editorDraft.ingredients.map((i,n)=>`<div class="p-editor-row"><input class="p-input" data-ingredient="${i.id}" aria-label="Ingredient ${n+1}" value="${esc(ingredientLine(i))}" placeholder="2 tbsp butter">${btn('ingredient-menu:'+i.id,icon('ellipsis'),'p-icon',`aria-label="Options for ingredient ${n+1}"`)}</div>`).join('')}${btn('add-ingredient',icon('plus')+'Add ingredient','p-link accent')}<div class="p-sectionhead"><h2>Method</h2></div>${editorDraft.steps.map((s,n)=>`<div class="p-stepedit" data-step-row="${s.id}"><div class="p-edit-tools">${btn('step-options:'+s.id,icon('grip-vertical')+'Step '+(n+1),'p-step-grip',`data-step-grip="${s.id}" aria-label="Reorder step ${n+1}"`)}<div>${btn('step-up:'+s.id,icon('arrow-up'),'p-icon',`aria-label="Move step ${n+1} up" ${n===0?'disabled':''}`)}${btn('step-down:'+s.id,icon('arrow-down'),'p-icon',`aria-label="Move step ${n+1} down" ${n===editorDraft.steps.length-1?'disabled':''}`)}${btn('step-remove:'+s.id,icon('trash-2'),'p-icon',`aria-label="Remove step ${n+1}"`)}</div></div><textarea data-step="${s.id}" aria-label="Step ${n+1}">${esc(s.text)}</textarea></div>`).join('')}${btn('add-step',icon('plus')+'Add step','p-link accent')}<label class="p-formlabel" for="pc-note">Kitchen note</label><textarea data-field="note" id="pc-note">${esc(editorDraft.note)}</textarea><div class="p-error" role="alert">${esc(editorError)}</div>`;footer.innerHTML='<p class="p-fine">'+(editorDraft.isNew?'Save first, then choose a night.':'Planned dinners keep their current recipe until you update them.')+'</p>'}
 function ingredientLine(i){return i.line??[i.qty,i.unit==='To taste'?'':i.unit,i.name,i.unit==='To taste'?'(to taste)':''].filter(Boolean).join(' ')}
 function resolveIngredient(i){if(i.line===undefined)return i;const {line,...rest}=i,raw=line.trim(),m=raw.match(/^((?:\d+\s+)?\d+\/\d+|\d+(?:\.\d+)?|[¼½¾⅓⅔⅛])\s+(?:(g|kg|mg|ml|l|oz|lb|lbs|tsp|tbsp|cups?|cloves?|bunch(?:es)?)\s+)?(.+)$/i);return m?{...rest,qty:m[1],unit:m[2]||'',name:m[3]}:{...rest,qty:'',unit:'',name:raw}}
 function beginEdit(r,isNew=false){editorDraft={...clone(r),isNew};editorOriginal=clone(editorDraft);editorError='';push({name:'editor'})}
@@ -524,7 +538,7 @@ function profileView(){top('Back');main.innerHTML=head('Make Plated yours','Sett
 function householdView(){top('Profile');main.innerHTML=head('Plan and groceries','Your household','')+['You','Sam'].map((n,i)=>`<div class="p-personrow"><span class="p-avatar">${n[0]}</span><div><strong>${n}</strong><small>${i?'Household member':'Household owner'}</small></div></div>`).join('')+`<div class="p-callout">Household members coordinate dinners and shopping. Your saved recipes stay private.</div>${primary('invite-household',icon('user-plus')+'Invite to household')}`}
 function historyView(){top('Back');main.innerHTML=head('Your recent changes','History','')+(undo.length?undo.slice().reverse().map((h,i)=>`<div class="p-plainrow"><span>${esc(h.label)}</span><small>${i===0?'Most recent':''}</small></div>`).join(''):'<p class="p-sub">Changes you make appear here.</p>');footer.innerHTML=undo.length?primary('undo','Undo '+undo.at(-1).label.toLowerCase()):''}
 function welcomeView(){toolbar.innerHTML='';main.innerHTML=`<div class="p-welcome"><div class="p-wordmark">plated</div>${image({photo:photos.pizza,title:'Dinner to share'})}<h1>A week of dinners,<br>planned together.</h1><p class="p-sub">Keep the recipes you love, plan dinner together, and make one useful shopping list.</p>${primary('welcome-start','Plan your first dinner')}${btn('welcome-join','Join a household')}</div>`}
-function render(){cancelSwipeMotion();root.dataset.palette=options.palette;phone.style.colorScheme=options.appearance==='system'?'light dark':options.appearance;phone.dataset.large=String(options.large);phone.dataset.actions=options.actions;phone.dataset.photoStyle=options.photoStyle;root.querySelector('.p-caption').textContent='Plated · App design concept · '+(options.scenario==='ready'?'Sample household':options.scenario+' state preview');root.querySelector('.p-online').textContent=options.scenario==='offline'?'Offline preview · Your edits stay on this device until it reconnects.':'';toast.hidden=true;footer.innerHTML='';resume.innerHTML='';nav.innerHTML='';const name=options.journey==='signup'?'signup':options.journey==='welcome'?'welcome':route().name;({plan:planView,recipes:recipesView,recipe:recipeView,groceries:shopView,table:tableView,thread:threadView,person:personView,editor:editorView,cooking:cookingView,finish:finishView,profile:profileView,household:householdView,people:peopleView,history:historyView,composer:composerView,welcome:welcomeView,signup:signupView,'social-edit':socialEditView})[name]();const focused=['editor','cooking','finish','composer','welcome','signup','social-edit'].includes(name);nav.hidden=focused||!!footer.innerHTML;if(!nav.hidden)nav.innerHTML=[['plan','calendar-days','Plan'],['recipes','book-open','Recipes'],['groceries','shopping-basket','Groceries'],['table','users-round','Table']].map(([id,ic,l])=>`<button type="button" data-tab="${id}" ${tab===id?'aria-current="page"':''}><span class="p-nav-icon">${icon(ic)}</span>${l}</button>`).join('');if(data.cooking&&!['cooking','finish','editor','composer','welcome','signup','social-edit'].includes(name))resume.innerHTML=btn('resume-cooking',icon('play')+`<span style="flex:1"><strong>${esc(data.cooking.recipe.title)}</strong><small>Step ${data.cooking.step+1} of ${data.cooking.recipe.steps.length} · <span data-timer>${timerText()}</span></small></span>`+icon('chevron-right'));refineChrome(name);icons();afterRender(name)}
+function render(){clearHold();cancelSwipeMotion();root.dataset.palette=options.palette;phone.style.colorScheme=options.appearance==='system'?'light dark':options.appearance;phone.dataset.large=String(options.large);phone.dataset.actions=options.actions;phone.dataset.photoStyle=options.photoStyle;root.querySelector('.p-caption').textContent='Plated · App design concept · '+(options.scenario==='ready'?'Sample household':options.scenario+' state preview');root.querySelector('.p-online').textContent=options.scenario==='offline'?'Offline preview · Your edits stay on this device until it reconnects.':'';toast.hidden=true;footer.innerHTML='';resume.innerHTML='';nav.innerHTML='';const name=options.journey==='signup'?'signup':options.journey==='welcome'?'welcome':route().name;({plan:planView,recipes:recipesView,recipe:recipeView,groceries:shopView,table:tableView,thread:threadView,person:personView,editor:editorView,cooking:cookingView,finish:finishView,profile:profileView,household:householdView,people:peopleView,history:historyView,composer:composerView,welcome:welcomeView,signup:signupView,'social-edit':socialEditView})[name]();const focused=['editor','cooking','finish','composer','welcome','signup','social-edit'].includes(name);nav.hidden=focused||!!footer.innerHTML;if(!nav.hidden)nav.innerHTML=[['plan','calendar-days','Plan'],['recipes','book-open','Recipes'],['groceries','shopping-basket','Groceries'],['table','users-round','Table']].map(([id,ic,l])=>`<button type="button" data-tab="${id}" ${tab===id?'aria-current="page"':''}><span class="p-nav-icon">${icon(ic)}</span>${l}</button>`).join('');if(data.cooking&&!['cooking','finish','editor','composer','welcome','signup','social-edit'].includes(name))resume.innerHTML=btn('resume-cooking',icon('play')+`<span style="flex:1"><strong>${esc(data.cooking.recipe.title)}</strong><small>Step ${data.cooking.step+1} of ${data.cooking.recipe.steps.length} · <span data-timer>${timerText()}</span></small></span>`+icon('chevron-right'));refineChrome(name);icons();afterRender(name)}
 function selectedMeal(){return data.meals.find(m=>m.date===selectedDate)}
 function editMeal(m,latest=false){beginPlan(latest?recipe(m.recipeId):m.snapshot,m.servings,m.id,latest)}
 function updatePlanner(){const s=sheet.querySelector('[data-plan="servings"]'),d=sheet.querySelector('[data-plan="date"]');if(s){const n=Number(s.value);if(Number.isInteger(n)&&n>0&&n<=99)planner.servings=n}if(d?.value)planner.date=d.value;const diff=sheet.querySelector('[data-plan-diff]');if(diff)diff.innerHTML=planDiff()}
@@ -643,6 +657,114 @@ root.addEventListener('click',e=>{
   const m=meal(moveDraft.id),other=data.meals.find(x=>x.id!==moveDraft.id&&x.date===moveDraft.date);if(!m||m.done||other?.done||moveDraft.date<todayDate)return;
   const old=m.date,target=moveDraft.date;commit(other?'Swap dinners':'Move dinner',()=>{m.date=target;if(other)other.date=old});selectedDate=target;calendarAnchor=target;closeModal();render();announce(other?'Dinners swapped. Groceries updated.':'Dinner moved to '+dateLabel(target).toLowerCase()+'. Groceries updated.',true);
 },true);
+// A quick horizontal motion swipes; a deliberate hold lifts. Editing text
+// keeps native selection because step dragging begins only on its grip.
+let holdState=null,holdTimer,holdFrame;
+function clearHold(){
+  clearTimeout(holdTimer);cancelAnimationFrame(holdFrame);const h=holdState;holdState=null;if(!h)return;
+  if(h.active&&main.hasPointerCapture(h.pointer))main.releasePointerCapture(h.pointer);
+  h.row.classList.remove('p-drag-source');h.ghost?.remove();h.hint?.remove();
+  main.querySelectorAll('.p-drop-target,.p-step-drop').forEach(el=>{el.classList.remove('p-drop-target','p-step-drop');delete el.dataset.dropPosition});
+}
+function mealHoldOptions(id){
+  const m=meal(id);if(!m)return;setSwipe(null,false);
+  openModal('meal-options',m.snapshot.title,`<p class="p-sub">${dateLabel(m.date)} · ${esc(m.cook==='You'?'You cook':m.cook==='Unassigned'?'Cook unassigned':m.cook+' cooks')} · ${m.servings} servings</p>${btn('hold-edit:'+id,icon('pencil')+'Edit dinner','p-hold-option')}${!m.done?btn('hold-move:'+id,icon('calendar-days')+'Move to another date','p-hold-option'):''}${btn('hold-cook:'+id,icon('user-round')+"Who's cooking",'p-hold-option')}${btn('hold-remove:'+id,icon('trash-2')+'Remove dinner','p-hold-option')}`);
+}
+function stepHoldOptions(id){
+  const i=editorDraft.steps.findIndex(s=>s.id===id);if(i<0)return;
+  openModal('step-options','Step '+(i+1),`${btn('hold-step-up:'+id,icon('arrow-up')+'Move up','p-hold-option',i===0?'disabled':'')}${btn('hold-step-down:'+id,icon('arrow-down')+'Move down','p-hold-option',i===editorDraft.steps.length-1?'disabled':'')}`);
+}
+function liftHeldRow(){
+  const h=holdState;if(!h||!h.row.isConnected)return;cancelSwipeMotion();setSwipe(null,false);h.active=true;
+  const box=h.row.getBoundingClientRect(),container=phone.getBoundingClientRect();h.box=box;
+  h.ghost=h.row.cloneNode(true);h.ghost.classList.add('p-drag-ghost');h.ghost.inert=true;h.ghost.setAttribute('aria-hidden','true');
+  h.ghost.removeAttribute('id');h.ghost.querySelectorAll('[id]').forEach(el=>el.removeAttribute('id'));
+  Object.assign(h.ghost.style,{width:box.width+'px',left:box.left-container.left+'px',top:box.top-container.top+'px'});
+  phone.append(h.ghost);h.row.classList.add('p-drag-source');
+  h.hint=document.createElement('div');h.hint.className='p-drag-status';h.hint.setAttribute('role','status');h.hint.textContent=h.kind==='step'?'Drag to reorder this step':meal(h.id)?.done?'Release for meal options':'Drag to a date · Release for options';phone.append(h.hint);
+  main.setPointerCapture(h.pointer);holdFrame=requestAnimationFrame(scrollHeldRow);
+}
+function updateHeldTarget(){
+  const h=holdState;if(!h?.active)return;h.target=null;
+  main.querySelectorAll('.p-drop-target,.p-step-drop').forEach(el=>{el.classList.remove('p-drop-target','p-step-drop');delete el.dataset.dropPosition});
+  const hit=document.elementFromPoint(h.lastX,h.lastY);if(!hit||!main.contains(hit))return;
+  if(h.kind==='meal'){
+    const target=hit.closest('[data-open-date],[data-calendar-day]'),date=target?.dataset.openDate||target?.dataset.calendarDay,m=meal(h.id);
+    if(!date||date===m?.date||date<todayDate||m?.done)return;
+    const other=data.meals.find(x=>x.date===date&&x.id!==h.id);if(other?.done)return;
+    h.target=date;(target.closest('.p-swipe')||target).classList.add('p-drop-target');
+    const text=other?'Swap with '+other.snapshot.title:'Move to '+dateLabel(date).toLowerCase();if(h.hint.textContent!==text)h.hint.textContent=text;
+  }else{
+    const target=hit.closest('[data-step-row]');if(!target||target===h.row)return;
+    const box=target.getBoundingClientRect(),after=h.lastY>box.top+box.height/2;
+    h.target={id:target.dataset.stepRow,after};target.classList.add('p-step-drop');target.dataset.dropPosition=after?'after':'before';
+    const index=editorDraft.steps.findIndex(s=>s.id===h.target.id),text='Place '+(after?'after':'before')+' step '+(index+1);if(h.hint.textContent!==text)h.hint.textContent=text;
+  }
+}
+function scrollHeldRow(){
+  const h=holdState;if(!h?.active)return;const box=main.getBoundingClientRect();
+  const speed=h.lastY<box.top+48?-7:h.lastY>box.bottom-48?7:0;
+  if(speed){main.scrollTop+=speed;updateHeldTarget()}
+  holdFrame=requestAnimationFrame(scrollHeldRow);
+}
+main.addEventListener('pointerdown',e=>{
+  clearHold();if(e.button!==0||e.isPrimary===false)return;
+  const grip=e.target.closest('[data-step-grip]'),row=grip?.closest('[data-step-row]')||e.target.closest('.p-mealrow[data-open-date]');
+  if(!row||row.disabled||e.target.closest('[data-reveal-swipe],.p-swipe-under,input,textarea,select'))return;
+  const m=grip?null:data.meals.find(m=>m.date===row.dataset.openDate);if(!grip&&!m)return;
+  holdState={kind:grip?'step':'meal',id:grip?.dataset.stepGrip||m.id,row,x:e.clientX,y:e.clientY,lastX:e.clientX,lastY:e.clientY,pointer:e.pointerId,active:false,moved:false,target:null};
+  holdTimer=setTimeout(liftHeldRow,350);
+});
+main.addEventListener('pointermove',e=>{
+  const h=holdState;if(!h||h.pointer!==e.pointerId)return;
+  const dx=e.clientX-h.x,dy=e.clientY-h.y;if(!h.active){if(Math.hypot(dx,dy)>8)clearHold();return}
+  e.preventDefault();h.lastX=e.clientX;h.lastY=e.clientY;h.moved=h.moved||Math.hypot(dx,dy)>8;
+  h.ghost.style.transform=`translate(${dx}px,${dy}px) scale(1.02)`;updateHeldTarget();
+},{passive:false});
+// Prevent touch scrolling only after the hold has committed to lifting.
+main.addEventListener('touchmove',e=>{if(holdState?.active)e.preventDefault()},{passive:false});
+function finishHold(e,cancelled=false){
+  const h=holdState;if(!h||h.pointer!==e.pointerId)return;
+  clearHold();if(!h.active)return;suppressClickUntil=performance.now()+350;
+  if(cancelled)return;
+  if(!h.moved){if(h.kind==='meal')mealHoldOptions(h.id);else stepHoldOptions(h.id);return}
+  if(!h.target)return;
+  if(h.kind==='meal'){
+    const m=meal(h.id),other=data.meals.find(x=>x.date===h.target&&x.id!==h.id);if(!m||m.done||other?.done||h.target<todayDate)return;
+    const old=m.date;commit(other?'Swap dinners':'Move dinner',()=>{m.date=h.target;if(other)other.date=old});selectedDate=h.target;
+    render();announce(other?'Dinners swapped.':'Dinner moved to '+dateLabel(h.target).toLowerCase()+'.',true);
+  }else{
+    const from=editorDraft.steps.findIndex(s=>s.id===h.id);if(from<0)return;
+    const moved=editorDraft.steps.splice(from,1)[0],target=editorDraft.steps.findIndex(s=>s.id===h.target.id);
+    editorDraft.steps.splice(target+(h.target.after?1:0),0,moved);const scroll=main.scrollTop;render();main.scrollTop=scroll;
+    main.querySelector(`[data-step-grip="${h.id}"]`)?.focus({preventScroll:true});announce('Step order updated. Save to keep your changes.');
+  }
+}
+main.addEventListener('pointerup',e=>finishHold(e));main.addEventListener('pointercancel',e=>finishHold(e,true));
+main.addEventListener('lostpointercapture',e=>{if(e.target===main)finishHold(e,true)});
+main.addEventListener('contextmenu',e=>{
+  const grip=e.target.closest('[data-step-grip]'),row=e.target.closest('.p-mealrow[data-open-date]'),m=row&&data.meals.find(m=>m.date===row.dataset.openDate);
+  if(!grip&&!m)return;e.preventDefault();if(holdState?.active)return;clearHold();if(grip)stepHoldOptions(grip.dataset.stepGrip);else mealHoldOptions(m.id);
+});
+window.addEventListener('blur',clearHold);document.addEventListener('visibilitychange',()=>{if(document.hidden)clearHold()});
+root.addEventListener('click',e=>{
+  const b=e.target.closest('button');if(!b||b.disabled)return;const [a,id]=String(b.dataset.action||'').split(':');
+  if(a==='step-options'){if(performance.now()<suppressClickUntil)return;e.stopImmediatePropagation();stepHoldOptions(id);return}
+  if(!a.startsWith('hold-'))return;e.stopImmediatePropagation();
+  if(a==='hold-step-up'||a==='hold-step-down'){
+    const from=editorDraft.steps.findIndex(s=>s.id===id),to=from+(a==='hold-step-up'?-1:1);if(from<0||to<0||to>=editorDraft.steps.length)return;
+    [editorDraft.steps[from],editorDraft.steps[to]]=[editorDraft.steps[to],editorDraft.steps[from]];const scroll=main.scrollTop;closeModal();render();main.scrollTop=scroll;return;
+  }
+  const m=meal(id);if(!m)return;
+  if(a==='hold-edit'){closeModal();editMeal(m);return}
+  if(a==='hold-move'){moveDinner(id);return}
+  if(a==='hold-cook'){
+    openModal('assign-cook',"Who's cooking?",`<p class="p-sub">${esc(m.snapshot.title)} · ${dateLabel(m.date)}</p>${['You','Sam','Unassigned'].map(name=>btn('hold-assign:'+id,esc(name)+(m.cook===name?icon('check'):''),'p-hold-option',`data-cook="${name}" aria-pressed="${m.cook===name}"`)).join('')}`);return;
+  }
+  if(a==='hold-assign'){commit('Assign cook',()=>m.cook=b.dataset.cook);closeModal();render();announce('Cook updated.',true);return}
+  if(a==='hold-remove'){commit('Remove dinner',()=>data.meals=data.meals.filter(x=>x.id!==id));closeModal();render();announce('Dinner removed.',true)}
+},true);
+
 let photoTap=null,photoTapTimer=null;
 // Table profiles keep their identity when a display name changes.
 Object.assign(data.profile,{bio:'A good dinner is even better with good company.',photo:null,cover:photos.salmon,photoPosition:{x:50,y:50,zoom:1}});
@@ -785,7 +907,7 @@ if(b.dataset.groceryDetail){const i=needs().find(i=>i.key===b.dataset.groceryDet
 if(b.dataset.manualEdit){const m=data.manual.find(m=>m.id===b.dataset.manualEdit);openModal('manual-edit','Edit grocery item',`${field('manualName','Item',m.name)}${field('manualQuantity','Quantity',m.quantity)}${primary('save-manual:'+m.id,'Save item')}${btn('remove-manual:'+m.id,'Remove item','p-link p-danger')}`);return}
 const [a,arg]=String(b.dataset.action||'').split(':');if(!a)return;
 if(a==='back'){back();return}if(a==='close-modal'){closeModal();return}if(a==='dismiss-toast'){toast.hidden=true;return}
-if(a==='undo'){const h=undo.pop();if(h){const currentSession=clone(data.cooking);data=h.data;if(!['End cooking session','Mark dinner cooked'].includes(h.label))data.cooking=currentSession;closeModal();if(route().mealId&&!meal(route().mealId))stacks[tab].pop();if(route().name==='recipe'&&!route().sharedPostId&&!recipe(route().id)&&!route().mealId)stacks[tab].pop();render();announce('Undone: '+h.label.toLowerCase()+'.')}return}
+if(a==='undo'){const h=undo.pop();if(h){const currentSession=clone(data.cooking);data=h.data;selectedDate=h.selectedDate??selectedDate;calendarAnchor=h.calendarAnchor??calendarAnchor;if(!['End cooking session','Mark dinner cooked'].includes(h.label))data.cooking=currentSession;closeModal();if(route().mealId&&!meal(route().mealId))stacks[tab].pop();if(route().name==='recipe'&&!route().sharedPostId&&!recipe(route().id)&&!route().mealId)stacks[tab].pop();render();announce('Undone: '+h.label.toLowerCase()+'.')}return}
 if(a==='retry'){options.scenario='ready';render();return}if(a==='profile'){push({name:'profile'});return}if(a==='household'){push({name:'household'});return}if(a==='table-people'){push({name:'people'});return}if(a==='history'){closeModal();push({name:'history'});return}
 if(a==='calendar'){calendarSheet();return}if(a==='select-date'){const d=sheet.querySelector('input').value;if(d){selectedDate=d;closeModal();render()}return}
 if(a==='open-meal'){const m=selectedMeal();push({name:'recipe',id:m.recipeId,mealId:m.id});return}if(a==='choose-day'||a==='plan-choose'){chooseDinner(selectedDate);return}

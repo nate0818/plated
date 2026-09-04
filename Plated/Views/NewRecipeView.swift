@@ -52,6 +52,7 @@ struct RecipeEditorView: View {
     /// sits. Slots are keyed by position rather than by step, because the
     /// slots stay put while the steps move between them.
     @State private var dragStepID: UUID?
+    @GestureState private var stepDragActive = false
     @State private var dragY: CGFloat = 0
     @State private var stepSlots: [Int: CGRect] = [:]
 
@@ -82,6 +83,12 @@ struct RecipeEditorView: View {
         LongPressGesture(minimumDuration: 0.3)
             .sequenced(before: DragGesture(minimumDistance: 0,
                                            coordinateSpace: .named(Self.stepSpace)))
+            .updating($stepDragActive) { value, active, _ in
+                switch value {
+                case .first(true), .second(true, _): active = true
+                default: break
+                }
+            }
             .onChanged { value in
                 switch value {
                 case .first(true):
@@ -683,8 +690,10 @@ struct RecipeEditorView: View {
                     // this repo already records a lift stealing a touch. The
                     // numeral column has no keyboard behind it, so nothing is
                     // competing for the gesture.
-                    Text("\(index + 1)")
-                        .plType(.footnote, .extraBold, family: .display)
+                    VStack(spacing: 3) {
+                        Text("\(index + 1)").plType(.footnote, .extraBold, family: .display)
+                        Image(systemName: "line.3.horizontal").font(.system(size: 11, weight: .medium))
+                    }
                         .foregroundStyle(lifted ? Color.ink : Color.inkSecondary)
                         // fixedSize before the frame, and a floor rather than
                         // a hard width: a hard 20 forces "10" to wrap rather
@@ -692,7 +701,7 @@ struct RecipeEditorView: View {
                         .monospacedDigit()
                         .lineLimit(1)
                         .fixedSize()
-                        .frame(minWidth: 26, minHeight: 44)
+                        .frame(minWidth: 44, minHeight: 44)
                         .contentShape(Rectangle())
                         .padding(.top, 4)
                         .gesture(stepDrag(step.id))
@@ -774,6 +783,8 @@ struct RecipeEditorView: View {
         }
         .animation(.plSnap, value: draftSteps.count)
         .coordinateSpace(name: Self.stepSpace)
+        .onChange(of: stepDragActive) { _, active in if !active { drop() } }
+        .onDisappear { drop() }
     }
 
     private func addRoundButton(disabled: Bool, label: String, action: @escaping () -> Void) -> some View {

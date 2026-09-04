@@ -600,11 +600,22 @@ struct WeekView: View {
                   systemImage: planned == nil ? "plus.circle" : "arrow.2.squarepath")
         }
         if planned != nil {
+            if let meal = planned {
+                Menu {
+                    Button("Unassigned") { meal.cook = nil; Persist.save(context) }
+                    ForEach(members) { member in
+                        Button(member.isOwner ? "You" : member.name) { meal.cook = member; Persist.save(context) }
+                    }
+                } label: { Label("Who's cooking", systemImage: "person.crop.circle") }
+            }
             // Dragging a plate from one night to another was the only way to
             // move a dinner. That is a gesture nobody is told about and a
             // gesture VoiceOver cannot perform, and `moveMeal` was already
             // sitting here doing the work for the drop target.
             Menu {
+                if let planned, !planned.isCooked {
+                    Button("Choose a date…") { mealToMove = planned }
+                }
                 ForEach(movableNights(excluding: date), id: \.self) { target in
                     Button(nightLabel(target)) {
                         _ = moveMeal(from: DayTransfer.token(for: date), to: target)
@@ -613,6 +624,7 @@ struct WeekView: View {
             } label: {
                 Label("Move to another night", systemImage: "calendar")
             }
+            .disabled(planned?.isCooked == true)
             Button(role: .destructive) {
                 remove(on: date)
             } label: {
@@ -703,7 +715,7 @@ struct WeekView: View {
             Text(date.formattedWeekday().uppercased())
                 .plType(.micro, .semibold).foregroundStyle(Color.inkSecondary)
             Text(date.formattedDayNumber())
-                .plType(.heading, .semibold).monospacedDigit()
+                .plType(today ? .callout : .heading, .semibold, family: .display).monospacedDigit()
                 .foregroundStyle(today ? Color.onTomato : Color.ink)
                 .frame(width: 32, height: 32)
                 .background(today ? Color.tomato : Color.clear, in: Circle())
@@ -983,7 +995,7 @@ enum DayTransfer {
 
     static func date(from token: String?) -> Date? {
         guard let token, token.hasPrefix("plated-day:"),
-              let seconds = TimeInterval(token.dropFirst("plated-day:".count)) else { return nil }
+              let seconds = TimeInterval(token.dropFirst("plated-day:".count)), seconds.isFinite else { return nil }
         return Date(timeIntervalSince1970: seconds)
     }
 }

@@ -1,0 +1,11 @@
+PASS hold options assign cook and undo
+PASS hold and drag swaps dinners
+PASS touch hold and cancellation preserves dinner dates
+PASS touch hold moves a dinner
+PASS month calendar accepts dinner drops
+PASS step grip reorders draft without losing text
+PASS step menu provides an alternative to dragging
+PASS cancelled step drag preserves the draft
+PASS touch grip reorders steps
+PASS saved recipe retains reordered steps
+PASS no browser runtime errors
