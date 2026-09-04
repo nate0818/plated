@@ -156,6 +156,7 @@ struct TableSeatsSheet: View {
                         } label: {
                             Text("Leave this table")
                                 .plType(.body, .bold)
+                                .plActionLabel()
                                 .foregroundStyle(Color.tomato)
                                 .frame(maxWidth: .infinity)
                                 .frame(minHeight: 48)
@@ -368,6 +369,7 @@ struct TableSeatsSheet: View {
                         } label: {
                             Text("Add")
                                 .plType(.footnote, .bold)
+                                .plActionLabel()
                                 .foregroundStyle(Color.canvas)
                                 .padding(.horizontal, 18)
                                 .frame(minHeight: 36)

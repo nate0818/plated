@@ -190,6 +190,19 @@ extension View {
             .truncationMode(.tail)
             .allowsTightening(true)
     }
+
+    /// A visible action is one indivisible instruction. It never breaks into
+    /// stacked fragments inside a button, chip, tab, or segmented control.
+    ///
+    /// Keep the spoken accessibility label as descriptive as it needs to be,
+    /// but shorten the visible copy before lowering this scale. At larger
+    /// Dynamic Type sizes, reflow peer controls instead of making this wrap.
+    func plActionLabel(_ minScale: CGFloat = 0.78) -> some View {
+        self.lineLimit(1)
+            .minimumScaleFactor(minScale)
+            .allowsTightening(true)
+            .truncationMode(.tail)
+    }
 }
 
 extension Collection where Element == HouseholdMember {
@@ -1342,8 +1355,7 @@ struct TomatoPillButton: View {
                 }
                 Text(title)
                     .plType(.callout)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.72)
+                    .plActionLabel(0.72)
             }
             .foregroundStyle(awake ? Color.onTomato : Color.inkSecondary)
             .frame(maxWidth: .infinity)
@@ -1371,8 +1383,7 @@ struct InkPillButton: View {
                 }
                 Text(title)
                     .plType(.callout)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.72)
+                    .plActionLabel(0.72)
             }
             .foregroundStyle(Color.canvas)
             .frame(maxWidth: .infinity)

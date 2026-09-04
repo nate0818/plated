@@ -43,8 +43,8 @@ struct SettingsSheet: View {
             VStack(alignment: .leading, spacing: 28) {
                 VStack(alignment: .leading, spacing: 7) {
                     MicroLabel("Personalize Plated")
-                    Text("Make it work your way.")
-                        .plType(.display, .semibold)
+                    Text("Make Plated yours.")
+                        .plType(.title, .semibold)
                         .foregroundStyle(Color.ink)
                         .fixedSize(horizontal: false, vertical: true)
                     Text("Control how Plated looks, plans, reminds and syncs.")
@@ -187,6 +187,7 @@ struct SettingsSheet: View {
             Spacer()
             Button("Done") { dismiss() }
                 .plType(.footnote, .bold)
+                .plActionLabel()
                 .foregroundStyle(Color.ink)
                 .padding(.horizontal, 16)
                 .frame(minHeight: 44)
@@ -227,6 +228,7 @@ struct SettingsSheet: View {
                 Spacer(minLength: 8)
                 Text("Edit")
                     .plType(.footnote, .bold)
+                    .plActionLabel()
                     .foregroundStyle(Color.accentText)
                 Image(systemName: "chevron.right")
                     .font(.system(size: 12, weight: .semibold))
@@ -279,6 +281,7 @@ struct SettingsSheet: View {
                         appearancePreview(option)
                         Text(option.label)
                             .plType(.body, .semibold)
+                            .plActionLabel()
                         Spacer()
                         selectionMark(option)
                     }
@@ -288,7 +291,7 @@ struct SettingsSheet: View {
                         HStack(spacing: 5) {
                             Text(option.label)
                                 .plType(.footnote, .semibold)
-                                .lineLimit(1)
+                                .plActionLabel()
                             selectionMark(option)
                         }
                     }

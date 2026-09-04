@@ -448,6 +448,7 @@ struct AskComposerSheet: View {
                                             AvatarCircle(member: member, size: 22)
                                             Text("@\(member.name)")
                                                 .plType(.micro)
+                                                .plActionLabel()
                                         }
                                         .foregroundStyle(active ? Color.canvas : Color.ink)
                                         .padding(.horizontal, 10)

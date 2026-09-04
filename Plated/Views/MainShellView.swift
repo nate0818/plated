@@ -439,8 +439,7 @@ struct MainShellView: View {
     }
 }
 
-/// The floating pill. Active tab is ink, the rest are faint; icons bounce on
-/// tap. The + is the one always-tomato element in the whole app.
+/// Four miniature kitchen objects. Only a deliberate tap plays their motion.
 struct PlateTabBar: View {
     @Binding var selection: AppTab
     /// Tapping the tab already showing. Selection does not change, so
@@ -448,30 +447,18 @@ struct PlateTabBar: View {
     var onReselect: (AppTab) -> Void = { _ in }
     let onCreate: () -> Void
 
+    /// Separate triggers preserve the animator's identity on the first tap.
+    @State private var responseCounts: [AppTab: Int] = [:]
 
     var body: some View {
         HStack(spacing: 0) {
-            tabItem(.week, label: "Plan") {
-                Image(systemName: selection == .week ? "calendar.circle.fill" : "calendar")
-                    .font(.system(size: 22, weight: .medium)).contentTransition(.symbolEffect(.replace))
-            }
-            tabItem(.cookbook, label: "Recipes") {
-                Image(systemName: selection == .cookbook ? "book.closed.fill" : "book.closed")
-                    .font(.system(size: 22, weight: .medium)).contentTransition(.symbolEffect(.replace))
-            }
-            tabItem(.groceries, label: "Groceries") {
-                Image(systemName: selection == .groceries ? "basket.fill" : "basket")
-                    .font(.system(size: 22, weight: .medium)).contentTransition(.symbolEffect(.replace))
-            }
-            tabItem(.table, label: "Table") {
-                Image(systemName: selection == .table ? "bubble.left.and.bubble.right.fill" : "bubble.left.and.bubble.right")
-                    .font(.system(size: 22, weight: .medium)).contentTransition(.symbolEffect(.replace))
-            }
+            tabItem(.week, label: "Plan")
+            tabItem(.cookbook, label: "Recipes")
+            tabItem(.groceries, label: "Groceries")
+            tabItem(.table, label: "Table")
         }
         .padding(.horizontal, 8)
         .frame(height: 68)
-        // At XXXL the five items had 68pt each and "Recipes" wanted 66 of
-        // them, so Recipes and Home touched. See plChrome in Theme.swift.
         .plChrome()
         .background { barSurface }
         .plFloatShadow()
@@ -499,29 +486,34 @@ struct PlateTabBar: View {
         }
     }
 
-    private func tabItem(_ tab: AppTab, label: String, @ViewBuilder icon: () -> some View) -> some View {
+    private func tabItem(_ tab: AppTab, label: String) -> some View {
         let active = selection == tab
         return Button {
             // Selection is the state change; the tick that marks position
             // is `select`, not the `tap` that marks an action. Going back to
             // the top of a tab is a change of position too.
             Haptic.select()
+            responseCounts[tab, default: 0] += 1
             if active {
                 onReselect(tab)
             } else {
                 selection = tab
             }
         } label: {
-            VStack(spacing: 2) {
-                icon()
-                    .frame(width: 52, height: 29)
-                    .background(active ? Color.tomatoTint : Color.clear, in: Capsule())
+            VStack(spacing: 1) {
+                TrayNavigationIcon(tab: tab, active: active, trigger: responseCounts[tab] ?? 0)
+                    .frame(width: 60, height: 37)
+                    .background {
+                        if active {
+                            Capsule().fill(Color.ink)
+                        }
+                    }
                 Text(label)
                     .plType(.micro, active ? TypeWeight.extraBold : .bold)
                     .lineLimit(1)
                     .minimumScaleFactor(0.75)
             }
-            .foregroundStyle(active ? Color.accentText : Color.inkSecondary)
+            .foregroundStyle(active ? Color.ink : Color.inkSecondary)
             .frame(maxWidth: .infinity, minHeight: 66)
             // The most-touched control in the product, and only the glyphs
             // were tappable: `.pressable` draws no surface, so a 66pt column
@@ -531,6 +523,8 @@ struct PlateTabBar: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.pressable)
+        .accessibilityLabel(label)
+        .accessibilityIdentifier("tray-\(tab.rawValue)")
         .accessibilityAddTraits(active ? .isSelected : [])
     }
 }

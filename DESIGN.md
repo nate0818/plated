@@ -8,7 +8,9 @@ and Table as four destinations, with a profile entry on each main screen.
 Recipe photography uses continuous rounded rectangles. Circles remain for
 people and compact icon controls. Keep the original tomato orange for primary
 actions and selected calendar dates; selected text uses the darker accentText
-for contrast. The navigation bar uses system glass with readable labels.
+for contrast. The navigation bar uses system glass with readable labels. Its
+selected icon uses an ink capsule with canvas-colored strokes and an ink label.
+The four tray icons are custom kitchen objects with contextual tap animations.
 The Table keeps Notifications, Create, and Profile in its top bar. Its bell
 shows unread updates with a count and returns to an outline when caught up.
 
@@ -20,6 +22,13 @@ minimizing. Recipe edits do not change the instructions in an active session.
 
 Native screenshots and native interaction tests are the release evidence.
 The HTML preview is a design reference and is not bundled into the iOS app.
+
+Visible action copy is indivisible: a CTA, tab, chip, or segmented-control
+label never wraps. Use the shortest clear visible verb, keep fuller context in
+its accessibility label, and apply `plActionLabel()`. Reflow peer controls
+before type becomes cramped; do not accept a broken two-line button as a valid
+`ViewThatFits` result. At constrained widths, stack actions or collapse grids
+before shrinking below the modifier's legibility floor.
 
 
 How Plated looks, moves, and speaks. `Plated/Support/Theme.swift` is the
@@ -173,12 +182,20 @@ first screen after sign-in opens with its primary button in that state.
 
 ## Motion
 
-- Springs are `plPop`, `plSnap`, `plSettle`. Use them; don't hand-roll durations.
+- Springs are `plPop`, `plSnap`, `plSettle` for ordinary controls. The tray's
+  articulated illustrations use a bounded 0.92-second keyframe sequence.
+- **Tray feedback is contextual and user-triggered.** The user-requested
+  exception to the quiet-icon rule is Plan's turning calendar page, Recipes'
+  closed book opening on selection and turning a leaf on re-tap, Groceries' falling produce and yielding
+  basket, and Table's gathering place setting. Play on the first tap and on
+  subsequent taps, never on launch or while idle. Keep labels still, return
+  every part to rest, and remove the choreography under Reduce Motion.
+  Recipes stays open while selected and closes when another destination is chosen.
 - **An icon may morph into its own opposite. It may never perform about a tap.**
   Magic Replace is allowed exactly where a symbol swaps for its matched pair and
   the swap *is* the state: `bookmark` to `bookmark.fill` on Save, `circle` to
   `checkmark.circle.fill` on a vote, `heart` to `heart.fill` on a favourite.
-  Everything else stays banned: no bouncing tabs, no spinning `+`, no thump on a
+  Outside the tray exception above: no spinning `+`, no thump on a
   plate tap. The test is whether the symbol is showing you what changed or
   celebrating that you touched it. Colour still carries the meaning and the
   haptic still carries the feedback.

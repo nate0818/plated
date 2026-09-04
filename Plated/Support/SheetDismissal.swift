@@ -25,7 +25,10 @@ private struct OutsideSheetTap: UIViewControllerRepresentable {
             host = owner
             self.container = container
             let tap = UITapGestureRecognizer(target: self, action: #selector(outside))
-            tap.cancelsTouchesInView = false
+            // The dismissal tap is complete in itself. Letting the touch
+            // continue after the sheet disappears can press whatever was
+            // underneath it; a tap above Account once opened Add Recipe.
+            tap.cancelsTouchesInView = true
             tap.delegate = self
             container.addGestureRecognizer(tap)
             self.tap = tap

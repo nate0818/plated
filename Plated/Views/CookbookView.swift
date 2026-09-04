@@ -161,7 +161,6 @@ struct CookbookView: View {
     @State private var collection = "All recipes"
     @State private var filterSheetShown = false
     @State private var importShown = false
-    @State private var newRecipeShown = false
     @State private var activityShown = false
     /// Long-press destinations. A grid of plates can't be swiped — the rows
     /// are two wide — so the menu is where a tile's actions live.
@@ -199,7 +198,7 @@ struct CookbookView: View {
             VStack(spacing: 0) {
                 PlatedMasthead(title: "Your recipes") {
                     HStack(spacing: 8) {
-                        DesignIconButton(symbol: "plus", label: "Add or import a recipe", accent: true) { newRecipeShown = true }
+                        DesignIconButton(symbol: "plus", label: "Add or import a recipe", accent: true) { importShown = true }
                         AccountButton()
                     }
                 }.padding(.horizontal, 24)
@@ -309,7 +308,6 @@ struct CookbookView: View {
             .plSwipeBack()
         }
         .sheet(isPresented: $importShown) { RecipeImportSheet() }
-        .sheet(isPresented: $newRecipeShown) { RecipeEditorView() }
         .sheet(isPresented: $filterSheetShown) {
             RecipeFilterSheet(filter: $filter, recipes: recipes)
         }
@@ -362,6 +360,7 @@ struct CookbookView: View {
             } label: {
                 Text("Clear filters")
                     .plType(.footnote, .bold)
+                    .plActionLabel()
                     .foregroundStyle(Color.ink)
                     .padding(.horizontal, 18)
                     .frame(minHeight: 44)
@@ -409,6 +408,7 @@ struct CookbookView: View {
             } label: {
                 Text("Try again")
                     .plType(.footnote, .semibold)
+                    .plActionLabel()
                     .foregroundStyle(Color.ink)
                     .plTapTarget()
             }
@@ -446,28 +446,12 @@ struct CookbookView: View {
                 .plType(.footnote)
                 .foregroundStyle(Color.inkSecondary)
                 .multilineTextAlignment(.center)
-            VStack(spacing: 10) {
-                TomatoPillButton(title: "Add a recipe") { newRecipeShown = true }
-                Button {
-                    Haptic.tap()
-                    importShown = true
-                } label: {
-                    // 56 and .callout, matching the TomatoPillButton
-                    // directly above it. These are peers in one stack and
-                    // the fill-versus-outline already carries which is
-                    // primary; the 8pt height gap and the type step down
-                    // carried nothing. Discover and the seats sheet already
-                    // pair this filled/outlined couple at matched heights.
-                    Text("Paste or scan")
-                        .plType(.callout)
-                        .foregroundStyle(Color.ink)
-                        .frame(maxWidth: .infinity)
-                        .frame(minHeight: 56)
-                        .overlay(Capsule().strokeBorder(Color.hairline, lineWidth: 1.5))
-                        .contentShape(Capsule())
-                }
-                .buttonStyle(.pressable)
-            }
+            // Every entry point opens the same smart creation flow. The old
+            // split sent the masthead + and the primary empty-state button
+            // straight to the legacy form, hiding paste, URL import and scan
+            // from anyone who already owned a recipe. Manual entry remains
+            // inside this sheet as "Write it out".
+            TomatoPillButton(title: "Add a recipe") { importShown = true }
             .padding(.top, 8)
         }
         .padding(.horizontal, 34)
@@ -728,6 +712,7 @@ struct RecipeFilterSheet: View {
                     } label: {
                         Text("Clear filters")
                             .plType(.footnote, .semibold)
+                            .plActionLabel()
                             .foregroundStyle(Color.inkSecondary)
                             .plTapTarget()
                     }
@@ -1109,10 +1094,14 @@ struct RecipeDetailView: View {
     private var dockedCTA: some View {
         HStack(spacing: 12) {
             Button { assignShown = true } label: {
-                Label("Plan", systemImage: "calendar.badge.plus").plType(.body, .semibold)
+                Label("Plan", systemImage: "calendar.badge.plus")
+                    .plType(.body, .semibold)
+                    .plActionLabel()
                     .foregroundStyle(Color.ink).padding(.horizontal, 20).frame(minHeight: 54)
                     .background(Color.fill, in: Capsule()).contentShape(Capsule())
-            }.buttonStyle(.pressable)
+            }
+            .buttonStyle(.pressable)
+            .accessibilityIdentifier("recipe-plan")
             TomatoPillButton(title: ledger.isCooking(recipe) ? "Resume cooking" : "Start cooking", systemImage: "fork.knife") {
                 if let other = allRecipes.first(where: { $0.persistentModelID != recipe.persistentModelID && ledger.isCooking($0) }) { replacingCook = other }
                 else { cookingPresented = true }
@@ -1178,6 +1167,7 @@ struct RecipeDetailView: View {
                         .font(.system(size: 13, weight: .semibold))
                     Text("Edit")
                         .plType(.footnote, .bold)
+                        .plActionLabel()
                 }
                 .foregroundStyle(Color.ink)
                 .padding(.horizontal, 14)
@@ -1436,6 +1426,7 @@ struct RecipeDetailView: View {
                          ? "Took \(Recipe.durationText(meal.actualMinutes))"
                          : "Add the actual time")
                         .plType(.footnote, .semibold)
+                        .plActionLabel(0.72)
                     Spacer()
                     Image(systemName: "chevron.up.chevron.down")
                         .font(.system(size: 10, weight: .semibold))
@@ -1468,7 +1459,7 @@ struct RecipeDetailView: View {
                     .font(.system(size: 13, weight: .semibold))
                 Text(title)
                     .plType(.caption, .semibold)
-                    .lineLimit(1)
+                    .plActionLabel()
             }
             .foregroundStyle(selected ? Color.canvas : Color.ink)
             .frame(maxWidth: .infinity)
@@ -1636,6 +1627,7 @@ struct RecipeDetailView: View {
             } label: {
                 Text("Serves \(shown)")
                     .plType(.footnote, .bold)
+                    .plActionLabel()
                     .foregroundStyle(Color.ink)
                     .padding(.horizontal, 13)
                     .frame(minHeight: 38)

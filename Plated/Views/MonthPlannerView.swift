@@ -54,7 +54,11 @@ struct MonthPlannerView: View {
                     Text(calendar.isDateInToday(anchor) ? "Today" : anchor.formatted(.dateTime.weekday(.wide).month(.abbreviated).day()))
                         .plType(.body, .bold)
                     Spacer()
-                    Button { planSlot = .dinner; planDay = anchor } label: { Label("Plan", systemImage: "plus").plTapTarget() }
+                    Button { planSlot = .dinner; planDay = anchor } label: {
+                        Label("Plan", systemImage: "plus")
+                            .plActionLabel()
+                            .plTapTarget()
+                    }
                         .plType(.footnote, .bold)
                         .disabled(anchor < Date.now.startOfDay)
                 }
@@ -66,7 +70,9 @@ struct MonthPlannerView: View {
                         ], actionLabel: "Actions for this day") {
                             Button { planSlot = .dinner; planDay = anchor } label: {
                                 Label("Plan dinner", systemImage: "plus")
-                                    .plType(.body).frame(maxWidth: .infinity, minHeight: 72, alignment: .leading)
+                                    .plType(.body)
+                                    .plActionLabel()
+                                    .frame(maxWidth: .infinity, minHeight: 72, alignment: .leading)
                                     .contentShape(Rectangle())
                             }.buttonStyle(.plain)
                         }

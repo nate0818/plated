@@ -183,7 +183,9 @@ struct PersonProfileView: View {
                 HStack(spacing: 0) {
                     ForEach(isMe ? ["Dishes", "Conversations", "Saved"] : ["Dishes", "Conversations"], id: \.self) { tab in
                         Button { Haptic.select(); withAnimation(.plSnap) { profileTab = tab } } label: {
-                            Text(tab).plType(.footnote, profileTab == tab ? .semibold : .regular)
+                            Text(tab)
+                                .plType(.footnote, profileTab == tab ? .semibold : .regular)
+                                .plActionLabel(0.7)
                                 .foregroundStyle(profileTab == tab ? Color.accentText : Color.inkSecondary)
                                 .frame(maxWidth: .infinity, minHeight: 48)
                                 .overlay(alignment: .bottom) { Rectangle().fill(profileTab == tab ? Color.tomato : Color.hairline).frame(height: profileTab == tab ? 2 : 0.5) }
@@ -390,6 +392,7 @@ struct PersonProfileView: View {
         } label: {
             Text(label)
                 .plType(.footnote, .bold)
+                .plActionLabel()
                 .foregroundStyle(Color.ink)
                 .padding(.horizontal, 16)
                 .frame(minHeight: 36)
@@ -518,6 +521,7 @@ struct EditProfileSheet: View {
                     Image(systemName: "person.crop.circle.badge.checkmark")
                         .font(.system(size: 15, weight: .semibold))
                     Text("Use my contact photo").plType(.footnote, .bold)
+                        .plActionLabel(0.72)
                 }
                 .foregroundStyle(Color.ink)
                 .padding(.horizontal, 16)

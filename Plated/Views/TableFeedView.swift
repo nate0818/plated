@@ -237,6 +237,7 @@ struct TableFeedView: View {
             } label: {
                 Text("Post a dish")
                     .plType(.body, .bold)
+                    .plActionLabel()
                     .foregroundStyle(Color.onTomato)
                     .padding(.horizontal, 24)
                     .frame(minHeight: 44)
@@ -276,6 +277,7 @@ struct TableFeedView: View {
                 // is the whole argument for the shared atoms.
                 Text("Try again")
                     .plType(.callout)
+                    .plActionLabel()
                     .foregroundStyle(Color.ink)
                     .padding(.horizontal, 24)
                     .frame(minHeight: 44)
@@ -722,6 +724,7 @@ struct TableFeedView: View {
                 } label: {
                     Text(option.rawValue)
                         .plType(.footnote, .bold)
+                        .plActionLabel()
                         .foregroundStyle(active ? Color.ink : Color.inkSecondary)
                         .frame(maxWidth: .infinity)
                         .frame(minHeight: 40)
@@ -918,6 +921,7 @@ struct TableFeedView: View {
                 } label: {
                     Text("more")
                         .plType(.footnote, .semibold)
+                        .plActionLabel()
                         .foregroundStyle(Color.inkSecondary)
                         .frame(minHeight: 44)
                         .contentShape(Rectangle())
@@ -977,6 +981,7 @@ struct TableFeedView: View {
                             .contentTransition(.symbolEffect(.replace.magic(fallback: .replace.downUp)))
                         Text(saved ? "Saved" : "Save")
                             .plType(.footnote, .bold)
+                            .plActionLabel()
                     }
                     .foregroundStyle(Color.inkSecondary)
                     .frame(minHeight: 44)
@@ -1005,6 +1010,7 @@ struct TableFeedView: View {
                      ? "See all \(post.sortedComments.count) comments"
                      : "Add a comment")
                     .plType(.caption, .semibold)
+                    .plActionLabel(0.72)
                     .foregroundStyle(Color.inkSecondary)
                     .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                     .contentShape(Rectangle())
@@ -1208,6 +1214,7 @@ struct TableFeedView: View {
                      ? "See all \(post.sortedComments.count) suggestions"
                      : "Suggest a dish")
                     .plType(.caption, .semibold)
+                    .plActionLabel(0.72)
                     .foregroundStyle(Color.inkSecondary)
                     .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                     .contentShape(Rectangle())

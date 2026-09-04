@@ -36,6 +36,7 @@ struct CookingFocusView: View {
                     } label: {
                         Text("End")
                             .plType(.footnote, .semibold)
+                            .plActionLabel()
                             .foregroundStyle(Color.ink)
                             .padding(.horizontal, 14)
                             .frame(minHeight: 44)
@@ -73,7 +74,10 @@ struct CookingFocusView: View {
                                     Button("\(minutes) min") { startTimer(minutes) }
                                 }
                             } label: {
-                                Label("Set timer", systemImage: "timer").plType(.footnote).foregroundStyle(Color.ink)
+                                Label("Set timer", systemImage: "timer")
+                                    .plType(.footnote)
+                                    .plActionLabel()
+                                    .foregroundStyle(Color.ink)
                                     .padding(.horizontal, 16).frame(minHeight: 44).background(Color.fill, in: Capsule())
                             }
                         }

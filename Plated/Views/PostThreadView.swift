@@ -122,6 +122,7 @@ struct PostThreadView: View {
                                     Text("@\(name)")
                                         .matchedTransitionSource(id: ZoomID.person(name), in: zoom)
                                         .plType(.micro)
+                                        .plActionLabel()
                                         .foregroundStyle(Color.ink)
                                         .padding(.horizontal, 10)
                                         .frame(minHeight: 30)
@@ -299,6 +300,7 @@ struct PostThreadView: View {
                     } label: {
                         Text("Save")
                             .plType(.footnote, .bold)
+                            .plActionLabel()
                             .foregroundStyle(Color.ink)
                             .padding(.horizontal, 14)
                             .frame(minHeight: 36)
@@ -484,6 +486,7 @@ struct PostThreadView: View {
                 } label: {
                     Text("Reply")
                         .plType(.micro)
+                        .plActionLabel()
                         .foregroundStyle(Color.inkSecondary)
                         .frame(minWidth: 44, minHeight: 44, alignment: .leading)
                         .contentShape(Rectangle())
@@ -628,6 +631,7 @@ struct PostThreadView: View {
                                     Text(member.name)
                                         .plName()
                                         .plType(.micro)
+                                        .plActionLabel()
                                         .foregroundStyle(Color.ink)
                                 }
                                 .padding(.horizontal, 10)

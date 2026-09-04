@@ -29,6 +29,7 @@ struct ActivityBellButton: View {
                     if !unread.isEmpty {
                         Text(unread.count > 9 ? "9+" : "\(unread.count)")
                             .plType(.micro, .extraBold)
+                            .plActionLabel()
                             .foregroundStyle(Color.onTomato)
                             .contentTransition(.numericText())
                             .padding(.horizontal, 4)

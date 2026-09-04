@@ -186,6 +186,7 @@ struct ContactsView: View {
                     } label: {
                         Text("Not now")
                             .plType(.body)
+                            .plActionLabel()
                             .foregroundStyle(Color.inkSecondary)
                             .plTapTarget()
                     }
@@ -309,6 +310,7 @@ struct ContactsView: View {
                 } label: {
                     Text("Invite")
                         .plType(.footnote, .bold)
+                        .plActionLabel()
                         .foregroundStyle(Color.onTomato)
                         .padding(.horizontal, 18)
                         .frame(minHeight: 36)

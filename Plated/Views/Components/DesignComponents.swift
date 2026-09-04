@@ -76,7 +76,9 @@ struct DesignChip: View {
         Button { Haptic.select(); action() } label: {
             HStack(spacing: 6) {
                 if let symbol { Image(systemName: symbol).font(.system(size: 13, weight: .medium)) }
-                Text(title).plType(.footnote, selected ? .semibold : .regular)
+                Text(title)
+                    .plType(.footnote, selected ? .semibold : .regular)
+                    .plActionLabel()
             }
             .foregroundStyle(selected ? Color.onTomato : Color.inkSecondary)
             .padding(.horizontal, 16).frame(minHeight: 44)

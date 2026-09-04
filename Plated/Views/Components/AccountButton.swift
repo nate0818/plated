@@ -79,8 +79,8 @@ struct AccountHomeView: View {
             VStack(alignment: .leading, spacing: 26) {
                 VStack(alignment: .leading, spacing: 8) {
                     MicroLabel("Your Plated")
-                    Text("A place that feels like you.")
-                        .plType(.display, .semibold)
+                    Text("Your place at the table.")
+                        .plType(.title, .semibold)
                         .foregroundStyle(Color.ink)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -90,7 +90,7 @@ struct AccountHomeView: View {
 
                 VStack(alignment: .leading, spacing: 12) {
                     MicroLabel("Your spaces")
-                    LazyVGrid(columns: spaceColumns, spacing: 12) {
+                    VStack(spacing: 10) {
                         spaceCard(
                             icon: "house.fill",
                             eyebrow: householdEyebrow,
@@ -239,9 +239,12 @@ struct AccountHomeView: View {
                     Spacer(minLength: 0)
                 }
 
-                ViewThatFits(in: .horizontal) {
-                    HStack(spacing: 10) { profileButton; editButton }
-                    VStack(spacing: 10) { profileButton; editButton }
+                Group {
+                    if typeSize >= .xxLarge {
+                        VStack(spacing: 10) { profileButton; editButton }
+                    } else {
+                        HStack(spacing: 10) { profileButton; editButton }
+                    }
                 }
             }
             .padding(20)
@@ -265,8 +268,9 @@ struct AccountHomeView: View {
             Haptic.select()
             sheet = .profile
         } label: {
-            Label("View profile", systemImage: "person.crop.circle")
+            Label("Profile", systemImage: "person.crop.circle")
                 .plType(.footnote, .bold)
+                .plActionLabel()
                 .foregroundStyle(Color.onTomato)
                 .padding(.horizontal, 17)
                 .frame(maxWidth: .infinity, minHeight: 48)
@@ -275,6 +279,7 @@ struct AccountHomeView: View {
         }
         .buttonStyle(.pressable)
         .accessibilityIdentifier("account-view-your-table-profile")
+        .accessibilityLabel("View your Table profile")
     }
 
     private var editButton: some View {
@@ -284,6 +289,7 @@ struct AccountHomeView: View {
         } label: {
             Label("Edit", systemImage: "pencil")
                 .plType(.footnote, .bold)
+                .plActionLabel()
                 .foregroundStyle(Color.ink)
                 .padding(.horizontal, 17)
                 .frame(maxWidth: .infinity, minHeight: 48)
@@ -293,13 +299,6 @@ struct AccountHomeView: View {
         }
         .buttonStyle(.pressable)
         .accessibilityIdentifier("account-edit-profile")
-    }
-
-    private var spaceColumns: [GridItem] {
-        Array(
-            repeating: GridItem(.flexible(), spacing: 12),
-            count: typeSize >= .accessibility1 ? 1 : 2
-        )
     }
 
     private var householdEyebrow: String {
@@ -342,20 +341,14 @@ struct AccountHomeView: View {
             Haptic.select()
             action()
         } label: {
-            VStack(alignment: .leading, spacing: 14) {
-                HStack {
-                    Image(systemName: icon)
-                        .font(.system(size: 17, weight: .semibold))
-                        .foregroundStyle(tone)
-                        .frame(width: 42, height: 42)
-                        .background(tint, in: Circle())
-                        .plChrome()
-                    Spacer()
-                    Image(systemName: "arrow.up.right")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(Color.inkSecondary)
-                        .plChrome()
-                }
+            HStack(spacing: 14) {
+                Image(systemName: icon)
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(tone)
+                    .frame(width: 44, height: 44)
+                    .background(tint, in: Circle())
+                    .plChrome()
+
                 VStack(alignment: .leading, spacing: 4) {
                     MicroLabel(eyebrow)
                     Text(title)
@@ -367,9 +360,12 @@ struct AccountHomeView: View {
                         .foregroundStyle(Color.inkSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
+
+                Spacer(minLength: 8)
             }
-            .padding(17)
-            .frame(maxWidth: .infinity, minHeight: 160, alignment: .topLeading)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
+            .frame(maxWidth: .infinity, minHeight: 92, alignment: .leading)
             .background(Color.raisedFill, in: Radius.shape(Radius.card))
             .overlay(Radius.shape(Radius.card).strokeBorder(Color.hairline))
             .contentShape(Radius.shape(Radius.card))
@@ -450,10 +446,6 @@ struct AccountHomeView: View {
                     .foregroundStyle(Color.inkSecondary)
                     .lineLimit(1)
             }
-            Image(systemName: "chevron.right")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(Color.inkFaint)
-                .plChrome()
         }
         .padding(.horizontal, 15)
         .padding(.vertical, typeSize >= .accessibility1 ? 12 : 0)

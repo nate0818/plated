@@ -1137,6 +1137,7 @@ struct AddMemberSheet: View {
         } label: {
             Text(label)
                 .plType(.footnote, .bold)
+                .plActionLabel()
                 .foregroundStyle(active ? Color.canvas : Color.ink)
                 .frame(maxWidth: .infinity)
                 .frame(minHeight: 40)

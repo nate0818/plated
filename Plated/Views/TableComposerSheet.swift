@@ -97,6 +97,7 @@ struct TableComposerSheet: View {
                                                 AvatarCircle(member: member, size: 22)
                                                 Text("@\(member.name)")
                                                     .plType(.micro)
+                                                    .plActionLabel()
                                             }
                                             .foregroundStyle(active ? Color.canvas : Color.ink)
                                             .padding(.horizontal, 10)
@@ -203,6 +204,7 @@ struct TableComposerSheet: View {
                                 .font(.system(size: 11, weight: .semibold))
                             Text("Change")
                                 .plType(.micro)
+                                .plActionLabel()
                         }
                         .foregroundStyle(Color.onScrim)
                         .padding(.horizontal, 10)

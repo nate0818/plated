@@ -26,7 +26,7 @@ struct AwardsGalleryView: View {
     private var columns: [GridItem] {
         Array(
             repeating: GridItem(.flexible(), spacing: 12),
-            count: typeSize >= .accessibility1 ? 1 : 2
+            count: typeSize >= .xxLarge ? 1 : 2
         )
     }
 
@@ -36,7 +36,7 @@ struct AwardsGalleryView: View {
                 VStack(alignment: .leading, spacing: 7) {
                     MicroLabel("Kitchen story")
                     Text(showsProgress ? "Small wins, worth keeping." : "\(personName)'s kitchen story.")
-                        .plType(.display, .semibold)
+                        .plType(.title, .semibold)
                         .foregroundStyle(Color.ink)
                         .fixedSize(horizontal: false, vertical: true)
                     Text("Awards celebrate planning, cooking and bringing people together. They never expire.")
@@ -84,6 +84,7 @@ struct AwardsGalleryView: View {
             Spacer()
             Button("Done") { dismiss() }
                 .plType(.footnote, .bold)
+                .plActionLabel()
                 .foregroundStyle(Color.ink)
                 .padding(.horizontal, 16)
                 .frame(minHeight: 44)
@@ -165,6 +166,7 @@ struct AwardsGalleryView: View {
                 } label: {
                     Text(option.label)
                         .plType(.footnote, filter == option ? .bold : .medium)
+                        .plActionLabel(0.72)
                         .foregroundStyle(filter == option ? Color.ink : Color.inkSecondary)
                         .frame(maxWidth: .infinity, minHeight: 44)
                         .background(filter == option ? Color.raisedFill : .clear, in: Capsule())
@@ -279,10 +281,6 @@ struct AwardsPreviewCard: View {
                             .foregroundStyle(Color.inkSecondary)
                     }
                     Spacer()
-                    Image(systemName: "arrow.up.right")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(Color.inkSecondary)
-                        .plChrome()
                 }
 
                 if featured.isEmpty {
@@ -350,10 +348,6 @@ struct AwardsHighlightShelf: View {
                     Text("See all")
                         .plType(.caption, .bold)
                         .foregroundStyle(Color.accentText)
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(Color.inkFaint)
-                        .plChrome()
                 }
                 if visible.isEmpty {
                     Text("New kitchen stories are taking shape.")

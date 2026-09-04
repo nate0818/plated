@@ -204,47 +204,14 @@ struct WeekView: View {
     private var portraitPlan: some View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 18) {
-                HStack(spacing: 2) {
-                    ForEach(weekDates, id: \.self) { date in
-                        let selected = Calendar.current.isDate(date, inSameDayAs: weekAnchor)
-                        Button {
-                            Haptic.select()
-                            withAnimation(.plSnap) { weekAnchor = date; swipedDay = nil }
-                        } label: {
-                            VStack(spacing: 5) {
-                                Text(date.formattedWeekday()).plType(.caption, .medium)
-                                Text(date.formattedDayNumber()).plType(.heading, .semibold).monospacedDigit()
-                                Circle().fill(dinner(on: date) == nil ? Color.clear : selected ? Color.onTomato : Color.inkSecondary).frame(width: 4, height: 4)
-                            }
-                            .foregroundStyle(selected ? Color.onTomato : Color.inkSecondary)
-                            .frame(maxWidth: .infinity).padding(.vertical, 8)
-                            .background(selected ? Color.tomato : dropHoverDay == date ? Color.tomatoTint : Color.clear, in: Radius.shape(Radius.chip))
-                            .contentShape(Rectangle())
-                        }.buttonStyle(.plain).accessibilityAddTraits(selected ? .isSelected : [])
-                            .accessibilityLabel(date.formatted(.dateTime.weekday(.wide).month().day()))
-                            .accessibilityIdentifier("week-date-\(date.formattedDayNumber())")
-                            .dropDestination(for: String.self) { tokens, _ in
-                                moveMeal(from: tokens.first, to: date)
-                            } isTargeted: { over in
-                                if over, !isPast(date) { dropHoverDay = date }
-                                else if dropHoverDay == date { dropHoverDay = nil }
-                            }
-                    }
-                }
-                .plChrome()
-                .contentShape(Rectangle())
-                .simultaneousGesture(
-                    DragGesture(minimumDistance: 18)
-                        .onEnded { gesture in
-                            let drag = gesture.translation
-                            guard abs(drag.width) > abs(drag.height) * 1.25 else { return }
-
-                            let projectedWidth = gesture.predictedEndTranslation.width
-                            guard abs(projectedWidth) >= 44 else { return }
-                            shiftWeek(projectedWidth < 0 ? 1 : -1)
-                        }
+                PlanDateStrip(
+                    selection: $weekAnchor,
+                    dropHoverDay: $dropHoverDay,
+                    hasDinner: { dinner(on: $0) != nil },
+                    canAcceptDrop: { !isPast($0) },
+                    moveMeal: { moveMeal(from: $0, to: $1) },
+                    selectionChanged: { swipedDay = nil }
                 )
-                .accessibilityHint("Swipe left or right to change weeks")
                 featuredDinner
                 HStack {
                     Text("This week").plType(.title, .semibold)
@@ -292,7 +259,9 @@ struct WeekView: View {
                         .plType(.footnote).foregroundStyle(Color.inkSecondary)
                     Spacer()
                     Button { planDay = weekAnchor } label: {
-                        Label("Serves \(meal.servings)", systemImage: "person.2").plType(.footnote)
+                        Label("Serves \(meal.servings)", systemImage: "person.2")
+                            .plType(.footnote)
+                            .plActionLabel()
                             .foregroundStyle(Color.ink).padding(.horizontal, 12).frame(minHeight: 44)
                             .background(Color.fill, in: Capsule())
                     }.buttonStyle(.pressable).accessibilityLabel("Change servings and cook")
@@ -336,6 +305,7 @@ struct WeekView: View {
                 withAnimation(.plSnap) { weekAnchor = .now.startOfDay }
             }
             .plType(.footnote, .bold)
+            .plActionLabel()
             .foregroundStyle(Color.ink)
             .plTapTarget()
             if !showMonth {
@@ -470,9 +440,9 @@ struct WeekView: View {
             .accessibilityElement(children: .combine)
             .accessibilityAddTraits(.isButton)
             .accessibilityHint("Opens the day")
+            .accessibilityIdentifier(Self.mealAccessibilityIdentifier(for: date))
         }
         .modifier(PlannerMealDrag(meal: meal))
-        .accessibilityIdentifier("week-meal-\(date.formattedDayNumber())")
         .dropDestination(for: String.self) { tokens, _ in
             moveMeal(from: tokens.first, to: date)
         } isTargeted: { over in
@@ -1042,6 +1012,217 @@ struct WeekView: View {
             if bounceDay == target { bounceDay = nil }
         }
         return true
+    }
+
+    private static func mealAccessibilityIdentifier(for date: Date) -> String {
+        let components = Calendar.current.dateComponents([.year, .month, .day], from: date)
+        return "week-meal-\(components.year ?? 0)-\(components.month ?? 0)-\(components.day ?? 0)"
+    }
+}
+
+/// A day picker, not a disguised pair of week buttons. The old strip stayed
+/// perfectly still under the finger and replaced all seven dates only after a
+/// swipe ended. That made a direct manipulation feel like clicking a carousel.
+///
+/// This strip uses the system scroll physics, keeps the selected day centered,
+/// and adopts the date crossing that center line while the finger is moving.
+/// Each crossed day gets the quiet selection tick used by native pickers.
+private struct PlanDateStrip: View {
+    @Binding var selection: Date
+    @Binding var dropHoverDay: Date?
+
+    let hasDinner: (Date) -> Bool
+    let canAcceptDrop: (Date) -> Bool
+    let moveMeal: (String?, Date) -> Bool
+    let selectionChanged: () -> Void
+
+    @State private var dates: [Date]
+    @State private var scrollPosition: Date?
+    @State private var scrollPhase: ScrollPhase = .idle
+    @State private var centeredIndex: Int?
+    @State private var userIsScrubbing = false
+
+    private let cellWidth: CGFloat = 46
+    private let cellSpacing: CGFloat = 2
+
+    init(
+        selection: Binding<Date>,
+        dropHoverDay: Binding<Date?>,
+        hasDinner: @escaping (Date) -> Bool,
+        canAcceptDrop: @escaping (Date) -> Bool,
+        moveMeal: @escaping (String?, Date) -> Bool,
+        selectionChanged: @escaping () -> Void
+    ) {
+        self._selection = selection
+        self._dropHoverDay = dropHoverDay
+        self.hasDinner = hasDinner
+        self.canAcceptDrop = canAcceptDrop
+        self.moveMeal = moveMeal
+        self.selectionChanged = selectionChanged
+
+        let day = Calendar.current.startOfDay(for: selection.wrappedValue)
+        let initialDates = Self.makeDates(around: day)
+        self._dates = State(initialValue: initialDates)
+        // Start nil and assign after the scroll view exists. Supplying an ID
+        // before the lazy stack's first layout leaves that ID as the first
+        // materialized cell, with an empty half-strip to its left.
+        self._scrollPosition = State(initialValue: nil)
+        self._centeredIndex = State(initialValue: initialDates.firstIndex(of: day))
+    }
+
+    var body: some View {
+        GeometryReader { proxy in
+            let centerInset = max(0, (proxy.size.width - cellWidth) / 2)
+
+            ScrollView(.horizontal) {
+                // Materialize only the visible runway. Building 731 buttons
+                // eagerly bloats the accessibility tree and can exhaust a
+                // phone during a drag. The scroll position starts nil and is
+                // assigned after layout, avoiding the old half-empty initial
+                // frame while retaining native continuous physics.
+                LazyHStack(spacing: cellSpacing) {
+                    ForEach(dates, id: \.self) { date in
+                        dayButton(date)
+                            .frame(width: cellWidth)
+                            .id(date)
+                    }
+                }
+                .scrollTargetLayout()
+            }
+            .scrollIndicators(.hidden)
+            .contentMargins(.horizontal, centerInset, for: .scrollContent)
+            .scrollPosition(id: $scrollPosition, anchor: .center)
+            .scrollTargetBehavior(.viewAligned(limitBehavior: .alwaysByFew))
+            .onScrollPhaseChange { _, phase in
+                scrollPhase = phase
+                if phase == .tracking {
+                    userIsScrubbing = true
+                    Haptic.prepare()
+                }
+
+                // A very short drag can move through the final threshold as
+                // the view snaps. Commit the resting date even when there was
+                // no deceleration callback between the two geometry samples.
+                if phase == .idle,
+                   userIsScrubbing,
+                   let centeredIndex,
+                   dates.indices.contains(centeredIndex) {
+                    adopt(dates[centeredIndex], haptic: false)
+                    userIsScrubbing = false
+                }
+            }
+            .onScrollGeometryChange(for: Int?.self) { geometry in
+                let stride = cellWidth + cellSpacing
+                guard stride > 0, !dates.isEmpty else { return nil }
+                let offset = geometry.contentOffset.x + geometry.contentInsets.leading
+                let index = Int((offset / stride).rounded())
+                return min(max(index, dates.startIndex), dates.index(before: dates.endIndex))
+            } action: { oldIndex, newIndex in
+                centeredIndex = newIndex
+                guard newIndex != oldIndex,
+                      scrollPhase == .interacting || scrollPhase == .decelerating,
+                      let newIndex,
+                      dates.indices.contains(newIndex)
+                else { return }
+                adopt(dates[newIndex], haptic: true)
+            }
+            .onChange(of: selection) { _, value in
+                let day = Calendar.current.startOfDay(for: value)
+                guard scrollPhase == .idle else { return }
+
+                if !dates.contains(day) {
+                    dates = Self.makeDates(around: day)
+                    centeredIndex = dates.firstIndex(of: day)
+                }
+                guard scrollPosition != day else { return }
+                withAnimation(.plSnap) { scrollPosition = day }
+            }
+            .onAppear {
+                scrollPosition = Calendar.current.startOfDay(for: selection)
+            }
+        }
+        .frame(height: 76)
+        .plChrome()
+        .accessibilityHint("Swipe left or right to choose a date")
+    }
+
+    private func dayButton(_ date: Date) -> some View {
+        let selected = Calendar.current.isDate(date, inSameDayAs: selection)
+        let hovering = dropHoverDay.map { Calendar.current.isDate($0, inSameDayAs: date) } == true
+
+        return Button {
+            Haptic.select()
+            selectionChanged()
+            withAnimation(.plSnap) {
+                selection = date
+                scrollPosition = date
+            }
+        } label: {
+            VStack(spacing: 5) {
+                Text(date.formattedWeekday())
+                    .plType(.caption, .medium)
+                Text(date.formattedDayNumber())
+                    .plType(.heading, .semibold)
+                    .monospacedDigit()
+                Circle()
+                    .fill(hasDinner(date) ? (selected ? Color.onTomato : Color.inkSecondary) : Color.clear)
+                    .frame(width: 4, height: 4)
+            }
+            .foregroundStyle(selected ? Color.onTomato : Color.inkSecondary)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 8)
+            .background(
+                selected ? Color.tomato : hovering ? Color.tomatoTint : Color.clear,
+                in: Radius.shape(Radius.chip)
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.pressable)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+        .accessibilityLabel(date.formatted(.dateTime.weekday(.wide).month().day()))
+        // The strip spans two years. A day-of-month identifier produced up
+        // to 24 indistinguishable controls for Voice Control and UI tests.
+        // Keep the spoken label human and make the programmatic identity a
+        // complete calendar date.
+        .accessibilityIdentifier(Self.accessibilityIdentifier(for: date))
+        .dropDestination(for: String.self) { tokens, _ in
+            moveMeal(tokens.first, date)
+        } isTargeted: { over in
+            if over, canAcceptDrop(date) {
+                dropHoverDay = date
+            } else if dropHoverDay.map({ Calendar.current.isDate($0, inSameDayAs: date) }) == true {
+                dropHoverDay = nil
+            }
+        }
+    }
+
+    private func adopt(_ date: Date, haptic: Bool) {
+        let day = Calendar.current.startOfDay(for: date)
+        guard !Calendar.current.isDate(day, inSameDayAs: selection) else { return }
+        if haptic { Haptic.select() }
+        selectionChanged()
+
+        // Rebuilding the featured card at every crossed day must not queue a
+        // train of animations behind the finger. The strip itself supplies
+        // all the movement; the content simply stays truthful to its center.
+        var transaction = Transaction()
+        transaction.animation = nil
+        withTransaction(transaction) { selection = day }
+    }
+
+    private static func makeDates(around center: Date) -> [Date] {
+        let calendar = Calendar.current
+        let center = calendar.startOfDay(for: center)
+        // A full year in either direction is a generous continuous runway;
+        // date-picker and week-arrow jumps rebuild it around any destination.
+        return (-365...365).compactMap {
+            calendar.date(byAdding: .day, value: $0, to: center)
+        }
+    }
+
+    private static func accessibilityIdentifier(for date: Date) -> String {
+        let components = Calendar.current.dateComponents([.year, .month, .day], from: date)
+        return "week-date-\(components.year ?? 0)-\(components.month ?? 0)-\(components.day ?? 0)"
     }
 }
 

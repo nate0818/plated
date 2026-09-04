@@ -398,7 +398,9 @@ struct GrocerySheet: View {
                         }.frame(maxWidth: .infinity, alignment: .leading)
                         Image(systemName: "chevron.right").font(.system(size: 12))
                     }.padding(16).background(Color.fill, in: Radius.shape(Radius.chip)).contentShape(Rectangle())
-                }.buttonStyle(.pressable)
+                }
+                .buttonStyle(.pressable)
+                .accessibilityIdentifier("grocery-meal-selector")
             }
             HStack {
                 Text("\(currentItems.count - unchecked.count) of \(currentItems.count) checked")

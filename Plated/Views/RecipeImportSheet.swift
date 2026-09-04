@@ -292,6 +292,7 @@ struct RecipeImportSheet: View {
             } label: {
                 Text("Write it out")
                     .plType(.footnote, .bold)
+                    .plActionLabel()
                     .foregroundStyle(Color.ink)
                     .frame(maxWidth: .infinity)
                     .plTapTarget()

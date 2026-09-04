@@ -115,6 +115,7 @@ struct ProfileSetupView: View {
                 } label: {
                     Text("Not now")
                         .plType(.body)
+                        .plActionLabel()
                         .foregroundStyle(Color.inkSecondary)
                         .plTapTarget()
                 }

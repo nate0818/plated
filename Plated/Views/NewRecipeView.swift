@@ -1,7 +1,14 @@
 import SwiftUI
 import SwiftData
 import PhotosUI
-import UniformTypeIdentifiers
+
+private struct RecipeStepFrameKey: PreferenceKey {
+    static let defaultValue: [UUID: CGRect] = [:]
+
+    static func reduce(value: inout [UUID: CGRect], nextValue: () -> [UUID: CGRect]) {
+        value.merge(nextValue(), uniquingKeysWith: { _, latest in latest })
+    }
+}
 
 /// The recipe editor — one surface for three doors: the + button (blank),
 /// "edit" on a dish you own, and "save" on a table post (prefilled, tweak
@@ -49,7 +56,10 @@ struct RecipeEditorView: View {
     /// Which field the keyboard is in. `AnyHashable` because the rows are
     /// addressed by their own ids and the fixed fields by name.
     @FocusState private var focused: AnyHashable?
+    @State private var draggingStep: UUID?
+    @State private var stepDragOffset: CGSize = .zero
     @State private var stepDropTarget: UUID?
+    @State private var stepFrames: [UUID: CGRect] = [:]
 
     /// The row the keyboard is currently in, if it is one that can move.
     private var movableRow: (list: RowList, index: Int)? {
@@ -66,55 +76,62 @@ struct RecipeEditorView: View {
 
     private enum RowList { case ingredients, steps }
 
-    private static let stepDragType = UTType(exportedAs: "com.natemeadows.plated.recipe-step", conformingTo: .data)
-
-    private func stepProvider(_ step: DraftStep) -> NSItemProvider {
-        focused = nil
+    /// Commit only on release. Cancelling a lift leaves the draft untouched;
+    /// Save remains the only writer to the stored recipe.
+    private func receiveStep(_ id: UUID, at target: UUID) {
+        guard
+              let from = draftSteps.firstIndex(where: { $0.id == id }),
+              let to = draftSteps.firstIndex(where: { $0.id == target }),
+              from != to
+        else { return }
         Haptic.plate()
-        let provider = NSItemProvider()
-        provider.registerDataRepresentation(forTypeIdentifier: Self.stepDragType.identifier, visibility: .ownProcess) { completion in
-            completion(Data(step.id.uuidString.utf8), nil)
-            return nil
+        withAnimation(.plSnap) {
+            let step = draftSteps.remove(at: from)
+            draftSteps.insert(step, at: to)
         }
-        return provider
     }
 
-    /// Commit only on a completed native drop. Cancelling a lift leaves the
-    /// draft untouched; Save remains the only writer to the stored recipe.
-    private func receiveStep(_ providers: [NSItemProvider], at target: UUID) -> Bool {
-        guard let provider = providers.first(where: { $0.hasItemConformingToTypeIdentifier(Self.stepDragType.identifier) }) else { return false }
-        provider.loadDataRepresentation(forTypeIdentifier: Self.stepDragType.identifier) { data, _ in
-            guard let data, let value = String(data: data, encoding: .utf8), let id = UUID(uuidString: value) else { return }
-            Task { @MainActor in
-                stepDropTarget = nil
-                guard let from = draftSteps.firstIndex(where: { $0.id == id }),
-                      let to = draftSteps.firstIndex(where: { $0.id == target }), from != to else { return }
-                Haptic.select()
-                withAnimation(.plSnap) {
-                    let step = draftSteps.remove(at: from)
-                    draftSteps.insert(step, at: to)
+    /// A dedicated handle gesture keeps the text field's first-responder
+    /// state intact. SwiftUI's transferable drag session cancels its drop
+    /// while a field in the same row owns the keyboard; this gesture gives
+    /// the cook continuous lift and target feedback without moving the caret
+    /// or collapsing the editor around the keyboard.
+    private func stepDragGesture(_ id: UUID) -> some Gesture {
+        LongPressGesture(minimumDuration: 0.32, maximumDistance: 14)
+            .sequenced(before: DragGesture(minimumDistance: 0, coordinateSpace: .named("recipe-steps")))
+            .onChanged { phase in
+                switch phase {
+                case .first(true):
+                    guard draggingStep == nil else { return }
+                    draggingStep = id
+                    stepDropTarget = id
+                    Haptic.plate()
+                case .second(true, let drag?):
+                    if draggingStep == nil {
+                        draggingStep = id
+                        Haptic.plate()
+                    }
+                    stepDragOffset = drag.translation
+                    let nearest = stepFrames.min { lhs, rhs in
+                        abs(lhs.value.midY - drag.location.y) < abs(rhs.value.midY - drag.location.y)
+                    }?.key
+                    if let nearest, nearest != stepDropTarget {
+                        stepDropTarget = nearest
+                        Haptic.select()
+                    }
+                default:
+                    break
                 }
             }
-        }
-        return true
-    }
-
-    private func stepDropBinding(_ id: UUID) -> Binding<Bool> {
-        Binding(get: { stepDropTarget == id }, set: { over in
-            withAnimation(.plSnap) {
-                if over { stepDropTarget = id }
-                else if stepDropTarget == id { stepDropTarget = nil }
+            .onEnded { _ in
+                let target = stepDropTarget
+                withAnimation(.plSnap) {
+                    draggingStep = nil
+                    stepDragOffset = .zero
+                    stepDropTarget = nil
+                }
+                if let target { receiveStep(id, at: target) }
             }
-        })
-    }
-
-    private func stepPreview(_ step: DraftStep, index: Int) -> some View {
-        HStack(alignment: .top, spacing: 12) {
-            Text("\(index + 1)").plType(.body, .bold)
-            Text(step.text).plType(.body).lineLimit(4)
-        }
-        .foregroundStyle(Color.ink).padding(16).frame(maxWidth: 300, alignment: .leading)
-        .background(Color.canvas, in: Radius.shape(Radius.card))
     }
 
     private func moveStep(_ id: UUID, by offset: Int) {
@@ -408,6 +425,10 @@ struct RecipeEditorView: View {
             // did this before, so you edited the fourth ingredient with the
             // keyboard sitting on top of it.
             .scrollDismissesKeyboard(.interactively)
+            // Once a handle has lifted, the row owns the vertical gesture.
+            // Freezing the containing scroll view prevents its interactive
+            // keyboard pan from cancelling the reorder on the first move.
+            .scrollDisabled(draggingStep != nil)
 
             if focused != nil {
                 editingBar
@@ -433,8 +454,9 @@ struct RecipeEditorView: View {
                         // Full-strength label on a `fill` capsule instead:
                         // 4.11:1 light, 5.83:1 dark, plainly present and
                         // plainly not ready. Never inkFaint on a word.
-                        Text("Save and plan it for \(nightLabel(night))")
+                        Text("Save and plan for \(nightLabel(night))")
                             .plType(.footnote, .semibold)
+                            .plActionLabel(0.72)
                             .foregroundStyle(Color.inkSecondary)
                             .padding(.horizontal, 16)
                             .frame(minHeight: 44)
@@ -550,6 +572,7 @@ struct RecipeEditorView: View {
             } label: {
                 Text("Cancel")
                     .plType(.body, .bold)
+                    .plActionLabel()
                     .foregroundStyle(Color.inkSecondary)
                     .plTapTarget()
             }
@@ -669,7 +692,9 @@ struct RecipeEditorView: View {
                     .monospacedDigit().lineLimit(1).fixedSize()
                     .frame(minWidth: 44, minHeight: 44).contentShape(Rectangle())
                     .padding(.top, 4)
-                    .onDrag { stepProvider(step) } preview: { stepPreview(step, index: index) }
+                    // Own the handle's drag before the scroll view's
+                    // interactive keyboard-dismiss pan can claim it.
+                    .highPriorityGesture(stepDragGesture(step.id))
                     .accessibilityElement(children: .ignore)
                     .accessibilityLabel("Reorder step \(index + 1)")
                     .accessibilityIdentifier("recipe-step-handle-\(index + 1)")
@@ -681,24 +706,24 @@ struct RecipeEditorView: View {
                     EditableLine(text: $step.text, placeholder: "Step \(index + 1)", focus: $focused, focusID: step.id)
                         .accessibilityLabel("Step \(index + 1)")
                         .accessibilityIdentifier("recipe-step-field-\(index + 1)")
-                        .overlay {
-                            // Unfocused text is a drag surface; focused text
-                            // retains Apple's caret and selection gestures.
-                            if focused as? UUID != step.id {
-                                Color.clear.contentShape(Rectangle())
-                                    .onTapGesture { focused = step.id }
-                                    .onDrag { stepProvider(step) } preview: { stepPreview(step, index: index) }
-                            }
-                        }
                     RemoveLineButton(label: "Remove step \(index + 1)") {
                         draftSteps.removeAll { $0.id == step.id }
                     }
                 }
                 .padding(.horizontal, 4)
-                .background(stepDropTarget == step.id ? Color.fill : Color.clear, in: Radius.shape(Radius.chip))
-                .onDrop(of: [Self.stepDragType], isTargeted: stepDropBinding(step.id)) { providers in
-                    receiveStep(providers, at: step.id)
+                .background {
+                    GeometryReader { proxy in
+                        Color.clear.preference(
+                            key: RecipeStepFrameKey.self,
+                            value: [step.id: proxy.frame(in: .named("recipe-steps"))]
+                        )
+                    }
                 }
+                .background(stepDropTarget == step.id && draggingStep != step.id ? Color.tomatoTint : Color.clear, in: Radius.shape(Radius.chip))
+                .scaleEffect(draggingStep == step.id ? 1.015 : 1)
+                .offset(y: draggingStep == step.id ? stepDragOffset.height : 0)
+                .shadow(color: draggingStep == step.id ? Color.shadowInk.opacity(0.16) : .clear, radius: 14, y: 7)
+                .zIndex(draggingStep == step.id ? 1 : 0)
                 .id(step.id)
             }
             HStack(spacing: 8) {
@@ -710,6 +735,8 @@ struct RecipeEditorView: View {
                 addRoundButton(disabled: stepEntry.trimmingCharacters(in: .whitespaces).isEmpty, label: "Add step", action: addStep)
             }
         }
+        .coordinateSpace(name: "recipe-steps")
+        .onPreferenceChange(RecipeStepFrameKey.self) { stepFrames = $0 }
         .animation(.plSnap, value: draftSteps.map(\.id))
     }
 

@@ -38,9 +38,70 @@ def report(rule, path, n, line, why):
     findings.append((rule, path, n, line.strip(), why))
 
 
+def swift_structure(text):
+    """Blank strings/comments while preserving offsets for brace matching."""
+    out = list(text)
+    i = 0
+    in_string = False
+    block_depth = 0
+    while i < len(text):
+        if block_depth:
+            if text.startswith("/*", i):
+                out[i] = out[i + 1] = " "
+                block_depth += 1
+                i += 2
+            elif text.startswith("*/", i):
+                out[i] = out[i + 1] = " "
+                block_depth -= 1
+                i += 2
+            else:
+                if text[i] != "\n": out[i] = " "
+                i += 1
+        elif in_string:
+            if text[i] == "\\":
+                out[i] = " "
+                i += 1
+                if i < len(text):
+                    if text[i] != "\n": out[i] = " "
+                    i += 1
+            elif text[i] == '"':
+                out[i] = " "
+                in_string = False
+                i += 1
+            else:
+                if text[i] != "\n": out[i] = " "
+                i += 1
+        elif text.startswith("//", i):
+            while i < len(text) and text[i] != "\n":
+                out[i] = " "
+                i += 1
+        elif text.startswith("/*", i):
+            out[i] = out[i + 1] = " "
+            block_depth = 1
+            i += 2
+        elif text[i] == '"':
+            out[i] = " "
+            in_string = True
+            i += 1
+        else:
+            i += 1
+    return "".join(out)
+
+
+def matching_brace(text, opening):
+    depth = 0
+    for index in range(opening, len(text)):
+        if text[index] == "{": depth += 1
+        elif text[index] == "}":
+            depth -= 1
+            if depth == 0: return index
+    return None
+
+
 for path in files:
     rel = str(path.relative_to(root))
-    lines = path.read_text(encoding="utf-8").splitlines()
+    source = path.read_text(encoding="utf-8")
+    lines = source.splitlines()
 
     for i, line in enumerate(lines, 1):
         bare = line.strip()
@@ -80,6 +141,34 @@ for path in files:
             elif re.search(r'\bColor\.(white|black)\b|\.foregroundStyle\(\.(white|black)\)', code):
                 report("literal-colour", rel, i, line,
                        "a literal white or black: onTomato and the ink tokens carry both rooms")
+
+    # --- a compact capsule action is one line ---------------------------
+    # Match actual Button label closures rather than searching nearby
+    # lines. This catches the failure where ViewThatFits accepted a wrapped
+    # "View profile" as a valid compact pill. Card prose may wrap; a title
+    # inside a capsule may not.
+    structure = swift_structure(source)
+    constructors = ("Button", "Menu", "PhotosPicker", "NavigationLink", "ShareLink")
+    for match in re.finditer(r'}\s*label\s*:\s*\{', structure):
+        before = structure[max(0, match.start() - 1000):match.start()]
+        nearest = max(((before.rfind(name), name) for name in constructors), default=(-1, ""))
+        if nearest[0] < 0 or nearest[1] != "Button":
+            continue
+        opening = structure.find("{", match.start())
+        closing = matching_brace(structure, opening)
+        if closing is None:
+            continue
+        label = source[opening + 1:closing]
+        if ("Capsule()" not in label
+                or not re.search(r'\b(?:Text|Label)\s*\(', label)
+                or "design-ok(action-wrap)" in label):
+            continue
+        if any(contract in label for contract in
+               (".plActionLabel(", ".lineLimit(1)", ".fixedSize()", ".plName(")):
+            continue
+        line_number = source.count("\n", 0, match.start()) + 1
+        report("action-wrap", rel, line_number, lines[line_number - 1],
+               "a capsule action without a one-line label contract: apply plActionLabel()")
 
 by_rule = {}
 for f in findings:
