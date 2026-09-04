@@ -1,5 +1,6 @@
 import Foundation
 import SwiftData
+import SwiftUI
 import UIKit
 import WidgetKit
 
@@ -57,12 +58,22 @@ enum WidgetBridge {
             var hasPhoto: Bool
             var postedAt: Date
         }
+        /// The most loved recipe, for the cookbook widget: favourites first,
+        /// then the ones actually cooked most.
+        struct CookbookCard: Codable {
+            var title: String
+            var minutes: Int
+            var isFavorite: Bool
+            var timesCooked: Int
+            var hasPhoto: Bool
+        }
         var generatedAt: Date
         var plannedCount: Int
         var tonight: Tonight?
         var days: [Day]
         var grocery: Grocery?
         var table: TableCard?
+        var cookbook: CookbookCard?
     }
 
     static var containerURL: URL? {
@@ -87,6 +98,7 @@ enum WidgetBridge {
         var days: [Snapshot.Day] = []
         var tonight: Snapshot.Tonight?
         var tonightPhoto: Data?
+        var tonightPhotoDark: Data?
 
         for offset in 0..<7 {
             guard let date = Calendar.current.date(byAdding: .day, value: offset, to: today) else { continue }
@@ -111,11 +123,21 @@ enum WidgetBridge {
                     cookName: meal.cook?.name
                 )
                 tonightPhoto = meal.recipe?.photoData
+                // No photograph: the widget gets the same plate the app
+                // draws, not a fork-and-knife glyph. Every dish in Plated is
+                // a plated disc (DishView), and the home screen was the one
+                // place a dinner turned back into an icon. The plate's
+                // porcelain and shadow answer the room, so it is drawn twice.
+                if tonightPhoto == nil {
+                    tonightPhoto = platedDish(for: meal, dark: false)
+                    tonightPhotoDark = platedDish(for: meal, dark: true)
+                }
             }
         }
 
         let grocery = groceryLine(from: context, windowStart: today)
         let (table, tablePhoto) = latestTablePost(from: context)
+        let (cookbook, cookbookPhoto) = mostLovedRecipe(from: context)
 
         let owner = (try? context.fetch(FetchDescriptor<HouseholdMember>()))?
             .first(where: \.isOwner)?.name
@@ -126,7 +148,8 @@ enum WidgetBridge {
             tonight: tonight,
             days: days,
             grocery: grocery,
-            table: table
+            table: table,
+            cookbook: cookbook
         )
 
         do {
@@ -134,7 +157,9 @@ enum WidgetBridge {
             // keys on, so a half-written set can never claim a photo that
             // isn't there yet.
             try write(photo: tonightPhoto, to: container.appendingPathComponent("tonight.jpg"))
+            try write(photo: tonightPhotoDark, to: container.appendingPathComponent("tonight-dark.png"))
             try write(photo: tablePhoto, to: container.appendingPathComponent("table.jpg"))
+            try write(photo: cookbookPhoto, to: container.appendingPathComponent("cookbook.jpg"))
             let data = try JSONEncoder().encode(snapshot)
             try data.write(to: container.appendingPathComponent("week-snapshot.json"), options: .atomic)
             WidgetCenter.shared.reloadAllTimelines()
@@ -164,8 +189,33 @@ enum WidgetBridge {
         return Snapshot.Grocery(
             openCount: open.count,
             totalCount: current.count,
-            sample: open.prefix(4).map(\.name)
+            // Ten: the large size lists that many; the medium takes four.
+            sample: open.prefix(10).map(\.name)
         )
+    }
+
+    /// The recipe the cookbook widget shows: a favourite with a photograph
+    /// first, then whatever has been cooked most. One with a photograph
+    /// wins over a better-loved one without, because the widget is the
+    /// picture; ties fall to the most recently added.
+    @MainActor
+    private static func mostLovedRecipe(from context: ModelContext) -> (Snapshot.CookbookCard?, Data?) {
+        let recipes = (try? context.fetch(FetchDescriptor<Recipe>())) ?? []
+        guard !recipes.isEmpty else { return (nil, nil) }
+        let ranked = recipes.sorted {
+            let a = ($0.photoData != nil ? 100 : 0) + $0.loveScore
+            let b = ($1.photoData != nil ? 100 : 0) + $1.loveScore
+            return a != b ? a > b : $0.createdAt > $1.createdAt
+        }
+        guard let pick = ranked.first else { return (nil, nil) }
+        let card = Snapshot.CookbookCard(
+            title: pick.title,
+            minutes: pick.totalMinutes,
+            isFavorite: pick.isFavorite,
+            timesCooked: pick.timesCooked,
+            hasPhoto: pick.photoData != nil
+        )
+        return (card, pick.photoData)
     }
 
     @MainActor
@@ -194,8 +244,34 @@ enum WidgetBridge {
         return (card, post.photoData)
     }
 
+    /// The app's generative plate for a night without a photograph,
+    /// rasterised for the widget. Rendered above 140pt so DishView skips
+    /// its Metal `drawingGroup`, which ImageRenderer cannot honour, and kept
+    /// as PNG: the plate is a disc on nothing, and JPEG would fill the
+    /// corners with black.
+    @MainActor
+    private static func platedDish(for meal: PlannedMeal, dark: Bool) -> Data? {
+        let diameter: CGFloat = 200
+        let plate = Group {
+            if let recipe = meal.recipe {
+                DishView(recipe: recipe, diameter: diameter)
+            } else {
+                DishView(title: meal.title, diameter: diameter)
+            }
+        }
+        .environment(\.colorScheme, dark ? .dark : .light)
+        let renderer = ImageRenderer(content: plate)
+        renderer.scale = 2
+        renderer.isOpaque = false
+        return renderer.uiImage?.pngData()
+    }
+
     private static func write(photo: Data?, to url: URL) throws {
-        if let photo, let downsized = downsize(photo, maxSide: 400) {
+        // 800, not 400: the photograph fills a medium widget edge to edge
+        // now, which is a thousand pixels wide on a 3x phone. A 400px
+        // picture read as fog there. Decoded it is under 3MB, well inside
+        // the extension's memory ceiling.
+        if let photo, let downsized = downsize(photo, maxSide: 800) {
             try downsized.write(to: url, options: .atomic)
         } else {
             try? FileManager.default.removeItem(at: url)

@@ -165,6 +165,19 @@ struct PlatedApp: App {
                         exit(0)
                     }
                     #endif
+                    // Fixture: the preview household (SampleData) in the live
+                    // store, so a widget or a screen can be photographed with
+                    // real content on a fresh simulator. Skips itself when
+                    // anyone already lives here. Debug only, and never on a
+                    // phone signed into iCloud: the mirror would export Sam
+                    // and Riley to the real household.
+                    #if DEBUG
+                    if LaunchFlags.consume("-plated-seed-sample") {
+                        SampleData.seed(into: container.mainContext)
+                        try? container.mainContext.save()
+                        print("PLATED SEED: sample household in the live store")
+                    }
+                    #endif
                     #if DEBUG
                     if LaunchFlags.consume("-plated-purge-cloud") {
                         do {

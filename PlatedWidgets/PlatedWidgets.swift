@@ -52,12 +52,21 @@ struct WeekSnapshot: Codable {
             authorName.split(separator: " ").first.map(String.init) ?? authorName
         }
     }
+    struct CookbookCard: Codable {
+        var title: String
+        var minutes: Int
+        var isFavorite: Bool
+        var timesCooked: Int
+        var hasPhoto: Bool
+    }
     var generatedAt: Date
     var plannedCount: Int
     var tonight: Tonight?
     var days: [Day]
     var grocery: Grocery?
     var table: TableCard?
+    /// Optional: a snapshot from a build before the cookbook widget has none.
+    var cookbook: CookbookCard?
 
     static let appGroupID = "group.com.natemeadows.plated"
 
@@ -66,7 +75,12 @@ struct WeekSnapshot: Codable {
     struct Loaded {
         var snapshot: WeekSnapshot
         var dishPhoto: UIImage?
+        /// The app's drawn plate for a night with no photograph, in the
+        /// dark room. Nil when tonight is a real photograph, which is the
+        /// same picture in both rooms.
+        var dishPhotoDark: UIImage?
         var tablePhoto: UIImage?
+        var cookbookPhoto: UIImage?
     }
 
     static func load() -> Loaded? {
@@ -76,9 +90,16 @@ struct WeekSnapshot: Codable {
               let snapshot = try? JSONDecoder().decode(WeekSnapshot.self, from: data) else { return nil }
         let dish = (try? Data(contentsOf: container.appendingPathComponent("tonight.jpg")))
             .flatMap(UIImage.init(data:))
+        let dishDark = (try? Data(contentsOf: container.appendingPathComponent("tonight-dark.png")))
+            .flatMap(UIImage.init(data:))
         let table = (try? Data(contentsOf: container.appendingPathComponent("table.jpg")))
             .flatMap(UIImage.init(data:))
-        return snapshot.aged(dishPhoto: dish, tablePhoto: table)
+        let cookbook = (try? Data(contentsOf: container.appendingPathComponent("cookbook.jpg")))
+            .flatMap(UIImage.init(data:))
+        var loaded = snapshot.aged(dishPhoto: dish, dishPhotoDark: dishDark, tablePhoto: table)
+        // The cookbook card, like the table's, is true however long it sits.
+        loaded.cookbookPhoto = cookbook
+        return loaded
     }
 
     /// The snapshot describes the day it was written. If the app hasn't run
@@ -88,13 +109,13 @@ struct WeekSnapshot: Codable {
     ///
     /// The table card is exempt — it carries its own timestamp and stays true
     /// however long it sits there.
-    func aged(dishPhoto: UIImage?, tablePhoto: UIImage?) -> Loaded {
+    func aged(dishPhoto: UIImage?, dishPhotoDark: UIImage?, tablePhoto: UIImage?) -> Loaded {
         let calendar = Calendar.current
         let written = calendar.startOfDay(for: generatedAt)
         let today = calendar.startOfDay(for: .now)
         let delta = calendar.dateComponents([.day], from: written, to: today).day ?? 0
         guard delta > 0 else {
-            return Loaded(snapshot: self, dishPhoto: dishPhoto, tablePhoto: tablePhoto)
+            return Loaded(snapshot: self, dishPhoto: dishPhoto, dishPhotoDark: dishPhotoDark, tablePhoto: tablePhoto)
         }
         guard delta < 7 else {
             let empty = WeekSnapshot(
@@ -103,7 +124,8 @@ struct WeekSnapshot: Codable {
                 tonight: nil,
                 days: Self.openWeek(from: today),
                 grocery: nil,
-                table: table
+                table: table,
+                cookbook: cookbook
             )
             return Loaded(snapshot: empty, dishPhoto: nil, tablePhoto: tablePhoto)
         }
@@ -120,7 +142,8 @@ struct WeekSnapshot: Codable {
             tonight: nil, // the app knows tonight; a stale snapshot doesn't
             days: rolled,
             grocery: grocery,
-            table: table
+            table: table,
+            cookbook: cookbook
         )
         return Loaded(snapshot: aged, dishPhoto: nil, tablePhoto: tablePhoto)
     }
@@ -134,17 +157,30 @@ struct WeekSnapshot: Codable {
         }
     }
 
+    struct Turn {
+        var name: String
+        var hex: String
+        var initial: String
+        /// "Tonight", "Tomorrow", or the weekday.
+        var when: String
+        var isMine: Bool
+    }
+
+    /// Every night this week with a name against it, in order — tonight's
+    /// cook first if there is one. Only what is recorded: an open night
+    /// contributes nothing rather than a guess about a person.
+    var turns: [Turn] {
+        days.enumerated().compactMap { offset, day in
+            guard day.planned, let name = day.cookName, !name.isEmpty else { return nil }
+            let mine = ownerName.map { !$0.isEmpty && $0 == name } ?? false
+            let when = offset == 0 ? "Tonight" : offset == 1 ? "Tomorrow" : day.day.capitalized
+            return Turn(name: name, hex: day.cookHex, initial: day.cookInitial, when: when, isMine: mine)
+        }
+    }
+
     /// Tonight's cook if there is one, otherwise the next night that has one —
     /// the answer to "whose turn is it", which is rarely about tonight.
-    var nextTurn: (name: String, hex: String, initial: String, when: String, isMine: Bool)? {
-        for (offset, day) in days.enumerated() {
-            guard day.planned, let name = day.cookName, !name.isEmpty else { continue }
-            let mine = ownerName.map { !$0.isEmpty && $0 == name } ?? false
-            return (name, day.cookHex, day.cookInitial,
-                    offset == 0 ? "Tonight" : day.day.capitalized, mine)
-        }
-        return nil
-    }
+    var nextTurn: Turn? { turns.first }
 }
 
 // MARK: - Deep links
@@ -236,24 +272,30 @@ struct WeekEntry: TimelineEntry {
     var date: Date
     var snapshot: WeekSnapshot?
     var photo: UIImage?
+    var photoDark: UIImage?
     var tablePhoto: UIImage?
+    var cookbookPhoto: UIImage?
 }
 
 struct WeekProvider: TimelineProvider {
     func placeholder(in context: Context) -> WeekEntry {
-        WeekEntry(date: .now, snapshot: .sample, photo: nil, tablePhoto: nil)
+        .sample
     }
 
     func getSnapshot(in context: Context, completion: @escaping (WeekEntry) -> Void) {
-        let loaded = WeekSnapshot.load()
         // Sample content belongs to the gallery only — a real home screen with
         // no snapshot gets the honest open week.
-        let fallback: WeekSnapshot? = context.isPreview ? .sample : nil
+        guard let loaded = WeekSnapshot.load() else {
+            completion(context.isPreview ? .sample : WeekEntry(date: .now, snapshot: nil, photo: nil, photoDark: nil, tablePhoto: nil, cookbookPhoto: nil))
+            return
+        }
         completion(WeekEntry(
             date: .now,
-            snapshot: loaded?.snapshot ?? fallback,
-            photo: loaded?.dishPhoto,
-            tablePhoto: loaded?.tablePhoto
+            snapshot: loaded.snapshot,
+            photo: loaded.dishPhoto,
+            photoDark: loaded.dishPhotoDark,
+            tablePhoto: loaded.tablePhoto,
+            cookbookPhoto: loaded.cookbookPhoto
         ))
     }
 
@@ -263,7 +305,9 @@ struct WeekProvider: TimelineProvider {
             date: .now,
             snapshot: loaded?.snapshot,
             photo: loaded?.dishPhoto,
-            tablePhoto: loaded?.tablePhoto
+            photoDark: loaded?.dishPhotoDark,
+            tablePhoto: loaded?.tablePhoto,
+            cookbookPhoto: loaded?.cookbookPhoto
         )
         // The app pushes reloads on data changes; midnight rolls the week.
         let midnight = Calendar.current.startOfDay(
@@ -273,12 +317,24 @@ struct WeekProvider: TimelineProvider {
     }
 }
 
+extension WeekEntry {
+    /// The gallery's entry: the sample week with its photographs attached.
+    static let sample = WeekEntry(
+        date: .now,
+        snapshot: .sample,
+        photo: WidgetSamples.tonight,
+        photoDark: nil,
+        tablePhoto: WidgetSamples.table,
+        cookbookPhoto: WidgetSamples.cookbook
+    )
+}
+
 extension WeekSnapshot {
     /// Gallery/placeholder content only — never shown once the app has run.
     static let sample = WeekSnapshot(
         generatedAt: .now,
         plannedCount: 5,
-        tonight: Tonight(title: "Salmon Night", cookInitial: "N", cookHex: "FF5A3C", minutes: 25, hasPhoto: false, cookName: "Nate"),
+        tonight: Tonight(title: "Salmon Night", cookInitial: "N", cookHex: "FF5A3C", minutes: 25, hasPhoto: WidgetSamples.tonight != nil, cookName: "Nate"),
         days: [
             Day(day: "FRI", planned: true, cookInitial: "N", cookHex: "FF5A3C", cookName: "Nate", title: "Salmon Night"),
             Day(day: "SAT", planned: true, cookInitial: "S", cookHex: "3DA35D", cookName: "Sam", title: "Pizza Night"),
@@ -288,7 +344,10 @@ extension WeekSnapshot {
             Day(day: "WED", planned: true, cookInitial: "N", cookHex: "FF5A3C", cookName: "Nate", title: "Poke Night"),
             Day(day: "THU", planned: false, cookInitial: "", cookHex: "")
         ],
-        grocery: Grocery(openCount: 7, totalCount: 12, sample: ["Salmon fillets", "Jasmine rice", "Green beans", "Limes"]),
+        grocery: Grocery(openCount: 7, totalCount: 12, sample: [
+            "Salmon fillets", "Jasmine rice", "Green beans", "Limes",
+            "Cherry tomatoes", "Pizza dough", "Mozzarella"
+        ]),
         table: TableCard(
             authorName: "Sam Meadows",
             authorInitial: "SM",
@@ -297,8 +356,15 @@ extension WeekSnapshot {
             caption: "Kids picked the toppings. No regrets.",
             plates: 8,
             commentCount: 3,
-            hasPhoto: false,
+            hasPhoto: WidgetSamples.table != nil,
             postedAt: .now
+        ),
+        cookbook: CookbookCard(
+            title: "Poke Night",
+            minutes: 20,
+            isFavorite: true,
+            timesCooked: 6,
+            hasPhoto: WidgetSamples.cookbook != nil
         )
     )
 }
@@ -306,17 +372,26 @@ extension WeekSnapshot {
 // MARK: - Shared pieces
 
 struct DishCircle: View {
+    @Environment(\.colorScheme) private var scheme
     let photo: UIImage?
+    /// The drawn plate after dark; a photograph passes nil and is shown as is.
+    var photoDark: UIImage? = nil
     let planned: Bool
     let size: CGFloat
 
     var body: some View {
-        if let photo {
+        if let photo = (scheme == .dark ? photoDark : nil) ?? photo {
             Image(uiImage: photo)
+                // A tinted home screen (iOS 18) would flatten dinner to the
+                // accent colour with everything else. Image-only: it goes
+                // between resizable and the fill, never after a frame.
                 .resizable()
+                .widgetAccentedRenderingMode(.fullColor)
                 .scaledToFill()
                 .frame(width: size, height: size)
                 .clipShape(Circle())
+                // A tinted home screen (iOS 18) would flatten dinner to the
+                // accent colour with everything else.
         } else if planned {
             Circle()
                 .fill(Plate.fill)
@@ -360,6 +435,9 @@ struct CookDot: View {
 
 struct MicroCap: View {
     let text: String
+    /// `onScrim` when the eyebrow sits on a photograph; the default
+    /// everywhere else.
+    var color: Color = Plate.inkSecondary
     var body: some View {
         Text(text)
             .font(.jakarta(10))
@@ -370,7 +448,115 @@ struct MicroCap: View {
             // Not inkFaint. It measures 2.24:1 and cannot carry a word, and
             // MicroLabel's identical default is named in DESIGN.md as most
             // of why the app read as washed out.
-            .foregroundStyle(Plate.inkSecondary)
+            .foregroundStyle(color)
+    }
+}
+
+/// The photographs the gallery shows. A widget is chosen from its preview,
+/// and a preview of a grey glyph where dinner should be sells nothing; the
+/// gallery gets the same bundled stand-ins the app's own previews use.
+enum WidgetSamples {
+    static let tonight = load("sample-tonight")
+    static let table = load("sample-table")
+    static let cookbook = load("sample-cookbook")
+    private static func load(_ name: String) -> UIImage? {
+        Bundle.main.url(forResource: name, withExtension: "jpg")
+            .flatMap { try? Data(contentsOf: $0) }
+            .flatMap(UIImage.init(data:))
+    }
+}
+
+/// Dinner at the size it deserves. A photograph fills whatever frame it is
+/// given; the app's drawn plate is a disc that bleeds off a corner, big
+/// enough to read as a plate rather than a badge; an open night is the same
+/// disc as a dashed outline, which is how the Plan list draws one.
+struct PlateArt: View {
+    enum Corner { case topTrailing, leading }
+
+    @Environment(\.colorScheme) private var scheme
+    let entry: WeekEntry
+    /// The plate's diameter when it is drawn; ignored for a photograph.
+    let diameter: CGFloat
+    var corner: Corner = .topTrailing
+
+    /// A real photograph is the same in both rooms; the drawn plate answers
+    /// the room, so it comes in two.
+    private var picture: UIImage? { (scheme == .dark ? entry.photoDark : nil) ?? entry.photo }
+    var isPhotograph: Bool { entry.snapshot?.tonight?.hasPhoto == true && entry.photo != nil }
+
+    var body: some View {
+        GeometryReader { geo in
+            if isPhotograph, let picture {
+                Image(uiImage: picture)
+                    .resizable()
+                    // A tinted home screen (iOS 18) would flatten dinner to
+                    // the accent colour with everything else. Image-only:
+                    // it goes between resizable and the fill, never after
+                    // a frame.
+                    .widgetAccentedRenderingMode(.fullColor)
+                    .scaledToFill()
+                    .frame(width: geo.size.width, height: geo.size.height)
+                    .clipped()
+            } else {
+                Group {
+                    if let picture, entry.snapshot?.tonight != nil {
+                        Image(uiImage: picture)
+                            .resizable()
+                            .widgetAccentedRenderingMode(.fullColor)
+                            .scaledToFit()
+                    } else if entry.snapshot?.tonight != nil {
+                        // A plate without a picture of any kind: the app
+                        // has not run since this dinner was planned.
+                        Circle()
+                            .fill(Plate.fill)
+                            .overlay {
+                                Image(systemName: "fork.knife")
+                                    .font(.system(size: diameter * 0.22, weight: .medium))
+                                    .foregroundStyle(Plate.inkSecondary)
+                            }
+                    } else {
+                        Circle()
+                            .strokeBorder(Plate.hairlineDashed, style: StrokeStyle(lineWidth: 2.5, dash: [7, 7]))
+                            .overlay {
+                                Image(systemName: "plus")
+                                    .font(.system(size: diameter * 0.2, weight: .bold))
+                                    .foregroundStyle(Plate.inkFaint)
+                            }
+                    }
+                }
+                .frame(width: diameter, height: diameter)
+                .position(center(in: geo.size))
+            }
+        }
+    }
+
+    /// Where the disc sits so that most of it shows and the corner takes
+    /// the rest: a plate on a table, not a logo in a box.
+    private func center(in size: CGSize) -> CGPoint {
+        switch corner {
+        case .topTrailing:
+            CGPoint(x: size.width - diameter * 0.24, y: diameter * 0.24)
+        case .leading:
+            CGPoint(x: diameter * 0.30, y: size.height / 2)
+        }
+    }
+}
+
+/// Legible type on a photograph: a frosted band across the bottom, the
+/// words in ink on it. A gradient scrim was tried first and was a gamble on
+/// every photo, dark words on a bright plate one night and white on a pale
+/// tablecloth the next. Glass answers the room on its own, so the text is
+/// plain ink in both.
+struct GlassBand<Content: View>: View {
+    var inset: CGFloat = 16
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        content
+            .padding(.horizontal, inset)
+            .padding(.vertical, 12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(.regularMaterial)
     }
 }
 
@@ -379,11 +565,15 @@ struct MicroCap: View {
 @main
 struct PlatedWidgetsBundle: WidgetBundle {
     var body: some Widget {
+        // Order matters: holding down the app icon offers the sizes of the
+        // FIRST widget here, so it has to be the one that comes in all three.
         TonightWidget()
-        WeekWidget()
-        GroceryWidget()
         TableWidget()
+        CookbookWidget()
+        GroceryWidget()
         CookTurnWidget()
         TonightLockWidget()
+        GroceryLockWidget()
+        CookTurnLockWidget()
     }
 }

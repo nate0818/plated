@@ -28,6 +28,16 @@ rendering a hair larger so fixed-height layouts overflow, and Foundation Models.
   processing and adds the build to the External group, which is the public
   TestFlight link. Upload alone reaches Internal only; `scripts/asc groups`
   shows what each group is actually serving.
+- A fresh simulator has no household, so every widget and half the screens
+  are empty. `-plated-seed-sample` (Debug only) puts the preview household
+  into the live store: `xcrun simctl launch <udid> com.natemeadows.plated
+  -plated-seed-sample`. Never on a phone signed into iCloud.
+- **Injected simulator taps fall through iOS context menus** (the icon's
+  long-press menu, Edit > Add Widget) and land on whatever is underneath.
+  To photograph the widget gallery or the icon menu, drive SpringBoard from
+  an XCUITest (`XCUIApplication(bundleIdentifier: "com.apple.springboard")`)
+  in a throwaway project outside the repo; `press(forDuration:)` on a
+  widget opens its menu, on a bare icon it launches the app.
 - `make design` checks the DESIGN.md rules a machine can check, and both
   ship paths refuse a build that breaks one. A deliberate exception is fine
   but has to say so at the line: `// design-ok(<rule>): why this one is right`.
@@ -70,6 +80,12 @@ rendering a hair larger so fixed-height layouts overflow, and Foundation Models.
   `.invalidArguments`. Omit the key instead of writing `[]`.
 - **CloudKit has no boolean type.** A Bool is stored as INT64 and
   `record[key] as? Bool` is a bridging coin flip. Use `TableShare.int(_:_:)`.
+- **Holding down the app icon offers the sizes of the FIRST widget in the
+  bundle and greys out the rest.** With a small-only widget first, "Medium-
+  sized widget" and "Large widget" sat disabled in Plated's own menu, and
+  nothing in the gallery was reachable from there. `TonightWidget` comes in
+  all three families and stays first in `PlatedWidgetsBundle`; a widget
+  added above it must too.
 - **The widget is a second target and cannot import `Theme.swift`.** Its
   tokens are hand-copied into `PlatedWidgets/PlatedWidgets.swift`, and that
   copy has already drifted once: it shipped `inkSecondary` at the rejected
