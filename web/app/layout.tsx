@@ -68,6 +68,10 @@ export const metadata: Metadata = {
     googleBot: { index: true, follow: true, "max-image-preview": "large", "max-snippet": -1 },
   },
   formatDetection: { telephone: false, email: false, address: false },
+  icons: {
+    // Safari pinned tabs want a monochrome SVG and paint it in this colour.
+    other: [{ rel: "mask-icon", url: "/mask-icon.svg", color: "#FF5A3C" }],
+  },
 };
 
 export const viewport: Viewport = {

@@ -46,9 +46,18 @@ function drawDish(ctx: CanvasRenderingContext2D, glyph: string, scale: number, l
   ctx.restore();
 }
 
+// Safari does not repaint a favicon after load and ignores data: URLs
+// outright, so swapping the href there does not animate, it blanks the
+// tab. Safari keeps the static icon; everything else gets the plate.
+const isSafari = () => {
+  const ua = navigator.userAgent;
+  return /Safari/.test(ua) && !/Chrome|Chromium|CriOS|Edg|OPR|Firefox/.test(ua);
+};
+
 export default function AnimatedFavicon() {
   useEffect(() => {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (isSafari()) return;
 
     const link =
       document.querySelector<HTMLLinkElement>('link[rel="icon"]') ??
