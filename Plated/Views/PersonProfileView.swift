@@ -449,12 +449,21 @@ struct EditProfileSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Edit profile")
-                // .title at 22, like Settings one sheet away.
-                .plType(.title)
-                .foregroundStyle(Color.ink)
-                .frame(maxWidth: .infinity)
-                .padding(.top, 22)
+            ZStack {
+                Text("Edit profile")
+                    // .title at 22, like Settings one sheet away.
+                    .plType(.title)
+                    .foregroundStyle(Color.ink)
+                HStack {
+                    Button("Cancel") { dismiss() }
+                        .plType(.footnote, .bold)
+                        .foregroundStyle(Color.ink)
+                        .frame(minWidth: 44, minHeight: 44)
+                    Spacer()
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.top, 10)
 
             PhotosPicker(selection: $pickerItem, matching: .images) {
                 VStack(spacing: 8) {
@@ -467,12 +476,24 @@ struct EditProfileSheet: View {
             }
             .buttonStyle(.pressable)
 
-            Button("Use my contact photo") {
+            Button {
                 ContactPhotoPicker.choose { selected in
                     guard let selected else { return }
                     photoData = selected
                 }
-            }.plType(.footnote, .bold).foregroundStyle(Color.ink).plTapTarget()
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "person.crop.circle.badge.checkmark")
+                        .font(.system(size: 15, weight: .semibold))
+                    Text("Use my contact photo").plType(.footnote, .bold)
+                }
+                .foregroundStyle(Color.ink)
+                .padding(.horizontal, 16)
+                .frame(maxWidth: .infinity, minHeight: 48)
+                .overlay(Capsule().strokeBorder(Color.hairline))
+                .contentShape(Capsule())
+            }
+            .buttonStyle(.pressable)
 
             VStack(alignment: .leading, spacing: 8) {
                 MicroLabel("Your name")
@@ -503,7 +524,7 @@ struct EditProfileSheet: View {
                     .plTappableField()
             }
 
-            Text("Apple shares your name only at first sign-in, and never your photo. Set both here.")
+            Text("Your photo helps people at your Table recognize you. Apple does not provide your account photo to Plated.")
                 .plType(.micro, .medium)
                 .foregroundStyle(Color.inkSecondary)
 
@@ -648,11 +669,21 @@ struct SettingsSheet: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            VStack(spacing: 2) {
-                MicroLabel("Plated")
-                Text("Settings")
-                    .plType(.title)
-                    .foregroundStyle(Color.ink)
+            ZStack {
+                VStack(spacing: 2) {
+                    MicroLabel("Plated")
+                    Text("Settings")
+                        .plType(.title)
+                        .foregroundStyle(Color.ink)
+                }
+                HStack {
+                    Spacer()
+                    Button("Done") { dismiss() }
+                        .plType(.footnote, .bold)
+                        .foregroundStyle(Color.ink)
+                        .frame(minWidth: 44, minHeight: 44)
+                }
+                .padding(.horizontal, 24)
             }
             .padding(.top, 22)
             .padding(.bottom, 14)
@@ -877,7 +908,7 @@ struct SettingsSheet: View {
             TourView { tourShown = false }
         }
         .preferredColorScheme(appearance.scheme)
-        .presentationDetents([.medium, .large])
+        .presentationDetents([.large])
         .presentationDragIndicator(.visible)
         .presentationBackground(Color.canvas)
         .presentationCornerRadius(Radius.sheet)

@@ -211,6 +211,11 @@ screens rather than one place.
   a row in People), the tap records which door it came through.
 - A source that has scrolled away falls back to a plain push on its own.
   Nothing needs guarding.
+- **The avatar opens Account everywhere it appears.** Account is the named
+  hub for Edit profile, Settings, Household and the user's Table profile.
+  Do not send the avatar straight into the social profile and hide app
+  administration in unlabeled toolbar icons. Settings opens at full height;
+  editing sheets name both the way out and the action that saves.
 
 ## Copy
 
