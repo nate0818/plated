@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Gabarito, Plus_Jakarta_Sans } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
 import AnimatedFavicon from "./components/AnimatedFavicon";
 import "./globals.css";
 
@@ -82,6 +83,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body>
         <AnimatedFavicon />
         {children}
+        <Analytics />
       </body>
     </html>
   );

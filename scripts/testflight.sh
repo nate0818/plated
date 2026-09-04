@@ -8,10 +8,15 @@
 # found". So the export signs locally with the Apple Distribution certificate
 # in the keychain, and altool does the upload, which App Manager may do.
 #
+# Upload is not distribution. The External group, the one behind the public
+# TestFlight link, only holds builds that were added to it, so after the
+# upload this waits for processing and adds the build via scripts/asc. Eight
+# builds once went up while the link kept serving build 2.
+#
 # Needs the private key at ~/.appstoreconnect/private_keys/AuthKey_<ID>.p8.
 # The two identifiers below are not secrets — useless without that file.
 #
-# Usage: scripts/testflight.sh [--no-bump] [--archive-only]
+# Usage: scripts/testflight.sh [--no-bump] [--archive-only] [--no-distribute]
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -21,10 +26,12 @@ KEY_PATH="${ASC_KEY_PATH:-$HOME/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_
 
 BUMP=1
 UPLOAD=1
+DISTRIBUTE=1
 for arg in "$@"; do
   case "$arg" in
     --no-bump) BUMP=0 ;;
     --archive-only) UPLOAD=0 ;;
+    --no-distribute) DISTRIBUTE=0 ;;
     *) echo "unknown option: $arg" >&2; exit 2 ;;
   esac
 done
@@ -87,4 +94,12 @@ xcrun altool --upload-app --type ios \
   --apiKey "$ASC_KEY_ID" \
   --apiIssuer "$ASC_ISSUER_ID"
 
-echo "▸ build $next uploaded — it reaches TestFlight after processing (usually 5–15 min)"
+if [ "$DISTRIBUTE" = 0 ]; then
+  echo "▸ build $next uploaded — it reaches Internal after processing (usually 5–15 min)."
+  echo "  Add it to External yourself: scripts/asc distribute $next"
+  exit 0
+fi
+
+echo "▸ build $next uploaded — waiting for processing, then adding it to External…"
+ASC_KEY_ID="$ASC_KEY_ID" ASC_ISSUER_ID="$ASC_ISSUER_ID" ASC_KEY_PATH="$KEY_PATH" \
+  "$(dirname "${BASH_SOURCE[0]}")/asc" distribute "$next" External
