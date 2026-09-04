@@ -38,6 +38,7 @@ struct RootView: View {
     /// and the next sign-in walks back into it. Wiping data on revocation
     /// would turn "I reset my Apple ID permissions" into "dinner is gone."
     private func recheckCredential() async {
+        guard !Self.designReview else { return }
         if didSignIn, await AppleIdentity.credentialInvalid() {
             AppleIdentity.clear()
             didSignIn = false
@@ -50,16 +51,27 @@ struct RootView: View {
     /// Without it, shipping the tour would hand every existing household a
     /// walkthrough of the app they were in the middle of using.
     private func carryTourForward() {
+        guard !Self.designReview else { return }
         let store = UserDefaults.standard
         guard store.object(forKey: "sawTour") == nil else { return }
         store.set(store.bool(forKey: "didSetTable"), forKey: "sawTour")
+    }
+
+    private static var designReview: Bool {
+        #if DEBUG
+        ProcessInfo.processInfo.arguments.contains("-plated-design-review")
+        #else
+        false
+        #endif
     }
 
     var body: some View {
         ZStack {
             Color.canvas.ignoresSafeArea()
 
-            if !splashDone {
+            if Self.designReview {
+                MainShellView()
+            } else if !splashDone {
                 LaunchOpenerView(ready: appReady, brief: sawOpener) {
                     sawOpener = true
                     splashDone = true

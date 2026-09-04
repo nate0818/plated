@@ -199,9 +199,11 @@ final class TableComment {
     var text: String = ""
     var linkURL: String = ""
     var createdAt: Date = Date.now
-    /// Name of the person this comment answers — threads stay flat, replies
-    /// read as "↩︎ Grandma" the way IG keeps one level.
+    /// A readable reply label; parentCommentID preserves the actual thread
+    /// relationship even when that person changes their name.
     var replyToName: String = ""
+    var parentCommentID: String?
+    var deletedAt: Date?
     /// Household members @-mentioned in the text.
     var mentions: [String] = []
     /// A photo in the comments — the "I made it and here's proof" move.

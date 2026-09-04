@@ -1,148 +1,89 @@
 import Foundation
 import SwiftData
 
-/// Rolls the week's planned meals up into a consolidated shopping list.
-///
-/// Merging rule: same ingredient name + same unit collapses into one line with
-/// summed quantities. Different units stay separate lines rather than guessing
-/// at conversions — "2 cups rice" and "1 lb rice" are genuinely different asks.
+/// Updates stable rows in place. Provenance and purchased quantities survive
+/// reopening, meal moves, serving edits and the rolling shopping window.
 struct GroceryListBuilder {
     let context: ModelContext
 
-    /// Regenerates the auto-derived portion of the list for the rolling
-    /// 7-night window starting on `date` — the same window the Week screen
-    /// renders. Hand-added lines, checkmarks, hand-struck lines, and
-    /// Reminders links survive.
     @discardableResult
     func rebuild(weekOf date: Date, includePantryStaples: Bool = false) throws -> [GroceryItem] {
-        let weekStart = Calendar.current.startOfDay(for: date)
-        guard let weekEnd = Calendar.current.date(byAdding: .day, value: 7, to: weekStart) else {
-            return []
+        let start = date.startOfDay
+        let end = Calendar.current.date(byAdding: .day, value: 7, to: start) ?? start
+        let meals = try context.fetch(FetchDescriptor<PlannedMeal>(predicate: #Predicate {
+            $0.date >= start && $0.date < end && $0.cookedAt == nil
+        }))
+        for meal in meals where meal.shoppingID == nil { meal.shoppingID = UUID().uuidString }
+        let lines = aggregate(meals: meals, includePantryStaples: includePantryStaples)
+        let all = try context.fetch(FetchDescriptor<GroceryItem>())
+        let autos = all.filter { !$0.isManual }
+        var used = Set<PersistentIdentifier>()
+        var result: [GroceryItem] = []
+        for line in lines {
+            let key = GroceryMeasure.key(line.name, line.unit)
+            let candidates = autos.filter { GroceryMeasure.key($0.name, $0.unit) == key }
+            let item = candidates.first(where: { $0.weekStart == start })
+                ?? candidates.first(where: { $0.sources.contains { source in line.sources.contains { $0.id == source.id } } })
+                ?? GroceryItem(name: line.name, weekStart: start)
+            if item.modelContext == nil { context.insert(item) }
+            used.insert(item.persistentModelID)
+            var purchases: [String: Double] = [:]
+            for previous in candidates {
+                for (mealID, amount) in previous.purchases { purchases[mealID] = max(purchases[mealID] ?? 0, amount) }
+            }
+            // Migrate legacy checked rows only up to the amount actually
+            // checked. Increasing servings must expose the extra quantity.
+            if purchases.isEmpty, let old = candidates.first(where: { $0.isChecked && $0.sourcesData == nil }) {
+                var available = GroceryMeasure.canonical(old.quantity, old.unit).quantity
+                for source in line.sources {
+                    purchases[source.id] = min(available, source.quantity)
+                    available = max(0, available - source.quantity)
+                }
+            }
+            item.name = line.name
+            item.quantity = line.quantity
+            item.unit = line.unit
+            item.aisleValue = line.aisle
+            item.weekStart = start
+            item.sources = line.sources
+            item.purchases = purchases
+            item.originTitle = line.sources.map(\.title).joined(separator: ", ")
+            item.isChecked = item.isPurchased()
+            result.append(item)
         }
-
-        // Only meals not yet cooked — no shopping for dinners already eaten.
-        let mealPredicate = #Predicate<PlannedMeal> { meal in
-            meal.date >= weekStart && meal.date < weekEnd && meal.cookedAt == nil
-        }
-        let meals = try context.fetch(FetchDescriptor(predicate: mealPredicate))
-
-        let aggregated = aggregate(meals: meals, includePantryStaples: includePantryStaples)
-
-        let existing = try context.fetch(
-            FetchDescriptor<GroceryItem>(
-                predicate: #Predicate { $0.weekStart == weekStart }
-            )
-        )
-
-        // Auto lines left over from earlier windows get swept below, but
-        // their state carries: the window rolls forward every day, and
-        // yesterday's checked-off rice is still today's rice.
-        let stale = try context.fetch(
-            FetchDescriptor<GroceryItem>(
-                predicate: #Predicate { $0.weekStart < weekStart && !$0.isManual }
-            )
-        )
-
-        // Preserve what people checked off so a rebuild mid-shop is not
-        // destructive, and keep Reminders links so re-exporting updates in
-        // place instead of duplicating.
-        let carried = existing + stale
-        let checkedNames = Set(carried.filter(\.isChecked).map { Self.key(name: $0.name, unit: $0.unit) })
-        let dismissedNames = Set(carried.filter(\.isDismissed).map { Self.key(name: $0.name, unit: $0.unit) })
-        let reminderIDs = Dictionary(
-            carried.compactMap { item in
-                item.reminderID.map { (Self.key(name: item.name, unit: item.unit), $0) }
-            },
-            uniquingKeysWith: { first, _ in first }
-        )
-
-        for item in existing where !item.isManual {
-            context.delete(item)
-        }
-        for item in stale { context.delete(item) }
-
-        // The manual rows the grocery sheet is actually showing right now.
-        //
-        // Saving a recipe with "Add to this week's grocery list" on inserts a
-        // manual row per ingredient, and saving-and-planning in the same tap
-        // also inserts the PlannedMeal this builder aggregates from. Both
-        // sides take their names from the same drafts, so with equal servings
-        // the names and quantities match exactly and the pairs sort adjacent:
-        // the whole ingredient list, listed twice, for the seven days the
-        // sheet keeps manual rows.
-        //
-        // The window has to match the sheet's, not this week's: a manual row
-        // from four days ago is still on screen and would still be doubled.
-        let manualWindow = Calendar.current.date(byAdding: .day, value: -7, to: weekStart) ?? weekStart
-        let manual = try context.fetch(
-            FetchDescriptor<GroceryItem>(
-                predicate: #Predicate { $0.isManual && $0.weekStart >= manualWindow }
-            )
-        )
-        let manualKeys = Set(manual.map { Self.key(name: $0.name, unit: $0.unit) })
-
-        var created: [GroceryItem] = []
-        for line in aggregated where !manualKeys.contains(Self.key(name: line.name, unit: line.unit)) {
-            let item = GroceryItem(
-                name: line.name,
-                quantity: line.quantity,
-                unit: line.unit,
-                aisle: line.aisle,
-                weekStart: weekStart
-            )
-            item.isChecked = checkedNames.contains(Self.key(name: line.name, unit: line.unit))
-            item.isDismissed = dismissedNames.contains(Self.key(name: line.name, unit: line.unit))
-            item.reminderID = reminderIDs[Self.key(name: line.name, unit: line.unit)]
-            item.originTitle = line.origin
-            context.insert(item)
-            created.append(item)
-        }
-
-        return created
+        // Retain rows in other date ranges: the user may be shopping ahead.
+        for old in autos where old.weekStart == start && !used.contains(old.persistentModelID) { context.delete(old) }
+        try context.save()
+        return result
     }
 
-    /// Pure aggregation, split out so it can be exercised without a store.
     func aggregate(meals: [PlannedMeal], includePantryStaples: Bool) -> [AggregatedLine] {
         var lines: [String: AggregatedLine] = [:]
-
-        for meal in meals {
+        for meal in meals.sorted(by: { $0.date < $1.date }) {
+            guard let mealID = meal.shoppingID else { continue }
             for (ingredient, quantity) in meal.scaledIngredients {
                 if ingredient.isPantryStaple && !includePantryStaples { continue }
                 guard !ingredient.normalizedName.isEmpty else { continue }
-
-                let key = Self.key(name: ingredient.normalizedName, unit: ingredient.unit)
-                if var existing = lines[key] {
-                    existing.quantity += quantity
-                    if existing.origin != meal.title { existing.origin = "Several recipes" }
-                    lines[key] = existing
+                let amount = GroceryMeasure.canonical(quantity, ingredient.unit)
+                let key = GroceryMeasure.key(ingredient.normalizedName, amount.unit)
+                var line = lines[key] ?? AggregatedLine(name: ingredient.name, quantity: 0, unit: amount.unit, aisle: ingredient.aisleValue)
+                line.quantity += amount.quantity
+                if let index = line.sources.firstIndex(where: { $0.id == mealID }) {
+                    line.sources[index].quantity += amount.quantity
                 } else {
-                    lines[key] = AggregatedLine(
-                        name: ingredient.name,
-                        quantity: quantity,
-                        unit: ingredient.unit,
-                        aisle: ingredient.aisleValue,
-                        origin: meal.title
-                    )
+                    line.sources.append(.init(id: mealID, title: meal.title, date: meal.date, quantity: amount.quantity))
                 }
+                lines[key] = line
             }
         }
-
-        return lines.values.sorted {
-            $0.aisle.sortOrder == $1.aisle.sortOrder
-                ? $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
-                : $0.aisle.sortOrder < $1.aisle.sortOrder
-        }
+        return lines.values.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
-
     struct AggregatedLine {
         var name: String
         var quantity: Double
         var unit: String
         var aisle: GroceryAisle
-        var origin: String = ""
-    }
-
-    private static func key(name: String, unit: String) -> String {
-        "\(name.trimmingCharacters(in: .whitespaces).lowercased())|\(unit.lowercased())"
+        var sources: [GrocerySource] = []
+        var origin: String { sources.map(\.title).joined(separator: ", ") }
     }
 }

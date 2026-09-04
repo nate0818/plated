@@ -16,6 +16,7 @@ enum AppleIdentity {
     /// callers should at least leave a trace in the console.
     @discardableResult
     static func save(_ userID: String) -> Bool {
+        if load() != userID { Directory.clearSession() }
         guard let data = userID.data(using: .utf8) else { return false }
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
@@ -52,6 +53,7 @@ enum AppleIdentity {
     }
 
     static func clear() {
+        Directory.clearSession()
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,

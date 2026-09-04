@@ -15,6 +15,8 @@ final class PlannedMeal {
     /// Set when the meal actually happened. Drives "times cooked" in Insights.
     var cookedAt: Date?
     var createdAt: Date = Date.now
+    /// Stable across moves and serving changes; grocery purchases belong to this meal.
+    var shoppingID: String?
 
     /// The line under the meal name on the week row — "Kids pick", "Fast one".
     var tagline: String = ""
@@ -40,6 +42,7 @@ final class PlannedMeal {
         self.cook = cook
         self.tagline = tagline
         self.createdAt = .now
+        self.shoppingID = UUID().uuidString
     }
 
     var slotValue: MealSlot {

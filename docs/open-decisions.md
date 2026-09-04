@@ -91,19 +91,17 @@ wordmark with its dot — so this is a rebuild in Icon Composer rather than a
 redesign, and DESIGN.md's ban on inventing a logo badge is not in the way.
 It cannot be authored headlessly.
 
-## 6. The landscape month is unverified
+## 6. Calendar rotation still needs a physical-device pass
 
-`MonthPlannerView` renders when `verticalSizeClass == .compact`. It has a
-`-plated-force-month` test hook, but that hook draws the landscape layout at
-portrait width, where the seven-column grid overflows both edges — an
-artifact of the hook, not a real state.
+September 4 update: Month is now an explicit choice alongside Week, with
+Today, month navigation, a responsive date grid, and the selected day's meals.
+The native portrait month and week have been inspected in simulator screenshots;
+the old fixed-width portrait overflow no longer applies. Entering landscape
+selects Month and the segmented control follows the visible mode.
 
-The 2026 audit claims the month does not fit on screen in real landscape.
-Arithmetic supports the concern (six rows of 64pt plus a header and the tab
-bar exceed 402pt of landscape height), and the grid *is* inside a
-`ScrollView`, so the likely truth is "you must scroll to reach the end of the
-month" rather than "content is lost". **Nobody has looked at it on a rotated
-device.** Do that before designing a fix.
+A physical-device rotation and larger-text interaction pass is still needed.
+The calendar scrolls, so the test should confirm that the selected day's agenda
+and planning actions stay easy to reach in a short landscape viewport.
 
 ## 7. TextField placeholders use the system tint
 

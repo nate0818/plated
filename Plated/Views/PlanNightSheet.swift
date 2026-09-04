@@ -124,8 +124,7 @@ struct PlanNightSheet: View {
         // available for the type sizes that need it.
         .presentationDetents([.height(mastheadHeight + contentHeight), .large])
         .presentationDragIndicator(.visible)
-        .presentationBackground(Color.canvas)
-        .presentationCornerRadius(Radius.sheet)
+        .plTapOutsideToDismiss()
         .sheet(item: $route) { destination in
             switch destination {
             case .picker:
@@ -462,8 +461,6 @@ struct AskComposerSheet: View {
         }
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
-        .presentationBackground(Color.canvas)
-        .presentationCornerRadius(Radius.sheet)
     }
 
     /// The night is only baked into the caption text, so the words have to
@@ -648,8 +645,6 @@ struct GatheringSheet: View {
         }
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
-        .presentationBackground(Color.canvas)
-        .presentationCornerRadius(Radius.sheet)
     }
 
     private func stepperButton(_ symbol: String, _ label: String, action: @escaping () -> Void) -> some View {

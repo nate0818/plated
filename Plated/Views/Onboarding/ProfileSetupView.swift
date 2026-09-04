@@ -73,6 +73,15 @@ struct ProfileSetupView: View {
             .padding(.top, 20)
             .opacity(arrived ? 1 : 0)
 
+            Button("Use my contact photo") {
+                ContactPhotoPicker.choose { selected in
+                    guard let selected else { return }
+                    withAnimation(.plSnap) { photoData = selected }
+                }
+            }
+            .plType(.footnote, .bold).foregroundStyle(Color.ink).plTapTarget()
+            .padding(.top, 8)
+
             VStack(alignment: .leading, spacing: 8) {
                 MicroLabel("Your name")
                 TextField("First name", text: $name)

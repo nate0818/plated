@@ -53,9 +53,20 @@ struct PlatedApp: App {
     @UIApplicationDelegateAdaptor(ShareAcceptor.self) private var shareAcceptor
 
     /// See PlatedStore — the app and App Intents share this one container.
-    let container = PlatedStore.shared
+    let container: ModelContainer = {
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-plated-design-review") || ProcessInfo.processInfo.arguments.contains("-plated-test-groceries") { return SampleData.previewContainer }
+        #endif
+        return PlatedStore.shared
+    }()
 
     init() {
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-plated-test-groceries") {
+            do { try GroceryRegressionChecks.run(); exit(0) }
+            catch { print("PLATED GROCERY CHECKS FAILED: \(error)"); exit(1) }
+        }
+        #endif
         BrandFonts.registerAll()
         Self.carryAppearanceForward()
         #if DEBUG

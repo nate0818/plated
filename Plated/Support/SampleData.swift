@@ -14,7 +14,7 @@ enum SampleData {
             TablePost.self, TableComment.self, DirectMessage.self,
             RecipePhoto.self, PlatedNotification.self, HouseholdProfile.self
         ])
-        let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+        let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         // swiftlint:disable:next force_try
         let container = try! ModelContainer(for: schema, configurations: [configuration])
         seed(into: container.mainContext)

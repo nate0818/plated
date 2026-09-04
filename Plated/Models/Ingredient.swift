@@ -85,7 +85,7 @@ final class Ingredient {
     static func unitText(_ unit: String, for quantity: Double) -> String {
         guard !unit.isEmpty, quantity > 1 else { return unit }
         // Abbreviations and metric measures do not take a plural.
-        let invariable: Set<String> = ["g", "kg", "ml", "l", "oz", "lb", "tsp", "tbsp", "qt", "pt", "gal"]
+        let invariable: Set<String> = ["g", "kg", "ml", "l", "oz", "fl oz", "lb", "tsp", "tbsp", "qt", "pt", "gal"]
         let lower = unit.lowercased()
         if invariable.contains(lower) || lower.hasSuffix("s") { return unit }
         if lower.hasSuffix("ch") || lower.hasSuffix("sh") || lower.hasSuffix("x") { return unit + "es" }

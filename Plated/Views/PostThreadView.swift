@@ -35,6 +35,8 @@ struct PostThreadView: View {
     @State private var link = ""
     @State private var linkFieldShown = false
     @State private var replyTo: String?
+    @State private var replyToID: String?
+    @State private var collapsedReplies = Set<String>()
     @State private var mentionBarShown = false
     @State private var photoItem: PhotosPickerItem?
     @State private var commentPhoto: Data?
@@ -151,9 +153,22 @@ struct PostThreadView: View {
                             .foregroundStyle(Color.inkSecondary)
                     }
 
-                    ForEach(post.sortedComments, id: \.persistentModelID) { comment in
-                        threadComment(comment)
-                            .transition(arrival)
+                    ForEach(threadRows, id: \.comment.persistentModelID) { row in
+                        VStack(alignment: .leading, spacing: 0) {
+                            threadComment(row.comment)
+                            let children = descendantCount(row.comment.shareRecordName)
+                            if children > 0 {
+                                Button(collapsedReplies.contains(row.comment.shareRecordName) ? "Show \(children) replies" : "Hide replies") {
+                                    Haptic.select()
+                                    withAnimation(.plSnap) {
+                                        if collapsedReplies.contains(row.comment.shareRecordName) { collapsedReplies.remove(row.comment.shareRecordName) }
+                                        else { collapsedReplies.insert(row.comment.shareRecordName) }
+                                    }
+                                }.plType(.caption, .bold).foregroundStyle(Color.inkSecondary).plTapTarget()
+                            }
+                        }
+                        .padding(.leading, CGFloat(min(row.depth, 2)) * 16)
+                        .transition(arrival)
                     }
                 }
                 .animation(.plSnap, value: post.sortedComments.count)
@@ -165,6 +180,20 @@ struct PostThreadView: View {
             composer
         }
         .background(Color.canvas)
+        .onAppear {
+            let key = "table.replyDraft." + (post.shareRecordName.isEmpty ? String(describing: post.persistentModelID) : post.shareRecordName)
+            if let saved = UserDefaults.standard.dictionary(forKey: key) {
+                draft = saved["text"] as? String ?? ""
+                link = saved["link"] as? String ?? ""
+                replyTo = saved["replyTo"] as? String
+                replyToID = saved["parent"] as? String
+                commentPhoto = saved["photo"] as? Data
+            }
+        }
+        .onChange(of: draft) { saveReplyDraft() }
+        .onChange(of: link) { saveReplyDraft() }
+        .onChange(of: commentPhoto) { saveReplyDraft() }
+        .onChange(of: replyToID) { saveReplyDraft() }
         .toolbar(.hidden, for: .navigationBar)
         // A beat after the push, not during it: focusing mid-transition
         // races the keyboard against the navigation animation and the page
@@ -251,6 +280,7 @@ struct PostThreadView: View {
             }
             .buttonStyle(.pressable)
             Spacer()
+            AccountButton()
             if post.kind == "dish" {
                 if recipes.contains(where: { $0.originID == post.originKey }) {
                     // A receipt, not a button — same state the feed shows.
@@ -346,6 +376,44 @@ struct PostThreadView: View {
         .accessibilityAddTraits(mine ? .isSelected : [])
     }
 
+    private func commentKey(_ comment: TableComment) -> String { comment.shareRecordName.isEmpty ? String(describing: comment.persistentModelID) : comment.shareRecordName }
+
+    /// Linearized tree with bounded indentation. Missing parents and cycles
+    /// remain visible; stale sync data can never hide someone's comment.
+    private var threadRows: [(comment: TableComment, depth: Int)] {
+        let comments = post.sortedComments
+        let ids = Set(comments.map(commentKey))
+        var visited = Set<String>()
+        var rows: [(comment: TableComment, depth: Int)] = []
+        func append(_ comment: TableComment, depth: Int) {
+            guard visited.insert(commentKey(comment)).inserted else { return }
+            rows.append((comment, depth))
+            if collapsedReplies.contains(commentKey(comment)) {
+                func mark(_ id: String) {
+                    for child in comments where child.parentCommentID == id {
+                        if visited.insert(child.shareRecordName).inserted { mark(child.shareRecordName) }
+                    }
+                }
+                mark(commentKey(comment))
+            } else {
+                for child in comments where child.parentCommentID == comment.shareRecordName { append(child, depth: depth + 1) }
+            }
+        }
+        for comment in comments where comment.parentCommentID == nil || !ids.contains(comment.parentCommentID ?? "") { append(comment, depth: 0) }
+        for comment in comments where !visited.contains(commentKey(comment)) { append(comment, depth: 0) }
+        return rows
+    }
+    private func descendantCount(_ id: String) -> Int {
+        var visited: Set<String> = [id]
+        func visit(_ parent: String) {
+            for child in post.sortedComments where child.parentCommentID == parent {
+                if visited.insert(child.shareRecordName).inserted { visit(child.shareRecordName) }
+            }
+        }
+        visit(id)
+        return visited.count - 1
+    }
+
     private func threadComment(_ comment: TableComment) -> some View {
         HStack(alignment: .top, spacing: 10) {
             Button {
@@ -380,8 +448,9 @@ struct PostThreadView: View {
                         .plType(.micro, .medium)
                         .foregroundStyle(Color.inkSecondary)
                 }
-                mentionedText(comment)
-                    .lineSpacing(2)
+                if comment.deletedAt != nil {
+                    Text("Comment deleted").plType(.body).foregroundStyle(Color.inkSecondary)
+                } else { mentionedText(comment).lineSpacing(2) }
                 if let data = comment.photoData, let image = UIImage(data: data) {
                     Image(uiImage: image)
                         .resizable()
@@ -409,6 +478,7 @@ struct PostThreadView: View {
                     Haptic.tap()
                     withAnimation(.plSnap) {
                         replyTo = comment.authorName
+                        replyToID = comment.shareRecordName
                         composerFocused = true
                     }
                 } label: {
@@ -445,14 +515,26 @@ struct PostThreadView: View {
     /// Your own comment, or any comment on your own post.
     private func canRemove(_ comment: TableComment) -> Bool {
         let me = members.first(where: \.isOwner)?.name ?? userFirstName
-        guard !me.isEmpty else { return false }
+        guard !me.isEmpty, comment.deletedAt == nil else { return false }
         return comment.authorName == me || post.authorName == me
     }
 
     private func remove(_ comment: TableComment) {
         Haptic.warn()
-        withAnimation(.plSnap) { context.delete(comment) }
+        withAnimation(.plSnap) {
+            comment.deletedAt = .now
+            comment.text = ""
+            comment.linkURL = ""
+            comment.photoData = nil
+            comment.mentions = []
+        }
         Persist.save(context, "delete comment")
+        TableOutbox.shared.enqueue(.note(post: post.shareRecordName, zoneOwner: post.shareZoneOwner, id: comment.shareRecordName), author: TableIdentity.cached)
+        Task {
+            if await TableShare.pushNote(comment, post: post.shareRecordName, zoneOwner: post.shareZoneOwner) {
+                TableOutbox.shared.remove("note:" + comment.shareRecordName)
+            }
+        }
     }
 
     /// The comment body, with the names in it drawn as names.
@@ -517,7 +599,7 @@ struct PostThreadView: View {
                         .foregroundStyle(Color.inkSecondary)
                     Spacer()
                     Button {
-                        withAnimation(.plSnap) { self.replyTo = nil }
+                        withAnimation(.plSnap) { self.replyTo = nil; self.replyToID = nil }
                     } label: {
                         Image(systemName: "xmark")
                             .accessibilityLabel("Cancel reply")
@@ -753,6 +835,17 @@ struct PostThreadView: View {
         }
     }
 
+    private func saveReplyDraft() {
+        let key = "table.replyDraft." + (post.shareRecordName.isEmpty ? String(describing: post.persistentModelID) : post.shareRecordName)
+        if draft.isEmpty && link.isEmpty && commentPhoto == nil {
+            UserDefaults.standard.removeObject(forKey: key)
+        } else {
+            var value: [String: Any] = ["text": draft, "link": link]
+            value["replyTo"] = replyTo; value["parent"] = replyToID; value["photo"] = commentPhoto
+            UserDefaults.standard.set(value, forKey: key)
+        }
+    }
+
     private func send() {
         let author = userFirstName.isEmpty
             ? (members.first(where: \.isOwner)?.name ?? "Me")
@@ -774,6 +867,7 @@ struct PostThreadView: View {
             photoData: commentPhoto,
             authorID: TableIdentity.cached
         )
+        comment.parentCommentID = replyToID
         comment.post = post
         context.insert(comment)
         // Out to the table. Not awaited: the comment is already on screen
@@ -804,7 +898,7 @@ struct PostThreadView: View {
         linkFieldShown = false
         commentPhoto = nil
         photoItem = nil
-        withAnimation(.plSnap) { replyTo = nil }
+        withAnimation(.plSnap) { replyTo = nil; replyToID = nil }
     }
 
     private func openProfile(_ name: String, colorHex: String? = nil, door: ZoomID) {

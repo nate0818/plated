@@ -578,16 +578,30 @@ enum TableShare {
     static func pushNote(_ comment: TableComment, post: String, zoneOwner: String) async -> Bool {
         guard await TableSync.accountAvailable() else { return false }
         guard let (db, zoneID) = await zone(ownedBy: zoneOwner) else { return false }
-        let record = CKRecord(
-            recordType: noteType,
-            recordID: CKRecord.ID(recordName: comment.shareRecordName, zoneID: zoneID)
-        )
+        let recordID = CKRecord.ID(recordName: comment.shareRecordName, zoneID: zoneID)
+        let record: CKRecord
+        do { record = try await db.record(for: recordID) }
+        catch let error as CKError where error.code == .unknownItem {
+            record = CKRecord(recordType: noteType, recordID: recordID)
+        } catch { return false }
+        // A delayed retry from another device cannot restore a deleted
+        // comment. Deletion is permanent; its replies remain in place.
+        if let deleted = record["deletedAt"] as? Date, comment.deletedAt == nil {
+            comment.deletedAt = deleted
+            comment.text = ""
+            comment.linkURL = ""
+            comment.photoData = nil
+            comment.mentions = []
+            return true
+        }
         record["postRecordName"] = post as CKRecordValue
         record["authorID"] = comment.authorID as CKRecordValue
         record["authorName"] = comment.authorName as CKRecordValue
         record["text"] = comment.text as CKRecordValue
         record["linkURL"] = comment.linkURL as CKRecordValue
         record["replyToName"] = comment.replyToName as CKRecordValue
+        record["parentCommentID"] = comment.parentCommentID as CKRecordValue?
+        record["deletedAt"] = comment.deletedAt as CKRecordValue?
         record["createdAt"] = comment.createdAt as CKRecordValue
         // A list field minted empty is minted as the wrong type and stays
         // that way, so the key is omitted rather than written empty.
@@ -600,6 +614,8 @@ enum TableShare {
         )
         record.setParent(CKRecord.ID(recordName: "table-root", zoneID: zoneID))
 
+        if comment.mentions.isEmpty { record["mentions"] = nil }
+        record["photo"] = nil
         var temp: URL?
         if let data = comment.photoData, let asset = asset(from: data) {
             record["photo"] = asset
@@ -610,12 +626,7 @@ enum TableShare {
         do {
             _ = try await db.save(record)
             return true
-        } catch let error as CKError where error.code == .serverRecordChanged {
-            // The same note, already there. A replayed send, not a conflict.
-            return true
-        } catch {
-            return false
-        }
+        } catch { return false }
     }
 
     /// A comment as it exists on the wire.
@@ -627,6 +638,8 @@ enum TableShare {
         var text = ""
         var linkURL = ""
         var replyToName = ""
+        var parentCommentID: String?
+        var deletedAt: Date?
         var mentions: [String] = []
         var createdAt = Date.now
         var photoData: Data?
@@ -641,6 +654,8 @@ enum TableShare {
         n.text = record["text"] as? String ?? ""
         n.linkURL = record["linkURL"] as? String ?? ""
         n.replyToName = record["replyToName"] as? String ?? ""
+        n.parentCommentID = record["parentCommentID"] as? String
+        n.deletedAt = record["deletedAt"] as? Date
         n.mentions = record["mentions"] as? [String] ?? []
         n.createdAt = record["createdAt"] as? Date ?? .now
         if let asset = record["photo"] as? CKAsset, let url = asset.fileURL {
@@ -1075,7 +1090,7 @@ enum TableShare {
                             var value = 0; var at = Date.now; var isBallot = false }
     struct RemoteNote { var recordName = ""; var post = ""; var authorID = ""
                         var authorName = ""; var text = ""; var linkURL = ""
-                        var replyToName = ""; var mentions: [String] = []
+                        var replyToName = ""; var parentCommentID: String?; var deletedAt: Date?; var mentions: [String] = []
                         var createdAt = Date.now; var photoData: Data? }
     struct Changes { var posts: [RemotePost] = []; var reactions: [RemoteReaction] = []
                      var notes: [RemoteNote] = []; var deleted: Set<String> = [] }
@@ -1195,12 +1210,23 @@ enum TableShare {
             for c in comments where !c.shareRecordName.isEmpty {
                 byRecord[c.shareRecordName] = c
             }
+            let pendingNotes = Set(TableOutbox.shared.pending.compactMap { entry -> String? in
+                if case let .note(_, _, id) = entry.work { return id }
+                return nil
+            })
             for n in changes.notes {
+                // A stale pull must not resurrect text awaiting deletion.
+                guard !pendingNotes.contains(n.recordName) else { continue }
                 guard let parent = postByRecord[n.post] else { continue }
                 if let existing = byRecord[n.recordName] {
+                    guard existing.deletedAt == nil || n.deletedAt != nil else { continue }
                     existing.text = n.text
                     existing.linkURL = n.linkURL
                     existing.mentions = n.mentions
+                    existing.replyToName = n.replyToName
+                    existing.parentCommentID = n.parentCommentID
+                    existing.deletedAt = n.deletedAt
+                    existing.photoData = n.photoData
                     continue
                 }
                 let comment = TableComment(
@@ -1209,6 +1235,8 @@ enum TableShare {
                     mentions: n.mentions, photoData: n.photoData,
                     authorID: n.authorID
                 )
+                comment.parentCommentID = n.parentCommentID
+                comment.deletedAt = n.deletedAt
                 comment.shareRecordName = n.recordName
                 comment.post = parent
                 context.insert(comment)

@@ -1025,7 +1025,7 @@ struct RecipeEditorView: View {
         // The ask that used to be a surprise: new ingredients go straight to
         // this week's basket when the cook says so. Manual lines survive the
         // auto-rebuild by design.
-        if !isEditing && addToGroceries {
+        if !isEditing && addToGroceries && night == nil && !hidePlateShortcut {
             let weekStart = Calendar.current.startOfDay(for: .now)
             for line in draftIngredients.map(\.resolved) where !line.name.isEmpty {
                 let item = GroceryItem(

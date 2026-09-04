@@ -1,5 +1,6 @@
 import Foundation
 import EventKit
+import SwiftData
 
 /// Pushes the grocery list into Apple Reminders so it is available on the Watch,
 /// on a partner's phone, and at the store without opening Plated.
@@ -30,7 +31,7 @@ final class RemindersExporter {
     /// Writes each unchecked item as a reminder. Items already exported (those
     /// carrying a `reminderID`) are updated in place instead of duplicated.
     @discardableResult
-    func export(_ items: [GroceryItem], listName: String = "Groceries") async throws -> Int {
+    func export(_ items: [GroceryItem], listName: String = "Groceries", quantities: [PersistentIdentifier: Double] = [:]) async throws -> Int {
         guard try await requestAccess() else { throw ExportError.accessDenied }
 
         let calendar = try remindersList(named: listName)
@@ -46,8 +47,8 @@ final class RemindersExporter {
                 reminder.calendar = calendar
             }
 
-            reminder.title = item.displayText
-            reminder.notes = item.aisleValue.rawValue
+            reminder.title = [GroceryMeasure.shopping(quantities[item.persistentModelID] ?? item.quantity, item.unit).text, item.name].filter { !$0.isEmpty }.joined(separator: " ")
+            reminder.notes = [item.aisleValue.rawValue, item.originTitle].filter { !$0.isEmpty }.joined(separator: "\n")
 
             try store.save(reminder, commit: false)
             item.reminderID = reminder.calendarItemIdentifier

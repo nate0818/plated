@@ -1,299 +1,117 @@
 import SwiftUI
 import SwiftData
 
-/// Turn the phone sideways and the plan widens into a month — which nights
-/// are plated, who's cooking, what the calendar already claims. One grammar
-/// with the portrait plan: a planned day opens the day, an open future day
-/// opens planning. (An earlier comment here claimed the month was read-only;
-/// the cells have opened the plan sheet for a while — the claim was stale,
-/// and worse, planned days meant something different sideways than upright.)
+/// One calendar in either orientation. The grid selects a date; the agenda
+/// underneath names every meal on that date before opening or changing it.
 struct MonthPlannerView: View {
+    @Binding var anchor: Date
     var askTheTable: () -> Void = {}
-
     @Query private var meals: [PlannedMeal]
-    @Query(sort: \HouseholdMember.createdAt) private var members: [HouseholdMember]
-
-    @AppStorage("showCalendarEvents") private var showCalendarEvents = false
-    @State private var monthAnchor: Date = Calendar.current.startOfDay(for: .now)
     @State private var planDay: Date?
     @State private var dayShown: Date?
-    @State private var events = DayEventsProvider.shared
-    @State private var forecast = ForecastProvider.shared
-    /// The month was the one door in the plan that slid instead of zooming:
-    /// the week list has carried `matchedTransitionSource(id: date)` on its
-    /// rows since the Continuity rule was written, and tapping the same
-    /// night from the grid pushed a screen in from the right with no
-    /// relationship to the cell under your finger.
     @Namespace private var zoom
-
-    private var calendar: Calendar { Calendar.current }
+    private var calendar: Calendar { .current }
+    private var first: Date { calendar.dateInterval(of: .month, for: anchor)?.start ?? anchor }
+    private var days: [Date] { calendar.range(of: .day, in: .month, for: anchor)?.compactMap { calendar.date(byAdding: .day, value: $0 - 1, to: first) } ?? [] }
+    private var leading: Int { (calendar.component(.weekday, from: first) - calendar.firstWeekday + 7) % 7 }
+    private var selectedMeals: [PlannedMeal] { meals.filter { calendar.isDate($0.date, inSameDayAs: anchor) }.sorted { $0.slotValue.sortOrder < $1.slotValue.sortOrder } }
 
     var body: some View {
-        VStack(spacing: 10) {
-            header
-            weekdayHeader
-            ScrollView(showsIndicators: false) {
-                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 7), spacing: 6) {
-                    ForEach(0..<leadingBlanks, id: \.self) { _ in Color.clear.frame(height: 64) }
-                    ForEach(monthDays, id: \.self) { date in
-                        dayCell(date)
+        ScrollView(showsIndicators: false) {
+            VStack(alignment: .leading, spacing: 16) {
+                HStack {
+                    Text(anchor.formatted(.dateTime.month(.wide).year()))
+                        .plType(.title, .bold)
+                    Spacer()
+                    Button { shift(-1) } label: { Image(systemName: "chevron.left").plTapTarget() }
+                        .accessibilityLabel("Previous month")
+                    Button { shift(1) } label: { Image(systemName: "chevron.right").plTapTarget() }
+                        .accessibilityLabel("Next month")
+                }
+                VStack(spacing: 4) {
+                    HStack(spacing: 0) {
+                        ForEach(0..<7, id: \.self) { offset in
+                            Text(calendar.veryShortStandaloneWeekdaySymbols[(calendar.firstWeekday - 1 + offset) % 7])
+                                .plType(.caption, .bold)
+                                .foregroundStyle(Color.inkSecondary)
+                                .frame(maxWidth: .infinity)
+                        }
+                    }
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 0), count: 7), spacing: 4) {
+                        ForEach(0..<leading, id: \.self) { _ in Color.clear.frame(height: 48) }
+                        ForEach(days, id: \.self) { day in dayCell(day) }
                     }
                 }
-                .padding(.bottom, Layout.floatingChromeInset)
-            }
-        }
-        .padding(.horizontal, 24)
-        .padding(.top, 6)
-        .onAppear {
-            if showCalendarEvents { events.refresh() }
-        }
-        .sheet(item: $planDay) { date in
-            PlanNightSheet(date: date, askTheTable: askTheTable)
-        }
-        .navigationDestination(item: $dayShown) { day in
-            DayDetailView(date: day, askTheTable: askTheTable)
-                .navigationTransition(.zoom(sourceID: day, in: zoom))
-        }
-    }
-
-    // MARK: Header
-
-    private var header: some View {
-        HStack(spacing: 14) {
-            VStack(alignment: .leading, spacing: 3) {
-                Text(monthTitle)
-                    .plType(.display)
-                    .foregroundStyle(Color.ink)
-                // Legend rides the header — visible before you scroll an inch.
-                legend
-            }
-            Spacer()
-            monthArrow("chevron.left", "Previous month") { shiftMonth(-1) }
-            monthArrow("chevron.right", "Next month") { shiftMonth(1) }
-        }
-    }
-
-    private func monthArrow(_ symbol: String, _ label: String, action: @escaping () -> Void) -> some View {
-        Button {
-            Haptic.tap()
-            withAnimation(.plSnap) { action() }
-        } label: {
-            Circle()
-                .strokeBorder(Color.hairline, lineWidth: 1.5)
-                .frame(width: 38, height: 38)
-                .overlay {
-                    Image(systemName: symbol)
-                        .accessibilityLabel(label)
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(Color.ink)
+                .plChrome()
+                Divider()
+                HStack {
+                    Text(calendar.isDateInToday(anchor) ? "Today" : anchor.formatted(.dateTime.weekday(.wide).month(.abbreviated).day()))
+                        .plType(.body, .bold)
+                    Spacer()
+                    Button { planDay = anchor } label: { Label("Plan", systemImage: "plus").plTapTarget() }
+                        .plType(.footnote, .bold)
+                        .disabled(anchor < Date.now.startOfDay)
                 }
-                .frame(minWidth: 44, minHeight: 44)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.pressable)
-    }
-
-    private var weekdayHeader: some View {
-        HStack(spacing: 6) {
-            ForEach(orderedWeekdaySymbols, id: \.self) { symbol in
-                Text(symbol.uppercased())
-                    .plType(.micro, .extraBold)
-                    .foregroundStyle(Color.inkSecondary)
-                    .frame(maxWidth: .infinity)
-            }
-        }
-    }
-
-    // MARK: Cells
-
-    private func dayCell(_ date: Date) -> some View {
-        let today = calendar.isDateInToday(date)
-        let meal = dinner(on: date)
-        let past = date < calendar.startOfDay(for: .now) && !today
-        return Button {
-            Haptic.tap()
-            // Same grammar as the portrait plan: a day with something on it
-            // opens the day — past ones included, history answers questions
-            // — and an open future day goes straight to planning.
-            if meal != nil {
-                dayShown = date
-            } else if !past {
-                planDay = date
-            }
-        } label: {
-            dayCellContent(date, today: today, meal: meal, past: past)
-        }
-        .buttonStyle(.pressable)
-        .disabled(past && meal == nil)
-        .matchedTransitionSource(id: date, in: zoom)
-        // Every cell in this grid was silent: VoiceOver read a bare numeral
-        // and nothing else, so the dish, the cook, the forecast and the
-        // calendar dot — the entire reason the month exists — were visible
-        // only to people who could see them. DESIGN.md: a row that combines
-        // its children needs a label that reads as a sentence.
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(cellLabel(date, meal: meal, past: past))
-        .accessibilityHint(meal != nil ? "Opens the night" : (past ? "" : "Plans this night"))
-    }
-
-    private func cellLabel(_ date: Date, meal: PlannedMeal?, past: Bool) -> String {
-        var parts = [date.formatted(.dateTime.weekday(.wide).month(.wide).day())]
-        if let meal {
-            parts.append(meal.title)
-            if let cook = meal.cook {
-                parts.append(cook.isOwner ? "You cook" : "\(cook.name) cooks")
-            }
-        } else {
-            parts.append(past ? "Nothing was planned" : "Nothing planned yet")
-        }
-        if let day = forecast.forecast(for: date) {
-            parts.append("\(day.conditionDescription), high \(Int(day.highF.rounded())) degrees")
-        }
-        if showCalendarEvents && events.hasEvent(on: date) {
-            parts.append("Calendar event")
-        }
-        return parts.joined(separator: ". ")
-    }
-
-    private func dayCellContent(_ date: Date, today: Bool, meal: PlannedMeal?, past: Bool) -> some View {
-        VStack(spacing: 3) {
-            HStack(spacing: 3) {
-                Text(date.formattedDayNumber())
-                    .plType(.footnote, .extraBold, family: .display)
-                    .foregroundStyle(today ? Color.tomato : (past ? Color.inkSecondary : Color.ink))
-                if let day = forecast.forecast(for: date) {
-                    Image(systemName: day.symbolName)
-                        // The week list paints this same fact inkSecondary.
-                        // A forecast is information, not a stroke.
-                        .font(.system(size: 8, weight: .semibold))
+                if selectedMeals.isEmpty {
+                    Text("Nothing planned for this day.")
+                        .plType(.body)
                         .foregroundStyle(Color.inkSecondary)
-                }
-                Spacer(minLength: 0)
-                if showCalendarEvents && events.hasEvent(on: date) {
-                    Circle().fill(Color.grape).frame(width: 5, height: 5)
-                }
-            }
-            Spacer(minLength: 0)
-            HStack(spacing: 3) {
-                if let meal {
-                    dishDot(meal)
-                    if let cook = meal.cook {
-                        AvatarCircle(member: cook, size: 16)
+                        .padding(.vertical, 12)
+                } else {
+                    ForEach(selectedMeals) { meal in
+                        Button { dayShown = anchor } label: {
+                            HStack(spacing: 12) {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(meal.slotValue.rawValue.capitalized).plType(.caption, .semibold).foregroundStyle(Color.inkSecondary)
+                                    Text(meal.title).plType(.body, .bold)
+                                    Text("\(meal.servings) servings" + (meal.cook.map { " · \($0.isOwner ? "You cook" : $0.name + " cooks")" } ?? ""))
+                                        .plType(.caption).foregroundStyle(Color.inkSecondary)
+                                }
+                                Spacer()
+                                Image(systemName: "chevron.right").font(.footnote)
+                            }
+                            .padding(.vertical, 10)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.pressable)
+                        .matchedTransitionSource(id: meal.persistentModelID, in: zoom)
                     }
-                } else if !past {
-                    Circle()
-                        .strokeBorder(Color.hairlineDashed, style: StrokeStyle(lineWidth: 1.5, dash: [3, 3]))
-                        .frame(width: 16, height: 16)
-                }
-                Spacer(minLength: 0)
-                if meal?.gathering != nil {
-                    Image(systemName: "party.popper.fill")
-                        .font(.system(size: 9))
-                        .foregroundStyle(Color.amber)
                 }
             }
+            .foregroundStyle(Color.ink)
+            .padding(.horizontal, 24)
+            .padding(.bottom, Layout.floatingChromeInset)
         }
-        .padding(6)
-        // Seven columns on a 402pt screen is 50pt a cell: furniture, and it
-        // cannot reflow. See plChrome in Theme.swift.
-        .plChrome()
-        // Floored: the cell's numeral and chips now scale with Dynamic
-        // Type. The leading blanks above stay fixed because they hold
-        // nothing and keep the grid's shape.
-        .frame(minHeight: 64)
-        .background(today ? Color.todayTint : Color.canvas)
-        .clipShape(RoundedRectangle(cornerRadius: Radius.small, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: Radius.small, style: .continuous)
-                .strokeBorder(today ? Color.tomato : Color.hairline, lineWidth: today ? 1.5 : 1)
-        }
-        .opacity(past ? 0.55 : 1)
+        .sheet(item: $planDay) { PlanNightSheet(date: $0, askTheTable: askTheTable) }
+        .navigationDestination(item: $dayShown) { day in DayDetailView(date: day, askTheTable: askTheTable) }
     }
 
-    private func dishDot(_ meal: PlannedMeal) -> some View {
-        Group {
-            if let data = meal.recipe?.photoData, let image = UIImage(data: data) {
-                Image(uiImage: image)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(width: 18, height: 18)
-                    .clipShape(Circle())
-            } else {
-                Circle().fill(Color.basil).frame(width: 8, height: 8)
-                    .frame(width: 18, height: 18)
+    private func dayCell(_ day: Date) -> some View {
+        let selected = calendar.isDate(day, inSameDayAs: anchor)
+        let today = calendar.isDateInToday(day)
+        let count = meals.filter { calendar.isDate($0.date, inSameDayAs: day) }.count
+        return Button {
+            Haptic.select()
+            withAnimation(.plSnap) { anchor = day }
+        } label: {
+            VStack(spacing: 3) {
+                Text(day, format: .dateTime.day())
+                    .plType(.body, .bold)
+                    .frame(width: 34, height: 34)
+                    .foregroundStyle(selected ? Color.onTomato : (today ? Color.tomato : Color.ink))
+                    .background(selected ? Color.tomato : Color.clear, in: Circle())
+                Circle().fill(count > 0 ? Color.inkSecondary : Color.clear).frame(width: 4, height: 4)
             }
+            .frame(maxWidth: .infinity, minHeight: 48)
+            .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
+        .accessibilityLabel(day.formatted(.dateTime.weekday(.wide).month(.wide).day()) + (today ? ", today" : "") + ", \(count) meals planned")
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
-    private var legend: some View {
-        HStack(spacing: 16) {
-            legendItem("Plated") { Circle().fill(Color.basil).frame(width: 8, height: 8) }
-            legendItem("Who cooks") { AvatarCircle(initials: "S", tone: .basilPair, size: 14) }
-            if showCalendarEvents {
-                legendItem("Calendar event") { Circle().fill(Color.grape).frame(width: 6, height: 6) }
-            }
-            legendItem("Gathering") {
-                Image(systemName: "party.popper.fill")
-                    .font(.system(size: 9))
-                    .foregroundStyle(Color.amber)
-            }
-            Spacer()
-        }
+    private func shift(_ amount: Int) {
+        Haptic.select()
+        withAnimation(.plSnap) { anchor = calendar.date(byAdding: .month, value: amount, to: first) ?? first }
     }
-
-    private func legendItem(_ label: String, @ViewBuilder marker: () -> some View) -> some View {
-        HStack(spacing: 5) {
-            marker()
-            Text(label)
-                .plType(.micro, .semibold)
-                .foregroundStyle(Color.inkSecondary)
-                .fixedSize()
-        }
-    }
-
-    // MARK: Data
-
-    private var monthDays: [Date] {
-        guard let interval = calendar.dateInterval(of: .month, for: monthAnchor) else { return [] }
-        var days: [Date] = []
-        var cursor = interval.start
-        while cursor < interval.end {
-            days.append(cursor)
-            guard let next = calendar.date(byAdding: .day, value: 1, to: cursor) else { break }
-            cursor = next
-        }
-        return days
-    }
-
-    private var leadingBlanks: Int {
-        guard let first = monthDays.first else { return 0 }
-        let weekday = calendar.component(.weekday, from: first)
-        return (weekday - calendar.firstWeekday + 7) % 7
-    }
-
-    private var orderedWeekdaySymbols: [String] {
-        let symbols = calendar.veryShortWeekdaySymbols
-        let first = calendar.firstWeekday - 1
-        return Array(symbols[first...] + symbols[..<first])
-    }
-
-    private var monthTitle: String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "MMMM yyyy"
-        return formatter.string(from: monthAnchor)
-    }
-
-    private func dinner(on date: Date) -> PlannedMeal? {
-        meals.first { calendar.isSameDay($0.date, date) && $0.slotValue == .dinner }
-    }
-
-    private func shiftMonth(_ delta: Int) {
-        if let shifted = calendar.date(byAdding: .month, value: delta, to: monthAnchor) {
-            monthAnchor = shifted
-        }
-    }
-}
-
-#Preview(traits: .landscapeLeft) {
-    MonthPlannerView().modelContainer(SampleData.previewContainer)
 }

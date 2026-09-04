@@ -379,6 +379,11 @@ struct EditProfileSheet: View {
     @AppStorage("userBio") private var bio = ""
     @AppStorage("userFirstName") private var firstName = ""
     @State private var draftName = ""
+    @State private var draftBio = ""
+    @State private var saved = false
+    private var draftKey: String {
+        "profile.editDraft." + (members.first(where: \.isOwner).map { String(describing: $0.persistentModelID) } ?? "local")
+    }
     @State private var photoData: Data?
     @State private var pickerItem: PhotosPickerItem?
     /// Why the last Done didn't take. A refusal that only buzzes is a
@@ -406,6 +411,13 @@ struct EditProfileSheet: View {
             }
             .buttonStyle(.pressable)
 
+            Button("Use my contact photo") {
+                ContactPhotoPicker.choose { selected in
+                    guard let selected else { return }
+                    photoData = selected
+                }
+            }.plType(.footnote, .bold).foregroundStyle(Color.ink).plTapTarget()
+
             VStack(alignment: .leading, spacing: 8) {
                 MicroLabel("Your name")
                 TextField("First name", text: $draftName)
@@ -427,7 +439,7 @@ struct EditProfileSheet: View {
 
             VStack(alignment: .leading, spacing: 8) {
                 MicroLabel("Bio")
-                TextField("What kind of cook are you?", text: $bio, axis: .vertical)
+                TextField("What kind of cook are you?", text: $draftBio, axis: .vertical)
                     .plType(.body, .medium)
                     .lineLimit(2...4)
                     .padding(14)
@@ -439,11 +451,14 @@ struct EditProfileSheet: View {
                 .plType(.micro, .medium)
                 .foregroundStyle(Color.inkSecondary)
 
-            InkPillButton(title: "Done") {
+            InkPillButton(title: "Save profile") {
                 // Only leave if it took. Dismissing regardless is how a
                 // refusal became invisible.
                 if saveName() {
                     savePhoto()
+                    bio = draftBio.trimmingCharacters(in: .whitespacesAndNewlines)
+                    saved = true
+                    UserDefaults.standard.removeObject(forKey: draftKey)
                     dismiss()
                 }
             }
@@ -454,6 +469,12 @@ struct EditProfileSheet: View {
             let name = owner?.name ?? firstName
             draftName = HouseholdIdentity.isPlaceholder(name) ? "" : name
             photoData = owner?.photoData
+            draftBio = bio
+            if let kept = UserDefaults.standard.dictionary(forKey: draftKey) {
+                draftName = kept["name"] as? String ?? draftName
+                draftBio = kept["bio"] as? String ?? draftBio
+                photoData = kept["photo"] as? Data
+            }
         }
         .onChange(of: pickerItem) { _, item in
             guard let item else { return }
@@ -466,11 +487,17 @@ struct EditProfileSheet: View {
                 pickerItem = nil
             }
         }
+        .onDisappear {
+            guard !saved else { return }
+            var kept: [String: Any] = ["name": draftName, "bio": draftBio]
+            kept["photo"] = photoData
+            UserDefaults.standard.set(kept, forKey: draftKey)
+        }
         .padding(.horizontal, 24)
-        .presentationDetents([.height(430), .large])
+        .plFitsOrScrolls()
+        .presentationDetents([.large])
         .presentationDragIndicator(.visible)
-        .presentationBackground(Color.canvas)
-        .presentationCornerRadius(Radius.sheet)
+        .plTapOutsideToDismiss()
     }
 
     private var draftInitials: String {

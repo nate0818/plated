@@ -50,6 +50,7 @@ struct MainShellView: View {
     @Query private var members: [HouseholdMember]
 
     @State private var selection: AppTab = .week
+    @State private var visitedTabs: Set<AppTab> = [.week]
     /// Raised when the bar is tapped on the tab already showing. See
     /// `TabPopRequest`.
     @State private var tabPop = TabPopRequest()
@@ -106,19 +107,19 @@ struct MainShellView: View {
         ZStack(alignment: .bottom) {
             Color.canvas.ignoresSafeArea()
 
-            Group {
-                switch selection {
-                case .week:
-                    WeekView(
-                        askTheTable: { withAnimation(.plSnap) { selection = .table } },
-                        openGrocery: $groceryRequested
-                    )
-                case .table:
-                    TableFeedView()
-                case .cookbook:
-                    CookbookView()
-                case .home:
-                    HouseholdHomeView()
+            ZStack {
+                ForEach(AppTab.allCases.filter { visitedTabs.contains($0) }, id: \.self) { tab in
+                    Group {
+                        switch tab {
+                        case .week: WeekView(askTheTable: { selection = .table }, openGrocery: $groceryRequested)
+                        case .table: TableFeedView()
+                        case .cookbook: CookbookView()
+                        case .home: HouseholdHomeView()
+                        }
+                    }
+                    .opacity(selection == tab ? 1 : 0)
+                    .allowsHitTesting(selection == tab)
+                    .accessibilityHidden(selection != tab)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -151,7 +152,8 @@ struct MainShellView: View {
         .environment(\.tabPop, tabPop)
         .environment(\.perchVisibility, perchVisibility)
         .animation(.plSnap, value: perchVisibility.isHidden)
-        .onChange(of: selection) { previous, _ in
+        .onChange(of: selection) { previous, current in
+            visitedTabs.insert(current)
             guard !poppingTab else { poppingTab = false; return }
             tabHistory.append(previous)
             // A session's worth of tab hopping is not a browser history.

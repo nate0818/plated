@@ -55,7 +55,7 @@ extension Color {
     static let tomato         = Color(light: 0xFF5A3C, dark: 0xF75434)   // dark value keeps white labels ≥3:1
     /// THE label color on tomato, both rooms — tomato's dark value is tuned
     /// for white (≥3:1, above). Never canvas, never a bare .white literal.
-    static let onTomato       = Color(light: 0xFFFFFF, dark: 0xFFFFFF)
+    static let onTomato = Color(light: 0x221B14, dark: 0x221B14) // dark ink meets contrast on the original orange
     static let tomatoPressed  = Color(light: 0xD6401F, dark: 0xD6401F)   // pressed always darkens
 
     /// The darkening under a control that sits on somebody's photograph.
@@ -1410,4 +1410,16 @@ private struct TomatoPillStyle: ButtonStyle {
         guard enabled else { return .fill }
         return pressed ? .tomatoPressed : .tomato
     }
+}
+
+private struct FloatingGlass: ViewModifier {
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    func body(content: Content) -> some View {
+        if reduceTransparency { content.background(Color.canvas, in: Capsule()) }
+        else if #available(iOS 26.0, *) { content.glassEffect(.regular.interactive(), in: .capsule) }
+        else { content.background(.regularMaterial, in: Capsule()) }
+    }
+}
+extension View {
+    func plFloatingGlass() -> some View { modifier(FloatingGlass()) }
 }

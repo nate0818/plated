@@ -7,6 +7,7 @@ import SwiftData
 struct GrocerySheet: View {
     @Environment(\.modelContext) private var context
     @Environment(\.openURL) private var openURL
+    @Environment(\.dismiss) private var dismiss
     @Query(sort: \GroceryItem.name) private var items: [GroceryItem]
     /// Only to tell the two empty lists apart: a week with nights on it and
     /// nothing left to buy is a different sentence from a week with no plan.
@@ -21,26 +22,58 @@ struct GrocerySheet: View {
     @State private var build: Build = .building
     @State private var exportResult: String?
     @State private var exporting = false
-    @State private var newItemName = ""
+    @State private var openingInstacart = false
+    @State private var sheetDetent: PresentationDetent = .large
+    @State private var shoppingStart = Date.now.startOfDay
+    @State private var byMeal = false
+    @State private var selectedMeals: Set<String> = []
+    @State private var includeExtras = false
+    @State private var undoCheck: (GroceryItem, Data?, Bool)?
+    @State private var sourceShown: GroceryItem?
+    private var selectedIDs: Set<String>? { byMeal ? selectedMeals : nil }
+    private var plannedMeals: [PlannedMeal] {
+        let end = Calendar.current.date(byAdding: .day, value: 7, to: shoppingStart) ?? shoppingStart
+        return meals.filter { $0.date >= shoppingStart && $0.date < end && $0.cookedAt == nil && $0.recipe != nil }.sorted { $0.date < $1.date }
+    }
+    /// A household edit arriving while shopping must update quantities too,
+    /// even when the number of meals and ingredients stays the same.
+    private var planRevision: [String] {
+        plannedMeals.map { meal in
+            let ingredients = meal.scaledIngredients.map {
+                "\($0.ingredient.name)|\($0.quantity)|\($0.ingredient.unit)|\($0.ingredient.isPantryStaple)"
+            }.joined(separator: ";")
+            return "\(meal.shoppingID ?? "")|\(meal.date)|\(meal.title)|\(ingredients)"
+        }
+    }
+    private func checked(_ item: GroceryItem) -> Bool { item.isPurchased(for: selectedIDs) }
+    private func needed(_ item: GroceryItem) -> Double {
+        item.sources.isEmpty ? item.quantity : item.outstanding(for: selectedIDs)
+    }
+    @AppStorage("grocery.manualDraft") private var newItemName = ""
     @FocusState private var addFieldFocused: Bool
     /// One row open at a time, same contract as the week's plan rows.
     @State private var swipedItem: PersistentIdentifier?
 
     private var currentItems: [GroceryItem] {
-        let windowStart = Calendar.current.startOfDay(for: .now)
+        let windowStart = shoppingStart
         // Manual lines keep the window key of the day they were typed; give
         // them a week of life so they don't vanish as the window rolls.
         let manualHorizon = Calendar.current.date(byAdding: .day, value: -7, to: windowStart) ?? windowStart
+        let windowEnd = Calendar.current.date(byAdding: .day, value: 7, to: windowStart) ?? windowStart
         return items.filter {
             guard !$0.isDismissed else { return false }
+            if byMeal {
+                if $0.isManual { guard includeExtras else { return false } }
+                else { guard $0.sources.contains(where: { selectedMeals.contains($0.id) }) else { return false } }
+            }
             return $0.isManual
-                ? $0.weekStart >= manualHorizon
+                ? $0.weekStart >= manualHorizon && $0.weekStart < windowEnd
                 : Calendar.current.isSameDay($0.weekStart, windowStart)
         }
     }
 
     private var unchecked: [GroceryItem] {
-        currentItems.filter { !$0.isChecked }
+        currentItems.filter { !checked($0) }
     }
 
     private var grouped: [(GroceryAisle, [GroceryItem])] {
@@ -51,13 +84,15 @@ struct GrocerySheet: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            VStack(spacing: 2) {
-                MicroLabel("This week")
-                Text("Groceries")
-                    .plType(.title)
-                    .foregroundStyle(Color.ink)
+            HStack {
+                Text("Groceries").plType(.title).foregroundStyle(Color.ink)
+                Spacer()
+                Button { dismiss() } label: { Image(systemName: "xmark").foregroundStyle(Color.ink).plTapTarget() }
+                    .accessibilityLabel("Close groceries")
             }
-            .padding(.top, 22)
+            .padding(.horizontal, 24).padding(.top, 18)
+            shoppingControls
+
 
             if currentItems.isEmpty {
                 Spacer()
@@ -88,10 +123,10 @@ struct GrocerySheet: View {
                         Image(systemName: "basket")
                             .font(.system(size: 26, weight: .medium))
                             .foregroundStyle(Color.inkFaint)
-                        Text(hasPlannedNights ? "Nothing left to buy" : "Nothing to shop for yet")
+                        Text(byMeal && selectedMeals.isEmpty ? "Choose meals to shop for" : hasPlannedNights ? "Nothing left to buy" : "Nothing to shop for yet")
                             .plType(.body, .bold)
                             .foregroundStyle(Color.ink)
-                        Text(hasPlannedNights
+                        Text(byMeal && selectedMeals.isEmpty ? "Select one or more meals above to build your list." : hasPlannedNights
                              ? "This week's dishes need nothing you don't have."
                              : "Plan a few nights and the list builds itself.")
                             .plType(.footnote)
@@ -130,6 +165,13 @@ struct GrocerySheet: View {
                 }
 
                 VStack(spacing: 8) {
+                    if undoCheck != nil {
+                        Button("Undo last check") {
+                            guard let (item, data, checked) = undoCheck else { return }
+                            item.purchasesData = data; item.isChecked = checked
+                            undoCheck = nil; Persist.save(context)
+                        }.plType(.footnote, .bold).plTapTarget()
+                    }
                     // "Send 0 items" is not an offer. When the list is fully
                     // shopped the committing action retires and says so.
                     if unchecked.isEmpty {
@@ -139,29 +181,12 @@ struct GrocerySheet: View {
                             .frame(maxWidth: .infinity)
                             .frame(minHeight: 50)
                     } else {
-                    TomatoPillButton(
-                        title: "Send \(unchecked.count) item\(unchecked.count == 1 ? "" : "s") to Reminders",
-                        systemImage: "checklist",
-                        busy: exporting
-                    ) {
-                        exportToReminders()
-                    }
-                    Button {
+                    TomatoPillButton(title: "Shop with Instacart", systemImage: "cart", busy: openingInstacart) {
                         orderWithInstacart()
-                    } label: {
-                        HStack(spacing: 8) {
-                            Image(systemName: "cart")
-                                .font(.system(size: 15, weight: .semibold))
-                            Text("Copy list and open Instacart")
-                                .plType(.body, .bold)
-                        }
-                        .foregroundStyle(Color.ink)
-                        .frame(maxWidth: .infinity)
-                        .frame(minHeight: 50)
-                        .overlay(Capsule().strokeBorder(Color.hairline, lineWidth: 1.5))
-                        .contentShape(Capsule())
                     }
-                    .buttonStyle(.pressable)
+                    Button(exporting ? "Sending…" : "Send to Reminders") { exportToReminders() }
+                        .plType(.footnote, .bold).foregroundStyle(Color.ink).plTapTarget()
+                        .disabled(exporting)
                     }
                     if let exportResult {
                         Text(exportResult)
@@ -173,14 +198,34 @@ struct GrocerySheet: View {
                 .padding(.bottom, 16)
             }
         }
-        .presentationDetents([.medium, .large])
+        .presentationDetents([.medium, .large], selection: $sheetDetent)
         .presentationDragIndicator(.visible)
-        .presentationBackground(Color.canvas)
-        .presentationCornerRadius(Radius.sheet)
+        .plTapOutsideToDismiss()
+
         .task { rebuild() }
+        .onChange(of: shoppingStart) { rebuild() }
+        .onChange(of: planRevision) { rebuild() }
+        .onChange(of: byMeal) { _, active in
+            if active && selectedMeals.isEmpty, let id = plannedMeals.first?.shoppingID { selectedMeals.insert(id) }
+        }
+        .sheet(item: $sourceShown) { item in
+            VStack(alignment: .leading, spacing: 16) {
+                Text(item.name).plType(.title)
+                ForEach(item.sources) { source in
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(source.title).plType(.body, .bold)
+                        Text(source.date.formatted(.dateTime.weekday(.wide).month(.abbreviated).day()) + " · " + GroceryMeasure.shopping(source.quantity, item.unit).text)
+                            .plType(.footnote).foregroundStyle(Color.inkSecondary)
+                    }
+                }
+                Text("Choose a package that covers at least the amount shown. Package sizes vary by store.")
+                    .plType(.footnote).foregroundStyle(Color.inkSecondary)
+                Button("Done") { sourceShown = nil }.foregroundStyle(Color.ink).plTapTarget()
+            }.padding(24).plFitsOrScrolls().presentationDetents([.medium, .large]).presentationDragIndicator(.visible).plTapOutsideToDismiss()
+        }
         // A receipt must not outlive its truth: "12 items sent to Reminders"
         // stayed on screen while the list underneath it changed.
-        .onChange(of: currentItems.count) { exportResult = nil }
+        .onChange(of: unchecked.map { "\($0.name)|\($0.unit)|\(needed($0))" }) { exportResult = nil }
     }
 
     /// "We're out of olive oil" — the single most obvious grocery job, and
@@ -220,7 +265,7 @@ struct GrocerySheet: View {
             context.insert(GroceryItem(
                 name: name,
                 aisle: RecipeImporter.aisle(for: name),
-                weekStart: .now,
+                weekStart: shoppingStart,
                 isManual: true
             ))
             newItemName = ""
@@ -261,70 +306,104 @@ struct GrocerySheet: View {
     }
 
     private func checkRow(_ item: GroceryItem) -> some View {
-        Button {
-            // A tick is a toggle, and DESIGN.md gives toggles `select`.
-            Haptic.select()
-            withAnimation(.plSnap) { item.isChecked.toggle() }
-        } label: {
-            HStack(spacing: 12) {
-                ZStack {
-                    Circle()
-                        .strokeBorder(item.isChecked ? Color.basil : Color.hairline, lineWidth: 2)
-                        .background(Circle().fill(item.isChecked ? Color.basil : Color.clear))
-                        .frame(width: 24, height: 24)
-                    if item.isChecked {
-                        // The check lands like a pen stroke, not a repaint —
-                        // but a stroke, not a pop. 0.4 was a fly-in.
-                        Image(systemName: "checkmark")
-                            .font(.system(size: 11, weight: .heavy))
-                            .foregroundStyle(Color.canvas)
-                            .transition(.plArrive)
+        let isChecked = checked(item)
+        return HStack(spacing: 8) {
+            Button {
+                Haptic.select()
+                undoCheck = (item, item.purchasesData, item.isChecked)
+                withAnimation(.plSnap) { item.setPurchased(!isChecked, for: selectedIDs) }
+                Persist.save(context)
+                exportResult = nil
+            } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: isChecked ? "checkmark.circle.fill" : "circle")
+                        .font(.system(size: 24, weight: .regular))
+                        .foregroundStyle(isChecked ? Color.basil : Color.inkSecondary)
+                        .contentTransition(.symbolEffect(.replace))
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(item.name).plType(.body, .semibold)
+                            .strikethrough(isChecked).foregroundStyle(isChecked ? Color.inkSecondary : Color.ink)
+                        if !item.originTitle.isEmpty {
+                            Text(item.sources.filter { selectedIDs == nil || selectedIDs!.contains($0.id) }.map {
+                                $0.date.formatted(.dateTime.weekday(.abbreviated)) + " · " + $0.title
+                            }.joined(separator: " · "))
+                                .plType(.caption).foregroundStyle(Color.inkSecondary).lineLimit(2)
+                        }
+                    }
+                    Spacer(minLength: 6)
+                    Text(GroceryMeasure.shopping(isChecked ? selectedQuantity(item) : needed(item), item.unit).text)
+                        .plType(.footnote, .semibold).foregroundStyle(Color.inkSecondary)
+                }.frame(minHeight: 56).contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(item.name + ", " + GroceryMeasure.shopping(selectedQuantity(item), item.unit).text)
+            .accessibilityValue(isChecked ? "Purchased" : "To buy")
+            if !item.sources.isEmpty {
+                Button { sourceShown = item } label: { Image(systemName: "info.circle").plTapTarget() }
+                    .foregroundStyle(Color.inkSecondary)
+                    .accessibilityLabel("Meals that need " + item.name)
+            }
+        }
+    }
+
+    private func selectedQuantity(_ item: GroceryItem) -> Double {
+        item.sources.isEmpty ? item.quantity : item.sources.filter { selectedIDs == nil || selectedIDs!.contains($0.id) }.reduce(0) { $0 + $1.quantity }
+    }
+
+    private func orderWithInstacart() {
+        guard !openingInstacart, !unchecked.isEmpty else { return }
+        let lines = unchecked.map { InstacartService.Line(name: $0.name, quantity: needed($0), unit: $0.unit) }
+        openingInstacart = true
+        exportResult = nil
+        Task {
+            defer { openingInstacart = false }
+            do {
+                let url = try await InstacartService.shared.shoppingURL(lines: lines)
+                openURL(url) { accepted in
+                    exportResult = accepted ? "Review products and checkout in Instacart." : "Couldn't open Instacart. Try again."
+                }
+                Haptic.plate()
+            } catch {
+                exportResult = error.localizedDescription
+                Haptic.warn()
+            }
+        }
+    }
+
+    private var shoppingControls: some View {
+        VStack(spacing: 12) {
+            DatePicker("Starting", selection: $shoppingStart, displayedComponents: .date)
+                .plType(.footnote, .semibold)
+            Picker("Shop for", selection: $byMeal) {
+                Text("7 days").tag(false)
+                Text("By meal").tag(true)
+            }.pickerStyle(.segmented)
+            if byMeal {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(plannedMeals) { meal in
+                            if let id = meal.shoppingID {
+                                Button {
+                                    Haptic.select()
+                                    if selectedMeals.contains(id) { selectedMeals.remove(id) } else { selectedMeals.insert(id) }
+                                } label: {
+                                    HStack(spacing: 6) {
+                                        Image(systemName: selectedMeals.contains(id) ? "checkmark.circle.fill" : "circle")
+                                        Text(meal.date.formatted(.dateTime.weekday(.abbreviated)) + " · " + meal.title).lineLimit(1)
+                                    }.padding(12).background(selectedMeals.contains(id) ? Color.fill : Color.clear, in: Capsule())
+                                }.buttonStyle(.plain).accessibilityAddTraits(selectedMeals.contains(id) ? .isSelected : [])
+                            }
+                        }
                     }
                 }
-                Text(item.name)
-                    .plType(.body)
-                    .foregroundStyle(item.isChecked ? Color.inkSecondary : Color.ink)
-                    .strikethrough(item.isChecked, color: .inkSecondary)
-                Spacer()
-                Text(quantityText(item))
-                    .plType(.footnote)
-                    .foregroundStyle(Color.inkSecondary)
+                Toggle("Include extra items", isOn: $includeExtras).plType(.footnote)
             }
-            .plTapTarget()
-        }
-        .buttonStyle(.pressable)
-    }
-
-    private func quantityText(_ item: GroceryItem) -> String {
-        var parts: [String] = []
-        if item.quantity > 0 { parts.append(Ingredient.format(item.quantity)) }
-        let unit = Ingredient.unitText(item.unit, for: item.quantity)
-        if !unit.isEmpty { parts.append(unit) }
-        return parts.joined(separator: " ")
-    }
-
-    /// No public cart API exists, so this is the honest version: the list
-    /// rides the clipboard and Instacart opens (the app when installed, the
-    /// site otherwise) ready for a paste-and-search run.
-    private func orderWithInstacart() {
-        Haptic.plate()
-        let unchecked = currentItems.filter { !$0.isChecked }
-        let list = unchecked.map(\.displayText).joined(separator: "\n")
-        UIPasteboard.general.string = list
-        exportResult = "List copied. Paste it into your Instacart cart."
-        Notifier.post(
-            .groceriesOrdered, actor: "",
-            body: "Grocery list copied for Instacart.",
-            into: context
-        )
-        if let url = URL(string: "https://www.instacart.com/store") {
-            openURL(url)
-        }
+        }.foregroundStyle(Color.ink).padding(.horizontal, 24).padding(.top, 12).plChrome()
     }
 
     private func rebuild() {
         do {
-            try GroceryListBuilder(context: context).rebuild(weekOf: .now)
+            try GroceryListBuilder(context: context).rebuild(weekOf: shoppingStart)
             build = .built
         } catch {
             // assertionFailure here was a crash under `make phone` and total
@@ -336,7 +415,7 @@ struct GrocerySheet: View {
     }
 
     private var hasPlannedNights: Bool {
-        let start = Calendar.current.startOfDay(for: .now)
+        let start = shoppingStart.startOfDay
         guard let end = Calendar.current.date(byAdding: .day, value: 7, to: start) else { return false }
         return meals.contains { $0.date >= start && $0.date < end }
     }
@@ -348,8 +427,9 @@ struct GrocerySheet: View {
         exporting = true
         Task {
             do {
-                let unchecked = currentItems.filter { !$0.isChecked }
-                let count = try await RemindersExporter.shared.export(unchecked)
+                let unchecked = currentItems.filter { !checked($0) }
+                let quantities = Dictionary(uniqueKeysWithValues: unchecked.map { ($0.persistentModelID, needed($0)) })
+                let count = try await RemindersExporter.shared.export(unchecked, quantities: quantities)
                 withAnimation(.plSnap) { exportResult = "\(count) \(count == 1 ? "item" : "items") sent to Reminders" }
                 Haptic.kiss()
             } catch {

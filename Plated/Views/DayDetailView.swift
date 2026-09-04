@@ -128,6 +128,7 @@ struct DayDetailView: View {
                         .minimumScaleFactor(0.7)
                 }
                 Spacer(minLength: 6)
+                AccountButton()
                 if let day = forecast.forecast(for: date) {
                     // Plated shows the one fact that changes dinner — how
                     // hot it will be. Anyone who wants the hour-by-hour

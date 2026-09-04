@@ -22,6 +22,35 @@ final class GroceryItem {
     /// Reminders identifier once exported, to avoid duplicate reminders.
     var reminderID: String?
     var createdAt: Date = Date.now
+    var sourcesData: Data?
+    var purchasesData: Data?
+
+    var sources: [GrocerySource] {
+        get { sourcesData.flatMap { try? JSONDecoder().decode([GrocerySource].self, from: $0) } ?? [] }
+        set { sourcesData = try? JSONEncoder().encode(newValue) }
+    }
+    var purchases: [String: Double] {
+        get { purchasesData.flatMap { try? JSONDecoder().decode([String: Double].self, from: $0) } ?? [:] }
+        set { purchasesData = try? JSONEncoder().encode(newValue) }
+    }
+    func outstanding(for selected: Set<String>? = nil) -> Double {
+        sources.filter { selected == nil || selected!.contains($0.id) }.reduce(0) {
+            $0 + max(0, $1.quantity - (purchases[$1.id] ?? 0))
+        }
+    }
+    func isPurchased(for selected: Set<String>? = nil) -> Bool {
+        let relevant = sources.filter { selected == nil || selected!.contains($0.id) }
+        guard !relevant.isEmpty else { return isChecked }
+        return relevant.allSatisfy { (purchases[$0.id] ?? -1) + 0.000001 >= $0.quantity }
+    }
+    func setPurchased(_ checked: Bool, for selected: Set<String>? = nil) {
+        var saved = purchases
+        for source in sources where selected == nil || selected!.contains(source.id) {
+            if checked { saved[source.id] = source.quantity } else { saved.removeValue(forKey: source.id) }
+        }
+        purchases = saved
+        isChecked = sources.isEmpty ? checked : isPurchased()
+    }
 
     init(
         name: String = "",
@@ -48,6 +77,6 @@ final class GroceryItem {
     }
 
     var displayText: String {
-        Ingredient.line(quantity: quantity, unit: unit, name: name)
+        [GroceryMeasure.shopping(quantity, unit).text, name].filter { !$0.isEmpty }.joined(separator: " ")
     }
 }

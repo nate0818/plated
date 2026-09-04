@@ -32,6 +32,7 @@ enum Directory {
     private static let tokenAccount = "plated.directory.token"
 
     static var isRegistered: Bool { token != nil }
+    static func clearSession() { token = nil }
 
     private static var token: String? {
         get { Keychain.string(for: tokenAccount) }
@@ -104,6 +105,18 @@ enum Directory {
             let name = byNumber[phone] ?? (row["display_name"] as? String ?? "")
             return name.isEmpty ? nil : Match(phone: phone, name: name)
         }
+    }
+
+    /// Shared authenticated transport for server integrations. The publishable
+    /// key identifies the project; only the private session authorizes a user.
+    static func authenticatedRequest(path: String) throws -> URLRequest {
+        guard AppleIdentity.load() != nil, let token else { throw InstacartService.ShoppingError.signIn }
+        var request = URLRequest(url: base.appending(path: path))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(publishableKey, forHTTPHeaderField: "apikey")
+        request.setValue(token, forHTTPHeaderField: "X-Plated-Session")
+        return request
     }
 
     // MARK: Plumbing

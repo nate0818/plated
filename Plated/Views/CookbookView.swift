@@ -950,6 +950,7 @@ struct RecipeDetailView: View {
     @State private var sharePresented = false
     @State private var assignShown = false
     @State private var swapShown = false
+    @State private var ingredientsShown = false
     @State private var shownPhoto: Data?
     @Environment(\.scenePhase) private var scenePhase
     /// Tonight's ticks, cursor and timer. Not in the mirror, deliberately —
@@ -1160,21 +1161,41 @@ struct RecipeDetailView: View {
         // This page docks its own tomato CTA across the bottom; the perch
         // would sit right on top of it.
         .hidesProngsbyPerch()
-        .sheet(isPresented: $sharePresented) {
-            RecipeShareSheet(recipe: recipe)
-        }
-        .sheet(isPresented: $editorShown) {
-            RecipeEditorView(editing: recipe)
-        }
-        .sheet(isPresented: $assignShown) {
-            PlateAssignSheet(recipe: recipe)
-        }
-        .sheet(isPresented: $swapShown) {
-            if let meal {
-                PlanNightSheet(date: meal.date, slot: meal.slotValue)
+        .sheet(item: detailSheet) { destination in
+            switch destination {
+            case .share: RecipeShareSheet(recipe: recipe)
+            case .edit: RecipeEditorView(editing: recipe)
+            case .assign: PlateAssignSheet(recipe: recipe)
+            case .swap:
+                if let meal { PlanNightSheet(date: meal.date, slot: meal.slotValue) }
+            case .ingredients:
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 14) {
+                        HStack {
+                            Text("Ingredients").plType(.title)
+                            Spacer()
+                            Button("Done") { ingredientsShown = false }.plTapTarget()
+                        }
+                        ForEach(ingredientRows, id: \.ingredient.persistentModelID) { row in
+                            ingredientRow(row.ingredient, quantity: row.quantity)
+                        }
+                    }.padding(24)
+                }.presentationDetents([.medium, .large]).presentationDragIndicator(.visible).plTapOutsideToDismiss()
             }
         }
         }
+    }
+
+    private enum DetailSheet: String, Identifiable {
+        case share, edit, assign, swap, ingredients
+        var id: String { rawValue }
+    }
+    private var detailSheet: Binding<DetailSheet?> {
+        Binding(get: {
+            if editorShown { return .edit }; if sharePresented { return .share }
+            if assignShown { return .assign }; if swapShown { return .swap }
+            return ingredientsShown ? .ingredients : nil
+        }, set: { if $0 == nil { editorShown = false; sharePresented = false; assignShown = false; swapShown = false; ingredientsShown = false } })
     }
 
     /// One docked action, chosen by why you're here. Browse → "Plan it".
@@ -1241,7 +1262,13 @@ struct RecipeDetailView: View {
                 dismiss()
             }
             Spacer()
+            if cooking {
+                Button("Ingredients") { ingredientsShown = true }
+                    .plType(.footnote, .bold).plTapTarget()
+            }
+            AccountButton()
 
+            if !cooking {
             Button {
                 Haptic.tap()
                 withAnimation(.plPop) { recipe.isFavorite.toggle() }
@@ -1269,6 +1296,7 @@ struct RecipeDetailView: View {
                 sharePresented = true
             }
 
+            }
             // Labelled, not a lone pencil in a circle.
             //
             // It sat fourth in a row of four identical discs, so the only
