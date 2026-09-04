@@ -1,5 +1,20 @@
 # Design implementation — September 4, 2026
 
+## Interaction and Account polish — build 20
+
+Account and awards now use fully pressable, arrow-free surfaces; decorative
+chevrons and diagonal arrows no longer substitute for hierarchy. Profile and
+Edit stay on one line and stack at full width for larger Dynamic Type. The
+one-line action contract now covers primary buttons, chips, tabs and segmented
+controls and is enforced by the design checker. The tray has contextual custom
+kitchen icons and stateful motion, recipe steps have a dedicated tactile reorder
+handle, and planned meals move smoothly between Week, Day and Month targets.
+Fifteen native UI flows passed across both appearance modes and accessibility
+text, and all 125 Swift files passed the design scan. Apple reports build 20
+VALID and IN_BETA_TESTING for Internal and External, with automatic tester
+notification enabled. See [build 20](testflight-20.md) and the
+[native design audit](native-build-20.md).
+
 ## Account depth, awards and recipe intake — build 19
 
 Account and Settings now form a full personal control center with direct
