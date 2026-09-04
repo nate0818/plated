@@ -1,5 +1,16 @@
 # Design implementation — September 4, 2026
 
+## Native hold and drag — build 16
+
+Recipe steps now lift from their grip or unfocused text, including when the
+keyboard is open. Save persists the new order; Cancel discards it. Featured
+dinners and agenda cards move between dates in Week, Month and day detail,
+with same-slot swaps and protection for cooked meals. Cropped food images now
+constrain their touch bounds so they cannot intercept date targets. Four native
+gesture flows and nine isolated model checks passed. Signed archive/export and
+signature checks passed. Apple processing is VALID; Internal and External are
+both IN_BETA_TESTING. See [build 16](testflight-16.md).
+
 ## Table notification bell — build 15
 
 The Table now keeps its notification bell in the top bar alongside Create and
