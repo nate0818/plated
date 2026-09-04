@@ -193,6 +193,11 @@ first screen after sign-in opens with its primary button in that state.
   on every launch has to earn its length every launch.
 - Haptics have meaning: `tap` for chrome, `select` for position changes, `plate`
   for something landing, `kiss` for the good thing, `warn` for a refusal.
+- A planned meal lifts as the meal itself: dish, slot and name in a compact
+  material card. As it travels, only the day beneath it takes the persimmon
+  target tint and slight scale; the plate haptic belongs to lift and landing.
+  Let the system drag session track the finger and edge-scroll the planner.
+  Do not replace that continuous motion with a menu masquerading as drag.
 
 ## Continuity
 
@@ -340,9 +345,17 @@ class of bug: `.frame(minWidth: 44)` alone is not hit-testable.
 - Recipe steps lift through native drag-and-drop from the grip or unfocused
   text. Focused text keeps native selection, and the grip remains available.
   Dropping changes the draft; Save commits it. Meal cards use the same native
-  lift across Week, Month and day detail, with date targets and an explicit
-  Move action. Do not attach a competing long-press context menu to a drag
-  surface; keep its actions in the visible menu and accessibility actions.
+  item-provider lift across Week, Month and day detail, with persimmon date
+  targets and an explicit Move action. The newer `draggable` modifier lost
+  physical-device holds when nested in a `Button` or `SwipeRow`, despite
+  passing simulator automation; keep planner cards on `onDrag` unless that
+  device-level conflict is proven fixed. Do not attach a competing long-press
+  context menu to a drag surface; keep its actions in the visible menu and
+  accessibility actions.
+- Cook Mode has two plainly different exits. Minimize preserves the step,
+  note draft and timer so the global resume bar can return to them. End asks
+  once, clears that session and its notification, and leaves the planned meal
+  on its date. Neither action may be hidden in account settings or a menu.
 - **A control with a chosen state says so.** `.accessibilityAddTraits(active
   ? .isSelected : [])` on every segment, chip and tab. Colour and a raised
   pill are not audible; without the trait VoiceOver reads eight identical

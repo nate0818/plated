@@ -141,7 +141,12 @@ struct DayDetailView: View {
                     }
                     .foregroundStyle(selected ? Color.onTomato : Color.inkSecondary)
                     .frame(maxWidth: .infinity, minHeight: 56)
-                    .background(selected ? Color.tomato : dropTargetDay == day ? Color.fill : Color.clear, in: Radius.shape(Radius.chip))
+                    .background(selected ? Color.tomato : dropTargetDay == day ? Color.tomatoTint : Color.clear, in: Radius.shape(Radius.chip))
+                    .overlay {
+                        if dropTargetDay == day, !selected {
+                            Radius.shape(Radius.chip).strokeBorder(Color.tomato, lineWidth: 1.5)
+                        }
+                    }
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
@@ -157,6 +162,8 @@ struct DayDetailView: View {
                     if over, day >= Date.now.startOfDay { dropTargetDay = day }
                     else if dropTargetDay == day { dropTargetDay = nil }
                 }
+                .scaleEffect(dropTargetDay == day ? 1.04 : 1)
+                .animation(.plSnap, value: dropTargetDay)
             }
         }.plChrome()
     }

@@ -13,6 +13,7 @@ struct CookingFocusView: View {
     @State private var ledger = CookLedger.shared
     @State private var ingredientsShown = false
     @State private var finished = false
+    @State private var endAsked = false
     private var note: Binding<String> { Binding(get: { session?.noteDraft ?? "" }, set: { ledger.setNote($0, in: recipe) }) }
     @State private var error: String?
     @State private var timerHint: String?
@@ -28,6 +29,22 @@ struct CookingFocusView: View {
                     Text(finished ? "Nicely done." : "Cooking together").plType(.heading, .semibold)
                     Text(session?.titleSnapshot ?? recipe.title).plType(.caption).foregroundStyle(Color.inkSecondary).lineLimit(2)
                 }.frame(maxWidth: .infinity, alignment: .leading)
+                if !finished {
+                    Button {
+                        Haptic.tap()
+                        endAsked = true
+                    } label: {
+                        Text("End")
+                            .plType(.footnote, .semibold)
+                            .foregroundStyle(Color.ink)
+                            .padding(.horizontal, 14)
+                            .frame(minHeight: 44)
+                            .background(Color.fill, in: Capsule())
+                            .contentShape(Capsule())
+                    }
+                    .buttonStyle(.pressable)
+                    .accessibilityLabel("End cooking")
+                }
                 AccountButton()
             }.padding(.horizontal, 24).padding(.vertical, 14)
             if finished {
@@ -114,6 +131,12 @@ struct CookingFocusView: View {
         .alert("Couldn't save dinner", isPresented: Binding(get: { error != nil }, set: { if !$0 { error = nil } })) {
             Button("OK") { error = nil }
         } message: { Text(error ?? "Try again.") }
+        .confirmationDialog("End cooking?", isPresented: $endAsked, titleVisibility: .visible) {
+            Button("End cooking", role: .destructive) { endCooking() }
+            Button("Keep cooking", role: .cancel) {}
+        } message: {
+            Text("Your place in the recipe, note draft and cook timer will be cleared. The meal stays planned.")
+        }
     }
     private func move(_ delta: Int) {
         Haptic.select()
@@ -127,6 +150,13 @@ struct CookingFocusView: View {
             await NotificationScheduler.scheduleCookTimer(in: seconds, title: "Plated timer", body: "\(recipe.title): your \(minutes) minute timer is ready.")
             timerHint = authorized ? "The timer can alert you while Plated is in the background." : "Notifications are off. The timer stays visible here."
         }
+    }
+    private func endCooking() {
+        ledger.forget(recipe)
+        NotificationScheduler.cancelCookTimer()
+        UIApplication.shared.isIdleTimerDisabled = false
+        Haptic.select()
+        dismiss()
     }
     private func finish() {
         let previousDate = meal?.cookedAt

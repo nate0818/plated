@@ -54,11 +54,49 @@ struct PlannerMealDrag: ViewModifier {
     func body(content: Content) -> some View {
         if meal.isCooked { content }
         else {
-            content.draggable(MealPlanTransfer.token(for: meal)) {
-                Label(meal.title, systemImage: "fork.knife").plType(.body, .semibold)
-                    .foregroundStyle(Color.ink).padding(16)
-                    .background(Color.canvas, in: Radius.shape(Radius.chip))
-            }
+            // `draggable` passed simulator automation but failed to begin on
+            // a physical phone when the card was also a Button/SwipeRow. The
+            // older item-provider path is the one the recipe editor already
+            // proves on-device; it gives UIKit an explicit drag item before
+            // either of those controls can consume the hold.
+            content
+                .contentShape(.dragPreview, Radius.shape(Radius.row))
+                .onDrag {
+                    Haptic.plate()
+                    return NSItemProvider(object: MealPlanTransfer.token(for: meal) as NSString)
+                } preview: {
+                    HStack(spacing: 12) {
+                        RecipeArtwork(
+                            data: meal.recipe?.photoData,
+                            title: meal.title,
+                            ratio: 1,
+                            radius: Radius.small
+                        )
+                        .frame(width: 52, height: 52)
+
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(meal.slotValue.rawValue.uppercased())
+                                .plType(.micro, .semibold)
+                                .foregroundStyle(Color.inkSecondary)
+                            Text(meal.title)
+                                .plType(.body, .semibold)
+                                .foregroundStyle(Color.ink)
+                                .lineLimit(2)
+                        }
+                        Spacer(minLength: 8)
+                        Image(systemName: "arrow.up.and.down")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(Color.tomato)
+                    }
+                    .padding(12)
+                    .frame(width: 286, alignment: .leading)
+                    .background(.ultraThinMaterial, in: Radius.shape(Radius.row))
+                    .overlay {
+                        Radius.shape(Radius.row)
+                            .strokeBorder(Color.navHairline, lineWidth: 1)
+                    }
+                    .plCardShadow()
+                }
         }
     }
 }

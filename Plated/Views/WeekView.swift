@@ -218,7 +218,7 @@ struct WeekView: View {
                             }
                             .foregroundStyle(selected ? Color.onTomato : Color.inkSecondary)
                             .frame(maxWidth: .infinity).padding(.vertical, 8)
-                            .background(selected ? Color.tomato : dropHoverDay == date ? Color.fill : Color.clear, in: Radius.shape(Radius.chip))
+                            .background(selected ? Color.tomato : dropHoverDay == date ? Color.tomatoTint : Color.clear, in: Radius.shape(Radius.chip))
                             .contentShape(Rectangle())
                         }.buttonStyle(.plain).accessibilityAddTraits(selected ? .isSelected : [])
                             .accessibilityLabel(date.formatted(.dateTime.weekday(.wide).month().day()))
@@ -437,9 +437,13 @@ struct WeekView: View {
             // one screen the app is mostly looked at. The height and the
             // reclaimed 18pt of width are what let the row say the thing.
             .frame(minHeight: 76)
-            .background(Color.canvas)
+            .background(dropHoverDay == date ? Color.tomatoTint : Color.canvas, in: Radius.shape(Radius.row))
             .overlay {
-                VStack { Spacer(); Rectangle().fill(Color.hairline).frame(height: 0.5) }
+                if dropHoverDay == date {
+                    Radius.shape(Radius.row).strokeBorder(Color.tomato, lineWidth: 1.5)
+                } else {
+                    VStack { Spacer(); Rectangle().fill(Color.hairline).frame(height: 0.5) }
+                }
             }
             .contentShape(Rectangle())
             .onTapGesture {
@@ -517,7 +521,11 @@ struct WeekView: View {
             // corner and weight as a planned row — see plannedRow.
             if dropHoverDay == date {
                 RoundedRectangle(cornerRadius: Radius.row, style: .continuous)
-                    .strokeBorder(Color.ink, lineWidth: 1.5)
+                    .fill(Color.tomatoTint)
+                    .overlay {
+                        RoundedRectangle(cornerRadius: Radius.row, style: .continuous)
+                            .strokeBorder(Color.tomato, lineWidth: 1.5)
+                    }
             } else {
                 VStack { Spacer(); Rectangle().fill(Color.hairline).frame(height: 0.5) }
             }

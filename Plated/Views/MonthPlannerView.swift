@@ -165,7 +165,13 @@ struct MonthPlannerView: View {
                 Circle().fill(count > 0 ? Color.inkSecondary : Color.clear).frame(width: 4, height: 4)
             }
             .frame(maxWidth: .infinity, minHeight: 48)
-            .background(dropTargetDay == day ? Color.fill : Color.clear, in: RoundedRectangle(cornerRadius: Radius.chip))
+            .background(dropTargetDay == day ? Color.tomatoTint : Color.clear, in: RoundedRectangle(cornerRadius: Radius.chip))
+            .overlay {
+                if dropTargetDay == day {
+                    RoundedRectangle(cornerRadius: Radius.chip, style: .continuous)
+                        .strokeBorder(Color.tomato, lineWidth: 1.5)
+                }
+            }
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -175,6 +181,8 @@ struct MonthPlannerView: View {
                 else if dropTargetDay == day { dropTargetDay = nil }
             }
         }
+        .scaleEffect(dropTargetDay == day ? 1.05 : 1)
+        .animation(.plSnap, value: dropTargetDay)
         .accessibilityLabel(day.formatted(.dateTime.weekday(.wide).month(.wide).day()) + (today ? ", today" : "") + ", \(count) meals planned")
         .accessibilityIdentifier("month-date-\(day.formattedDayNumber())")
         .accessibilityAddTraits(selected ? .isSelected : [])
