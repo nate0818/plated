@@ -351,8 +351,19 @@ struct TableFeedView: View {
 
     private var shownPosts: [TablePost] {
         guard scope == .household else { return realPosts }
-        let names = Set(members.map(\.name))
-        return realPosts.filter { names.contains($0.authorName) }
+        let participantIDs = Set(members.compactMap(\.participantID))
+        let names = Set(members.map { $0.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() })
+        return realPosts.filter { post in
+            // Accepted CloudKit identity is authoritative. A display-name
+            // match must never override a known person's different identity.
+            if !post.authorID.isEmpty && !post.authorID.hasPrefix("local-") {
+                return post.authorID == TableIdentity.cached || participantIDs.contains(post.authorID)
+            }
+            // Older local posts predate author IDs. Retain the original
+            // short-name matching until those records acquire an identity.
+            let fullName = post.authorName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            return names.contains(fullName) || names.contains(post.firstName.lowercased())
+        }
     }
 
     var body: some View {
