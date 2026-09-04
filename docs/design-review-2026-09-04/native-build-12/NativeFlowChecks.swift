@@ -96,4 +96,35 @@ final class GalleryTests: XCTestCase {
         try shot("15-recipes-dark")
     }
 
+    func testServingPlan() throws {
+        continueAfterFailure = false
+        app.launchArguments = ["-plated-design-review", "-appearance", "light"]
+        app.launch(); app.activate()
+        XCTAssertTrue(app.buttons["Recipes"].waitForExistence(timeout: 8))
+        tap("Recipes")
+        app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Pancake Dinner,")).firstMatch.tap()
+        XCTAssertTrue(app.buttons["Serves 4"].waitForExistence(timeout: 5))
+        tap("Serves 4")
+        tap("Serves 6")
+        XCTAssertTrue(app.buttons["Serves 6"].waitForExistence(timeout: 5))
+        Thread.sleep(forTimeInterval: 1)
+        let plans = app.buttons.matching(NSPredicate(format: "label == %@", "Plan")).allElementsBoundByIndex
+        let recipePlan = try XCTUnwrap(plans.first(where: { $0.frame.width > 100 && $0.frame.width < 160 }))
+        recipePlan.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        XCTAssertTrue(app.staticTexts["PLAN A NIGHT"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Serves 6"].exists)
+        try shot("16-plan-recipe")
+    }
+
+    func testHouseholdScope() throws {
+        continueAfterFailure = false
+        app.launchArguments = ["-plated-design-review", "-appearance", "light"]
+        app.launch(); app.activate()
+        XCTAssertTrue(app.buttons["Table"].waitForExistence(timeout: 8))
+        tap("Table"); tap("Household")
+        XCTAssertTrue(app.staticTexts["Sam Meadows"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.staticTexts["Dan Alvarez"].exists)
+        try shot("17-household")
+    }
+
 }

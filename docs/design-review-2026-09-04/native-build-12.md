@@ -37,12 +37,22 @@ The cooking test edited a real in-memory recipe through the editor, added and
 saved two steps, started cooking, inspected ingredients, advanced to step two,
 minimized, changed to Groceries, resumed on step two, finished, and verified
 both the success state and removal of the resume control. The month calendar
-was also opened and captured. These checks use `-plated-design-review`, which
+was also opened and captured. A separate check changed the serving lens from
+four to six, opened the recipe planning calendar, and verified six servings
+carried into that sheet. An initial retry found another installed binary (build
+9); the verified native app was reinstalled before the passing check. These checks use `-plated-design-review`, which
 selects an isolated in-memory store and never seeds a signed-in user's data.
 The companion NativeFlowChecks.swift records the external XCUITest harness.
 
-Release archive/export is being finalized; distribution status is recorded in
-implementation-status.md after confirmation from App Store Connect.
+Build 12 was archived, exported, signature-verified and released to External
+TestFlight from source `94de2d2dbef297a74f3cc5dc892e99546826e700`.
+Build 13 retains those screens and corrects Household matching: known CloudKit
+author IDs are matched to the owner/accepted participants, with short-name
+compatibility retained for legacy posts lacking an ID. Its native scope test
+included Sam Meadows and excluded Dan Alvarez in the seeded household.
+See [build 13](testflight-13.md) for that artifact and distribution record.
+[Build 14](testflight-14.md) retains the redesign and removes leftover schema
+probe posts, which are not part of the in-memory design review fixtures.
 
 ## Remaining external verification
 

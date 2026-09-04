@@ -1,12 +1,20 @@
 # Design implementation — September 4, 2026
 
-## Native redesign follow-up — build 12
+## Current native release — build 14
 
-Build 11 included only part of the approved visual direction. The actual SwiftUI
-redesign is now implemented and undergoing release packaging for build 12. See
-[native build 12](native-build-12.md) for the exact scope, native screenshots,
-interaction evidence, and remaining external dependencies.
+The native redesign shipped to Internal and External TestFlight in builds 12
+and 13. Build 14 retains that design and adds targeted removal of leftover
+CloudKit schema-probe posts, with offline retry and protection of real posts.
+Build 14 passed native verification, archive, export and signature checks.
+Apple processing is VALID and both Internal and External are IN_BETA_TESTING.
+Apple accepted the update notification to all eligible assigned testers on
+September 4 at 13:32 EDT; the TestFlight notes lead with the major redesign.
+See [build 14](testflight-14.md), [build 13](testflight-13.md), and the
+[native design evidence](native-build-12.md).
 
+The sections below retain the earlier implementation history. The native
+cooking-session redesign and cookbook search/filter work described in the
+build 12 record supersede their earlier unfinished status below.
 
 ## TestFlight release follow-up
 

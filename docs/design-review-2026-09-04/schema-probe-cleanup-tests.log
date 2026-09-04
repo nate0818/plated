@@ -1,0 +1,13 @@
+PLATED PROBE CHECK: PASS Exact artifact matching preserves real people and similarly titled posts
+PLATED PROBE CLEANUP: remote deletion pending; retry on next refresh
+PLATED PROBE CHECK: PASS Offline cleanup hides the probe and retains its retry address
+PLATED PROBE CLEANUP: removed 1 development posts
+PLATED PROBE CHECK: PASS Deletion uses only the artifact's original record and zone
+PLATED PROBE CHECK: PASS Confirmed remote deletion removes the cached artifact only
+PLATED PROBE CHECK: PASS Probe comments are removed with the post
+PLATED PROBE CHECK: PASS Repeated cleanup leaves real posts untouched
+PLATED PROBE CHECK: PASS Replayed cloud artifacts never become visible content
+PLATED PROBE CLEANUP: removed 1 development posts
+PLATED PROBE CHECK: PASS A replay is cleaned up again
+PLATED PROBE CHECKS: 8 passed
+com.natemeadows.plated: 63220
