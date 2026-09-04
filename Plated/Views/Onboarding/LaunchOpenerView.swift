@@ -2,10 +2,10 @@ import SwiftUI
 
 /// The launch opener — a native port of the handoff in
 /// `design_handoff_plated_launch_animation` (plated-launch.jsx is the
-/// authoritative scene math). The white period is set down at screen center
-/// like a plate, "plated" resolves out of the blur as the period glides to
-/// its seat, the period breathes while the app wakes, and everything lifts
-/// away into the first screen. All geometry derives from FS = 0.11·min(w,h).
+/// authoritative scene math). A complete place setting lands at screen
+/// center, folds into the wordmark's period, "plated" resolves out of the
+/// blur, and everything lifts away into the first screen. All geometry
+/// derives from FS = 0.11·min(w,h).
 struct LaunchOpenerView: View {
     /// Flips when the app has finished waking. Ready before the wordmark
     /// settles → the lift-away plays straight after it; still loading →
@@ -29,8 +29,14 @@ struct LaunchOpenerView: View {
     @State private var finished = false
     @State private var plateLanded = false
     /// The other two beats of the opener's haptic line. Each fires once.
-    @State private var markSet = false
+    @State private var settingLocked = false
     @State private var liftedAway = false
+    /// Pre-warm each physical beat close to its visible event. Preparing
+    /// only on appearance is too early: the Taptic Engine can idle again
+    /// before the plate reaches the table.
+    @State private var settingPrepared = false
+    @State private var landingPrepared = false
+    @State private var liftPrepared = false
 
     // Brief outranks Reduce Motion: someone who has asked for less motion
     // is not asking for a longer opener.
@@ -48,6 +54,8 @@ struct LaunchOpenerView: View {
                 let (T, _) = cue.authoredTime(t, readyAt: readyAt)
                 let f = OpenerFrame(T: T, cue: cue, darkRoom: colorScheme == .dark)
                 let dotD = 32 * k
+                let waitOut = readyAt.map { glide(1, 0, $0, $0 + 0.24, t) } ?? 1
+                let waitO = cue.flat ? 0 : glide(0, 1, 4.6, 5.0, t) * waitOut
 
                 ZStack {
                     // Ground — one flat persimmon, no gradient or vignette:
@@ -79,6 +87,14 @@ struct LaunchOpenerView: View {
                             .opacity(0.55 * (1 - f.rippleP))
                     }
 
+                    // The hero object is not a logo badge dropped onto the
+                    // field. It is the product's noun, plated: a porcelain
+                    // place setting that lands, clears, and contracts into
+                    // the punctuation already waiting underneath it.
+                    if !cue.flat, f.tableO > 0.001 {
+                        OpenerPlaceSetting(frame: f, theme: th, k: k)
+                    }
+
                     // Hidden twin at final tracking — stable measurement
                     // target for the period's travel to its seat.
                     lockup(fs: fs, k: k, th: th, e: 0,
@@ -95,6 +111,29 @@ struct LaunchOpenerView: View {
                         dot(f: f, th: th, dotD: dotD, k: k, fs: fs,
                             off: CGSize(width: w / 2 - seatFrame.midX,
                                         height: h / 2 - seatFrame.midY))
+                    }
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("Plated")
+
+                    if !cue.flat {
+                        Text("PULL UP A CHAIR")
+                            .font(.jakarta(max(10.5, 24 * k), .bold))
+                            .tracking(max(1.6, 4.2 * k))
+                            .foregroundStyle(th.ink.opacity(0.72))
+                            .offset(y: 0.92 * fs)
+                            .opacity(f.promiseO)
+                            .accessibilityHidden(true)
+                    }
+
+                    // Ordinary launches never get here. If real wake-up
+                    // work lasts long enough to feel like a wait, explain
+                    // the state instead of leaving a breathing logo to pose
+                    // as progress. No percentage is invented.
+                    if waitO > 0.001 {
+                        OpenerWaitStatus(time: t, theme: th, k: k)
+                            .padding(.bottom, max(36, geo.safeAreaInsets.bottom + 18))
+                            .frame(maxHeight: .infinity, alignment: .bottom)
+                            .opacity(waitO)
                     }
                 }
                 .frame(width: w, height: h)
@@ -119,7 +158,7 @@ struct LaunchOpenerView: View {
                 // drift the haptic away from the visible touch-down.
                 let T = cue.authoredTime(t, readyAt: readyAt).T
                 // Three beats, matched to what the eye already sees: the
-                // mark is set down, the plate lands, the table lifts away.
+                // setting locks, the plate lands, the table lifts away.
                 // Light either side of the one medium, so the landing stays
                 // the loudest thing that happens — a run of equal taps reads
                 // as a stutter, not as choreography.
@@ -129,15 +168,30 @@ struct LaunchOpenerView: View {
                 // haptic marking a beat the user cannot see is just a buzz.
                 // That covers Reduce Motion and the brief opener both, and
                 // it keeps every launch after the first from buzzing.
-                if !cue.flat, !markSet, T >= 0.8 {
-                    // The period is set down at center, like a plate on cloth.
-                    markSet = true
-                    Haptic.tap()
+                if !cue.flat, !settingPrepared, T >= 0.78 {
+                    settingPrepared = true
+                    Haptic.prepare()
                 }
-                if !cue.flat, !plateLanded, T >= 1.3 {
-                    // The period touches the table — a plate lands.
+                if !cue.flat, !settingLocked, T >= 1.02 {
+                    // The cutlery and dinner marks click into their places.
+                    // Selection is the quiet positional tick, not an impact.
+                    settingLocked = true
+                    Haptic.select()
+                }
+                if !cue.flat, !landingPrepared, T >= 1.08 {
+                    landingPrepared = true
+                    Haptic.prepare()
+                }
+                if !cue.flat, !plateLanded, T >= 1.28 {
+                    // Porcelain touches the table. This is the one medium
+                    // impact and therefore the center of the haptic line.
                     plateLanded = true
                     Haptic.plate()
+                }
+                if !cue.flat, !liftPrepared, let readyAt,
+                   (readyAt < cue.simmer && T >= cue.simmer - 0.2 || T >= cue.out - 0.2) {
+                    liftPrepared = true
+                    Haptic.prepare()
                 }
                 if !cue.flat, !liftedAway, T >= cue.out {
                     // Everything lifts into the first screen — the handoff.
@@ -225,6 +279,149 @@ struct LaunchOpenerView: View {
 
 }
 
+// MARK: - The hero place setting
+
+/// A deliberately tiny, monochrome still life. The center fill borrows the
+/// ground so it reads as dinner on porcelain without adding a second brand
+/// palette to the opener. At the end of the beat the plate is exactly the
+/// diameter of the wordmark period, which makes the handoff one continuous
+/// object rather than a dissolve between two unrelated marks.
+private struct OpenerPlaceSetting: View {
+    let frame: OpenerFrame
+    let theme: OpenerTheme
+    let k: Double
+
+    private var plateD: Double { 128 * k }
+
+    var body: some View {
+        ZStack {
+            Ellipse()
+                .fill(theme.contact)
+                .frame(width: 152 * k, height: 26 * k)
+                .blur(radius: 8 * k)
+                .offset(y: 72 * k)
+                .opacity(0.42)
+
+            cutlery
+                .opacity(frame.tableDetailO * 0.82)
+
+            Circle()
+                .fill(theme.ink)
+                .frame(width: plateD, height: plateD)
+                .overlay {
+                    Circle()
+                        .strokeBorder(theme.ground.opacity(0.18), lineWidth: max(1, 3 * k))
+                        .padding(10 * k)
+                }
+                .overlay { dinner }
+                .shadow(color: theme.typeShadow.opacity(0.9), radius: 11 * k, y: 8 * k)
+        }
+        .frame(width: 250 * k, height: 190 * k)
+        .scaleEffect(frame.tableScale)
+        .rotationEffect(.degrees(frame.tableTurn))
+        .offset(y: frame.tableY * k)
+        .opacity(frame.tableO)
+        .accessibilityHidden(true)
+    }
+
+    private var dinner: some View {
+        ZStack {
+            Circle()
+                .fill(theme.ground.opacity(0.94))
+                .frame(width: 76 * k, height: 76 * k)
+
+            Circle()
+                .trim(from: 0.08, to: 0.72)
+                .stroke(theme.ink.opacity(0.78),
+                        style: StrokeStyle(lineWidth: max(1.5, 8 * k), lineCap: .round))
+                .frame(width: 45 * k, height: 45 * k)
+                .rotationEffect(.degrees(-24 + frame.tableTurn * 1.8))
+
+            Capsule()
+                .fill(theme.ink.opacity(0.92))
+                .frame(width: 13 * k, height: 31 * k)
+                .rotationEffect(.degrees(46))
+                .offset(x: -13 * k, y: -11 * k)
+
+            Capsule()
+                .fill(theme.ink.opacity(0.78))
+                .frame(width: 10 * k, height: 25 * k)
+                .rotationEffect(.degrees(-52))
+                .offset(x: 14 * k, y: 11 * k)
+
+            Circle()
+                .fill(theme.ink)
+                .frame(width: 10 * k, height: 10 * k)
+                .offset(x: 18 * k, y: -14 * k)
+        }
+        .opacity(frame.tableDetailO)
+        .scaleEffect(0.86 + 0.14 * frame.tableDetailO)
+    }
+
+    private var cutlery: some View {
+        ZStack {
+            // Fork: one handle, one shoulder, three tines. Keeping the
+            // drawing geometric lets it stay crisp at every phone and iPad
+            // size without another launch asset to decode.
+            ZStack(alignment: .top) {
+                Capsule()
+                    .frame(width: max(2, 5 * k), height: 91 * k)
+                    .padding(.top, 13 * k)
+                HStack(spacing: max(1.5, 3 * k)) {
+                    ForEach(0..<3, id: \.self) { _ in
+                        Capsule().frame(width: max(1.2, 3 * k), height: 28 * k)
+                    }
+                }
+            }
+            .foregroundStyle(theme.ink)
+            .offset(x: -91 * k - frame.cutlerySlide * 25 * k)
+
+            // Knife: a softer blade and a narrow handle keep the two sides
+            // optically balanced instead of mirroring the fork's silhouette.
+            VStack(spacing: -2 * k) {
+                UnevenRoundedRectangle(topLeadingRadius: 9 * k,
+                                       bottomLeadingRadius: 2 * k,
+                                       bottomTrailingRadius: 3 * k,
+                                       topTrailingRadius: 2 * k)
+                    .frame(width: max(3, 10 * k), height: 53 * k)
+                Capsule()
+                    .frame(width: max(2.2, 6 * k), height: 50 * k)
+            }
+            .foregroundStyle(theme.ink)
+            .offset(x: 91 * k + frame.cutlerySlide * 25 * k)
+        }
+    }
+}
+
+/// A long-wait affordance, intentionally lower in the hierarchy than the
+/// wordmark. The dots show that the process is alive; their stagger is
+/// time-based, so no independent animation or timer survives the opener.
+private struct OpenerWaitStatus: View {
+    let time: Double
+    let theme: OpenerTheme
+    let k: Double
+
+    var body: some View {
+        HStack(spacing: max(8, 12 * k)) {
+            Text("SETTING THE TABLE")
+                .font(.jakarta(max(10.5, 22 * k), .bold))
+                .tracking(max(1.4, 3.6 * k))
+
+            HStack(spacing: max(3, 5 * k)) {
+                ForEach(0..<3, id: \.self) { index in
+                    let wave = 0.35 + 0.65 * (0.5 + 0.5 * sin(time * 4.2 - Double(index) * 1.15))
+                    Circle()
+                        .frame(width: max(3, 6 * k), height: max(3, 6 * k))
+                        .opacity(wave)
+                }
+            }
+        }
+        .foregroundStyle(theme.ink.opacity(0.72))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Setting the table")
+    }
+}
+
 // MARK: - Timeline
 
 /// Scene cues. The Out cue always sits one simmer cycle after the simmer
@@ -301,6 +498,8 @@ private struct OpenerFrame {
     var dotO, sx, sy: Double
     var glow, ringP, rippleP: Double
     var contactSpread, contactIn: Double
+    var tableO, tableScale, tableY, tableTurn, tableDetailO, cutlerySlide: Double
+    var promiseO: Double
 
     static let settledLetters = [Letter](repeating: Letter(o: 1, b: 0, y: 0), count: 6)
 
@@ -326,6 +525,8 @@ private struct OpenerFrame {
             sx = 1; sy = 1
             ringP = 0; rippleP = 0
             contactSpread = 1; contactIn = 1
+            tableO = 0; tableScale = 1; tableY = 0; tableTurn = 0
+            tableDetailO = 0; cutlerySlide = 0; promiseO = 0
             return
         }
 
@@ -347,6 +548,17 @@ private struct OpenerFrame {
         rippleP = glide(0, 1, M + 0.52, M + 1.45, T)
         contactSpread = glide(1.6, 1, M + 0.08, M + 0.6, T)
         contactIn = glide(0, 1, M + 0.3, M + 0.6, T)
+
+        // A 128px plate contracts to 25% at the handoff: 32px, exactly
+        // `dotD`. Detail and cutlery clear first; then the porcelain itself
+        // becomes punctuation while the underlying dot takes over.
+        tableO = glide(0, 1, 0.48, 0.76, T) * glide(1, 0, 1.92, 2.12, T)
+        tableScale = glide(0.72, 1, 0.48, 1.28, T) * glide(1, 0.25, 1.46, 2.08, T)
+        tableY = glide(-70, 0, 0.48, 1.28, T)
+        tableTurn = glide(-7, 0, 0.48, 1.22, T) + glide(0, 9, 1.48, 2.08, T)
+        tableDetailO = glide(0, 1, 0.66, 1.02, T) * glide(1, 0, 1.42, 1.78, T)
+        cutlerySlide = glide(1, 0, 0.58, 1.16, T) + glide(0, 1, 1.38, 1.82, T)
+        promiseO = glide(0, 1, 2.42, 2.92, T) * glide(1, 0, O, O + 0.32, T)
 
         let ls = glide(0.085, -0.022, W + 0.05, W + 0.85, T)
         trackingExtra = ls + 0.022
