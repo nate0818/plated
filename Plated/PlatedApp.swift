@@ -55,7 +55,17 @@ struct PlatedApp: App {
     /// See PlatedStore — the app and App Intents share this one container.
     let container: ModelContainer = {
         #if DEBUG
-        if ProcessInfo.processInfo.arguments.contains("-plated-design-review") || ProcessInfo.processInfo.arguments.contains("-plated-test-groceries") || ProcessInfo.processInfo.arguments.contains("-plated-test-probe-cleanup") { return SampleData.previewContainer }
+        let arguments = ProcessInfo.processInfo.arguments
+        if ["-plated-design-review", "-plated-test-groceries", "-plated-test-probe-cleanup"].contains(where: { arguments.contains($0) }) {
+            let preview = SampleData.previewContainer
+            // Explicit UI-test fixture, inside the memory-only preview path.
+            if arguments.contains("-plated-design-review") && arguments.contains("-plated-review-notifications") {
+                for _ in 0..<12 {
+                    preview.mainContext.insert(PlatedNotification(kind: .general, body: "A new update at your table."))
+                }
+            }
+            return preview
+        }
         #endif
         return PlatedStore.shared
     }()

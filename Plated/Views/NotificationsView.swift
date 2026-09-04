@@ -70,6 +70,7 @@ struct NotificationsView: View {
             for note in notifications where !note.isRead {
                 note.isRead = true
             }
+            Persist.save(context, "read notifications")
         }
     }
 

@@ -394,7 +394,6 @@ struct TableFeedView: View {
                         .plType(.caption)
                     Spacer()
                     Button("People") { seatsPresented = true }.plType(.caption, .semibold).plTapTarget()
-                    Button { pushed = .activity } label: { Image(systemName: "bell").plTapTarget() }.accessibilityLabel("Activity")
                 }.foregroundStyle(Color.inkSecondary).padding(.horizontal, 24).padding(.bottom, 8)
 
                 ScrollView(showsIndicators: false) {
@@ -584,8 +583,9 @@ struct TableFeedView: View {
 
     @ViewBuilder
     private var header: some View {
-        PlatedMasthead(title: "The Table") {
+        PlatedMasthead(title: "The Table", titleBelowTools: true) {
             HStack(spacing: 8) {
+                ActivityBellButton(size: 44, accessibilityID: "table-notifications-bell") { pushed = .activity }
                 DesignIconButton(symbol: "plus", label: "Share a dish or question", accent: true) { composerShown = true }
                 AccountButton()
             }

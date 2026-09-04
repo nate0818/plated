@@ -5,6 +5,7 @@ import SwiftData
 /// what's unread, and the same bell reads the same everywhere.
 struct ActivityBellButton: View {
     var size: CGFloat = 38
+    var accessibilityID = "notifications-bell"
     let action: () -> Void
 
     @Query(filter: #Predicate<PlatedNotification> { !$0.isRead })
@@ -19,12 +20,10 @@ struct ActivityBellButton: View {
                 .strokeBorder(Color.hairline, lineWidth: 1.5)
                 .frame(width: size, height: size)
                 .overlay {
-                    Image(systemName: "bell")
-                        .font(.system(size: 15, weight: .semibold))
+                    Image(systemName: unread.isEmpty ? "bell" : "bell.fill")
+                        .font(.system(size: size >= 44 ? 18 : 15, weight: .semibold))
                         .foregroundStyle(Color.ink)
-                        .accessibilityLabel("Activity")
-                        .accessibilityValue(unread.isEmpty ? "" : (unread.count == 1 ? "1 new" : "\(unread.count) new"))
-                        .accessibilityHint("Opens what happened at your table")
+                        .contentTransition(.symbolEffect(.replace))
                 }
                 .overlay(alignment: .topTrailing) {
                     if !unread.isEmpty {
@@ -50,5 +49,11 @@ struct ActivityBellButton: View {
         }
         .buttonStyle(.pressable)
         .plChrome()
+        .accessibilityElement(children: .ignore)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityLabel("Notifications")
+        .accessibilityValue(unread.isEmpty ? "No unread notifications" : "\(unread.count) unread \(unread.count == 1 ? "notification" : "notifications")")
+        .accessibilityHint("Shows activity at your table")
+        .accessibilityIdentifier(accessibilityID)
     }
 }

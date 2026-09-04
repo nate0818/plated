@@ -33,16 +33,32 @@ struct RecipeArtwork: View {
 
 struct PlatedMasthead<Tools: View>: View {
     var title: String
+    /// Three header actions need their own row so the title keeps its width.
+    var titleBelowTools = false
     @ViewBuilder var tools: Tools
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            VStack(alignment: .leading, spacing: 9) {
-                PlatedWordmark(size: 23)
-                Text(title).plType(.hero, .semibold).foregroundStyle(Color.ink)
-                    .fixedSize(horizontal: false, vertical: true)
+        Group {
+            if titleBelowTools {
+                VStack(alignment: .leading, spacing: 9) {
+                    HStack(spacing: 12) {
+                        PlatedWordmark(size: 23)
+                        Spacer(minLength: 8)
+                        tools.plChrome()
+                    }
+                    Text(title).plType(.hero, .semibold).foregroundStyle(Color.ink)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            } else {
+                HStack(alignment: .top, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 9) {
+                        PlatedWordmark(size: 23)
+                        Text(title).plType(.hero, .semibold).foregroundStyle(Color.ink)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    tools.padding(.top, 2).plChrome()
+                }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            tools.padding(.top, 2).plChrome()
         }
         .padding(.top, 12).padding(.bottom, 6)
     }
