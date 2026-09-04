@@ -79,6 +79,26 @@ And the rules that keep it quiet:
   and no sound.
 - **Direct news makes a sound**, and carries the higher relevance score so
   a summary orders a reply above a plate.
+- **A person speaking wears their face.** A dish, an ask, a comment, or a
+  single plate is donated as a message (`INSendMessageIntent`) and the
+  banner is drawn like one: the first name as the title, "The Table" or
+  "Your ragù" under it, the deed as the body ("Plated Sheet-pan chicken.
+  Crispy edges tonight."), and the seat's monogram in the colour that seat
+  has earned (seats do not carry photographs yet; only the owner's row
+  does, and the owner is never the sender). The seat is matched on
+  identity, never on name alone. A person with no seat row here, the host
+  seen from a guest's phone, gets the neutral monogram. Focus's
+  allowed-people rule can then let your partner through.
+  Needs the Communication Notifications capability
+  (`config/PlatedApp.entitlements`) and `NSUserActivityTypes` in the plist.
+  If the App ID lacks the capability the device build fails at signing
+  (`-allowProvisioningUpdates` usually adds it; otherwise tick it once
+  under Signing and Capabilities). A phone that runs this build is
+  entitled. `updating(from:)` changes nothing you can read: the system
+  substitutes the name and the conversation line when it draws the banner,
+  which only a phone can show. The simulator draws the dressed content as
+  a plain banner, so the dressing is compiled out there and the plain
+  banner (title plus caption) is what it shows.
 
 ## The bell and the icon
 
@@ -135,7 +155,7 @@ would let any push put a person at a stranger's table.
 `Directory.registerDevice` sends the APNs token to `/device` once the phone
 has a directory session. `Directory.notifyInvite` asks `/invite` to nudge an
 invitee who already has the app. The functions live in `supabase/functions`
-and the sender in `_shared/apns.ts`.
+and the sender in `invite/apns.ts`, beside the one function that sends.
 
 **Not deployed yet, and not sending yet.** Three things have to happen, in
 order, and all three are Nate's:

@@ -15,7 +15,7 @@
 // logged, and only ever handed back to that person's own phones, inside a
 // link the app confirms before accepting.
 import { createClient } from "jsr:@supabase/supabase-js@2";
-import { send } from "../_shared/apns.ts";
+import { send } from "./apns.ts";
 
 const db = createClient(
   Deno.env.get("SUPABASE_URL")!,

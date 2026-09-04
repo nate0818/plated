@@ -24,6 +24,14 @@
 	<true/>
 	<key>aps-environment</key>
 	<string>development</string>
+	<!-- A notice from a person wears their name and their monogram, the
+	     way a message does. A device build fails at signing until the App
+	     ID has Communication Notifications: -allowProvisioningUpdates
+	     usually adds it, otherwise open Signing and Capabilities in Xcode
+	     once and tick it. There is no runtime fallback to design for; an
+	     unentitled build never installs. -->
+	<key>com.apple.developer.usernotifications.communication</key>
+	<true/>
 	<key>com.apple.security.application-groups</key>
 	<array>
 		<string>group.com.natemeadows.plated</string>

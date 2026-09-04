@@ -523,6 +523,142 @@ final class TableNewsTests: XCTestCase {
         XCTAssertEqual(NotificationRouter.presentation(post: "post-3", kind: "dish", openPost: "post-1", feedVisible: false), [.banner, .list, .sound])
     }
 
+    // MARK: A person speaking
+
+    func testAPersonSpeakingIsAMessageAndTheKissIsNot() {
+        let post = myPost()
+        var changes = TableShare.Changes()
+        changes.posts = [remoteDish(by: "riley", id: "spoken")]
+        changes.notes = [note(on: post, by: "sam", text: "Saving this.", replyTo: "Nate")]
+        let notices = TableNews.digest(changes, newSeats: [], context: context)
+        let dish = notices.first { $0.kind == .dish }!
+        let reply = notices.first { $0.kind == .comment }!
+
+        let dishIntent = TableNews.intent(for: dish)
+        XCTAssertEqual(dishIntent?.sender?.displayName, "Riley")
+        XCTAssertEqual(dishIntent?.conversationIdentifier, "table")
+        XCTAssertEqual(dishIntent?.speakableGroupName?.spokenPhrase, "The Table")
+        XCTAssertEqual(dish.deed, "Plated Sheet-pan chicken. Crispy edges tonight.")
+
+        let replyIntent = TableNews.intent(for: reply)
+        XCTAssertEqual(replyIntent?.sender?.displayName, "Sam")
+        XCTAssertEqual(replyIntent?.conversationIdentifier, post.shareRecordName)
+        XCTAssertEqual(replyIntent?.speakableGroupName?.spokenPhrase, "Your Ragù")
+        XCTAssertEqual(reply.deed, "Replied to you: Saving this.")
+        // No seat in setUp carries a number, an address or an identity, so
+        // the handle falls back to the CloudKit id and the type is unknown.
+        XCTAssertEqual(replyIntent?.sender?.personHandle?.type, .unknown)
+        XCTAssertEqual(replyIntent?.sender?.personHandle?.value, "sam")
+        XCTAssertNotNil(replyIntent?.sender?.image)
+
+        var everyone = TableShare.Changes()
+        var mine = plate(on: post, by: me)
+        mine.authorName = "Nate Meadows"
+        everyone.reactions = [plate(on: post, by: "riley"), plate(on: post, by: "sam"), mine]
+        TableShare.merge(everyone, into: context)
+        TableNews.learnNames(from: everyone)
+        let kiss = TableNews.digest(everyone, newSeats: [], context: context).first { $0.kind == .kiss }!
+        XCTAssertNil(TableNews.intent(for: kiss))
+    }
+
+    func testASinglePlateSpeaksAndTwoDoNot() {
+        let post = myPost()
+        var one = TableShare.Changes()
+        one.reactions = [plate(on: post, by: "riley")]
+        TableShare.merge(one, into: context)
+        TableNews.learnNames(from: one)
+        let single = TableNews.digest(one, newSeats: [], context: context).first!
+        XCTAssertEqual(TableNews.intent(for: single)?.sender?.displayName, "Riley")
+        XCTAssertEqual(single.deed, "Plated your Ragù.")
+        TableNews.remember([single.key])
+
+        var two = TableShare.Changes()
+        two.reactions = [plate(on: post, by: "sam")]
+        TableShare.merge(two, into: context)
+        TableNews.learnNames(from: two)
+        let pair = TableNews.digest(two, newSeats: [], context: context).first!
+        XCTAssertEqual(pair.title, "Riley and Sam plated your Ragù")
+        XCTAssertNil(TableNews.intent(for: pair))
+    }
+
+    func testASeatedPersonIsMatchedOnIdentityAndCarriesTheirHandle() throws {
+        let members = try context.fetch(FetchDescriptor<HouseholdMember>())
+        let riley = members.first { $0.name == "Riley Park" }!
+        riley.participantID = "riley"
+        riley.phoneE164 = "+15550002222"
+        riley.photoData = Data([0x89, 0x50, 0x4E, 0x47])
+        let sam = members.first { $0.name == "Sam Okafor" }!
+        sam.participantID = "sam"
+        sam.inviteEmail = "sam@example.com"
+        // A laid place with the same name and a different face must never
+        // dress Riley's banner: it has no identity and cannot post.
+        let namesake = HouseholdMember(name: "Riley Park", role: "kid", seat: .notOnPlated)
+        namesake.photoData = Data([0x00, 0x01])
+        context.insert(namesake)
+        try context.save()
+
+        let post = myPost()
+        var changes = TableShare.Changes()
+        changes.posts = [remoteDish(by: "riley", id: "identified")]
+        changes.notes = [note(on: post, by: "sam", text: "Yes.")]
+        let notices = TableNews.digest(changes, newSeats: [], context: context)
+        let dish = notices.first { $0.kind == .dish }!
+        let comment = notices.first { $0.kind == .comment }!
+        XCTAssertEqual(dish.face, riley.photoData)
+        XCTAssertEqual(dish.handle, "+15550002222")
+        XCTAssertEqual(TableNews.intent(for: dish)?.sender?.personHandle?.type, .phoneNumber)
+        XCTAssertEqual(TableNews.intent(for: dish)?.sender?.personHandle?.value, "+15550002222")
+        XCTAssertEqual(TableNews.intent(for: dish)?.sender?.customIdentifier, "riley")
+        XCTAssertEqual(TableNews.intent(for: comment)?.sender?.personHandle?.type, .emailAddress)
+        XCTAssertEqual(TableNews.intent(for: comment)?.sender?.personHandle?.value, "sam@example.com")
+    }
+
+    func testANamesakeLaidPlaceNeverDressesAStranger() throws {
+        let namesake = HouseholdMember(name: "Jo Alvarez", role: "kid", seat: .notOnPlated)
+        namesake.photoData = Data([0x00, 0x01])
+        context.insert(namesake)
+        try context.save()
+        var changes = TableShare.Changes()
+        var dish = remoteDish(by: "jo", id: "stranger")
+        dish.authorName = "Jo Alvarez"
+        changes.posts = [dish]
+        let notice = TableNews.digest(changes, newSeats: [], context: context).first!
+        XCTAssertNil(notice.face)
+        XCTAssertNil(notice.handle)
+        XCTAssertEqual(TableNews.intent(for: notice)?.sender?.personHandle?.type, .unknown)
+    }
+
+    func testTwoPlatersKeepTheLastFaceOnTheRowButDoNotSpeakAsOne() {
+        let post = myPost()
+        var changes = TableShare.Changes()
+        changes.reactions = [
+            plate(on: post, by: "riley", at: .now.addingTimeInterval(-60)),
+            plate(on: post, by: "sam")
+        ]
+        TableShare.merge(changes, into: context)
+        TableNews.learnNames(from: changes)
+        let pair = TableNews.digest(changes, newSeats: [], context: context).first!
+        XCTAssertEqual(pair.title, "Riley and Sam plated your Ragù")
+        XCTAssertFalse(pair.actor.isEmpty)
+        XCTAssertNil(TableNews.intent(for: pair))
+    }
+
+    func testOnTheSimulatorTheDressingIsCompiledOut() async {
+        var changes = TableShare.Changes()
+        changes.posts = [remoteDish(by: "riley", id: "plain")]
+        let dish = TableNews.digest(changes, newSeats: [], context: context).first!
+        let base = TableNews.content(for: dish)
+        let final = await TableNews.communicationContent(for: dish, base: base)
+        #if targetEnvironment(simulator)
+        XCTAssertEqual(final.title, dish.title)
+        XCTAssertEqual(final.body, dish.body)
+        #else
+        XCTAssertEqual(final.body, dish.deed)
+        #endif
+        XCTAssertEqual(final.threadIdentifier, "table")
+        XCTAssertEqual(final.userInfo[NotificationRouter.Key.post] as? String, "post-plain")
+    }
+
     private func rows(eventKey: String) -> [PlatedNotification] {
         (try? context.fetch(FetchDescriptor<PlatedNotification>(
             predicate: #Predicate { $0.eventKey == eventKey }

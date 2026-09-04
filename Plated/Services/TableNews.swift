@@ -2,6 +2,8 @@ import Foundation
 import SwiftData
 import UserNotifications
 import UIKit
+import Intents
+import SwiftUI
 
 /// What the table said, turned into something a person would want to hear.
 ///
@@ -101,6 +103,19 @@ enum TableNews {
         var passive = false
         /// What iOS uses to order a summary: a reply above a plate.
         var relevance: Double
+        /// The person in CloudKit's terms, for the intent's identity.
+        var actorID = ""
+        /// The deed as a message body, for a banner that already carries
+        /// the person's name as its title: "Plated Sheet-pan chicken."
+        var deed = ""
+        /// The conversation line under the name: "The Table", "Your Ragù".
+        var group = ""
+        /// Where a message to them could go, their face, and the colour
+        /// their seat has earned, when this household has a seat for them.
+        /// Filled in by `dress`.
+        var handle: String?
+        var face: Data?
+        var tone: PersonTone?
     }
 
     // MARK: Deciding
@@ -192,10 +207,15 @@ enum TableNews {
                     link: DeepLink.url(post: r.recordName), post: r.recordName,
                     direct: tagged, photo: nil, feedKind: .askPosted,
                     actor: r.authorName, at: r.createdAt, rowKey: key,
-                    relevance: tagged ? 0.9 : 0.7
+                    relevance: tagged ? 0.9 : 0.7,
+                    actorID: r.authorID,
+                    deed: question.isEmpty ? "Asked the table." : "Asked the table: \(question)",
+                    group: "The Table"
                 ))
             } else {
                 let dish = r.dishTitle.isEmpty ? "a dish" : r.dishTitle
+                let deed = (tagged ? "Tagged you in \(dish)." : "Plated \(dish).")
+                    + (r.caption.isEmpty ? "" : " \(r.caption)")
                 notices.append(Notice(
                     kind: .dish, key: key, identifier: idPrefix + key,
                     title: tagged ? "\(who) tagged you in \(dish)" : "\(who) plated \(dish)",
@@ -204,7 +224,8 @@ enum TableNews {
                     link: DeepLink.url(post: r.recordName), post: r.recordName,
                     direct: tagged, photo: r.photoData, feedKind: .dishPosted,
                     actor: r.authorName, at: r.createdAt, rowKey: key,
-                    relevance: tagged ? 0.9 : 0.6
+                    relevance: tagged ? 0.9 : 0.6,
+                    actorID: r.authorID, deed: deed, group: "The Table"
                 ))
             }
         }
@@ -239,12 +260,18 @@ enum TableNews {
             else if n.photoData != nil { body = "Sent a photo." }
             else if !n.linkURL.isEmpty { body = "Sent a link." }
             else { body = "Open the Table to read it." }
+            // Under the person's name the deed is the sentence: a reply says
+            // it replied, a comment on your dish is just the words, because
+            // the conversation line already says which dish.
+            let deed = toMe ? "Replied to you: \(body)" : (mentioned ? "Mentioned you: \(body)" : body)
             notices.append(Notice(
                 kind: .comment, key: key, identifier: idPrefix + key,
                 title: title, body: body, line: line,
                 link: DeepLink.url(post: n.post), post: n.post,
                 direct: true, photo: post.photoData, feedKind: .commentAdded,
-                actor: n.authorName, at: n.createdAt, rowKey: key, relevance: 1.0
+                actor: n.authorName, at: n.createdAt, rowKey: key, relevance: 1.0,
+                actorID: n.authorID, deed: deed,
+                group: mine ? "Your \(dish)" : "\(post.firstName)'s \(dish)"
             ))
         }
 
@@ -287,8 +314,11 @@ enum TableNews {
                 line: title + ".",
                 link: DeepLink.url(post: record), post: record,
                 direct: kiss, photo: post.photoData, feedKind: .plateReaction,
-                actor: fresh.first?.authorName ?? "", at: fresh.map(\.at).max() ?? .now,
-                rowKey: "plates:\(record)", passive: !kiss, relevance: kiss ? 0.9 : 0.3
+                actor: fresh.first?.authorName ?? "",
+                at: fresh.map(\.at).max() ?? .now,
+                rowKey: "plates:\(record)", passive: !kiss, relevance: kiss ? 0.9 : 0.3,
+                actorID: platers.count == 1 ? (platers.first ?? "") : "",
+                deed: "Plated your \(dish).", group: "Your \(dish)"
             ))
         }
 
@@ -331,11 +361,144 @@ enum TableNews {
                 link: DeepLink.url(.home), post: "",
                 direct: true, photo: nil, feedKind: .seatJoined,
                 actor: member.name, at: .now, rowKey: key, writesRow: false,
-                relevance: 0.8
+                relevance: 0.8, actorID: member.participantID ?? "",
+                deed: "Joined your table.", group: "The Table"
             ))
         }
 
-        return notices
+        return notices.map { dress($0, members: members) }
+    }
+
+    /// The face, the handle and the colour, when this household has a seat
+    /// for the person. Matched on identity first: `participantID` and
+    /// `authorID` are the same CloudKit user record name, and a name can
+    /// belong to two seats or be renamed after a post was written. The
+    /// name is trusted only for a row that could be this person: one with
+    /// no identity recorded yet and a seat that can post. A laid place
+    /// cannot post, and a row identified as somebody else is somebody
+    /// else. A guest at a table they joined has no row for the host here,
+    /// so the banner shows the neutral monogram, never a stand-in face.
+    private static func dress(_ n: Notice, members: [HouseholdMember]) -> Notice {
+        guard !n.actor.isEmpty else { return n }
+        let member = members.first { !n.actorID.isEmpty && $0.participantID == n.actorID }
+            ?? members.first {
+                $0.name == n.actor && $0.participantID == nil
+                    && ($0.seat == .joined || $0.seat == .invited)
+            }
+        guard let member else { return n }
+        var dressed = n
+        dressed.face = member.photoData
+        let handle = member.phoneE164 ?? member.inviteEmail
+        dressed.handle = (handle?.isEmpty ?? true) ? nil : handle
+        dressed.tone = member.showsColor ? member.tone : .neutralPair
+        return dressed
+    }
+
+    // MARK: The person on the banner
+
+    /// The message this notice is, in the system's terms, so iOS draws it
+    /// the way it draws a message: the person's face, their name as the
+    /// title, the conversation under it, and a place in Focus's "allowed
+    /// people". Nil for anything that is not one person speaking: the
+    /// kiss, several platers, a vote, a seat, the fold.
+    static func intent(for n: Notice) -> INSendMessageIntent? {
+        switch n.kind {
+        case .dish, .ask, .comment, .plates: break
+        default: return nil
+        }
+        guard !n.actor.isEmpty, !n.actorID.isEmpty, !n.deed.isEmpty else { return nil }
+        let first = firstName(n.actor)
+        guard first != "Someone" else { return nil }
+
+        let handleType: INPersonHandleType
+        if let handle = n.handle, handle.contains("@") { handleType = .emailAddress }
+        else if n.handle != nil { handleType = .phoneNumber }
+        else { handleType = .unknown }
+        var components = PersonNameComponents()
+        let parts = n.actor.split(separator: " ")
+        components.givenName = parts.first.map(String.init)
+        if parts.count > 1 { components.familyName = parts.dropFirst().joined(separator: " ") }
+
+        let sender = INPerson(
+            personHandle: INPersonHandle(value: n.handle ?? n.actorID, type: handleType),
+            nameComponents: components,
+            displayName: first,
+            image: image(for: n),
+            contactIdentifier: nil,
+            customIdentifier: n.actorID,
+            isMe: false,
+            suggestionType: .none
+        )
+        let intent = INSendMessageIntent(
+            recipients: nil,
+            outgoingMessageType: .outgoingMessageText,
+            content: n.deed,
+            speakableGroupName: INSpeakableString(spokenPhrase: n.group.isEmpty ? "The Table" : n.group),
+            conversationIdentifier: thread(for: n),
+            serviceName: nil,
+            sender: sender,
+            attachments: nil
+        )
+        return intent
+    }
+
+    /// Their photograph, or the same monogram the app draws for them, in
+    /// the colour their seat has earned. Seats do not carry photographs
+    /// yet (only the owner's row does, and the owner is never the sender),
+    /// so today this is the monogram every time.
+    private static func image(for n: Notice) -> INImage? {
+        if let face = n.face { return INImage(imageData: face) }
+        let parts = n.actor.split(separator: " ").filter { $0.first?.isLetter == true }.prefix(2)
+        let initials = parts.compactMap { $0.first }.map(String.init).joined().uppercased()
+        let renderer = ImageRenderer(content: AvatarCircle(
+            initials: initials.isEmpty ? "?" : initials, tone: n.tone ?? .neutralPair, size: 88
+        ))
+        renderer.scale = 3
+        guard let data = renderer.uiImage?.pngData() else { return nil }
+        return INImage(imageData: data)
+    }
+
+    /// The content, dressed as a message when the notice is a person
+    /// speaking.
+    ///
+    /// `updating(from:)` does not rewrite anything you can read: it
+    /// attaches a communication context and hands back content with the
+    /// same title, body and userInfo, and the SYSTEM substitutes the
+    /// sender's name and the conversation line when it draws the banner.
+    /// (A first version compared titles to decide whether the dressing
+    /// took, and so never dressed anything.) The only refusal the API
+    /// expresses is a throw, so a throw is the only road back to the plain
+    /// banner. The deed moves into the body because the title will be
+    /// replaced by a name on screen.
+    ///
+    /// Not on the simulator, which draws the dressed content as a plain
+    /// banner: the title stays and the body would repeat it. A phone that
+    /// runs this build is entitled, because a build whose profile lacks
+    /// the capability fails at signing rather than at runtime.
+    static func communicationContent(for n: Notice, base: UNMutableNotificationContent) async -> UNNotificationContent {
+        #if targetEnvironment(simulator)
+        return base
+        #else
+        guard let intent = intent(for: n),
+              let attempt = base.mutableCopy() as? UNMutableNotificationContent else { return base }
+        attempt.body = n.deed
+        let interaction = INInteraction(intent: intent, response: nil)
+        interaction.direction = .incoming
+        interaction.groupIdentifier = n.post.isEmpty ? "table" : n.post
+        do {
+            try await interaction.donate()
+        } catch {
+            print("[TableNews] donation refused: \(error.localizedDescription)")
+        }
+        do {
+            let dressed = try attempt.updating(from: intent)
+            print("[TableNews] dressed \(n.kind.rawValue) as a message from \(intent.sender?.displayName ?? "?")")
+            return dressed
+        } catch {
+            print("[TableNews] communication content refused: \(error)")
+            return base
+        }
+        #endif
     }
 
     // MARK: Showing
@@ -418,9 +581,12 @@ enum TableNews {
             if let photo = n.photo, let attachment = attachment(for: photo) {
                 content.attachments = [attachment]
             }
+            // A person speaking wears their face; iOS takes the name as
+            // the title and the deed becomes the body, if it takes it.
+            let final = await communicationContent(for: n, base: content)
             do {
                 try await center.add(UNNotificationRequest(
-                    identifier: n.identifier, content: content, trigger: nil
+                    identifier: n.identifier, content: final, trigger: nil
                 ))
             } catch {
                 print("[TableNews] could not show \(n.kind.rawValue): \(error.localizedDescription)")
@@ -563,6 +729,9 @@ enum TableNews {
         }
         Persist.save(context, "notices for deleted posts")
         await clearDelivered(about: records)
+        for record in records {
+            INInteraction.delete(with: record) { _ in }
+        }
         AppBadge.sync(context)
     }
 

@@ -179,7 +179,9 @@ is here.
 - **It names a person and says what happened.** "Riley plated Sheet-pan
   chicken", "Sam replied to you". Never "New activity", never "Something
   changed at your table". If the sentence cannot name the person, nothing
-  is sent.
+  is sent. When one person is speaking, the banner is theirs the way a
+  message is: their face, their name as the title, "The Table" or "Your
+  ragù" under it, and the deed as the body.
 - **Never about your own action**, on any of your devices. A like never
   appears in the liker's activity.
 - **Silence is the default.** A notice has to be about you, or be the first

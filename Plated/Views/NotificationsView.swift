@@ -146,11 +146,9 @@ struct NotificationsView: View {
             if let member = members.first(where: { $0.name == note.actorName }) {
                 AvatarCircle(member: member, size: 40)
             } else {
-                AvatarCircle(
-                    initials: initials(of: note.actorName),
-                    tone: PersonTone.from(hex: "7F7364"),  // design-ok(literal-colour): the neutral tone of a person this household has no seat for
-                    size: 40
-                )
+                // A guest at a table this household joined has no seat row
+                // here, so no colour has been earned: the neutral pair.
+                AvatarCircle(initials: initials(of: note.actorName), tone: .neutralPair, size: 40)
             }
         } else {
             ZStack {
