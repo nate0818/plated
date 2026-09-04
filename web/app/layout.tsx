@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Gabarito, Plus_Jakarta_Sans } from "next/font/google";
+import AnimatedFavicon from "./components/AnimatedFavicon";
 import "./globals.css";
 
 // The same two faces the app registers at launch, from Google Fonts so
@@ -78,7 +79,10 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className={`${gabarito.variable} ${jakarta.variable}`}>
-      <body>{children}</body>
+      <body>
+        <AnimatedFavicon />
+        {children}
+      </body>
     </html>
   );
 }
