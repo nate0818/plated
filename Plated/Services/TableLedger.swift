@@ -70,9 +70,17 @@ final class TableLedger {
         book.plates[post]?[me]?.active ?? false
     }
 
-    /// Who plated it, so the bell can name them instead of counting them.
+    /// Who plated it, first plate first, so the bell can name them instead
+    /// of counting them and the sentence reads the same on every device.
     func platers(_ post: String) -> [String] {
-        (book.plates[post] ?? [:]).filter { $0.value.active }.map(\.key)
+        (book.plates[post] ?? [:]).filter { $0.value.active }
+            .sorted { $0.value.at < $1.value.at }.map(\.key)
+    }
+
+    /// Who has voted, first vote first, so the bell can name them.
+    func voters(_ post: String) -> [String] {
+        (book.ballots[post] ?? [:]).filter { $0.value.choice >= 0 }
+            .sorted { $0.value.at < $1.value.at }.map(\.key)
     }
 
     func myVote(_ post: String, me: String) -> Int {

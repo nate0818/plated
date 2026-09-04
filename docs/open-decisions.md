@@ -35,6 +35,45 @@ earned colour" describes.
 
 Either changes every avatar in the app. Not a 4am call.
 
+## 1b. "Everyone plated" is measured against the reader's household
+
+`TablePost.hasChefsKiss(seats:)` is called from nine places, every one of
+them passing `members.count`: the number of `HouseholdMember` rows on the
+phone doing the reading. That is not the number of people who can plate. A
+by-name seat (a kid, a grandparent) cannot plate and inflates it; a guest
+who joined a table but keeps a one-person household of their own deflates
+it, so on their phone the kiss fires at a single plate. The push notice for
+the kiss inherits the same denominator, so two phones can disagree about
+whether a dinner earned the kiss.
+
+The honest denominator is the table's participants (`TableShare.participants`),
+which is a CloudKit round trip and not available synchronously in a body.
+Caching it per zone in the ledger would fix all nine sites at once. Not done
+here because it changes what the feed, the profile and Home have said the
+kiss means since it shipped, and that is a product call.
+
+## 1c. The reminder that says "Nothing for you to do"
+
+`NotificationScheduler.scheduleTurns` sends "Riley cooks tomorrow. Sheet-pan
+chicken. Nothing for you to do." to everybody who is not Riley, with a
+sound, at 19:00. The design panel of Sept 4 judged it the one reminder
+that lights a screen to say there is nothing to do, and offered two
+answers: keep it and deliver it passively (in the list, no sound, body
+just the dish), or send only the cook's own reminder and let the widget
+carry the rest, with the Settings caption becoming "The evening before
+your night, and Sundays when the week's still open." Both are defensible.
+The first keeps a household informed; the second is what a person who
+hates being nagged would choose. Nate's call.
+
+## 1d. Opening the feed reads the dishes below the fold
+
+`TableNews.markRead(post:)` reads one dish's notices when its thread opens.
+The panel proposed that opening the Table itself reads every dish and ask
+notice, the way Messages reads a whole conversation on open, since eight
+people cannot bury anything. The narrower rule (only what scrolled on
+screen, via `Presence`) is more exact and more work. Not done pending a
+yes; the bell's own read-on-leave already covers the rows.
+
 ## 2. `symbolMatching` and `gabaritoMatching` have zero call sites
 
 `BrandFonts.swift` defines both, with worked cap-height ratios and a comment
@@ -215,3 +254,17 @@ it already offers.
 phone actually knows and skip the machine entirely. Which of the three every
 remaining empty state deserves is a per-screen judgment, and doing it by rule
 would put a spinner in front of somebody choosing dinner.
+
+## 16. A Notification Service Extension for the Table pipe
+
+Considered and not built. Four reasons: an extension can rewrite a banner
+but cannot withhold one, and withholding is most of what `TableNews` does;
+a `CKDatabaseSubscription` alert cannot name a person, because
+`alertLocalizationArgs` read fields off a record the shared-database
+subscription does not carry; a third target cannot import `Theme.swift`,
+which is the widget's drift trap again; and on the server pipe the invite
+alert is already named, so an extension would buy only an opaque payload
+and a face. Reopen if Apple lets a service extension suppress a delivery,
+or if the directory grows a per-person "who to tell" so named Table alerts
+could be sent from a server that knows the author, at which point "never
+about your own action" has to be re-proven there before one alert is sent.

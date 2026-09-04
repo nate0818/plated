@@ -43,6 +43,17 @@ enum Seats {
             invitedAt: .now
         )
         context.insert(member)
+        // The message has gone. If they already have Plated, their phone
+        // can also say who it was from, right now, through the directory.
+        // Best effort and silent: the seat above is the record, this is a
+        // courtesy, and the app never learns whether it landed.
+        if let phone, !phone.isEmpty {
+            let host = all(in: context).first(where: \.isOwner)?.name ?? ""
+            Task {
+                guard let url = await TableShare.invitationURL(hostName: host) else { return }
+                await Directory.notifyInvite(phone: phone, hostName: host, shareURL: url)
+            }
+        }
         return member
     }
 
@@ -118,19 +129,24 @@ enum Seats {
         let members = all(in: context)
 
         for standing in standings where standing.accepted {
-            let match = members.first { member in
-                (standing.phone != nil && member.phoneE164 == standing.phone)
-                    || (standing.email != nil && member.inviteEmail == standing.email)
-            }
+            let match = match(standing, in: members)
             if let match {
                 guard match.seat != .joined else { continue }
                 match.seat = .joined
                 match.joinedAt = .now
                 match.participantID = standing.participantID
                 if !standing.name.isEmpty { match.name = standing.name }
-                Notifier.post(
-                    .general, actor: match.firstName,
-                    body: "\(match.firstName) joined. They can see the plan now.",
+                // The Table, not the plan. A seat is a seat at the Table;
+                // the week's plan stays in this household's own store, and
+                // a sentence promising otherwise was the honesty rule
+                // broken in the one line that announces a person.
+                // Keyed the same way TableNews keys its seat notice, so the
+                // banner and the row agree and neither is written twice.
+                Notifier.postKeyed(
+                    eventKey: "seat:\(standing.participantID ?? match.name)",
+                    .seatJoined, actor: match.firstName,
+                    body: "\(match.firstName) joined. They can see the Table now.",
+                    link: DeepLink.url(.home).absoluteString,
                     into: context
                 )
                 Haptic.kiss()
@@ -148,6 +164,25 @@ enum Seats {
                 member.participantID = standing.participantID
                 context.insert(member)
             }
+        }
+    }
+
+    /// The row a standing belongs to. Identity first: an accepted
+    /// participant's user record is stable, and it is the only thing a
+    /// person who took the seat from a forwarded link carries, because a
+    /// link-accepted participant has no phone or email on the share at all.
+    /// Matching on address alone inserted a fresh "Someone new" for such a
+    /// person on every reconcile, on every device, and the mirror then
+    /// multiplied them. Address second, for a seat that was invited by
+    /// number and has not been reconciled since it accepted.
+    static func match(_ standing: TableShare.Standing, in members: [HouseholdMember]) -> HouseholdMember? {
+        if let id = standing.participantID, !id.isEmpty,
+           let byID = members.first(where: { $0.participantID == id }) {
+            return byID
+        }
+        return members.first { member in
+            (standing.phone != nil && member.phoneE164 == standing.phone)
+                || (standing.email != nil && member.inviteEmail == standing.email)
         }
     }
 

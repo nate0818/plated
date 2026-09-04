@@ -317,7 +317,7 @@ struct PlanNightSheet: View {
         // one prompt, and one spent at launch is one spent before the app
         // has done anything worth being reminded about.
         Task {
-            await NotificationScheduler.askOnceAfterFirstPlan()
+            await NotificationScheduler.askOnce()
             await NotificationScheduler.rebuild(
                 meals: meals, ownerName: members.first(where: \.isOwner)?.name ?? ""
             )

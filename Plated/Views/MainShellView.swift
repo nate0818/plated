@@ -50,6 +50,54 @@ struct MainShellView: View {
     @Query private var members: [HouseholdMember]
 
     @State private var selection: AppTab = .week
+    /// A seat somebody saved, waiting for a yes. Set by an `invite` link,
+    /// which a push carries; a tap on a push must not seat anybody on its
+    /// own, or any push could put a person at a stranger's table.
+    @State private var pendingInvitation: (from: String, share: URL)?
+
+    private var invitationTitle: String {
+        let who = pendingInvitation?.from.trimmingCharacters(in: .whitespaces) ?? ""
+        return who.isEmpty ? "Someone saved you a seat at their table" : "\(who) saved you a seat at their table"
+    }
+
+    /// Every `plated://` link and every invitation, one door.
+    private func route(_ url: URL) {
+        // An invitation arriving through plated.food is a Universal Link,
+        // so it lands here as an ordinary URL rather than at the
+        // CloudKit delegate. Same destination, different road.
+        if let share = ShareAcceptor.shareURL(from: url) {
+            Task { await ShareAcceptor.accept(shareURL: share) }
+            return
+        }
+        guard let destination = DeepLink.destination(for: url) else { return }
+        withAnimation(.plSnap) {
+            switch destination {
+            case .plan: selection = .week
+            case .table: selection = .table
+            case .cookbook: selection = .cookbook
+            // Prongsby left the bar in the elevation pass — he's a sheet
+            // off the perch now, not a destination to select.
+            case .prongsby: prongsbyPresented = true
+            case .home: selection = .home
+            case .grocery:
+                selection = .week
+                groceryRequested = true
+            // The thing the notice was about, not the tab it lives on.
+            // The feed does the second leg once it is on screen.
+            case .post:
+                selection = .table
+                if let id = DeepLink.postID(in: url) { LinkRelay.request(post: id) }
+            case .activity:
+                selection = .home
+                LinkRelay.requestActivity()
+            case .invite:
+                if let invitation = DeepLink.invitation(in: url) {
+                    pendingInvitation = invitation
+                }
+            }
+        }
+    }
+
     /// Raised when the bar is tapped on the tab already showing. See
     /// `TabPopRequest`.
     @State private var tabPop = TabPopRequest()
@@ -176,29 +224,39 @@ struct MainShellView: View {
         .sheet(isPresented: $prongsbyPresented) {
             ProngsbyView(session: prongsbySession)
         }
-        .onOpenURL { url in
-            // An invitation arriving through plated.food is a Universal Link,
-            // so it lands here as an ordinary URL rather than at the
-            // CloudKit delegate. Same destination, different road.
-            if let share = ShareAcceptor.shareURL(from: url) {
-                Task { await ShareAcceptor.accept(shareURL: share) }
-                return
-            }
-            guard let destination = DeepLink.destination(for: url) else { return }
-            withAnimation(.plSnap) {
-                switch destination {
-                case .plan: selection = .week
-                case .table: selection = .table
-                case .cookbook: selection = .cookbook
-                // Prongsby left the bar in the elevation pass — he's a sheet
-                // off the perch now, not a destination to select.
-                case .prongsby: prongsbyPresented = true
-                case .home: selection = .home
-                case .grocery:
-                    selection = .week
-                    groceryRequested = true
+        .onOpenURL { url in route(url) }
+        // A tapped notification comes in through LinkRelay rather than
+        // onOpenURL, which nothing outside SwiftUI can reach. Same road
+        // from here on. The onAppear collects a link parked before the
+        // shell existed, which is every cold start from a banner.
+        .onReceive(NotificationCenter.default.publisher(for: LinkRelay.opened)) { _ in
+            if let url = LinkRelay.take() { route(url) }
+        }
+        .onAppear {
+            if let url = LinkRelay.take() { route(url) }
+            // An ask parked by a cold-start share accept. The opener has
+            // lifted by the time this view has been on screen a beat.
+            if NotificationScheduler.takePendingAsk() {
+                Task {
+                    try? await Task.sleep(for: .seconds(5))
+                    await NotificationScheduler.askOnce()
                 }
             }
+        }
+        .confirmationDialog(
+            invitationTitle, isPresented: Binding(
+                get: { pendingInvitation != nil },
+                set: { if !$0 { pendingInvitation = nil } }
+            ), titleVisibility: .visible
+        ) {
+            Button("Take the seat") {
+                guard let invitation = pendingInvitation else { return }
+                pendingInvitation = nil
+                Task { await ShareAcceptor.accept(shareURL: invitation.share) }
+            }
+            Button("Not now", role: .cancel) { pendingInvitation = nil }
+        } message: {
+            Text("Their dishes and asks join your Table, and they see what you post.")
         }
         .task {
             if !didRepairLegacyDiscover {
@@ -315,10 +373,9 @@ struct MainShellView: View {
         // row becomes a joined one, and the only thing that ever made
         // accepting a share visible inside the household.
         .onReceive(NotificationCenter.default.publisher(for: ShareAcceptor.didAccept)) { _ in
-            Task {
-                await Seats.reconcile(in: context)
-                Persist.save(context)
-            }
+            // The pull the feed starts on this same signal reconciles the
+            // seats when the share changed. A second reconcile from here
+            // raced it for the same rows.
             #if DEBUG
             // UI-test hook: `simctl launch … -plated-tab table` lands here.
             //

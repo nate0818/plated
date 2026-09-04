@@ -10,9 +10,41 @@ enum Notifier {
         _ kind: PlatedNotificationKind,
         actor: String,
         body: String,
+        link: String = "",
+        eventKey: String = "",
         into context: ModelContext
     ) {
-        context.insert(PlatedNotification(kind: kind, actorName: actor, body: body))
+        context.insert(PlatedNotification(
+            kind: kind, actorName: actor, body: body, link: link, eventKey: eventKey
+        ))
+    }
+
+    /// One row per event, wherever it is written from. A row that already
+    /// carries this key is refreshed rather than joined by a sibling, which
+    /// is what keeps a seat that reconciles on every launch from stacking
+    /// "Riley joined" down the bell. `TableNews.dedupeRows` keeps one per
+    /// key across devices; this keeps one per key on this one.
+    static func postKeyed(
+        eventKey: String,
+        _ kind: PlatedNotificationKind,
+        actor: String,
+        body: String,
+        link: String = "",
+        into context: ModelContext
+    ) {
+        let existing = (try? context.fetch(FetchDescriptor<PlatedNotification>(
+            predicate: #Predicate { $0.eventKey == eventKey }
+        ))) ?? []
+        if let row = existing.first {
+            row.body = body
+            row.link = link
+            row.actorName = actor
+            row.kind = kind.rawValue
+            row.createdAt = .now
+            row.isRead = false
+        } else {
+            post(kind, actor: actor, body: body, link: link, eventKey: eventKey, into: context)
+        }
     }
 
     /// Posts at most once per `key`, ever — for reactions that can toggle

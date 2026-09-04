@@ -1,4 +1,5 @@
 import SwiftUI
+import UserNotifications
 import SwiftData
 import PhotosUI
 
@@ -557,8 +558,15 @@ struct SettingsSheet: View {
     @AppStorage("didSignIn") private var didSignIn = false
     @State private var signOutAsked = false
     @State private var sync = SyncStatus.shared
+    @Environment(\.modelContext) private var context
     @AppStorage("remindersOn") private var remindersOn = true
-    @State private var remindersAllowed = false
+    @AppStorage("tableNewsOn") private var tableNewsOn = true
+    /// nil until the system has answered. Three real states after that:
+    /// never asked (the switch can ask), refused (only iOS Settings can
+    /// change it), allowed. One Bool collapsed the first two into a dimmed
+    /// switch sending somebody to Settings for a prompt they never saw.
+    @State private var permission: UNAuthorizationStatus?
+    @Environment(\.scenePhase) private var scenePhase
     @State private var paywallShown = false
     @State private var plusActive = PlatedPlus.isActive
     @FocusState private var namingHousehold: Bool
@@ -627,9 +635,9 @@ struct SettingsSheet: View {
                     settingRow(
                         icon: "bell",
                         title: "Cook reminders",
-                        caption: remindersAllowed
-                            ? "The evening before someone cooks, and Sundays when the week's still open."
-                            : "Turn on notifications for Plated in iOS Settings."
+                        caption: permissionCaption(
+                            allowed: "The evening before someone cooks, and Sundays when the week's still open."
+                        )
                     ) {
                         // Green and on while iOS refuses to deliver is the
                         // honesty rule broken by a control: the caption
@@ -640,14 +648,34 @@ struct SettingsSheet: View {
                         // has never been the answer.
                         Toggle("Cook reminders", isOn: Binding(
                             get: { remindersOn && remindersAllowed },
-                            set: { remindersOn = $0 }
+                            set: { remindersOn = $0; if $0 { askIfNeverAsked() } }
                         ))
                             .labelsHidden()
                             .tint(Color.basil)
-                            .disabled(!remindersAllowed)
+                            .disabled(permission == nil || permission == .denied)
                             .sensoryFeedback(.selection, trigger: remindersOn)
                             .onChange(of: remindersOn) { _, on in
                                 Task { if !on { await NotificationScheduler.cancelAll() } }
+                            }
+                    }
+
+                    settingRow(
+                        icon: "photo.on.rectangle",
+                        title: "Table activity",
+                        caption: permissionCaption(
+                            allowed: "When someone plates a dish, writes on yours, answers you, or takes a seat. Plates and votes wait in the list. Quiet overnight, unless it's to you."
+                        )
+                    ) {
+                        Toggle("Table activity", isOn: Binding(
+                            get: { tableNewsOn && remindersAllowed },
+                            set: { tableNewsOn = $0; if $0 { askIfNeverAsked() } }
+                        ))
+                            .labelsHidden()
+                            .tint(Color.basil)
+                            .disabled(permission == nil || permission == .denied)
+                            .sensoryFeedback(.selection, trigger: tableNewsOn)
+                            .onChange(of: tableNewsOn) { _, _ in
+                                AppBadge.sync(context)
                             }
                     }
 
@@ -803,7 +831,13 @@ struct SettingsSheet: View {
         }
         .task {
             await sync.refresh()
-            remindersAllowed = await NotificationScheduler.authorized()
+            permission = await NotificationScheduler.status()
+        }
+        // Somebody who just flipped the switch in iOS Settings comes back
+        // here. Ask again rather than showing what was true on the way out.
+        .onChange(of: scenePhase) { _, phase in
+            guard phase == .active else { return }
+            Task { permission = await NotificationScheduler.status() }
         }
         .sheet(isPresented: $paywallShown, onDismiss: { plusActive = PlatedPlus.isActive }) {
             PaywallSheet()
@@ -872,6 +906,32 @@ struct SettingsSheet: View {
     /// and `layoutPriority` settles it in the words' favour when the two of
     /// them together do not fit. Above xxLarge they stop sharing a row at
     /// all, which is the same answer the cook rotation needed on Home.
+    private var remindersAllowed: Bool {
+        permission == .authorized || permission == .provisional
+    }
+
+    /// The caption is the honest half of the row. It can only send a person
+    /// to iOS Settings once iOS has actually refused; before the ask has
+    /// been spent, the switch itself is the ask.
+    private func permissionCaption(allowed: String) -> String {
+        switch permission {
+        case nil: return allowed
+        case .denied: return "Turn on notifications for Plated in iOS Settings."
+        case .notDetermined: return "Turn this on and Plated asks iOS for permission."
+        default: return allowed
+        }
+    }
+
+    /// The switch is an earned moment too: a person reaching for it has
+    /// just said they want to be told.
+    private func askIfNeverAsked() {
+        guard permission == .notDetermined else { return }
+        Task {
+            await NotificationScheduler.askOnce()
+            permission = await NotificationScheduler.status()
+        }
+    }
+
     private func settingRow(
         icon: String, title: String, caption: String,
         @ViewBuilder trailing: () -> some View

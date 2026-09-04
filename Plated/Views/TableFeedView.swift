@@ -187,9 +187,14 @@ struct TableFeedView: View {
         // Two different pipes, pulled together because the user pulled once.
         // The mirror carries this household's own devices; TableShare
         // carries everybody else's table. Neither knows about the other.
-        async let remote = TableShare.fetchChanges()
+        // Through the same door as a push, one at a time. Merging here
+        // alone burned the change token, so anything the feed pulled itself
+        // never reached the bell and could never be replayed for it: after
+        // a force-quit or a night in Low Power Mode the bell asserted
+        // nothing happened.
+        async let pulled: Void = TablePull.pull(reason: "refresh")
         let outcome = await CloudSync.waitForImport()
-        TableShare.merge(await remote, into: context)
+        await pulled
         // Let go mid-pull and there is nothing to confirm — the tick used
         // to fire anyway, because `try?` around the sleep swallowed the
         // cancellation and left the call site unable to tell an abandoned
@@ -458,7 +463,13 @@ struct TableFeedView: View {
                     Task { await refreshFeed() }
                 }
                 .onReceive(NotificationCenter.default.publisher(for: ShareAcceptor.didAccept)) { _ in
-                    Task { TableShare.merge(await TableShare.fetchChanges(), into: context) }
+                    Task { await TablePull.pull(reason: "accept") }
+                }
+                // A notice about one dish opens that dish. The request is
+                // parked by the shell; the feed collects it here, or on
+                // appear if the Table was not on screen when it was tapped.
+                .onReceive(NotificationCenter.default.publisher(for: LinkRelay.postRequested)) { _ in
+                    openRequestedPost()
                 }
             }
             .background(Color.canvas)
@@ -523,6 +534,10 @@ struct TableFeedView: View {
             }
         }
         .onAppear {
+            // While the feed is in front, a banner about a new dish would
+            // point at what is already on screen. See NotificationRouter.
+            Presence.shared.feedVisible = true
+            openRequestedPost()
             #if DEBUG
             if LaunchFlags.consume("-plated-open-discover") {
                 pushed = .discover
@@ -535,6 +550,7 @@ struct TableFeedView: View {
             }
             #endif
         }
+        .onDisappear { Presence.shared.feedVisible = false }
         .overlay(alignment: .bottom) {
             if let toast = savedToast {
                 Text(toast)
@@ -1407,6 +1423,34 @@ struct TableFeedView: View {
     private func openThread(_ post: TablePost, writing: Bool = false) {
         Haptic.tap()
         threadStartsWriting = writing
+        threadPost = post
+    }
+
+    /// The second leg of a tapped notice. Nothing to do is the common case.
+    private func openRequestedPost() {
+        guard let id = LinkRelay.takePost() else { return }
+        if let post = TableNews.find(id, in: context) {
+            open(post)
+            return
+        }
+        // Not here yet: a banner raised on the iPad about a dish this
+        // phone has not pulled, or a row that outlived its post. Ask the
+        // table once before deciding which. The Table is already selected,
+        // which is the honest place to land if it is gone.
+        Task {
+            await TablePull.pull(reason: "open")
+            if let post = TableNews.find(id, in: context) {
+                open(post)
+            } else {
+                print("[Notify] no post \(id) to open")
+            }
+        }
+    }
+
+    private func open(_ post: TablePost) {
+        pushed = nil
+        personShown = nil
+        threadStartsWriting = false
         threadPost = post
     }
 

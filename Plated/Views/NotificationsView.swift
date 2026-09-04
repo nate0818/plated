@@ -8,6 +8,7 @@ struct NotificationsView: View {
     @Environment(\.dismiss) private var dismiss
     @Query(sort: \PlatedNotification.createdAt, order: .reverse)
     private var notifications: [PlatedNotification]
+    @Query(sort: \HouseholdMember.createdAt) private var members: [HouseholdMember]
 
     /// One row open at a time, same contract as the week's plan rows.
     @State private var swipedNote: PersistentIdentifier?
@@ -43,7 +44,7 @@ struct NotificationsView: View {
                     Text("Nothing yet")
                         .plType(.body, .bold)
                         .foregroundStyle(Color.ink)
-                    Text("Plates, comments, saves, and turn reminders land here.")
+                    Text("What people plate, say and vote on lands here, and your cook reminders.")
                         .plType(.footnote)
                         .foregroundStyle(Color.inkSecondary)
                         .multilineTextAlignment(.center)
@@ -65,11 +66,19 @@ struct NotificationsView: View {
         .background(Color.canvas)
         .toolbar(.hidden, for: .navigationBar)
         .plSwipeBack()
+        .onAppear {
+            // Two devices, one event: keep one row. See TableNews.
+            TableNews.dedupeRows(context)
+        }
         .onDisappear {
             // Leaving the feed reads it — same contract as every inbox.
             for note in notifications where !note.isRead {
                 note.isRead = true
             }
+            Persist.save(context, "activity read")
+            AppBadge.sync(context)
+            // Read here is read on the lock screen too.
+            Task { await TableNews.reconcileDelivered(context: context) }
         }
     }
 
@@ -100,8 +109,50 @@ struct NotificationsView: View {
         }
     }
 
+    /// A row that knows where it came from opens it; a row that does not
+    /// stays a line of text rather than pretending to be a button.
+    @ViewBuilder
     private func noteRow(_ note: PlatedNotification) -> some View {
-        HStack(alignment: .top, spacing: 12) {
+        if let url = note.linkURL {
+            Button {
+                Haptic.tap()
+                note.isRead = true
+                LinkRelay.open(url)
+            } label: {
+                noteLine(note)
+            }
+            .buttonStyle(.pressable)
+            .accessibilityHint(hint(for: url))
+        } else {
+            noteLine(note)
+        }
+    }
+
+    /// Where the row goes, in words, because "Opens it" names nothing.
+    private func hint(for url: URL) -> String {
+        switch DeepLink.destination(for: url) {
+        case .post: return "Opens the dish"
+        case .home: return "Opens Home"
+        case .plan, .grocery: return "Opens the plan"
+        default: return "Opens the Table"
+        }
+    }
+
+    /// A row about a person shows the person. The icon is for rows about
+    /// things: a reminder, the grocery list, the cookbook.
+    @ViewBuilder
+    private func face(for note: PlatedNotification) -> some View {
+        if !note.actorName.isEmpty, note.kindValue.isAboutSomebody {
+            if let member = members.first(where: { $0.name == note.actorName }) {
+                AvatarCircle(member: member, size: 40)
+            } else {
+                AvatarCircle(
+                    initials: initials(of: note.actorName),
+                    tone: PersonTone.from(hex: "7F7364"),  // design-ok(literal-colour): the neutral tone of a person this household has no seat for
+                    size: 40
+                )
+            }
+        } else {
             ZStack {
                 Circle()
                     .fill(Color.fill)
@@ -110,11 +161,23 @@ struct NotificationsView: View {
                     .font(.system(size: 15, weight: .medium))
                     .foregroundStyle(note.isRead ? Color.inkSecondary : Color.ink)
             }
+        }
+    }
+
+    private func initials(of name: String) -> String {
+        let parts = name.split(separator: " ").filter { $0.first?.isLetter == true }.prefix(2)
+        let joined = parts.compactMap { $0.first }.map(String.init).joined().uppercased()
+        return joined.isEmpty ? "?" : joined
+    }
+
+    private func noteLine(_ note: PlatedNotification) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            face(for: note)
             VStack(alignment: .leading, spacing: 3) {
                 Text(note.body)
                     .plType(.body, note.isRead ? TypeWeight.medium : .semibold)
                     .foregroundStyle(Color.ink)
-                Text(relativeWhen(note.createdAt))
+                Text(when(note.createdAt))
                     .plType(.micro, .medium)
                     .foregroundStyle(Color.inkSecondary)
             }
@@ -124,15 +187,27 @@ struct NotificationsView: View {
             if !note.isRead {
                 Circle().fill(Color.ink).frame(width: 6, height: 6)
                     .padding(.top, 7)
+                    .accessibilityHidden(true)
             }
         }
         .padding(.horizontal, 24)
         .padding(.vertical, 13)
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+        // The dot is paint; the state has to be audible too.
+        .accessibilityValue(note.isRead ? "" : "Unread")
     }
 
-    private func relativeWhen(_ date: Date) -> String {
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .short
-        return formatter.localizedString(for: date, relativeTo: .now)
+    /// The Table's ladder, so "Thursday" here means what it means there.
+    /// Within the day it keeps the hour, because the bell is read in the
+    /// evening about the afternoon.
+    private func when(_ date: Date) -> String {
+        if Calendar.current.isDateInToday(date) {
+            let minutes = Int(Date.now.timeIntervalSince(date) / 60)
+            if minutes < 1 { return "Just now" }
+            if minutes < 60 { return "\(minutes) min ago" }
+            return date.formatted(date: .omitted, time: .shortened)
+        }
+        return Stamp.day(date)
     }
 }

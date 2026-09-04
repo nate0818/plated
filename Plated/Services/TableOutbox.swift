@@ -119,7 +119,7 @@ final class TableOutbox {
             case let .ballot(post, owner, choice):
                 ok = await TableShare.pushBallot(
                     post: post, zoneOwner: owner, author: entry.author,
-                    choice: choice, at: entry.at
+                    authorName: authorName, choice: choice, at: entry.at
                 )
             case let .note(post, owner, id):
                 // The comment row is the payload, so it has to be found

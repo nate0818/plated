@@ -308,6 +308,11 @@ struct TableComposerSheet: View {
         // shareRecordName empty, which is exactly the state the next publish
         // attempt looks for.
         let hostName = owner?.name ?? ""
+        // They just spoke to the table. Hearing back is the next wish, and
+        // this is one of the three moments that may spend the ask. Now,
+        // not after the upload: the moment is the posting, and the upload
+        // may never finish.
+        Task { await NotificationScheduler.askOnce() }
         Task { @MainActor in
             if let name = await TableShare.publish(post, hostName: hostName) {
                 post.shareRecordName = name
