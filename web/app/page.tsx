@@ -117,7 +117,7 @@ export default function Home() {
         </section>
 
         <section className={`${styles.closer} wrap`}>
-          <h2 className={styles.closerTitle}>Be there for the first dinner.</h2>
+          <h2 className={styles.closerTitle}>End the group chat.</h2>
           <WaitlistForm compact />
           <div className={`${styles.store} ${styles.storeCenter}`}>
             <AppStoreBadge height={52} />
