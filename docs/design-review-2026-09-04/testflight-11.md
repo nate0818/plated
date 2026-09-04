@@ -14,7 +14,7 @@ Design and shared widget token gates passed. Before release, 13 preview swipe ch
 
 ## Distribution status
 
-Apple accepted the upload with no errors at September 4, 2026, 12:07 EDT. Delivery/build UUID: `3a5649d1-1220-478f-b52c-bd6ac14f5cdb`. App Store Connect processing completed successfully (`VALID`), and build 11 is available to the Internal group (`IN_BETA_TESTING`). External state is `READY_FOR_BETA_SUBMISSION`; build 11 has not been added to External or submitted for Beta App Review because the CloudKit schema check below remains blocked. The External group continues to serve builds 2 and 10. The API response is preserved at `build/releases/11/asc-status.json`.
+Apple accepted the upload with no errors at September 4, 2026, 12:07 EDT. Delivery/build UUID: `3a5649d1-1220-478f-b52c-bd6ac14f5cdb`. App Store Connect processing completed successfully (`VALID`). Build 11 is available to both Internal and External TestFlight testers (`IN_BETA_TESTING`). The build was added to External and submitted for Beta App Review; Apple returned `IN_BETA_TESTING`. The public link is https://testflight.apple.com/join/2exAQgYs. The API response is preserved at `build/releases/11/asc-status.json`.
 
 The en-US TestFlight test notes were published and include the gesture testing scope, pending CloudKit schema verification, and missing Instacart partner configuration. The confirmed metadata response is preserved at `build/releases/11/testflight-notes.json`.
 
@@ -36,7 +36,7 @@ The diff from build 10 introduces these seven persisted fields:
 
 All model additions are optional. Verify the generated CloudKit field names and types against the Development schema, populate missing fields in Development, inspect the additive diff, and deploy it to Production in `iCloud.com.natemeadows.plated`, team `JA9M6TYXYL`. Do not reset either environment or delete existing records. The current DEBUG primers do not populate every new optional field, so running them alone is not proof that all fields exist.
 
-After deployment, verify reply creation/deletion and grocery changes across signed-in devices, including offline replay. Then add build 11 to External with `scripts/asc distribute 11 External` and verify both its group membership and external beta state.
+CloudKit schema verification/deployment remains outstanding after this beta release. Once access is available, deploy any required additive changes and verify reply creation/deletion and grocery changes across signed-in devices, including offline replay. External availability is not evidence that these sync checks passed; the TestFlight notes disclose the limitation.
 
 ## Other known limits
 

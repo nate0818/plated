@@ -2,7 +2,7 @@
 
 ## TestFlight release follow-up
 
-The design changes, planner holds, recipe-step controls, and widget updates are pushed to `main`. Version `0.1.0 (11)` passed Release archive, export, and signature verification; Apple processed it successfully, and it is available to Internal TestFlight testers. External distribution is pending CloudKit Console sign-in and verification/deployment of the seven new persisted fields. See [the build 11 release record](testflight-11.md) for the exact source commit, artifact, validation, and distribution status. The earlier pass-level evidence below describes what was verified before this release follow-up.
+The design changes, planner holds, recipe-step controls, and widget updates are pushed to `main`. Version `0.1.0 (11)` passed Release archive, export, and signature verification; Apple processed it successfully, and it is available to both Internal and External TestFlight testers. CloudKit Console sign-in and verification/deployment of the seven new persisted fields remain outstanding and are disclosed in the beta test notes. See [the build 11 release record](testflight-11.md) for the exact source commit, artifact, validation, and distribution status. The earlier pass-level evidence below describes what was verified before this release follow-up.
 
 ## Date and planning refinement
 
@@ -57,7 +57,7 @@ The 11 checks in `scripts/check-preview-holds.cjs` passed, covering cook assignm
 
 The Instacart partner secret and an approved production account remain external dependencies. The deployed function is authenticated and ready for configuration; a real partner link and checkout have not been verified. See `backend/instacart/README.md`.
 
-Before External distribution, verify the new comment and grocery fields in CloudKit Development and deploy the corresponding Production schema. Verify reply creation/deletion and offline replay across two signed-in devices. CloudKit schema access remains blocked on Apple Account sign-in; build 11's upload is recorded above.
+Verify the new comment and grocery fields in CloudKit Development and deploy any required additive Production schema changes. Verify reply creation/deletion and offline replay across two signed-in devices. CloudKit schema access remains blocked on Apple Account sign-in; build 11 is available externally with this verification gap disclosed in its test notes.
 
 Contact-photo picking, native outside-tap dismissal, VoiceOver, larger text, interrupted cooking, and CloudKit interactions still need physical-device interaction checks. Simulator screenshots and a successful build do not establish those behaviors. The browser preview demonstrates outside-tap dismissal; native gesture verification remains open.
 
