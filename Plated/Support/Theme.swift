@@ -31,14 +31,14 @@ extension Color {
     }
 
     // Chrome
-    static let canvas         = Color(light: 0xFFFFFF, dark: 0x16120E)
+    static let canvas         = Color(light: 0xFFFEFC, dark: 0x16120E)
     static let ink            = Color(light: 0x221B14, dark: 0xF4EDE3)
     /// Every supporting sentence in the app. 4.63:1 on canvas, 6.8:1 after
     /// dark. It was 0x8A8074, which measured 3.87:1 — under the 4.5:1 floor
     /// for text this size, so half the words in the app were below the line
     /// while looking, to a designer with good eyes on a bright screen, fine.
     /// Same hue and saturation, doing a job it can actually do.
-    static let inkSecondary   = Color(light: 0x7F7364, dark: 0xA79B8B)
+    static let inkSecondary   = Color(light: 0x675D50, dark: 0xB8AC9C)
     /// Decoration only: strokes, dashes, an icon on a control that is off.
     /// 2.24:1 on canvas and 3.08:1 after dark — it cannot legibly carry a
     /// word at any size, so it is never a `Text` colour. See DESIGN.md.
@@ -52,10 +52,11 @@ extension Color {
     static let raisedFill     = Color(light: 0xFFFFFF, dark: 0x362E24)   // the lifted pill inside a well
 
     // Earned color — lifted a touch after dark so it still lands
-    static let tomato         = Color(light: 0xFF5A3C, dark: 0xF75434)   // dark value keeps white labels ≥3:1
-    /// THE label color on tomato, both rooms — tomato's dark value is tuned
-    /// for white (≥3:1, above). Never canvas, never a bare .white literal.
+    static let tomato         = Color(light: 0xFF5A3C, dark: 0xF75434)   // original brand orange
+    /// Warm ink keeps labels legible against the brand orange in both appearances.
     static let onTomato = Color(light: 0x221B14, dark: 0x221B14) // dark ink meets contrast on the original orange
+    static let accentText = Color(light: 0xA93620, dark: 0xFF9D86)
+    static let completion = Color(light: 0x386449, dark: 0x8BC9A0)
     static let tomatoPressed  = Color(light: 0xD6401F, dark: 0xD6401F)   // pressed always darkens
 
     /// The darkening under a control that sits on somebody's photograph.

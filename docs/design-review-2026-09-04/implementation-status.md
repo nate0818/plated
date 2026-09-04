@@ -1,5 +1,13 @@
 # Design implementation — September 4, 2026
 
+## Native redesign follow-up — build 12
+
+Build 11 included only part of the approved visual direction. The actual SwiftUI
+redesign is now implemented and undergoing release packaging for build 12. See
+[native build 12](native-build-12.md) for the exact scope, native screenshots,
+interaction evidence, and remaining external dependencies.
+
+
 ## TestFlight release follow-up
 
 The design changes, planner holds, recipe-step controls, and widget updates are pushed to `main`. Version `0.1.0 (11)` passed Release archive, export, and signature verification; Apple processed it successfully, and it is available to both Internal and External TestFlight testers. CloudKit Console sign-in and verification/deployment of the seven new persisted fields remain outstanding and are disclosed in the beta test notes. See [the build 11 release record](testflight-11.md) for the exact source commit, artifact, validation, and distribution status. The earlier pass-level evidence below describes what was verified before this release follow-up.

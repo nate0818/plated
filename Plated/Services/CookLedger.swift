@@ -38,6 +38,12 @@ final class CookLedger {
         /// twenty minute timer into forty.
         var timerEndsAt: Date?
         var timerStep: Int?
+        var stepsSnapshot: [String]?
+        var ingredientsSnapshot: [String]?
+        var titleSnapshot: String?
+        var servings: Int?
+        var mealID: String?
+        var noteDraft: String?
     }
 
     private struct Book: Codable {
@@ -123,7 +129,7 @@ final class CookLedger {
     func session(for recipe: Recipe) -> Session? {
         guard let key = Self.key(for: recipe), var s = book.sessions[key] else { return nil }
         guard Date.now.timeIntervalSince(s.lastTouched) < Self.sessionLife else { return nil }
-        if s.stepCount != recipe.steps.count {
+        if s.stepsSnapshot == nil, s.stepCount != recipe.steps.count {
             s.step = nil
             s.timerEndsAt = nil
             s.timerStep = nil
@@ -148,10 +154,30 @@ final class CookLedger {
 
     // MARK: Writing
 
+    func begin(_ recipe: Recipe, servings: Int, mealID: String? = nil) {
+        guard session(for: recipe)?.stepsSnapshot == nil else { return }
+        let count = max(1, servings)
+        mutate(recipe) { s in
+            s.step = s.step ?? 0
+            s.stepCount = recipe.steps.count
+            s.stepsSnapshot = recipe.steps.isEmpty ? [recipe.instructions].filter { !$0.isEmpty } : recipe.steps
+            s.ingredientsSnapshot = recipe.sortedIngredients.map {
+                Ingredient.line(quantity: $0.quantity * Double(count) / Double(max(1, recipe.servings)), unit: $0.unit, name: $0.name)
+            }
+            s.titleSnapshot = recipe.title
+            s.servings = count
+            s.mealID = mealID
+        }
+    }
+
+    func setNote(_ note: String, in recipe: Recipe) { mutate(recipe) { $0.noteDraft = note } }
+
+    func steps(for recipe: Recipe) -> [String] { session(for: recipe)?.stepsSnapshot ?? recipe.steps }
+
     func setStep(_ index: Int?, in recipe: Recipe) {
         mutate(recipe) { s in
             s.step = index
-            s.stepCount = recipe.steps.count
+            if s.stepsSnapshot == nil { s.stepCount = recipe.steps.count }
         }
         print("[CookLedger] step -> \(String(describing: index)) of \(recipe.steps.count)")
     }
@@ -204,7 +230,7 @@ final class CookLedger {
         var s = book.sessions[key] ?? Session(startedAt: .now, lastTouched: .now)
         // An edited recipe drops its cursor here too, so a write cannot
         // resurrect an index the reader has already decided to ignore.
-        if s.stepCount != recipe.steps.count, s.step != nil {
+        if s.stepsSnapshot == nil, s.stepCount != recipe.steps.count, s.step != nil {
             s.step = nil
             s.timerEndsAt = nil
             s.timerStep = nil

@@ -128,9 +128,9 @@ enum TypeScale {
         case .body: return 15
         case .callout: return 17
         case .heading: return 20
-        case .title: return 23
-        case .display: return 27
-        case .hero: return 32
+        case .title: return 26
+        case .display: return 30
+        case .hero: return 36
         }
     }
 

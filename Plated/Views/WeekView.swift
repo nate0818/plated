@@ -29,6 +29,8 @@ struct WeekView: View {
     @State private var groceryPresented = false
     @State private var planDay: Date?
     @State private var mealToMove: PlannedMeal?
+    @State private var featuredRecipe: Recipe?
+    @State private var calendarShown = false
     /// The day whose detail page is pushed. Tapping a day used to raise a
     /// change/remove dialog; those two are swipe actions inside the day now.
     @Environment(\.tabPop) private var tabPop
@@ -117,6 +119,9 @@ struct WeekView: View {
                 case .activity: NotificationsView()
                 }
             }
+            .navigationDestination(item: $featuredRecipe) { recipe in
+                RecipeDetailView(recipe: recipe, meal: dinner(on: weekAnchor))
+            }
             .navigationDestination(item: $dayShown) { day in
                 DayDetailView(date: day, askTheTable: askTheTable)
                     .navigationTransition(.zoom(sourceID: day, in: zoom))
@@ -124,6 +129,12 @@ struct WeekView: View {
         }
         .sheet(item: plannerSheet) { destination in
             switch destination {
+            case .calendar:
+                VStack(alignment: .leading, spacing: 16) {
+                    HStack { Text("Choose a date").plType(.title); Spacer(); DesignIconButton(symbol: "xmark", label: "Close calendar") { calendarShown = false } }
+                    DatePicker("Dinner date", selection: $weekAnchor, displayedComponents: .date).datePickerStyle(.graphical).tint(Color.accentText)
+                    TomatoPillButton(title: "View this date") { calendarShown = false }
+                }.padding(24).presentationDetents([.large]).presentationDragIndicator(.visible).plTapOutsideToDismiss()
             case .groceries: GrocerySheet()
             case .night(let date): PlanNightSheet(date: date, askTheTable: askTheTable)
             case .move(let meal): MoveMealSheet(meal: meal) { weekAnchor = $0 }
@@ -182,25 +193,104 @@ struct WeekView: View {
     }
 
     private enum PlannerSheet: Identifiable {
-        case groceries, night(Date), move(PlannedMeal)
-        var id: String { switch self { case .groceries: "groceries"; case .night(let date): "night-\(date.timeIntervalSince1970)"; case .move(let meal): "move-\(meal.persistentModelID)" } }
+        case groceries, calendar, night(Date), move(PlannedMeal)
+        var id: String { switch self { case .calendar: "calendar"; case .groceries: "groceries"; case .night(let date): "night-\(date.timeIntervalSince1970)"; case .move(let meal): "move-\(meal.persistentModelID)" } }
     }
     private var plannerSheet: Binding<PlannerSheet?> {
-        Binding(get: { if let mealToMove { return .move(mealToMove) }; if let planDay { return .night(planDay) }; return groceryPresented ? .groceries : nil },
-                set: { if $0 == nil { planDay = nil; mealToMove = nil; groceryPresented = false } })
+        Binding(get: { if calendarShown { return .calendar }; if let mealToMove { return .move(mealToMove) }; if let planDay { return .night(planDay) }; return groceryPresented ? .groceries : nil },
+                set: { if $0 == nil { planDay = nil; mealToMove = nil; groceryPresented = false; calendarShown = false } })
     }
 
     private var portraitPlan: some View {
         ScrollView(showsIndicators: false) {
-            LazyVStack(spacing: 0) {
-                ForEach(weekDates, id: \.self) { date in dayRow(date) }
-                cooksFooter.padding(.top, 14)
+            VStack(alignment: .leading, spacing: 18) {
+                HStack(spacing: 2) {
+                    ForEach(weekDates, id: \.self) { date in
+                        let selected = Calendar.current.isDate(date, inSameDayAs: weekAnchor)
+                        Button {
+                            Haptic.select()
+                            withAnimation(.plSnap) { weekAnchor = date; swipedDay = nil }
+                        } label: {
+                            VStack(spacing: 5) {
+                                Text(date.formattedWeekday()).plType(.caption, .medium)
+                                Text(date.formattedDayNumber()).plType(.heading, .semibold).monospacedDigit()
+                                Circle().fill(dinner(on: date) == nil ? Color.clear : selected ? Color.onTomato : Color.inkSecondary).frame(width: 4, height: 4)
+                            }
+                            .foregroundStyle(selected ? Color.onTomato : Color.inkSecondary)
+                            .frame(maxWidth: .infinity).padding(.vertical, 8)
+                            .background(selected ? Color.tomato : Color.clear, in: Radius.shape(Radius.chip))
+                            .contentShape(Rectangle())
+                        }.buttonStyle(.pressable).accessibilityAddTraits(selected ? .isSelected : [])
+                            .accessibilityLabel(date.formatted(.dateTime.weekday(.wide).month().day()))
+                    }
+                }.plChrome()
+                featuredDinner
+                HStack {
+                    Text("This week").plType(.title, .semibold)
+                    Spacer()
+                    Text("\(plannedCount) planned").plType(.footnote).foregroundStyle(Color.inkSecondary)
+                }
+                VStack(spacing: 0) {
+                    ForEach(weekDates, id: \.self) { date in dayRow(date) }
+                }
+                cooksFooter
             }
-            .padding(.horizontal, 16)
+            .padding(.horizontal, 24)
+            .padding(.top, 6)
             .padding(.bottom, Layout.floatingChromeInset)
         }
         .onScrollPhaseChange { _, phase in
             if phase == .interacting { withAnimation(.plSnap) { swipedDay = nil } }
+        }
+    }
+
+    private var featuredDinner: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                MicroLabel((Calendar.current.isDateInToday(weekAnchor) ? "Tonight" : weekAnchor.formatted(.dateTime.weekday(.wide))) + " · " + weekAnchor.formatted(.dateTime.month(.abbreviated).day()))
+                Spacer()
+                Menu { nightMenu(weekAnchor) } label: {
+                    Image(systemName: "ellipsis").foregroundStyle(Color.ink).plTapTarget()
+                }.accessibilityLabel("Dinner options")
+            }
+            if let meal = dinner(on: weekAnchor) {
+                Button { Haptic.tap(); dayShown = weekAnchor } label: {
+                    VStack(alignment: .leading, spacing: 16) {
+                        RecipeArtwork(data: meal.recipe?.photoData, title: meal.title, ratio: 1.95)
+                        Text(meal.title).plType(.display, .semibold).foregroundStyle(Color.ink)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }.buttonStyle(.pressable)
+                HStack(spacing: 8) {
+                    if let cook = meal.cook { AvatarCircle(member: cook, size: 26) }
+                    Text(meal.cook.map { $0.isOwner ? "You're cooking" : "\($0.firstName) is cooking" } ?? "Cook unassigned")
+                        .plType(.footnote).foregroundStyle(Color.inkSecondary)
+                    Spacer()
+                    Button { planDay = weekAnchor } label: {
+                        Label("Serves \(meal.servings)", systemImage: "person.2").plType(.footnote)
+                            .foregroundStyle(Color.ink).padding(.horizontal, 12).frame(minHeight: 44)
+                            .background(Color.fill, in: Capsule())
+                    }.buttonStyle(.pressable).accessibilityLabel("Change servings and cook")
+                }
+                if meal.recipe != nil {
+                    TomatoPillButton(title: meal.isCooked ? "View recipe" : "Let's cook", systemImage: "fork.knife") {
+                        featuredRecipe = meal.recipe
+                    }
+                } else {
+                    Button("Edit dinner") { planDay = weekAnchor }.plType(.body, .semibold).foregroundStyle(Color.accentText).plTapTarget()
+                }
+            } else {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text(isPast(weekAnchor) ? "A night off the menu" : "Something good starts here.")
+                        .plType(.display, .medium).foregroundStyle(Color.ink)
+                    Text(isPast(weekAnchor) ? "No dinner was planned for this date." : "Choose a favorite, try a new recipe, or take the night off.")
+                        .plType(.body).foregroundStyle(Color.inkSecondary)
+                    if !isPast(weekAnchor) {
+                        TomatoPillButton(title: "Plan this night", systemImage: "plus") { planDay = weekAnchor }
+                    }
+                }.padding(22).frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.fill, in: Radius.shape(Radius.hero))
+            }
         }
     }
 
@@ -211,8 +301,11 @@ struct WeekView: View {
                 Text("Month").tag(true)
             }
             .pickerStyle(.segmented)
-            .frame(maxWidth: 180)
+            .frame(maxWidth: 148)
             Spacer(minLength: 0)
+            Button { calendarShown = true } label: {
+                Text(weekAnchor.formatted(.dateTime.month(.abbreviated).day())).plType(.footnote, .semibold)
+            }.plTapTarget().accessibilityLabel("Choose a date")
             Button("Today") {
                 Haptic.select()
                 withAnimation(.plSnap) { weekAnchor = .now.startOfDay }
@@ -254,69 +347,11 @@ struct WeekView: View {
     // MARK: Header
 
     private var header: some View {
-        // Aligned on the discs, not the blocks: the avatar carries a caption
-        // and the bell does not, so centring the blocks left the face
-        // sitting about 8pt high. See VerticalAlignment.discCentre.
-        HStack(alignment: .discCentre, spacing: 10) {
-            VStack(alignment: .leading, spacing: 2) {
-                // "Aug 30 to Sep 5" is wider than a cross-month range has
-                // any right to be, and the header's icons leave it under
-                // half the screen. It shrinks to fit; wrapping pushed the
-                // title down and broke the masthead.
-                MicroLabel(showMonth ? "Your plan" : weekRangeLabel)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.75)
-                    // Squeezed by four icon buttons, so it truncated to
-                    // "AUG 3..." at accessibility sizes. An eyebrow beside
-                    // a title is chrome; the title below it is not.
-                    .plChrome()
-                Text(showMonth ? "Your month" : "Your week")
-                    // A step down from display and a weight lighter. At 27pt
-                    // semibold it needed two lines beside four icon buttons,
-                    // so the masthead stood taller than the answer under it.
-                    // The card below is where that size belongs now.
-                    .plType(.title, .medium)
-                    .foregroundStyle(Color.ink)
-                    // Two lines, not one. At normal sizes the title never
-                    // reaches the second, so nothing moves; at accessibility
-                    // sizes it wraps the way an iOS large title wraps instead
-                    // of truncating "Your week" to "Your...". A title is
-                    // content, so it keeps growing; the icons beside it are
-                    // chrome and hold at xxLarge.
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.7)
+        PlatedMasthead(title: showMonth ? "Your month" : "Your week") {
+            HStack(spacing: 8) {
+                ActivityBellButton(size: 36) { pushed = .activity }
+                AccountButton()
             }
-            .layoutPriority(1)
-            Spacer(minLength: 6)
-
-            headerIcon("Grocery list") {
-                groceryPresented = true
-            } content: {
-                Image(systemName: "basket")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(Color.ink)
-            }
-
-            ActivityBellButton(size: 36) {
-                pushed = .activity
-            }
-
-
-            Button {
-                Haptic.tap()
-                openOwnProfile()
-            } label: {
-                VStack(spacing: 2) {
-                    AvatarCircle(initials: hostInitial, tone: .neutralPair, size: 42,
-                                 photo: members.first(where: \.isOwner)?.photoData)
-                }
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.pressable)
-            .accessibilityLabel("Your profile and settings")
-            .matchedTransitionSource(id: ZoomID.host, in: zoom)
-            .plDiscAligned(42)
-            .plChrome()
         }
     }
 
@@ -352,7 +387,7 @@ struct WeekView: View {
             HStack(spacing: 10) {
                 dateColumn(date)
 
-                dishCircle(for: meal, diameter: 48)
+                RecipeArtwork(data: meal.recipe?.photoData, title: meal.title, ratio: 1, radius: Radius.small).frame(width: 60)
                     // The cook belongs to the dish, not to the far edge of
                     // the row. Moving them here also hands the title back the
                     // 38pt that an edge avatar was costing it, which is the
@@ -373,7 +408,7 @@ struct WeekView: View {
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(meal.title)
-                        .plType(.body, .bold)
+                        .plType(.callout, .semibold)
                         .foregroundStyle(Color.ink)
                         .lineLimit(2)
                     Text(tagLine(for: meal, today: today, date: date))
@@ -531,7 +566,7 @@ struct WeekView: View {
             dateColumn(date)
 
             if let meal {
-                dishCircle(for: meal, diameter: 48)
+                RecipeArtwork(data: meal.recipe?.photoData, title: meal.title, ratio: 1, radius: Radius.small).frame(width: 60)
                 Text(meal.title)
                     .plType(.footnote, .semibold)
                     .foregroundStyle(Color.inkSecondary)

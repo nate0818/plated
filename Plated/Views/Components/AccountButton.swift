@@ -7,7 +7,7 @@ struct AccountButton: View {
     @State private var showing = false
     var body: some View {
         Button { showing = true } label: {
-            AvatarCircle(initials: members.first(where: \.isOwner)?.initials ?? "Me", tone: .neutralPair, size: 32, photo: members.first(where: \.isOwner)?.photoData)
+            AvatarCircle(initials: members.first(where: \.isOwner)?.initials ?? "Me", tone: .neutralPair, size: 42, photo: members.first(where: \.isOwner)?.photoData)
                 .plTapTarget()
         }
         .buttonStyle(.plain)

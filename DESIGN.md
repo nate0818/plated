@@ -1,5 +1,25 @@
 # DESIGN.md
 
+## Approved native redesign — September 4, 2026
+
+The user-approved direction supersedes the earlier circle-only recipe grammar
+and central-create navigation. The shipping app uses Plan, Recipes, Groceries,
+and Table as four destinations, with a profile entry on each main screen.
+Recipe photography uses continuous rounded rectangles. Circles remain for
+people and compact icon controls. Keep the original tomato orange for primary
+actions and selected calendar dates; selected text uses the darker accentText
+for contrast. The navigation bar uses system glass with readable labels.
+
+Planning puts the selected dinner first, with a weekly agenda and a month
+calendar. Recipe search is visible. Groceries can cover a week or selected meals,
+and each generated line carries its recipe provenance. Cooking has an explicit
+Start/Resume action; session steps, ingredients, yield, and notes survive
+minimizing. Recipe edits do not change the instructions in an active session.
+
+Native screenshots and native interaction tests are the release evidence.
+The HTML preview is a design reference and is not bundled into the iOS app.
+
+
 How Plated looks, moves, and speaks. `Plated/Support/Theme.swift` is the
 implementation; this is the reasoning, so a change can be judged rather than
 just compiled.
@@ -29,9 +49,9 @@ Use the token, never a literal. Every token carries its own dark value.
 
 | Token | Light | Use |
 |---|---|---|
-| `canvas` | `#FFFFFF` | page and card ground |
+| `canvas` | `#FFFEFC` | page and card ground |
 | `ink` | `#221B14` | primary text |
-| `inkSecondary` | `#7F7364` | every supporting sentence |
+| `inkSecondary` | `#675D50` | every supporting sentence |
 | `inkFaint` | `#B5AC9E` | decoration only, never a word |
 | `hairline` | `#F0EBE4` | card borders |
 | `hairlineSoft` | `#F7F3EE` | row separators |
@@ -39,15 +59,16 @@ Use the token, never a literal. Every token carries its own dark value.
 | `navHairline` | `#EFECE7` | floating bar edge |
 | `fill` / `chipFill` | `#F4F1EC` / `#F7F5F1` | wells, chips |
 | `tomato` | `#FF5A3C` | the one accent |
-| `onTomato` | `#FFFFFF` | text on tomato, both rooms — never a literal white |
+| `onTomato` | `#221B14` | text on tomato, both rooms — never a literal white |
 | `basil` | `#3DA35D` | progress, cooked, seated |
 | `mango` | `#FFB020` | the Chef's kiss, nothing else |
 | `grape` | `#B95CF4` | calendar events |
 
 Tints (`tomatoTint`, `basilTint`, …) are for surfaces, not text.
 
-**Two text colours, not three.** `ink` and `inkSecondary` are the only tokens
-that may paint a word. `inkFaint` measures 2.24:1 on canvas and 3.08:1 after
+`ink` and `inkSecondary` carry ordinary text. `accentText` carries selected
+labels and `completion` carries success indicators. `onTomato` labels orange
+actions. These semantic colors are distinct from pale decorative tints. `inkFaint` measures 2.24:1 on canvas and 3.08:1 after
 dark: it cannot legibly carry a glyph-shaped letter at any size, so it paints
 strokes, dashed outlines, and the icon on a control that is genuinely off, and
 nothing else. That includes the cases every design system loses first —
@@ -78,8 +99,9 @@ no logo badge. Do not invent one; a "P" in a rounded square is not this product.
 
 ## Shape and elevation
 
-Two-shape grammar: **circles are dishes and planning, rounded rectangles are
-moments and feed.**
+Recipe and meal photographs use rounded rectangles; people and compact
+controls use circles. Use the shared RecipeArtwork component for consistent
+image geometry, including recipes without a photo.
 
 Radii live in `Radius` (`chip` 16, `row` 18, `card` 20, `hero` 24, `sheet` 28).
 Shadows live in four steps — `plCardShadow`, `plFloatShadow`, `plDishShadow`,

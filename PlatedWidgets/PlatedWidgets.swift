@@ -231,7 +231,7 @@ enum Plate {
         })
     }
 
-    static let canvas = color(0xFFFFFF, 0x16120E)
+    static let canvas = color(0xFFFEFC, 0x16120E)
     static let ink = color(0x221B14, 0xF4EDE3)
     // 0x7F7364, not 0x8A8074. The old value measured 3.87:1 on canvas,
     // under the 4.5:1 floor, and was replaced in Theme.swift. This copy kept
@@ -240,7 +240,7 @@ enum Plate {
     // A fork that receives SOME fixes is worse than one that receives none,
     // because you cannot tell by looking which state it is in. See
     // scripts/check-tokens, which now fails the build of a drift like this.
-    static let inkSecondary = color(0x7F7364, 0xA79B8B)
+    static let inkSecondary = color(0x675D50, 0xB8AC9C)
     static let inkFaint = color(0xB5AC9E, 0x6B6157)
     static let hairlineDashed = color(0xEFE7DD, 0x342C22)
     static let fill = color(0xF4F1EC, 0x282119)

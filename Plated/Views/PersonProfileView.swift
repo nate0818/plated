@@ -36,6 +36,9 @@ struct PersonProfileView: View {
     @AppStorage("userFamilyName") private var userFamilyName = ""
     @State private var settingsShown = false
     @State private var editShown = false
+    @State private var householdShown = false
+    @State private var profileTab = "Dishes"
+    @State private var savedRecipe: Recipe?
     @State private var bannerItem: PhotosPickerItem?
     @State private var openedPost: TablePost?
     /// The grid tile you touched is the thread that opens. One source per
@@ -133,7 +136,7 @@ struct PersonProfileView: View {
                         } else {
                             Text(displayName)
                                 .plName()
-                                .plType(.title)
+                                .plType(.display)
                                 .foregroundStyle(Color.ink)
                         }
                         MicroLabel(roleLine)
@@ -157,36 +160,70 @@ struct PersonProfileView: View {
                     LazyVGrid(
                         columns: Array(
                             repeating: GridItem(.flexible(), spacing: 0),
-                            count: typeSize >= .accessibility1 ? 2 : 4
+                            count: 3
                         ),
                         spacing: typeSize >= .accessibility1 ? 16 : 0
                     ) {
                         CountBlock(value: "\(posts.count)", label: "Posts")
                         CountBlock(value: "\(plateCount)", label: "Happy plates")
                         CountBlock(value: "\(kissCount)", label: "Chef's kisses", accent: kissCount > 0)
-                        CountBlock(value: "\(Awards.savesReceived(by: name))", label: "Saved by others")
                     }
                     .padding(.vertical, 12)
                 }
                 .padding(.horizontal, 24)
 
-                if posts.isEmpty {
-                    VStack(spacing: 8) {
-                        PlateReactionGlyph(filled: false)
-                        Text(emptyLine)
-                            .plType(.footnote)
-                            .foregroundStyle(Color.inkSecondary)
-                            .multilineTextAlignment(.center)
+                HStack(spacing: 0) {
+                    ForEach(isMe ? ["Dishes", "Conversations", "Saved"] : ["Dishes", "Conversations"], id: \.self) { tab in
+                        Button { Haptic.select(); withAnimation(.plSnap) { profileTab = tab } } label: {
+                            Text(tab).plType(.footnote, profileTab == tab ? .semibold : .regular)
+                                .foregroundStyle(profileTab == tab ? Color.accentText : Color.inkSecondary)
+                                .frame(maxWidth: .infinity, minHeight: 48)
+                                .overlay(alignment: .bottom) { Rectangle().fill(profileTab == tab ? Color.tomato : Color.hairline).frame(height: profileTab == tab ? 2 : 0.5) }
+                                .contentShape(Rectangle())
+                        }.buttonStyle(.plain).accessibilityAddTraits(profileTab == tab ? .isSelected : [])
                     }
-                    .padding(.top, 44)
-                    .padding(.horizontal, 40)
+                }.padding(.horizontal, 24).padding(.top, 6).padding(.bottom, 16)
+                if profileTab == "Saved", isMe {
+                    let saved = recipes.filter { $0.isImported }
+                    if saved.isEmpty {
+                        profileEmpty("Your private recipe shelf", detail: "Recipes you save from the Table appear here. Only you can see them.")
+                    } else {
+                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 20) {
+                            ForEach(saved) { recipe in
+                                Button { savedRecipe = recipe } label: {
+                                    VStack(alignment: .leading, spacing: 8) {
+                                        RecipeArtwork(data: recipe.photoData, title: recipe.title, ratio: 1)
+                                        Text(recipe.title).plType(.body, .semibold).foregroundStyle(Color.ink)
+                                    }
+                                }.buttonStyle(.pressable)
+                            }
+                        }.padding(.horizontal, 24)
+                    }
+                } else if profileTab == "Conversations" {
+                    let conversations = posts.filter { $0.kind == "ask" }
+                    if conversations.isEmpty {
+                        profileEmpty("A place for good conversation", detail: "Questions and polls shared with the Table appear here.")
+                    } else {
+                        VStack(spacing: 0) {
+                            ForEach(conversations) { post in
+                                Button { openedPost = post } label: {
+                                    VStack(alignment: .leading, spacing: 8) {
+                                        Text(post.dishTitle.isEmpty ? post.caption : post.dishTitle).plType(.heading, .semibold).foregroundStyle(Color.ink)
+                                        Text(post.createdAt.formatted(.dateTime.month(.abbreviated).day())).plType(.caption).foregroundStyle(Color.inkSecondary)
+                                    }.frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 18).contentShape(Rectangle())
+                                }.buttonStyle(.pressable)
+                                Divider()
+                            }
+                        }.padding(.horizontal, 24)
+                    }
                 } else {
-                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 3), count: 3), spacing: 3) {
-                        ForEach(posts, id: \.persistentModelID) { post in
-                            postCell(post)
+                    let dishes = posts.filter { $0.kind != "ask" }
+                    if dishes.isEmpty { profileEmpty("Nothing plated yet", detail: emptyLine) }
+                    else {
+                        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 3), count: 3), spacing: 3) {
+                            ForEach(dishes, id: \.persistentModelID) { post in postCell(post) }
                         }
                     }
-                    .padding(.top, 20)
                 }
             }
             .padding(.bottom, Layout.floatingChromeInset)
@@ -195,8 +232,17 @@ struct PersonProfileView: View {
         .toolbar(.hidden, for: .navigationBar)
         .plSwipeBack()
         .safeAreaInset(edge: .top) { topBar }
-        .sheet(isPresented: $settingsShown) { SettingsSheet() }
-        .sheet(isPresented: $editShown) { EditProfileSheet() }
+        .sheet(isPresented: Binding(get: { settingsShown || editShown || householdShown }, set: { if !$0 { settingsShown = false; editShown = false; householdShown = false } })) {
+            if settingsShown { SettingsSheet() }
+            else if editShown { EditProfileSheet() }
+            else {
+                HouseholdHomeView()
+                    .safeAreaInset(edge: .top) {
+                        HStack { Text("Your household").plType(.heading); Spacer(); DesignIconButton(symbol: "xmark", label: "Close household") { householdShown = false } }.padding(.horizontal, 24).background(Color.canvas)
+                    }
+            }
+        }
+        .navigationDestination(item: $savedRecipe) { recipe in RecipeDetailView(recipe: recipe) }
         .navigationDestination(item: $openedPost) { post in
             PostThreadView(post: post)
                 .navigationTransition(.zoom(sourceID: post.persistentModelID, in: zoom))
@@ -209,6 +255,14 @@ struct PersonProfileView: View {
                 }
             }
         }
+    }
+
+    private func profileEmpty(_ title: String, detail: String) -> some View {
+        VStack(spacing: 10) {
+            Image(systemName: profileTab == "Saved" ? "bookmark" : "bubble.left.and.bubble.right").font(.system(size: 26, weight: .light)).foregroundStyle(Color.inkSecondary)
+            Text(title).plType(.heading, .semibold).foregroundStyle(Color.ink)
+            Text(detail).plType(.footnote).foregroundStyle(Color.inkSecondary).multilineTextAlignment(.center)
+        }.padding(.horizontal, 32).padding(.vertical, 36).frame(maxWidth: .infinity)
     }
 
     // MARK: Pieces
@@ -235,6 +289,7 @@ struct PersonProfileView: View {
             .buttonStyle(.pressable)
             Spacer()
             if isMe {
+                DesignIconButton(symbol: "house", label: "Your household") { householdShown = true }
                 Button {
                     Haptic.tap()
                     settingsShown = true

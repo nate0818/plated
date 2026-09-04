@@ -5,6 +5,8 @@ import SwiftData
 /// header opens it. Everything uncooked on the plan, rolled up by aisle,
 /// one tap from Reminders.
 struct GrocerySheet: View {
+    var embedded = false
+    @State private var mealPickerShown = false
     @Environment(\.modelContext) private var context
     @Environment(\.openURL) private var openURL
     @Environment(\.dismiss) private var dismiss
@@ -84,13 +86,10 @@ struct GrocerySheet: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack {
-                Text("Groceries").plType(.title).foregroundStyle(Color.ink)
-                Spacer()
-                Button { dismiss() } label: { Image(systemName: "xmark").foregroundStyle(Color.ink).plTapTarget() }
-                    .accessibilityLabel("Close groceries")
-            }
-            .padding(.horizontal, 24).padding(.top, 18)
+            PlatedMasthead(title: "Groceries") {
+                if embedded { AccountButton() }
+                else { DesignIconButton(symbol: "xmark", label: "Close groceries") { dismiss() } }
+            }.padding(.horizontal, 24)
             shoppingControls
 
 
@@ -198,6 +197,9 @@ struct GrocerySheet: View {
                 .padding(.bottom, 16)
             }
         }
+        .background(Color.canvas)
+        .padding(.bottom, embedded ? Layout.floatingChromeInset : 0)
+        .toolbar(.hidden, for: .navigationBar)
         .presentationDetents([.medium, .large], selection: $sheetDetent)
         .presentationDragIndicator(.visible)
         .plTapOutsideToDismiss()
@@ -208,7 +210,9 @@ struct GrocerySheet: View {
         .onChange(of: byMeal) { _, active in
             if active && selectedMeals.isEmpty, let id = plannedMeals.first?.shoppingID { selectedMeals.insert(id) }
         }
-        .sheet(item: $sourceShown) { item in
+        .sheet(isPresented: Binding(get: { mealPickerShown || sourceShown != nil }, set: { if !$0 { mealPickerShown = false; sourceShown = nil } })) {
+            if mealPickerShown { mealSelector }
+            else if let item = sourceShown {
             VStack(alignment: .leading, spacing: 16) {
                 Text(item.name).plType(.title)
                 ForEach(item.sources) { source in
@@ -222,6 +226,7 @@ struct GrocerySheet: View {
                     .plType(.footnote).foregroundStyle(Color.inkSecondary)
                 Button("Done") { sourceShown = nil }.foregroundStyle(Color.ink).plTapTarget()
             }.padding(24).plFitsOrScrolls().presentationDetents([.medium, .large]).presentationDragIndicator(.visible).plTapOutsideToDismiss()
+            }
         }
         // A receipt must not outlive its truth: "12 items sent to Reminders"
         // stayed on screen while the list underneath it changed.
@@ -269,6 +274,7 @@ struct GrocerySheet: View {
                 isManual: true
             ))
             newItemName = ""
+            if byMeal { includeExtras = true }
         }
         // Keep the keyboard: out of one thing usually means out of three.
     }
@@ -371,34 +377,72 @@ struct GrocerySheet: View {
     }
 
     private var shoppingControls: some View {
-        VStack(spacing: 12) {
-            DatePicker("Starting", selection: $shoppingStart, displayedComponents: .date)
-                .plType(.footnote, .semibold)
+        VStack(spacing: 14) {
+            HStack {
+                DatePicker("Shop from", selection: $shoppingStart, displayedComponents: .date)
+                    .plType(.footnote).tint(Color.accentText)
+                Spacer()
+                Text("7 days").plType(.caption).foregroundStyle(Color.inkSecondary)
+            }
             Picker("Shop for", selection: $byMeal) {
-                Text("7 days").tag(false)
+                Text("Whole week").tag(false)
                 Text("By meal").tag(true)
             }.pickerStyle(.segmented)
             if byMeal {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        ForEach(plannedMeals) { meal in
-                            if let id = meal.shoppingID {
-                                Button {
-                                    Haptic.select()
-                                    if selectedMeals.contains(id) { selectedMeals.remove(id) } else { selectedMeals.insert(id) }
-                                } label: {
-                                    HStack(spacing: 6) {
-                                        Image(systemName: selectedMeals.contains(id) ? "checkmark.circle.fill" : "circle")
-                                        Text(meal.date.formatted(.dateTime.weekday(.abbreviated)) + " · " + meal.title).lineLimit(1)
-                                    }.padding(12).background(selectedMeals.contains(id) ? Color.fill : Color.clear, in: Capsule())
-                                }.buttonStyle(.plain).accessibilityAddTraits(selectedMeals.contains(id) ? .isSelected : [])
-                            }
+                Button { mealPickerShown = true } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: "fork.knife").font(.system(size: 20))
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(selectedMeals.isEmpty ? "Choose meals" : "\(selectedMeals.count) \(selectedMeals.count == 1 ? "meal" : "meals") selected").plType(.body, .semibold)
+                            Text("One dinner or a few. Shop your way.").plType(.caption).foregroundStyle(Color.inkSecondary)
+                        }.frame(maxWidth: .infinity, alignment: .leading)
+                        Image(systemName: "chevron.right").font(.system(size: 12))
+                    }.padding(16).background(Color.fill, in: Radius.shape(Radius.chip)).contentShape(Rectangle())
+                }.buttonStyle(.pressable)
+            }
+            HStack {
+                Text("\(currentItems.count - unchecked.count) of \(currentItems.count) checked")
+                Spacer()
+                Text("\(plannedMeals.count) planned meals")
+            }.plType(.caption).foregroundStyle(Color.inkSecondary)
+            GeometryReader { g in
+                Capsule().fill(Color.fill)
+                    .overlay(alignment: .leading) {
+                        Capsule().fill(Color.completion).frame(width: currentItems.isEmpty ? 0 : g.size.width * CGFloat(currentItems.count - unchecked.count) / CGFloat(currentItems.count))
+                    }
+            }.frame(height: 3).animation(.plSnap, value: unchecked.count)
+        }.foregroundStyle(Color.ink).padding(.horizontal, 24).padding(.top, 16)
+    }
+
+    private var mealSelector: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 0) {
+                    ForEach(plannedMeals) { meal in
+                        if let id = meal.shoppingID {
+                            Button {
+                                Haptic.select()
+                                if selectedMeals.contains(id) { selectedMeals.remove(id) } else { selectedMeals.insert(id) }
+                            } label: {
+                                HStack(spacing: 12) {
+                                    RecipeArtwork(data: meal.recipe?.photoData, title: meal.title, ratio: 1, radius: Radius.small).frame(width: 56)
+                                    VStack(alignment: .leading, spacing: 5) {
+                                        Text(meal.title).plType(.body, .semibold).foregroundStyle(Color.ink)
+                                        Text(meal.date.formatted(.dateTime.weekday(.wide).month(.abbreviated).day()) + " · Serves \(meal.servings)")
+                                            .plType(.caption).foregroundStyle(Color.inkSecondary)
+                                    }.frame(maxWidth: .infinity, alignment: .leading)
+                                    Image(systemName: selectedMeals.contains(id) ? "checkmark.circle.fill" : "circle")
+                                        .font(.system(size: 24)).foregroundStyle(selectedMeals.contains(id) ? Color.completion : Color.inkSecondary)
+                                }.padding(.vertical, 14).contentShape(Rectangle())
+                            }.buttonStyle(.plain).accessibilityAddTraits(selectedMeals.contains(id) ? .isSelected : [])
+                            Divider()
                         }
                     }
-                }
-                Toggle("Include extra items", isOn: $includeExtras).plType(.footnote)
-            }
-        }.foregroundStyle(Color.ink).padding(.horizontal, 24).padding(.top, 12).plChrome()
+                    Toggle("Include extra items", isOn: $includeExtras).plType(.body).tint(Color.completion).padding(.vertical, 20)
+                }.padding(.horizontal, 24)
+            }.background(Color.canvas).navigationTitle("Shop by meal").navigationBarTitleDisplayMode(.inline)
+                .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { mealPickerShown = false } } }
+        }.presentationDetents([.large]).presentationDragIndicator(.visible).plTapOutsideToDismiss()
     }
 
     private func rebuild() {

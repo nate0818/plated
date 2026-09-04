@@ -2,7 +2,7 @@ import SwiftUI
 import SwiftData
 
 enum AppTab: String, CaseIterable {
-    case week, table, cookbook, home
+    case week, cookbook, groceries, table, home
 }
 
 /// A request to send a tab back to its own first screen.
@@ -48,6 +48,15 @@ enum CreateKind: String, Identifiable {
 struct MainShellView: View {
     @Environment(\.modelContext) private var context
     @Query private var members: [HouseholdMember]
+    @Query private var recipes: [Recipe]
+    @Query private var meals: [PlannedMeal]
+    @State private var ledger = CookLedger.shared
+    @State private var resumedRecipe: Recipe?
+    private var activeRecipe: Recipe? {
+        recipes.filter { ledger.isCooking($0) }.max {
+            (ledger.session(for: $0)?.lastTouched ?? .distantPast) < (ledger.session(for: $1)?.lastTouched ?? .distantPast)
+        }
+    }
 
     @State private var selection: AppTab = .week
     @State private var visitedTabs: Set<AppTab> = [.week]
@@ -115,6 +124,7 @@ struct MainShellView: View {
                         case .table: TableFeedView()
                         case .cookbook: CookbookView()
                         case .home: HouseholdHomeView()
+                        case .groceries: NavigationStack { GrocerySheet(embedded: true) }
                         }
                     }
                     .opacity(selection == tab ? 1 : 0)
@@ -123,6 +133,7 @@ struct MainShellView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .padding(.bottom, activeRecipe == nil ? 0 : 60)
 
             if ProngsbyFeature.isEnabled, !perchVisibility.isHidden {
                 ProngsbyPerch(session: prongsbySession) {
@@ -141,13 +152,33 @@ struct MainShellView: View {
                 .transition(.plArrive)
             }
 
+            VStack(spacing: 8) {
+                if let recipe = activeRecipe, let session = ledger.session(for: recipe) {
+                    Button { resumedRecipe = recipe } label: {
+                        HStack(spacing: 12) {
+                            Image(systemName: "fork.knife.circle.fill").font(.system(size: 28)).foregroundStyle(Color.accentText)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Resume cooking").plType(.footnote, .semibold)
+                                Text(session.titleSnapshot ?? recipe.title).plType(.caption).lineLimit(1)
+                            }.frame(maxWidth: .infinity, alignment: .leading)
+                            Text("\((session.step ?? 0) + 1) / \(max(1, session.stepsSnapshot?.count ?? session.stepCount))").plType(.caption).monospacedDigit()
+                            Image(systemName: "chevron.right").font(.system(size: 12, weight: .semibold))
+                        }.foregroundStyle(Color.ink).padding(.horizontal, 16).frame(height: 54)
+                            .background(Color.canvas, in: Capsule()).overlay(Capsule().strokeBorder(Color.hairline))
+                    }.buttonStyle(.pressable).accessibilityLabel("Resume cooking \(session.titleSnapshot ?? recipe.title)")
+                }
             PlateTabBar(selection: $selection, onReselect: { tab in
                 tabPop = TabPopRequest(tab: tab, count: tabPop.count + 1)
             }) {
                 createPresented = true
             }
+            }
             .padding(.horizontal, 20)
             .padding(.bottom, 4)
+        }
+        .fullScreenCover(item: $resumedRecipe) { recipe in
+            let session = ledger.session(for: recipe)
+            CookingFocusView(recipe: recipe, meal: meals.first { session?.mealID != nil && $0.shoppingID == session?.mealID }, servings: session?.servings ?? recipe.servings)
         }
         .environment(\.tabPop, tabPop)
         .environment(\.perchVisibility, perchVisibility)
@@ -197,8 +228,7 @@ struct MainShellView: View {
                 case .prongsby: prongsbyPresented = true
                 case .home: selection = .home
                 case .grocery:
-                    selection = .week
-                    groceryRequested = true
+                    selection = .groceries
                 }
             }
         }
@@ -321,6 +351,8 @@ struct MainShellView: View {
                 await Seats.reconcile(in: context)
                 Persist.save(context)
             }
+        }
+        .onAppear {
             #if DEBUG
             // UI-test hook: `simctl launch … -plated-tab table` lands here.
             //
@@ -395,42 +427,20 @@ struct PlateTabBar: View {
     var body: some View {
         HStack(spacing: 0) {
             tabItem(.week, label: "Plan") {
-                Image(systemName: "calendar")
-                    // 20, like the other three. It was 21 with nothing
-                    // recorded about why, and four peers built by one
-                    // helper should not disagree by a point.
-                    .font(.system(size: 20, weight: .medium))
+                Image(systemName: selection == .week ? "calendar.circle.fill" : "calendar")
+                    .font(.system(size: 22, weight: .medium)).contentTransition(.symbolEffect(.replace))
+            }
+            tabItem(.cookbook, label: "Recipes") {
+                Image(systemName: selection == .cookbook ? "book.closed.fill" : "book.closed")
+                    .font(.system(size: 22, weight: .medium)).contentTransition(.symbolEffect(.replace))
+            }
+            tabItem(.groceries, label: "Groceries") {
+                Image(systemName: selection == .groceries ? "basket.fill" : "basket")
+                    .font(.system(size: 22, weight: .medium)).contentTransition(.symbolEffect(.replace))
             }
             tabItem(.table, label: "Table") {
-                Image(systemName: "table.furniture")
-                    .font(.system(size: 20, weight: .medium))
-            }
-
-            Button {
-                Haptic.plate()
-                onCreate()
-            } label: {
-                ZStack {
-                    Circle()
-                        .fill(Color.tomato)
-                        .frame(width: 54, height: 54)
-                        .plFloatShadow()
-                    Image(systemName: "plus")
-                        .accessibilityLabel("Add")
-                        .font(.system(size: 22, weight: .bold))
-                        .foregroundStyle(Color.onTomato)
-                }
-            }
-            .buttonStyle(.pressable)
-            .frame(width: 72)
-
-            tabItem(.cookbook, label: "Recipes") {
-                Image(systemName: "book.closed")
-                    .font(.system(size: 20, weight: .medium))
-            }
-            tabItem(.home, label: "Home") {
-                Image(systemName: "house")
-                    .font(.system(size: 20, weight: .medium))
+                Image(systemName: selection == .table ? "bubble.left.and.bubble.right.fill" : "bubble.left.and.bubble.right")
+                    .font(.system(size: 22, weight: .medium)).contentTransition(.symbolEffect(.replace))
             }
         }
         .padding(.horizontal, 8)
@@ -479,13 +489,14 @@ struct PlateTabBar: View {
         } label: {
             VStack(spacing: 2) {
                 icon()
-                    .frame(height: 23)
+                    .frame(width: 52, height: 29)
+                    .background(active ? Color.tomatoTint : Color.clear, in: Capsule())
                 Text(label)
                     .plType(.micro, active ? TypeWeight.extraBold : .bold)
                     .lineLimit(1)
                     .minimumScaleFactor(0.75)
             }
-            .foregroundStyle(active ? Color.ink : Color.inkSecondary)
+            .foregroundStyle(active ? Color.accentText : Color.inkSecondary)
             .frame(maxWidth: .infinity, minHeight: 66)
             // The most-touched control in the product, and only the glyphs
             // were tappable: `.pressable` draws no surface, so a 66pt column

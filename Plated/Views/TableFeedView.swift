@@ -16,7 +16,7 @@ struct TableFeedView: View {
     @Environment(\.dynamicTypeSize) private var typeSize
 
     enum FeedScope: String, CaseIterable {
-        case everyone = "Everyone"
+        case everyone = "My Table"
         case household = "Household"
     }
 
@@ -350,9 +350,9 @@ struct TableFeedView: View {
     }
 
     private var shownPosts: [TablePost] {
-        guard scope == .household, scopeIsMeaningful else { return realPosts }
+        guard scope == .household else { return realPosts }
         let names = Set(members.map(\.name))
-        return realPosts.filter { names.contains($0.firstName) || names.contains($0.authorName) }
+        return realPosts.filter { names.contains($0.authorName) }
     }
 
     var body: some View {
@@ -373,12 +373,17 @@ struct TableFeedView: View {
                 // identical empty list — a decision offered before there was
                 // anything to decide, above a row of chrome that existed to
                 // hold it. A control appears when it can do something.
-                if scopeIsMeaningful {
-                    scopePicker
-                        .padding(.horizontal, 24)
-                        .padding(.bottom, 12)
-                }
-                Divider().overlay(Color.hairlineSoft)
+                scopePicker
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 12)
+                HStack(spacing: 6) {
+                    Image(systemName: "person.2").font(.system(size: 12))
+                    Text(scope == .household ? "Dishes and conversations from your household" : "Food brings your people together")
+                        .plType(.caption)
+                    Spacer()
+                    Button("People") { seatsPresented = true }.plType(.caption, .semibold).plTapTarget()
+                    Button { pushed = .activity } label: { Image(systemName: "bell").plTapTarget() }.accessibilityLabel("Activity")
+                }.foregroundStyle(Color.inkSecondary).padding(.horizontal, 24).padding(.bottom, 8)
 
                 ScrollView(showsIndicators: false) {
                     LazyVStack(spacing: 0) {
@@ -564,21 +569,10 @@ struct TableFeedView: View {
 
     @ViewBuilder
     private var header: some View {
-        if hugeType {
-            VStack(alignment: .leading, spacing: 12) {
-                headerTitle
-                HStack(spacing: 12) {
-                    Spacer(minLength: 0)
-                    headerControls
-                }
-            }
-        } else {
-            // Aligned on the discs, not the blocks. See
-            // VerticalAlignment.discCentre.
-            HStack(alignment: .discCentre, spacing: 12) {
-                headerTitle
-                Spacer(minLength: 8)
-                headerControls
+        PlatedMasthead(title: "The Table") {
+            HStack(spacing: 8) {
+                DesignIconButton(symbol: "plus", label: "Share a dish or question", accent: true) { composerShown = true }
+                AccountButton()
             }
         }
     }
@@ -812,7 +806,6 @@ struct TableFeedView: View {
                         openThread(post)
                     } label: {
                         PhotoWell(image: image, clamped: true)
-                            .plCardShadow()
                     }
                     .buttonStyle(.pressable)
                     // Double-tap plates it, add-only, the way Instagram and
@@ -1006,7 +999,7 @@ struct TableFeedView: View {
         }
         .padding(.horizontal, 24)
         .padding(.top, 16)
-        .padding(.bottom, 6)
+        .padding(.bottom, 18)
         .animation(.plPop, value: post.hasChefsKiss(seats: members.count))
         .contextMenu { postMenu(post, canSave: true) }
     }
