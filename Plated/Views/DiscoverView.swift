@@ -32,7 +32,7 @@ struct DiscoverView: View {
             // control in a different shape and the heading 10pt to the left
             // of where Activity — one tap away from the same feed — puts it.
             HStack(spacing: 10) {
-                IconDiscButton(systemName: "chevron.left", label: "Back") {
+                IconDiscButton(systemName: "arrow.left", label: "Back") {
                     dismiss()
                 }
                 VStack(alignment: .leading, spacing: 2) {

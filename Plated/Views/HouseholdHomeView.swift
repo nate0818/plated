@@ -461,15 +461,17 @@ struct HouseholdHomeView: View {
                     CountBlock(value: "\(kissCount)", label: "Chef's kisses", accent: kissCount > 0)
                 }
 
-                HStack(spacing: 4) {
+                HStack(spacing: 6) {
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 10, weight: .bold))
                     Text("All stats and badges")
                         .plType(.caption, .semibold)
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 9, weight: .bold))
+                        .plActionLabel()
                 }
-                // The only affordance saying this strip is tappable — it
-                // cannot be the faintest thing on the page.
-                .foregroundStyle(Color.inkSecondary)
+                .foregroundStyle(Color.accentText)
+                .padding(.horizontal, 12)
+                .frame(minHeight: 30)
+                .background(Color.tomato.opacity(0.09), in: Capsule())
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 4)
@@ -554,9 +556,6 @@ struct HouseholdHomeView: View {
                     .frame(minHeight: 30)
                     .background(member.tone.tint, in: Capsule())
             }
-            Image(systemName: "chevron.right")
-                .font(.system(size: 11, weight: .bold))
-                .foregroundStyle(Color.inkFaint)
         }
         .padding(.vertical, 12)
         .contentShape(Rectangle())

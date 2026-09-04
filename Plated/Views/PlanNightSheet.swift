@@ -83,7 +83,7 @@ struct PlanNightSheet: View {
                                 Text("Cook").plType(.body)
                                 Spacer()
                                 Text(meal.cook.map { $0.isOwner ? "You" : $0.name } ?? "Unassigned").plType(.body, .semibold)
-                                Image(systemName: "chevron.up.chevron.down").font(.footnote)
+                                Image(systemName: "slider.horizontal.3").font(.footnote)
                             }.foregroundStyle(Color.ink).frame(minHeight: 44)
                         }
                         MicroLabel("Something else")

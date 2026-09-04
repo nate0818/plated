@@ -15,7 +15,7 @@ struct NotificationsView: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 10) {
-                IconDiscButton(systemName: "chevron.left", label: "Back") {
+                IconDiscButton(systemName: "arrow.left", label: "Back") {
                     dismiss()
                 }
                 VStack(alignment: .leading, spacing: 2) {

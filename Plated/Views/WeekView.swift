@@ -309,9 +309,9 @@ struct WeekView: View {
             .foregroundStyle(Color.ink)
             .plTapTarget()
             if !showMonth {
-                Button { shiftWeek(-1) } label: { Image(systemName: "chevron.left").plTapTarget() }
+                Button { shiftWeek(-1) } label: { Image(systemName: "arrow.left").plTapTarget() }
                     .accessibilityLabel("Previous week")
-                Button { shiftWeek(1) } label: { Image(systemName: "chevron.right").plTapTarget() }
+                Button { shiftWeek(1) } label: { Image(systemName: "arrow.right").plTapTarget() }
                     .accessibilityLabel("Next week")
             }
         }

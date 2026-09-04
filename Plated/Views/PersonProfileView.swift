@@ -294,7 +294,7 @@ struct PersonProfileView: View {
                     .overlay(Circle().strokeBorder(Color.hairline, lineWidth: 1.5))
                     .frame(width: 38, height: 38)
                     .overlay {
-                        Image(systemName: "chevron.left")
+                        Image(systemName: "arrow.left")
                             .accessibilityLabel("Back")
                             .font(.system(size: 14, weight: .semibold))
                             .foregroundStyle(Color.ink)

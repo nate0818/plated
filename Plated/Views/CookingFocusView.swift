@@ -24,7 +24,7 @@ struct CookingFocusView: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 12) {
-                DesignIconButton(symbol: "chevron.down", label: "Minimize cooking") { dismiss() }
+                DesignIconButton(symbol: "minus", label: "Minimize cooking") { dismiss() }
                 VStack(alignment: .leading, spacing: 3) {
                     Text(finished ? "Nicely done." : "Cooking together").plType(.heading, .semibold)
                     Text(session?.titleSnapshot ?? recipe.title).plType(.caption).foregroundStyle(Color.inkSecondary).lineLimit(2)

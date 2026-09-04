@@ -208,7 +208,7 @@ struct HouseholdStatsView: View {
                     .strokeBorder(Color.hairline, lineWidth: 1.5)
                     .frame(width: 38, height: 38)
                     .overlay {
-                        Image(systemName: "chevron.left")
+                        Image(systemName: "arrow.left")
                             .font(.system(size: 14, weight: .semibold))
                             .foregroundStyle(Color.ink)
                     }
@@ -287,9 +287,13 @@ struct HouseholdStatsView: View {
                         .multilineTextAlignment(.leading)
                 }
                 Spacer(minLength: 4)
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundStyle(Color.inkFaint)
+                Text("View")
+                    .plType(.caption, .bold)
+                    .plActionLabel()
+                    .foregroundStyle(Color.accentText)
+                    .padding(.horizontal, 12)
+                    .frame(minHeight: 32)
+                    .background(Color.tomato.opacity(0.09), in: Capsule())
             }
             .padding(16)
             .background(Color.canvas)

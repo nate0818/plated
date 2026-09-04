@@ -114,6 +114,12 @@ Recipe and meal photographs use rounded rectangles; people and compact
 controls use circles. Use the shared RecipeArtwork component for consistent
 image geometry, including recipes without a photo.
 
+**No generic chevrons.** A content card or setting row communicates that it is
+interactive through the whole surface: clear hierarchy, a pressed state,
+contextual copy, and a meaningful state or object icon where one helps. A
+right-facing chevron is decoration, not an explanation. Calendar direction and
+Back remain explicit controls, using directional arrows rather than chevrons.
+
 Radii live in `Radius` (`chip` 16, `row` 18, `card` 20, `hero` 24, `sheet` 28).
 Shadows live in four steps — `plCardShadow`, `plFloatShadow`, `plDishShadow`,
 `plTileShadow`. Add a fifth only if none of them fits, and put it in Theme.swift

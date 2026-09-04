@@ -29,9 +29,9 @@ struct MonthPlannerView: View {
                     Text(anchor.formatted(.dateTime.month(.wide).year()))
                         .plType(.title, .bold)
                     Spacer()
-                    Button { shift(-1) } label: { Image(systemName: "chevron.left").plTapTarget() }
+                    Button { shift(-1) } label: { Image(systemName: "arrow.left").plTapTarget() }
                         .accessibilityLabel("Previous month")
-                    Button { shift(1) } label: { Image(systemName: "chevron.right").plTapTarget() }
+                    Button { shift(1) } label: { Image(systemName: "arrow.right").plTapTarget() }
                         .accessibilityLabel("Next month")
                 }
                 VStack(spacing: 4) {

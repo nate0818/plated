@@ -119,6 +119,11 @@ for path in files:
             report("em-dash", rel, i, line,
                    "an em dash in a string a person can read: use a colon, a comma, or a full stop")
 
+        # --- cards explain themselves; generic chevrons do not ----------
+        if '"chevron.' in code and allowed != "generic-chevron":
+            report("generic-chevron", rel, i, line,
+                   "a generic chevron symbol: use hierarchy, state, or a meaningful icon instead")
+
         # --- inkFaint may not paint a word -------------------------------
         # It measures 2.24:1 on canvas. Walk back to whatever this modifier
         # chain is decorating; a Text or a Label means it is carrying letters.

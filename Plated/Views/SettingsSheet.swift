@@ -85,8 +85,7 @@ struct SettingsSheet: View {
                                 detail: "Calendar, contacts, photos and notifications",
                                 tint: .grapeTint,
                                 tone: .grape,
-                                value: "Manage",
-                                showsChevron: true
+                                value: "Manage"
                             )
                         }
                         .buttonStyle(.pressable)
@@ -109,8 +108,7 @@ struct SettingsSheet: View {
                                 detail: "A one-minute tour of the four main spaces",
                                 tint: .mangoTint,
                                 tone: .amber,
-                                value: nil,
-                                showsChevron: true
+                                value: "Begin"
                             )
                         }
                         .buttonStyle(.pressable)
@@ -128,7 +126,6 @@ struct SettingsSheet: View {
                                 tint: .tomatoTint,
                                 tone: .tomato,
                                 value: nil,
-                                showsChevron: false,
                                 titleColor: .tomato
                             )
                         }
@@ -230,10 +227,9 @@ struct SettingsSheet: View {
                     .plType(.footnote, .bold)
                     .plActionLabel()
                     .foregroundStyle(Color.accentText)
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(Color.inkFaint)
-                    .plChrome()
+                    .padding(.horizontal, 13)
+                    .frame(minHeight: 34)
+                    .background(Color.tomato.opacity(0.10), in: Capsule())
             }
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -508,8 +504,7 @@ struct SettingsSheet: View {
             detail: syncDetail,
             tint: sync.account.line == nil ? .basilTint : .mangoTint,
             tone: sync.account.line == nil ? .completion : .amber,
-            value: sync.account.line == nil ? syncValue : "Review",
-            showsChevron: false
+            value: sync.account.line == nil ? syncValue : "Review"
         )
     }
 
@@ -648,7 +643,6 @@ private struct SettingsValueRow: View {
     let tint: Color
     let tone: Color
     var value: String?
-    var showsChevron: Bool
     var titleColor: Color = .ink
 
     var body: some View {
@@ -668,14 +662,12 @@ private struct SettingsValueRow: View {
             if let value {
                 Text(value)
                     .plType(.footnote, .semibold)
-                    .foregroundStyle(Color.inkSecondary)
+                    .plActionLabel(0.72)
+                    .foregroundStyle(tone)
                     .multilineTextAlignment(.trailing)
-            }
-            if showsChevron {
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(Color.inkFaint)
-                    .plChrome()
+                    .padding(.horizontal, 10)
+                    .frame(minHeight: 30)
+                    .background(tint, in: Capsule())
             }
         }
         .padding(.horizontal, 15)

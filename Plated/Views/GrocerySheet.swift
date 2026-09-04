@@ -396,7 +396,11 @@ struct GrocerySheet: View {
                             Text(selectedMeals.isEmpty ? "Choose meals" : "\(selectedMeals.count) \(selectedMeals.count == 1 ? "meal" : "meals") selected").plType(.body, .semibold)
                             Text("One dinner or a few. Shop your way.").plType(.caption).foregroundStyle(Color.inkSecondary)
                         }.frame(maxWidth: .infinity, alignment: .leading)
-                        Image(systemName: "chevron.right").font(.system(size: 12))
+                        Image(systemName: "checklist")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(Color.accentText)
+                            .frame(width: 34, height: 34)
+                            .background(Color.tomato.opacity(0.10), in: Circle())
                     }.padding(16).background(Color.fill, in: Radius.shape(Radius.chip)).contentShape(Rectangle())
                 }
                 .buttonStyle(.pressable)

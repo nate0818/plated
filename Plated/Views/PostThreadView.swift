@@ -255,7 +255,7 @@ struct PostThreadView: View {
 
     private var topBar: some View {
         HStack(spacing: 10) {
-            IconDiscButton(systemName: "chevron.left", label: "Back") {
+            IconDiscButton(systemName: "arrow.left", label: "Back") {
                 dismiss()
             }
 

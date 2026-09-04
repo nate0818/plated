@@ -171,7 +171,7 @@ struct DayDetailView: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 10) {
-                IconDiscButton(systemName: "chevron.left", label: "Back") {
+                IconDiscButton(systemName: "arrow.left", label: "Back") {
                     dismiss()
                 }
 
@@ -369,11 +369,6 @@ struct DayDetailView: View {
             // rows — see WeekView.plannedRow.
             if let cook = meal.cook, !cook.isOwner {
                 AvatarCircle(member: cook, size: 30)
-            }
-            if meal.recipe != nil {
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(Color.inkFaint)
             }
         }
         .padding(.horizontal, 14)
