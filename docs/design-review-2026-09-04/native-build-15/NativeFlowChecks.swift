@@ -1,0 +1,157 @@
+import XCTest
+final class GalleryTests: XCTestCase {
+    let app = XCUIApplication(bundleIdentifier: "com.natemeadows.plated")
+    func shot(_ name: String) throws {
+        Thread.sleep(forTimeInterval: 1)
+        let image = XCUIScreen.main.screenshot()
+        let attachment = XCTAttachment(screenshot: image); attachment.name = name; attachment.lifetime = .keepAlways; add(attachment)
+        try image.pngRepresentation.write(to: URL(fileURLWithPath: "/tmp/plated-native-captures/\(name).png"))
+        try app.debugDescription.write(toFile: "/tmp/plated-native-captures/\(name).txt", atomically: true, encoding: .utf8)
+    }
+    func tap(_ label: String) {
+        let button = app.buttons.matching(NSPredicate(format: "label == %@", label)).firstMatch
+        XCTAssertTrue(button.waitForExistence(timeout: 5), "Missing \(label)"); button.tap()
+    }
+    func testNativeScreens() throws {
+        continueAfterFailure = false
+        app.launchArguments = ["-plated-design-review", "-appearance", "light"]
+        app.launch()
+        app.activate()
+        Thread.sleep(forTimeInterval: 1)
+        XCTAssertTrue(app.staticTexts["Your week"].waitForExistence(timeout: 8))
+        try shot("01-plan")
+        tap("Recipes")
+        XCTAssertTrue(app.textFields["Find a dish or ingredient"].exists)
+        try shot("02-recipes")
+        tap("Groceries")
+        XCTAssertTrue(app.buttons["By meal"].exists)
+        try shot("03-groceries")
+        tap("By meal")
+        app.buttons.matching(NSPredicate(format: "label CONTAINS %@", " selected")).firstMatch.tap()
+        try shot("04-meal-picker")
+        tap("Done")
+        tap("Table")
+        XCTAssertTrue(app.buttons["My Table"].exists)
+        XCTAssertTrue(app.buttons["Household"].exists)
+        try shot("05-table")
+        tap("Your profile and settings")
+        XCTAssertTrue(app.buttons["Conversations"].waitForExistence(timeout: 5))
+        try shot("06-profile")
+    }
+    func testCookingAndCalendar() throws {
+        continueAfterFailure = false
+        app.launchArguments = ["-plated-design-review", "-appearance", "light"]
+        app.launch()
+        app.activate()
+        Thread.sleep(forTimeInterval: 1)
+        XCTAssertTrue(app.staticTexts["Your week"].waitForExistence(timeout: 8))
+        tap("Month")
+        try shot("07-month")
+        tap("Recipes")
+        app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Pancake Dinner,")).firstMatch.tap()
+        XCTAssertTrue(app.buttons["Edit recipe"].waitForExistence(timeout: 5))
+        try shot("08-recipe")
+        tap("Edit recipe")
+        try shot("09-editor")
+        let firstStep = app.textFields["Step 1. What happens first?"]
+        for _ in 0..<5 { if firstStep.isHittable { break }; app.swipeUp() }
+        XCTAssertTrue(firstStep.exists)
+        firstStep.tap(); firstStep.typeText("Mix the batter until just combined.")
+        tap("Add step")
+        let secondStep = app.textFields["Step 2…"]
+        secondStep.tap(); secondStep.typeText("Cook until golden, then serve with berries.")
+        tap("Add step")
+        app.swipeDown()
+        if app.buttons["Done"].exists { tap("Done") }
+        tap("Save changes")
+        XCTAssertTrue(app.buttons["Start cooking"].waitForExistence(timeout: 5))
+        tap("Start cooking")
+        XCTAssertTrue(app.staticTexts["Cooking together"].waitForExistence(timeout: 5))
+        try shot("10-cooking")
+        tap("Ingredients")
+        XCTAssertTrue(app.navigationBars["Ingredients"].waitForExistence(timeout: 5))
+        try shot("11-cooking-ingredients")
+        tap("Done")
+        tap("Next step")
+        tap("Minimize cooking")
+        XCTAssertTrue(app.buttons["Resume cooking Pancake Dinner"].waitForExistence(timeout: 5))
+        tap("Groceries")
+        try shot("12-resume")
+        tap("Resume cooking Pancake Dinner")
+        XCTAssertTrue(app.staticTexts["STEP 2 OF 2"].waitForExistence(timeout: 5))
+        tap("Finish cooking")
+        XCTAssertTrue(app.staticTexts["Dinner, made."].waitForExistence(timeout: 5))
+        try shot("13-complete")
+        tap("Done")
+        XCTAssertFalse(app.buttons["Resume cooking Pancake Dinner"].exists)
+    }
+    func testDarkAppearance() throws {
+        app.launchArguments = ["-plated-design-review", "-appearance", "dark"]
+        app.launch()
+        app.activate()
+        Thread.sleep(forTimeInterval: 1)
+        XCTAssertTrue(app.staticTexts["Your week"].waitForExistence(timeout: 8))
+        try shot("14-plan-dark")
+        tap("Recipes")
+        try shot("15-recipes-dark")
+    }
+
+    func testServingPlan() throws {
+        continueAfterFailure = false
+        app.launchArguments = ["-plated-design-review", "-appearance", "light"]
+        app.launch(); app.activate()
+        XCTAssertTrue(app.buttons["Recipes"].waitForExistence(timeout: 8))
+        tap("Recipes")
+        app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Pancake Dinner,")).firstMatch.tap()
+        XCTAssertTrue(app.buttons["Serves 4"].waitForExistence(timeout: 5))
+        tap("Serves 4")
+        tap("Serves 6")
+        XCTAssertTrue(app.buttons["Serves 6"].waitForExistence(timeout: 5))
+        Thread.sleep(forTimeInterval: 1)
+        let plans = app.buttons.matching(NSPredicate(format: "label == %@", "Plan")).allElementsBoundByIndex
+        let recipePlan = try XCTUnwrap(plans.first(where: { $0.frame.width > 100 && $0.frame.width < 160 }))
+        recipePlan.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        XCTAssertTrue(app.staticTexts["PLAN A NIGHT"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Serves 6"].exists)
+        try shot("16-plan-recipe")
+    }
+
+    func testHouseholdScope() throws {
+        continueAfterFailure = false
+        app.launchArguments = ["-plated-design-review", "-appearance", "light"]
+        app.launch(); app.activate()
+        XCTAssertTrue(app.buttons["Table"].waitForExistence(timeout: 8))
+        tap("Table"); tap("Household")
+        XCTAssertTrue(app.staticTexts["Sam Meadows"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.staticTexts["Dan Alvarez"].exists)
+        try shot("17-household")
+    }
+
+    func testTableNotificationsBell() throws {
+        continueAfterFailure = false
+        app.launchArguments = ["-plated-design-review", "-plated-review-notifications", "-appearance", "light"]
+        app.launch(); app.activate()
+        XCTAssertTrue(app.buttons["Table"].waitForExistence(timeout: 8))
+        tap("Table")
+        try shot("18-table-bell-inspect")
+        let bell = app.buttons["table-notifications-bell"]
+        XCTAssertTrue(bell.waitForExistence(timeout: 5))
+        XCTAssertTrue(bell.isHittable)
+        XCTAssertEqual(bell.value as? String, "12 unread notifications")
+        XCTAssertLessThan(bell.frame.maxY, app.staticTexts["The Table"].frame.minY)
+        XCTAssertTrue(app.buttons["Share a dish or question"].isHittable)
+        XCTAssertTrue(app.buttons.matching(identifier: "Your profile and settings").allElementsBoundByIndex.contains { $0.isHittable })
+        try shot("18-table-notifications-unread")
+        tap("Household")
+        XCTAssertTrue(bell.isHittable)
+        bell.tap()
+        XCTAssertTrue(app.staticTexts["Activity"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts.matching(identifier: "A new update at your table.").firstMatch.exists)
+        tap("Back")
+        XCTAssertTrue(bell.waitForExistence(timeout: 5))
+        XCTAssertEqual(bell.value as? String, "No unread notifications")
+        tap("My Table")
+        try shot("19-table-notifications-read")
+    }
+
+}

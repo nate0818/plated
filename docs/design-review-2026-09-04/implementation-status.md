@@ -1,6 +1,15 @@
 # Design implementation — September 4, 2026
 
-## Current native release — build 14
+## Table notification bell — build 15
+
+The Table now keeps its notification bell in the top bar alongside Create and
+Profile. The bell fills and displays a count for unread updates, opens Activity
+from either feed scope, and returns to an outline after reading. Native XCUITest
+verified the flow and screenshots; archive, export and signature verification
+passed. Apple processing is VALID; Internal and External are both IN_BETA_TESTING.
+See [build 15](testflight-15.md).
+
+## Native redesign and cleanup — build 14
 
 The native redesign shipped to Internal and External TestFlight in builds 12
 and 13. Build 14 retains that design and adds targeted removal of leftover

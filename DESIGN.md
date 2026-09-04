@@ -9,6 +9,8 @@ Recipe photography uses continuous rounded rectangles. Circles remain for
 people and compact icon controls. Keep the original tomato orange for primary
 actions and selected calendar dates; selected text uses the darker accentText
 for contrast. The navigation bar uses system glass with readable labels.
+The Table keeps Notifications, Create, and Profile in its top bar. Its bell
+shows unread updates with a count and returns to an outline when caught up.
 
 Planning puts the selected dinner first, with a weekly agenda and a month
 calendar. Recipe search is visible. Groceries can cover a week or selected meals,
