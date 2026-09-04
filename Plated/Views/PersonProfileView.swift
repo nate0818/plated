@@ -27,6 +27,7 @@ struct PersonProfileView: View {
     private var storedPosts: [TablePost]
     private var allPosts: [TablePost] { storedPosts.filter(\.isUserContent) }
     @Query private var recipes: [Recipe]
+    @Query(sort: \PlannedMeal.date) private var plannedMeals: [PlannedMeal]
     // Oldest first: two devices racing a first banner before sync merges
     // both insert a row, and an unsorted `.first` flips arbitrarily between
     // them per device. The oldest row is the household's one true profile.
@@ -42,6 +43,8 @@ struct PersonProfileView: View {
     @State private var savedRecipe: Recipe?
     @State private var bannerItem: PhotosPickerItem?
     @State private var openedPost: TablePost?
+    @State private var awardsShown = false
+    @State private var awards: [PlatedAward] = []
     /// The grid tile you touched is the thread that opens. One source per
     /// post, so the tile's own id is unambiguous here.
     @Namespace private var zoom
@@ -161,7 +164,7 @@ struct PersonProfileView: View {
                     LazyVGrid(
                         columns: Array(
                             repeating: GridItem(.flexible(), spacing: 0),
-                            count: 3
+                            count: typeSize >= .accessibility1 ? 2 : 3
                         ),
                         spacing: typeSize >= .accessibility1 ? 16 : 0
                     ) {
@@ -170,6 +173,10 @@ struct PersonProfileView: View {
                         CountBlock(value: "\(kissCount)", label: "Chef's kisses", accent: kissCount > 0)
                     }
                     .padding(.vertical, 12)
+
+                    AwardsHighlightShelf(awards: awards, showsProgress: isMe) {
+                        awardsShown = true
+                    }
                 }
                 .padding(.horizontal, 24)
 
@@ -233,8 +240,13 @@ struct PersonProfileView: View {
         .toolbar(.hidden, for: .navigationBar)
         .plSwipeBack()
         .safeAreaInset(edge: .top) { topBar }
-        .sheet(isPresented: Binding(get: { settingsShown || editShown || householdShown }, set: { if !$0 { settingsShown = false; editShown = false; householdShown = false } })) {
-            if settingsShown { SettingsSheet() }
+        .sheet(isPresented: Binding(get: { settingsShown || editShown || householdShown || awardsShown }, set: { if !$0 { settingsShown = false; editShown = false; householdShown = false; awardsShown = false } })) {
+            if awardsShown {
+                NavigationStack {
+                    AwardsGalleryView(personName: displayName, awards: awards, showsProgress: isMe)
+                }
+            }
+            else if settingsShown { SettingsSheet() }
             else if editShown { EditProfileSheet() }
             else {
                 HouseholdHomeView()
@@ -256,6 +268,7 @@ struct PersonProfileView: View {
                 }
             }
         }
+        .task(id: awardActivitySignature) { refreshAwards() }
     }
 
     private func profileEmpty(_ title: String, detail: String) -> some View {
@@ -405,6 +418,25 @@ struct PersonProfileView: View {
         if isMe { return "Head of table" }
         if let member { return member.roleLine.isEmpty ? member.role.capitalized : member.roleLine }
         return "At your table"
+    }
+
+    private var awardActivitySignature: String {
+        let cooked = plannedMeals.filter { $0.cookedAt != nil }.count
+        let authored = allPosts.filter { $0.firstName == firstName }
+        let plates = authored.reduce(0) { $0 + $1.totalPlates }
+        return "\(plannedMeals.count).\(cooked).\(recipes.count).\(authored.count).\(plates).\(members.count).\(name)"
+    }
+
+    private func refreshAwards() {
+        let metrics = Awards.metrics(
+            for: member,
+            meals: plannedMeals,
+            recipes: recipes,
+            posts: allPosts,
+            householdSize: members.count,
+            ownerFallback: isMe
+        )
+        awards = Awards.evaluate(metrics, for: name)
     }
 
     private func setBanner(_ raw: Data) {
@@ -638,424 +670,6 @@ struct EditProfileSheet: View {
     }
 }
 
-/// The settings drawer — where the light switch actually belongs. Quiet
-/// controls, one card each: the room, the calendar, the subscription.
-struct SettingsSheet: View {
-    /// Set when Settings is opened from Home's "Your Household" title —
-    /// the user asked to name the house, so put them in the field.
-    var focusHouseholdName = false
-
-    @Environment(\.dismiss) private var dismiss
-    @Environment(\.dynamicTypeSize) private var typeSize
-    @AppStorage("appearance") private var appearanceRaw = Appearance.system.rawValue
-    /// Calendar access was asked for and refused. Not persisted: it is a
-    /// fact about this moment, and somebody who fixes it in Settings should
-    /// find the row plain again when they come back.
-    @State private var calendarRefused = false
-    @State private var tourShown = false
-
-    private var appearance: Appearance { Appearance(rawValue: appearanceRaw) ?? .system }
-    @AppStorage("showCalendarEvents") private var showCalendarEvents = false
-    @AppStorage("householdName") private var householdName = ""
-    /// The door flag RootView reads. Signing out flips this one only.
-    @AppStorage("didSignIn") private var didSignIn = false
-    @State private var signOutAsked = false
-    @State private var sync = SyncStatus.shared
-    @AppStorage("remindersOn") private var remindersOn = true
-    @State private var remindersAllowed = false
-    @State private var paywallShown = false
-    @State private var plusActive = PlatedPlus.isActive
-    @FocusState private var namingHousehold: Bool
-
-    var body: some View {
-        VStack(spacing: 0) {
-            ZStack {
-                VStack(spacing: 2) {
-                    MicroLabel("Plated")
-                    Text("Settings")
-                        .plType(.title)
-                        .foregroundStyle(Color.ink)
-                }
-                HStack {
-                    Spacer()
-                    Button("Done") { dismiss() }
-                        .plType(.footnote, .bold)
-                        .foregroundStyle(Color.ink)
-                        .frame(minWidth: 44, minHeight: 44)
-                }
-                .padding(.horizontal, 24)
-            }
-            .padding(.top, 22)
-            .padding(.bottom, 14)
-
-            ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 10) {
-                    // Apple hands over a family name once, at first sign-in,
-                    // and only with permission — so the house has to be
-                    // nameable by hand or it stays "Your Household" forever.
-                    settingRow(
-                        icon: "house",
-                        title: "Household name",
-                        caption: "What your household is called on Home."
-                    ) {
-                        TextField("Family name", text: $householdName)
-                            .plType(.body, .bold)
-                            .foregroundStyle(Color.ink)
-                            .multilineTextAlignment(.trailing)
-                            .frame(width: 110)
-                            .padding(.horizontal, 10)
-                            .frame(minHeight: 44)
-                            .overlay(Capsule().strokeBorder(Color.hairline))
-                            // Padding alone isn't hit-testable — the field
-                            // was a ~19pt strip you had to aim at.
-                            .contentShape(Capsule())
-                            .onTapGesture { namingHousehold = true }
-                            .focused($namingHousehold)
-                            .submitLabel(.done)
-                            .onSubmit { namingHousehold = false }
-                    }
-
-                    settingRow(
-                        icon: appearance == .dark ? "moon.stars.fill"
-                            : (appearance == .light ? "sun.max" : "circle.lefthalf.filled"),
-                        title: "Appearance",
-                        caption: appearance == .system
-                            ? "Following your phone."
-                            : "Always \(appearance.label.lowercased()), whatever your phone is set to."
-                    ) {
-                        // A menu rather than a switch: two states could not
-                        // express "follow the phone", which is the state
-                        // every other app on the Home Screen is in, and the
-                        // one this app's own widget has always been in.
-                        // Picker carries its own VoiceOver label and value.
-                        Picker("Appearance", selection: $appearanceRaw) {
-                            ForEach(Appearance.allCases) { option in
-                                Text(option.label).tag(option.rawValue)
-                            }
-                        }
-                        .pickerStyle(.menu)
-                        .tint(Color.ink)
-                        .onChange(of: appearanceRaw) { _, _ in Haptic.select() }
-                    }
-
-                    settingRow(
-                        icon: "bell",
-                        title: "Cook reminders",
-                        caption: remindersAllowed
-                            ? "The evening before someone cooks, and Sundays when the week's still open."
-                            : "Turn on notifications for Plated in iOS Settings."
-                    ) {
-                        // Green and on while iOS refuses to deliver is the
-                        // honesty rule broken by a control: the caption
-                        // underneath already said to go to Settings, and the
-                        // switch above it was contradicting the caption.
-                        // Permission is revoked in Settings long after the
-                        // preference was set here, so the stored value alone
-                        // has never been the answer.
-                        Toggle("Cook reminders", isOn: Binding(
-                            get: { remindersOn && remindersAllowed },
-                            set: { remindersOn = $0 }
-                        ))
-                            .labelsHidden()
-                            .tint(Color.basil)
-                            .disabled(!remindersAllowed)
-                            .sensoryFeedback(.selection, trigger: remindersOn)
-                            .onChange(of: remindersOn) { _, on in
-                                Task { if !on { await NotificationScheduler.cancelAll() } }
-                            }
-                    }
-
-                    settingRow(
-                        icon: "calendar",
-                        title: "Calendar on the plan",
-                        // A switch that answers a tap by turning itself back
-                        // off, in silence, is the interface refusing without
-                        // saying so. iOS only ever asks once, so the second
-                        // attempt does not even raise a prompt: it just
-                        // flicks back. The reminders row above already says
-                        // where to go; this one says it too now.
-                        caption: calendarRefused
-                            ? "Plated can't see your calendar. Allow it in Settings, Privacy, Calendars."
-                            : "Show Apple Calendar events next to each night."
-                    ) {
-                        Toggle("Calendar on the plan", isOn: $showCalendarEvents)
-                            .labelsHidden()
-                            .sensoryFeedback(.selection, trigger: showCalendarEvents)
-                            .tint(Color.basil)
-                            .onChange(of: showCalendarEvents) { _, on in
-                                guard on else {
-                                    calendarRefused = false
-                                    return
-                                }
-                                Task {
-                                    let granted = await DayEventsProvider.shared.requestAccess()
-                                    if !granted {
-                                        withAnimation(.plSnap) {
-                                            showCalendarEvents = false
-                                            calendarRefused = true
-                                        }
-                                        Haptic.warn()
-                                    }
-                                }
-                            }
-                    }
-
-                    if PlatedPlus.gatingEnabled {
-                        Button {
-                            Haptic.tap()
-                            paywallShown = true
-                        } label: {
-                            settingRow(
-                                icon: "plus.circle",
-                                title: "Plated+",
-                                caption: plusActive ? "Active. Unlimited household members." : "Add your whole household."
-                            ) {
-                                Text(plusActive ? "ACTIVE" : "JOIN")
-                                    .plType(.micro, .extraBold)
-                                    .foregroundStyle(plusActive ? Color.basil : Color.tomato)
-                            }
-                        }
-                        .buttonStyle(.pressable)
-                    }
-
-                    // Where someone who suspects something is wrong comes
-                    // to look. Silent when everything is fine — an always-on
-                    // "synced" badge is chrome bragging.
-                    if let line = sync.account.line {
-                        settingRow(
-                            icon: "icloud.slash",
-                            title: "Not syncing",
-                            caption: line
-                        ) { EmptyView() }
-                    }
-
-                    if sync.saveFailed {
-                        Button {
-                            Haptic.tap()
-                            sync.acknowledgeSaveFailure()
-                        } label: {
-                            settingRow(
-                                icon: "exclamationmark.triangle",
-                                title: "Something didn't save",
-                                caption: "A recent change didn't save. It's still on screen, so try it once more."
-                            ) {
-                                Text("DISMISS")
-                                    .plType(.micro, .extraBold)
-                                    .foregroundStyle(Color.tomato)
-                            }
-                        }
-                        .buttonStyle(.pressable)
-                    }
-
-                    // The tour is owed once at the end of setting up, which
-                    // means anybody who has been using Plated since before it
-                    // existed has never seen it, and anybody who skipped it
-                    // has no way back. A walkthrough with exactly one showing
-                    // is a walkthrough most people never see.
-                    Button {
-                        Haptic.tap()
-                        tourShown = true
-                    } label: {
-                        settingRow(
-                            icon: "hand.wave",
-                            title: "Show me around",
-                            caption: "The four screens Plated is made of, in about a minute."
-                        ) {
-                            // A word, not a chevron. Above xxLarge the row
-                            // stacks and a lone arrow on its own line under
-                            // a sentence reads as a stray mark rather than a
-                            // control. The Sign out row beside it already
-                            // solves this with a word.
-                            Text("OPEN")
-                                .plType(.micro, .extraBold)
-                                .foregroundStyle(Color.inkSecondary)
-                        }
-                    }
-                    .buttonStyle(.pressable)
-
-                    Button {
-                        Haptic.tap()
-                        signOutAsked = true
-                    } label: {
-                        settingRow(
-                            icon: "rectangle.portrait.and.arrow.right",
-                            title: "Sign out",
-                            caption: "Ends this Apple sign-in. Nothing is deleted."
-                        ) {
-                            Text("SIGN OUT")
-                                .plType(.micro, .extraBold)
-                                .foregroundStyle(Color.tomato)
-                        }
-                    }
-                    .buttonStyle(.pressable)
-
-                    Text(Self.versionLine)
-                        .plType(.micro, .medium)
-                        .foregroundStyle(Color.inkSecondary)
-                        .frame(maxWidth: .infinity)
-                        .padding(.top, 14)
-                }
-                .padding(.horizontal, 24)
-                .padding(.bottom, 24)
-            }
-        }
-        // A sheet does not inherit the root's preferredColorScheme, so
-        // changing the appearance from the control inside this very sheet
-        // repainted the whole app behind it and left the sheet in the old
-        // room until it was dismissed. Which is the only moment this can
-        // happen, since this is where the control lives.
-        .fullScreenCover(isPresented: $tourShown) {
-            TourView { tourShown = false }
-        }
-        .preferredColorScheme(appearance.scheme)
-        .presentationDetents([.large])
-        .presentationDragIndicator(.visible)
-        .presentationBackground(Color.canvas)
-        .presentationCornerRadius(Radius.sheet)
-        .onAppear {
-            if focusHouseholdName { namingHousehold = true }
-        }
-        .task {
-            await sync.refresh()
-            remindersAllowed = await NotificationScheduler.authorized()
-        }
-        .sheet(isPresented: $paywallShown, onDismiss: { plusActive = PlatedPlus.isActive }) {
-            PaywallSheet()
-        }
-        .confirmationDialog(
-            "Sign out of Plated?", isPresented: $signOutAsked, titleVisibility: .visible
-        ) {
-            Button("Sign out", role: .destructive) { signOut() }
-            Button("Stay", role: .cancel) {}
-        } message: {
-            Text("Nothing is deleted. Your recipes, your week and your household stay where they are.")
-        }
-    }
-
-    /// The same scope RootView documents for a revoked credential: clear the
-    /// Keychain identity and the door flag, leave the table alone. Nothing
-    /// here deletes a recipe, a week or a member.
-    ///
-    /// `didSetTable` deliberately survives. Signing out is not starting
-    /// over — the table is already set, the household already exists, and
-    /// making someone re-pick their people every time they sign back in
-    /// would punish them for using the door. Sign in returns you straight
-    /// to your week.
-    private func signOut() {
-        AppleIdentity.clear()
-        Haptic.plate()
-        dismiss()
-        // Let the sheet finish leaving before the root swaps underneath it.
-        // Flipping the door flag while this sheet is still up strands it on
-        // a view that no longer exists.
-        Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(300))
-            didSignIn = false
-        }
-    }
-
-    /// A settings row: a disc, a sentence, and the control it belongs to.
-    ///
-    /// The words take the width first. Without a layout priority the
-    /// trailing control won the negotiation and the text column was
-    /// compressed until it was narrower than its own title, so SwiftUI
-    /// broke the word rather than the line: "Appearance" set as "Appearanc"
-    /// over "e". A title breaking mid-word is the thing DESIGN.md says a
-    /// title may never do, one step worse than truncating.
-    ///
-    /// Above xxLarge the control moves under the sentence instead of
-    /// fighting it for the row. This is the same answer the cook rotation's
-    /// "Take turns automatically" needed on Home, and it belongs here, in
-    /// the component, rather than at each of the five call sites.
-    /// A settings row: a disc, a sentence, and the control it belongs to.
-    ///
-    /// Two failures, one after the other, both about who gets the width.
-    ///
-    /// First the trailing control won it outright, because nothing said
-    /// otherwise, and the text column was squeezed narrower than its own
-    /// title until SwiftUI broke the word rather than the line: "Appearance"
-    /// set as "Appearanc" over "e".
-    ///
-    /// Then the fix overcorrected. `maxWidth: .infinity` on the words takes
-    /// every available point, so the control was squeezed to nothing
-    /// instead. A Toggle has an intrinsic size and survived that; "SIGN OUT"
-    /// is a Text and disappeared completely, leaving a taller card with an
-    /// empty right-hand side.
-    ///
-    /// So: the words take their natural width and a Spacer holds the gap,
-    /// and `layoutPriority` settles it in the words' favour when the two of
-    /// them together do not fit. Above xxLarge they stop sharing a row at
-    /// all, which is the same answer the cook rotation needed on Home.
-    private func settingRow(
-        icon: String, title: String, caption: String,
-        @ViewBuilder trailing: () -> some View
-    ) -> some View {
-        let stacked = typeSize >= .xxLarge
-        let words = VStack(alignment: .leading, spacing: 2) {
-            Text(title)
-                .plType(.body, .bold)
-                .foregroundStyle(Color.ink)
-                .fixedSize(horizontal: false, vertical: true)
-            Text(caption)
-                .plType(.caption)
-                .foregroundStyle(Color.inkSecondary)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-
-        return Group {
-            if stacked {
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack(spacing: 12) {
-                        settingDisc(icon)
-                        words
-                        Spacer(minLength: 0)
-                    }
-                    // Indented past the disc so the control starts where the
-                    // sentence starts. Flush left it sat under the icon with
-                    // the text above and to the right of it, which reads as
-                    // a control that came loose rather than one belonging to
-                    // the row it is in. 40 for the disc, 12 for the gap.
-                    trailing()
-                        .padding(.leading, 52)
-                }
-            } else {
-                // No priorities. Left to itself the trailing control takes
-                // its intrinsic width and the sentence wraps into what is
-                // left, which is correct at ordinary sizes: the only thing
-                // that ever broke here was a title squeezed narrower than
-                // one of its own words, and that happens above xxLarge,
-                // where this row no longer shares a line at all. Two
-                // attempts to arbitrate it with layoutPriority each just
-                // moved the damage to the other side of the row.
-                HStack(spacing: 12) {
-                    settingDisc(icon)
-                    words
-                    Spacer(minLength: 8)
-                    trailing()
-                }
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 16)
-        .padding(.vertical, 14)
-        .overlay(RoundedRectangle(cornerRadius: Radius.card, style: .continuous).strokeBorder(Color.hairline))
-    }
-
-    private func settingDisc(_ icon: String) -> some View {
-        Circle()
-            .fill(Color.fill)
-            .frame(width: 40, height: 40)
-            .overlay {
-                Image(systemName: icon)
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundStyle(Color.ink)
-            }
-            // The disc is furniture: a fixed circle with a fixed glyph and
-            // nowhere to reflow.
-            .plChrome()
-    }
-}
-
 /// Plated+ — the one paywall. Seats beyond the head of table live here.
 /// Honest about its stage: no StoreKit products exist yet, so the CTA
 /// activates a preview flag and says so out loud.
@@ -1188,18 +802,5 @@ struct PersonRef: Identifiable, Hashable {
             colorHex: colorHex,
             memberID: seat?.persistentModelID
         )
-    }
-}
-
-private extension SettingsSheet {
-    /// Read, not typed. `scripts/testflight.sh` bumps only CURRENT_PROJECT_VERSION,
-    /// so a literal here reported the same string for every build ever uploaded
-    /// and the one question this line exists to answer ("which build am I on?")
-    /// had no answer.
-    static var versionLine: String {
-        let info = Bundle.main.infoDictionary
-        let short = info?["CFBundleShortVersionString"] as? String ?? "0"
-        let build = info?["CFBundleVersion"] as? String ?? "0"
-        return "Plated \(short) (\(build))"
     }
 }

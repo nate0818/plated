@@ -43,6 +43,8 @@ enum SchemaPrimer {
 
         let member = HouseholdMember(name: marker)
         let meal = PlannedMeal(date: .now, slot: .dinner, recipe: recipe, cook: member)
+        meal.cookReaction = 3
+        meal.actualMinutes = 42
         let gathering = Gathering(title: marker, notes: "Delete me")
         let grocery = GroceryItem(name: marker, quantity: 1, unit: "ea")
 

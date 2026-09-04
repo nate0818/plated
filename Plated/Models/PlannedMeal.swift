@@ -14,6 +14,13 @@ final class PlannedMeal {
     var servings: Int = 4
     /// Set when the meal actually happened. Drives "times cooked" in Insights.
     var cookedAt: Date?
+    /// A tiny post-cook memory: 1 not again, 2 good, 3 loved it. Zero means
+    /// nobody answered. The words stay in the UI so the stored value remains
+    /// compact and CloudKit-safe.
+    var cookReaction: Int = 0
+    /// What the dinner really took, when somebody chooses to record it. The
+    /// recipe's stated time remains untouched; zero means no observation.
+    var actualMinutes: Int = 0
     var createdAt: Date = Date.now
     /// Stable across moves and serving changes; grocery purchases belong to this meal.
     var shoppingID: String?

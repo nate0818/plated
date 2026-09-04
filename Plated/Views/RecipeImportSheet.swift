@@ -14,9 +14,17 @@ import PhotosUI
 /// hunting through the editor — is the clunky path this screen exists to
 /// avoid.
 struct RecipeImportSheet: View {
+    private let initialImages: [Data]
+
+    init(initialInput: String = "", initialImages: [Data] = []) {
+        self.initialImages = initialImages
+        _raw = State(initialValue: initialInput)
+    }
+
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
     @Environment(\.dynamicTypeSize) private var typeSize
+    @Query(sort: \Recipe.createdAt, order: .reverse) private var recipes: [Recipe]
 
     @State private var raw = ""
     @State private var draft: ImportedRecipe?
@@ -27,11 +35,11 @@ struct RecipeImportSheet: View {
     /// "No recipe found. Check that the ingredients and steps are included."
     /// is true of a paste that had neither; it is a wrong instruction after a
     /// photo Vision could not read a character of, and it is beside the point
-    /// when what was pasted is a link this app has no way to open.
+    /// when a website refused the import request or could not be reached.
     enum ReadFailure {
         case noRecipe
         case unreadablePhoto
-        case pastedLink
+        case website(String)
 
         var line: String {
             switch self {
@@ -39,8 +47,8 @@ struct RecipeImportSheet: View {
                 return "No recipe found. Check that the ingredients and steps are included."
             case .unreadablePhoto:
                 return "Couldn't read that photo. Try a straighter shot with more light."
-            case .pastedLink:
-                return "That's a link. Open it, copy the recipe text, and paste that."
+            case .website(let message):
+                return message
             }
         }
     }
@@ -54,10 +62,13 @@ struct RecipeImportSheet: View {
     /// with it instead of reappearing behind a finished recipe.
     @State private var savedInEditor = false
     @State private var photoItem: PhotosPickerItem?
+    @State private var duplicateToResolve: Recipe?
+    @State private var pendingDuplicateDraft: ImportedRecipe?
+    @State private var initialImportStarted = false
     @FocusState private var editing: Bool
     @FocusState private var namingDish: Bool
 
-    /// Up to eight thousand characters of pasted or photographed source, plus
+    /// Up to twenty-four thousand characters of pasted or photographed source, plus
     /// whatever the cook has corrected in the review. There is no other copy.
     private var hasWork: Bool {
         !raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || draft != nil
@@ -113,6 +124,22 @@ struct RecipeImportSheet: View {
             Button("Discard", role: .destructive) { dismiss() }
             Button("Keep it", role: .cancel) {}
         }
+        .confirmationDialog(
+            "This recipe may already be in your cookbook.",
+            isPresented: Binding(
+                get: { duplicateToResolve != nil },
+                set: { if !$0 { duplicateToResolve = nil; pendingDuplicateDraft = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            if let duplicate = duplicateToResolve, let pending = pendingDuplicateDraft {
+                Button("Update \(duplicate.title)") { update(duplicate, with: pending) }
+                Button("Keep both") { saveNew(pending) }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Update the existing copy and keep its cooking history, or save another copy.")
+        }
         .fullScreenCover(isPresented: $scannerShown) {
             DocumentScanner(
                 onScan: { pages in
@@ -138,22 +165,45 @@ struct RecipeImportSheet: View {
                 photoItem = nil
             }
         }
+        .task {
+            guard !initialImportStarted else { return }
+            initialImportStarted = true
+            let images = initialImages.compactMap(UIImage.init(data:))
+            if !raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                read(raw)
+            } else if !images.isEmpty {
+                scan(images)
+            }
+        }
     }
 
     // MARK: Bring it in
 
+    @ViewBuilder
     private var intake: some View {
+        if typeSize.isAccessibilitySize {
+            ScrollView(showsIndicators: false) {
+                intakeContent
+            }
+            .scrollDismissesKeyboard(.interactively)
+        } else {
+            intakeContent
+        }
+    }
+
+    private var intakeContent: some View {
         VStack(spacing: 14) {
             ZStack(alignment: .topLeading) {
                 if raw.isEmpty {
                     // The promise this makes is now one the parser keeps:
                     // headed sections are read as sections, and "Notes",
                     // "Nutrition" and the story are dropped on the floor.
-                    Text("Paste the whole thing. We'll keep the recipe and drop the rest.")
+                    Text("Paste a recipe or link. We'll keep the useful parts and drop the rest.")
                         .plType(.body, .medium)
                         .foregroundStyle(Color.inkSecondary)
                         .padding(.horizontal, 16)
                         .padding(.vertical, 16)
+                        .fixedSize(horizontal: false, vertical: true)
                         .allowsHitTesting(false)
                 }
                 TextEditor(text: $raw)
@@ -163,7 +213,10 @@ struct RecipeImportSheet: View {
                     .padding(10)
                     .focused($editing)
             }
-            .frame(maxHeight: .infinity)
+            .frame(
+                minHeight: 190,
+                maxHeight: typeSize.isAccessibilitySize ? 260 : .infinity
+            )
             // The fill IS the well. A `hairline` border on a `fill` ground
             // measures 1.05:1, so this drew a stroke nobody has ever seen
             // and the rounded rectangle was already being described twice.
@@ -245,7 +298,7 @@ struct RecipeImportSheet: View {
             }
             .buttonStyle(.pressable)
 
-            Text("Photos and scans are read on your phone. Nothing is uploaded.")
+            Text("Pasted text and scans stay on your phone. Website links are fetched only when you ask.")
                 .plType(.caption)
                 .foregroundStyle(Color.inkSecondary)
                 .multilineTextAlignment(.center)
@@ -309,6 +362,12 @@ struct RecipeImportSheet: View {
                     VStack(alignment: .leading, spacing: 18) {
                         nameField(bound)
 
+                        reviewWarnings(bound.wrappedValue)
+
+                        if let duplicate = duplicate(for: bound.wrappedValue) {
+                            duplicateNotice(duplicate)
+                        }
+
                         // "0 / Prep min" and "0 / Cook min" were the ordinary
                         // result of pasting a list out of a chat window — the
                         // parser initialises both to zero and the model is told
@@ -322,29 +381,25 @@ struct RecipeImportSheet: View {
                         // rather than sitting in the label as the app's only
                         // unit-in-label CountBlock.
                         HStack(spacing: 0) {
-                            CountBlock(value: "\(bound.wrappedValue.servings)", label: "Serves")
+                            ImportFactField(value: bound.servings, label: "Serves", fallback: "4")
                             CountDivider()
-                            CountBlock(
-                                value: bound.wrappedValue.prepMinutes > 0
-                                    ? Recipe.durationText(bound.wrappedValue.prepMinutes) : "Not set",
-                                label: "Prep"
-                            )
+                            ImportFactField(value: bound.prepMinutes, label: "Prep", suffix: "min")
                             CountDivider()
-                            CountBlock(
-                                value: bound.wrappedValue.cookMinutes > 0
-                                    ? Recipe.durationText(bound.wrappedValue.cookMinutes) : "Not set",
-                                label: "Cook"
-                            )
+                            ImportFactField(value: bound.cookMinutes, label: "Cook", suffix: "min")
                         }
 
                         ingredientsBlock(bound)
                         stepsBlock(bound)
+                        sourceBlock(bound.wrappedValue)
                     }
                     .padding(.horizontal, 24)
                     .padding(.bottom, 20)
                 }
 
-                HStack(spacing: 10) {
+                let actionLayout = typeSize.isAccessibilitySize
+                    ? AnyLayout(VStackLayout(spacing: 10))
+                    : AnyLayout(HStackLayout(spacing: 10))
+                actionLayout {
                     Button {
                         Haptic.tap()
                         withAnimation(.plSnap) { draft = nil }
@@ -357,6 +412,8 @@ struct RecipeImportSheet: View {
                         Text("Start over")
                             .plType(.body, .bold)
                             .foregroundStyle(Color.ink)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
                             .frame(maxWidth: .infinity)
                             .frame(minHeight: 56)
                             .overlay(Capsule().strokeBorder(Color.hairline, lineWidth: 1.5))
@@ -364,9 +421,9 @@ struct RecipeImportSheet: View {
                     }
                     .buttonStyle(.pressable)
 
-                    TomatoPillButton(title: unnamed ? "Name it to save" : "Save to cookbook",
+                    TomatoPillButton(title: unnamed ? "Name it to save" : "Save recipe",
                                      haptic: Haptic.kiss) {
-                        save(bound.wrappedValue)
+                        requestSave(bound.wrappedValue)
                     }
                     .disabled(unnamed)
                 }
@@ -410,6 +467,52 @@ struct RecipeImportSheet: View {
                     .foregroundStyle(Color.inkSecondary)
             }
         }
+    }
+
+    @ViewBuilder
+    private func reviewWarnings(_ imported: ImportedRecipe) -> some View {
+        if !imported.warnings.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 8) {
+                    Image(systemName: "checkmark.magnifyingglass")
+                        .font(.system(size: 13, weight: .semibold))
+                    Text("Worth checking")
+                        .plType(.footnote, .bold)
+                }
+                .foregroundStyle(Color.ink)
+
+                ForEach(imported.warnings, id: \.self) { warning in
+                    Text(warning)
+                        .plType(.caption)
+                        .foregroundStyle(Color.inkSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.fill, in: Radius.shape(Radius.card))
+        }
+    }
+
+    private func duplicateNotice(_ duplicate: Recipe) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "books.vertical")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(Color.inkSecondary)
+                .padding(.top, 2)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Already in your cookbook")
+                    .plType(.footnote, .bold)
+                    .foregroundStyle(Color.ink)
+                Text("When you save, you can update \(duplicate.title) or keep both copies.")
+                    .plType(.caption)
+                    .foregroundStyle(Color.inkSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.fill, in: Radius.shape(Radius.card))
     }
 
     private func ingredientsBlock(_ draft: Binding<ImportedRecipe>) -> some View {
@@ -495,15 +598,48 @@ struct RecipeImportSheet: View {
         }
     }
 
+    @ViewBuilder
+    private func sourceBlock(_ imported: ImportedRecipe) -> some View {
+        if !imported.sourceURL.isEmpty || !imported.sourceText.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    MicroLabel("Original")
+                    Spacer()
+                    if let url = URL(string: imported.sourceURL), !imported.sourceURL.isEmpty {
+                        Link(destination: url) {
+                            Label("Open source", systemImage: "arrow.up.right")
+                                .plType(.caption, .bold)
+                                .foregroundStyle(Color.ink)
+                        }
+                    }
+                }
+
+                if !imported.sourceText.isEmpty {
+                    DisclosureGroup {
+                        Text(imported.sourceText)
+                            .plType(.caption)
+                            .foregroundStyle(Color.inkSecondary)
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.top, 8)
+                    } label: {
+                        Text(imported.sourceName.isEmpty ? "Compare with what you added" : "Compare with \(imported.sourceName)")
+                            .plType(.footnote, .semibold)
+                            .foregroundStyle(Color.ink)
+                    }
+                    .tint(Color.ink)
+                }
+            }
+            .padding(14)
+            .background(Color.fill, in: Radius.shape(Radius.card))
+        }
+    }
+
     // MARK: Work
 
     private func read(_ text: String) {
-        // Caught before the parser rather than after it. A URL survives every
-        // shape test a title has to pass, so the review step used to open
-        // over a web address with no ingredients and a live Save button.
         if Self.isLink(text) {
-            Haptic.warn()
-            withAnimation(.plSnap) { failure = .pastedLink }
+            readWebsite(text)
             return
         }
         reading = true
@@ -521,6 +657,26 @@ struct RecipeImportSheet: View {
                 // The parser leaves the name blank rather than guessing
                 // wrong. Put the cursor where the one remaining question is.
                 if parsed.title.isEmpty { namingDish = true }
+            }
+        }
+    }
+
+    private func readWebsite(_ text: String) {
+        reading = true
+        failure = nil
+        Task {
+            do {
+                let parsed = try await RecipeURLImporter.read(text)
+                reading = false
+                raw = parsed.sourceURL
+                withAnimation(.plSettle) { draft = parsed }
+                if parsed.title.isEmpty { namingDish = true }
+            } catch {
+                reading = false
+                Haptic.warn()
+                let message = (error as? LocalizedError)?.errorDescription
+                    ?? "Couldn't import a recipe from that page."
+                withAnimation(.plSnap) { failure = .website(message) }
             }
         }
     }
@@ -543,29 +699,53 @@ struct RecipeImportSheet: View {
         failure = nil
         Task {
             let text = await RecipeScanner.read(pages)
-            reading = false
             // `raw` is assigned only when there is something to assign.
             // Writing it first meant scanning a blank photo silently
             // destroyed whatever the cook had already pasted.
             guard let text, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                reading = false
                 Haptic.warn()
                 withAnimation(.plSnap) { failure = text == nil ? .unreadablePhoto : .noRecipe }
                 return
             }
             raw = text
-            read(text)
+            var parsed = await RecipeImporter.parse(text)
+            parsed.importMethod = pages.count > 1 ? "scan" : "photo"
+            parsed.sourceName = pages.count > 1 ? "Scanned pages" : "Scanned image"
+            parsed.warnings.insert(
+                "Text came from a photo. Check amounts and temperatures against the original.",
+                at: 0
+            )
+            reading = false
+            if !parsed.hasContent {
+                Haptic.warn()
+                withAnimation(.plSnap) { failure = .noRecipe }
+            } else {
+                withAnimation(.plSettle) { draft = parsed.withStandardWarnings() }
+                if parsed.title.isEmpty { namingDish = true }
+            }
         }
     }
 
-    private func save(_ r: ImportedRecipe) {
+    private func requestSave(_ r: ImportedRecipe) {
+        if let duplicate = duplicate(for: r) {
+            duplicateToResolve = duplicate
+            pendingDuplicateDraft = r
+        } else {
+            saveNew(r)
+        }
+    }
+
+    private func saveNew(_ r: ImportedRecipe) {
         let title = r.title.trimmingCharacters(in: .whitespaces)
         let recipe = Recipe(
             title: title.isEmpty ? "Untitled dish" : title,
             summary: r.summary,
-            servings: r.servings,
-            prepMinutes: r.prepMinutes,
-            cookMinutes: r.cookMinutes
+            servings: max(1, r.servings),
+            prepMinutes: max(0, r.prepMinutes),
+            cookMinutes: max(0, r.cookMinutes)
         )
+        applySource(from: r, to: recipe)
         // Blank lines are not steps. An editable row can be emptied, and
         // nothing else in the app can produce one.
         recipe.steps = r.steps
@@ -582,6 +762,125 @@ struct RecipeImportSheet: View {
         }
         Persist.save(context)
         dismiss()
+    }
+
+    private func update(_ recipe: Recipe, with imported: ImportedRecipe) {
+        recipe.title = imported.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        recipe.summary = imported.summary
+        recipe.servings = max(1, imported.servings)
+        recipe.prepMinutes = max(0, imported.prepMinutes)
+        recipe.cookMinutes = max(0, imported.cookMinutes)
+        recipe.steps = imported.steps
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        recipe.instructions = ""
+        applySource(from: imported, to: recipe)
+
+        for ingredient in recipe.ingredients ?? [] { context.delete(ingredient) }
+        for (index, importedIngredient) in imported.ingredients.map(\.resolved)
+            .filter({ !$0.name.isEmpty }).enumerated() {
+            let row = Ingredient(
+                name: importedIngredient.name,
+                quantity: importedIngredient.quantity,
+                unit: importedIngredient.unit
+            )
+            row.aisle = importedIngredient.aisle
+            row.sortIndex = index
+            row.recipe = recipe
+            context.insert(row)
+        }
+        Persist.save(context)
+        dismiss()
+    }
+
+    private func applySource(from imported: ImportedRecipe, to recipe: Recipe) {
+        recipe.sourceURL = imported.sourceURL
+        recipe.sourceName = imported.sourceName
+        recipe.sourceText = imported.sourceText
+        recipe.importMethod = imported.importMethod
+        recipe.importedAt = .now
+    }
+
+    private func duplicate(for imported: ImportedRecipe) -> Recipe? {
+        let source = canonicalURL(imported.sourceURL)
+        if !source.isEmpty,
+           let exactSource = recipes.first(where: { canonicalURL($0.sourceURL) == source }) {
+            return exactSource
+        }
+
+        let title = normalized(imported.title)
+        guard !title.isEmpty else { return nil }
+        let incoming = Set(imported.ingredients.map { normalized($0.resolved.name) }.filter { !$0.isEmpty })
+        return recipes.first { recipe in
+            guard normalized(recipe.title) == title else { return false }
+            let existing = Set(recipe.sortedIngredients.map { normalized($0.name) }.filter { !$0.isEmpty })
+            if incoming.isEmpty || existing.isEmpty { return true }
+            let overlap = incoming.intersection(existing).count
+            let total = incoming.union(existing).count
+            return total > 0 && Double(overlap) / Double(total) >= 0.65
+        }
+    }
+
+    private func canonicalURL(_ raw: String) -> String {
+        guard var components = URLComponents(string: raw) else { return "" }
+        components.scheme = components.scheme?.lowercased()
+        components.host = components.host?.lowercased()
+        components.fragment = nil
+        components.queryItems = components.queryItems?.filter {
+            let name = $0.name.lowercased()
+            return !name.hasPrefix("utm_") && !["fbclid", "gclid"].contains(name)
+        }
+        var value = components.string ?? ""
+        while value.hasSuffix("/") { value.removeLast() }
+        return value
+    }
+
+    private func normalized(_ value: String) -> String {
+        value.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+    }
+}
+
+/// The import review is the only chance to correct yield and times before
+/// saving. A static count here made "Does this look right?" an unanswerable
+/// question for three of the six fields on screen.
+private struct ImportFactField: View {
+    @Binding var value: Int
+    let label: String
+    var suffix = ""
+    var fallback = "Not set"
+
+    private var text: Binding<String> {
+        Binding(
+            get: { value > 0 ? "\(value)" : "" },
+            set: { value = max(0, Int($0.filter(\.isNumber)) ?? 0) }
+        )
+    }
+
+    var body: some View {
+        VStack(spacing: 4) {
+            HStack(spacing: 3) {
+                TextField(fallback, text: text)
+                    .keyboardType(.numberPad)
+                    .multilineTextAlignment(.center)
+                    .plType(.heading)
+                    .foregroundStyle(Color.ink)
+                    .frame(minWidth: 28)
+                if value > 0 && !suffix.isEmpty {
+                    Text(suffix)
+                        .plType(.caption, .semibold)
+                        .foregroundStyle(Color.inkSecondary)
+                }
+            }
+            .frame(maxWidth: .infinity)
+            Text(label)
+                .plType(.caption)
+                .foregroundStyle(Color.inkSecondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 8)
     }
 }
 

@@ -9,6 +9,13 @@ final class Recipe {
     var summary: String = ""
     var instructions: String = ""
     var sourceURL: String = ""
+    /// Attribution and the exact material the importer worked from. A cook can
+    /// always compare the cleaned recipe with the note, scan text, or webpage
+    /// that produced it. Defaults keep existing CloudKit rows compatible.
+    var sourceName: String = ""
+    var sourceText: String = ""
+    var importMethod: String = ""
+    var importedAt: Date?
     var servings: Int = 4
     var prepMinutes: Int = 0
     var cookMinutes: Int = 0

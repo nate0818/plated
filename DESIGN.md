@@ -221,6 +221,16 @@ screens rather than one place.
   Do not send the avatar straight into the social profile and hide app
   administration in unlabeled toolbar icons. Settings opens at full height;
   editing sheets name both the way out and the action that saves.
+- **Account begins with the person, then the places they manage.** The profile
+  hero owns View profile and Edit. Household and Settings are the two large
+  destinations beneath it. Live iCloud, reminder and appearance states form
+  one compact summary; do not return to four equal administrative rows.
+- **Settings groups controls by outcome.** Appearance is a visual three-state
+  choice. Planning holds reminders and Calendar. Household naming, iCloud,
+  permissions, privacy and account actions each have a named section. A system
+  permission is never a disabled switch with an explanation beside it: show
+  Turn on before the prompt, the live control after approval, and Open Settings
+  after refusal.
 
 ## Copy
 
@@ -367,3 +377,20 @@ class of bug: `.frame(minWidth: 44)` alone is not hit-testable.
   gets forgotten at the hundred and nineteenth.
 - Dynamic Type must not break layout. Fixed heights that exactly fit their
   content will overflow on a real device: pad and floor instead.
+
+## Awards
+
+Awards mark meaningful kitchen moments people already create: planning a
+week, finishing a dish, building a cookbook and bringing others to the Table.
+They are permanent keepsakes. Plated does not punish a missed day, erase a
+streak or manufacture urgency to inflate engagement.
+
+The owner can see every award and concrete progress toward the next ones.
+Other people see earned awards only, because an unfinished goal is private.
+Kitchen levels summarize the collection without ranking people against one
+another. Points unlock a level and never buy reach or status at the Table.
+
+Every badge needs a plain-language name, a short story and a direct answer to
+"How do I earn this?" The card is one large target that opens those details.
+Color, a progress ring and motion reveal earned state; the text must carry the
+same meaning for VoiceOver, Reduce Motion and monochrome viewing.

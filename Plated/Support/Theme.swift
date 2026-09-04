@@ -1202,11 +1202,14 @@ struct PlatedWordmark: View {
                 .font(.gabarito(size, .medium))
                 .tracking(-0.022 * s)
                 .foregroundStyle(Color.ink)
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
             Circle()
                 .fill(Color.tomato)
                 .frame(width: s * 0.27, height: s * 0.27)
                 .padding(.top, s * 0.34)
         }
+        .fixedSize(horizontal: true, vertical: false)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Plated")
     }
@@ -1337,7 +1340,10 @@ struct TomatoPillButton: View {
                 } else if let systemImage {
                     Image(systemName: systemImage).font(.system(size: 16, weight: .semibold))
                 }
-                Text(title).plType(.callout)
+                Text(title)
+                    .plType(.callout)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
             }
             .foregroundStyle(awake ? Color.onTomato : Color.inkSecondary)
             .frame(maxWidth: .infinity)
@@ -1363,7 +1369,10 @@ struct InkPillButton: View {
                 if let systemImage {
                     Image(systemName: systemImage).font(.system(size: 16, weight: .semibold))
                 }
-                Text(title).plType(.callout)
+                Text(title)
+                    .plType(.callout)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
             }
             .foregroundStyle(Color.canvas)
             .frame(maxWidth: .infinity)

@@ -82,3 +82,64 @@ struct MealInsights {
         }
     }
 }
+
+/// The useful story of one recipe, calculated only from completed meals.
+/// Planning the same dish three times does not make it a family favorite;
+/// somebody has to mark each dinner cooked first.
+struct RecipeHistory {
+    let meals: [PlannedMeal]
+
+    init(recipe: Recipe) {
+        meals = (recipe.plannedMeals ?? [])
+            .filter { $0.cookedAt != nil }
+            .sorted { ($0.cookedAt ?? .distantPast) < ($1.cookedAt ?? .distantPast) }
+    }
+
+    var count: Int { meals.count }
+    var lastCooked: Date? { meals.compactMap(\.cookedAt).max() }
+
+    var usualServings: Int? {
+        mode(meals.map(\.servings))
+    }
+
+    var averageActualMinutes: Int? {
+        let observations = meals.map(\.actualMinutes).filter { $0 > 0 }
+        guard !observations.isEmpty else { return nil }
+        return Int((Double(observations.reduce(0, +)) / Double(observations.count)).rounded())
+    }
+
+    var ratedCount: Int { meals.filter { $0.cookReaction > 0 }.count }
+    var lovedCount: Int { meals.filter { $0.cookReaction == 3 }.count }
+
+    var favoriteWeekday: String? {
+        let calendar = Calendar.current
+        let symbols = calendar.weekdaySymbols
+        let weekdays = meals.compactMap { meal -> Int? in
+            guard let date = meal.cookedAt else { return nil }
+            return calendar.component(.weekday, from: date)
+        }
+        guard let weekday = mode(weekdays), symbols.indices.contains(weekday - 1) else { return nil }
+        // One dinner cannot establish a pattern. The fact is still captured by
+        // Last cooked, while "most often" waits for supporting evidence.
+        guard weekdays.filter({ $0 == weekday }).count >= 2 else { return nil }
+        return symbols[weekday - 1]
+    }
+
+    var averageGapDays: Int? {
+        let dates = meals.compactMap(\.cookedAt).sorted()
+        guard dates.count >= 3 else { return nil }
+        let gaps = zip(dates, dates.dropFirst()).map {
+            max(1, Calendar.current.dateComponents([.day], from: $0.0, to: $0.1).day ?? 1)
+        }
+        return Int((Double(gaps.reduce(0, +)) / Double(gaps.count)).rounded())
+    }
+
+    private func mode(_ values: [Int]) -> Int? {
+        guard !values.isEmpty else { return nil }
+        let counts = Dictionary(grouping: values, by: { $0 }).mapValues(\.count)
+        return counts.max {
+            if $0.value == $1.value { return $0.key > $1.key }
+            return $0.value < $1.value
+        }?.key
+    }
+}

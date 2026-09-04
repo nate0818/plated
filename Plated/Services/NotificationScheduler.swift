@@ -17,6 +17,12 @@ import SwiftData
 @MainActor
 enum NotificationScheduler {
 
+    enum AuthorizationState: Equatable {
+        case notDetermined
+        case allowed
+        case denied
+    }
+
     private static let ritualID = "plated.ritual.week"
     private static let turnPrefix = "plated.turn."
     private static let askedKey = "plated.notifications.asked"
@@ -58,9 +64,30 @@ enum NotificationScheduler {
 
     /// Whether the user has opted in, as far as the system is concerned.
     static func authorized() async -> Bool {
+        await authorizationState() == .allowed
+    }
+
+    static func authorizationState() async -> AuthorizationState {
         let settings = await UNUserNotificationCenter.current().notificationSettings()
-        return settings.authorizationStatus == .authorized
-            || settings.authorizationStatus == .provisional
+        switch settings.authorizationStatus {
+        case .authorized, .provisional, .ephemeral:
+            return .allowed
+        case .notDetermined:
+            return .notDetermined
+        default:
+            return .denied
+        }
+    }
+
+    /// Settings is another earned prompt: the person has explicitly pressed
+    /// “Turn on,” so the system sheet is the expected result of their action.
+    /// Keep the same asked flag as the post-plan prompt so Plated never asks
+    /// twice from two different surfaces.
+    @discardableResult
+    static func requestFromSettings() async -> Bool {
+        UserDefaults.standard.set(true, forKey: askedKey)
+        return (try? await UNUserNotificationCenter.current()
+            .requestAuthorization(options: [.alert, .sound, .badge])) ?? false
     }
 
     /// Ask — but only after the app has earned it.

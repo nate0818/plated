@@ -18,6 +18,17 @@ struct ImportedRecipe: Equatable {
     var cookMinutes = 0
     var ingredients: [ImportedIngredient] = []
     var steps: [String] = []
+    /// The original remains available after parsing so review is a comparison,
+    /// not a leap of faith. It is capped by each intake path before saving.
+    var sourceText = ""
+    var sourceURL = ""
+    var sourceName = ""
+    /// `paste`, `scan`, `photo`, or `website`. Stored as a small string so a
+    /// future intake route does not require migrating an enum through CloudKit.
+    var importMethod = "paste"
+    /// Specific uncertainties only. Missing optional metadata such as a prep
+    /// time is not a warning and does not make a sound recipe look broken.
+    var warnings: [String] = []
 
     /// Nothing at all. Kept as the gate on the model result in `parse`,
     /// where a draft with a good title and nothing under it is merged field
@@ -32,9 +43,29 @@ struct ImportedRecipe: Equatable {
     /// heading matches, the no-heading sweep drops it, and the address then
     /// passes every shape test a title has to pass. The review step opened
     /// over a web address with no ingredients, no steps and a live "Save to
-    /// cookbook" — and pasting a link is the first thing most people try,
-    /// while nothing in this app fetches one.
+    /// cookbook" — and is also the fallback used when a website has no
+    /// structured Recipe data.
     var hasContent: Bool { !ingredients.isEmpty || !steps.isEmpty }
+
+    func withStandardWarnings() -> ImportedRecipe {
+        var copy = self
+        let amountless = ingredients.filter { $0.resolved.quantity == 0 }.count
+        if amountless > 0 {
+            copy.warnings.append(
+                amountless == 1
+                    ? "Check 1 ingredient with no amount."
+                    : "Check \(amountless) ingredients with no amounts."
+            )
+        }
+        if ingredients.isEmpty { copy.warnings.append("No ingredients were found.") }
+        if steps.isEmpty { copy.warnings.append("No cooking steps were found.") }
+        // Reconciliation can reach this twice. Stable uniqueness keeps the
+        // review quiet without making callers coordinate warning ownership.
+        copy.warnings = copy.warnings.reduce(into: []) { out, warning in
+            if !out.contains(warning) { out.append(warning) }
+        }
+        return copy
+    }
 }
 
 struct ImportedIngredient: Equatable, Identifiable {
@@ -102,16 +133,21 @@ enum RecipeImporter {
         // Guardrails and context windows both dislike a whole webpage.
         let bounded = String(text.prefix(8000))
 
-        let literal = heuristic(bounded)
+        var literal = heuristic(bounded)
+        literal.sourceText = String(text.prefix(24_000))
+        literal.importMethod = "paste"
 
         #if canImport(FoundationModels)
         if #available(iOS 26.0, *),
            SystemLanguageModel.default.availability == .available,
            let smart = await generate(bounded), !smart.isEmpty {
-            return reconcile(smart, with: literal)
+            var result = reconcile(smart, with: literal)
+            result.sourceText = literal.sourceText
+            result.importMethod = literal.importMethod
+            return result.withStandardWarnings()
         }
         #endif
-        return literal
+        return literal.withStandardWarnings()
     }
 
     /// The model's answer, with the literal parser's answer used to fill any

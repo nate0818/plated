@@ -96,6 +96,10 @@ struct MainShellView: View {
     /// Screenshot flags open a composer without passing through the menu;
     /// the flow starts there instead of at the rows. Nil for a real tap.
     @State private var createStart: CreateKind?
+    /// Content handed over by Notes, Safari, Messages, or another app's share
+    /// sheet. It enters the same review flow as paste and scan.
+    @State private var sharedRecipeInput = ""
+    @State private var sharedRecipeImages: [Data] = []
     /// Asking left the + for the plan, where the question has a night. The
     /// screenshot flag still needs a way in, so it opens the composer
     /// straight off the shell rather than restoring the row.
@@ -200,8 +204,16 @@ struct MainShellView: View {
             Haptic.select()
             withAnimation(.plSnap) { selection = previous }
         }
-        .sheet(isPresented: $createPresented, onDismiss: { createStart = nil }) {
-            CreateFlowSheet(start: createStart)
+        .sheet(isPresented: $createPresented, onDismiss: {
+            createStart = nil
+            sharedRecipeInput = ""
+            sharedRecipeImages = []
+        }) {
+            CreateFlowSheet(
+                start: createStart,
+                initialRecipeInput: sharedRecipeInput,
+                initialRecipeImages: sharedRecipeImages
+            )
         }
         .sheet(isPresented: $askPresented) {
             AskComposerSheet(date: Calendar.current.startOfDay(for: .now))
@@ -210,6 +222,10 @@ struct MainShellView: View {
             ProngsbyView(session: prongsbySession)
         }
         .onOpenURL { url in
+            if url.scheme == "plated", url.host == "import-shared" {
+                openSharedRecipeIfNeeded()
+                return
+            }
             // An invitation arriving through plated.food is a Universal Link,
             // so it lands here as an ordinary URL rather than at the
             // CloudKit delegate. Same destination, different road.
@@ -233,6 +249,7 @@ struct MainShellView: View {
             }
         }
         .task {
+            openSharedRecipeIfNeeded()
             if !didRepairLegacyDiscover {
                 // Stores seeded before Discover posts were stamped left those
                 // rows with isDiscover == false, so open-table posts bled into
@@ -411,6 +428,14 @@ struct MainShellView: View {
             }
             #endif
         }
+    }
+
+    private func openSharedRecipeIfNeeded() {
+        guard let shared = RecipeShareInbox.consume() else { return }
+        sharedRecipeInput = shared.text
+        sharedRecipeImages = shared.images
+        createStart = .recipe
+        createPresented = true
     }
 }
 
@@ -594,11 +619,19 @@ struct CreateMenuSheet: View {
 /// walking back to a menu nobody wants to see again.
 struct CreateFlowSheet: View {
     /// Non-nil skips the menu and opens that composer directly.
-    init(start: CreateKind? = nil) {
+    init(
+        start: CreateKind? = nil,
+        initialRecipeInput: String = "",
+        initialRecipeImages: [Data] = []
+    ) {
         _kind = State(initialValue: start)
+        self.initialRecipeInput = initialRecipeInput
+        self.initialRecipeImages = initialRecipeImages
     }
 
     @State private var kind: CreateKind?
+    private let initialRecipeInput: String
+    private let initialRecipeImages: [Data]
 
     var body: some View {
         if let kind {
@@ -606,7 +639,10 @@ struct CreateFlowSheet: View {
             case .tablePost:
                 TableComposerSheet()
             case .recipe:
-                RecipeImportSheet()
+                RecipeImportSheet(
+                    initialInput: initialRecipeInput,
+                    initialImages: initialRecipeImages
+                )
             case .ask:
                 AskComposerSheet(date: Calendar.current.startOfDay(for: .now))
             }

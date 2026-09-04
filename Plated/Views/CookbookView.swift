@@ -1003,6 +1003,21 @@ struct RecipeDetailView: View {
                     .padding(.top, 4)
                 }
 
+                if let meal, meal.isCooked {
+                    cookFeedback(meal)
+                        .padding(.top, 4)
+                }
+
+                if recipe.timesCooked > 0 {
+                    recipeHistory
+                        .padding(.top, 4)
+                }
+
+                if !recipe.sourceURL.isEmpty || !recipe.sourceText.isEmpty {
+                    recipeSource
+                        .padding(.top, 4)
+                }
+
                 HStack(spacing: 6) {
                     Image(systemName: visibilityIcon)
                         .font(.system(size: 12, weight: .semibold))
@@ -1392,6 +1407,170 @@ struct RecipeDetailView: View {
         return times == 1
             ? "Cooked once, \(Stamp.dayPhrase(last))."
             : "Cooked \(times) times, the last one \(Stamp.dayPhrase(last))."
+    }
+
+    private func cookFeedback(_ meal: PlannedMeal) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            MicroLabel("How was it?")
+            HStack(spacing: 8) {
+                reactionButton("Not again", symbol: "hand.thumbsdown", value: 1, meal: meal)
+                reactionButton("Good", symbol: "hand.thumbsup", value: 2, meal: meal)
+                reactionButton("Loved it", symbol: "heart", value: 3, meal: meal)
+            }
+
+            Menu {
+                if recipe.totalMinutes > 0 {
+                    Button("About \(recipe.timeText)") { recordActualTime(recipe.totalMinutes, for: meal) }
+                }
+                ForEach([15, 30, 45, 60, 90, 120], id: \.self) { minutes in
+                    Button(Recipe.durationText(minutes)) { recordActualTime(minutes, for: meal) }
+                }
+                if meal.actualMinutes > 0 {
+                    Button("Clear actual time") { recordActualTime(0, for: meal) }
+                }
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "clock")
+                        .font(.system(size: 12, weight: .semibold))
+                    Text(meal.actualMinutes > 0
+                         ? "Took \(Recipe.durationText(meal.actualMinutes))"
+                         : "Add the actual time")
+                        .plType(.footnote, .semibold)
+                    Spacer()
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.system(size: 10, weight: .semibold))
+                }
+                .foregroundStyle(Color.ink)
+                .padding(.horizontal, 14)
+                .frame(minHeight: 44)
+                .background(Color.fill, in: Capsule())
+                .contentShape(Capsule())
+            }
+        }
+    }
+
+    private func reactionButton(
+        _ title: String,
+        symbol: String,
+        value: Int,
+        meal: PlannedMeal
+    ) -> some View {
+        let selected = meal.cookReaction == value
+        return Button {
+            Haptic.select()
+            withAnimation(.plSnap) {
+                meal.cookReaction = selected ? 0 : value
+            }
+            Persist.save(context)
+        } label: {
+            VStack(spacing: 5) {
+                Image(systemName: selected ? "\(symbol).fill" : symbol)
+                    .font(.system(size: 13, weight: .semibold))
+                Text(title)
+                    .plType(.caption, .semibold)
+                    .lineLimit(1)
+            }
+            .foregroundStyle(selected ? Color.canvas : Color.ink)
+            .frame(maxWidth: .infinity)
+            .frame(minHeight: 52)
+            .background(selected ? Color.ink : Color.fill, in: Radius.shape(Radius.chip))
+            .contentShape(Radius.shape(Radius.chip))
+        }
+        .buttonStyle(.pressable)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    private func recordActualTime(_ minutes: Int, for meal: PlannedMeal) {
+        meal.actualMinutes = max(0, minutes)
+        Persist.save(context)
+    }
+
+    private var recipeHistory: some View {
+        let history = RecipeHistory(recipe: recipe)
+        return VStack(alignment: .leading, spacing: 10) {
+            MicroLabel("Your history")
+            HStack(spacing: 0) {
+                CountBlock(value: "\(history.count)", label: history.count == 1 ? "Cook" : "Cooks")
+                CountDivider()
+                CountBlock(
+                    value: history.usualServings.map(String.init) ?? "Not set",
+                    label: "Usual serves"
+                )
+                CountDivider()
+                CountBlock(value: historyLastCooked(history.lastCooked), label: "Last cooked")
+            }
+
+            let details = historyDetails(history)
+            if !details.isEmpty {
+                Text(details.joined(separator: " "))
+                    .plType(.caption)
+                    .foregroundStyle(Color.inkSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(14)
+        .background(Color.fill, in: Radius.shape(Radius.card))
+    }
+
+    private func historyLastCooked(_ date: Date?) -> String {
+        guard let date else { return "Not set" }
+        if Calendar.current.isDateInToday(date) { return "Today" }
+        if Calendar.current.isDateInYesterday(date) { return "Yesterday" }
+        return date.formatted(.dateTime.month(.abbreviated).day())
+    }
+
+    private func historyDetails(_ history: RecipeHistory) -> [String] {
+        var lines: [String] = []
+        if history.ratedCount > 0 {
+            if history.lovedCount == history.ratedCount {
+                lines.append(history.ratedCount == 1 ? "Loved the first time." : "Loved every rated cook.")
+            } else if history.lovedCount > 0 {
+                lines.append("Loved \(history.lovedCount) of \(history.ratedCount) rated cooks.")
+            }
+        }
+        if let minutes = history.averageActualMinutes {
+            lines.append("Usually took \(Recipe.durationText(minutes)).")
+        }
+        if let weekday = history.favoriteWeekday {
+            lines.append("Most often cooked on \(weekday)s.")
+        }
+        if let days = history.averageGapDays {
+            lines.append("Back in rotation about every \(days) days.")
+        }
+        return lines
+    }
+
+    private var recipeSource: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                MicroLabel("Original")
+                Spacer()
+                if let url = URL(string: recipe.sourceURL), !recipe.sourceURL.isEmpty {
+                    Link(destination: url) {
+                        Label("Open source", systemImage: "arrow.up.right")
+                            .plType(.caption, .bold)
+                            .foregroundStyle(Color.ink)
+                    }
+                }
+            }
+            if !recipe.sourceText.isEmpty {
+                DisclosureGroup {
+                    Text(recipe.sourceText)
+                        .plType(.caption)
+                        .foregroundStyle(Color.inkSecondary)
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.top, 8)
+                } label: {
+                    Text(recipe.sourceName.isEmpty ? "Compare with the original" : "From \(recipe.sourceName)")
+                        .plType(.footnote, .semibold)
+                        .foregroundStyle(Color.ink)
+                }
+                .tint(Color.ink)
+            }
+        }
+        .padding(14)
+        .background(Color.fill, in: Radius.shape(Radius.card))
     }
 
     private static func stepAnchor(_ index: Int) -> String { "step-\(index)" }
