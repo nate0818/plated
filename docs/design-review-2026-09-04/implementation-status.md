@@ -1,5 +1,19 @@
 # Design implementation — September 4, 2026
 
+## Cook exit and physical meal lift — build 18
+
+Cook Mode now has a visible End action with confirmation. Ending clears the
+active step, draft and timer notification while leaving the meal planned;
+Minimize continues to preserve the session. Planner meals now use the explicit
+native item-provider drag path that recipe steps use, because the newer
+`draggable` modifier lost long holds inside nested buttons and swipe rows on a
+physical phone. Lift previews carry the dish, slot and title, and valid Week,
+Day and Month targets animate with the persimmon state. Four native XCUITest
+flows passed with no failures. Apple processing is VALID; Internal and External
+are both IN_BETA_TESTING with automatic tester notification enabled. Hands-on
+physical-device confirmation of the feel remains necessary. See
+[build 18](testflight-18.md).
+
 ## Account and Settings — build 17
 
 The global avatar now opens a dedicated Account hub with direct, labeled paths
