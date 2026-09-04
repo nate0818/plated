@@ -24,7 +24,10 @@ obvious on a phone: WeatherKit returning nothing, the VisionKit scanner,
 rendering a hair larger so fixed-height layouts overflow, and Foundation Models.
 
 - `make phone` builds the working tree and installs it on Nate's iPhone.
-- `scripts/testflight.sh` bumps the build, archives, and uploads.
+- `scripts/testflight.sh` bumps the build, archives, uploads, then waits for
+  processing and adds the build to the External group, which is the public
+  TestFlight link. Upload alone reaches Internal only; `scripts/asc groups`
+  shows what each group is actually serving.
 - `make design` checks the DESIGN.md rules a machine can check, and both
   ship paths refuse a build that breaks one. A deliberate exception is fine
   but has to say so at the line: `// design-ok(<rule>): why this one is right`.
