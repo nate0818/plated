@@ -1,6 +1,7 @@
 import SwiftUI
 import SwiftData
 import PhotosUI
+import UniformTypeIdentifiers
 
 /// The recipe editor — one surface for three doors: the + button (blank),
 /// "edit" on a dish you own, and "save" on a table post (prefilled, tweak
@@ -48,13 +49,7 @@ struct RecipeEditorView: View {
     /// Which field the keyboard is in. `AnyHashable` because the rows are
     /// addressed by their own ids and the fixed fields by name.
     @FocusState private var focused: AnyHashable?
-    /// The step being dragged, where the finger is, and where each row's slot
-    /// sits. Slots are keyed by position rather than by step, because the
-    /// slots stay put while the steps move between them.
-    @State private var dragStepID: UUID?
-    @GestureState private var stepDragActive = false
-    @State private var dragY: CGFloat = 0
-    @State private var stepSlots: [Int: CGRect] = [:]
+    @State private var stepDropTarget: UUID?
 
     /// The row the keyboard is currently in, if it is one that can move.
     private var movableRow: (list: RowList, index: Int)? {
@@ -71,65 +66,55 @@ struct RecipeEditorView: View {
 
     private enum RowList { case ingredients, steps }
 
-    static let stepSpace = "plated.editor.steps"
+    private static let stepDragType = UTType(exportedAs: "com.natemeadows.plated.recipe-step", conformingTo: .data)
 
-    /// Long press a step's number and drag it up or down the list.
-    ///
-    /// Long press first, so an ordinary tap still reaches the field beside
-    /// it. Lifting clears the keyboard: typing in a row and dragging it are
-    /// not the same activity, and leaving a caret in a moving row is how a
-    /// text selection ends up fighting a reorder.
-    private func stepDrag(_ id: UUID) -> some Gesture {
-        LongPressGesture(minimumDuration: 0.3)
-            .sequenced(before: DragGesture(minimumDistance: 0,
-                                           coordinateSpace: .named(Self.stepSpace)))
-            .updating($stepDragActive) { value, active, _ in
-                switch value {
-                case .first(true), .second(true, _): active = true
-                default: break
-                }
-            }
-            .onChanged { value in
-                switch value {
-                case .first(true):
-                    lift(id)
-                case let .second(true, drag):
-                    lift(id)
-                    if let drag { dragStep(id, to: drag.location.y) }
-                default:
-                    break
-                }
-            }
-            .onEnded { _ in drop() }
-    }
-
-    private func lift(_ id: UUID) {
-        guard dragStepID != id else { return }
+    private func stepProvider(_ step: DraftStep) -> NSItemProvider {
         focused = nil
         Haptic.plate()
-        withAnimation(.plPop) { dragStepID = id }
-        dragY = stepSlots[draftSteps.firstIndex { $0.id == id } ?? 0]?.midY ?? 0
-    }
-
-    /// The lifted row follows the finger, and the row whose slot the finger
-    /// is over trades places with it.
-    private func dragStep(_ id: UUID, to y: CGFloat) {
-        dragY = y
-        guard let from = draftSteps.firstIndex(where: { $0.id == id }) else { return }
-        guard let to = stepSlots.first(where: { $0.value.minY...$0.value.maxY ~= y })?.key,
-              to != from, draftSteps.indices.contains(to)
-        else { return }
-        Haptic.select()
-        withAnimation(.plSnap) {
-            let moved = draftSteps.remove(at: from)
-            draftSteps.insert(moved, at: to)
+        let provider = NSItemProvider()
+        provider.registerDataRepresentation(forTypeIdentifier: Self.stepDragType.identifier, visibility: .ownProcess) { completion in
+            completion(Data(step.id.uuidString.utf8), nil)
+            return nil
         }
+        return provider
     }
 
-    private func drop() {
-        guard dragStepID != nil else { return }
-        Haptic.plate()
-        withAnimation(.plSnap) { dragStepID = nil }
+    /// Commit only on a completed native drop. Cancelling a lift leaves the
+    /// draft untouched; Save remains the only writer to the stored recipe.
+    private func receiveStep(_ providers: [NSItemProvider], at target: UUID) -> Bool {
+        guard let provider = providers.first(where: { $0.hasItemConformingToTypeIdentifier(Self.stepDragType.identifier) }) else { return false }
+        provider.loadDataRepresentation(forTypeIdentifier: Self.stepDragType.identifier) { data, _ in
+            guard let data, let value = String(data: data, encoding: .utf8), let id = UUID(uuidString: value) else { return }
+            Task { @MainActor in
+                stepDropTarget = nil
+                guard let from = draftSteps.firstIndex(where: { $0.id == id }),
+                      let to = draftSteps.firstIndex(where: { $0.id == target }), from != to else { return }
+                Haptic.select()
+                withAnimation(.plSnap) {
+                    let step = draftSteps.remove(at: from)
+                    draftSteps.insert(step, at: to)
+                }
+            }
+        }
+        return true
+    }
+
+    private func stepDropBinding(_ id: UUID) -> Binding<Bool> {
+        Binding(get: { stepDropTarget == id }, set: { over in
+            withAnimation(.plSnap) {
+                if over { stepDropTarget = id }
+                else if stepDropTarget == id { stepDropTarget = nil }
+            }
+        })
+    }
+
+    private func stepPreview(_ step: DraftStep, index: Int) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Text("\(index + 1)").plType(.body, .bold)
+            Text(step.text).plType(.body).lineLimit(4)
+        }
+        .foregroundStyle(Color.ink).padding(16).frame(maxWidth: 300, alignment: .leading)
+        .background(Color.canvas, in: Radius.shape(Radius.card))
     }
 
     private func moveStep(_ id: UUID, by offset: Int) {
@@ -666,125 +651,66 @@ struct RecipeEditorView: View {
         .animation(.plSnap, value: draftIngredients.count)
     }
 
-    /// Numbered steps, one line each — added in order, removable, honest.
     private var stepsSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            MicroLabel("The steps")
-
-            // Identity is the step, not its position. With `id: \.offset`,
-            // removing a middle row kept the leading views' identities and
-            // destroyed the trailing one, so the container's animation faded
-            // the last row while every row below the deleted one silently
-            // swapped its text — and a cursor stayed on an index rather than
-            // on the sentence somebody was writing. That is also what the
-            // guarded binding here was working around.
+            HStack {
+                MicroLabel("The steps")
+                Spacer()
+                Text("Hold to reorder").plType(.caption).foregroundStyle(Color.inkSecondary)
+            }
             ForEach($draftSteps) { $step in
                 let index = stepNumber(step) - 1
-                let lifted = dragStepID == step.id
                 HStack(alignment: .top, spacing: 10) {
-                    // The number is the grab handle. Long press it and drag.
-                    //
-                    // The handle is here rather than on the whole row because
-                    // the rest of the row is a live text field: a long press
-                    // there is how iOS starts a selection, and SwipeRow in
-                    // this repo already records a lift stealing a touch. The
-                    // numeral column has no keyboard behind it, so nothing is
-                    // competing for the gesture.
                     VStack(spacing: 3) {
                         Text("\(index + 1)").plType(.footnote, .extraBold, family: .display)
                         Image(systemName: "line.3.horizontal").font(.system(size: 11, weight: .medium))
                     }
-                        .foregroundStyle(lifted ? Color.ink : Color.inkSecondary)
-                        // fixedSize before the frame, and a floor rather than
-                        // a hard width: a hard 20 forces "10" to wrap rather
-                        // than overflow once footnote outgrows it.
-                        .monospacedDigit()
-                        .lineLimit(1)
-                        .fixedSize()
-                        .frame(minWidth: 44, minHeight: 44)
-                        .contentShape(Rectangle())
-                        .padding(.top, 4)
-                        .gesture(stepDrag(step.id))
-                        .accessibilityLabel("Step \(index + 1)")
-                        .accessibilityHint("Long press and drag to move it.")
-                        // A drag is a gesture, so it needs an equivalent that
-                        // is not one. The keyboard bar carries the same two
-                        // moves; these put them on the handle as well.
-                        .accessibilityActions {
-                            Button("Move up") { moveStep(step.id, by: -1) }
-                            Button("Move down") { moveStep(step.id, by: 1) }
-                        }
-                    // A step you can only delete is a step you have to retype
-                    // to fix one word in, which is what somebody hits when
-                    // they open Edit because they spotted a mistake.
-                    EditableLine(
-                        text: $step.text,
-                        placeholder: "Step \(index + 1)",
-                        focus: $focused,
-                        focusID: step.id
-                    )
-                    // Long press the step itself, which is what anybody
-                    // actually reaches for. The grab used to be on the
-                    // numeral alone, which is a 26pt target with nothing
-                    // about it that says "handle" — Nate held the step, the
-                    // right instinct, and the app did nothing.
-                    //
-                    // A long press straight on a TextField is how iOS starts
-                    // a text selection, so while the row is NOT being typed
-                    // in, this clear layer takes the gesture instead: a tap
-                    // puts the caret in, a hold picks the step up. Once the
-                    // row is focused the layer is gone and selection,
-                    // magnifier and everything else behave normally.
-                    .overlay {
-                        if focused as? UUID != step.id {
-                            Color.clear
-                                .contentShape(Rectangle())
-                                .gesture(
-                                    ExclusiveGesture(
-                                        stepDrag(step.id),
-                                        TapGesture().onEnded { focused = step.id }
-                                    )
-                                )
-                        }
+                    .foregroundStyle(Color.inkSecondary)
+                    .monospacedDigit().lineLimit(1).fixedSize()
+                    .frame(minWidth: 44, minHeight: 44).contentShape(Rectangle())
+                    .padding(.top, 4)
+                    .onDrag { stepProvider(step) } preview: { stepPreview(step, index: index) }
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("Reorder step \(index + 1)")
+                    .accessibilityIdentifier("recipe-step-handle-\(index + 1)")
+                    .accessibilityHint("Hold and drag to another step. Move up and Move down are also available.")
+                    .accessibilityActions {
+                        Button("Move up") { moveStep(step.id, by: -1) }
+                        Button("Move down") { moveStep(step.id, by: 1) }
                     }
+                    EditableLine(text: $step.text, placeholder: "Step \(index + 1)", focus: $focused, focusID: step.id)
+                        .accessibilityLabel("Step \(index + 1)")
+                        .accessibilityIdentifier("recipe-step-field-\(index + 1)")
+                        .overlay {
+                            // Unfocused text is a drag surface; focused text
+                            // retains Apple's caret and selection gestures.
+                            if focused as? UUID != step.id {
+                                Color.clear.contentShape(Rectangle())
+                                    .onTapGesture { focused = step.id }
+                                    .onDrag { stepProvider(step) } preview: { stepPreview(step, index: index) }
+                            }
+                        }
                     RemoveLineButton(label: "Remove step \(index + 1)") {
                         draftSteps.removeAll { $0.id == step.id }
                     }
                 }
                 .padding(.horizontal, 4)
-                .offset(y: lifted ? dragY - (stepSlots[index]?.midY ?? dragY) : 0)
-                .scaleEffect(lifted ? 1.02 : 1, anchor: .center)
-                .shadow(color: Color.ink.opacity(lifted ? 0.14 : 0), radius: 12, y: 4)
-                .zIndex(lifted ? 1 : 0)
-                .background {
-                    // The slot this row sits in. Not updated while the row is
-                    // lifted, because a lifted row's frame includes its own
-                    // offset and would chase itself.
-                    Color.clear.onGeometryChange(for: CGRect.self) {
-                        $0.frame(in: .named(Self.stepSpace))
-                    } action: { frame in
-                        if !lifted { stepSlots[index] = frame }
-                    }
+                .background(stepDropTarget == step.id ? Color.fill : Color.clear, in: Radius.shape(Radius.chip))
+                .onDrop(of: [Self.stepDragType], isTargeted: stepDropBinding(step.id)) { providers in
+                    receiveStep(providers, at: step.id)
                 }
                 .id(step.id)
             }
-
             HStack(spacing: 8) {
                 TextField(draftSteps.isEmpty ? "Step 1. What happens first?" : "Step \(draftSteps.count + 1)…", text: $stepEntry, axis: .vertical)
-                    .plType(.body, .medium)
-                    .lineLimit(1...3)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 11)
+                    .plType(.body, .medium).lineLimit(1...3)
+                    .padding(.horizontal, 14).padding(.vertical, 11)
                     .overlay(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous).strokeBorder(Color.hairline))
-                    .onSubmit(addStep)
-                    .plTappableField()
+                    .onSubmit(addStep).plTappableField()
                 addRoundButton(disabled: stepEntry.trimmingCharacters(in: .whitespaces).isEmpty, label: "Add step", action: addStep)
             }
         }
-        .animation(.plSnap, value: draftSteps.count)
-        .coordinateSpace(name: Self.stepSpace)
-        .onChange(of: stepDragActive) { _, active in if !active { drop() } }
-        .onDisappear { drop() }
+        .animation(.plSnap, value: draftSteps.map(\.id))
     }
 
     private func addRoundButton(disabled: Bool, label: String, action: @escaping () -> Void) -> some View {

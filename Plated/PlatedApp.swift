@@ -56,8 +56,11 @@ struct PlatedApp: App {
     let container: ModelContainer = {
         #if DEBUG
         let arguments = ProcessInfo.processInfo.arguments
-        if ["-plated-design-review", "-plated-test-groceries", "-plated-test-probe-cleanup"].contains(where: { arguments.contains($0) }) {
+        if ["-plated-design-review", "-plated-test-groceries", "-plated-test-probe-cleanup", "-plated-test-drag-moves"].contains(where: { arguments.contains($0) }) {
             let preview = SampleData.previewContainer
+            if arguments.contains("-plated-design-review") && arguments.contains("-plated-review-drag") {
+                PlannerDragChecks.prepareReview(in: preview.mainContext)
+            }
             // Explicit UI-test fixture, inside the memory-only preview path.
             if arguments.contains("-plated-design-review") && arguments.contains("-plated-review-notifications") {
                 for _ in 0..<12 {
@@ -72,6 +75,10 @@ struct PlatedApp: App {
 
     init() {
         #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-plated-test-drag-moves") {
+            do { try PlannerDragChecks.run(); exit(0) }
+            catch { print("PLATED DRAG CHECKS FAILED: \(error)"); exit(1) }
+        }
         if ProcessInfo.processInfo.arguments.contains("-plated-test-groceries") {
             do { try GroceryRegressionChecks.run(); exit(0) }
             catch { print("PLATED GROCERY CHECKS FAILED: \(error)"); exit(1) }

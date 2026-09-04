@@ -12,7 +12,7 @@ import SwiftData
 /// edits belong: they're things you do to a meal, not the reason you opened
 /// the day.
 struct DayDetailView: View {
-    let date: Date
+    @State var date: Date
     /// Forwarded into PlanNightSheet — "Ask the Table" hops tabs, and only
     /// the shell knows how. Without it the row is a dead tap.
     var askTheTable: () -> Void = {}
@@ -26,6 +26,8 @@ struct DayDetailView: View {
     @AppStorage("showCalendarEvents") private var showCalendarEvents = false
 
     @State private var planning: SlotPlan?
+    @State private var mealToMove: PlannedMeal?
+    @State private var dropTargetDay: Date?
     /// One row open at a time, same contract as the week's plan rows.
     @State private var swipedSlot: MealSlot?
     @State private var openMeal: PlannedMeal?
@@ -56,6 +58,7 @@ struct DayDetailView: View {
     var body: some View {
         VStack(spacing: 0) {
             header
+            dayStrip.padding(.horizontal, 24).padding(.bottom, 8)
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 8) {
                     ForEach(plannedSlots) { slot in
@@ -92,8 +95,11 @@ struct DayDetailView: View {
                     .navigationTransition(.zoom(sourceID: meal.persistentModelID, in: zoom))
             }
         }
-        .sheet(item: $planning) { plan in
-            PlanNightSheet(date: plan.date, slot: plan.slot, askTheTable: askTheTable)
+        .sheet(item: activeSheet) { route in
+            switch route {
+            case .plan(let plan): PlanNightSheet(date: plan.date, slot: plan.slot, askTheTable: askTheTable)
+            case .move(let meal): MoveMealSheet(meal: meal) { date = $0; swipedSlot = nil }
+            }
         }
         .task {
             // The only place Plated raises the location prompt. This
@@ -105,6 +111,55 @@ struct DayDetailView: View {
     }
 
     // MARK: Header
+
+    private enum SheetRoute: Identifiable {
+        case plan(SlotPlan), move(PlannedMeal)
+        var id: String {
+            switch self {
+            case .plan(let plan): "plan-\(plan.id)"
+            case .move(let meal): "move-\(meal.persistentModelID)"
+            }
+        }
+    }
+    private var activeSheet: Binding<SheetRoute?> {
+        Binding(get: { if let mealToMove { return .move(mealToMove) }; return planning.map { .plan($0) } },
+                set: { if $0 == nil { planning = nil; mealToMove = nil } })
+    }
+
+    /// Date targets stay visible while a card is lifted from the day below.
+    private var dayStrip: some View {
+        HStack(spacing: 2) {
+            ForEach(Calendar.current.weekDays(for: date), id: \.self) { day in
+                let selected = Calendar.current.isDate(day, inSameDayAs: date)
+                Button {
+                    Haptic.select()
+                    withAnimation(.plSnap) { date = day; swipedSlot = nil }
+                } label: {
+                    VStack(spacing: 4) {
+                        Text(day.formattedWeekday()).plType(.caption, .medium)
+                        Text(day.formattedDayNumber()).plType(.body, .semibold).monospacedDigit()
+                    }
+                    .foregroundStyle(selected ? Color.onTomato : Color.inkSecondary)
+                    .frame(maxWidth: .infinity, minHeight: 56)
+                    .background(selected ? Color.tomato : dropTargetDay == day ? Color.fill : Color.clear, in: Radius.shape(Radius.chip))
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(day.formatted(.dateTime.weekday(.wide).month().day()))
+                .accessibilityIdentifier("day-date-\(day.formattedDayNumber())")
+                .accessibilityAddTraits(selected ? .isSelected : [])
+                .dropDestination(for: String.self) { tokens, _ in
+                    guard MealPlanMove.perform(tokens.first, to: day, meals: meals, context: context) else { return false }
+                    Haptic.plate()
+                    withAnimation(.plSnap) { date = day; swipedSlot = nil; dropTargetDay = nil }
+                    return true
+                } isTargeted: { over in
+                    if over, day >= Date.now.startOfDay { dropTargetDay = day }
+                    else if dropTargetDay == day { dropTargetDay = nil }
+                }
+            }
+        }.plChrome()
+    }
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -192,6 +247,8 @@ struct DayDetailView: View {
                 SwipeRow(isOpen: swipeBinding(slot), actions: actions(for: meal, slot: slot), actionLabel: "Actions for \(meal.title)") {
                     mealCard(meal, slot: slot)
                 }
+                .modifier(PlannerMealDrag(meal: meal))
+                .accessibilityIdentifier("day-meal-\(slot.rawValue)")
             }
             .padding(.top, 8)
         }
@@ -277,6 +334,9 @@ struct DayDetailView: View {
                 planning = SlotPlan(date: date, slot: slot)
             }
         )
+        if !meal.isCooked {
+            actions.append(SwipeAction(symbol: "calendar", label: "Move") { swipedSlot = nil; mealToMove = meal })
+        }
         actions.append(.remove { remove(meal) })
         return actions
     }

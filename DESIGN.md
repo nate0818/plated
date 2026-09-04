@@ -329,6 +329,15 @@ class of bug: `.frame(minWidth: 44)` alone is not hit-testable.
   Dragging a plate between nights had no equivalent at all, so the night menu
   carries "Move to another night" — a gesture nobody is told about is not a
   feature most people have.
+- **A cropped image's touch area ends at its visible bounds.** `clipShape`
+  clips pixels, not hit testing. Pair it with `contentShape` on recipe artwork;
+  otherwise a tall image can intercept taps and drops on the calendar above it.
+- Recipe steps lift through native drag-and-drop from the grip or unfocused
+  text. Focused text keeps native selection, and the grip remains available.
+  Dropping changes the draft; Save commits it. Meal cards use the same native
+  lift across Week, Month and day detail, with date targets and an explicit
+  Move action. Do not attach a competing long-press context menu to a drag
+  surface; keep its actions in the visible menu and accessibility actions.
 - **A control with a chosen state says so.** `.accessibilityAddTraits(active
   ? .isSelected : [])` on every segment, chip and tab. Colour and a raised
   pill are not audible; without the trait VoiceOver reads eight identical

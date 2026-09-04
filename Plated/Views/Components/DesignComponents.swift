@@ -27,6 +27,9 @@ struct RecipeArtwork: View {
                 }
             }
             .clipShape(Radius.shape(radius))
+            // Cropping only clips pixels. Bound hit testing too, or a tall
+            // source image can intercept a date target above its meal card.
+            .contentShape(Radius.shape(radius))
             .accessibilityHidden(true)
     }
 }

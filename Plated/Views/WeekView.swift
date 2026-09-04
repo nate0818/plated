@@ -218,10 +218,17 @@ struct WeekView: View {
                             }
                             .foregroundStyle(selected ? Color.onTomato : Color.inkSecondary)
                             .frame(maxWidth: .infinity).padding(.vertical, 8)
-                            .background(selected ? Color.tomato : Color.clear, in: Radius.shape(Radius.chip))
+                            .background(selected ? Color.tomato : dropHoverDay == date ? Color.fill : Color.clear, in: Radius.shape(Radius.chip))
                             .contentShape(Rectangle())
-                        }.buttonStyle(.pressable).accessibilityAddTraits(selected ? .isSelected : [])
+                        }.buttonStyle(.plain).accessibilityAddTraits(selected ? .isSelected : [])
                             .accessibilityLabel(date.formatted(.dateTime.weekday(.wide).month().day()))
+                            .accessibilityIdentifier("week-date-\(date.formattedDayNumber())")
+                            .dropDestination(for: String.self) { tokens, _ in
+                                moveMeal(from: tokens.first, to: date)
+                            } isTargeted: { over in
+                                if over, !isPast(date) { dropHoverDay = date }
+                                else if dropHoverDay == date { dropHoverDay = nil }
+                            }
                     }
                 }.plChrome()
                 featuredDinner
@@ -260,7 +267,11 @@ struct WeekView: View {
                         Text(meal.title).plType(.display, .semibold).foregroundStyle(Color.ink)
                             .fixedSize(horizontal: false, vertical: true)
                     }
+                    .contentShape(Rectangle())
                 }.buttonStyle(.pressable)
+                    .modifier(PlannerMealDrag(meal: meal))
+                    .accessibilityIdentifier("featured-dinner-card")
+                    .accessibilityHint("Tap to open the day. Hold and drag to another date to move dinner.")
                 HStack(spacing: 8) {
                     if let cook = meal.cook { AvatarCircle(member: cook, size: 26) }
                     Text(meal.cook.map { $0.isOwner ? "You're cooking" : "\($0.firstName) is cooking" } ?? "Cook unassigned")
@@ -441,11 +452,9 @@ struct WeekView: View {
             .accessibilityElement(children: .combine)
             .accessibilityAddTraits(.isButton)
             .accessibilityHint("Opens the day")
-            .contextMenu { nightMenu(date) }
         }
-        .draggable(DayTransfer.token(for: date)) {
-            dishCircle(for: meal)
-        }
+        .modifier(PlannerMealDrag(meal: meal))
+        .accessibilityIdentifier("week-meal-\(date.formattedDayNumber())")
         .dropDestination(for: String.self) { tokens, _ in
             moveMeal(from: tokens.first, to: date)
         } isTargeted: { over in
@@ -998,21 +1007,14 @@ struct WeekView: View {
     /// Drag a plate to another night. Dropping on a planned night swaps the
     /// two dinners rather than eating one.
     private func moveMeal(from token: String?, to target: Date) -> Bool {
-        guard let source = DayTransfer.date(from: token),
-              !Calendar.current.isSameDay(source, target),
-              target.startOfDay >= Date.now.startOfDay,
-              let meal = dinner(on: source), !meal.isCooked,
-              dinner(on: target)?.isCooked != true else { return false }
+        guard MealPlanMove.perform(token, to: target, meals: meals, context: context) else { return false }
         Haptic.plate()
         withAnimation(.plPop) {
-            if let occupant = dinner(on: target) {
-                occupant.date = source.startOfDay
-            }
-            meal.date = target.startOfDay
+            weekAnchor = target
             swipedDay = nil
             bounceDay = target
+            dropHoverDay = nil
         }
-        Persist.save(context)
         Task {
             try? await Task.sleep(for: .milliseconds(320))
             if bounceDay == target { bounceDay = nil }
@@ -1021,8 +1023,8 @@ struct WeekView: View {
     }
 }
 
-/// Encodes a day as a drag payload — plain date tokens, no model IDs, so a
-/// drop can never dangle if the store changes mid-drag.
+/// Date-based payloads retained for the night menu and older drag sources.
+/// New card drags use MealPlanTransfer's stable meal identity.
 enum DayTransfer {
     static func token(for date: Date) -> String {
         "plated-day:\(Int(date.startOfDay.timeIntervalSince1970))"
