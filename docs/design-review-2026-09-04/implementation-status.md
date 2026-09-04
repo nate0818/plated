@@ -1,5 +1,19 @@
 # Design implementation — September 4, 2026
 
+## Account depth, awards and recipe intake — build 19
+
+Account and Settings now form a full personal control center with direct
+identity, household, preferences, permission, privacy and account controls.
+Twelve permanent kitchen awards and five kitchen levels reward planning,
+cooking, cookbook building, Table contribution and bringing a household
+together without expiring streaks or public unfinished goals. Recipe intake
+accepts website links, preserves source details and resolves duplicates. Native
+Account/Settings accessibility and Awards flows passed; the signed Release
+archive exported successfully. Apple reports build 19 VALID and
+IN_BETA_TESTING for Internal and External, with automatic tester notification
+enabled. The Share extension source is retained but not embedded until its new
+App ID is provisioned. See [build 19](testflight-19.md).
+
 ## Cook exit and physical meal lift — build 18
 
 Cook Mode now has a visible End action with confirmation. Ending clears the
