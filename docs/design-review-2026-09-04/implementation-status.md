@@ -1,5 +1,15 @@
 # Design implementation — September 4, 2026
 
+## Account and Settings — build 17
+
+The global avatar now opens a dedicated Account hub with direct, labeled paths
+to Edit profile, Settings, Household and the user's Table profile. Settings is
+full height with Done; Edit profile has Cancel, Save and a proper Contact-photo
+control. Native XCUITest passed from all four main areas and through both
+management sheets and the social profile. Signed archive/export and signature
+checks passed. Apple processing is VALID; Internal and External are both
+IN_BETA_TESTING. See [build 17](testflight-17.md).
+
 ## Native hold and drag — build 16
 
 Recipe steps now lift from their grip or unfocused text, including when the
