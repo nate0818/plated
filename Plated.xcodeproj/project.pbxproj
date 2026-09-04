@@ -8,7 +8,6 @@
 
 /* Begin PBXBuildFile section */
 		1A00000000000000000000CA /* PlatedWidgetsExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 1A00000000000000000000C1 /* PlatedWidgetsExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
-		1B00000000000000000000D9 /* PlatedShareExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 1B00000000000000000000D1 /* PlatedShareExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -18,13 +17,6 @@
 			proxyType = 1;
 			remoteGlobalIDString = 1A00000000000000000000C3;
 			remoteInfo = PlatedWidgetsExtension;
-		};
-		1B00000000000000000000D8 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 1A00000000000000000000A1 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = 1B00000000000000000000D3;
-			remoteInfo = PlatedShareExtension;
 		};
 /* End PBXContainerItemProxy section */
 
@@ -36,7 +28,6 @@
 			dstSubfolderSpec = 13;
 			files = (
 				1A00000000000000000000CA /* PlatedWidgetsExtension.appex in Embed Foundation Extensions */,
-				1B00000000000000000000D9 /* PlatedShareExtension.appex in Embed Foundation Extensions */,
 			);
 			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -46,7 +37,6 @@
 /* Begin PBXFileReference section */
 		1A00000000000000000000A6 /* Plated.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Plated.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		1A00000000000000000000C1 /* PlatedWidgetsExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = PlatedWidgetsExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
-		1B00000000000000000000D1 /* PlatedShareExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = PlatedShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -56,13 +46,6 @@
 				Info.plist,
 			);
 			target = 1A00000000000000000000C3 /* PlatedWidgetsExtension */;
-		};
-		1B00000000000000000000DA /* Exceptions for "PlatedShareExtension" folder in "PlatedShareExtension" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				Info.plist,
-			);
-			target = 1B00000000000000000000D3 /* PlatedShareExtension */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
@@ -78,14 +61,6 @@
 				1A00000000000000000000CE /* Exceptions for "PlatedWidgets" folder in "PlatedWidgetsExtension" target */,
 			);
 			path = PlatedWidgets;
-			sourceTree = "<group>";
-		};
-		1B00000000000000000000D2 /* PlatedShareExtension */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				1B00000000000000000000DA /* Exceptions for "PlatedShareExtension" folder in "PlatedShareExtension" target */,
-			);
-			path = PlatedShareExtension;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -105,13 +80,6 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		1B00000000000000000000D5 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -120,7 +88,6 @@
 			children = (
 				1A00000000000000000000A4 /* Plated */,
 				1A00000000000000000000C2 /* PlatedWidgets */,
-				1B00000000000000000000D2 /* PlatedShareExtension */,
 				1A00000000000000000000A3 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -130,7 +97,6 @@
 			children = (
 				1A00000000000000000000A6 /* Plated.app */,
 				1A00000000000000000000C1 /* PlatedWidgetsExtension.appex */,
-				1B00000000000000000000D1 /* PlatedShareExtension.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -151,7 +117,6 @@
 			);
 			dependencies = (
 				1A00000000000000000000C7 /* PBXTargetDependency */,
-				1B00000000000000000000D7 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				1A00000000000000000000A4 /* Plated */,
@@ -181,26 +146,6 @@
 			productReference = 1A00000000000000000000C1 /* PlatedWidgetsExtension.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
-		1B00000000000000000000D3 /* PlatedShareExtension */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = 1B00000000000000000000DD /* Build configuration list for PBXNativeTarget "PlatedShareExtension" */;
-			buildPhases = (
-				1B00000000000000000000D4 /* Sources */,
-				1B00000000000000000000D5 /* Frameworks */,
-				1B00000000000000000000D6 /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-			);
-			fileSystemSynchronizedGroups = (
-				1B00000000000000000000D2 /* PlatedShareExtension */,
-			);
-			name = PlatedShareExtension;
-			productName = PlatedShareExtension;
-			productReference = 1B00000000000000000000D1 /* PlatedShareExtension.appex */;
-			productType = "com.apple.product-type.app-extension";
-		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -215,9 +160,6 @@
 						CreatedOnToolsVersion = 26.0;
 					};
 					1A00000000000000000000C3 = {
-						CreatedOnToolsVersion = 26.0;
-					};
-					1B00000000000000000000D3 = {
 						CreatedOnToolsVersion = 26.0;
 					};
 				};
@@ -238,7 +180,6 @@
 			targets = (
 				1A00000000000000000000A5 /* Plated */,
 				1A00000000000000000000C3 /* PlatedWidgetsExtension */,
-				1B00000000000000000000D3 /* PlatedShareExtension */,
 			);
 		};
 /* End PBXProject section */
@@ -252,13 +193,6 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		1A00000000000000000000C6 /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		1B00000000000000000000D6 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -282,13 +216,6 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		1B00000000000000000000D4 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -296,11 +223,6 @@
 			isa = PBXTargetDependency;
 			target = 1A00000000000000000000C3 /* PlatedWidgetsExtension */;
 			targetProxy = 1A00000000000000000000C8 /* PBXContainerItemProxy */;
-		};
-		1B00000000000000000000D7 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = 1B00000000000000000000D3 /* PlatedShareExtension */;
-			targetProxy = 1B00000000000000000000D8 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -488,60 +410,6 @@
 			};
 			name = Release;
 		};
-		1B00000000000000000000DB /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				APPLICATION_EXTENSION_API_ONLY = YES;
-				CODE_SIGN_ENTITLEMENTS = config/PlatedShare.entitlements;
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 19;
-				DEVELOPMENT_TEAM = JA9M6TYXYL;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = PlatedShareExtension/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "Add to Plated";
-				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-					"@executable_path/../../Frameworks",
-				);
-				MARKETING_VERSION = 0.1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.natemeadows.plated.share;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SKIP_INSTALL = YES;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-			};
-			name = Debug;
-		};
-		1B00000000000000000000DC /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				APPLICATION_EXTENSION_API_ONLY = YES;
-				CODE_SIGN_ENTITLEMENTS = config/PlatedShare.entitlements;
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 19;
-				DEVELOPMENT_TEAM = JA9M6TYXYL;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = PlatedShareExtension/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "Add to Plated";
-				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-					"@executable_path/../../Frameworks",
-				);
-				MARKETING_VERSION = 0.1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.natemeadows.plated.share;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SKIP_INSTALL = YES;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-			};
-			name = Release;
-		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -568,15 +436,6 @@
 			buildConfigurations = (
 				1A00000000000000000000CB /* Debug */,
 				1A00000000000000000000CC /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		1B00000000000000000000DD /* Build configuration list for PBXNativeTarget "PlatedShareExtension" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				1B00000000000000000000DB /* Debug */,
-				1B00000000000000000000DC /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
