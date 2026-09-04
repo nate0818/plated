@@ -186,11 +186,15 @@ first screen after sign-in opens with its primary button in that state.
   articulated illustrations use a bounded 0.92-second keyframe sequence.
 - **Tray feedback is contextual and user-triggered.** The user-requested
   exception to the quiet-icon rule is Plan's turning calendar page, Recipes'
-  closed book opening on selection and turning a leaf on re-tap, Groceries' falling produce and yielding
-  basket, and Table's gathering place setting. Play on the first tap and on
+  closed book opening on selection and turning a leaf on re-tap, Groceries'
+  empty basket catching a loaf and apple in two staggered drops, and Table's
+  gathering place setting. Play on the first tap and on
   subsequent taps, never on launch or while idle. Keep labels still, return
   every part to rest, and remove the choreography under Reduce Motion.
   Recipes stays open while selected and closes when another destination is chosen.
+  Groceries stays filled while selected, gently jostles on re-tap, and returns
+  to an empty handled basket when another destination is chosen. Reduce Motion
+  shows the correct empty/filled or closed/open state immediately.
 - **An icon may morph into its own opposite. It may never perform about a tap.**
   Magic Replace is allowed exactly where a symbol swaps for its matched pair and
   the swap *is* the state: `bookmark` to `bookmark.fill` on Save, `circle` to

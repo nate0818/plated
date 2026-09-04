@@ -46,10 +46,10 @@ current=$(grep -m1 -o 'CURRENT_PROJECT_VERSION = [0-9]*' "$PROJECT/project.pbxpr
 if [ "$BUMP" = 1 ]; then
   next=$((current + 1))
   sed -i '' "s/CURRENT_PROJECT_VERSION = $current;/CURRENT_PROJECT_VERSION = $next;/g" "$PROJECT/project.pbxproj"
-  echo "▸ build $current → $next"
+  echo "▸ build ${current} → ${next}"
 else
   next=$current
-  echo "▸ build $next (unchanged)"
+  echo "▸ build ${next} (unchanged)"
 fi
 
 # Same gate as scripts/phone: the widget's copied palette must match.
@@ -88,18 +88,18 @@ if [ ! -f "$KEY_PATH" ]; then
   exit 1
 fi
 
-echo "▸ uploading build $next…"
+echo "▸ uploading build ${next}…"
 xcrun altool --upload-app --type ios \
   --file "$EXPORT/Plated.ipa" \
   --apiKey "$ASC_KEY_ID" \
   --apiIssuer "$ASC_ISSUER_ID"
 
 if [ "$DISTRIBUTE" = 0 ]; then
-  echo "▸ build $next uploaded — it reaches Internal after processing (usually 5–15 min)."
-  echo "  Add it to External yourself: scripts/asc distribute $next"
+  echo "▸ build ${next} uploaded — it reaches Internal after processing (usually 5–15 min)."
+  echo "  Add it to External yourself: scripts/asc distribute ${next}"
   exit 0
 fi
 
-echo "▸ build $next uploaded — waiting for processing, then adding it to External…"
+echo "▸ build ${next} uploaded — waiting for processing, then adding it to External…"
 ASC_KEY_ID="$ASC_KEY_ID" ASC_ISSUER_ID="$ASC_ISSUER_ID" ASC_KEY_PATH="$KEY_PATH" \
-  "$(dirname "${BASH_SOURCE[0]}")/asc" distribute "$next" External
+  "$(dirname "${BASH_SOURCE[0]}")/asc" distribute "${next}" External

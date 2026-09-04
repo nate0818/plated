@@ -11,6 +11,8 @@ struct TrayNavigationIcon: View {
     var body: some View {
         if tab == .cookbook {
             TrayCookbookIcon(active: active, trigger: trigger)
+        } else if tab == .groceries {
+            TrayGroceriesIcon(active: active, trigger: trigger)
         } else {
             KeyframeAnimator(initialValue: 0.0, trigger: trigger) { progress in
                 Canvas { context, size in
@@ -20,7 +22,7 @@ struct TrayNavigationIcon: View {
                     switch tab {
                     case .week: painter.calendar(context, time)
                     case .cookbook: break // The book keeps its selected pose.
-                    case .groceries: painter.basket(context, time)
+                    case .groceries: break // The basket keeps its selected contents.
                     case .table: painter.placeSetting(context, time)
                     case .home: break // Profile is reached from the masthead.
                     }
@@ -88,6 +90,61 @@ private struct TrayCookbookDrawing: View, Animatable {
         Canvas { context, size in
             context.translateBy(x: (size.width - 40) / 2, y: (size.height - 36) / 2)
             TrayIconPainter(tone: tone).cookbook(context, pageTurn, opening: settledOpening ?? opening)
+        }
+    }
+}
+
+private struct TrayGroceriesIcon: View {
+    let active: Bool
+    let trigger: Int
+    @State private var settleTrigger = 0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private struct Interaction: Equatable {
+        let active: Bool
+        let trigger: Int
+    }
+
+    var body: some View {
+        KeyframeAnimator(initialValue: 0.0, trigger: settleTrigger) { progress in
+            TrayGroceriesDrawing(filling: active ? 1 : 0,
+                                 settledFill: reduceMotion ? (active ? 1 : 0) : nil,
+                                 jostle: reduceMotion ? 0 : progress,
+                                 tone: active ? .canvas : .inkSecondary)
+                .animation(reduceMotion || !active ? nil : .linear(duration: 0.92), value: active)
+        } keyframes: { _ in
+            MoveKeyframe(0)
+            LinearKeyframe(1, duration: 0.92)
+            MoveKeyframe(0)
+        }
+        .onChange(of: Interaction(active: active, trigger: trigger)) { previous, current in
+            // Selection fills an empty basket. Re-tapping gently settles
+            // its contents without flashing back to an empty basket.
+            if previous.active && current.active && previous.trigger != current.trigger {
+                settleTrigger += 1
+            }
+        }
+        .frame(width: 60, height: 37)
+        .accessibilityHidden(true)
+        .allowsHitTesting(false)
+    }
+}
+
+private struct TrayGroceriesDrawing: View, Animatable {
+    var filling: Double
+    let settledFill: Double?
+    let jostle: Double
+    let tone: Color
+
+    var animatableData: Double {
+        get { filling }
+        set { filling = newValue }
+    }
+
+    var body: some View {
+        Canvas { context, size in
+            context.translateBy(x: (size.width - 40) / 2, y: (size.height - 36) / 2)
+            TrayIconPainter(tone: tone).basket(context, jostle, filling: settledFill ?? filling)
         }
     }
 }
@@ -233,22 +290,48 @@ private struct TrayIconPainter {
         }, in: ribbon)
     }
 
-    // Produce drops in one item at a time; the basket catches the weight.
-    func basket(_ context: GraphicsContext, _ t: Double) {
-        let impact = beat(t, 0.4, 0.7) - 0.35 * beat(t, 0.7, 0.96)
+    // An empty basket folds its handle down, then catches a loaf and an
+    // apple in two beats. Contents remain in place for the whole selection.
+    func basket(_ context: GraphicsContext, _ t: Double, filling: Double) {
+        let amount = min(1, max(0, filling))
+        let breadDrop = min(1, max(0, (amount - 0.04) / 0.38))
+        let appleDrop = min(1, max(0, (amount - 0.28) / 0.40))
+        let breadLanding = beat(amount, 0.42, 0.59)
+        let appleLanding = beat(amount, 0.68, 0.87)
+        let impact = 0.7 * breadLanding + appleLanding
+            - 0.25 * beat(amount, 0.87, 1)
+            + amount * (beat(t, 0.4, 0.7) - 0.35 * beat(t, 0.7, 0.96))
         let basket = move(context, center: CGPoint(x: 20, y: 29),
                           scaleX: 1 + 0.07 * impact, scaleY: 1 - 0.11 * impact)
-        let loaf = move(context, center: CGPoint(x: 25, y: 14),
-                        y: -3 * beat(t, 0.02, 0.48), angle: 15 * beat(t, 0.02, 0.48))
+        let handleHeight = 13 * (1 - min(1, amount / 0.24))
+        stroke(Path { p in
+            p.move(to: CGPoint(x: 11, y: 17))
+            p.addCurve(to: CGPoint(x: 29, y: 17),
+                       control1: CGPoint(x: 11, y: 17 - handleHeight),
+                       control2: CGPoint(x: 29, y: 17 - handleHeight))
+        }, in: basket, opacity: 0.75)
+
+        // Accelerating descent, followed by a small landing dip. Items
+        // enter slightly smaller so their silhouettes clear the canvas top.
+        var loaf = move(context, center: CGPoint(x: 25, y: 14),
+                        y: 3 - 8 * (1 - breadDrop * breadDrop) + 0.8 * breadLanding
+                            - amount * 3 * beat(t, 0.02, 0.48),
+                        angle: -12 * (1 - breadDrop) + amount * 15 * beat(t, 0.02, 0.48),
+                        scaleX: 0.75 + 0.25 * breadDrop, scaleY: 0.75 + 0.25 * breadDrop)
+        loaf.opacity = min(1, max(0, (amount - 0.04) / 0.06))
         let bread = Path(roundedRect: CGRect(x: 22, y: 4, width: 7, height: 18), cornerRadius: 3.5)
         loaf.fill(bread, with: .color(tone.opacity(0.1)))
         stroke(bread, in: loaf)
         for y in [8.5, 12.5] {
             line([CGPoint(x: 23, y: y + 1), CGPoint(x: 25.5, y: y)], in: loaf, opacity: 0.6)
         }
-        let apple = move(context, center: CGPoint(x: 15, y: 15),
-                         x: -2 * beat(t, 0.13, 0.6), y: -4 * beat(t, 0.13, 0.6),
-                         angle: -20 * beat(t, 0.13, 0.6))
+        var apple = move(context, center: CGPoint(x: 15, y: 15),
+                         x: -2 * (1 - appleDrop) - amount * 2 * beat(t, 0.13, 0.6),
+                         y: 1 - 8 * (1 - appleDrop * appleDrop) + 1.5 * appleLanding
+                            - amount * 4 * beat(t, 0.13, 0.6),
+                         angle: 16 * (1 - appleDrop) - amount * 20 * beat(t, 0.13, 0.6),
+                         scaleX: 0.82 + 0.18 * appleDrop, scaleY: 0.82 + 0.18 * appleDrop)
+        apple.opacity = min(1, max(0, (amount - 0.28) / 0.06))
         stroke(Path { p in
             p.move(to: CGPoint(x: 15, y: 11))
             p.addCurve(to: CGPoint(x: 10, y: 16), control1: CGPoint(x: 9, y: 8), control2: CGPoint(x: 8, y: 13))
