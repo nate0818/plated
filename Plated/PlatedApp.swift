@@ -55,7 +55,7 @@ struct PlatedApp: App {
     /// See PlatedStore — the app and App Intents share this one container.
     let container: ModelContainer = {
         #if DEBUG
-        if ProcessInfo.processInfo.arguments.contains("-plated-design-review") || ProcessInfo.processInfo.arguments.contains("-plated-test-groceries") { return SampleData.previewContainer }
+        if ProcessInfo.processInfo.arguments.contains("-plated-design-review") || ProcessInfo.processInfo.arguments.contains("-plated-test-groceries") || ProcessInfo.processInfo.arguments.contains("-plated-test-probe-cleanup") { return SampleData.previewContainer }
         #endif
         return PlatedStore.shared
     }()
@@ -111,13 +111,19 @@ struct PlatedApp: App {
                     Self.applyRoomLighting(appearance)
                 }
                 .onAppear { Self.applyRoomLighting(appearance) }
-                .task { await SyncStatus.shared.refresh() }
+                .task {
+                    await SyncStatus.shared.refresh()
+                    await TableShare.removeSchemaProbes(from: container.mainContext)
+                }
                 .onChange(of: scenePhase) { _, phase in
                     // Someone who just switched iCloud back on in Settings
                     // returns here; that is precisely when the warning
                     // should be re-asked rather than left stale.
                     if phase == .active {
-                        Task { await SyncStatus.shared.refresh() }
+                        Task {
+                            await SyncStatus.shared.refresh()
+                            await TableShare.removeSchemaProbes(from: container.mainContext)
+                        }
                     }
                 }
                 .task {
@@ -134,6 +140,10 @@ struct PlatedApp: App {
                     // for everyone. Debug only; `-plated-purge-cloud` clears
                     // the rows afterwards.
                     #if DEBUG
+                    if LaunchFlags.consume("-plated-test-probe-cleanup") {
+                        do { try await SchemaProbeRegressionChecks.run(); exit(0) }
+                        catch { print("PLATED PROBE CHECKS FAILED: \(error)"); exit(1) }
+                    }
                     if LaunchFlags.consume("-plated-prime-share") {
                         print(await TableShare.primeSchema())
                         try? await Task.sleep(for: .seconds(20))

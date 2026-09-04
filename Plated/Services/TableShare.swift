@@ -934,7 +934,7 @@ enum TableShare {
 
         // And it takes back what it wrote. The old primer left "Schema
         // probe" sitting in a real household's real table forever.
-        _ = await retract(recordName: name, zoneOwner: owner)
+        let removed = await retract(recordName: name, zoneOwner: owner)
 
         return """
         PRIME SHARE
@@ -943,7 +943,7 @@ enum TableShare {
           Note       : \(noteOK ? "ok" : "FAILED")
           Plate      : \(plateOK ? "ok" : "FAILED")
           Ballot     : \(ballotOK ? "ok" : "FAILED")
-        The probe post was retracted; its children cascade with it.
+        Probe cleanup: \(removed ? "removed; children cascade with it" : "FAILED: cleanup must be retried").
         Every record type now exists in Development. Deploy the schema to \
         Production in the CloudKit console before shipping.
         """
@@ -1245,5 +1245,47 @@ enum TableShare {
         }
 
         Persist.save(context, "table share merge")
+    }
+
+    @MainActor private static var cleaningSchemaProbes = false
+
+    /// Remove the known development artifacts from both authorities. Keep
+    /// a hidden local copy on network failure so a later foreground or pull
+    /// can retry; deleting it first would lose the cloud record's address.
+    @MainActor
+    static func removeSchemaProbes(
+        from context: ModelContext,
+        retractRecord: (String, String) async -> Bool = { name, owner in
+            await retract(recordName: name, zoneOwner: owner)
+        }
+    ) async {
+        guard !cleaningSchemaProbes else { return }
+        cleaningSchemaProbes = true
+        defer { cleaningSchemaProbes = false }
+        do {
+            let probes = try context.fetch(FetchDescriptor<TablePost>()).filter(\.isSchemaProbe)
+            guard !probes.isEmpty else { return }
+            var removed = 0
+            for post in probes {
+                guard !post.isDeleted else { continue }
+                let name = post.shareRecordName
+                let mirroredPrimer = post.authorName == "Schema primer"
+                let cloudRemoved = name.isEmpty || mirroredPrimer ? true : await retractRecord(name, post.shareZoneOwner)
+                guard cloudRemoved else {
+                    print("PLATED PROBE CLEANUP: remote deletion pending; retry on next refresh")
+                    continue
+                }
+                guard !post.isDeleted else { continue }
+                context.delete(post)
+                TableLedger.shared.forget(post: name)
+                removed += 1
+            }
+            if removed > 0 {
+                try context.save()
+                print("PLATED PROBE CLEANUP: removed \(removed) development posts")
+            }
+        } catch {
+            print("PLATED PROBE CLEANUP FAILED: \(error)")
+        }
     }
 }

@@ -98,7 +98,7 @@ struct TableFeedView: View {
     /// and no photo is not a post — see `TablePost.isBlank`. Filtered here
     /// rather than in the `@Query` so the rule is stated once and every
     /// reader of the feed gets it, counts included.
-    private var realPosts: [TablePost] { posts.filter { !$0.isBlank } }
+    private var realPosts: [TablePost] { posts.filter(\.isUserContent) }
 
     private var seatCount: Int {
         // "Sam Meadows" the author is "Sam" the household member — first
@@ -154,7 +154,7 @@ struct TableFeedView: View {
     }
 
     private func publishBacklog() async {
-        let stranded = posts.filter { !$0.isRemote && $0.shareRecordName.isEmpty }
+        let stranded = realPosts.filter { !$0.isRemote && $0.shareRecordName.isEmpty }
         guard !stranded.isEmpty else { return }
         let hostName = members.first(where: \.isOwner)?.name ?? ""
         var sent = false
@@ -190,6 +190,7 @@ struct TableFeedView: View {
         async let remote = TableShare.fetchChanges()
         let outcome = await CloudSync.waitForImport()
         TableShare.merge(await remote, into: context)
+        await TableShare.removeSchemaProbes(from: context)
         // Let go mid-pull and there is nothing to confirm — the tick used
         // to fire anyway, because `try?` around the sleep swallowed the
         // cancellation and left the call site unable to tell an abandoned
@@ -474,7 +475,10 @@ struct TableFeedView: View {
                     Task { await refreshFeed() }
                 }
                 .onReceive(NotificationCenter.default.publisher(for: ShareAcceptor.didAccept)) { _ in
-                    Task { TableShare.merge(await TableShare.fetchChanges(), into: context) }
+                    Task {
+                        TableShare.merge(await TableShare.fetchChanges(), into: context)
+                        await TableShare.removeSchemaProbes(from: context)
+                    }
                 }
             }
             .background(Color.canvas)

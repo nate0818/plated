@@ -24,7 +24,8 @@ struct PersonProfileView: View {
     // rows are blanks the CloudKit mirror adopts (TablePost.isBlank),
     // and counting them puts a dish on the board nobody cooked.
     @Query(filter: #Predicate<TablePost> { !$0.isDiscover && !$0.authorName.isEmpty }, sort: \TablePost.createdAt, order: .reverse)
-    private var allPosts: [TablePost]
+    private var storedPosts: [TablePost]
+    private var allPosts: [TablePost] { storedPosts.filter(\.isUserContent) }
     @Query private var recipes: [Recipe]
     // Oldest first: two devices racing a first banner before sync merges
     // both insert a row, and an unsorted `.first` flips arbitrarily between

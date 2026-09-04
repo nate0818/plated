@@ -118,6 +118,19 @@ final class TablePost {
             && photoData == nil && pollOptions.isEmpty
     }
 
+    /// Exact signatures written by the old development primers. A real
+    /// author called Prime or a real dish with this title is not enough.
+    var isSchemaProbe: Bool {
+        (authorName == "Prime" && dishTitle == "Schema probe"
+            && caption == "Written to teach CloudKit the type.")
+        || (authorName == "Schema primer" && dishTitle == "Schema primer"
+            && caption.isEmpty && photoData == Data([0xFF, 0xD8, 0xFF, 0xD9]))
+    }
+
+    /// Failed remote cleanup retains a hidden row so the next sync can
+    /// retry the deletion using the original record and zone identities.
+    var isUserContent: Bool { !isBlank && !isSchemaProbe }
+
     /// How many people plated this, from the ledger.
     ///
     /// Was `plateCount + (platedByMe ? 1 : 0)`, and `plateCount` was written

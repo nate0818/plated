@@ -228,7 +228,7 @@ enum WidgetBridge {
         // TablePost.isBlank), and the home screen is the last place that
         // should show an empty card. Take the newest real one.
         descriptor.fetchLimit = 8
-        guard let post = (try? context.fetch(descriptor))?.first(where: { !$0.isBlank })
+        guard let post = (try? context.fetch(descriptor))?.first(where: \.isUserContent)
         else { return (nil, nil) }
         let card = Snapshot.TableCard(
             authorName: post.authorName,
