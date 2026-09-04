@@ -230,7 +230,21 @@ struct WeekView: View {
                                 else if dropHoverDay == date { dropHoverDay = nil }
                             }
                     }
-                }.plChrome()
+                }
+                .plChrome()
+                .contentShape(Rectangle())
+                .simultaneousGesture(
+                    DragGesture(minimumDistance: 18)
+                        .onEnded { gesture in
+                            let drag = gesture.translation
+                            guard abs(drag.width) > abs(drag.height) * 1.25 else { return }
+
+                            let projectedWidth = gesture.predictedEndTranslation.width
+                            guard abs(projectedWidth) >= 44 else { return }
+                            shiftWeek(projectedWidth < 0 ? 1 : -1)
+                        }
+                )
+                .accessibilityHint("Swipe left or right to change weeks")
                 featuredDinner
                 HStack {
                     Text("This week").plType(.title, .semibold)
