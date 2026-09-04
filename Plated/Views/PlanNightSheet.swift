@@ -68,6 +68,24 @@ struct PlanNightSheet: View {
                     if let meal {
                         currentMealCard(meal)
                             .padding(.bottom, 6)
+                        Stepper(value: Binding(get: { meal.servings }, set: { meal.servings = $0; Persist.save(context) }), in: 1...99) {
+                            Text("\(meal.servings) servings").plType(.body, .semibold)
+                                .contentTransition(.numericText())
+                        }
+                        .padding(.vertical, 6)
+                        Menu {
+                            Button("Unassigned") { meal.cook = nil; Persist.save(context) }
+                            ForEach(members) { member in
+                                Button(member.isOwner ? "You" : member.name) { meal.cook = member; Persist.save(context) }
+                            }
+                        } label: {
+                            HStack {
+                                Text("Cook").plType(.body)
+                                Spacer()
+                                Text(meal.cook.map { $0.isOwner ? "You" : $0.name } ?? "Unassigned").plType(.body, .semibold)
+                                Image(systemName: "chevron.up.chevron.down").font(.footnote)
+                            }.foregroundStyle(Color.ink).frame(minHeight: 44)
+                        }
                         MicroLabel("Something else")
                     }
 

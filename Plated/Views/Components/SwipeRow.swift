@@ -35,6 +35,9 @@ struct SwipeAction: Identifiable {
 struct SwipeRow<Content: View>: View {
     @Binding var isOpen: Bool
     let actions: [SwipeAction]
+    /// Planner rows expose the same tray through a visible button and name
+    /// every action, so swipe is an accelerator rather than a hidden door.
+    var actionLabel: String? = nil
     @ViewBuilder let content: () -> Content
 
     @State private var dragOffset: CGFloat = 0
@@ -50,16 +53,22 @@ struct SwipeRow<Content: View>: View {
 
     private var revealWidth: CGFloat {
         guard !actions.isEmpty else { return 0 }
-        return CGFloat(actions.count) * 44 + CGFloat(actions.count) * 10 + 12
+        return CGFloat(actions.count) * (actionLabel == nil ? 44 : 64) + CGFloat(actions.count) * 10 + 12
     }
 
     var body: some View {
+        if actionLabel != nil { swipeContent.clipped() }
+        else { swipeContent }
+    }
+
+    private var swipeContent: some View {
         ZStack(alignment: .trailing) {
             if !actions.isEmpty, isOpen || dragOffset < 0 {
                 HStack(spacing: 10) {
                     ForEach(actions) { action in
                         Button {
                             Haptic.tap()
+                            close()
                             action.perform()
                         } label: {
                             // Destructive reads as weight, not as tomato.
@@ -67,7 +76,17 @@ struct SwipeRow<Content: View>: View {
                             // landing, a committing CTA — and spending it on
                             // "remove" puts the loudest thing on the screen
                             // next to the thing you least want mis-tapped.
-                            Circle()
+                            if actionLabel != nil {
+                                VStack(spacing: 4) {
+                                    Image(systemName: action.symbol).font(.system(size: 16, weight: .semibold))
+                                    Text(action.label).plType(.micro, .semibold).lineLimit(2).multilineTextAlignment(.center)
+                                }
+                                .foregroundStyle(action.destructive ? Color.canvas : Color.ink)
+                                .frame(width: 64, height: 60)
+                                .background(action.destructive ? Color.ink : Color.fill, in: RoundedRectangle(cornerRadius: Radius.chip))
+                                .plChrome()
+                            } else {
+                                Circle()
                                 .fill(action.destructive ? Color.ink : Color.fill)
                                 .frame(width: 44, height: 44)
                                 .overlay {
@@ -75,6 +94,7 @@ struct SwipeRow<Content: View>: View {
                                         .font(.system(size: 16, weight: .semibold))
                                         .foregroundStyle(action.destructive ? Color.canvas : Color.ink)
                                 }
+                            }
                         }
                         .buttonStyle(.pressable)
                         .accessibilityLabel(action.label)
@@ -83,7 +103,7 @@ struct SwipeRow<Content: View>: View {
                 .padding(.trailing, 10)
             }
 
-            content()
+            rowContent
                 // The swipe is an accelerator, never the only door: the
                 // same actions hang off the row for VoiceOver and for
                 // anyone who can't manage the gesture.
@@ -166,6 +186,24 @@ struct SwipeRow<Content: View>: View {
                 )
         }
         .animation(.plSnap, value: isOpen)
+    }
+
+    @ViewBuilder private var rowContent: some View {
+        if let actionLabel {
+            HStack(spacing: 0) {
+                content().frame(maxWidth: .infinity)
+                Button {
+                    Haptic.select()
+                    withAnimation(.plSnap) { isOpen.toggle(); dragOffset = 0 }
+                } label: {
+                    Image(systemName: "ellipsis").foregroundStyle(Color.inkSecondary).plTapTarget()
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(actionLabel)
+                .accessibilityValue(isOpen ? "Actions shown" : "Actions hidden")
+            }
+            .background(Color.canvas)
+        } else { content() }
     }
 
     private func close() {

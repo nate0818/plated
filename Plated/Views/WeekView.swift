@@ -28,6 +28,7 @@ struct WeekView: View {
     @State private var dropHoverDay: Date?
     @State private var groceryPresented = false
     @State private var planDay: Date?
+    @State private var mealToMove: PlannedMeal?
     /// The day whose detail page is pushed. Tapping a day used to raise a
     /// change/remove dialog; those two are swipe actions inside the day now.
     @Environment(\.tabPop) private var tabPop
@@ -125,6 +126,7 @@ struct WeekView: View {
             switch destination {
             case .groceries: GrocerySheet()
             case .night(let date): PlanNightSheet(date: date, askTheTable: askTheTable)
+            case .move(let meal): MoveMealSheet(meal: meal) { weekAnchor = $0 }
             }
         }
         .onChange(of: openGrocery.wrappedValue, initial: true) { _, requested in
@@ -169,6 +171,9 @@ struct WeekView: View {
             if let planFlag = LaunchFlags.consume("-plated-open-plan-day") ? weekDates.first(where: { !isPast($0) && dinner(on: $0) == nil }) : nil {
                 planDay = planFlag
             }
+            if !showMonth, LaunchFlags.consume("-plated-reveal-plan-actions") {
+                swipedDay = weekDates.first(where: { !isPast($0) && dinner(on: $0) != nil })
+            }
             #endif
         }
         .onChange(of: verticalSizeClass) { _, size in
@@ -177,12 +182,12 @@ struct WeekView: View {
     }
 
     private enum PlannerSheet: Identifiable {
-        case groceries, night(Date)
-        var id: String { switch self { case .groceries: "groceries"; case .night(let date): "night-\(date.timeIntervalSince1970)" } }
+        case groceries, night(Date), move(PlannedMeal)
+        var id: String { switch self { case .groceries: "groceries"; case .night(let date): "night-\(date.timeIntervalSince1970)"; case .move(let meal): "move-\(meal.persistentModelID)" } }
     }
     private var plannerSheet: Binding<PlannerSheet?> {
-        Binding(get: { if let planDay { return .night(planDay) }; return groceryPresented ? .groceries : nil },
-                set: { if $0 == nil { planDay = nil; groceryPresented = false } })
+        Binding(get: { if let mealToMove { return .move(mealToMove) }; if let planDay { return .night(planDay) }; return groceryPresented ? .groceries : nil },
+                set: { if $0 == nil { planDay = nil; mealToMove = nil; groceryPresented = false } })
     }
 
     private var portraitPlan: some View {
@@ -343,7 +348,7 @@ struct WeekView: View {
     private func plannedRow(_ meal: PlannedMeal, date: Date) -> some View {
         let today = Calendar.current.isDateInToday(date)
         let eatingOut = meal.recipe == nil && meal.customTitle.localizedCaseInsensitiveContains("eating out")
-        return SwipeRow(isOpen: swipeBinding(date), actions: [.remove { remove(on: date) }]) {
+        return SwipeRow(isOpen: swipeBinding(date), actions: planActions(for: meal), actionLabel: "Actions for \(meal.title)") {
             HStack(spacing: 10) {
                 dateColumn(date)
 
@@ -427,6 +432,10 @@ struct WeekView: View {
     /// The plus plans dinner directly; the rest of the row opens every meal
     /// on that day. VoiceOver offers both actions on the combined row.
     private func emptyRow(date: Date) -> some View {
+        SwipeRow(isOpen: swipeBinding(date), actions: [
+            SwipeAction(symbol: "plus", label: "Plan") { planDay = date },
+            SwipeAction(symbol: "fork.knife", label: "Eat out") { markEatingOut(on: date) }
+        ], actionLabel: "Actions for \(date.formatted(.dateTime.weekday(.wide).month(.abbreviated).day()))") {
         HStack(spacing: 10) {
             dateColumn(date)
             Button {
@@ -500,6 +509,14 @@ struct WeekView: View {
         }
         .scaleEffect(dropHoverDay == date ? 1.015 : 1)
         .matchedTransitionSource(id: date, in: zoom)
+        }
+    }
+
+    private func planActions(for meal: PlannedMeal) -> [SwipeAction] {
+        var actions = [SwipeAction(symbol: "pencil", label: "Edit") { planDay = meal.date }]
+        if !meal.isCooked { actions.append(SwipeAction(symbol: "calendar", label: "Move") { mealToMove = meal }) }
+        actions.append(.remove { remove(on: meal.date) })
+        return actions
     }
 
     /// Nights already gone. They stay on screen so the week keeps its real
@@ -509,7 +526,8 @@ struct WeekView: View {
     /// above it.
     private func pastRow(_ date: Date) -> some View {
         let meal = dinner(on: date)
-        return HStack(spacing: 12) {
+        return SwipeRow(isOpen: swipeBinding(date), actions: meal.map { planActions(for: $0) } ?? [], actionLabel: meal.map { "Actions for \($0.title)" }) {
+        HStack(spacing: 12) {
             dateColumn(date)
 
             if let meal {
@@ -547,6 +565,7 @@ struct WeekView: View {
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isButton)
         .accessibilityHint("Opens the day")
+        }
     }
 
     /// Long press a night and the things you actually do to one are right
@@ -926,6 +945,7 @@ struct WeekView: View {
             swipedDay = nil
             context.delete(meal)
         }
+        Persist.save(context)
     }
 
     /// Drag a plate to another night. Dropping on a planned night swaps the
@@ -933,7 +953,9 @@ struct WeekView: View {
     private func moveMeal(from token: String?, to target: Date) -> Bool {
         guard let source = DayTransfer.date(from: token),
               !Calendar.current.isSameDay(source, target),
-              let meal = dinner(on: source) else { return false }
+              target.startOfDay >= Date.now.startOfDay,
+              let meal = dinner(on: source), !meal.isCooked,
+              dinner(on: target)?.isCooked != true else { return false }
         Haptic.plate()
         withAnimation(.plPop) {
             if let occupant = dinner(on: target) {
@@ -943,6 +965,7 @@ struct WeekView: View {
             swipedDay = nil
             bounceDay = target
         }
+        Persist.save(context)
         Task {
             try? await Task.sleep(for: .milliseconds(320))
             if bounceDay == target { bounceDay = nil }

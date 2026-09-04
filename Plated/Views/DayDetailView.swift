@@ -189,7 +189,7 @@ struct DayDetailView: View {
         if let meal = meal(in: slot) {
             VStack(alignment: .leading, spacing: 6) {
                 MicroLabel(slot.title)
-                SwipeRow(isOpen: swipeBinding(slot), actions: actions(for: meal, slot: slot)) {
+                SwipeRow(isOpen: swipeBinding(slot), actions: actions(for: meal, slot: slot), actionLabel: "Actions for \(meal.title)") {
                     mealCard(meal, slot: slot)
                 }
             }

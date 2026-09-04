@@ -1,0 +1,13 @@
+PASS pointer swipe reveals actions
+PASS vertical drag does not reveal actions
+PASS keyboard reveal and dismissal
+PASS trackpad opens and closes
+PASS touch swipe reveals actions
+PASS cancelled touch preserves open state
+PASS outside tap closes tray
+PASS occupied-date swap preserves details and Undo restores dates
+PASS Remove and Undo
+PASS Edit updates servings and cook
+PASS Month agenda has matching dinner actions
+PASS open-night Eat out and Undo
+PASS no browser runtime errors

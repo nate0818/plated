@@ -6,9 +6,14 @@ import SwiftData
 struct MonthPlannerView: View {
     @Binding var anchor: Date
     var askTheTable: () -> Void = {}
+    @Environment(\.modelContext) private var context
     @Query private var meals: [PlannedMeal]
     @State private var planDay: Date?
     @State private var dayShown: Date?
+    @State private var planSlot: MealSlot = .dinner
+    @State private var mealToMove: PlannedMeal?
+    @State private var swipedMeal: PersistentIdentifier?
+    @State private var emptyActionsOpen = false
     @Namespace private var zoom
     private var calendar: Calendar { .current }
     private var first: Date { calendar.dateInterval(of: .month, for: anchor)?.start ?? anchor }
@@ -48,17 +53,28 @@ struct MonthPlannerView: View {
                     Text(calendar.isDateInToday(anchor) ? "Today" : anchor.formatted(.dateTime.weekday(.wide).month(.abbreviated).day()))
                         .plType(.body, .bold)
                     Spacer()
-                    Button { planDay = anchor } label: { Label("Plan", systemImage: "plus").plTapTarget() }
+                    Button { planSlot = .dinner; planDay = anchor } label: { Label("Plan", systemImage: "plus").plTapTarget() }
                         .plType(.footnote, .bold)
                         .disabled(anchor < Date.now.startOfDay)
                 }
                 if selectedMeals.isEmpty {
-                    Text("Nothing planned for this day.")
-                        .plType(.body)
-                        .foregroundStyle(Color.inkSecondary)
-                        .padding(.vertical, 12)
+                    if anchor >= Date.now.startOfDay {
+                        SwipeRow(isOpen: $emptyActionsOpen, actions: [
+                            SwipeAction(symbol: "plus", label: "Plan") { planSlot = .dinner; planDay = anchor },
+                            SwipeAction(symbol: "fork.knife", label: "Eat out") { planEatingOut() }
+                        ], actionLabel: "Actions for this day") {
+                            Button { planSlot = .dinner; planDay = anchor } label: {
+                                Label("Plan dinner", systemImage: "plus")
+                                    .plType(.body).frame(maxWidth: .infinity, minHeight: 72, alignment: .leading)
+                                    .contentShape(Rectangle())
+                            }.buttonStyle(.plain)
+                        }
+                    } else {
+                        Text("Nothing planned for this day.").plType(.body).foregroundStyle(Color.inkSecondary).padding(.vertical, 12)
+                    }
                 } else {
                     ForEach(selectedMeals) { meal in
+                        SwipeRow(isOpen: Binding(get: { swipedMeal == meal.persistentModelID }, set: { open in swipedMeal = open ? meal.persistentModelID : (swipedMeal == meal.persistentModelID ? nil : swipedMeal) }), actions: actions(for: meal), actionLabel: "Actions for \(meal.title)") {
                         Button { dayShown = anchor } label: {
                             HStack(spacing: 12) {
                                 VStack(alignment: .leading, spacing: 4) {
@@ -68,13 +84,13 @@ struct MonthPlannerView: View {
                                         .plType(.caption).foregroundStyle(Color.inkSecondary)
                                 }
                                 Spacer()
-                                Image(systemName: "chevron.right").font(.footnote)
                             }
                             .padding(.vertical, 10)
                             .contentShape(Rectangle())
                         }
                         .buttonStyle(.pressable)
                         .matchedTransitionSource(id: meal.persistentModelID, in: zoom)
+                        }
                     }
                 }
             }
@@ -82,8 +98,45 @@ struct MonthPlannerView: View {
             .padding(.horizontal, 24)
             .padding(.bottom, Layout.floatingChromeInset)
         }
-        .sheet(item: $planDay) { PlanNightSheet(date: $0, askTheTable: askTheTable) }
+        .sheet(item: sheet) { route in
+            switch route {
+            case .plan(let date): PlanNightSheet(date: date, slot: planSlot, askTheTable: askTheTable)
+            case .move(let meal): MoveMealSheet(meal: meal) { anchor = $0 }
+            }
+        }
+        .onChange(of: anchor) { swipedMeal = nil; emptyActionsOpen = false }
+        .onAppear {
+            #if DEBUG
+            if LaunchFlags.consume("-plated-reveal-plan-actions") {
+                swipedMeal = selectedMeals.first?.persistentModelID
+            }
+            #endif
+        }
+        .onScrollPhaseChange { _, phase in
+            if phase == .interacting { swipedMeal = nil; emptyActionsOpen = false }
+        }
         .navigationDestination(item: $dayShown) { day in DayDetailView(date: day, askTheTable: askTheTable) }
+    }
+
+    private enum Sheet: Identifiable {
+        case plan(Date), move(PlannedMeal)
+        var id: String { switch self { case .plan(let day): "plan-\(day)"; case .move(let meal): "move-\(meal.persistentModelID)" } }
+    }
+    private var sheet: Binding<Sheet?> {
+        Binding(get: { if let mealToMove { return .move(mealToMove) }; return planDay.map { .plan($0) } },
+                set: { if $0 == nil { planDay = nil; mealToMove = nil } })
+    }
+    private func actions(for meal: PlannedMeal) -> [SwipeAction] {
+        var actions = [SwipeAction(symbol: "pencil", label: "Edit") { planSlot = meal.slotValue; planDay = meal.date }]
+        if !meal.isCooked { actions.append(SwipeAction(symbol: "calendar", label: "Move") { mealToMove = meal }) }
+        actions.append(.remove { context.delete(meal); Persist.save(context) })
+        return actions
+    }
+    private func planEatingOut() {
+        guard !meals.contains(where: { Calendar.current.isDate($0.date, inSameDayAs: anchor) && $0.slotValue == .dinner }) else { return }
+        context.insert(PlannedMeal(date: anchor, customTitle: "Eating out"))
+        Persist.save(context)
+        Haptic.plate()
     }
 
     private func dayCell(_ day: Date) -> some View {
