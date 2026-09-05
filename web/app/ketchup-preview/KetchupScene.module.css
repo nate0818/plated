@@ -1,0 +1,16 @@
+.experience { width: 100%; display: flex; flex-direction: column; align-items: center; }
+.ketchup { display: block; width: min(100%, 660px); height: auto; }
+.copy { text-align: center; margin-top: 8px; }
+.title { font-size: clamp(30px, 4.2vw, 49px); font-weight: 500; letter-spacing: -.035em; line-height: 1.08; }
+.lede { font-size: clamp(13px, 1.5vw, 16px); margin-top: 13px; color: var(--ink-secondary); }
+.actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-top: 25px; }
+.primary, .secondary { min-height: 49px; padding: 12px 23px; border-radius: 999px; font-size: 14px; font-weight: 600; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 9px; cursor: pointer; }
+.primary { color: #fff; background: var(--tomato-pressed); border: 1px solid var(--tomato-pressed); }
+.primary:hover { background: #ba3419; }
+.secondary { background: #fff; border: 1px solid #d6cfc7; }
+.secondary:hover { background: #faf8f5; border-color: #998d7f; }
+@media (max-width: 600px) {
+  .copy { margin-top: 14px; }
+  .actions { gap: 9px; margin-top: 23px; }
+  .primary, .secondary { padding-inline: 19px; font-size: 12px; min-height: 47px; }
+}
