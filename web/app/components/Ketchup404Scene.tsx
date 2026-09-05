@@ -3,9 +3,9 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import styles from "./KetchupScene.module.css";
+import styles from "./Ketchup404Scene.module.css";
 
-export default function KetchupScene() {
+export default function Ketchup404Scene() {
   const router = useRouter();
   return (
     <div className={styles.experience}>
