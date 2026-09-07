@@ -117,8 +117,11 @@ image geometry, including recipes without a photo.
 **No generic chevrons.** A content card or setting row communicates that it is
 interactive through the whole surface: clear hierarchy, a pressed state,
 contextual copy, and a meaningful state or object icon where one helps. A
-right-facing chevron is decoration, not an explanation. Calendar direction and
-Back remain explicit controls, using directional arrows rather than chevrons.
+right-facing chevron is decoration, not an explanation. Back remains an
+explicit control with a directional arrow. The week's date strip has no
+arrows, at Nate's request (Sept 7): the strip itself swipes, its edges carry
+a quiet mark that says so, and Previous week and Next week stay reachable as
+accessibility actions on each day of the strip.
 
 Radii live in `Radius` (`chip` 16, `row` 18, `card` 20, `hero` 24, `sheet` 28).
 Shadows live in four steps — `plCardShadow`, `plFloatShadow`, `plDishShadow`,

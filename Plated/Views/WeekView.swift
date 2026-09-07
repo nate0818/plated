@@ -225,7 +225,8 @@ struct WeekView: View {
                     hasDinner: { hasAnyDinner(on: $0) },
                     canAcceptDrop: { !isPast($0) },
                     moveMeal: { moveMeal(from: $0, to: $1) },
-                    selectionChanged: { swipedDay = nil }
+                    selectionChanged: { swipedDay = nil },
+                    shiftWeek: { shiftWeek($0) }
                 )
                 featuredDinner
                 HStack {
@@ -380,12 +381,11 @@ struct WeekView: View {
             .plActionLabel()
             .foregroundStyle(Color.ink)
             .plTapTarget()
-            if !showMonth {
-                Button { shiftWeek(-1) } label: { Image(systemName: "arrow.left").plTapTarget() }
-                    .accessibilityLabel("Previous week")
-                Button { shiftWeek(1) } label: { Image(systemName: "arrow.right").plTapTarget() }
-                    .accessibilityLabel("Next week")
-            }
+            // No week arrows. Nate asked for them to go: the strip itself
+            // is the control, it swipes, and its edges say so. The words
+            // "Previous week" and "Next week" live on as accessibility
+            // actions on every day of the strip, so the gesture is never
+            // the only door.
         }
         .foregroundStyle(Color.ink)
         .plChrome()
@@ -1118,15 +1118,45 @@ private struct PlanDateStrip: View {
     let canAcceptDrop: (Date) -> Bool
     let moveMeal: (String?, Date) -> Bool
     let selectionChanged: () -> Void
+    /// The seven-day jump the header arrows used to make. WeekView owns it
+    /// so the strip never grows a second copy of the week arithmetic.
+    let shiftWeek: (Int) -> Void
 
     @State private var dates: [Date]
     @State private var scrollPosition: Date?
     @State private var scrollPhase: ScrollPhase = .idle
     @State private var centeredIndex: Int?
     @State private var userIsScrubbing = false
+    /// Set by a week action and consumed by the scroll that follows it, so
+    /// VoiceOver's focus lands on the new day rather than staying on a cell
+    /// that just scrolled off the screen.
+    @State private var focusFollowsSelection = false
+    @AccessibilityFocusState private var focusedDay: Date?
+    @Environment(\.colorSchemeContrast) private var contrast
 
     private let cellWidth: CGFloat = 46
     private let cellSpacing: CGFloat = 2
+
+    /// The sheet grabber turned on its side and stood at each end of the
+    /// strip. iOS has taught everyone that a short grey capsule means "this
+    /// surface moves in the direction I am thin"; on a sheet that is down,
+    /// here it is sideways. It is a stroke, not a glyph, so inkFaint is the
+    /// paint DESIGN.md allows it. It never moves: a grabber does not animate
+    /// on a sheet either, and the claim it makes, that there is more strip
+    /// in that direction, is kept true by the runway rebuild below, so there
+    /// is no state for it to perform.
+    private static let edgeMarkSize = CGSize(width: 3, height: 20)
+    private static let edgeMarkInset: CGFloat = 3
+
+    /// The scroll content dissolves under each mark rather than being cut
+    /// off beside it. A grabber sits on the sheet, not on the sheet's words;
+    /// on a 430pt phone the strip's hard edge otherwise lands on half a "Su".
+    private static let edgeFade: CGFloat = 12
+
+    /// Rebuild the runway before a thumb can reach its end. A year each way
+    /// is generous, but the marks promise more strip in both directions and
+    /// a hard stop under one of them would make that a lie.
+    private static let runwayMargin = 7
 
     init(
         selection: Binding<Date>,
@@ -1134,7 +1164,8 @@ private struct PlanDateStrip: View {
         hasDinner: @escaping (Date) -> Bool,
         canAcceptDrop: @escaping (Date) -> Bool,
         moveMeal: @escaping (String?, Date) -> Bool,
-        selectionChanged: @escaping () -> Void
+        selectionChanged: @escaping () -> Void,
+        shiftWeek: @escaping (Int) -> Void
     ) {
         self._selection = selection
         self._dropHoverDay = dropHoverDay
@@ -1142,6 +1173,7 @@ private struct PlanDateStrip: View {
         self.canAcceptDrop = canAcceptDrop
         self.moveMeal = moveMeal
         self.selectionChanged = selectionChanged
+        self.shiftWeek = shiftWeek
 
         let day = Calendar.current.startOfDay(for: selection.wrappedValue)
         let initialDates = Self.makeDates(around: day)
@@ -1156,6 +1188,9 @@ private struct PlanDateStrip: View {
     var body: some View {
         GeometryReader { proxy in
             let centerInset = max(0, (proxy.size.width - cellWidth) / 2)
+            // Increase Contrast softens nothing a person reads: the marks
+            // stay, the dissolve goes.
+            let fadeWidth = contrast == .increased ? 0 : Self.edgeFade
 
             ScrollView(.horizontal) {
                 // Materialize only the visible runway. Building 731 buttons
@@ -1192,6 +1227,19 @@ private struct PlanDateStrip: View {
                    dates.indices.contains(centeredIndex) {
                     adopt(dates[centeredIndex], haptic: false)
                     userIsScrubbing = false
+
+                    // Keep the edge marks honest: a thumb nearing either end
+                    // of the runway gets a fresh year on both sides of where
+                    // it stopped. Only after a real scrub: the first idle
+                    // callback arrives while the geometry still reads index
+                    // zero, and rebuilding there put the selected day at the
+                    // far end of a runway that began a year earlier.
+                    if centeredIndex < Self.runwayMargin || centeredIndex > dates.count - 1 - Self.runwayMargin {
+                        let day = dates[centeredIndex]
+                        dates = Self.makeDates(around: day)
+                        self.centeredIndex = dates.firstIndex(of: day)
+                        scrollPosition = day
+                    }
                 }
             }
             .onScrollGeometryChange(for: Int?.self) { geometry in
@@ -1217,16 +1265,76 @@ private struct PlanDateStrip: View {
                     dates = Self.makeDates(around: day)
                     centeredIndex = dates.firstIndex(of: day)
                 }
-                guard scrollPosition != day else { return }
-                withAnimation(.plSnap) { scrollPosition = day }
+                let follow = focusFollowsSelection
+                focusFollowsSelection = false
+                guard scrollPosition != day else {
+                    if follow { focusedDay = day }
+                    return
+                }
+                withAnimation(.plSnap) {
+                    scrollPosition = day
+                } completion: {
+                    if follow { focusedDay = day }
+                }
             }
             .onAppear {
                 scrollPosition = Calendar.current.startOfDay(for: selection)
             }
+            // Painted over the strip rather than masked into it: a mask on
+            // the ScrollView left the lazy stack's first layout half empty,
+            // every cell right of the selected day missing until a scroll.
+            // The strip stands on canvas, so a canvas gradient at each edge
+            // is the same dissolve without touching the scroll view at all.
+            .overlay(alignment: .leading) { edgeFade(fadeWidth) }
+            .overlay(alignment: .trailing) { edgeFade(fadeWidth).scaleEffect(x: -1) }
+            .overlay(alignment: .leading) { edgeMark }
+            .overlay(alignment: .trailing) { edgeMark }
         }
         .frame(height: 76)
         .plChrome()
         .accessibilityHint("Swipe left or right to choose a date")
+    }
+
+    /// The dissolve under each mark. Drawn for the leading edge and
+    /// mirrored for the trailing one, so the two can never drift apart.
+    private func edgeFade(_ width: CGFloat) -> some View {
+        LinearGradient(colors: [Color.canvas, Color.canvas.opacity(0)], startPoint: .leading, endPoint: .trailing)
+            .frame(width: width)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+    }
+
+    /// One view drawn twice: peers look like peers.
+    private var edgeMark: some View {
+        Capsule()
+            .fill(Color.inkFaint)
+            .frame(width: Self.edgeMarkSize.width, height: Self.edgeMarkSize.height)
+            .padding(.horizontal, Self.edgeMarkInset)
+            .allowsHitTesting(false)
+            // A person hears the week actions on each day, not the punctuation.
+            .accessibilityHidden(true)
+    }
+
+    /// The jump the header arrows used to make, for readers who cannot
+    /// swipe the strip: VoiceOver's actions rotor, Voice Control's "Show
+    /// actions for Monday, September 7", Switch Control's actions menu.
+    /// The marks are silent and "Monday, September 14" alone does not tell
+    /// a listener that a week moved, so the week is spoken as well.
+    private func weekAction(_ delta: Int) {
+        let calendar = Calendar.current
+        let target = calendar.date(byAdding: .day, value: delta * 7, to: selection) ?? selection
+        focusFollowsSelection = true
+        shiftWeek(delta)
+
+        let spoken: String
+        if calendar.isDate(target, equalTo: .now, toGranularity: .weekOfYear) {
+            spoken = "This week"
+        } else {
+            let start = calendar.startOfWeek(for: target)
+            let sameYear = calendar.isDate(start, equalTo: .now, toGranularity: .year)
+            spoken = "Week of " + start.formatted(sameYear ? .dateTime.month(.wide).day() : .dateTime.month(.wide).day().year())
+        }
+        AccessibilityNotification.Announcement(spoken).post()
     }
 
     private func dayButton(_ date: Date) -> some View {
@@ -1268,6 +1376,12 @@ private struct PlanDateStrip: View {
         // Keep the spoken label human and make the programmatic identity a
         // complete calendar date.
         .accessibilityIdentifier(Self.accessibilityIdentifier(for: date))
+        .accessibilityFocused($focusedDay, equals: date)
+        // On the button itself, not the container: a ScrollView is not an
+        // element VoiceOver lands on, so actions hung there may never be
+        // offered, and this pair has to be certain.
+        .accessibilityAction(named: "Previous week") { weekAction(-1) }
+        .accessibilityAction(named: "Next week") { weekAction(1) }
         .dropDestination(for: String.self) { tokens, _ in
             moveMeal(tokens.first, date)
         } isTargeted: { over in
@@ -1297,7 +1411,8 @@ private struct PlanDateStrip: View {
         let calendar = Calendar.current
         let center = calendar.startOfDay(for: center)
         // A full year in either direction is a generous continuous runway;
-        // date-picker and week-arrow jumps rebuild it around any destination.
+        // the date picker, a week action and a thumb nearing either end all
+        // rebuild it around wherever they land.
         return (-365...365).compactMap {
             calendar.date(byAdding: .day, value: $0, to: center)
         }
