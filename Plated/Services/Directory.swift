@@ -67,7 +67,63 @@ enum Directory {
         else { return false }
 
         token = minted
+        // The token APNs gave this launch, now that there is somebody to
+        // register it for.
+        let store = UserDefaults(suiteName: WidgetBridge.appGroupID) ?? .standard
+        if let apns = store.string(forKey: "plated.apns.latest"), !apns.isEmpty {
+            await registerDevice(apnsToken: apns)
+        }
         return true
+    }
+
+    // MARK: This phone
+
+    /// Tell the directory where to reach this phone.
+    ///
+    /// Only with a session, only when the token is new or a week old, and
+    /// silent on failure like everything else here. The one push this buys
+    /// is an invitation from a person whose table this phone is not at yet,
+    /// which no CloudKit subscription can carry because the share does not
+    /// exist on this side until it is accepted.
+    static func registerDevice(apnsToken: String) async {
+        let store = UserDefaults(suiteName: WidgetBridge.appGroupID) ?? .standard
+        // Kept whether or not there is a session yet. APNs hands the token
+        // over at launch and sign-in happens later on that same launch, so
+        // without this the first registration never carried a token.
+        store.set(apnsToken, forKey: "plated.apns.latest")
+        guard let token else { return }
+        let last = store.string(forKey: "plated.apns.registered") ?? ""
+        let when = store.double(forKey: "plated.apns.registeredAt")
+        let stale = Date.now.timeIntervalSince1970 - when > 7 * 24 * 3600
+        guard apnsToken != last || stale else { return }
+        #if DEBUG
+        let sandbox = true
+        #else
+        let sandbox = false
+        #endif
+        let body: [String: Any] = [
+            "api_token": token, "apns_token": apnsToken, "sandbox": sandbox
+        ]
+        guard await post("device", body: body) != nil else { return }
+        store.set(apnsToken, forKey: "plated.apns.registered")
+        store.set(Date.now.timeIntervalSince1970, forKey: "plated.apns.registeredAt")
+    }
+
+    /// Nudge somebody already on Plated that a seat is waiting.
+    ///
+    /// The message with the link has already gone through Messages; this
+    /// is the banner on their phone that says who it is from, for a person
+    /// who has the app and would otherwise find the text an hour later.
+    /// The server decides whether the number belongs to anybody; the app
+    /// never learns the answer, and a miss is not an error.
+    static func notifyInvite(phone: String, hostName: String, shareURL: URL) async {
+        guard let token, let e164 = normalize(phone) else { return }
+        _ = await post("invite", body: [
+            "api_token": token,
+            "invitee_phone_e164": e164,
+            "host_name": hostName,
+            "share_url": shareURL.absoluteString
+        ])
     }
 
     // MARK: Lookup

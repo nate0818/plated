@@ -47,6 +47,8 @@ enum NotificationScheduler {
         content.title = title
         content.body = body
         content.sound = .default
+        // Its own category, so a locked screen still says what rang.
+        content.categoryIdentifier = NotificationRouter.Category.cook
         let request = UNNotificationRequest(
             identifier: cookTimerID,
             content: content,
@@ -90,16 +92,46 @@ enum NotificationScheduler {
             .requestAuthorization(options: [.alert, .sound, .badge])) ?? false
     }
 
+    /// The whole answer, for a control that has to tell "never asked" from
+    /// "asked and refused": the first can still be asked, the second can
+    /// only be sent to iOS Settings.
+    static func status() async -> UNAuthorizationStatus {
+        await UNUserNotificationCenter.current().notificationSettings().authorizationStatus
+    }
+
+    /// Whether the one ask has been spent, whatever the answer was.
+    static var hasAsked: Bool { UserDefaults.standard.bool(forKey: askedKey) }
+
+    private static let pendingAskKey = "plated.notifications.askPending"
+
+    /// Ask, but not here: the caller is somewhere the prompt must not land
+    /// (an invitation accepted on a cold start, under the launch opener or
+    /// the sign-in screen). The shell collects it once it is on screen.
+    static func askSoon() {
+        guard !hasAsked else { return }
+        UserDefaults.standard.set(true, forKey: pendingAskKey)
+    }
+
+    static func takePendingAsk() -> Bool {
+        let pending = UserDefaults.standard.bool(forKey: pendingAskKey)
+        if pending { UserDefaults.standard.removeObject(forKey: pendingAskKey) }
+        return pending && !hasAsked
+    }
+
     /// Ask — but only after the app has earned it.
     ///
     /// Never call this at launch. A permission sheet shown before the app
     /// has done anything for you is the fastest way to a permanent "no",
-    /// and iOS only lets you ask once. The right moment is just after
-    /// somebody plans their first night: they have just told us they intend
-    /// to cook, so "shall I remind you" is a continuation of their own
-    /// thought rather than an interruption of it.
+    /// and iOS only lets you ask once. There are three earned moments and
+    /// whichever comes first spends the ask: planning a first night (they
+    /// just said they intend to cook, so "shall I remind you" continues
+    /// their own thought), posting a first dish (they just spoke to the
+    /// table, so hearing back is the natural next wish), and accepting a
+    /// seat at somebody else's table (a guest who never plans a night here
+    /// would otherwise never be asked at all, and the Table would stay
+    /// silent for exactly the people it exists to reach).
     @discardableResult
-    static func askOnceAfterFirstPlan() async -> Bool {
+    static func askOnce() async -> Bool {
         guard !UserDefaults.standard.bool(forKey: askedKey) else {
             return await authorized()
         }
@@ -180,6 +212,11 @@ enum NotificationScheduler {
                 ? "\(dish). Check the grocery list tonight."
                 : "\(dish). Nothing for you to do."
             content.sound = .default
+            // A tap lands on the plan; your own night also offers the list
+            // the body just mentioned, so the sentence and the button agree.
+            content.categoryIdentifier = mine
+                ? NotificationRouter.Category.turnMine : NotificationRouter.Category.plan
+            content.userInfo = [NotificationRouter.Key.link: DeepLink.url(.plan).absoluteString]
 
             let request = UNNotificationRequest(
                 identifier: turnPrefix + meal.persistentModelID.hashValue.description,
@@ -216,6 +253,8 @@ enum NotificationScheduler {
             ? "Nothing's plated yet."
             : "A few nights are still empty."
         content.sound = .default
+        content.categoryIdentifier = NotificationRouter.Category.plan
+        content.userInfo = [NotificationRouter.Key.link: DeepLink.url(.plan).absoluteString]
 
         var when = DateComponents()
         when.weekday = 1   // Sunday

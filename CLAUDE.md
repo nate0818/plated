@@ -41,6 +41,9 @@ rendering a hair larger so fixed-height layouts overflow, and Foundation Models.
 - `make design` checks the DESIGN.md rules a machine can check, and both
   ship paths refuse a build that breaks one. A deliberate exception is fine
   but has to say so at the line: `// design-ok(<rule>): why this one is right`.
+- `make test` runs `PlatedTests` on a simulator. The news digest
+  (`TableNews.digest`) is pure and tested there; a test is how the merge's
+  reaction-dropping bug was found, which no screen could ever have shown.
 - Prefer looking at a screenshot over reasoning about layout. Prefer touching the
   flow over trusting that it compiles.
 - When a flow crosses process boundaries — Contacts, CloudKit, Messages —

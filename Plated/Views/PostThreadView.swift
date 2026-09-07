@@ -204,6 +204,17 @@ struct PostThreadView: View {
             try? await Task.sleep(for: .milliseconds(350))
             composerFocused = true
         }
+        // A banner about this very thread would be the app tapping you on
+        // the shoulder to point at what you are reading.
+        .onAppear {
+            Presence.shared.openPost = post.shareRecordName
+            // Opening the dish is reading what was said about it: the bell
+            // row, the icon's count and the banner still in the list.
+            Task { await TableNews.markRead(post: post.shareRecordName, context: context) }
+        }
+        .onDisappear {
+            if Presence.shared.openPost == post.shareRecordName { Presence.shared.openPost = nil }
+        }
         // This page docks its own composer at the bottom-trailing corner,
         // exactly where the perch lives.
         .hidesProngsbyPerch()

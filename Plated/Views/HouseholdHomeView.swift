@@ -183,7 +183,13 @@ struct HouseholdHomeView: View {
         .task {
             await reframeStoredBannerIfNeeded()
         }
+        // A tapped notice about the bell lands on the bell. Parked if Home
+        // was not on screen yet; collected the moment it is.
+        .onReceive(NotificationCenter.default.publisher(for: LinkRelay.activityRequested)) { _ in
+            if LinkRelay.takeActivity() { pushed = .activity }
+        }
         .onAppear {
+            if LinkRelay.takeActivity() { pushed = .activity }
             #if DEBUG
             // UI-test hook, one-shot: `simctl launch … -plated-open-stats`.
             // Works standalone — MainShellView routes to this tab first (see

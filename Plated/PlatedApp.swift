@@ -205,6 +205,25 @@ struct PlatedApp: App {
                         print("PLATED SEED: sample household in the live store")
                     }
                     #endif
+                    #if DEBUG && targetEnvironment(simulator)
+                    // Rehearsal: a delivery that never came from CloudKit,
+                    // so the banners, the bell rows and the actions can be
+                    // looked at on a simulator. Writes a real post by
+                    // "Riley" into the mirrored store and spends the one
+                    // permission prompt, so it is compiled out of every
+                    // phone build, `make phone` included.
+                    if LaunchFlags.consume("-plated-fake-table-news") {
+                        try? await Task.sleep(for: .seconds(2))
+                        await TableNews.rehearse(context: container.mainContext)
+                    }
+                    // Spend the one permission prompt now, for a simulator
+                    // that has never planned a night. Never on a phone.
+                    if LaunchFlags.consume("-plated-ask-notifications") {
+                        try? await Task.sleep(for: .seconds(1))
+                        let granted = await NotificationScheduler.askOnce()
+                        print("PLATED FLAG: notifications granted=\(granted)")
+                    }
+                    #endif
                     #if DEBUG
                     if LaunchFlags.consume("-plated-purge-cloud") {
                         do {
@@ -229,6 +248,17 @@ struct PlatedApp: App {
             if phase == .background || phase == .active {
                 Task { @MainActor in
                     WidgetBridge.publish(from: container.mainContext)
+                    // The icon's number and the bell's are one count. A row
+                    // read on the iPad clears it here on the next breath,
+                    // and a banner about a dish read there is withdrawn.
+                    AppBadge.sync(container.mainContext)
+                    if phase == .active {
+                        await TableNews.reconcileDelivered(context: container.mainContext)
+                        // A silent push is not delivered to an app that was
+                        // force-quit, and is deferred in Low Power Mode. The
+                        // next time the app is in front, it asks.
+                        await TablePull.pull(reason: "foreground")
+                    }
                 }
             }
         }

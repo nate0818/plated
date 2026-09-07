@@ -1,4 +1,5 @@
 import SwiftUI
+import UserNotifications
 import SwiftData
 import PhotosUI
 

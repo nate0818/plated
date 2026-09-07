@@ -517,13 +517,18 @@ enum TableShare {
     /// which is a value rather than an absence for the same reason a plate is
     /// tombstoned rather than deleted.
     static func pushBallot(
-        post: String, zoneOwner: String, author: String, choice: Int, at: Date
+        post: String, zoneOwner: String, author: String, authorName: String,
+        choice: Int, at: Date
     ) async -> Bool {
         await push(
             type: ballotType, name: "ballot-\(post)-\(author)",
             post: post, zoneOwner: zoneOwner
         ) { record in
             record["authorID"] = author as CKRecordValue
+            // Named, like a plate. A ballot used to carry only an id, so
+            // nothing downstream could say who voted, and a notice that
+            // cannot name a person is a notice this app does not send.
+            record["authorName"] = authorName as CKRecordValue
             record["choice"] = choice as CKRecordValue
             record["changedAt"] = at as CKRecordValue
         }
@@ -736,6 +741,15 @@ enum TableShare {
         var reactions: [RemoteReaction] = []
         var notes: [RemoteNote] = []
         var deleted: Set<String> = []
+        /// The CKShare itself came back changed: somebody accepted, or was
+        /// removed. Which one is `Seats.reconcile`'s to say; this only
+        /// notes that the question is worth asking now rather than at the
+        /// next launch.
+        var sharesChanged = false
+        /// At least one zone was read from the beginning: a fresh install,
+        /// or a change token CloudKit refused. The news treats such a
+        /// delta as history to be windowed, not as a day's events.
+        var replayed = false
     }
 
     static func fetchChanges() async -> Changes {
@@ -748,6 +762,10 @@ enum TableShare {
             all.reactions += part.reactions
             all.notes += part.notes
             all.deleted.formUnion(part.deleted)
+            // The flags too. `sharesChanged` was set per database and then
+            // dropped right here, so a seat accepted was never announced.
+            all.sharesChanged = all.sharesChanged || part.sharesChanged
+            all.replayed = all.replayed || part.replayed
         }
         return all
     }
@@ -769,6 +787,7 @@ enum TableShare {
                 // a page holds used to arrive permanently truncated — and
                 // the token still advanced, so the rest never came at all.
                 var cursor = token(for: zone.zoneID)
+                if cursor == nil { found.replayed = true }
                 var more = true
                 while more {
                     let changes = try await db.recordZoneChanges(
@@ -786,6 +805,7 @@ enum TableShare {
                         case noteType:
                             found.notes.append(remoteNote(from: record))
                         default:
+                            if record is CKShare { found.sharesChanged = true }
                             continue
                         }
                     }
@@ -929,7 +949,7 @@ enum TableShare {
             authorName: "Prime", active: true, at: .now
         )
         let ballotOK = await pushBallot(
-            post: name, zoneOwner: owner, author: "prime", choice: 0, at: .now
+            post: name, zoneOwner: owner, author: "prime", authorName: "Primer", choice: 0, at: .now
         )
 
         // And it takes back what it wrote. The old primer left "Schema
@@ -1093,13 +1113,14 @@ enum TableShare {
                         var replyToName = ""; var parentCommentID: String?; var deletedAt: Date?; var mentions: [String] = []
                         var createdAt = Date.now; var photoData: Data? }
     struct Changes { var posts: [RemotePost] = []; var reactions: [RemoteReaction] = []
-                     var notes: [RemoteNote] = []; var deleted: Set<String> = [] }
+                     var notes: [RemoteNote] = []; var deleted: Set<String> = []
+                     var sharesChanged = false; var replayed = false }
     static func pushNote(_ comment: TableComment, post: String, zoneOwner: String) async -> Bool { false }
     static func subscribe() async {}
     static func pushPlate(post: String, zoneOwner: String, author: String,
                           authorName: String, active: Bool, at: Date) async -> Bool { false }
     static func pushBallot(post: String, zoneOwner: String, author: String,
-                           choice: Int, at: Date) async -> Bool { false }
+                           authorName: String, choice: Int, at: Date) async -> Bool { false }
     static func fetchRemote() async -> [RemotePost] { [] }
     static func fetchChanges() async -> Changes { Changes() }
     struct Seat: Identifiable { var id = ""; var name = ""; var isOwner = false; var isMe = false }
@@ -1122,7 +1143,16 @@ enum TableShare {
     /// a second fetch updates rather than duplicates.
     @MainActor
     static func merge(_ changes: Changes, into context: ModelContext) {
-        guard !changes.posts.isEmpty || !changes.deleted.isEmpty else { return }
+        // Every kind of change counts. This used to return unless a POST
+        // changed, so a delta carrying only plates or comments, which is
+        // what arrives when somebody reacts to a dish that is already on
+        // every phone, was dropped whole: the plate never reached the
+        // ledger and the comment never reached the thread until some
+        // unrelated post happened to change. A unit test on the news
+        // digest found it; nothing on screen ever could, because a missing
+        // plate looks exactly like a dish nobody plated.
+        guard !changes.posts.isEmpty || !changes.deleted.isEmpty
+            || !changes.reactions.isEmpty || !changes.notes.isEmpty else { return }
         let existing = (try? context.fetch(FetchDescriptor<TablePost>())) ?? []
         var byRecord: [String: TablePost] = [:]
         for post in existing where !post.shareRecordName.isEmpty {

@@ -11,6 +11,7 @@ struct SettingsSheet: View {
     @Environment(\.openURL) private var openURL
     @Environment(\.dynamicTypeSize) private var typeSize
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.modelContext) private var context
     @Query(sort: \HouseholdMember.createdAt) private var members: [HouseholdMember]
 
     @AppStorage("appearance") private var appearanceRaw = Appearance.system.rawValue
@@ -18,6 +19,9 @@ struct SettingsSheet: View {
     @AppStorage("householdName") private var householdName = ""
     @AppStorage("didSignIn") private var didSignIn = false
     @AppStorage("remindersOn") private var remindersOn = true
+    /// What the Table may say when somebody else plates, writes or takes
+    /// a seat. `TableNews.tableOnKey` reads the same key.
+    @AppStorage("tableNewsOn") private var tableNewsOn = true
 
     @State private var notificationState: NotificationScheduler.AuthorizationState = .notDetermined
     @State private var calendarRefused = false
@@ -62,6 +66,8 @@ struct SettingsSheet: View {
                 SettingsSection(title: "Planning", caption: "Bring the week together without extra noise.") {
                     SettingsGroup {
                         planningReminderRow
+                        SettingsDivider()
+                        tableActivityRow
                         SettingsDivider()
                         calendarRow
                     }
@@ -405,6 +411,72 @@ struct SettingsSheet: View {
             SettingsControlRow(
                 symbol: "bell.slash",
                 title: "Cook reminders",
+                detail: "Notifications are off in iOS Settings",
+                tint: .fill,
+                tone: .inkSecondary
+            ) {
+                Button("Open") {
+                    Haptic.tap()
+                    openSystemSettings()
+                }
+                .plType(.footnote, .bold)
+                .foregroundStyle(Color.accentText)
+                .frame(minWidth: 44, minHeight: 44)
+                .buttonStyle(.pressable)
+                .accessibilityLabel("Open notification settings")
+            }
+        }
+    }
+
+    /// The second switch, same three states as the first: never asked (the
+    /// button asks), refused (only iOS Settings can change it), allowed.
+    @ViewBuilder
+    private var tableActivityRow: some View {
+        switch notificationState {
+        case .allowed:
+            SettingsControlRow(
+                symbol: tableNewsOn ? "fork.knife.circle.fill" : "fork.knife.circle",
+                title: "Table activity",
+                detail: tableNewsOn
+                    ? "Dishes, replies, plates and new seats"
+                    : "Off. The bell still keeps the list.",
+                tint: .tomatoTint,
+                tone: .tomato
+            ) {
+                Toggle("Table activity", isOn: $tableNewsOn)
+                    .labelsHidden()
+                    .tint(Color.tomato)
+                    .sensoryFeedback(.selection, trigger: tableNewsOn)
+                    // The icon counts only while the Table may speak.
+                    .onChange(of: tableNewsOn) { _, _ in AppBadge.sync(context) }
+            }
+        case .notDetermined:
+            SettingsControlRow(
+                symbol: "fork.knife.circle",
+                title: "Table activity",
+                detail: "When someone plates, replies or takes a seat",
+                tint: .tomatoTint,
+                tone: .tomato
+            ) {
+                Button("Turn on") {
+                    Haptic.tap()
+                    Task {
+                        _ = await NotificationScheduler.requestFromSettings()
+                        await refreshStatus()
+                    }
+                }
+                .plType(.footnote, .bold)
+                .foregroundStyle(Color.onTomato)
+                .padding(.horizontal, 13)
+                .frame(minHeight: 40)
+                .background(Color.tomato, in: Capsule())
+                .contentShape(Capsule())
+                .buttonStyle(.pressable)
+            }
+        case .denied:
+            SettingsControlRow(
+                symbol: "fork.knife.circle",
+                title: "Table activity",
                 detail: "Notifications are off in iOS Settings",
                 tint: .fill,
                 tone: .inkSecondary

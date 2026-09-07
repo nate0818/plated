@@ -42,5 +42,13 @@
 	<array>
 		<string>remote-notification</string>
 	</array>
+	<!-- Communication notifications are keyed off a donated
+	     INSendMessageIntent, and iOS only honours the donation for
+	     activity types the app declares. Same reason as the keys above:
+	     it has to live in this file, not in a build setting. -->
+	<key>NSUserActivityTypes</key>
+	<array>
+		<string>INSendMessageIntent</string>
+	</array>
 </dict>
 </plist>

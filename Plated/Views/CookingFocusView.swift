@@ -150,7 +150,7 @@ struct CookingFocusView: View {
         let seconds = Double(minutes * 60)
         ledger.startTimer(endingAt: .now.addingTimeInterval(seconds), step: index, in: recipe)
         Task {
-            let authorized = await NotificationScheduler.askOnceAfterFirstPlan()
+            let authorized = await NotificationScheduler.askOnce()
             await NotificationScheduler.scheduleCookTimer(in: seconds, title: "Plated timer", body: "\(recipe.title): your \(minutes) minute timer is ready.")
             timerHint = authorized ? "The timer can alert you while Plated is in the background." : "Notifications are off. The timer stays visible here."
         }

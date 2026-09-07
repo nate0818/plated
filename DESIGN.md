@@ -226,6 +226,28 @@ first screen after sign-in opens with its primary button in that state.
   Let the system drag session track the finger and edge-scroll the planner.
   Do not replace that continuous motion with a menu masquerading as drag.
 
+## Notifications
+
+A push is the app speaking when nobody asked it to, so it holds to a higher
+bar than any screen. The law lives in `docs/notifications.md`; the register
+is here.
+
+- **It names a person and says what happened.** "Riley plated Sheet-pan
+  chicken", "Sam replied to you". Never "New activity", never "Something
+  changed at your table". If the sentence cannot name the person, nothing
+  is sent. When one person is speaking, the banner is theirs the way a
+  message is: their face, their name as the title, "The Table" or "Your
+  ragù" under it, and the deed as the body.
+- **Never about your own action**, on any of your devices. A like never
+  appears in the liker's activity.
+- **Silence is the default.** A notice has to be about you, or be the first
+  word of something new. The ordinary is folded, capped, and quiet at
+  night. What buys the right to speak is not speaking.
+- **The thing you tapped is the thing that opens.** A banner about a dish
+  opens that dish. A banner that opens the app is a doorbell.
+- **A count is the ledger's.** "Sam and 2 others plated your ragù" is
+  counted, never incremented, and one line that updates rather than three.
+
 ## Continuity
 
 **The thing you tapped is the thing that opens.** Every push into a detail
