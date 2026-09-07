@@ -132,9 +132,14 @@ final class ShareAcceptor: NSObject, UIApplicationDelegate {
         if let real = await TableIdentity.confirm(), real != before {
             TableLedger.shared.reattribute(from: before, to: real)
             TableOutbox.shared.reattribute(from: before, to: real)
+            PlanLedger.shared.reattribute(from: before, to: real)
         }
         TableShare.merge(changes, into: context)
+        // Nights other phones planned, and what changed about them, kept
+        // before the ledger is overwritten so the news can say "moved".
+        let plans = PlanLedger.shared.absorb(changes, me: TableIdentity.cached)
         var joined: [HouseholdMember] = []
+        var swept = PlanLedger.Delta()
         if changes.sharesChanged {
             let before = Set(Seats.all(in: context)
                 .filter { $0.seat == .joined }.map(\.persistentModelID))
@@ -144,7 +149,26 @@ final class ShareAcceptor: NSObject, UIApplicationDelegate {
                 $0.seat == .joined && !before.contains($0.persistentModelID)
             }
         }
-        await TableNews.deliver(changes, newSeats: joined, context: context)
+        if changes.householdShareChanged {
+            // The head's own household zone keeps a departed member's
+            // nights unless the head takes them out; nothing on the server
+            // cascades. The Table share changing says nothing about this.
+            swept = await TableShare.sweepDepartedPlans()
+        }
+        await TableNews.deliver(changes, newSeats: joined, plans: plans, context: context)
+        // A swept night is not news (this phone took it off, not its
+        // author), but a row and a banner about it are claims about a
+        // night that no longer exists: withdrawn the way a wire deletion's
+        // are, after the delivery so `deliver` cannot write them back.
+        TableNews.retract(plans: swept.removed, context: context)
+        if !plans.isEmpty || !swept.isEmpty {
+            // A night whose cook is this person just arrived, moved or
+            // left: the reminders read the ledger and must be rebuilt now,
+            // not at the next visit to the Plan tab.
+            let meals = (try? context.fetch(FetchDescriptor<PlannedMeal>())) ?? []
+            let owner = Seats.all(in: context).first(where: \.isOwner)?.name ?? ""
+            await NotificationScheduler.rebuild(meals: meals, ownerName: owner)
+        }
     }
 
     // MARK: APNs

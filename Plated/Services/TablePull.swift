@@ -44,11 +44,18 @@ enum TablePull {
                 // Main cleaned these after every merge. Every merge is here now.
                 await TableShare.removeSchemaProbes(from: PlatedStore.shared.mainContext)
                 lastPull = .now
-                print("[Pull] \(reason): \(changes.posts.count) posts, \(changes.notes.count) notes, \(changes.reactions.count) reactions\(changes.sharesChanged ? ", seats" : "")")
+                print("[Pull] \(reason): \(changes.posts.count) posts, \(changes.notes.count) notes, \(changes.reactions.count) reactions, \(changes.plans.count) plans\(changes.sharesChanged ? ", seats" : "")")
+                // This phone's own nights go out AFTER the fold, and not
+                // awaited: a publish pass is CloudKit round trips of its
+                // own, and a silent push's budget is spent on the fetch.
+                PlanShare.schedule(reason: "pull")
             } while again
+            // Cleared here, as the task's last act, and not after the
+            // await below resumes: a pull landing in that gap would join
+            // a task that had already finished, set `again`, and be lost.
+            inFlight = nil
         }
         inFlight = task
         await task.value
-        if inFlight == task { inFlight = nil }
     }
 }

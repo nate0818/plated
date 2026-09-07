@@ -9,6 +9,31 @@ import Foundation
 /// in step with `PlatedLink` on the widget side — they're the same contract
 /// as the snapshot's JSON keys. `post` and `activity` exist only on this
 /// side: the widget never links to a single post.
+/// A calendar day as `yyyy-MM-dd`, the way a night travels between phones.
+/// A `Date` at midnight is a moment, and the same moment is a different day
+/// two time zones over; "2026-09-10" is Thursday everywhere.
+enum PlanDay {
+    static let formatter: DateFormatter = {
+        let f = DateFormatter()
+        f.calendar = Calendar(identifier: .gregorian)
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "yyyy-MM-dd"
+        return f
+    }()
+
+    static func string(_ date: Date) -> String {
+        formatter.timeZone = .current
+        return formatter.string(from: date)
+    }
+
+    /// Start of that day in the reader's own calendar.
+    static func date(_ string: String) -> Date? {
+        formatter.timeZone = .current
+        guard let parsed = formatter.date(from: string) else { return nil }
+        return Calendar.current.startOfDay(for: parsed)
+    }
+}
+
 enum DeepLink: String {
     case plan
     case table
@@ -58,6 +83,27 @@ enum DeepLink: String {
         else { return nil }
         let from = items.first(where: { $0.name == "from" })?.value ?? ""
         return (from, share)
+    }
+
+    /// `plated://plan?day=2026-09-10`: one night on the plan. The day is a
+    /// calendar string, not a timestamp, so it names the same night on
+    /// every phone whatever its clock says. `PlanDay` is the one formatter
+    /// for it, shared with the plan records on the wire.
+    static func url(plan date: Date) -> URL {
+        var components = URLComponents()
+        components.scheme = scheme
+        components.host = DeepLink.plan.rawValue
+        components.queryItems = [URLQueryItem(name: "day", value: PlanDay.string(date))]
+        return components.url ?? url(.plan)
+    }
+
+    /// The night inside a `plan` link, or nil for a bare one.
+    static func planDay(in url: URL) -> Date? {
+        guard destination(for: url) == .plan,
+              let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems,
+              let raw = items.first(where: { $0.name == "day" })?.value
+        else { return nil }
+        return PlanDay.date(raw)
     }
 
     static func url(post record: String) -> URL {

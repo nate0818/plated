@@ -55,6 +55,9 @@ final class NotificationRouter: NSObject, UNUserNotificationCenterDelegate {
         case .ask: return Category.ask
         case .comment: return Category.comment
         case .plates, .kiss, .votes, .seat, .more: return Category.plates
+        // The same category the cook reminders wear: a tap lands on the
+        // plan, and there is nothing to plate or answer about a night.
+        case .plan: return Category.plan
         }
     }
 
@@ -109,12 +112,13 @@ final class NotificationRouter: NSObject, UNUserNotificationCenterDelegate {
         let kind = info[Key.kind] as? String ?? ""
         // Only ever called while the app is in front, so "are they looking
         // at it" is a question about which screen, never about app state.
-        let (openPost, feedVisible, activityVisible) = await MainActor.run {
-            (Presence.shared.openPost, Presence.shared.feedVisible, Presence.shared.activityVisible)
+        let (openPost, feedVisible, activityVisible, planVisible) = await MainActor.run {
+            (Presence.shared.openPost, Presence.shared.feedVisible,
+             Presence.shared.activityVisible, Presence.shared.planVisible)
         }
         let options = Self.presentation(
             post: post, kind: kind, openPost: openPost,
-            feedVisible: feedVisible, activityVisible: activityVisible
+            feedVisible: feedVisible, activityVisible: activityVisible, planVisible: planVisible
         )
         if options == [.list] {
             print("[Notify] kept a banner about what is on screen to the list (\(kind))")
@@ -132,7 +136,7 @@ final class NotificationRouter: NSObject, UNUserNotificationCenterDelegate {
     /// never happened.
     static func presentation(
         post: String, kind: String, openPost: String?, feedVisible: Bool,
-        activityVisible: Bool = false
+        activityVisible: Bool = false, planVisible: Bool = false
     ) -> UNNotificationPresentationOptions {
         // The bell list is the one screen where every notice is already
         // in front of the person; a banner over it announced the row
@@ -140,6 +144,7 @@ final class NotificationRouter: NSObject, UNUserNotificationCenterDelegate {
         let looking = (!post.isEmpty && openPost == post)
             || (feedVisible && (kind == "dish" || kind == "ask" || kind == "more"))
             || (activityVisible && !kind.isEmpty)
+            || (planVisible && kind == "plan")
         return looking ? [.list] : [.banner, .list, .sound]
     }
 
@@ -212,6 +217,20 @@ enum LinkRelay {
         return pendingPost
     }
 
+    static let dayRequested = Notification.Name("plated.link.day")
+    private static var pendingDay: Date?
+
+    /// A night on the plan. The shell selects Plan; the week moves to it.
+    static func request(day: Date) {
+        pendingDay = day
+        NotificationCenter.default.post(name: dayRequested, object: nil)
+    }
+
+    static func takeDay() -> Date? {
+        defer { pendingDay = nil }
+        return pendingDay
+    }
+
     static let activityRequested = Notification.Name("plated.link.activity")
     private static var pendingActivity = false
 
@@ -239,4 +258,7 @@ final class Presence {
     var openPost: String?
     /// The bell's own list, which draws every row a banner would repeat.
     var activityVisible = false
+    /// The week itself. A banner about a night while the week is in front
+    /// announces the row that just appeared on it.
+    var planVisible = false
 }

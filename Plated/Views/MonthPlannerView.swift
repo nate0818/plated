@@ -8,6 +8,8 @@ struct MonthPlannerView: View {
     var askTheTable: () -> Void = {}
     @Environment(\.modelContext) private var context
     @Query private var meals: [PlannedMeal]
+    /// For the cook's face on a night somebody else planned.
+    @Query(sort: \HouseholdMember.createdAt) private var members: [HouseholdMember]
     @State private var planDay: Date?
     @State private var dayShown: Date?
     @State private var planSlot: MealSlot = .dinner
@@ -21,6 +23,11 @@ struct MonthPlannerView: View {
     private var days: [Date] { calendar.range(of: .day, in: .month, for: anchor)?.compactMap { calendar.date(byAdding: .day, value: $0 - 1, to: first) } ?? [] }
     private var leading: Int { (calendar.component(.weekday, from: first) - calendar.firstWeekday + 7) % 7 }
     private var selectedMeals: [PlannedMeal] { meals.filter { calendar.isDate($0.date, inSameDayAs: anchor) }.sorted { $0.slotValue.sortOrder < $1.slotValue.sortOrder } }
+    /// Nights somebody else planned on a day, every slot, read-only.
+    private func remotePlans(on day: Date) -> [PlanLedger.Entry] {
+        MealSlot.allCases.sorted { $0.sortOrder < $1.sortOrder }.flatMap { PlanLedger.shared.plans(on: day, slot: $0) }
+    }
+    private var selectedRemote: [PlanLedger.Entry] { remotePlans(on: anchor) }
 
     var body: some View {
         ScrollView(showsIndicators: false) {
@@ -62,7 +69,10 @@ struct MonthPlannerView: View {
                         .plType(.footnote, .bold)
                         .disabled(anchor < Date.now.startOfDay)
                 }
-                if selectedMeals.isEmpty {
+                // A day with only a remote night is not empty: the Plan
+                // button in the line above still offers this phone's own
+                // night, and "Nothing planned" would be untrue.
+                if selectedMeals.isEmpty, selectedRemote.isEmpty {
                     if anchor >= Date.now.startOfDay {
                         SwipeRow(isOpen: $emptyActionsOpen, actions: [
                             SwipeAction(symbol: "plus", label: "Plan") { planSlot = .dinner; planDay = anchor },
@@ -100,6 +110,9 @@ struct MonthPlannerView: View {
                         }
                         .modifier(PlannerMealDrag(meal: meal))
                         .accessibilityIdentifier("month-meal-\(meal.slot)")
+                    }
+                    ForEach(selectedRemote) { entry in
+                        RemotePlanRow(entry: entry, date: anchor, members: members) { dayShown = anchor }
                     }
                 }
             }
@@ -157,7 +170,8 @@ struct MonthPlannerView: View {
     private func dayCell(_ day: Date) -> some View {
         let selected = calendar.isDate(day, inSameDayAs: anchor)
         let today = calendar.isDateInToday(day)
-        let count = meals.filter { calendar.isDate($0.date, inSameDayAs: day) }.count
+        // A night is a night: one somebody else planned earns the marker.
+        let count = meals.filter { calendar.isDate($0.date, inSameDayAs: day) }.count + remotePlans(on: day).count
         return Button {
             Haptic.select()
             withAnimation(.plSnap) { anchor = day }

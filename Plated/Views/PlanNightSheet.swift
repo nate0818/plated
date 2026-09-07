@@ -58,6 +58,19 @@ struct PlanNightSheet: View {
                         .plType(.caption, .semibold)
                         .foregroundStyle(Color.inkSecondary)
                 }
+                // Somebody else already filled this one. Said once, so a
+                // night planned here on top of theirs is planned knowingly;
+                // the sheet itself is unchanged, because their night is
+                // theirs and this page only ever writes this phone's.
+                if let remote = remotePlanLine {
+                    Text(remote)
+                        .plType(.footnote)
+                        .foregroundStyle(Color.inkSecondary)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.horizontal, 24)
+                        .padding(.top, 4)
+                }
             }
             .padding(.top, 22)
             .padding(.bottom, 14)
@@ -237,6 +250,14 @@ struct PlanNightSheet: View {
         let formatter = DateFormatter()
         formatter.dateFormat = "EEEE, MMM d"
         return formatter.string(from: date)
+    }
+
+    /// "Nate planned Tacos for this night." Dinner's line; another slot
+    /// names itself, so breakfast never claims the night.
+    private var remotePlanLine: String? {
+        guard let entry = PlanLedger.shared.plans(on: date, slot: slot).first else { return nil }
+        let occasion = slot == .dinner ? "this night" : slot.title.lowercased()
+        return "\(entry.authorFirstName) planned \(entry.title) for \(occasion)."
     }
 
     private var contextLine: String? {

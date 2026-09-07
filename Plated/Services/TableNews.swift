@@ -50,6 +50,14 @@ import SwiftUI
 ///   three, and the count is the ledger's, so it cannot drift.
 /// - **One row per event, on every device.** Bell rows are mirrored, so a
 ///   person's iPad and iPhone each write one and then keep the older.
+/// - **A plan notice is about a night, never a word to you.** "Nate
+///   planned Tacos for Thursday", "moved", "put you down to cook", "took
+///   off": what somebody did to the week. Never addressed, never direct,
+///   under the Planning switch, quiet at night; the 19:00 reminder already
+///   carries the sound for the obligation. A night taken off is a
+///   retraction or news, decided by the row: unread, and the row and banner
+///   go; read, and "Nate took Tacos off Thursday" is said passively.
+///   docs/plan-share.md, "Notices".
 ///
 /// Every notice also lands in the activity feed, which is the first time the
 /// bell has counted anything another person did.
@@ -68,7 +76,7 @@ enum TableNews {
     private static let visibleCap = 4
 
     struct Notice {
-        enum Kind: String { case dish, ask, comment, plates, kiss, votes, seat, more }
+        enum Kind: String { case dish, ask, comment, plates, kiss, votes, seat, more, plan }
         var kind: Kind
         /// Dedupe key, remembered (for the last 400). Several keys joined
         /// with "|" when one notice covers several events.
@@ -130,27 +138,34 @@ enum TableNews {
     // MARK: Deciding
 
     /// Fold a delivery: bell rows for everything, banners for the few.
+    /// `plans` is what `PlanLedger.absorb` made of the same delivery,
+    /// computed before the ledger was overwritten; the default is an empty
+    /// delta so a caller with no ledger in hand still compiles.
     static func deliver(
         _ changes: TableShare.Changes,
         newSeats: [HouseholdMember] = [],
+        plans: PlanLedger.Delta = PlanLedger.Delta(),
         context: ModelContext
     ) async {
         // Even a delta that raises nothing teaches who is who.
         learnNames(from: changes)
         // Taken off the table, or taken back: nothing about it should
         // remain anywhere, and a line that names fewer people than it did
-        // is not fresh news.
-        if !changes.deleted.isEmpty {
-            await forget(posts: changes.deleted, context: context)
+        // is not fresh news. A `plan-` name is a night, not a post, and a
+        // night taken off is decided by its row below.
+        let deletedPosts = changes.deleted.filter { !$0.hasPrefix("plan-") }
+        if !deletedPosts.isEmpty {
+            await forget(posts: deletedPosts, context: context)
         }
         retract(changes, context: context)
+        retract(plans: plans.removed, context: context)
         // Without a confirmed identity "not mine" is a guess, and the guess
         // that goes wrong narrates a person's own dinner back to them.
         guard !TableIdentity.isPlaceholder || rehearsing else {
             print("[TableNews] identity unconfirmed, nothing decided")
             return
         }
-        let notices = digest(changes, newSeats: newSeats, context: context)
+        let notices = digest(changes, newSeats: newSeats, plans: plans, context: context)
         guard !notices.isEmpty else { return }
         for n in notices where n.writesRow {
             writeRow(n, context: context)
@@ -170,6 +185,7 @@ enum TableNews {
     static func digest(
         _ changes: TableShare.Changes,
         newSeats: [HouseholdMember],
+        plans: PlanLedger.Delta = PlanLedger.Delta(),
         context: ModelContext
     ) -> [Notice] {
         let me = TableIdentity.cached
@@ -386,7 +402,149 @@ enum TableNews {
             ))
         }
 
+        notices.append(contentsOf: planNotices(plans, me: me, cutoff: cutoff, seen: seen, context: context))
+
         return notices.map { dress($0, members: members) }
+    }
+
+    // MARK: The week
+
+    /// What somebody did to the week: a night planned, moved, handed to
+    /// you, renamed, or taken off. The ledger already dropped this person's
+    /// own nights and every past-day change, and cancelled the removed and
+    /// added pair a two-device `shoppingID` backfill mints; none of that is
+    /// assumed here, only relied on not to be doubled.
+    private static func planNotices(
+        _ plans: PlanLedger.Delta, me: String, cutoff: Date, seen: Set<String>, context: ModelContext
+    ) -> [Notice] {
+        var notices: [Notice] = []
+
+        /// The body under the title: whose night it is, when that is
+        /// worth saying. "You cook." is the one line that changes what the
+        /// reader has to do; a cook with a real seat is a fact; an empty
+        /// seat says nothing rather than naming a name that is not a cook.
+        func cookLine(_ e: PlanLedger.Entry) -> String {
+            if PlanLedger.shared.isMine(cook: e) { return "You cook." }
+            if e.hasCook { return "\(e.cookFirstName) is cooking." }
+            return ""
+        }
+
+        func notice(
+            _ e: PlanLedger.Entry, key: String, title: String, body: String,
+            template: String, deed: String, at: Date, passive: Bool
+        ) -> Notice {
+            Notice(
+                kind: .plan, key: key, identifier: idPrefix + "plan:\(e.recordName)",
+                title: title, body: body, line: title + ".",
+                link: DeepLink.url(plan: e.date), post: "",
+                direct: false, photo: passive ? nil : PlanLedger.shared.photo(for: e.recordName),
+                feedKind: .planShared, actor: e.authorName, at: at,
+                rowKey: "plan:\(e.recordName)", passive: passive,
+                relevance: PlanLedger.shared.isMine(cook: e) ? 0.8 : 0.6,
+                actorID: e.authorID, deed: deed, group: "The Table",
+                addressed: false, template: template, objectTitle: e.title
+            )
+        }
+
+        for e in plans.added where !e.authorID.isEmpty && e.authorID != me && e.changedAt > cutoff {
+            let key = "plan:\(e.recordName):\(planHash(e))"
+            guard !seen.contains(key) else { continue }
+            let who = firstName(e.authorName)
+            guard who != "Someone", !e.title.isEmpty else { continue }
+            let night = Stamp.nightPhrase(e.date)
+            let body = cookLine(e)
+            notices.append(notice(
+                e, key: key,
+                title: "\(who) planned \(e.title) for \(night)", body: body,
+                template: "{actor} planned {object} for \(night).",
+                deed: "Planned \(e.title) for \(night)." + (body.isEmpty ? "" : " \(body)"),
+                at: e.changedAt, passive: false
+            ))
+        }
+
+        for (before, after) in plans.changed
+        where !after.authorID.isEmpty && after.authorID != me && after.changedAt > cutoff {
+            let key = "plan:\(after.recordName):\(planHash(after))"
+            guard !seen.contains(key) else { continue }
+            let who = firstName(after.authorName)
+            guard who != "Someone", !after.title.isEmpty else { continue }
+            let night = Stamp.nightPhrase(after.date)
+            let title: String, body: String, template: String, deed: String
+            if before.day != after.day {
+                title = "\(who) moved \(after.title) to \(night)"
+                body = cookLine(after)
+                template = "{actor} moved {object} to \(night)."
+                deed = "Moved \(after.title) to \(night)." + (body.isEmpty ? "" : " \(body)")
+            } else if !me.isEmpty, after.cookID == me, before.cookID != me {
+                // What Nate did, a field set, nothing more: not a request,
+                // not a claim about what the reader agreed to.
+                title = "\(who) put you down to cook \(night): \(after.title)"
+                body = ""
+                template = "{actor} put you down to cook \(night): {object}"
+                deed = "Put you down to cook \(night): \(after.title)."
+            } else if before.title != after.title {
+                title = "\(who) changed \(night) to \(after.title)"
+                body = cookLine(after)
+                template = "{actor} changed \(night) to {object}."
+                deed = "Changed \(night) to \(after.title)." + (body.isEmpty ? "" : " \(body)")
+            } else {
+                // Servings, a tagline, a cook handed to somebody else, a
+                // photo: the week looks the same from here.
+                continue
+            }
+            notices.append(notice(
+                after, key: key, title: title, body: body, template: template,
+                deed: deed, at: after.changedAt, passive: false
+            ))
+        }
+
+        // Retraction or news, decided by the row. `retract(plans:)` has
+        // already taken the unread rows and their banners; a row still
+        // standing was read, and a person who read "Nate planned Tacos"
+        // is owed "Nate took Tacos off", quietly. Not windowed on
+        // `changedAt`: that is when the writer last saved the night, not
+        // when it went, and a replay that notices a removal notices it now.
+        for e in plans.removed where !e.authorID.isEmpty && e.authorID != me {
+            guard let row = rows(eventKey: "plan:\(e.recordName)", context: context).first, row.isRead
+            else { continue }
+            let key = "plan:\(e.recordName):\(planHash(e, removed: true))"
+            guard !seen.contains(key) else { continue }
+            let who = firstName(e.authorName)
+            guard who != "Someone", !e.title.isEmpty else { continue }
+            let night = Stamp.nightPhrase(e.date)
+            notices.append(notice(
+                e, key: key,
+                title: "\(who) took \(e.title) off \(night)", body: "",
+                template: "{actor} took {object} off \(night).",
+                deed: "Took \(e.title) off \(night).",
+                at: .now, passive: true
+            ))
+        }
+
+        return notices
+    }
+
+    /// The part of a night that means something to a reader (its day, its
+    /// slot, its name and its cook) and the writer's clock at the save
+    /// that produced it. The clock is there because the memory is of
+    /// keys, and a key that is a pure function of the night's state
+    /// swallows any return to a state it has been in: Riley moves Tacos
+    /// to Friday and back to Thursday, and the second move is never said
+    /// while the row still reads "moved to Friday"; a cook handed back is
+    /// never said the second time. A replay hands back the record as the
+    /// zone stores it, `changedAt` included, so the same publish still
+    /// keys the same and is told once. Stable across launches, which
+    /// `hashValue` is not (it is seeded per process), and free of "|",
+    /// which `remember` splits on.
+    static func planHash(_ e: PlanLedger.Entry, removed: Bool = false) -> String {
+        var hash: UInt64 = 0xcbf2_9ce4_8422_2325
+        let stamp = String(Int(e.changedAt.timeIntervalSince1970))
+        let parts = [removed ? "off" : "on", e.day, e.slot, e.title, e.cookID, stamp]
+        for byte in parts.joined(separator: "\u{1F}").utf8 {
+            hash ^= UInt64(byte)
+            hash = hash &* 0x0000_0100_0000_01b3
+        }
+        return String(hash, radix: 36)
     }
 
     /// The face, the handle and the colour, when this household has a seat
@@ -423,7 +581,7 @@ enum TableNews {
     /// kiss, several platers, a vote, a seat, the fold.
     static func intent(for n: Notice) -> INSendMessageIntent? {
         switch n.kind {
-        case .dish, .ask, .comment, .plates: break
+        case .dish, .ask, .comment, .plates, .plan: break
         default: return nil
         }
         guard !n.actor.isEmpty, !n.actorID.isEmpty, !n.deed.isEmpty else { return nil }
@@ -559,7 +717,7 @@ enum TableNews {
     /// its own, the way a group chat and a thread inside it are.
     static func thread(for n: Notice) -> String {
         switch n.kind {
-        case .dish, .ask, .seat, .more: return "table"
+        case .dish, .ask, .seat, .more, .plan: return "table"
         default: return n.post.isEmpty ? "table" : n.post
         }
     }
@@ -705,6 +863,34 @@ enum TableNews {
         }
         if touched {
             Persist.save(context, "retracted notices")
+            AppBadge.sync(context)
+        }
+        if !gone.isEmpty {
+            UNUserNotificationCenter.current().removeDeliveredNotifications(withIdentifiers: gone)
+        }
+    }
+
+    /// A night taken off the week, before anybody read about it: the row
+    /// and the banner go, and nothing is said. A row already read is left
+    /// standing for `digest` to follow with "took it off". Runs before the
+    /// identity guard, like `retract`, because withdrawing a claim needs
+    /// no identity: the night is gone whoever planned it.
+    static func retract(plans removed: [PlanLedger.Entry], context: ModelContext) {
+        guard !removed.isEmpty else { return }
+        var touched = false
+        var gone: [String] = []
+        for entry in removed {
+            let key = "plan:\(entry.recordName)"
+            let unread = rows(eventKey: key, context: context).filter { !$0.isRead }
+            let standing = rows(eventKey: key, context: context).contains { $0.isRead }
+            for row in unread {
+                context.delete(row)
+                touched = true
+            }
+            if !standing { gone.append(idPrefix + key) }
+        }
+        if touched {
+            Persist.save(context, "retracted plan notices")
             AppBadge.sync(context)
         }
         if !gone.isEmpty {
@@ -902,6 +1088,13 @@ enum TableNews {
         for r in changes.reactions where !r.author.isEmpty && !r.authorName.isEmpty {
             learned[r.author] = r.authorName
         }
+        // A night carries two people: the phone that planned it and the
+        // cook it names. Both are ids the ledger and the bell will need
+        // names for.
+        for p in changes.plans {
+            if !p.authorID.isEmpty, !p.authorName.isEmpty { learned[p.authorID] = p.authorName }
+            if !p.cookID.isEmpty, !p.cookName.isEmpty { learned[p.cookID] = p.cookName }
+        }
         guard !learned.isEmpty else { return }
         var names = store.dictionary(forKey: namesKey) as? [String: String] ?? [:]
         names.merge(learned) { _, new in new }
@@ -988,8 +1181,58 @@ enum TableNews {
             plate.value = 1
             changes.reactions.append(plate)
         }
+
+        // Two nights Riley planned: one Riley cooks, one the reader does,
+        // so both bodies and the remote reminder can be looked at. They
+        // live in a zone of their own so the next launch without the flag
+        // can drop them without touching a real table's nights.
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: .now)
+        let owner = Seats.all(in: context).first(where: \.isOwner)?.name ?? ""
+        func night(_ daysAhead: Int, title: String, cookID: String, cookName: String, cookSeat: String) -> TableShare.RemotePlan {
+            var plan = TableShare.RemotePlan()
+            plan.recordName = "plan-rehearsal-\(UUID().uuidString)"
+            plan.zoneOwner = PlanLedger.rehearsalOwner
+            plan.authorID = "rehearsal-riley"
+            plan.authorName = "Riley Park"
+            plan.authorColorHex = "3DA35D"
+            plan.cookID = cookID
+            plan.cookName = cookName
+            plan.cookSeat = cookSeat
+            plan.day = PlanDay.string(calendar.date(byAdding: .day, value: daysAhead, to: today) ?? today)
+            plan.title = title
+            plan.hasRecipe = true
+            plan.recipeMinutes = 35
+            plan.shoppingID = plan.recordName
+            return plan
+        }
+        changes.plans = [
+            night(1, title: "Sheet-pan chicken", cookID: "rehearsal-riley", cookName: "Riley Park",
+                  cookSeat: HouseholdMember.Seat.joined.rawValue),
+            night(2, title: "Tacos", cookID: TableIdentity.cached, cookName: owner.isEmpty ? "You" : owner,
+                  cookSeat: HouseholdMember.Seat.head.rawValue)
+        ]
+        changes.plans[0].photoData = rehearsalPhoto()
+        // The household has to be the rehearsal zone BEFORE the fold, or
+        // the ledger keeps the nights and the planner draws none of them.
+        PlanLedger.shared.householdOwner = PlanLedger.rehearsalOwner
+        let delta = PlanLedger.shared.absorb(changes, me: TableIdentity.cached)
+
         TableShare.merge(changes, into: context)
-        await deliver(changes, context: context)
+        await deliver(changes, plans: delta, context: context)
+
+        // The reminder a remote night earns is scheduled by the rebuild the
+        // push path runs after a fold; the rehearsal is not the push path,
+        // so it runs one itself and then shows what the ledger earned.
+        let meals = (try? context.fetch(FetchDescriptor<PlannedMeal>())) ?? []
+        await NotificationScheduler.rebuild(meals: meals, ownerName: owner)
+        let pending = await UNUserNotificationCenter.current().pendingNotificationRequests()
+            .filter { $0.identifier.hasPrefix(NotificationScheduler.remoteTurnPrefix) }
+        print("[TableNews] rehearsal: \(pending.count) remote turn reminder(s)")
+        for request in pending {
+            let fire = (request.trigger as? UNCalendarNotificationTrigger)?.nextTriggerDate()
+            print("  \(request.identifier): \(request.content.title). \(request.content.body) at \(fire.map { "\($0)" } ?? "?")")
+        }
     }
 
     private static func rehearsalPhoto() -> Data? {

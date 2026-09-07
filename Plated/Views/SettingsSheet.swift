@@ -19,11 +19,15 @@ struct SettingsSheet: View {
     @AppStorage("householdName") private var householdName = ""
     @AppStorage("didSignIn") private var didSignIn = false
     @AppStorage("remindersOn") private var remindersOn = true
-    /// What the Table may say when somebody else plates, writes or takes
-    /// a seat. `TableNews.tableOnKey` reads the same key.
+    /// What the Table may say when somebody else plates, writes, plans a
+    /// night or takes a seat. `TableNews.tableOnKey` reads the same key.
     @AppStorage("tableNewsOn") private var tableNewsOn = true
-    /// The five finer switches, read from NewsPreferences on first draw.
+    /// The finer switches, one per category, read from NewsPreferences on
+    /// first draw.
     @State private var categoryStates: [NewsPreferences.Category: Bool] = [:]
+    /// Which table this phone's week is shared with, in the three states
+    /// `PlanShare` can answer. Re-read with the rest of the status.
+    @State private var planHousehold: PlanShare.Household = .unknown
 
     @State private var notificationState: NotificationScheduler.AuthorizationState = .notDetermined
     @State private var calendarRefused = false
@@ -88,8 +92,11 @@ struct SettingsSheet: View {
                     }
                 }
 
-                SettingsSection(title: "Household", caption: "The name everyone sees at home.") {
+                SettingsSection(title: "Household", caption: "The name everyone sees at home, and where your week goes.") {
                     householdNameCard
+                    SettingsGroup {
+                        planShareRow
+                    }
                 }
 
                 SettingsSection(title: "iCloud & privacy", caption: "Know where your information lives.") {
@@ -453,7 +460,7 @@ struct SettingsSheet: View {
                 symbol: tableNewsOn ? "fork.knife.circle.fill" : "fork.knife.circle",
                 title: "Table activity",
                 detail: tableNewsOn
-                    ? "Dishes, replies, plates and new seats"
+                    ? "Dishes, replies, plates, plans and new seats"
                     : "Off. The bell still keeps the list.",
                 tint: .tomatoTint,
                 tone: .tomato
@@ -469,7 +476,7 @@ struct SettingsSheet: View {
             SettingsControlRow(
                 symbol: "fork.knife.circle",
                 title: "Table activity",
-                detail: "When someone plates, replies or takes a seat",
+                detail: "When someone plates, replies, plans a night or takes a seat",
                 tint: .tomatoTint,
                 tone: .tomato
             ) {
@@ -609,6 +616,98 @@ struct SettingsSheet: View {
         .overlay(Radius.shape(Radius.card).strokeBorder(Color.hairline))
     }
 
+    /// Which table the nights planned on this phone go to. Three honest
+    /// states (docs/plan-share.md, "Which zone is the household's"): one
+    /// table, named; several with no choice written down, a picker; none,
+    /// and the caption says what would change that. And a fourth for when
+    /// iCloud could not be asked, which is not "nobody": a member with a
+    /// seat at Riley's table, offline, must not be told to go find one.
+    /// A zone never counts because it merely exists, so this row can
+    /// never guess.
+    @ViewBuilder
+    private var planShareRow: some View {
+        switch planHousehold {
+        case .unknown:
+            SettingsControlRow(
+                symbol: "calendar.badge.exclamationmark",
+                title: "Plan shared with",
+                detail: "Could not check iCloud.",
+                tint: .mangoTint,
+                tone: .amber
+            ) {
+                Button("Try again") {
+                    Haptic.tap()
+                    Task { await refreshPlanHousehold() }
+                }
+                .plType(.footnote, .bold)
+                .plActionLabel()
+                .foregroundStyle(Color.accentText)
+                .frame(minWidth: 44, minHeight: 44)
+                .contentShape(Rectangle())
+                .buttonStyle(.pressable)
+                .accessibilityLabel("Check again which table your plan is shared with")
+            }
+        case .none:
+            SettingsValueRow(
+                symbol: "calendar",
+                title: "Plan shared with",
+                detail: "Nobody yet. Invite somebody or take a seat at a table.",
+                tint: .fill,
+                tone: .inkSecondary,
+                value: nil
+            )
+        case .resolved(let table):
+            // The caption names the field this row reflects, the target,
+            // and not a delivery: whether every night has reached the
+            // zone is the publisher's business, reported in the console.
+            SettingsValueRow(
+                symbol: "calendar",
+                title: "Plan shared with",
+                detail: "Where the nights you plan go",
+                tint: .basilTint,
+                tone: .completion,
+                value: Self.label(for: table)
+            )
+        case .unresolved(let tables):
+            SettingsControlRow(
+                symbol: "calendar.badge.exclamationmark",
+                title: "Plan shared with",
+                detail: "You sit at more than one table. Choose which one sees your week.",
+                tint: .mangoTint,
+                tone: .amber
+            ) {
+                Menu {
+                    ForEach(tables) { table in
+                        Button(Self.label(for: table)) { choosePlanTable(table) }
+                    }
+                } label: {
+                    Text("Choose")
+                        .plType(.footnote, .bold)
+                        .plActionLabel()
+                        .foregroundStyle(Color.accentText)
+                        .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(Rectangle())
+                }
+                .accessibilityLabel("Choose the table your plan is shared with")
+            }
+        }
+    }
+
+    /// The root record's title is the host's name. A table with no title
+    /// yet is still named for what it is rather than left blank.
+    private static func label(for table: PlanShare.Table) -> String {
+        if !table.title.isEmpty { return table.title }
+        return table.isOwn ? "Your table" : "A table you joined"
+    }
+
+    private func choosePlanTable(_ table: PlanShare.Table) {
+        Haptic.select()
+        Task {
+            await PlanShare.choose(owner: table.owner)
+            withAnimation(.plSnap) { planHousehold = PlanShare.household }
+        }
+    }
+
     private var syncRow: some View {
         SettingsValueRow(
             symbol: sync.account.isSyncing ? "icloud.fill" : "icloud",
@@ -670,6 +769,15 @@ struct SettingsSheet: View {
         if DayEventsProvider.shared.isAuthorized {
             calendarRefused = false
         }
+        await refreshPlanHousehold()
+    }
+
+    private func refreshPlanHousehold() async {
+        // The last answer first, so the row is never blank while the
+        // shares are asked again.
+        planHousehold = PlanShare.household
+        let answer = await PlanShare.resolveHousehold()
+        withAnimation(.plSnap) { planHousehold = answer }
     }
 
     private func openSystemSettings() {

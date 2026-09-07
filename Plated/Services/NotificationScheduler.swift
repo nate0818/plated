@@ -25,6 +25,10 @@ enum NotificationScheduler {
 
     private static let ritualID = "plated.ritual.week"
     private static let turnPrefix = "plated.turn."
+    /// A night another phone planned with this person as the cook. Under
+    /// `turnPrefix` so the wholesale rebuild takes it down with the rest;
+    /// its own segment so the rehearsal can list what the ledger earned.
+    static let remoteTurnPrefix = turnPrefix + "remote."
     private static let askedKey = "plated.notifications.asked"
     /// The cook timer's namespace, declared here so the next person can see
     /// it. `rebuild` and `cancelAll` below remove only `ritualID` and things
@@ -147,14 +151,20 @@ enum NotificationScheduler {
         return granted
     }
 
-    /// Rebuild the whole schedule from the plan.
+    /// Rebuild the whole schedule from the plan, this phone's own nights
+    /// and the nights other phones planned with this person as the cook.
     ///
     /// Wholesale rather than incremental on purpose: a plan can change in
     /// ways that are hard to diff — a meal moves day, a cook is swapped, a
     /// night is deleted — and a stale reminder telling someone to cook a
     /// dish that no longer exists is worse than no reminder at all. Tearing
-    /// ours down and re-adding is cheap; iOS caps us at 64 pending, and we
-    /// schedule at most eight.
+    /// ours down and re-adding is cheap; iOS caps us at 64 pending, and a
+    /// week of turns, local or remote, is at most one reminder per night
+    /// plus the Sunday ritual.
+    ///
+    /// The ledger is read here rather than passed in, so no caller can
+    /// forget it: the Plan tab, the night sheet and the push all rebuild
+    /// through this one door.
     static func rebuild(meals: [PlannedMeal], ownerName: String) async {
         // The user's switch, checked here rather than at each call site.
         // Without it the Plan tab's own rebuild would quietly re-add every
@@ -173,7 +183,78 @@ enum NotificationScheduler {
                 .filter { $0 == ritualID || $0.hasPrefix(turnPrefix) }
         )
         await scheduleTurns(meals: meals, ownerName: ownerName, center: center)
+        await scheduleRemoteTurns(meals: meals, center: center)
         await scheduleRitual(meals: meals, center: center)
+    }
+
+    /// The same door for a caller with a context and no meals in hand:
+    /// the ledger just dropped nights (`PlanLedger.nightsDropped`), and
+    /// what is left has to be read again before 19:00 comes round.
+    @MainActor
+    static func rebuild(from context: ModelContext) async {
+        let meals = (try? context.fetch(FetchDescriptor<PlannedMeal>())) ?? []
+        let owner = Seats.all(in: context).first(where: \.isOwner)?.name ?? ""
+        await rebuild(meals: meals, ownerName: owner)
+    }
+
+    /// The night before a night somebody else planned with you cooking.
+    ///
+    /// Only the cook's own reminder: a remote night is "Your night
+    /// tomorrow" or nothing (docs/open-decisions.md §1c, the second answer,
+    /// chosen for remote nights). The body names who planned it, because
+    /// the obligation came from them and the dish is not in this cookbook.
+    /// No grocery action: the list has nothing for a night planned on
+    /// another phone. One turn reminder per day, ever: a day this phone's
+    /// own plan says anything about is that plan's to remind.
+    private static func scheduleRemoteTurns(
+        meals: [PlannedMeal], center: UNUserNotificationCenter
+    ) async {
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: .now)
+        let horizon = cal.date(byAdding: .day, value: 7, to: today) ?? today
+        let localDays = Set(meals.map { PlanDay.string($0.date) })
+
+        for night in remoteTurns(PlanLedger.shared.myNights(), localDays: localDays) {
+            let date = night.date
+            guard date > today, date <= horizon, !night.title.isEmpty else { continue }
+            guard let dayBefore = cal.date(byAdding: .day, value: -1, to: date) else { continue }
+            var when = cal.dateComponents([.year, .month, .day], from: dayBefore)
+            when.hour = 19
+            guard let fire = cal.date(from: when), fire > .now else { continue }
+
+            let by = night.authorFirstName
+            let content = UNMutableNotificationContent()
+            content.title = "Your night tomorrow"
+            content.body = by.isEmpty ? "\(night.title)." : "\(night.title). Planned by \(by)."
+            content.sound = .default
+            content.categoryIdentifier = NotificationRouter.Category.plan
+            content.userInfo = [NotificationRouter.Key.link: DeepLink.url(plan: date).absoluteString]
+
+            let request = UNNotificationRequest(
+                identifier: remoteTurnPrefix + night.recordName,
+                content: content,
+                trigger: UNCalendarNotificationTrigger(
+                    dateMatching: cal.dateComponents([.year, .month, .day, .hour], from: fire),
+                    repeats: false
+                )
+            )
+            try? await center.add(request)
+        }
+    }
+
+    /// Which remote nights earn a reminder: none on a day any local meal
+    /// claims, and one per day among the rest. Pure, so a test can hold it
+    /// to "one turn reminder per day". `localDays` are `PlanDay` strings,
+    /// the same calendar the ledger keeps its days in.
+    static func remoteTurns(_ nights: [PlanLedger.Entry], localDays: Set<String>) -> [PlanLedger.Entry] {
+        var taken = localDays
+        var chosen: [PlanLedger.Entry] = []
+        let ordered = nights.sorted { ($0.day, $0.slot, $0.title) < ($1.day, $1.slot, $1.title) }
+        for night in ordered where !taken.contains(night.day) {
+            taken.insert(night.day)
+            chosen.append(night)
+        }
+        return chosen
     }
 
     /// The night before a night that belongs to someone.
@@ -249,7 +330,15 @@ enum NotificationScheduler {
         let cal = Calendar.current
         let today = cal.startOfDay(for: .now)
         guard let weekEnd = cal.date(byAdding: .day, value: 8, to: today) else { return }
-        let plannedAhead = meals.filter { $0.date > today && $0.date < weekEnd }.count
+        let ahead = meals.filter { $0.date > today && $0.date < weekEnd }
+        // A night somebody else planned is a night: "Nothing's plated yet"
+        // over a week the planner already shows three of Riley's dinners
+        // on would be a claim the screen contradicts.
+        let localDays = Set(ahead.map { PlanDay.string($0.date) })
+        let remoteDays = Set(PlanLedger.shared.all
+            .filter { $0.date > today && $0.date < weekEnd }
+            .map(\.day)).subtracting(localDays)
+        let plannedAhead = ahead.count + remoteDays.count
         // Three or more nights is a week somebody has thought about.
         guard plannedAhead < 3 else { return }
 

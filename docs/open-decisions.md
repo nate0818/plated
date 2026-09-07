@@ -63,7 +63,11 @@ just the dish), or send only the cook's own reminder and let the widget
 carry the rest, with the Settings caption becoming "The evening before
 your night, and Sundays when the week's still open." Both are defensible.
 The first keeps a household informed; the second is what a person who
-hates being nagged would choose. Nate's call.
+hates being nagged would choose. Nate's call. Remote nights, planned on
+another phone and read from the shared zone, already take the second
+answer: `NotificationScheduler` schedules only the cook's own reminder
+for them (`docs/plan-share.md`, "Reminders"); local nights keep the
+first until this is decided.
 
 ## 1d. Opening the feed reads the dishes below the fold
 
@@ -266,16 +270,3 @@ and a face. Reopen if Apple lets a service extension suppress a delivery,
 or if the directory grows a per-person "who to tell" so named Table alerts
 could be sent from a server that knows the author, at which point "never
 about your own action" has to be re-proven there before one alert is sent.
-
-## 17. How the plan crosses Apple IDs
-
-Agreed on Sept 7 as the first of five notification recommendations, and
-left open here because the two answers lead to different architectures:
-a `PlatedDishPlan` record in the shared zone (the road the dishes take,
-offline-first, readable by every participant of the zone) or plans and
-households on the directory server (coherent with the Sept 2 backend
-decision, a second sync layer, needs the server pipe deployed first).
-The trade is written out under "Sharing the plan" in `docs/notifications.md`
-with a recommendation for the shared zone. Either way "whose week is the
-household's" has to be answered before a line of it is built.
-

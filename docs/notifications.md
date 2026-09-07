@@ -8,7 +8,7 @@ and a set of rules that decide when to say nothing, which is most of the time.
 | Pipe | Carries | Where it is decided | Needs |
 |---|---|---|---|
 | Local schedule | Cook reminders, the Sunday ritual, the cook timer | `NotificationScheduler` | nothing |
-| CloudKit silent push, then a local banner | Everything at the Table: dishes, asks, comments, plates, votes, seats | `ShareAcceptor` fetches, `TableNews` decides | notification permission |
+| CloudKit silent push, then a local banner | Everything at the Table: dishes, asks, comments, plates, votes, seats, and the nights other phones plan | `ShareAcceptor` fetches, `PlanLedger` folds the nights, `TableNews` decides | notification permission |
 | APNs through the directory | An invitation to somebody already on Plated | `supabase/functions/invite` | APNs key on the server |
 
 The Table pipe is the interesting one. CloudKit sends a silent push when a
@@ -36,6 +36,10 @@ for one change token or raise one banner twice.
   everybody so far, not just this delivery. Everyone plating yours is the
   Chef's kiss.
 - A seat became real: an invitation was accepted.
+- Somebody else planned a night, moved it, put you down to cook it,
+  renamed it, or took it off the week. The night rides the same zone
+  as the dishes and lands in `PlanLedger`, never in `PlannedMeal`;
+  `docs/plan-share.md` is the law for it.
 
 And the rules that keep it quiet:
 
@@ -68,6 +72,13 @@ And the rules that keep it quiet:
 - **A retraction takes its notice with it.** An un-plate rewrites the line
   to whoever still stands, or removes it; a deleted comment removes its
   banner and its row. Neither reads as fresh news.
+- **A plan notice is about a night, never a word to you.** It is never
+  addressed and never direct: "Riley put you down to cook Thursday" is
+  what Riley did to the week, so the Planning switch governs it, quiet
+  hours apply, and the 19:00 reminder carries the sound for the
+  obligation. A night taken off is a retraction or news, decided by the
+  row: unread or absent, the row and the banner go and nothing is said;
+  read, "Riley took Tacos off Thursday" lands passively under Planning.
 - **The lock screen names the person before the unlock.** Every category
   reveals its title and subtitle under Show Previews: When Unlocked, with
   a placeholder body ("Open to read it."). Never "Plated: Notification".
@@ -108,12 +119,14 @@ not blind. The icon counts only rows the person still wants to hear.
 
 - **Cook reminders** and **Table activity** are the two coarse switches,
   each honest about the iOS permission in three states.
-- Under Table activity, five finer ones, the categories that actually
+- Under Table activity, six finer ones, the categories that actually
   exist in the pipe: Dishes and asks, Replies and mentions, Comments on
-  your dishes, Plates and votes on yours, New seats. A tag, a reply and a
-  mention are words to you and live under Replies whatever record carried
-  them. There is no Planning switch because the plan does not cross Apple
-  IDs yet; a switch for a notice that cannot fire is a lie.
+  your dishes, Plates and votes on yours, New seats, Planning. A tag, a
+  reply and a mention are words to you and live under Replies whatever
+  record carried them. A plan notice answers to Planning before the
+  addressed question is asked, because it is never a word to you. There
+  is still no grocery switch: groceries do not cross Apple IDs, and a
+  switch for a notice that cannot fire is a lie.
 - **Mute this dish**, in the dish's own menu. Silent to everyone else, the
   author never learns, and the card shows a small bell.slash where its
   time is. The room's chatter about that dish stays in the list; a reply
@@ -170,13 +183,20 @@ Apple's guideline 4.5.3 names.
 ## Where a tap lands
 
 Every notice carries a `plated://` link. A dish or a comment opens that
-post's thread; a seat opens Home; a reminder opens the plan. The tap arrives
+post's thread; a seat opens Home; a reminder opens the plan. A plan notice,
+and the reminder for a night somebody else planned, open the plan on that
+night: `plated://plan?day=yyyy-MM-dd` (`DeepLink.url(plan:)`,
+`planDay(in:)`). The shell selects Plan and parks the day in `LinkRelay`,
+and `WeekView` moves its anchor to it; while the week is on screen,
+`Presence.planVisible` keeps a plan banner to the list. The tap arrives
 at `NotificationRouter`, is parked in `LinkRelay`, and the shell collects it
 through the same `route(_:)` that `onOpenURL` uses. Activity rows written by
 the news carry the same link and open the same way.
 
 Actions, drawn by the system: **Plate it** on a dish, **Reply** on a
-comment, **Grocery list** on your own cook reminder. They write through the
+comment, **Grocery list** on your own cook reminder. The reminder for a
+night planned on another phone carries no grocery action: the list has
+nothing for that night. They write through the
 same road a tap in the feed would take, so a plate from the lock screen is
 in the ledger and the outbox before the app opens.
 
@@ -239,7 +259,15 @@ Two debug flags stand in:
 - `-plated-ask-notifications` spends the permission prompt at launch.
 - `-plated-fake-table-news` writes a dish by "Riley" into the store and
   runs it through `TableNews` as if it had just arrived, with a comment and
-  a plate on your newest own post when there is one.
+  a plate on your newest own post when there is one. It also folds two
+  nights Riley planned into `PlanLedger`: tomorrow with Riley cooking and
+  the day after with you cooking, in a zone of their own
+  (`PlanLedger.rehearsalOwner`, `rehearsal-zone`) that the flag makes
+  the household, so both bodies and the remote reminder can be looked
+  at. It then rebuilds the reminders and prints the pending
+  `plated.turn.remote.` requests. A launch without the flag drops every
+  `rehearsal-zone` entry, so a real table's nights are never mixed with
+  Riley's.
 
 Always `simctl terminate` before a flag-carrying launch; a running process
 keeps its original arguments.
@@ -267,39 +295,39 @@ only other people, a seat matched on identity, deep-link parsing, the
 invite link's https rule. The merge's reaction-dropping bug was found by
 one of them.
 
-## Sharing the plan (not built, decision pending)
+`PlanNewsTests` holds the plan pipe to `docs/plan-share.md`:
+`PlanLedger.absorb` (mine skipped, deletion by the `plan-` prefix, a
+replayed owner reconciled against what was delivered, past-day deletions
+silent, the household filter, the delta computed before the overwrite, a
+removed and added pair cancelled), the plan notices (added, moved, put
+you down, renamed, an edit that means nothing, removed as retraction and
+as news, mine ignored, the replay window on `changedAt`, once), the
+Planning switch before the addressed question, the plan banner kept to
+the list over the week, the deep link's day round trip, the night phrase
+ladder, and the reminder dedupe (a local night wins the day).
 
-"If I plan a dinner, the household should be told" cannot be built as a
-notification. `PlannedMeal`, `HouseholdMember` and `GroceryItem` live in
-the private CloudKit mirror, which reaches the owner's own devices and
-nobody else's. Only `PlatedDish*` records cross Apple IDs, through the
-shared zone. Two ways to make the plan cross, both defensible:
+## The plan pipe
 
-1. **A plan record in the shared zone.** `PlatedDishPlan`, one per
-   planned meal, written by the phone that plans and merged into
-   `PlannedMeal` on every participant's phone through the same
-   `TablePull`, `absorb` and `TableNews` road the dishes take. Works
-   offline, needs no server session, and the notice is a few lines in the
-   digest under the same never-about-you rule. The costs: the record type
-   is permanent once minted, every participant of the zone can read it (a
-   guest at your table sees your week unless the client hides plans from
-   zones that are not its household), and "whose plan is the household's"
-   has to be answered: a member's own week goes quiet and the head's week
-   becomes theirs, which is the household merge `docs/open-decisions.md`
-   and the backend memory already call big.
-2. **The directory server.** Households and plans as Supabase tables, the
-   phone syncing through the directory session, APNs from the server for
-   the notice. Coherent with the direction chosen on Sept 2 for
-   "who is on Plated" and the invite push, and it solves membership
-   properly. The cost is a second sync layer beside SwiftData for the
-   plan, the roster and groceries, a server that has to be up for a
-   partner to see Thursday, and it cannot start until the server pipe is
-   deployed and verified.
+Built Sept 7 2026; `docs/plan-share.md` is the law and this is only the
+pointer. A night planned on one phone rides the household zone the
+household invite mints (`docs/household.md`), as a `PlatedHouseholdPlan`
+record, and lands on every other phone in the household in `PlanLedger`,
+a JSON book beside the plates, never in `PlannedMeal`. It does not ride the
+Table zone: a Table guest must not be able to read the week. The rules the
+pipe decided:
 
-Recommendation: option 1 for the plan, with the client filtering plan
-records to the zone the household adopted, and the server kept for what
-only a server can do (the directory, the invite push, Plated speaking as
-itself). Nate decides; see `docs/open-decisions.md` §17.
+- A plan notice answers to the **Planning** switch, and to nothing else.
+- It is **never addressed and never direct**: a night is a fact about the
+  week, not a word to you, even when the cook it names is you.
+- **Quiet hours apply.** The 19:00 reminder carries the sound for the
+  obligation, so the notice does not need to.
+- A night taken off is **a retraction or news, decided by the row**: unread
+  or absent, the row and the banner go silently; read, a passive "took it
+  off" line.
+- **One reminder per night.** A remote night whose cook is you schedules
+  "Your night tomorrow" the way a local one does, on a day no local meal
+  claims; a local night wins the day, and for a remote night only the
+  cook's own reminder is sent.
 
 ## Still open
 
@@ -328,7 +356,8 @@ Found by the Sept 4 review and left deliberately, each with a reason:
 - **iPad with two windows** shares one `Presence` and one `LinkRelay`. A
   notice could be kept to the list because the other window shows the
   post. Harmless; noted so nobody rediscovers it.
-- **The digest reads shared state** (`TableIdentity`, `TableLedger`, the
-  app group). The tests reset it in `setUp`/`tearDown`, which means they
-  wipe a simulator's real ledger when run there. Injecting the three
-  would make them pure; not done because it touches every caller.
+- **The digest reads shared state** (`TableIdentity`, `TableLedger`,
+  `PlanLedger`, the app group). The tests reset it in `setUp`/`tearDown`,
+  which means they wipe a simulator's real ledgers when run there, and
+  `PlanNewsTests` puts the household owner back. Injecting them would
+  make the tests pure; not done because it touches every caller.

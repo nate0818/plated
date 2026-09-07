@@ -646,6 +646,33 @@ enum Stamp {
         return "on \(datedYearFormat.string(from: date))"
     }
 
+    /// The same ladder looking forward, for a night that has not happened:
+    /// "tonight", "tomorrow", "Thursday", "12 Aug", "12 Aug 2025". Six days
+    /// ahead a weekday still names one night; past that it names a week
+    /// that is not the week it means, so it becomes a date. A night a few
+    /// days back is "last Thursday", so it cannot be read as the coming one.
+    ///
+    /// The phrase carries no preposition. Its sentences do: "planned Tacos
+    /// for", "moved Tacos to", "took Tacos off", "put you down to cook",
+    /// and each reads with every rung of the ladder. When the ladder
+    /// carried "on" past six days, every notice about a night a week out
+    /// read "planned Tacos for on 12 Sep".
+    static func nightPhrase(_ date: Date) -> String {
+        let calendar = Calendar.current
+        if calendar.isDateInToday(date) { return "tonight" }
+        if calendar.isDateInTomorrow(date) { return "tomorrow" }
+        if calendar.isDateInYesterday(date) { return "yesterday" }
+        let days = calendar.dateComponents(
+            [.day], from: calendar.startOfDay(for: .now), to: calendar.startOfDay(for: date)
+        ).day ?? 0
+        if days > 0 && days < 6 { return weekdayFormat.string(from: date) }
+        if days < 0 && days > -6 { return "last \(weekdayFormat.string(from: date))" }
+        if calendar.isDate(date, equalTo: .now, toGranularity: .year) {
+            return dateFormat.string(from: date)
+        }
+        return datedYearFormat.string(from: date)
+    }
+
     /// Within six days back, so a weekday name can never collide with the
     /// same weekday before it — and so a time of day still means one thing.
     static func isRecent(_ date: Date) -> Bool {

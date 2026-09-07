@@ -85,9 +85,12 @@ enum Notifier {
         let lastStamp = UserDefaults.standard.double(forKey: stampKey)
         guard lastStamp != today.timeIntervalSince1970 else { return }
 
+        // A night somebody else planned for tonight is a night that is
+        // handled, so it counts as plated here or the bell would say
+        // "nothing plated yet" over a dinner the week already shows.
         let tonightPlanned = meals.contains {
             Calendar.current.isSameDay($0.date, today) && $0.slotValue == .dinner
-        }
+        } || PlanLedger.shared.dinner(on: today) != nil
         guard !tonightPlanned else { return }
 
         let weekday = Calendar.current.component(.weekday, from: today)

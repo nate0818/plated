@@ -57,6 +57,20 @@ enum TableShare {
     private static let plateType = "PlatedDishPlate"
     private static let ballotType = "PlatedDishBallot"
     private static let noteType = "PlatedDishNote"
+    /// The household's own zone, minted and shared by the household invite
+    /// (docs/household.md): roster, plan, recipes. The plan record below
+    /// lives here, never under the Table share, because a Table guest must
+    /// not be able to read the week. See docs/plan-share.md.
+    static let householdZoneName = "PlatedHousehold"
+    static let householdRootName = "household-root"
+    static let householdRootType = "PlatedHousehold"
+    /// A night on the plan, `plan-<shoppingID>`, in the household zone.
+    static let planType = "PlatedHouseholdPlan"
+    /// Written by the household invite on join and on the head's first
+    /// mint, read here as the one answer to "which household is this
+    /// phone in": "" for the head's own zone, the host's user record name
+    /// for a member, absent for none. App-group suite.
+    static let householdOwnerKey = "plated.household.owner"
 
     #if DEBUG
     /// The ghost post, made unrepeatable.
@@ -67,7 +81,7 @@ enum TableShare {
     /// going forward, not retroactively.
     static func assertNoEntityCollision() {
         let entities = Set(PlatedStore.schema.entities.map(\.name))
-        let written: Set<String> = [rootType, postType, plateType, ballotType, noteType]
+        let written: Set<String> = [rootType, postType, plateType, ballotType, noteType, householdRootType, planType]
         let clash = entities.intersection(written)
         assert(clash.isEmpty, "CloudKit types collide with SwiftData entities: \(clash)")
     }
@@ -75,11 +89,56 @@ enum TableShare {
 
     /// CloudKit has no boolean type. A Bool field is stored as an INT64 and
     /// `record[key] as? Bool` is a bridging coin flip.
-    private static func int(_ record: CKRecord, _ key: String) -> Int {
+    static func int(_ record: CKRecord, _ key: String) -> Int {
         if let n = record[key] as? Int { return n }
         if let n = record[key] as? Int64 { return Int(n) }
         if let n = record[key] as? NSNumber { return n.intValue }
         return 0
+    }
+
+    // MARK: Which zone is the household's
+
+    /// Three states, never a guess. `unresolved` carries the candidates,
+    /// "" for this phone's own table, so Settings can offer the choice.
+    enum Choice: Equatable {
+        case none
+        case unresolved([String])
+        case resolved(String)
+    }
+
+    /// The candidate rules from docs/plan-share.md, pure so a test can hold
+    /// them. A zone never counts because it exists: onboarding mints a
+    /// private table for nearly everyone, so the own zone is a candidate
+    /// only when somebody has actually accepted its share.
+    ///
+    /// `me` is this phone's own record name. The mutual-invite tie-break
+    /// compares owner ids, and the own zone is "" here but my real id on
+    /// every other phone, so the comparison has to use the real one or two
+    /// partners who invited each other would each pick their own table.
+    static func chooseHousehold(
+        ownShareAccepted: Bool,
+        ownAcceptedParticipantIDs: Set<String>,
+        joinedOwners: [String],
+        stored: String?,
+        me: String
+    ) -> Choice {
+        var candidates: [String] = ownShareAccepted ? [""] : []
+        for owner in joinedOwners where !owner.isEmpty && !candidates.contains(owner) {
+            candidates.append(owner)
+        }
+        guard !candidates.isEmpty else { return .none }
+        if candidates.count == 1 { return .resolved(candidates[0]) }
+        if let stored, candidates.contains(stored) { return .resolved(stored) }
+        // Two partners who invited each other: every joined table's owner
+        // sits accepted at my own, so both phones hold the same pair and
+        // the smallest id is the same answer on each.
+        let joined = candidates.filter { !$0.isEmpty }
+        if ownShareAccepted, !me.isEmpty,
+           joined.allSatisfy({ ownAcceptedParticipantIDs.contains($0) }) {
+            let smallest = (joined + [me]).min() ?? me
+            return .resolved(smallest == me ? "" : smallest)
+        }
+        return .unresolved(candidates)
     }
 
     #if PLATED_CLOUDKIT
@@ -701,6 +760,35 @@ enum TableShare {
         var taggedNames: [String] = []
     }
 
+    /// A night as it travels. Every field mirrors the record in
+    /// docs/plan-share.md; `day` is a `PlanDay` string, never a Date.
+    struct RemotePlan: Equatable {
+        var recordName = ""
+        /// Which table this arrived from. "" is my own.
+        var zoneOwner = ""
+        var authorID = ""
+        var authorName = ""
+        var authorColorHex = "FF5A3C"
+        var cookID = ""
+        var cookName = ""
+        var cookColorHex = ""
+        var cookSeat = ""
+        var day = ""
+        var slot = MealSlot.dinner.rawValue
+        var title = ""
+        var servings = 4
+        var tagline = ""
+        var cooked = false
+        var cookedAt: Date?
+        var hasRecipe = false
+        var recipeMinutes = 0
+        var recipeOriginKey = ""
+        var shoppingID = ""
+        var photoData: Data?
+        var createdAt = Date.now
+        var changedAt = Date.now
+    }
+
     /// Everything other people have put on tables this user can see.
     ///
     /// Zone CHANGES, not a CKQuery, and that is the whole point. A query
@@ -740,12 +828,21 @@ enum TableShare {
         var posts: [RemotePost] = []
         var reactions: [RemoteReaction] = []
         var notes: [RemoteNote] = []
+        /// Nights other phones planned. Folded by `PlanLedger`, never merged.
+        var plans: [RemotePlan] = []
         var deleted: Set<String> = []
         /// The CKShare itself came back changed: somebody accepted, or was
         /// removed. Which one is `Seats.reconcile`'s to say; this only
         /// notes that the question is worth asking now rather than at the
         /// next launch.
         var sharesChanged = false
+        /// Zones read from the beginning this pull, by canonical owner. A
+        /// replay carries no deletions, so for these owners the delivered
+        /// plan set is the whole truth and the ledger reconciles against it.
+        var replayedOwners: Set<String> = []
+        /// The household share itself came back changed: somebody joined
+        /// or was removed. The head sweeps departed members' nights on it.
+        var householdShareChanged = false
         /// At least one zone was read from the beginning: a fresh install,
         /// or a change token CloudKit refused. The news treats such a
         /// delta as history to be windowed, not as a day's events.
@@ -761,7 +858,9 @@ enum TableShare {
             all.posts += part.posts
             all.reactions += part.reactions
             all.notes += part.notes
+            all.plans += part.plans
             all.deleted.formUnion(part.deleted)
+            all.replayedOwners.formUnion(part.replayedOwners)
             // The flags too. `sharesChanged` was set per database and then
             // dropped right here, so a seat accepted was never announced.
             all.sharesChanged = all.sharesChanged || part.sharesChanged
@@ -779,15 +878,40 @@ enum TableShare {
     private static func postChanges(in db: CKDatabase, isPrivate: Bool) async -> Changes {
         var found = Changes()
         guard let zones = try? await db.allRecordZones() else { return found }
-        for zone in zones where zone.zoneID.zoneName == zoneName {
+        for zone in zones where zone.zoneID.zoneName == zoneName || zone.zoneID.zoneName == householdZoneName {
             let owner = canonicalOwner(zone.zoneID, isPrivate: isPrivate)
+            // The Table zone carries dishes; the household zone carries the
+            // plan. A replay of the Table zone must never read as "the
+            // household's nights are gone", so the ledger's reconciliation
+            // hears only about household zones.
+            let isHousehold = zone.zoneID.zoneName == householdZoneName
+            // A zone's read is all or nothing. Its records gather here and
+            // join `found` only once every page has come and the token is
+            // stored: a replayed owner whose read threw halfway would
+            // otherwise hand the plan ledger one page as "the whole
+            // truth", and the ledger would drop every other night at that
+            // table, retract their rows and announce them taken off.
+            var part = Changes()
             do {
+                // Asked to read this table again from the beginning (the
+                // household moved here): decided at the start of the read,
+                // inside the one pull that is running, so no fetch that
+                // began earlier can store a fresh token over the request.
+                if takeReplayRequest(for: zone.zoneID) {
+                    forgetToken(for: zone.zoneID)
+                }
                 // A page at a time until the server says there is no more.
                 // One call returns one page, so a table with more posts than
                 // a page holds used to arrive permanently truncated — and
                 // the token still advanced, so the rest never came at all.
                 var cursor = token(for: zone.zoneID)
-                if cursor == nil { found.replayed = true }
+                if cursor == nil {
+                    part.replayed = true
+                    // A zone read from nothing delivers every live record
+                    // and no deletion, so for this owner what arrives is
+                    // the whole truth and the plan ledger reconciles to it.
+                    if isHousehold { part.replayedOwners.insert(owner) }
+                }
                 var more = true
                 while more {
                     let changes = try await db.recordZoneChanges(
@@ -799,27 +923,45 @@ enum TableShare {
                         case postType, legacyPostType:
                             var post = remotePost(from: record)
                             post.zoneOwner = owner
-                            found.posts.append(post)
+                            part.posts.append(post)
                         case plateType, ballotType:
-                            found.reactions.append(remoteReaction(from: record))
+                            part.reactions.append(remoteReaction(from: record))
                         case noteType:
-                            found.notes.append(remoteNote(from: record))
+                            part.notes.append(remoteNote(from: record))
+                        case planType:
+                            var plan = remotePlan(from: record)
+                            plan.zoneOwner = owner
+                            part.plans.append(plan)
                         default:
-                            if record is CKShare { found.sharesChanged = true }
+                            if record is CKShare {
+                                if isHousehold { part.householdShareChanged = true }
+                                else { part.sharesChanged = true }
+                            }
                             continue
                         }
                     }
                     for deleted in changes.deletions {
-                        found.deleted.insert(deleted.recordID.recordName)
+                        part.deleted.insert(deleted.recordID.recordName)
                     }
                     cursor = changes.changeToken
                     more = changes.moreComing
                 }
                 store(cursor, for: zone.zoneID)
+                found.posts += part.posts
+                found.reactions += part.reactions
+                found.notes += part.notes
+                found.plans += part.plans
+                found.deleted.formUnion(part.deleted)
+                found.replayedOwners.formUnion(part.replayedOwners)
+                found.sharesChanged = found.sharesChanged || part.sharesChanged
+                found.householdShareChanged = found.householdShareChanged || part.householdShareChanged
+                found.replayed = found.replayed || part.replayed
             } catch {
                 // A stale token after a zone is re-shared is the common
                 // case. Forget this zone's and the next pull re-reads it
-                // whole; the other zone's token survives.
+                // whole; the other zone's token survives, and so does
+                // what this zone had already delivered: none of it, so
+                // nothing partial is folded anywhere.
                 forgetToken(for: zone.zoneID)
             }
         }
@@ -881,6 +1023,9 @@ enum TableShare {
         do {
             _ = try await db.deleteRecordZone(withID: zone.zoneID)
             forgetTokens()
+            // The plan is not here: it lives in the household zone, which
+            // has its own leave (docs/household.md), and that leave clears
+            // the household key the plan ledger reads.
             return true
         } catch { return false }
     }
@@ -951,6 +1096,10 @@ enum TableShare {
         let ballotOK = await pushBallot(
             post: name, zoneOwner: owner, author: "prime", authorName: "Primer", choice: 0, at: .now
         )
+        // The plan record too: every field set and a photo on it, then
+        // taken back. Its own path, not the post's, because it is parented
+        // to the root rather than to a dish.
+        let planLine = await primePlan()
 
         // And it takes back what it wrote. The old primer left "Schema
         // probe" sitting in a real household's real table forever.
@@ -963,12 +1112,474 @@ enum TableShare {
           Note       : \(noteOK ? "ok" : "FAILED")
           Plate      : \(plateOK ? "ok" : "FAILED")
           Ballot     : \(ballotOK ? "ok" : "FAILED")
+          Plan       : \(planLine)
         Probe cleanup: \(removed ? "removed; children cascade with it" : "FAILED: cleanup must be retried").
         Every record type now exists in Development. Deploy the schema to \
         Production in the CloudKit console before shipping.
         """
     }
+
+    /// One `PlatedHouseholdPlan` with every field non-nil and a photo, saved
+    /// into the own zone and deleted again. Dated `2000-01-01`, so a
+    /// reader that pulls between the save and the delete prunes it before
+    /// it can be news. Nil fields are the trap: a field nil while priming
+    /// does not exist in Production, and the first real save carrying it
+    /// fails `.invalidArguments`.
+    private static func primePlan() async -> String {
+        // The plan lives in the household zone, which the household invite
+        // mints. No zone, nothing to teach yet: say so rather than fail.
+        guard let (db, zoneID) = await householdZone(ownedBy: "") else {
+            print("[PlanShare] prime: no household zone yet; run -plated-prime-household first")
+            return "skipped: no household zone yet (run -plated-prime-household first)"
+        }
+        let probe = PlanShare.Plan(
+            recordName: "plan-prime-probe", shoppingID: "prime-probe",
+            authorID: "prime", authorName: "Prime", authorColorHex: "FF5A3C",
+            cookID: "prime", cookName: "Prime", cookColorHex: "3DA35D",
+            cookSeat: HouseholdMember.Seat.head.rawValue,
+            day: "2000-01-01", slot: MealSlot.dinner.rawValue,
+            title: "Schema probe", servings: 4,
+            tagline: "Written to teach CloudKit the type.",
+            cooked: true, cookedAt: .now, hasRecipe: true, recipeMinutes: 35,
+            recipeOriginKey: "prime", createdAt: .now, photoData: nil
+        )
+        // A few grey pixels: enough to mint the asset field, small enough
+        // to cost nothing.
+        let side: CGFloat = 8
+        let pixels = UIGraphicsImageRenderer(size: CGSize(width: side, height: side)).image { ctx in
+            ctx.cgContext.setFillColor(gray: 0.5, alpha: 1)
+            ctx.cgContext.fill(CGRect(x: 0, y: 0, width: side, height: side))
+        }
+        guard let jpeg = pixels.jpegData(compressionQuality: 0.7) else { return "FAILED: no probe image" }
+        let (record, temp) = planRecord(probe, existing: nil, zone: zoneID, photo: .set(jpeg), now: .now)
+        defer { if let temp { try? FileManager.default.removeItem(at: temp) } }
+        let saved = await savePlans([record], in: db)
+        guard saved.contains(probe.recordName) else {
+            print("[PlanShare] prime: the plan probe would not save")
+            return "FAILED: the probe would not save"
+        }
+        let gone = await deletePlans(names: [probe.recordName], in: db, zone: zoneID)
+        print("[PlanShare] prime: plan probe saved and \(gone.isEmpty ? "NOT " : "")deleted")
+        return gone.contains(probe.recordName) ? "ok, saved with a photo and deleted again" : "FAILED: cleanup must be retried"
+    }
     #endif
+
+    // MARK: The plan across the wire
+
+    /// One look at the shares, answered. Nil means CloudKit could not be
+    /// asked, which is not "no candidate": a pass that cannot ask leaves
+    /// the book and the ledger exactly as they were, because a flaky
+    /// network must never read as a household that changed.
+    struct HouseholdResolution {
+        var choice: Choice
+        /// Every candidate, titled from its root record.
+        var tables: [PlanShare.Table]
+        /// The resolved table's home, for the publisher. Nil unless resolved.
+        var database: CKDatabase?
+        var zoneID: CKRecordZone.ID?
+    }
+
+    /// Resolve the household from the shares (docs/plan-share.md, "Which
+    /// zone is the household's"). `stored` is the owner already written
+    /// down; `me` this phone's own record name.
+    static func resolveHousehold(stored: String?, me: String) async -> HouseholdResolution? {
+        guard await TableSync.accountAvailable() else {
+            print("[PlanShare] no iCloud account, household not resolved")
+            return nil
+        }
+        // The household invite wrote the answer down; it is the authority
+        // (docs/household.md, one household per Apple ID). The zone has to
+        // be reachable too: a key written a breath before the zone shows in
+        // the shared database is "could not ask yet", never "none".
+        if let written = householdStore.string(forKey: householdOwnerKey) {
+            if let (db, zoneID) = await householdZone(ownedBy: written) {
+                let title = await rootTitle(in: db, zone: zoneID)
+                var resolution = HouseholdResolution(
+                    choice: .resolved(written), tables: [PlanShare.Table(owner: written, title: title)]
+                )
+                resolution.database = db
+                resolution.zoneID = zoneID
+                print("[PlanShare] household from the invite's key: \(written.isEmpty ? "own" : written)")
+                return resolution
+            }
+            print("[PlanShare] the household key names a zone that is not here yet")
+            return nil
+        }
+        // No key: an install from before the household invite, or a phone
+        // between households. Answer from the household zones' shares.
+        // The own share's accepted seats. "Not a host" is an answer; a
+        // share that could not be read is not, and must never be taken as
+        // one: that is how a flaky network flips a household.
+        var accepted: Set<String> = []
+        do {
+            if let share = try await ownHouseholdShare() {
+                for p in share.participants
+                where p.role != .owner && p.acceptanceStatus == .accepted {
+                    if let id = p.userIdentity.userRecordID?.recordName, !id.isEmpty {
+                        accepted.insert(id)
+                    }
+                }
+            }
+        } catch {
+            print("[PlanShare] could not read the own share: \(error.localizedDescription)")
+            return nil
+        }
+        let joined: [CKRecordZone]
+        do {
+            joined = try await container.sharedCloudDatabase.allRecordZones()
+                .filter { $0.zoneID.zoneName == householdZoneName }
+        } catch {
+            print("[PlanShare] could not list joined households: \(error.localizedDescription)")
+            return nil
+        }
+        let choice = chooseHousehold(
+            ownShareAccepted: !accepted.isEmpty,
+            ownAcceptedParticipantIDs: accepted,
+            joinedOwners: joined.map(\.zoneID.ownerName),
+            stored: stored, me: me
+        )
+        let ownID = CKRecordZone.ID(zoneName: householdZoneName, ownerName: CKCurrentUserDefaultName)
+        var tables: [PlanShare.Table] = []
+        if !accepted.isEmpty {
+            let title = await rootTitle(in: container.privateCloudDatabase, zone: ownID)
+            tables.append(PlanShare.Table(owner: "", title: title))
+        }
+        for zone in joined {
+            let title = await rootTitle(in: container.sharedCloudDatabase, zone: zone.zoneID)
+            tables.append(PlanShare.Table(owner: zone.zoneID.ownerName, title: title))
+        }
+        var resolution = HouseholdResolution(choice: choice, tables: tables)
+        if case .resolved(let owner) = choice {
+            if owner.isEmpty {
+                resolution.database = container.privateCloudDatabase
+                resolution.zoneID = ownID
+            } else if let zone = joined.first(where: { $0.zoneID.ownerName == owner }) {
+                resolution.database = container.sharedCloudDatabase
+                resolution.zoneID = zone.zoneID
+            }
+        }
+        print("[PlanShare] household: \(choice) from \(tables.count) candidate(s)")
+        return resolution
+    }
+
+    /// The app-group suite the household invite writes its key into.
+    static var householdStore: UserDefaults {
+        UserDefaults(suiteName: WidgetBridge.appGroupID) ?? .standard
+    }
+
+    /// A household zone by canonical owner: "" is the own zone in the
+    /// private database, anything else a joined zone in the shared one.
+    /// Nil when it is not there or CloudKit could not say.
+    static func householdZone(ownedBy owner: String) async -> (CKDatabase, CKRecordZone.ID)? {
+        if owner.isEmpty {
+            let id = CKRecordZone.ID(zoneName: householdZoneName, ownerName: CKCurrentUserDefaultName)
+            do {
+                _ = try await container.privateCloudDatabase.recordZone(for: id)
+                return (container.privateCloudDatabase, id)
+            } catch {
+                return nil
+            }
+        }
+        guard let zones = try? await container.sharedCloudDatabase.allRecordZones(),
+              let z = zones.first(where: {
+                  $0.zoneID.zoneName == householdZoneName && $0.zoneID.ownerName == owner
+              })
+        else { return nil }
+        return (container.sharedCloudDatabase, z.zoneID)
+    }
+
+    /// The own household's share, nil when this phone hosts none. Throws
+    /// when CloudKit could not say, which a `try?` would hide.
+    private static func ownHouseholdShare() async throws -> CKShare? {
+        let db = container.privateCloudDatabase
+        let zoneID = CKRecordZone.ID(zoneName: householdZoneName, ownerName: CKCurrentUserDefaultName)
+        let root: CKRecord
+        do {
+            root = try await db.record(for: CKRecord.ID(recordName: householdRootName, zoneID: zoneID))
+        } catch let error as CKError where error.code == .unknownItem || error.code == .zoneNotFound {
+            return nil
+        }
+        guard let ref = root.share else { return nil }
+        do {
+            return try await db.record(for: ref.recordID) as? CKShare
+        } catch let error as CKError where error.code == .unknownItem {
+            return nil
+        }
+    }
+
+    /// The household's name off its root record, "" when it has none.
+    /// `name` is the household invite's field; `title` the Table's.
+    private static func rootTitle(in db: CKDatabase, zone: CKRecordZone.ID) async -> String {
+        let root = try? await db.record(for: CKRecord.ID(recordName: householdRootName, zoneID: zone))
+        return root?["name"] as? String ?? root?["title"] as? String ?? ""
+    }
+
+    /// Where this phone's plan goes: the resolved household's database,
+    /// zone and canonical owner, or nil when there is none or CloudKit
+    /// could not be asked.
+    @MainActor
+    static func householdZone() async -> (CKDatabase, CKRecordZone.ID, owner: String)? {
+        let stored = PlanLedger.shared.householdOwner
+        guard let r = await resolveHousehold(stored: stored, me: TableIdentity.cached),
+              case .resolved(let owner) = r.choice,
+              let db = r.database, let zoneID = r.zoneID else { return nil }
+        return (db, zoneID, owner)
+    }
+
+    /// Every table this phone's plan could belong to, titled.
+    @MainActor
+    static func tables() async -> [PlanShare.Table] {
+        let stored = PlanLedger.shared.householdOwner
+        return await resolveHousehold(stored: stored, me: TableIdentity.cached)?.tables ?? []
+    }
+
+    /// What one save does with the photo. A pass that already sent these
+    /// bytes leaves the field alone, so readers do not download it again.
+    enum PlanPhoto {
+        case keep
+        case set(Data)
+        case clear
+    }
+
+    /// Build or update the record for one night: every field in the table
+    /// in docs/plan-share.md, no lists and no Bools. The temp file behind
+    /// a `.set` asset is the caller's to remove once the save is done.
+    static func planRecord(
+        _ plan: PlanShare.Plan, existing: CKRecord?, zone: CKRecordZone.ID,
+        photo: PlanPhoto, now: Date
+    ) -> (record: CKRecord, temp: URL?) {
+        let record = existing ?? CKRecord(
+            recordType: planType,
+            recordID: CKRecord.ID(recordName: plan.recordName, zoneID: zone)
+        )
+        record["authorID"] = plan.authorID as CKRecordValue
+        record["authorName"] = plan.authorName as CKRecordValue
+        record["authorColorHex"] = plan.authorColorHex as CKRecordValue
+        record["cookID"] = plan.cookID as CKRecordValue
+        record["cookName"] = plan.cookName as CKRecordValue
+        record["cookColorHex"] = plan.cookColorHex as CKRecordValue
+        record["cookSeat"] = plan.cookSeat as CKRecordValue
+        record["day"] = plan.day as CKRecordValue
+        record["slot"] = plan.slot as CKRecordValue
+        record["title"] = plan.title as CKRecordValue
+        record["servings"] = plan.servings as CKRecordValue
+        record["tagline"] = plan.tagline as CKRecordValue
+        record["cooked"] = (plan.cooked ? 1 : 0) as CKRecordValue
+        record["cookedAt"] = plan.cookedAt as CKRecordValue?
+        record["hasRecipe"] = (plan.hasRecipe ? 1 : 0) as CKRecordValue
+        record["recipeMinutes"] = plan.recipeMinutes as CKRecordValue
+        record["recipeOriginKey"] = plan.recipeOriginKey as CKRecordValue
+        record["shoppingID"] = plan.shoppingID as CKRecordValue
+        record["createdAt"] = plan.createdAt as CKRecordValue
+        // The household contract's name for the writer's clock.
+        record["modifiedAt"] = now as CKRecordValue
+        // Both links, exactly as `PlatedDish` carries them: the reference
+        // is the cascade, the parent is what puts the record under the
+        // share so a participant can see it at all.
+        let rootID = CKRecord.ID(recordName: householdRootName, zoneID: zone)
+        record["parent"] = CKRecord.Reference(recordID: rootID, action: .deleteSelf)
+        record.setParent(rootID)
+        var temp: URL?
+        switch photo {
+        case .keep:
+            break
+        case .clear:
+            record["photo"] = nil
+        case .set(let data):
+            if let asset = asset(from: data) {
+                record["photo"] = asset
+                temp = asset.fileURL
+            }
+        }
+        return (record, temp)
+    }
+
+    /// The records the zone already holds, by name, so a known night is
+    /// updated rather than raced. A name the zone lacks is simply absent
+    /// and the caller creates it outright.
+    static func fetchPlanRecords(
+        named names: [String], in db: CKDatabase, zone: CKRecordZone.ID
+    ) async -> [String: CKRecord] {
+        var found: [String: CKRecord] = [:]
+        for batch in batches(names) {
+            let ids = batch.map { CKRecord.ID(recordName: $0, zoneID: zone) }
+            do {
+                for (id, result) in try await db.records(for: ids) {
+                    if case .success(let record) = result { found[id.recordName] = record }
+                }
+            } catch {
+                print("[PlanShare] fetch of \(batch.count) night(s) failed: \(error.localizedDescription)")
+            }
+        }
+        return found
+    }
+
+    /// Save nights twenty at a time, each on its own so one refusal does
+    /// not fail the batch. Returns the names that landed.
+    ///
+    /// `.serverRecordChanged` means the zone already holds a record of this
+    /// name that this one did not descend from: a flip back to a table
+    /// that still has last month's copy, or one of this person's own
+    /// devices saving first. Fetch it once, put these fields on it and
+    /// save again; a second refusal waits for the next pass.
+    static func savePlans(_ records: [CKRecord], in db: CKDatabase) async -> Set<String> {
+        var saved: Set<String> = []
+        for batch in batches(records) {
+            let results: [CKRecord.ID: Result<CKRecord, Error>]
+            do {
+                results = try await db.modifyRecords(
+                    saving: batch, deleting: [], atomically: false
+                ).saveResults
+            } catch {
+                print("[PlanShare] save of \(batch.count) night(s) failed: \(error.localizedDescription)")
+                continue
+            }
+            for (id, result) in results {
+                switch result {
+                case .success:
+                    saved.insert(id.recordName)
+                case .failure(let error as CKError) where error.code == .serverRecordChanged:
+                    guard let mine = batch.first(where: { $0.recordID == id }) else { continue }
+                    if await saveOverServerCopy(mine, in: db) {
+                        saved.insert(id.recordName)
+                    } else {
+                        print("[PlanShare] \(id.recordName) changed on the server twice, next pass")
+                    }
+                case .failure(let error):
+                    print("[PlanShare] \(id.recordName) would not save: \(error.localizedDescription)")
+                }
+            }
+        }
+        return saved
+    }
+
+    private static func saveOverServerCopy(_ mine: CKRecord, in db: CKDatabase) async -> Bool {
+        do {
+            let server = try await db.record(for: mine.recordID)
+            for key in mine.changedKeys() { server[key] = mine[key] }
+            server.parent = mine.parent
+            let results = try await db.modifyRecords(
+                saving: [server], deleting: [], atomically: false
+            ).saveResults
+            if case .success = results[mine.recordID] { return true }
+            return false
+        } catch {
+            print("[PlanShare] retry of \(mine.recordID.recordName) failed: \(error.localizedDescription)")
+            return false
+        }
+    }
+
+    /// Delete nights by name, twenty at a time. `.unknownItem` is success:
+    /// the night is not in the zone, which is what a delete is for.
+    /// Returns the names now absent.
+    static func deletePlans(names: [String], in db: CKDatabase, zone: CKRecordZone.ID) async -> Set<String> {
+        var gone: Set<String> = []
+        for batch in batches(names) {
+            let ids = batch.map { CKRecord.ID(recordName: $0, zoneID: zone) }
+            let results: [CKRecord.ID: Result<Void, Error>]
+            do {
+                results = try await db.modifyRecords(
+                    saving: [], deleting: ids, atomically: false
+                ).deleteResults
+            } catch {
+                print("[PlanShare] delete of \(batch.count) night(s) failed: \(error.localizedDescription)")
+                continue
+            }
+            for (id, result) in results {
+                switch result {
+                case .success:
+                    gone.insert(id.recordName)
+                case .failure(let error as CKError) where error.code == .unknownItem:
+                    gone.insert(id.recordName)
+                case .failure(let error):
+                    print("[PlanShare] \(id.recordName) would not delete: \(error.localizedDescription)")
+                }
+            }
+        }
+        return gone
+    }
+
+    /// The same, aimed at a table by its canonical owner: the re-home
+    /// path, which deletes from a zone this phone no longer publishes into.
+    /// A zone out of reach returns nothing; the caller treats those nights
+    /// as unpublished either way.
+    static func deletePlans(names: [String], zoneOwner: String) async -> Set<String> {
+        guard !names.isEmpty, await TableSync.accountAvailable() else { return [] }
+        guard let (db, zoneID) = await householdZone(ownedBy: zoneOwner) else {
+            print("[PlanShare] \(zoneOwner.isEmpty ? "own household" : zoneOwner) is out of reach, \(names.count) night(s) left behind")
+            return []
+        }
+        return await deletePlans(names: names, in: db, zone: zoneID)
+    }
+
+    /// The head's housekeeping after a seat changed. Nothing cascades when
+    /// a member leaves: the `.deleteSelf` reference fires only when the
+    /// root goes, which nothing does. So plan records in the own zone whose
+    /// author no longer sits accepted on the share are deleted, and the
+    /// ledger drops them through the same fold a wire deletion takes, so
+    /// no notice is raised about a night this phone took off itself.
+    ///
+    /// Returns what the ledger dropped, so the caller can withdraw the
+    /// rows and banners about those nights the way a wire deletion does.
+    /// It is not handed to the digest: "Sam took Tacos off Thursday" would
+    /// be a claim about Sam, and Sam left; this phone took it off.
+    @MainActor
+    static func sweepDepartedPlans() async -> PlanLedger.Delta {
+        guard await TableSync.accountAvailable() else { return PlanLedger.Delta() }
+        let share: CKShare?
+        do { share = try await ownHouseholdShare() } catch { return PlanLedger.Delta() }
+        guard let share else { return PlanLedger.Delta() }
+        var accepted: Set<String> = [TableIdentity.cached]
+        for p in share.participants where p.acceptanceStatus == .accepted {
+            if let id = p.userIdentity.userRecordID?.recordName { accepted.insert(id) }
+        }
+        // The ledger shows the own zone's nights only while the household
+        // is the own table, which is the head's ordinary state.
+        guard PlanLedger.shared.householdOwner == "" else { return PlanLedger.Delta() }
+        let departed = PlanLedger.shared.all
+            .filter { $0.zoneOwner.isEmpty && !accepted.contains($0.authorID) }
+            .map(\.recordName)
+        guard !departed.isEmpty else { return PlanLedger.Delta() }
+        let zoneID = CKRecordZone.ID(zoneName: householdZoneName, ownerName: CKCurrentUserDefaultName)
+        let gone = await deletePlans(names: departed, in: container.privateCloudDatabase, zone: zoneID)
+        var housekeeping = Changes()
+        housekeeping.deleted = gone
+        let delta = PlanLedger.shared.absorb(housekeeping, me: TableIdentity.cached)
+        print("[PlanShare] swept \(gone.count) of \(departed.count) night(s) by people no longer at the table")
+        return delta
+    }
+
+    /// A table to be read again from the beginning. The ledger drops a
+    /// table's nights when the household moves away from it; when it moves
+    /// back, only a full read brings them home.
+    ///
+    /// Written down rather than done here: a pull may be mid-fetch, and a
+    /// token forgotten now would be stored over by the page that fetch is
+    /// on. `postChanges` consumes the request at the start of that zone's
+    /// next read, where nothing can interleave. The flag is written beside
+    /// the tokens so a request survives the app dying before the next pull.
+    static func requestReplay(zoneOwner: String) {
+        let ownerName = zoneOwner.isEmpty ? CKCurrentUserDefaultName : zoneOwner
+        let id = CKRecordZone.ID(zoneName: householdZoneName, ownerName: ownerName)
+        UserDefaults.standard.set(true, forKey: replayKey(id))
+    }
+
+    private static func replayKey(_ id: CKRecordZone.ID) -> String {
+        "plated.zonereplay.\(id.zoneName).\(id.ownerName)"
+    }
+
+    /// True once per request, and the request is spent.
+    private static func takeReplayRequest(for id: CKRecordZone.ID) -> Bool {
+        guard UserDefaults.standard.bool(forKey: replayKey(id)) else { return false }
+        UserDefaults.standard.removeObject(forKey: replayKey(id))
+        return true
+    }
+
+    private static func batches<T>(_ items: [T], of size: Int = 20) -> [[T]] {
+        stride(from: 0, to: items.count, by: size).map {
+            Array(items[$0..<min($0 + size, items.count)])
+        }
+    }
 
     // MARK: Change tokens
 
@@ -1027,6 +1638,36 @@ enum TableShare {
         p.caption = record["caption"] as? String ?? ""
         p.kind = record["kind"] as? String ?? "dish"
         p.createdAt = record["createdAt"] as? Date ?? .now
+        if let asset = record["photo"] as? CKAsset, let url = asset.fileURL {
+            p.photoData = try? Data(contentsOf: url)
+        }
+        return p
+    }
+
+    private static func remotePlan(from record: CKRecord) -> RemotePlan {
+        var p = RemotePlan()
+        p.recordName = record.recordID.recordName
+        p.authorID = record["authorID"] as? String ?? ""
+        p.authorName = record["authorName"] as? String ?? ""
+        p.authorColorHex = record["authorColorHex"] as? String ?? "FF5A3C"
+        p.cookID = record["cookID"] as? String ?? ""
+        p.cookName = record["cookName"] as? String ?? ""
+        p.cookColorHex = record["cookColorHex"] as? String ?? ""
+        p.cookSeat = record["cookSeat"] as? String ?? ""
+        p.day = record["day"] as? String ?? ""
+        p.slot = record["slot"] as? String ?? MealSlot.dinner.rawValue
+        p.title = record["title"] as? String ?? ""
+        p.servings = int(record, "servings")
+        p.tagline = record["tagline"] as? String ?? ""
+        // INT64 on the wire, both of them; `as? Bool` on one is a coin flip.
+        p.cooked = int(record, "cooked") == 1
+        p.cookedAt = record["cookedAt"] as? Date
+        p.hasRecipe = int(record, "hasRecipe") == 1
+        p.recipeMinutes = int(record, "recipeMinutes")
+        p.recipeOriginKey = record["recipeOriginKey"] as? String ?? ""
+        p.shoppingID = record["shoppingID"] as? String ?? ""
+        p.createdAt = record["createdAt"] as? Date ?? .now
+        p.changedAt = record["modifiedAt"] as? Date ?? record["changedAt"] as? Date ?? .now
         if let asset = record["photo"] as? CKAsset, let url = asset.fileURL {
             p.photoData = try? Data(contentsOf: url)
         }
@@ -1112,9 +1753,19 @@ enum TableShare {
                         var authorName = ""; var text = ""; var linkURL = ""
                         var replyToName = ""; var parentCommentID: String?; var deletedAt: Date?; var mentions: [String] = []
                         var createdAt = Date.now; var photoData: Data? }
+    struct RemotePlan: Equatable { var recordName = ""; var zoneOwner = ""; var authorID = ""
+                        var authorName = ""; var authorColorHex = "FF5A3C"
+                        var cookID = ""; var cookName = ""; var cookColorHex = ""; var cookSeat = ""
+                        var day = ""; var slot = MealSlot.dinner.rawValue; var title = ""
+                        var servings = 4; var tagline = ""; var cooked = false; var cookedAt: Date?
+                        var hasRecipe = false; var recipeMinutes = 0; var recipeOriginKey = ""
+                        var shoppingID = ""; var photoData: Data?
+                        var createdAt = Date.now; var changedAt = Date.now }
     struct Changes { var posts: [RemotePost] = []; var reactions: [RemoteReaction] = []
-                     var notes: [RemoteNote] = []; var deleted: Set<String> = []
-                     var sharesChanged = false; var replayed = false }
+                     var notes: [RemoteNote] = []; var plans: [RemotePlan] = []
+                     var deleted: Set<String> = []
+                     var sharesChanged = false; var replayed = false
+                     var replayedOwners: Set<String> = []; var householdShareChanged = false }
     static func pushNote(_ comment: TableComment, post: String, zoneOwner: String) async -> Bool { false }
     static func subscribe() async {}
     static func pushPlate(post: String, zoneOwner: String, author: String,
@@ -1137,6 +1788,26 @@ enum TableShare {
                       var accepted = false; var participantID: String? }
     static func standings() async -> [Standing] { [] }
     static func isGuest() async -> Bool { false }
+    struct HouseholdResolution { var choice: Choice = .none; var tables: [PlanShare.Table] = []
+                                 var database: CKDatabase?; var zoneID: CKRecordZone.ID? }
+    static func resolveHousehold(stored: String?, me: String) async -> HouseholdResolution? { nil }
+    @MainActor static func householdZone() async -> (CKDatabase, CKRecordZone.ID, owner: String)? { nil }
+    static func householdZone(ownedBy owner: String) async -> (CKDatabase, CKRecordZone.ID)? { nil }
+    static var householdStore: UserDefaults { UserDefaults(suiteName: WidgetBridge.appGroupID) ?? .standard }
+    @MainActor static func tables() async -> [PlanShare.Table] { [] }
+    enum PlanPhoto { case keep, set(Data), clear }
+    static func planRecord(_ plan: PlanShare.Plan, existing: CKRecord?, zone: CKRecordZone.ID,
+                           photo: PlanPhoto, now: Date) -> (record: CKRecord, temp: URL?) {
+        (existing ?? CKRecord(recordType: planType,
+                              recordID: CKRecord.ID(recordName: plan.recordName, zoneID: zone)), nil)
+    }
+    static func fetchPlanRecords(named names: [String], in db: CKDatabase,
+                                 zone: CKRecordZone.ID) async -> [String: CKRecord] { [:] }
+    static func savePlans(_ records: [CKRecord], in db: CKDatabase) async -> Set<String> { [] }
+    static func deletePlans(names: [String], in db: CKDatabase, zone: CKRecordZone.ID) async -> Set<String> { [] }
+    static func deletePlans(names: [String], zoneOwner: String) async -> Set<String> { [] }
+    @MainActor static func sweepDepartedPlans() async -> PlanLedger.Delta { PlanLedger.Delta() }
+    static func requestReplay(zoneOwner: String) {}
     #endif
 
     /// Fold what came back into the local store, keyed on the record name so
@@ -1152,18 +1823,23 @@ enum TableShare {
         // digest found it; nothing on screen ever could, because a missing
         // plate looks exactly like a dish nobody plated.
         guard !changes.posts.isEmpty || !changes.deleted.isEmpty
-            || !changes.reactions.isEmpty || !changes.notes.isEmpty else { return }
+            || !changes.reactions.isEmpty || !changes.notes.isEmpty
+            || !changes.plans.isEmpty else { return }
         let existing = (try? context.fetch(FetchDescriptor<TablePost>())) ?? []
         var byRecord: [String: TablePost] = [:]
         for post in existing where !post.shareRecordName.isEmpty {
             byRecord[post.shareRecordName] = post
         }
 
+        // A `plan-` name is a night, not a post: `PlanLedger` folds those,
+        // and the plate ledger has nothing to forget about one.
+        let deletedPosts = changes.deleted.filter { !$0.hasPrefix("plan-") }
+
         // Taken off the table by whoever wrote it. Dropping these on the
         // floor meant a post its author had deleted stayed on every other
         // phone until that phone was reinstalled — the same lie as a delete
         // that does not delete, told from the receiving end.
-        for name in changes.deleted {
+        for name in deletedPosts {
             if let post = byRecord[name] {
                 context.delete(post)
                 byRecord[name] = nil
@@ -1186,7 +1862,7 @@ enum TableShare {
         // A post that is gone takes its reactions with it. The cascade
         // removes the child records on the server, but the fold that would
         // have noticed never runs — there is no post left to fold against.
-        for name in changes.deleted {
+        for name in deletedPosts {
             TableLedger.shared.forget(post: name)
         }
 

@@ -86,7 +86,10 @@ struct MainShellView: View {
         guard let destination = DeepLink.destination(for: url) else { return }
         withAnimation(.plSnap) {
             switch destination {
-            case .plan: selection = .week
+            case .plan:
+                selection = .week
+                // The night the notice was about, not just the tab.
+                if let day = DeepLink.planDay(in: url) { LinkRelay.request(day: day) }
             case .table: selection = .table
             case .cookbook: selection = .cookbook
             // Prongsby left the bar in the elevation pass — he's a sheet

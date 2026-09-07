@@ -106,12 +106,16 @@ enum PlatedNotificationKind: String, Codable, CaseIterable {
     case dishPosted       // somebody else put a dish on the table
     case voteCast         // a ballot landed on your ask
     case seatJoined       // an invitation was accepted
+    /// A night planned, moved or taken off on somebody else's phone, read
+    /// from the shared zone. Its own kind rather than `.mealPlanned`, which
+    /// is this phone's own doing and wears a badge, not a person.
+    case planShared
     case general
 
     /// Whether the row's actor is a person to show, rather than a thing.
     var isAboutSomebody: Bool {
         switch self {
-        case .plateReaction, .commentAdded, .askPosted, .dishPosted, .voteCast, .seatJoined:
+        case .plateReaction, .commentAdded, .askPosted, .dishPosted, .voteCast, .seatJoined, .planShared:
             return true
         default:
             return false
@@ -135,6 +139,7 @@ enum PlatedNotificationKind: String, Codable, CaseIterable {
         case .dishPosted: return "photo"
         case .voteCast: return "checkmark.circle"
         case .seatJoined: return "person.badge.plus"
+        case .planShared: return "calendar"
         case .general: return "bell"
         }
     }

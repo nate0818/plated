@@ -132,6 +132,20 @@ struct PlatedApp: App {
                     await SyncStatus.shared.refresh()
                     await TableShare.removeSchemaProbes(from: container.mainContext)
                 }
+                .onReceive(NotificationCenter.default.publisher(for: ModelContext.didSave)) { _ in
+                    // Every planner edit ends in a save, most of them
+                    // through autosave with no call site to hook. Three
+                    // seconds after the last one, the plan goes out.
+                    PlanShare.schedule(reason: "save")
+                }
+                .onReceive(NotificationCenter.default.publisher(for: PlanLedger.nightsDropped)) { _ in
+                    // Nights left the ledger with no delivery to rebuild
+                    // the reminders through: a leave, a flip, an identity
+                    // reset. Without this the 19:00 "Your night tomorrow"
+                    // for a table this phone is no longer at fires anyway,
+                    // until somebody opens the Plan tab.
+                    Task { @MainActor in await NotificationScheduler.rebuild(from: container.mainContext) }
+                }
                 .onChange(of: scenePhase) { _, phase in
                     // Someone who just switched iCloud back on in Settings
                     // returns here; that is precisely when the warning
@@ -144,6 +158,16 @@ struct PlatedApp: App {
                     }
                 }
                 .task {
+                    // Rehearsal nights are for one launch. Unless this one
+                    // is a rehearsal, the nights a previous one left go,
+                    // and the pretend household they pointed at goes too,
+                    // or the planner keeps drawing Riley's week forever.
+                    if !ProcessInfo.processInfo.arguments.contains("-plated-fake-table-news") {
+                        PlanLedger.shared.forget(zoneOwner: PlanLedger.rehearsalOwner)
+                        if PlanLedger.shared.householdOwner == PlanLedger.rehearsalOwner {
+                            PlanLedger.shared.householdOwner = nil
+                        }
+                    }
                     // Maintenance: wipe the private CloudKit database, print
                     // a verdict for the console, and quit. PlatedStore ran
                     // local-only this launch, so nothing re-exports. Debug
@@ -246,6 +270,10 @@ struct PlatedApp: App {
             }
             // The home screen learns the week whenever the app breathes.
             if phase == .background || phase == .active {
+                // And so does the household: a pass on the way in and on
+                // the way out, so a night planned and the app closed goes
+                // out before the phone sleeps.
+                PlanShare.schedule(reason: "scene")
                 Task { @MainActor in
                     WidgetBridge.publish(from: container.mainContext)
                     // The icon's number and the bell's are one count. A row

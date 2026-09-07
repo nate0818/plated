@@ -84,14 +84,21 @@ struct WeekView: View {
         date < Calendar.current.startOfDay(for: .now)
     }
 
+    /// A night is a night: one somebody else planned counts the same as
+    /// one planned here, in the "N planned" line, the strip's dots and the
+    /// open count.
+    private func hasAnyDinner(on date: Date) -> Bool {
+        dinner(on: date) != nil || PlanLedger.shared.dinner(on: date) != nil
+    }
+
     private var plannedCount: Int {
-        weekDates.filter { dinner(on: $0) != nil }.count
+        weekDates.filter { hasAnyDinner(on: $0) }.count
     }
 
     /// Nights still askable — today and later, nothing plated. Past days are
     /// spent, not owed, so they can't hold the week hostage.
     private var openAheadCount: Int {
-        weekDates.filter { !isPast($0) && dinner(on: $0) == nil }.count
+        weekDates.filter { !isPast($0) && !hasAnyDinner(on: $0) }.count
     }
 
     var body: some View {
@@ -165,7 +172,15 @@ struct WeekView: View {
                 meals: meals, ownerName: members.first(where: \.isOwner)?.name ?? ""
             )
         }
+        // A notice about a night lands on that night. Parked by the shell,
+        // collected here or on appear if the week was not on screen.
+        .onReceive(NotificationCenter.default.publisher(for: LinkRelay.dayRequested)) { _ in
+            if let day = LinkRelay.takeDay() { withAnimation(.plSnap) { weekAnchor = day } }
+        }
+        .onDisappear { Presence.shared.planVisible = false }
         .onAppear {
+            Presence.shared.planVisible = true
+            if let day = LinkRelay.takeDay() { weekAnchor = day }
             if forceMonth || verticalSizeClass == .compact { showMonth = true }
             #if DEBUG
             // UI-test hooks — one-shot on purpose, they must never replay
@@ -207,7 +222,7 @@ struct WeekView: View {
                 PlanDateStrip(
                     selection: $weekAnchor,
                     dropHoverDay: $dropHoverDay,
-                    hasDinner: { dinner(on: $0) != nil },
+                    hasDinner: { hasAnyDinner(on: $0) },
                     canAcceptDrop: { !isPast($0) },
                     moveMeal: { moveMeal(from: $0, to: $1) },
                     selectionChanged: { swipedDay = nil }
@@ -273,6 +288,8 @@ struct WeekView: View {
                 } else {
                     Button("Edit dinner") { planDay = weekAnchor }.plType(.body, .semibold).foregroundStyle(Color.accentText).plTapTarget()
                 }
+            } else if let remote = PlanLedger.shared.dinner(on: weekAnchor) {
+                remoteFeatured(remote)
             } else {
                 VStack(alignment: .leading, spacing: 12) {
                     Text(isPast(weekAnchor) ? "A night off the menu" : "Something good starts here.")
@@ -286,6 +303,61 @@ struct WeekView: View {
                     .background(Color.fill, in: Radius.shape(Radius.hero))
             }
         }
+    }
+
+    /// The hero's third state: nobody planned tonight on this phone, but
+    /// somebody else did. Same card as the local hero, photo from the
+    /// ledger, and the cook line the ledger writes. Let's cook only when a
+    /// recipe in this cookbook carries the same non-empty `originID`; there
+    /// is no title fallback, because this phone's own "Tacos" is not the
+    /// night Nate planned. Where the button would be, the caption says whose
+    /// night it is and, when there is a recipe somewhere, that it is not
+    /// here. The header's ellipsis keeps its empty-night items, which are
+    /// honest on a night this phone has not planned.
+    @ViewBuilder
+    private func remoteFeatured(_ entry: PlanLedger.Entry) -> some View {
+        let ledger = PlanLedger.shared
+        let cookLine = ledger.cookLine(for: entry)
+        Button { Haptic.tap(); dayShown = weekAnchor } label: {
+            VStack(alignment: .leading, spacing: 16) {
+                RecipeArtwork(data: ledger.photo(for: entry.recordName), title: entry.title, ratio: 1.95)
+                Text(entry.title).plType(.display, .semibold).foregroundStyle(Color.ink)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .contentShape(Rectangle())
+        }.buttonStyle(.pressable)
+            .accessibilityIdentifier("featured-remote-dinner-card")
+            .accessibilityHint("Opens the day")
+        // No line when the ledger has none. "Cook unassigned" is true of a
+        // local night; here it would be a claim about what Nate did, and
+        // Nate may well have put an invited Riley down, whose name the
+        // writer blanks on purpose. `RemotePlanRow` omits it the same way.
+        if let cookLine {
+            HStack(spacing: 8) {
+                RemoteCookFace(entry: entry, members: members, size: 26)
+                Text(cookLine)
+                    .plType(.footnote).foregroundStyle(Color.inkSecondary)
+                Spacer()
+            }
+        }
+        if let recipe = cookbookRecipe(for: entry) {
+            TomatoPillButton(title: entry.cooked ? "View recipe" : "Let's cook", systemImage: "fork.knife") {
+                featuredRecipe = recipe
+            }
+        } else {
+            Text(entry.hasRecipe
+                 ? "Planned by \(entry.authorFirstName). Not in your cookbook."
+                 : "Planned by \(entry.authorFirstName).")
+                .plType(.footnote).foregroundStyle(Color.inkSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    /// The recipe this cookbook holds for a remote night, by origin only.
+    /// An empty key never matches: every home-written recipe has one.
+    private func cookbookRecipe(for entry: PlanLedger.Entry) -> Recipe? {
+        guard !entry.recipeOriginKey.isEmpty else { return nil }
+        return recipes.first { $0.originID == entry.recipeOriginKey }
     }
 
     private var plannerControls: some View {
@@ -328,14 +400,35 @@ struct WeekView: View {
     }
 
 
+    /// The local dinner as always, then every night somebody else planned
+    /// for the day beneath it. Both when both exist: two nights on one day
+    /// is the truth. A day with only a remote night draws only that: the
+    /// counts above already call it planned, so a "Plan dinner" invitation
+    /// or a "No dinner planned" line on the same day would be the app
+    /// contradicting itself. Planning this phone's own night on top of it
+    /// stays a tap away, on the day page and in the hero's menu.
     @ViewBuilder
     private func dayRow(_ date: Date) -> some View {
+        let remote = PlanLedger.shared.plans(on: date)
+        let local = dinner(on: date)
         if isPast(date) {
-            pastRow(date)
-        } else if let meal = dinner(on: date) {
+            if local != nil || remote.isEmpty { pastRow(date) }
+        } else if let meal = local {
             plannedRow(meal, date: date)
-        } else {
+        } else if remote.isEmpty {
             emptyRow(date: date)
+        }
+        ForEach(remote) { entry in
+            // The zoom source for the day lives on the local row when there
+            // is one; two sources may not share an id. A remote-only night
+            // hands it to its first row so the day still opens from the
+            // thing that was tapped.
+            if local == nil, !isPast(date), entry.id == remote.first?.id {
+                RemotePlanRow(entry: entry, date: date, members: members) { dayShown = date }
+                    .matchedTransitionSource(id: date, in: zoom)
+            } else {
+                RemotePlanRow(entry: entry, date: date, members: members) { dayShown = date }
+            }
         }
     }
 
@@ -745,20 +838,10 @@ struct WeekView: View {
 
     /// Dates are a column, not miniature cards. Only today's numeral wears
     /// the brand color; the weekday stays on the same baseline all week.
+    /// `PlanDateColumn` is the drawing, shared with `RemotePlanRow` so a
+    /// remote night's column can never be a point off a local one's.
     private func dateColumn(_ date: Date) -> some View {
-        let today = Calendar.current.isDateInToday(date)
-        return VStack(spacing: 4) {
-            Text(date.formattedWeekday().uppercased())
-                .plType(.micro, .semibold).foregroundStyle(Color.inkSecondary)
-            Text(date.formattedDayNumber())
-                .plType(today ? .callout : .heading, .semibold, family: .display).monospacedDigit()
-                .foregroundStyle(today ? Color.onTomato : Color.ink)
-                .frame(width: 32, height: 32)
-                .background(today ? Color.tomato : Color.clear, in: Circle())
-        }
-        .plChrome()
-        .frame(width: 40)
-        .accessibilityLabel(date.formatted(.dateTime.weekday(.wide).month(.wide).day()) + (today ? ", today" : ""))
+        PlanDateColumn(date: date)
     }
 
     private func dishCircle(for meal: PlannedMeal, diameter: CGFloat = 52, simmering: Bool = false) -> some View {

@@ -100,18 +100,26 @@ enum WidgetBridge {
         var tonightPhoto: Data?
         var tonightPhotoDark: Data?
 
+        let owner = (try? context.fetch(FetchDescriptor<HouseholdMember>()))?.first(where: \.isOwner)
+        let ledger = PlanLedger.shared
+
         for offset in 0..<7 {
             guard let date = Calendar.current.date(byAdding: .day, value: offset, to: today) else { continue }
             let meal = meals.first {
                 Calendar.current.isDate($0.date, inSameDayAs: date) && $0.slotValue == .dinner
             }
+            // A night somebody else planned fills a day this phone left
+            // open. The widget draws it the way the app does; it is never a
+            // PlannedMeal, so it reaches the snapshot here and nowhere else.
+            let remote = meal == nil ? ledger.dinner(on: date) : nil
+            let remoteCook = remote.map { cook(for: $0, owner: owner) }
             days.append(Snapshot.Day(
                 day: formatter.string(from: date).uppercased(),
-                planned: meal != nil,
-                cookInitial: meal?.cook?.firstInitial ?? "",
-                cookHex: meal?.cook?.colorHex ?? "",
-                cookName: meal?.cook?.name,
-                title: meal?.title
+                planned: meal != nil || remote != nil,
+                cookInitial: meal?.cook?.firstInitial ?? remoteCook?.initial ?? "",
+                cookHex: meal?.cook?.colorHex ?? remoteCook?.hex ?? "",
+                cookName: meal?.cook?.name ?? remoteCook?.name,
+                title: meal?.title ?? remote?.title
             ))
             if offset == 0, let meal {
                 tonight = Snapshot.Tonight(
@@ -132,6 +140,22 @@ enum WidgetBridge {
                     tonightPhoto = platedDish(for: meal, dark: false)
                     tonightPhotoDark = platedDish(for: meal, dark: true)
                 }
+            } else if offset == 0, let remote, let remoteCook {
+                let photo = ledger.photo(for: remote.recordName)
+                tonight = Snapshot.Tonight(
+                    title: remote.title,
+                    cookInitial: remoteCook.initial,
+                    cookHex: remoteCook.hex,
+                    minutes: remote.recipeMinutes,
+                    hasPhoto: photo != nil,
+                    cookName: remoteCook.name
+                )
+                tonightPhoto = photo
+                // Same fallback as a local night: the plate, not a glyph.
+                if tonightPhoto == nil {
+                    tonightPhoto = platedDish(title: remote.title, dark: false)
+                    tonightPhotoDark = platedDish(title: remote.title, dark: true)
+                }
             }
         }
 
@@ -139,10 +163,8 @@ enum WidgetBridge {
         let (table, tablePhoto) = latestTablePost(from: context)
         let (cookbook, cookbookPhoto) = mostLovedRecipe(from: context)
 
-        let owner = (try? context.fetch(FetchDescriptor<HouseholdMember>()))?
-            .first(where: \.isOwner)?.name
         let snapshot = Snapshot(
-            ownerName: owner,
+            ownerName: owner?.name,
             generatedAt: .now,
             plannedCount: days.filter(\.planned).count,
             tonight: tonight,
@@ -169,6 +191,21 @@ enum WidgetBridge {
     }
 
     // MARK: Pieces
+
+    /// The cook of a remote night as the widget names people. When the cook
+    /// is me, the owner's own name, initial and colour go in, so the
+    /// widget's string comparison against `ownerName` says "You" the way
+    /// the app does. A cook with no real seat is no cook, which the writer
+    /// already enforces by blanking the name.
+    @MainActor
+    private static func cook(for entry: PlanLedger.Entry, owner: HouseholdMember?) -> (initial: String, hex: String, name: String?) {
+        if PlanLedger.shared.isMine(cook: entry), let owner {
+            return (owner.firstInitial, owner.colorHex, owner.name)
+        }
+        guard entry.hasCook else { return ("", "", nil) }
+        let initial = entry.cookName.first.map(String.init)?.uppercased() ?? ""
+        return (initial, entry.cookColorHex, entry.cookName)
+    }
 
     /// The same window and the same filters the Grocery sheet applies, so the
     /// number on the home screen is the number behind the basket.
@@ -251,12 +288,19 @@ enum WidgetBridge {
     /// corners with black.
     @MainActor
     private static func platedDish(for meal: PlannedMeal, dark: Bool) -> Data? {
+        platedDish(title: meal.title, recipe: meal.recipe, dark: dark)
+    }
+
+    /// A remote night has a title and no `Recipe` of this cookbook's, so it
+    /// gets the plate the title alone draws.
+    @MainActor
+    private static func platedDish(title: String, recipe: Recipe? = nil, dark: Bool) -> Data? {
         let diameter: CGFloat = 200
         let plate = Group {
-            if let recipe = meal.recipe {
+            if let recipe {
                 DishView(recipe: recipe, diameter: diameter)
             } else {
-                DishView(title: meal.title, diameter: diameter)
+                DishView(title: title, diameter: diameter)
             }
         }
         .environment(\.colorScheme, dark ? .dark : .light)

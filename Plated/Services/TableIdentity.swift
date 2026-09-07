@@ -70,6 +70,11 @@ enum TableIdentity {
         store.removeObject(forKey: key)
         TableOutbox.shared.clear()
         TableLedger.shared.clear()
+        // The plan too: the ledger's nights and the household it drew
+        // belong to the old account, and the book names records in a zone
+        // this account cannot see. The next pass republishes from nothing.
+        PlanLedger.shared.clear()
+        PlanShare.forgetBook()
         for k in store.dictionaryRepresentation().keys
         where k.hasPrefix("plated.zonetoken.") {
             store.removeObject(forKey: k)

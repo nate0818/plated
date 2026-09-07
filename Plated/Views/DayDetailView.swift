@@ -61,11 +61,11 @@ struct DayDetailView: View {
             dayStrip.padding(.horizontal, 24).padding(.bottom, 8)
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 8) {
-                    ForEach(plannedSlots) { slot in
+                    ForEach(shownSlots) { slot in
                         plannedSection(slot)
                     }
                     addMeal
-                        .padding(.top, plannedSlots.isEmpty ? 0 : 16)
+                        .padding(.top, shownSlots.isEmpty ? 0 : 16)
                     if let line = cooksLine {
                         Text(line)
                             .plType(.caption, .semibold)
@@ -240,22 +240,45 @@ struct DayDetailView: View {
             .sorted { $0.sortOrder < $1.sortOrder }
     }
 
+    /// Open to this phone: a slot somebody else filled is still open here,
+    /// because their night is theirs and this one can be planned beside it.
     private var openSlots: [MealSlot] {
         MealSlot.allCases
             .filter { slot in !plannedSlots.contains(slot) }
             .sorted { $0.sortOrder < $1.sortOrder }
     }
 
+    /// Nights somebody else planned for this day, read-only, by slot.
+    private func remotePlans(in slot: MealSlot) -> [PlanLedger.Entry] {
+        PlanLedger.shared.plans(on: date, slot: slot)
+    }
+
+    /// The slots the day draws: this phone's plus any only somebody else
+    /// filled, earliest first.
+    private var shownSlots: [MealSlot] {
+        let remote = MealSlot.allCases.filter { !remotePlans(in: $0).isEmpty }
+        return Array(Set(plannedSlots + remote)).sorted { $0.sortOrder < $1.sortOrder }
+    }
+
     @ViewBuilder
     private func plannedSection(_ slot: MealSlot) -> some View {
-        if let meal = meal(in: slot) {
+        let meal = meal(in: slot)
+        let remote = remotePlans(in: slot)
+        if meal != nil || !remote.isEmpty {
             VStack(alignment: .leading, spacing: 6) {
                 MicroLabel(slot.title)
-                SwipeRow(isOpen: swipeBinding(slot), actions: actions(for: meal, slot: slot), actionLabel: "Actions for \(meal.title)") {
-                    mealCard(meal, slot: slot)
+                if let meal {
+                    SwipeRow(isOpen: swipeBinding(slot), actions: actions(for: meal, slot: slot), actionLabel: "Actions for \(meal.title)") {
+                        mealCard(meal, slot: slot)
+                    }
+                    .modifier(PlannerMealDrag(meal: meal))
+                    .accessibilityIdentifier("day-meal-\(slot.rawValue)")
                 }
-                .modifier(PlannerMealDrag(meal: meal))
-                .accessibilityIdentifier("day-meal-\(slot.rawValue)")
+                // Under the local one, no Remove and no Cooked: this page is
+                // already the day, so the row is a fact rather than a door.
+                ForEach(remote) { entry in
+                    RemotePlanRow(entry: entry, date: date, members: members)
+                }
             }
             .padding(.top, 8)
         }
@@ -267,7 +290,7 @@ struct DayDetailView: View {
     @ViewBuilder
     private var addMeal: some View {
         if isPast {
-            if plannedSlots.isEmpty {
+            if shownSlots.isEmpty {
                 Text("Nothing plated")
                     .plType(.body)
                     .foregroundStyle(Color.inkSecondary)

@@ -19,16 +19,18 @@ import Foundation
 @MainActor
 enum NewsPreferences {
 
-    /// The categories that actually exist in the pipe today. Planning and
-    /// grocery notices are not here because the plan does not cross Apple
-    /// IDs yet; a switch for a notice that can never fire is a lie about
-    /// what the app can do.
+    /// The categories that actually exist in the pipe. Planning joined when
+    /// the plan started crossing Apple IDs through the shared zone
+    /// (docs/plan-share.md); grocery notices still do not, so there is no
+    /// switch for them. A switch for a notice that can never fire is a lie
+    /// about what the app can do.
     enum Category: String, CaseIterable {
         case dishes
         case replies
         case comments
         case plates
         case seats
+        case planning
 
         var key: String { "tableNews.\(rawValue)" }
 
@@ -39,6 +41,7 @@ enum NewsPreferences {
             case .comments: return "Comments on yours"
             case .plates: return "Plates and votes on yours"
             case .seats: return "New seats"
+            case .planning: return "Planning"
             }
         }
 
@@ -50,6 +53,7 @@ enum NewsPreferences {
             case .comments: return "When somebody writes on a dish you plated"
             case .plates: return "Quiet: in the list and on the icon, never a banner"
             case .seats: return "When an invitation is accepted"
+            case .planning: return "When somebody plans a night, moves it, or takes it off the week"
             }
         }
 
@@ -60,6 +64,7 @@ enum NewsPreferences {
             case .comments: return "bubble.right"
             case .plates: return "circle.circle"
             case .seats: return "person.badge.plus"
+            case .planning: return "calendar"
             }
         }
     }
@@ -94,25 +99,32 @@ enum NewsPreferences {
 
     /// Which switch governs a notice. A dish you were tagged in, and a
     /// reply or mention, are words to you and live under Replies whatever
-    /// the record type; the kiss is a plate.
+    /// the record type; the kiss is a plate. A plan notice is about a
+    /// night, never a word to you, so it answers to Planning before the
+    /// addressed question is even asked: "put you down to cook" is what
+    /// somebody did to the week, and the switch for the week governs it.
     static func category(for kind: TableNews.Notice.Kind, addressed: Bool) -> Category {
+        if kind == .plan { return .planning }
         if addressed { return .replies }
         switch kind {
         case .dish, .ask, .more: return .dishes
         case .comment: return .comments
         case .plates, .kiss, .votes: return .plates
         case .seat: return .seats
+        case .plan: return .planning
         }
     }
 
     /// The same question asked of a bell row, for the icon's count.
     static func category(for kind: PlatedNotificationKind, addressed: Bool) -> Category? {
+        if kind == .planShared { return .planning }
         if addressed { return .replies }
         switch kind {
         case .dishPosted, .askPosted: return .dishes
         case .commentAdded: return .comments
         case .plateReaction, .voteCast: return .plates
         case .seatJoined: return .seats
+        case .planShared: return .planning
         default: return nil
         }
     }
