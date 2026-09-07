@@ -116,6 +116,15 @@ enum TableNews {
         var handle: String?
         var face: Data?
         var tone: PersonTone?
+        /// A reply, a mention or a tag: addressed to this person rather
+        /// than owed to them by ownership. Gets through a muted dish and
+        /// is governed by the Replies switch.
+        var addressed = false
+        /// `line` as a pattern the bell row composes at draw time; see
+        /// `PlatedNotification.template`. Empty where several people are
+        /// named in one line, which keeps the composed names.
+        var template = ""
+        var objectTitle = ""
     }
 
     // MARK: Deciding
@@ -210,7 +219,10 @@ enum TableNews {
                     relevance: tagged ? 0.9 : 0.7,
                     actorID: r.authorID,
                     deed: question.isEmpty ? "Asked the table." : "Asked the table: \(question)",
-                    group: "The Table"
+                    group: "The Table",
+                    addressed: tagged,
+                    template: question.isEmpty ? "{actor} asked the table." : "{actor} asked the table: {object}",
+                    objectTitle: question
                 ))
             } else {
                 let dish = r.dishTitle.isEmpty ? "a dish" : r.dishTitle
@@ -225,7 +237,10 @@ enum TableNews {
                     direct: tagged, photo: r.photoData, feedKind: .dishPosted,
                     actor: r.authorName, at: r.createdAt, rowKey: key,
                     relevance: tagged ? 0.9 : 0.6,
-                    actorID: r.authorID, deed: deed, group: "The Table"
+                    actorID: r.authorID, deed: deed, group: "The Table",
+                    addressed: tagged,
+                    template: tagged ? "{actor} tagged you in {object}." : "{actor} plated {object}.",
+                    objectTitle: dish
                 ))
             }
         }
@@ -271,7 +286,11 @@ enum TableNews {
                 direct: true, photo: post.photoData, feedKind: .commentAdded,
                 actor: n.authorName, at: n.createdAt, rowKey: key, relevance: 1.0,
                 actorID: n.authorID, deed: deed,
-                group: mine ? "Your \(dish)" : "\(post.firstName)'s \(dish)"
+                group: mine ? "Your \(dish)" : "\(post.firstName)'s \(dish)",
+                addressed: toMe || mentioned,
+                template: toMe ? "{actor} replied to you on \(whose) {object}."
+                    : (mentioned ? "{actor} mentioned you on \(whose) {object}." : "{actor} commented on your {object}."),
+                objectTitle: dish
             ))
         }
 
@@ -362,7 +381,8 @@ enum TableNews {
                 direct: true, photo: nil, feedKind: .seatJoined,
                 actor: member.name, at: .now, rowKey: key, writesRow: false,
                 relevance: 0.8, actorID: member.participantID ?? "",
-                deed: "Joined your table.", group: "The Table"
+                deed: "Joined your table.", group: "The Table",
+                template: "{actor} joined. They can see the Table now."
             ))
         }
 
@@ -575,8 +595,16 @@ enum TableNews {
             return
         }
 
+        // The person's finer answer: a category switched off, or a dish
+        // they muted. Every row was already written; this is only about
+        // the screen. Filtered before the fold so "3 more" counts what
+        // would actually have shown.
+        let heard = notices.filter(NewsPreferences.allows)
+        if heard.count != notices.count {
+            print("[TableNews] \(notices.count - heard.count) notice(s) kept to the list by preference")
+        }
         let center = UNUserNotificationCenter.current()
-        for n in select(notices) {
+        for n in select(heard) {
             let content = content(for: n)
             if let photo = n.photo, let attachment = attachment(for: photo) {
                 content.attachments = [attachment]
@@ -628,10 +656,16 @@ enum TableNews {
             existing.kind = n.feedKind.rawValue
             existing.createdAt = .now
             existing.isRead = false
+            existing.template = n.template
+            existing.actorID = n.actorID
+            existing.objectTitle = n.objectTitle
+            existing.addressed = n.addressed
         } else {
             context.insert(PlatedNotification(
                 kind: n.feedKind, actorName: n.actor, body: n.line,
-                link: n.link.absoluteString, eventKey: n.rowKey, at: n.at
+                link: n.link.absoluteString, eventKey: n.rowKey, at: n.at,
+                template: n.template, actorID: n.actorID,
+                objectTitle: n.objectTitle, addressed: n.addressed
             ))
         }
     }
@@ -978,11 +1012,11 @@ enum TableNews {
 @MainActor
 enum AppBadge {
     static func count(_ context: ModelContext) -> Int {
-        let wanted = UserDefaults.standard.object(forKey: TableNews.tableOnKey) as? Bool ?? true
-        guard wanted else { return 0 }
-        return (try? context.fetchCount(FetchDescriptor<PlatedNotification>(
+        guard NewsPreferences.tableOn else { return 0 }
+        let unread = (try? context.fetch(FetchDescriptor<PlatedNotification>(
             predicate: #Predicate { !$0.isRead && $0.eventKey != "" }
-        ))) ?? 0
+        ))) ?? []
+        return unread.filter(NewsPreferences.counts).count
     }
 
     static func sync(_ context: ModelContext) {

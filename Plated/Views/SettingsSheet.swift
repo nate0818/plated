@@ -22,6 +22,8 @@ struct SettingsSheet: View {
     /// What the Table may say when somebody else plates, writes or takes
     /// a seat. `TableNews.tableOnKey` reads the same key.
     @AppStorage("tableNewsOn") private var tableNewsOn = true
+    /// The five finer switches, read from NewsPreferences on first draw.
+    @State private var categoryStates: [NewsPreferences.Category: Bool] = [:]
 
     @State private var notificationState: NotificationScheduler.AuthorizationState = .notDetermined
     @State private var calendarRefused = false
@@ -67,9 +69,22 @@ struct SettingsSheet: View {
                     SettingsGroup {
                         planningReminderRow
                         SettingsDivider()
-                        tableActivityRow
-                        SettingsDivider()
                         calendarRow
+                    }
+                }
+
+                SettingsSection(title: "The Table", caption: "What other people do that reaches you.") {
+                    SettingsGroup {
+                        tableActivityRow
+                        // The finer switches only while the coarse one is
+                        // on and iOS would deliver: a row of switches under
+                        // a refusal is furniture.
+                        if notificationState == .allowed, tableNewsOn {
+                            ForEach(NewsPreferences.Category.allCases, id: \.self) { category in
+                                SettingsDivider()
+                                categoryRow(category)
+                            }
+                        }
                     }
                 }
 
@@ -491,6 +506,31 @@ struct SettingsSheet: View {
                 .buttonStyle(.pressable)
                 .accessibilityLabel("Open notification settings")
             }
+        }
+    }
+
+    /// One category of Table news. Off keeps the row in the bell and takes
+    /// it off the screen and the icon; the caption says which.
+    private func categoryRow(_ category: NewsPreferences.Category) -> some View {
+        let binding = Binding(
+            get: { categoryStates[category] ?? NewsPreferences.isOn(category) },
+            set: { on in
+                categoryStates[category] = on
+                NewsPreferences.set(category, on: on)
+                AppBadge.sync(context)
+            }
+        )
+        return SettingsControlRow(
+            symbol: category.symbol,
+            title: category.title,
+            detail: binding.wrappedValue ? category.detail : "Off. Still in the bell, never on the screen.",
+            tint: .chipFill,
+            tone: .ink
+        ) {
+            Toggle(category.title, isOn: binding)
+                .labelsHidden()
+                .tint(Color.tomato)
+                .sensoryFeedback(.selection, trigger: binding.wrappedValue)
         }
     }
 

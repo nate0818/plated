@@ -39,3 +39,15 @@ if drift:
     sys.exit(1)
 print("\033[32m✓\033[0m no drift")
 PY
+
+# The cook timer's Live Activity attributes are a second hand-copied file:
+# ActivityKit pairs the app's request with the widget's view by the type,
+# and a widget target cannot import the app. The two must be byte-identical.
+if ! diff -q "$ROOT/Plated/Support/CookTimerActivity.swift" "$ROOT/PlatedWidgets/CookTimerActivity.swift" >/dev/null; then
+  echo
+  printf '\033[31m✗\033[0m CookTimerActivity.swift differs between Plated/Support and PlatedWidgets\n'
+  diff "$ROOT/Plated/Support/CookTimerActivity.swift" "$ROOT/PlatedWidgets/CookTimerActivity.swift" || true
+  echo "  Plated/Support is the source. Copy it across."
+  exit 1
+fi
+printf '\033[32m✓\033[0m CookTimerActivity.swift identical in both targets\n'

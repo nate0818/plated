@@ -32,6 +32,10 @@
 	     unentitled build never installs. -->
 	<key>com.apple.developer.usernotifications.communication</key>
 	<true/>
+	<!-- The cook timer's finish breaks through a Focus. Same signing note
+	     as the capability above: the App ID has to carry it. -->
+	<key>com.apple.developer.usernotifications.time-sensitive</key>
+	<true/>
 	<key>com.apple.security.application-groups</key>
 	<array>
 		<string>group.com.natemeadows.plated</string>

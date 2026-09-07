@@ -34,6 +34,9 @@
 	     web page instead of the app. Same reason as UIBackgroundModes
 	     below: Xcode accepts INFOPLIST_KEY_CKSharingSupported as a build
 	     setting and then never emits it. -->
+	<!-- The cook timer on the Lock Screen and in the Dynamic Island. -->
+	<key>NSSupportsLiveActivities</key>
+	<true/>
 	<key>CKSharingSupported</key>
 	<true/>
 	<key>ITSAppUsesNonExemptEncryption</key>

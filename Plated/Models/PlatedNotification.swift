@@ -25,16 +25,38 @@ final class PlatedNotification {
     /// keeps one per key. Empty on rows about your own actions, which are
     /// written once and never coalesce. Defaulted for the mirror.
     var eventKey: String = ""
+    /// The sentence as a pattern: "{actor} plated {object}." The actor's
+    /// name is looked up when the row is drawn, so a person who renames
+    /// themselves is not still called the old thing in last week's rows.
+    /// Empty on rows written before this existed, which draw `body`.
+    /// Rewriting stored prose was refused on purpose: a name has no word
+    /// boundary you can trust ("Sam" inside "Samosa"). See
+    /// docs/engineering-notes.md.
+    var template: String = ""
+    /// The person in CloudKit's terms, so the lookup is by identity and
+    /// two people called Sam stay two people.
+    var actorID: String = ""
+    /// The dish, the question, the recipe: whatever "{object}" stands for.
+    var objectTitle: String = ""
+    /// A reply, a mention or a tag: a word to you rather than to the room.
+    /// A muted dish still lets these through, and the icon still counts them.
+    var addressed: Bool = false
 
     init(
         kind: PlatedNotificationKind, actorName: String = "", body: String = "",
-        link: String = "", eventKey: String = "", at: Date = .now
+        link: String = "", eventKey: String = "", at: Date = .now,
+        template: String = "", actorID: String = "", objectTitle: String = "",
+        addressed: Bool = false
     ) {
         self.kind = kind.rawValue
         self.actorName = actorName
         self.body = body
         self.link = link
         self.eventKey = eventKey
+        self.template = template
+        self.actorID = actorID
+        self.objectTitle = objectTitle
+        self.addressed = addressed
         // The event's own time, when the caller knows it. A comment written
         // at 22:14 and fetched at 07:00 is not "Just now".
         self.createdAt = at
@@ -46,6 +68,27 @@ final class PlatedNotification {
 
     var kindValue: PlatedNotificationKind {
         PlatedNotificationKind(rawValue: kind) ?? .general
+    }
+
+    /// The line to draw. Composed from the parts when the row has them,
+    /// with the actor's CURRENT name from the household, matched on
+    /// identity first and on the stored name only for a seat that has no
+    /// identity yet. Rows written before the parts existed draw `body`.
+    func line(members: [HouseholdMember]) -> String {
+        guard !template.isEmpty else { return body }
+        let member = members.first { m in
+            if let id = m.participantID, !id.isEmpty, !actorID.isEmpty { return id == actorID }
+            return m.participantID == nil && !actorName.isEmpty && m.name == actorName
+        }
+        let actor = member?.firstName ?? Self.firstName(actorName)
+        return template
+            .replacingOccurrences(of: "{actor}", with: actor)
+            .replacingOccurrences(of: "{object}", with: objectTitle)
+    }
+
+    static func firstName(_ name: String) -> String {
+        let first = name.split(separator: " ").first.map(String.init) ?? name
+        return first.isEmpty ? "Someone" : first
     }
 }
 

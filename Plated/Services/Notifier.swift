@@ -12,10 +12,16 @@ enum Notifier {
         body: String,
         link: String = "",
         eventKey: String = "",
-        into context: ModelContext
+        into context: ModelContext,
+        template: String = "",
+        actorID: String = "",
+        objectTitle: String = ""
     ) {
+        // The parts beside the sentence, so the row can be composed when
+        // it is drawn and follow a rename. See PlatedNotification.line.
         context.insert(PlatedNotification(
-            kind: kind, actorName: actor, body: body, link: link, eventKey: eventKey
+            kind: kind, actorName: actor, body: body, link: link, eventKey: eventKey,
+            template: template, actorID: actorID, objectTitle: objectTitle
         ))
     }
 

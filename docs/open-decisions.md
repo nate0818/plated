@@ -266,3 +266,16 @@ and a face. Reopen if Apple lets a service extension suppress a delivery,
 or if the directory grows a per-person "who to tell" so named Table alerts
 could be sent from a server that knows the author, at which point "never
 about your own action" has to be re-proven there before one alert is sent.
+
+## 17. How the plan crosses Apple IDs
+
+Agreed on Sept 7 as the first of five notification recommendations, and
+left open here because the two answers lead to different architectures:
+a `PlatedDishPlan` record in the shared zone (the road the dishes take,
+offline-first, readable by every participant of the zone) or plans and
+households on the directory server (coherent with the Sept 2 backend
+decision, a second sync layer, needs the server pipe deployed first).
+The trade is written out under "Sharing the plan" in `docs/notifications.md`
+with a recommendation for the shared zone. Either way "whose week is the
+household's" has to be answered before a line of it is built.
+

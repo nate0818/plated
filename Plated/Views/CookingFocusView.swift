@@ -89,7 +89,7 @@ struct CookingFocusView: View {
                                     else { Text("0:00").monospacedDigit() }
                                     if timer.endsAt <= tick.date { Text("Timer finished").plType(.footnote) }
                                     Spacer()
-                                    Button("Clear") { ledger.clearTimer(in: recipe); NotificationScheduler.cancelCookTimer() }.plType(.footnote, .semibold).plTapTarget()
+                                    Button("Clear") { ledger.clearTimer(in: recipe); NotificationScheduler.cancelCookTimer(); CookTimerLive.end() }.plType(.footnote, .semibold).plTapTarget()
                                 }.plType(.title).foregroundStyle(Color.ink).padding(16).background(Color.tomatoTint, in: Radius.shape(Radius.chip))
                             }
                         }
@@ -115,7 +115,13 @@ struct CookingFocusView: View {
             }
         }
         .background(Color.canvas).foregroundStyle(Color.ink)
-        .onAppear { ledger.begin(recipe, servings: servings, mealID: meal?.shoppingID); UIApplication.shared.isIdleTimerDisabled = true }
+        .onAppear {
+            ledger.begin(recipe, servings: servings, mealID: meal?.shoppingID)
+            UIApplication.shared.isIdleTimerDisabled = true
+            // A finished or cleared timer's activity comes down here; the
+            // system cannot be told to end one at the moment it rings.
+            CookTimerLive.reconcile(endsAt: ledger.timer(for: recipe)?.0)
+        }
         .onDisappear { UIApplication.shared.isIdleTimerDisabled = false }
         .onChange(of: phase) { _, value in UIApplication.shared.isIdleTimerDisabled = value == .active && !finished }
         .sheet(isPresented: $ingredientsShown) {
@@ -148,7 +154,10 @@ struct CookingFocusView: View {
     }
     private func startTimer(_ minutes: Int) {
         let seconds = Double(minutes * 60)
-        ledger.startTimer(endingAt: .now.addingTimeInterval(seconds), step: index, in: recipe)
+        let endsAt = Date.now.addingTimeInterval(seconds)
+        ledger.startTimer(endingAt: endsAt, step: index, in: recipe)
+        // A recipe with no written steps has no step to name.
+        CookTimerLive.start(dish: recipe.title, step: steps.isEmpty ? 0 : index + 1, endsAt: endsAt)
         Task {
             let authorized = await NotificationScheduler.askOnce()
             await NotificationScheduler.scheduleCookTimer(in: seconds, title: "Plated timer", body: "\(recipe.title): your \(minutes) minute timer is ready.")
@@ -157,6 +166,7 @@ struct CookingFocusView: View {
     }
     private func endCooking() {
         ledger.forget(recipe)
+        CookTimerLive.end()
         NotificationScheduler.cancelCookTimer()
         UIApplication.shared.isIdleTimerDisabled = false
         Haptic.select()

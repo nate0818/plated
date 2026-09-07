@@ -21,6 +21,8 @@ struct TableFeedView: View {
     }
 
     @State private var scope: FeedScope = .everyone
+    /// Bumped when a dish is muted or unmuted, so the card's glyph follows.
+    @State private var muteVersion = 0
     @Namespace private var scopePill
     /// The plate that just landed on a photograph, for the 320ms it shows.
     ///
@@ -790,6 +792,15 @@ struct TableFeedView: View {
                                         .plType(.micro, .semibold)
                                         .foregroundStyle(Color.inkSecondary)
                                 }
+                                // The state, not a badge: a muted dish says
+                                // so where its time is, the way a muted
+                                // conversation does in Messages.
+                                if muteVersion >= 0, NewsPreferences.isMuted(post: post.shareRecordName) {
+                                    Image(systemName: "bell.slash")
+                                        .font(.system(size: 11, weight: .semibold))
+                                        .foregroundStyle(Color.inkSecondary)
+                                        .accessibilityLabel("Muted")
+                                }
                                 // Only once it has genuinely been sitting.
                                 // Publishing is attempted the moment a post
                                 // is written, so a marker with no delay
@@ -1044,6 +1055,19 @@ struct TableFeedView: View {
         } label: {
             Label("Comments", systemImage: "bubble.right")
         }
+        // Silent to everyone else, the way Messages does it. Replies to
+        // you still get through; the toast says so, because a mute that
+        // quietly let something past would read as broken.
+        if !post.shareRecordName.isEmpty {
+            let muted = NewsPreferences.isMuted(post: post.shareRecordName)
+            Button {
+                NewsPreferences.setMuted(post: post.shareRecordName, !muted)
+                muteVersion += 1
+                showToast(muted ? "Unmuted" : "Muted. Replies to you still get through")
+            } label: {
+                Label(muted ? "Unmute this dish" : "Mute this dish", systemImage: muted ? "bell" : "bell.slash")
+            }
+        }
         if canSave {
             // Only when there is something to do. A dimmed, inert
             // "In your cookbook" row was a label wearing a button's clothes,
@@ -1165,6 +1189,15 @@ struct TableFeedView: View {
                                     Text("· another table")
                                         .plType(.micro, .semibold)
                                         .foregroundStyle(Color.inkSecondary)
+                                }
+                                // The state, not a badge: a muted dish says
+                                // so where its time is, the way a muted
+                                // conversation does in Messages.
+                                if muteVersion >= 0, NewsPreferences.isMuted(post: post.shareRecordName) {
+                                    Image(systemName: "bell.slash")
+                                        .font(.system(size: 11, weight: .semibold))
+                                        .foregroundStyle(Color.inkSecondary)
+                                        .accessibilityLabel("Muted")
                                 }
                             }
                         }
@@ -1364,11 +1397,12 @@ struct TableFeedView: View {
         // The author gets the credit — a save is the sincerest form of
         // dinner flattery. Local ledger today, real push later.
         Awards.recordSaveReceived(by: post.authorName)
-        let me = members.first(where: \.isOwner)?.name ?? "Someone"
+        let dish = post.dishTitle.isEmpty ? "dish" : post.dishTitle
         Notifier.post(
-            .saveReceived, actor: me,
-            body: "You saved \(post.firstName)'s \(post.dishTitle.isEmpty ? "dish" : post.dishTitle).",
-            into: context
+            .saveReceived, actor: post.authorName,
+            body: "You saved \(post.firstName)'s \(dish).",
+            into: context,
+            template: "You saved {actor}'s {object}.", actorID: post.authorID, objectTitle: dish
         )
         showToast("Saved to your cookbook")
     }

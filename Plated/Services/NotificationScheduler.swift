@@ -49,6 +49,12 @@ enum NotificationScheduler {
         content.sound = .default
         // Its own category, so a locked screen still says what rang.
         content.categoryIdentifier = NotificationRouter.Category.cook
+        // A pan on the stove is the one thing in this app that cannot wait
+        // for a Focus to end. Needs the Time Sensitive capability on the
+        // App ID; without it iOS delivers this as active, which is what it
+        // was before, so nothing is lost by asking.
+        content.interruptionLevel = .timeSensitive
+        content.relevanceScore = 1
         let request = UNNotificationRequest(
             identifier: cookTimerID,
             content: content,

@@ -231,11 +231,13 @@ struct PostThreadView: View {
                 originID: post.originKey
             )) { _ in
                 Awards.recordSaveReceived(by: post.authorName)
-                let me = members.first(where: \.isOwner)?.name ?? "Someone"
+                let dish = post.dishTitle.isEmpty ? "dish" : post.dishTitle
                 Notifier.post(
-                    .saveReceived, actor: me,
-                    body: "You saved \(post.firstName)'s \(post.dishTitle.isEmpty ? "dish" : post.dishTitle). They get the credit.",
-                    into: context
+                    .saveReceived, actor: post.authorName,
+                    body: "You saved \(post.firstName)'s \(dish). They get the credit.",
+                    into: context,
+                    template: "You saved {actor}'s {object}. They get the credit.",
+                    actorID: post.authorID, objectTitle: dish
                 )
                 showSaveToast("Saved. \(post.firstName) gets the credit")
             }

@@ -109,10 +109,13 @@ final class NotificationRouter: NSObject, UNUserNotificationCenterDelegate {
         let kind = info[Key.kind] as? String ?? ""
         // Only ever called while the app is in front, so "are they looking
         // at it" is a question about which screen, never about app state.
-        let (openPost, feedVisible) = await MainActor.run {
-            (Presence.shared.openPost, Presence.shared.feedVisible)
+        let (openPost, feedVisible, activityVisible) = await MainActor.run {
+            (Presence.shared.openPost, Presence.shared.feedVisible, Presence.shared.activityVisible)
         }
-        let options = Self.presentation(post: post, kind: kind, openPost: openPost, feedVisible: feedVisible)
+        let options = Self.presentation(
+            post: post, kind: kind, openPost: openPost,
+            feedVisible: feedVisible, activityVisible: activityVisible
+        )
         if options == [.list] {
             print("[Notify] kept a banner about what is on screen to the list (\(kind))")
         } else {
@@ -128,10 +131,15 @@ final class NotificationRouter: NSObject, UNUserNotificationCenterDelegate {
     /// somebody was mid-way through writing a post would be a notice that
     /// never happened.
     static func presentation(
-        post: String, kind: String, openPost: String?, feedVisible: Bool
+        post: String, kind: String, openPost: String?, feedVisible: Bool,
+        activityVisible: Bool = false
     ) -> UNNotificationPresentationOptions {
+        // The bell list is the one screen where every notice is already
+        // in front of the person; a banner over it announced the row
+        // that had just appeared underneath.
         let looking = (!post.isEmpty && openPost == post)
             || (feedVisible && (kind == "dish" || kind == "ask" || kind == "more"))
+            || (activityVisible && !kind.isEmpty)
         return looking ? [.list] : [.banner, .list, .sound]
     }
 
@@ -229,4 +237,6 @@ final class Presence {
     static let shared = Presence()
     var feedVisible = false
     var openPost: String?
+    /// The bell's own list, which draws every row a banner would repeat.
+    var activityVisible = false
 }

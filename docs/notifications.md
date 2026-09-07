@@ -100,9 +100,44 @@ And the rules that keep it quiet:
   a plain banner, so the dressing is compiled out there and the plain
   banner (title plus caption) is what it shows.
 
+## What the person can turn off (`NewsPreferences`)
+
+Every switch decides whether a notice lights the screen. None decides
+whether the bell keeps the row: the list is the record, and off is quiet,
+not blind. The icon counts only rows the person still wants to hear.
+
+- **Cook reminders** and **Table activity** are the two coarse switches,
+  each honest about the iOS permission in three states.
+- Under Table activity, five finer ones, the categories that actually
+  exist in the pipe: Dishes and asks, Replies and mentions, Comments on
+  your dishes, Plates and votes on yours, New seats. A tag, a reply and a
+  mention are words to you and live under Replies whatever record carried
+  them. There is no Planning switch because the plan does not cross Apple
+  IDs yet; a switch for a notice that cannot fire is a lie.
+- **Mute this dish**, in the dish's own menu. Silent to everyone else, the
+  author never learns, and the card shows a small bell.slash where its
+  time is. The room's chatter about that dish stays in the list; a reply
+  to you, a mention or a tag still gets through, and the toast says so.
+
+The filter runs in `TableNews.show` before the fold, so "3 more" counts
+what would actually have shown, and in `AppBadge.count`.
+
 ## The bell and the icon
 
-Every notice writes one activity row keyed by event. Plates and votes on
+Every notice writes one activity row keyed by event. The row stores the
+sentence as parts (`template`, `actorID`, `objectTitle`) beside the prose,
+and composes it when drawn with the actor's current name, so a rename
+follows into last week's rows without any stored text being rewritten.
+Rows written before the parts existed draw their `body`.
+
+The list reads top to bottom: New (unread), then Today, This week and
+Earlier for what has been read. A row about a dish carries the dish's
+photograph on the right when it has one. Swipe reveals Clear; Clear all
+empties the list after one confirmation. Nothing at the Table changes
+either way. While the list is on screen, `Presence` keeps every banner to
+Notification Centre: the row a banner would repeat is already in front.
+
+ Plates and votes on
 one dish update the same row (it moves to the top and reads as new again).
 `PlatedNotification` is mirrored, so a person with two devices writes the
 row twice and then keeps the older: `TableNews.dedupeRows`. Rows about a
@@ -116,6 +151,21 @@ Every pull, not only the push, goes through `ShareAcceptor.absorb`, so a
 night in Low Power Mode or a force-quit cannot leave the bell asserting
 that nothing happened: the next pull tells it, once, and the banners are
 kept to the list if the feed is in front.
+
+## The cook timer
+
+The one time-bound thing in the app, done the way a delivery app does an
+order. Starting a timer in Cook Mode requests a Live Activity
+(`CookTimerLive`, attributes in `CookTimerActivity.swift`, hand-copied
+into the widget target and diffed by `scripts/check-tokens`). The system
+draws the countdown on the Lock Screen and in the Dynamic Island with no
+update from the app; past the finish the content is stale and the view
+says "Done" until Cook Mode is opened again and takes it down. Clear and
+End take it down at once. The finish itself is the local notification,
+delivered Time Sensitive so it breaks through a Focus, with the capability
+in `config/PlatedApp.entitlements`. Nothing else in Plated earns a Live
+Activity: a day-long "tacos tonight" has no end and is the billboard
+Apple's guideline 4.5.3 names.
 
 ## Where a tap lands
 
@@ -216,6 +266,40 @@ that keep the event's time, read-elsewhere withdrawal, the badge counting
 only other people, a seat matched on identity, deep-link parsing, the
 invite link's https rule. The merge's reaction-dropping bug was found by
 one of them.
+
+## Sharing the plan (not built, decision pending)
+
+"If I plan a dinner, the household should be told" cannot be built as a
+notification. `PlannedMeal`, `HouseholdMember` and `GroceryItem` live in
+the private CloudKit mirror, which reaches the owner's own devices and
+nobody else's. Only `PlatedDish*` records cross Apple IDs, through the
+shared zone. Two ways to make the plan cross, both defensible:
+
+1. **A plan record in the shared zone.** `PlatedDishPlan`, one per
+   planned meal, written by the phone that plans and merged into
+   `PlannedMeal` on every participant's phone through the same
+   `TablePull`, `absorb` and `TableNews` road the dishes take. Works
+   offline, needs no server session, and the notice is a few lines in the
+   digest under the same never-about-you rule. The costs: the record type
+   is permanent once minted, every participant of the zone can read it (a
+   guest at your table sees your week unless the client hides plans from
+   zones that are not its household), and "whose plan is the household's"
+   has to be answered: a member's own week goes quiet and the head's week
+   becomes theirs, which is the household merge `docs/open-decisions.md`
+   and the backend memory already call big.
+2. **The directory server.** Households and plans as Supabase tables, the
+   phone syncing through the directory session, APNs from the server for
+   the notice. Coherent with the direction chosen on Sept 2 for
+   "who is on Plated" and the invite push, and it solves membership
+   properly. The cost is a second sync layer beside SwiftData for the
+   plan, the roster and groceries, a server that has to be up for a
+   partner to see Thursday, and it cannot start until the server pipe is
+   deployed and verified.
+
+Recommendation: option 1 for the plan, with the client filtering plan
+records to the zone the household adopted, and the server kept for what
+only a server can do (the directory, the invite push, Plated speaking as
+itself). Nate decides; see `docs/open-decisions.md` §17.
 
 ## Still open
 

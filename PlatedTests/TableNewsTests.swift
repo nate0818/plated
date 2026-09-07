@@ -37,7 +37,85 @@ final class TableNewsTests: XCTestCase {
         TableNews.rehearsing = false
         // Never leave a development simulator's switch off.
         UserDefaults.standard.removeObject(forKey: TableNews.tableOnKey)
+        NewsPreferences.reset()
         container = nil
+    }
+
+    // MARK: Preferences and mute
+
+    func testACategorySwitchedOffKeepsTheNoticeToTheList() {
+        var changes = TableShare.Changes()
+        changes.posts = [remoteDish(by: "riley", id: "1")]
+        let dish = TableNews.digest(changes, newSeats: [], context: context)[0]
+        XCTAssertTrue(NewsPreferences.allows(dish))
+        NewsPreferences.set(.dishes, on: false)
+        XCTAssertFalse(NewsPreferences.allows(dish))
+        // A tag is a word to you and lives under Replies, not Dishes.
+        var tagged = remoteDish(by: "riley", id: "2")
+        tagged.taggedNames = ["Nate"]
+        changes.posts = [tagged]
+        let toMe = TableNews.digest(changes, newSeats: [], context: context)[0]
+        XCTAssertTrue(toMe.addressed)
+        XCTAssertTrue(NewsPreferences.allows(toMe))
+    }
+
+    func testAMutedDishStaysQuietUnlessItIsToYou() {
+        let post = myPost()
+        NewsPreferences.setMuted(post: post.shareRecordName, true)
+        var changes = TableShare.Changes()
+        changes.notes = [note(on: post, by: "sam", text: "Saving this for Sunday.")]
+        let comment = TableNews.digest(changes, newSeats: [], context: context)[0]
+        XCTAssertFalse(comment.addressed)
+        XCTAssertFalse(NewsPreferences.allows(comment), "a muted dish is quiet about the room's words")
+        changes.notes = [note(on: post, by: "sam", text: "What do you think?", replyTo: "Nate")]
+        let reply = TableNews.digest(changes, newSeats: [], context: context)[0]
+        XCTAssertTrue(reply.addressed)
+        XCTAssertTrue(NewsPreferences.allows(reply), "a reply to you gets through a mute")
+        NewsPreferences.setMuted(post: post.shareRecordName, false)
+        XCTAssertTrue(NewsPreferences.allows(comment))
+    }
+
+    func testTheIconOnlyCountsWhatThePersonStillWantsToHear() {
+        let row = PlatedNotification(
+            kind: .dishPosted, actorName: "Riley Park", body: "Riley plated Ragù.",
+            link: DeepLink.url(post: "post-9").absoluteString, eventKey: "post:post-9"
+        )
+        XCTAssertTrue(NewsPreferences.counts(row))
+        NewsPreferences.setMuted(post: "post-9", true)
+        XCTAssertFalse(NewsPreferences.counts(row))
+        NewsPreferences.setMuted(post: "post-9", false)
+        NewsPreferences.set(.dishes, on: false)
+        XCTAssertFalse(NewsPreferences.counts(row))
+        // Your own rows never counted and still do not.
+        let mine = PlatedNotification(kind: .saveReceived, actorName: "Sam Okafor", body: "You saved Sam's dish.")
+        XCTAssertFalse(NewsPreferences.counts(mine))
+    }
+
+    func testARowComposesItsSentenceFromTheCurrentName() throws {
+        let riley = try XCTUnwrap(Seats.all(in: context).first { $0.name == "Riley Park" })
+        riley.participantID = "riley"
+        let row = PlatedNotification(
+            kind: .dishPosted, actorName: "Riley Park", body: "Riley plated Ragù.",
+            template: "{actor} plated {object}.", actorID: "riley", objectTitle: "Ragù"
+        )
+        XCTAssertEqual(row.line(members: Seats.all(in: context)), "Riley plated Ragù.")
+        riley.name = "Rye Park"
+        XCTAssertEqual(row.line(members: Seats.all(in: context)), "Rye plated Ragù.",
+                       "the row follows the rename; nothing stored was rewritten")
+        XCTAssertEqual(row.body, "Riley plated Ragù.")
+        let legacy = PlatedNotification(kind: .dishPosted, actorName: "Riley Park", body: "Riley plated Ragù.")
+        XCTAssertEqual(legacy.line(members: Seats.all(in: context)), "Riley plated Ragù.")
+    }
+
+    func testTheBellListKeepsBannersToTheList() {
+        XCTAssertEqual(
+            NotificationRouter.presentation(post: "post-1", kind: "comment", openPost: nil, feedVisible: false, activityVisible: true),
+            [.list]
+        )
+        XCTAssertEqual(
+            NotificationRouter.presentation(post: "post-1", kind: "comment", openPost: nil, feedVisible: false),
+            [.banner, .list, .sound]
+        )
     }
 
     // MARK: Helpers

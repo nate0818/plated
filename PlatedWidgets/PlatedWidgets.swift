@@ -575,5 +575,8 @@ struct PlatedWidgetsBundle: WidgetBundle {
         TonightLockWidget()
         GroceryLockWidget()
         CookTurnLockWidget()
+        // Not a widget family, so it may sit last; the icon-menu rule
+        // above is about the first entry only.
+        CookTimerLiveActivity()
     }
 }
