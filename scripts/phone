@@ -85,11 +85,26 @@ mkdir -p "$DERIVED"
 # the cached profile is reused forever and the build fails claiming the
 # capability is missing, which reads as "you didn't tick the box" when the
 # box was ticked. testflight.sh has always passed it; this script never did.
+#
+# Headless, the "updates" need an identity: with no Apple account signed
+# into Xcode, xcodebuild answers "No Accounts" and the stale profile wins.
+# The App Store Connect key testflight.sh uploads with is accepted here too,
+# and with it automatic signing added the Communication and Time Sensitive
+# capabilities to the App ID on 2026-09-07 without anybody opening Xcode.
+ASC_KEY_ID="${ASC_KEY_ID:-PHQC2AV3TY}"
+ASC_ISSUER_ID="${ASC_ISSUER_ID:-dcfbb9f3-5699-4044-a26a-f3c7c98fbd29}"
+ASC_KEY_PATH="${ASC_KEY_PATH:-$HOME/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8}"
+auth=()
+if [[ -f "$ASC_KEY_PATH" ]]; then
+  auth=(-authenticationKeyPath "$ASC_KEY_PATH" -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID")
+else
+  say "note: no App Store Connect key at $ASC_KEY_PATH; signing needs an Xcode account"
+fi
 if ! xcodebuild -project "$ROOT/Plated.xcodeproj" \
       -scheme "$SCHEME" -configuration "$CONFIG" \
       -destination "platform=iOS,id=$UDID" \
       -derivedDataPath "$DERIVED" \
-      -allowProvisioningUpdates \
+      -allowProvisioningUpdates "${auth[@]}" \
       build >"$LOG" 2>&1; then
   grep -E "error:|BUILD FAILED" "$LOG" | head -20 >&2 || true
   die "Build failed. Full log: $LOG"
