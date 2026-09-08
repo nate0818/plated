@@ -1,12 +1,25 @@
 "use client";
 
 import Image from "next/image";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import styles from "./Ketchup404Scene.module.css";
 
 export default function Ketchup404Scene() {
   const router = useRouter();
+
+  // The only way off this page, so it has to actually go somewhere.
+  // `history.length > 1` is not the test it looks like: a tab opened
+  // straight onto a bad URL already reports 2, so the guard passes and
+  // back() lands on a blank page. Instead: ask for back, and if we are
+  // still standing here a moment later, nothing happened, so go home.
+  function goBack() {
+    const here = window.location.href;
+    router.back();
+    window.setTimeout(() => {
+      if (window.location.href === here) router.push("/");
+    }, 500);
+  }
+
   return (
     <div className={styles.experience}>
       <Image
@@ -22,12 +35,7 @@ export default function Ketchup404Scene() {
         <h1 className={styles.title}>This page is out of sauce.</h1>
         <p className={styles.lede}>Let’s get you back to something good.</p>
         <div className={styles.actions}>
-          <Link href="/" className={styles.primary}>Back to the kitchen <span aria-hidden="true">↗</span></Link>
-          <button
-            type="button"
-            className={styles.secondary}
-            onClick={() => window.history.length > 1 ? router.back() : router.push("/")}
-          >
+          <button type="button" className={styles.action} onClick={goBack}>
             <span aria-hidden="true">←</span> Go back
           </button>
         </div>
