@@ -126,13 +126,15 @@ final class NotificationRouter: NSObject, UNUserNotificationCenterDelegate {
         let kind = info[Key.kind] as? String ?? ""
         // Only ever called while the app is in front, so "are they looking
         // at it" is a question about which screen, never about app state.
-        let (openPost, feedVisible, activityVisible, planVisible) = await MainActor.run {
+        let (openPost, feedVisible, activityVisible, planVisible, householdVisible, cookbookVisible) = await MainActor.run {
             (Presence.shared.openPost, Presence.shared.feedVisible,
-             Presence.shared.activityVisible, Presence.shared.planVisible)
+             Presence.shared.activityVisible, Presence.shared.planVisible,
+             Presence.shared.householdVisible, Presence.shared.cookbookVisible)
         }
         let options = Self.presentation(
             post: post, kind: kind, openPost: openPost,
-            feedVisible: feedVisible, activityVisible: activityVisible, planVisible: planVisible
+            feedVisible: feedVisible, activityVisible: activityVisible, planVisible: planVisible,
+            householdVisible: householdVisible, cookbookVisible: cookbookVisible
         )
         if options == [.list] {
             print("[Notify] kept a banner about what is on screen to the list (\(kind))")
@@ -150,7 +152,8 @@ final class NotificationRouter: NSObject, UNUserNotificationCenterDelegate {
     /// never happened.
     static func presentation(
         post: String, kind: String, openPost: String?, feedVisible: Bool,
-        activityVisible: Bool = false, planVisible: Bool = false
+        activityVisible: Bool = false, planVisible: Bool = false,
+        householdVisible: Bool = false, cookbookVisible: Bool = false
     ) -> UNNotificationPresentationOptions {
         // The bell list is the one screen where every notice is already
         // in front of the person; a banner over it announced the row
@@ -159,6 +162,12 @@ final class NotificationRouter: NSObject, UNUserNotificationCenterDelegate {
             || (feedVisible && (kind == "dish" || kind == "ask" || kind == "more"))
             || (activityVisible && !kind.isEmpty)
             || (planVisible && kind == "plan")
+            // The household's own two, which were the only notices in the
+            // app whose destination nobody was watching: a join banner
+            // landed over the roster it had just been added to, and a recipe
+            // banner over the cookbook row underneath it.
+            || (householdVisible && (kind == "householdSeat" || kind == "householdLeft"))
+            || (cookbookVisible && kind == "recipe")
         return looking ? [.list] : [.banner, .list, .sound]
     }
 
@@ -275,4 +284,10 @@ final class Presence {
     /// The week itself. A banner about a night while the week is in front
     /// announces the row that just appeared on it.
     var planVisible = false
+    /// The household screen, which is where a seat joining or leaving opens
+    /// and where the roster it is about is already drawn.
+    var householdVisible = false
+    /// The cookbook, for the same reason: a recipe joining it lands over the
+    /// list that just gained the row.
+    var cookbookVisible = false
 }

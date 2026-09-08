@@ -59,7 +59,7 @@ final class ShareAcceptor: NSObject, UIApplicationDelegate {
                 let before = TableIdentity.cached
                 guard let now = await TableIdentity.confirm() else { return }
                 guard now != before, !before.hasPrefix("local-") else { return }
-                TableIdentity.reset()
+                TableIdentity.reset(becoming: now)
             }
         }
         return true

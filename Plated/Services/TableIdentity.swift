@@ -130,7 +130,17 @@ enum TableIdentity {
     /// change tokens go too, because they describe a zone this account has
     /// never read.
     @MainActor
-    static func reset() {
+    /// `becoming` is the id CloudKit has just confirmed for the NEW account,
+    /// when the caller has one.
+    ///
+    /// Without it this cleared the key that `confirm()` had stored seconds
+    /// earlier, so the phone came out of an Apple ID change running on a
+    /// fresh `local-` placeholder. `PlanShare` refuses to publish under a
+    /// placeholder, deliberately, so the new account's week went nowhere at
+    /// all until some later confirm happened to run. The books belong to the
+    /// old account and go; the answer to "who am I" was just established and
+    /// does not.
+    static func reset(becoming newIdentity: String? = nil) {
         store.removeObject(forKey: key)
         TableOutbox.shared.clear()
         TableLedger.shared.clear()
@@ -162,6 +172,10 @@ enum TableIdentity {
         for k in UserDefaults.standard.dictionaryRepresentation().keys
         where k.hasPrefix("plated.zonetoken.") {
             UserDefaults.standard.removeObject(forKey: k)
+        }
+        // Last, so nothing above can clear it again.
+        if let newIdentity, !newIdentity.isEmpty, !newIdentity.hasPrefix("local-") {
+            store.set(newIdentity, forKey: key)
         }
     }
 }
