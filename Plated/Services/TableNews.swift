@@ -569,6 +569,45 @@ enum TableNews {
         // is owed "Nate took Tacos off", quietly. Not windowed on
         // `changedAt`: that is when the writer last saved the night, not
         // when it went, and a replay that notices a removal notices it now.
+        // The author's own night, taken off by the household. The one
+        // notice in this file with no antecedent: every other plan notice
+        // answers a row the reader already has, and the author has none for
+        // a night they planned themselves, because nothing ever told them
+        // about their own record.
+        //
+        // It is sent anyway, and `docs/notifications.md` is why rather than
+        // an exception to it. A notice has to be about you or be the first
+        // word of something new, and somebody taking your dinner off the
+        // plan is both: the consequence of not hearing it is shopping for
+        // or cooking a night that is off the plan, and the person most
+        // likely to be caught out is the one who does not open the app. It
+        // is addressed, so it is never folded into a count.
+        //
+        // Named or not sent, as everywhere: a record that names no remover
+        // says nothing, and `changedByID` keeps a person from being told
+        // about their own doing on their other device.
+        for e in plans.ownRemoved {
+            let editor = e.editorID ?? ""
+            guard !editor.isEmpty, editor != me else { continue }
+            guard let by = changer(e) else { continue }
+            let who = firstName(by.name)
+            guard who != "Someone", !e.title.isEmpty else { continue }
+            let key = "plan:\(e.recordName):\(planHash(e, removed: true))"
+            guard !seen.contains(key) else { continue }
+            let night = Stamp.nightPhrase(e.date)
+            var n = notice(
+                e, key: key, actor: by.name, actorID: by.id,
+                title: "\(who) took \(e.title) off \(night)",
+                body: "It came off your week too.",
+                template: "{actor} took {object} off \(night).",
+                deed: "Took \(e.title) off \(night). It came off your week too.",
+                at: .now, passive: true
+            )
+            n.addressed = true
+            n.relevance = 1.0
+            notices.append(n)
+        }
+
         // A removal names the person who REMOVED it, which is only
         // possible now that a removal is a write. It used to name the
         // night's author off the last book copy, because a CloudKit

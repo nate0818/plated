@@ -155,6 +155,47 @@ final class RemovedNightTests: XCTestCase {
         XCTAssertEqual(p.removed, 1)
     }
 
+    // MARK: The one notice with no antecedent
+
+    /// The digest reads `TableIdentity.cached` for "me", so the tests use
+    /// this phone's own answer rather than a literal.
+    private var me: String { TableIdentity.cached }
+
+    private func digest(_ delta: PlanLedger.Delta) -> [TableNews.Notice] {
+        TableNews.digest(TableShare.Changes(), newSeats: [], plans: delta, context: context)
+    }
+
+    func testTheAuthorIsToldWhenTheHouseholdTakesTheirNightOff() {
+        // Every other plan notice answers a row the reader already has, and
+        // the author has none for a night they planned themselves. This one
+        // is sent anyway: the consequence of not hearing it is shopping for
+        // or cooking a dinner that is off the plan.
+        let delta = deliver(
+            [plan(author: me, removed: 1, editorID: "_riley", editorName: "Riley Park")],
+            me: me
+        )
+        let notices = digest(delta)
+        XCTAssertEqual(notices.count, 1)
+        XCTAssertEqual(notices[0].title, "Riley took Tacos off \(Stamp.nightPhrase(Self.day(2)))")
+        XCTAssertEqual(notices[0].body, "It came off your week too.")
+        XCTAssertTrue(notices[0].addressed, "it is about the reader, so it is never folded into a count")
+    }
+
+    func testTheAuthorIsNotToldAboutTheirOwnRemovalOnTheirOtherDevice() {
+        let delta = deliver(
+            [plan(author: me, removed: 1, editorID: me, editorName: "Nate Meadows")],
+            me: me
+        )
+        XCTAssertEqual(delta.ownRemoved.count, 1, "the meal still has to go")
+        XCTAssertTrue(digest(delta).isEmpty, "but a notice is never about your own action")
+    }
+
+    func testARemovalThatNamesNobodyTellsTheAuthorNothing() {
+        let delta = deliver([plan(author: me, removed: 1)], me: me)
+        XCTAssertEqual(delta.ownRemoved.count, 1, "the meal still has to go")
+        XCTAssertTrue(digest(delta).isEmpty, "named, or not sent")
+    }
+
     // MARK: When the meal may actually go
 
     private func meal(id: String, cooked: Bool = false, title: String = "Tacos") -> PlannedMeal {

@@ -49,6 +49,12 @@ enum RemovedNights {
         /// the screen that explains an EMPTY night has only the date and the
         /// slot to find it by.
         var slot: String
+        /// The recipe the night was built on, when it had one that came from
+        /// somewhere nameable. Putting a night back looks the dish up by
+        /// TITLE otherwise, which finds the wrong recipe when two share a
+        /// name and none at all when one has been renamed. "" is the honest
+        /// answer for a home-written recipe, and the title is the fallback.
+        var recipeOriginKey: String = ""
         var at: Date
         /// The `PlannedMeal` has gone, or was kept because it was cooked.
         /// Either way there is nothing left to do but say so.
@@ -101,7 +107,8 @@ enum RemovedNights {
             guard !book.contains(where: { $0.shoppingID == e.shoppingID }) else { continue }
             book.append(Gone(
                 shoppingID: e.shoppingID, recordName: e.recordName, title: e.title,
-                by: e.editorName ?? "", day: e.day, slot: e.slot, at: .now
+                by: e.editorName ?? "", day: e.day, slot: e.slot,
+                recipeOriginKey: e.recipeOriginKey, at: .now
             ))
             added += 1
         }
@@ -184,6 +191,22 @@ enum RemovedNights {
     static func gone(on date: Date, slot: MealSlot = .dinner) -> Gone? {
         let day = PlanDay.string(date)
         return all.first { $0.day == day && $0.slot == slot.rawValue }
+    }
+
+    /// The night is back on the plan, so the sentence explaining its
+    /// absence is spent.
+    ///
+    /// Called when the person plans that slot again. The captions are all
+    /// gated on the night having no meal, so leaving the entry is harmless
+    /// TODAY; it is cleared anyway because that gate is a property of four
+    /// call sites rather than of the data, and the fifth reader of
+    /// `gone(on:slot:)` will not know to write it.
+    static func forget(day: String, slot: MealSlot = .dinner) {
+        var book = all
+        let before = book.count
+        book.removeAll { $0.day == day && $0.slot == slot.rawValue }
+        guard book.count != before else { return }
+        save(book)
     }
 
     /// An Apple ID change or a household leave: these name nights in a
