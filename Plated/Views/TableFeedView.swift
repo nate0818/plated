@@ -501,7 +501,6 @@ struct TableFeedView: View {
         .onAppear {
             // While the feed is in front, a banner about a new dish would
             // point at what is already on screen. See NotificationRouter.
-            Presence.shared.feedVisible = true
             openRequestedPost()
             #if DEBUG
             if LaunchFlags.consume("-plated-open-discover") {
@@ -515,7 +514,6 @@ struct TableFeedView: View {
             }
             #endif
         }
-        .onDisappear { Presence.shared.feedVisible = false }
         .overlay(alignment: .bottom) {
             if let toast = savedToast {
                 Text(toast)

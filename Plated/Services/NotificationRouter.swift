@@ -304,8 +304,20 @@ final class Presence {
     /// The Table's feed and the week keep their own hooks: those are pushed
     /// and popped rather than switched, and they answer a finer question
     /// than which tab is showing.
+    /// All four, not the two that were added last. `planVisible` and
+    /// `feedVisible` were driven from `onAppear`/`onDisappear` on their own
+    /// tab roots and latch for exactly the same reason: this shell is a
+    /// switch on a selection, so a root shown once is never torn down. The
+    /// fix went to the two flags in front of me and was reported as a class,
+    /// which is the shape that has cost this branch more than any other.
+    ///
+    /// The screens keep their own hooks as well, and the two compose rather
+    /// than fight: a tab change is the coarse answer and runs here, while a
+    /// push inside a tab is the fine one and runs there.
     static func follow(_ tab: AppTab) {
         shared.householdVisible = tab == .home
         shared.cookbookVisible = tab == .cookbook
+        shared.planVisible = tab == .week
+        shared.feedVisible = tab == .table
     }
 }

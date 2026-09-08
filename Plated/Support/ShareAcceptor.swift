@@ -214,7 +214,13 @@ final class ShareAcceptor: NSObject, UIApplicationDelegate {
         // Anything the first drain could not settle, re-checked: a Cook Mode
         // session that ended while the delivery was in flight leaves here
         // rather than waiting for the next one.
-        let took = tookEarly || RemovedNights.drain(in: context)
+        // Both drains run. `tookEarly || drain(...)` short-circuits, so on
+        // exactly the deliveries where the early drain DID take something,
+        // the re-check never ran: a Cook Mode session that ended while the
+        // delivery was in flight then waited for the next one, which is the
+        // case the second drain exists for.
+        let tookLate = RemovedNights.drain(in: context)
+        let took = tookEarly || tookLate
         if took { Persist.save(context, "nights the household took off") }
         // `plans` and `swept` are the wrong question on their own: a
         // delivery that ONLY carries a removal of this phone's own night

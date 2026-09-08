@@ -223,7 +223,6 @@ struct WeekView: View {
         .onReceive(NotificationCenter.default.publisher(for: LinkRelay.dayRequested)) { _ in
             if let day = LinkRelay.takeDay() { withAnimation(.plSnap) { weekAnchor = day } }
         }
-        .onDisappear { Presence.shared.planVisible = false }
         .task {
             // The household's standing lives in the app group, which no
             // SwiftUI body observes. Read it while the plan is on screen:
@@ -238,7 +237,6 @@ struct WeekView: View {
         .onChange(of: meals.count) { _, _ in readHouseholdStanding() }
         .onChange(of: weekAnchor) { _, _ in readHouseholdStanding() }
         .onAppear {
-            Presence.shared.planVisible = true
             if let day = LinkRelay.takeDay() { weekAnchor = day }
             if forceMonth || verticalSizeClass == .compact { showMonth = true }
             #if DEBUG

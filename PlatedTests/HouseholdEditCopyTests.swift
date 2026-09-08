@@ -19,12 +19,12 @@ final class HouseholdEditCopyTests: XCTestCase {
     }
 
     func testBeingPutDownToCookLeads() {
-        let line = HouseholdEdits.line(for: change(cookID: me), me: me, currentCookID: "")
+        let line = HouseholdEdits.line(for: change(cookID: me), me: me, currentCookID: "", currentTitle: "Tacos")
         XCTAssertEqual(line, "Riley put you down to cook Ragu.")
     }
 
     func testAnOrdinaryChangeNamesTheDish() {
-        let line = HouseholdEdits.line(for: change(), me: me, currentCookID: "")
+        let line = HouseholdEdits.line(for: change(), me: me, currentCookID: "", currentTitle: "Tacos")
         XCTAssertEqual(line, "Riley changed this night to Ragu.")
     }
 
@@ -33,18 +33,18 @@ final class HouseholdEditCopyTests: XCTestCase {
     /// room.
     func testANamelessChangeLosesTheNameAndKeepsTheFact() {
         XCTAssertEqual(
-            HouseholdEdits.line(for: change(cookID: me, by: ""), me: me, currentCookID: ""),
+            HouseholdEdits.line(for: change(cookID: me, by: ""), me: me, currentCookID: "", currentTitle: "Tacos"),
             "You have been put down to cook Ragu."
         )
         XCTAssertEqual(
-            HouseholdEdits.line(for: change(by: ""), me: me, currentCookID: ""),
+            HouseholdEdits.line(for: change(by: ""), me: me, currentCookID: "", currentTitle: "Tacos"),
             "This night was changed to Ragu on another phone."
         )
     }
 
     /// Somebody else being put down to cook is not "you are cooking".
     func testAnotherPersonsCookIsNotTheCookSentence() {
-        let line = HouseholdEdits.line(for: change(cookID: "riley"), me: me, currentCookID: "")
+        let line = HouseholdEdits.line(for: change(cookID: "riley"), me: me, currentCookID: "", currentTitle: "Tacos")
         XCTAssertEqual(line, "Riley changed this night to Ragu.")
     }
 
@@ -62,7 +62,7 @@ final class HouseholdEditCopyTests: XCTestCase {
     /// cook", which claims something Riley did not do.
     func testTheCookSentenceOnlyFiresWhenTheCookIsNew() {
         XCTAssertEqual(
-            HouseholdEdits.line(for: change(cookID: me), me: me, currentCookID: me),
+            HouseholdEdits.line(for: change(cookID: me), me: me, currentCookID: me, currentTitle: "Tacos"),
             "Riley changed this night to Ragu.",
             "already the cook, so nothing about the cook changed"
         )
@@ -98,9 +98,32 @@ final class HouseholdEditCopyTests: XCTestCase {
             "a member known only through the directory still answers"
         )
 
+        // A household that has never been shared stamps neither id, so the
+        // reader's own row falls to the identity rung rather than to "".
+        let mine = HouseholdMember(name: "Nate Meadows")
+        mine.userRecordName = TableIdentity.cached
+        XCTAssertEqual(PlanNightSheet.cookID(of: PlannedMeal(cook: mine)), TableIdentity.cached)
+
         let unknown = HouseholdMember(name: "Max")
-        XCTAssertEqual(PlanNightSheet.cookID(of: PlannedMeal(cook: unknown)), "")
+        unknown.userRecordName = "u-max"
+        unknown.participantID = nil
+        XCTAssertEqual(PlanNightSheet.cookID(of: PlannedMeal(cook: unknown)), "u-max")
         XCTAssertEqual(PlanNightSheet.cookID(of: PlannedMeal()), "", "no cook is not a cook id")
+    }
+
+    /// The cook fix pushed every non-cook edit into the rename branch, so a
+    /// servings change on a night already called Ragu was announced as
+    /// "changed this night to Ragu". The sentence names what MOVED.
+    func testAChangeThatIsNotARenameDoesNotClaimOneCurrentTitleIsAlreadyTheDish() {
+        XCTAssertEqual(
+            HouseholdEdits.line(for: change(), me: me, currentCookID: "", currentTitle: "Ragu"),
+            "Riley changed this night.",
+            "the dish did not move, so nothing may say it did"
+        )
+        XCTAssertEqual(
+            HouseholdEdits.line(for: change(by: ""), me: me, currentCookID: "", currentTitle: "Ragu"),
+            "This night was changed on another phone."
+        )
     }
 
     func testTheRowSaysTheConsequenceFirst() {

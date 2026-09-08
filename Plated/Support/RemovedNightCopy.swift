@@ -69,7 +69,12 @@ extension RemovedNights {
               let gone = all.first(where: { $0.shoppingID == shoppingID })
         else { return nil }
         let who = gone.by.split(separator: " ").first.map(String.init) ?? ""
-        let lead = who.isEmpty ? "Off the household plan" : "\(who) took it off"
+        // Shorter still than the first attempt at this. "Off the household
+        // plan · you're cooking it" is 38 characters before a long first
+        // name, and the row clips at one line at `.caption`, so the clause
+        // that carries the reason was the half being lost. The lead is the
+        // shorter fact and the reason follows it.
+        let lead = who.isEmpty ? "Taken off" : "\(who) took it off"
         if gone.kept { return "\(lead) · you cooked it" }
         guard !gone.settled else { return nil }
         return "\(lead) · you're cooking it"

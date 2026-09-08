@@ -236,11 +236,22 @@ struct PlanNightSheet: View {
                         // that their phone was offline. While it is in flight
                         // the spinner on the trash is the whole story.
                         if going, inFlight == nil {
-                            Text("It leaves every phone in your household when this one is back on iCloud.")
-                                .plType(.caption)
-                                .foregroundStyle(Color.inkSecondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                                .frame(maxWidth: .infinity, alignment: .leading)
+                            // NOT "when this one is back on iCloud". The
+                            // queue's five answers include a record somebody
+                            // else changed first, a save iCloud refused, and
+                            // a household this phone cannot resolve, and on
+                            // four of them the connection is fine. `notice`
+                            // already carries the queue's own words for
+                            // whichever it was, in a vocabulary written to
+                            // be cause-specific; asserting one cause over
+                            // the top of it contradicted the line above.
+                            if notice == nil {
+                                Text("It leaves every phone in your household on the next try.")
+                                    .plType(.caption)
+                                    .foregroundStyle(Color.inkSecondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
                             InkPillButton(title: "Done", systemImage: "checkmark") { dismiss() }
                                 .padding(.top, 4)
                         }
@@ -583,7 +594,17 @@ struct PlanNightSheet: View {
     static func cookID(of meal: PlannedMeal) -> String {
         guard let cook = meal.cook else { return "" }
         let participant = cook.participantID ?? ""
-        return participant.isEmpty ? (cook.userRecordName ?? "") : participant
+        if !participant.isEmpty { return participant }
+        let record = cook.userRecordName ?? ""
+        if !record.isEmpty { return record }
+        // The rung `HouseholdEdits.adopt` already has and this was missing.
+        // A household that has never been shared stamps neither id on its
+        // own row, so the reader's own row answers "" while the record's
+        // cookID is their real identity: the two differ, and the sentence
+        // fires as though somebody had just put them down to cook a night
+        // they were already cooking. Which is the exact claim this operand
+        // was added to stop.
+        return cook.isMe ? TableIdentity.cached : ""
     }
 
     /// The household's version of this night, waiting to be answered.
@@ -608,7 +629,8 @@ struct PlanNightSheet: View {
         VStack(alignment: .leading, spacing: 8) {
             Text(HouseholdEdits.line(
                 for: change, me: TableIdentity.cached,
-                currentCookID: Self.cookID(of: meal)
+                currentCookID: Self.cookID(of: meal),
+                currentTitle: meal.title
             ))
                 .plType(.footnote, .semibold)
                 .foregroundStyle(Color.ink)
@@ -624,7 +646,7 @@ struct PlanNightSheet: View {
                     Haptic.plate()
                     HouseholdEdits.adopt(change, in: context)
                     Persist.save(context)
-                    withAnimation(.plSnap) { answeredChange += 1 }
+                    answer(change)
                 }
                 .plType(.footnote, .bold)
                 .plActionLabel()
@@ -639,7 +661,7 @@ struct PlanNightSheet: View {
                 Button(HouseholdEdits.keepTitle) {
                     Haptic.tap()
                     HouseholdEdits.settle(change.shoppingID)
-                    withAnimation(.plSnap) { answeredChange += 1 }
+                    answer(change)
                 }
                 .plType(.footnote, .semibold)
                 .plActionLabel()
@@ -650,6 +672,29 @@ struct PlanNightSheet: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// One answer, either way, and the publisher is told about it.
+    ///
+    /// `settleContest` had no caller anywhere in the app, which made both
+    /// buttons worse than useless. The publisher stands down on this night
+    /// and that stand-down is stable, so:
+    ///
+    /// - "Use their version" wrote the household's values into the meal,
+    ///   which changed the fingerprint, which made `diff` want to publish,
+    ///   which hit the same contest guard and stood down again. The control
+    ///   added to END the disagreement was what made it permanent.
+    /// - "Keep mine" left the mark standing, so this phone's own version
+    ///   could never reach the household either.
+    ///
+    /// Settling takes the zone's current `modifiedAt` as this phone's new
+    /// baseline, so the next pass publishes normally whichever way the
+    /// person went. It also clears the stand-down snapshot that
+    /// `contestLine` reads, which otherwise outlived the answer and drew
+    /// "Your plan still says Tacos" under a card now reading Ragu.
+    private func answer(_ change: HouseholdEdits.Change) {
+        withAnimation(.plSnap) { answeredChange += 1 }
+        Task { await PlanShare.settleContest(change.recordName) }
     }
 
     /// What to say on a night this phone planned that the household has
