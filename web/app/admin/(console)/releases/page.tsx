@@ -3,11 +3,13 @@ import { loadAdminPageData } from "../../../lib/admin/page-data";
 import styles from "../../admin.module.css";
 import { CoverageGap, formatWhen, PageHeader, Panel, ServiceError, StatusPill } from "../../components/UI";
 
+export const metadata = { title: "Releases" };
+
 export default async function ReleasesPage() {
   const result = await loadAdminPageData({ op: "releases" }, decodeReleases);
   return (
     <div className={styles.pageStack}>
-      <PageHeader eyebrow="Releases & coverage" title="Know what the numbers can say" description="Device-reported builds, an explicit authoritative-source status and gaps where Plated has no instrumentation." />
+      <PageHeader title="Releases" description="Device-reported builds, an explicit authoritative-source status and gaps where Plated has no instrumentation." />
       {!result.ok ? <ServiceError result={result} /> : (() => {
         const releases = result.data.data;
         const channels = Object.entries(releases.deviceReported);

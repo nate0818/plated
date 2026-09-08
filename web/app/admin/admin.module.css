@@ -8,8 +8,7 @@
 .authCard { width: min(100%, 29rem); display: grid; gap: 28px; padding: clamp(24px, 5vw, 42px); border: 1px solid var(--hairline); border-radius: var(--radius-sheet); background: rgba(255,255,255,.94); box-shadow: var(--shadow-float); }
 .authBrand,.pageHeader,.panelHeader,.tableHeader,.releaseLine,.releaseHero,.historyTop,.auditTopline { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .authBrand a,.brandLink,.mobileBar a { text-decoration: none; display: inline-flex; }
-.privateBadge,.status { display: inline-flex; align-items: center; width: fit-content; min-height: 25px; padding: 3px 9px; border-radius: 999px; font-size: .7rem; line-height: 1; font-weight: 700; letter-spacing: .055em; text-transform: uppercase; white-space: nowrap; }
-.privateBadge { color: var(--ink-secondary); background: var(--fill); }
+.status { display: inline-flex; align-items: center; width: fit-content; min-height: 25px; padding: 3px 9px; border-radius: 999px; font-size: .7rem; line-height: 1; font-weight: 700; letter-spacing: .055em; text-transform: uppercase; white-space: nowrap; }
 .authCopy { display: grid; gap: 8px; }
 .authTitle { font-size: clamp(2rem,7vw,2.8rem); font-weight: 500; }
 .bodyMuted,.smallMuted,.pageDescription,.panelDetail,.metricDetail,.tableHeader p,.tableFooter,.composerIntro>p { color: var(--ink-secondary); }

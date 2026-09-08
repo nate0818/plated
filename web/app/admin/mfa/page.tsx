@@ -23,13 +23,10 @@ export default async function FounderMfaPage({
 
   return (
     <AuthFrame
-      eyebrow="Two-step verification"
-      title={stepUp ? "Confirm it’s you" : verifiedFactor ? "Enter your security code" : "Protect the founder account"}
-      detail={stepUp
-        ? "Enter a current authenticator code before using founder controls."
-        : verifiedFactor
-          ? "Use the current code from your authenticator app."
-          : "A founder console session always requires a verified authenticator."}
+      title={stepUp ? "Confirm it’s you" : verifiedFactor ? "Enter your code" : "Set up two-step verification"}
+      detail={verifiedFactor || stepUp
+        ? "Use the current code from your authenticator app."
+        : "Add an authenticator app to finish signing in."}
     >
       <MfaForm
         verifiedFactorId={verifiedFactor?.id ?? null}

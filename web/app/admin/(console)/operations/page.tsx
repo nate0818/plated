@@ -3,11 +3,13 @@ import { loadAdminPageData } from "../../../lib/admin/page-data";
 import styles from "../../admin.module.css";
 import { formatCount, formatWhen, Metric, PageHeader, Panel, ServiceError, StatusPill } from "../../components/UI";
 
+export const metadata = { title: "Operations" };
+
 export default async function OperationsPage() {
   const result = await loadAdminPageData({ op: "operations" }, decodeOperations);
   return (
     <div className={styles.pageStack}>
-      <PageHeader eyebrow="Control plane" title="Operations" description="Configuration, delivery state and the current limits of what the server can prove." />
+      <PageHeader title="Operations" description="Configuration, delivery state and the current limits of what the server can prove." />
       {!result.ok ? <ServiceError result={result} /> : (() => {
         const operations = result.data.data;
         const pending = (operations.push.deliveryCounts.pending ?? 0) + (operations.push.deliveryCounts.claimed ?? 0);
@@ -25,7 +27,7 @@ export default async function OperationsPage() {
                 <ul className={styles.checkList}>
                   <li className={styles.checkRow}><div><p className={styles.checkLabel}>Database</p><p className={styles.tableSubtext}>Privileged tables respond through the Edge Function.</p></div><StatusPill status={operations.database.status} /></li>
                   <li className={styles.checkRow}><div><p className={styles.checkLabel}>APNs credentials</p><p className={styles.tableSubtext}>{operations.push.acceptedLabel} is the strongest delivery claim available.</p></div><StatusPill status={operations.push.configured ? "ready" : "attention"} label={operations.push.configured ? "Configured" : "Missing"} /></li>
-                  <li className={styles.checkRow}><div><p className={styles.checkLabel}>Founder authentication</p><p className={styles.tableSubtext}>MFA and signed server requests are required.</p></div><StatusPill status={operations.adminAuth.mfaRequired && operations.adminAuth.signedRequestsRequired ? "ready" : "attention"} /></li>
+                  <li className={styles.checkRow}><div><p className={styles.checkLabel}>Admin authentication</p><p className={styles.tableSubtext}>MFA and signed server requests are required.</p></div><StatusPill status={operations.adminAuth.mfaRequired && operations.adminAuth.signedRequestsRequired ? "ready" : "attention"} /></li>
                   <li className={styles.checkRow}><div><p className={styles.checkLabel}>Device ownership</p><p className={styles.tableSubtext}>Push tokens have global ownership and sign-out unregister support.</p></div><StatusPill status={operations.deviceDirectory.tokenOwnership === "global" && operations.deviceDirectory.signOutUnregisterSupported ? "ready" : "attention"} /></li>
                   <li className={styles.checkRow}><div><p className={styles.checkLabel}>Phone hashing</p><p className={styles.tableSubtext}>Directory phone hashes require the server-only pepper.</p></div><StatusPill status={operations.phoneHashing.configured ? "ready" : "attention"} label={operations.phoneHashing.configured ? "Configured" : "Missing"} /></li>
                 </ul>

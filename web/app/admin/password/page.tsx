@@ -10,7 +10,7 @@ export default async function FounderPasswordPage() {
   if (auth.kind === "ready") redirect("/admin");
 
   return (
-    <AuthFrame eyebrow="Founder invitation" title="Choose a strong password" detail="Finish the invite before enrolling your authenticator.">
+    <AuthFrame title="Choose a password" detail="Next you will add an authenticator app.">
       <PasswordForm />
     </AuthFrame>
   );

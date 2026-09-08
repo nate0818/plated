@@ -42,7 +42,7 @@ export default function MfaForm({
       }
       const { data, error: enrollError } = await supabase.auth.mfa.enroll({
         factorType: "totp",
-        friendlyName: "Plated founder console",
+        friendlyName: "Plated",
       });
       if (enrollError) {
         setError("An authenticator could not be enrolled. Try again.");

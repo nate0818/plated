@@ -31,3 +31,4 @@ tour-photos/
 
 # Supabase CLI scratch
 supabase/.temp/
+.vercel

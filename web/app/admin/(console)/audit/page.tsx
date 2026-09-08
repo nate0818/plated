@@ -4,6 +4,8 @@ import { loadAdminPageData } from "../../../lib/admin/page-data";
 import styles from "../../admin.module.css";
 import { AuditList, formatCount, formatWhen, PageHeader, Panel, ServiceError } from "../../components/UI";
 
+export const metadata = { title: "Audit trail" };
+
 export default async function AuditPage({ searchParams }: { searchParams: Promise<{ cursor?: string }> }) {
   const params = await searchParams;
   const cursor = typeof params.cursor === "string" ? params.cursor.slice(0, 100) : undefined;
@@ -11,7 +13,7 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
 
   return (
     <div className={styles.pageStack}>
-      <PageHeader eyebrow="Accountability" title="Audit trail" description="An append-only server record of successful privileged reads and founder announcement actions." />
+      <PageHeader title="Audit trail" description="An append-only server record of successful privileged reads and announcement actions." />
       {!result.ok ? <ServiceError result={result} /> : (
         <Panel title="Administrative events" detail={`${formatCount(result.data.data.totalCount)} total · snapshot ${formatWhen(result.data.generatedAt)}`}>
           <AuditList rows={result.data.data.rows} />

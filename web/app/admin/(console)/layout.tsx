@@ -1,6 +1,11 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { adminUserLabel, getAdminAuthState } from "../../lib/admin/auth";
 import AdminShell from "../components/AdminShell";
+
+export const metadata: Metadata = {
+  title: { absolute: "Plated", template: "%s · Plated" },
+};
 
 export default async function ConsoleLayout({ children }: { children: React.ReactNode }) {
   const auth = await getAdminAuthState();

@@ -6,6 +6,8 @@ import styles from "../../admin.module.css";
 import AnnouncementConsole from "../../components/AnnouncementConsole";
 import { PageHeader, ServiceError } from "../../components/UI";
 
+export const metadata = { title: "Announcements" };
+
 export default async function AnnouncementsPage({ searchParams }: { searchParams: Promise<{ cursor?: string }> }) {
   const params = await searchParams;
   const cursor = typeof params.cursor === "string" ? params.cursor.slice(0, 100) : undefined;
@@ -17,7 +19,7 @@ export default async function AnnouncementsPage({ searchParams }: { searchParams
 
   return (
     <div className={styles.pageStack}>
-      <PageHeader eyebrow="Communication" title="Announcements" description="Preview an immutable audience snapshot, authorize that exact intent, then follow each delivery attempt in the audit trail." />
+      <PageHeader title="Announcements" description="Preview an immutable audience snapshot, authorize that exact intent, then follow each delivery attempt in the audit trail." />
       {!history.ok ? <ServiceError result={history} /> : (
         <AnnouncementConsole
           history={history.data.data.rows}

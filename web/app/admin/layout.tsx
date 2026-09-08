@@ -2,8 +2,7 @@ import type { Metadata } from "next";
 
 // Not a page for finding. The robots file says so too.
 export const metadata: Metadata = {
-  title: "Founder console",
-  description: "Private Plated operations console.",
+  title: { absolute: "Plated" },
   robots: { index: false, follow: false, nocache: true },
 };
 

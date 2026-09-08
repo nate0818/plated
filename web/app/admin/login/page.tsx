@@ -11,11 +11,7 @@ export default async function FounderLoginPage({ searchParams }: { searchParams:
   if (auth.kind === "mfa-required") redirect("/admin/mfa");
 
   return (
-    <AuthFrame
-      eyebrow="Founder console"
-      title="Sign in to Plated"
-      detail="Operational data and controls for the people responsible for Plated."
-    >
+    <AuthFrame title="Sign in">
       {params.notice === "link" ? <p role="alert">That invitation or recovery link is invalid or has expired.</p> : null}
       <LoginForm />
     </AuthFrame>

@@ -4,15 +4,16 @@ import { loadAdminPageData } from "../../lib/admin/page-data";
 import styles from "../admin.module.css";
 import { CoverageGap, formatCount, formatWhen, Metric, PageHeader, Panel, ServiceError, StatusPill } from "../components/UI";
 
+export const metadata = { title: "Overview" };
+
 export default async function FounderOverviewPage() {
   const result = await loadAdminPageData({ op: "overview" }, decodeOverview);
 
   return (
     <div className={styles.pageStack}>
       <PageHeader
-        eyebrow="Founder console"
-        title="What Plated can see"
-        description="A current operational view of the public directory, notification registrations, waitlist and founder announcements."
+        title="Overview"
+        description="A current operational view of the public directory, notification registrations, waitlist and announcements."
         action={<Link className={styles.primaryLink} href="/admin/announcements">New announcement</Link>}
       />
       {!result.ok ? <ServiceError result={result} /> : (() => {
@@ -63,7 +64,7 @@ export default async function FounderOverviewPage() {
               <Panel title="Centrally readable" detail="Limited records needed to operate the service.">
                 <ul className={styles.plainList}>{overview.privacyBoundary.centrallyReadable.map((item) => <li key={item}>{item}</li>)}</ul>
               </Panel>
-              <Panel title="Private in iCloud" detail="These categories never enter the founder control plane.">
+              <Panel title="Private in iCloud" detail="These categories never enter this console.">
                 <CoverageGap title="Household content" detail={overview.privacyBoundary.privateInCloudKit.join(", ") + "."} href="/admin/releases" />
               </Panel>
             </div>

@@ -54,11 +54,11 @@ export default function AdminShell({ userLabel, children }: { userLabel: string;
     <div className={styles.console}>
       <a className={styles.skipLink} href="#admin-main">Skip to content</a>
       <aside className={styles.sidebar}>
-        <Link className={styles.brandLink} href="/admin" aria-label="Plated founder console">
+        <Link className={styles.brandLink} href="/admin" aria-label="Plated admin">
           <Wordmark size={25} />
-          <span className={styles.founderWord}>Founder</span>
+          <span className={styles.founderWord}>Admin</span>
         </Link>
-        <nav className={styles.nav} aria-label="Founder console">
+        <nav className={styles.nav} aria-label="Admin">
           {NAVIGATION.map((item) => (
             <Link
               key={item.href}
@@ -80,11 +80,11 @@ export default function AdminShell({ userLabel, children }: { userLabel: string;
         </div>
       </aside>
       <div className={styles.mobileBar}>
-        <Link href="/admin" aria-label="Plated founder console"><Wordmark size={23} /></Link>
-        <span className={styles.founderWord}>Founder</span>
+        <Link href="/admin" aria-label="Plated admin"><Wordmark size={23} /></Link>
+        <span className={styles.founderWord}>Admin</span>
         <button className={styles.signOut} type="button" onClick={signOut} disabled={signingOut}>Sign out</button>
       </div>
-      <nav className={styles.mobileNav} aria-label="Founder console">
+      <nav className={styles.mobileNav} aria-label="Admin">
         {NAVIGATION.map((item) => (
           <Link
             key={item.href}

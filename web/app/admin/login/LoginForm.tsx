@@ -71,9 +71,8 @@ export default function LoginForm() {
       </label>
       {error ? <p className={styles.formError} role="alert">{error}</p> : null}
       <button className={styles.primaryButton} type="submit" disabled={busy || !email.trim() || !password}>
-        {busy ? "Signing in…" : "Continue"}
+        {busy ? "Signing in…" : "Sign in"}
       </button>
-      <p className={styles.smallMuted}>Accounts are invite-only. Every console session also requires a code from your authenticator app.</p>
     </form>
   );
 }

@@ -4,6 +4,8 @@ import { loadAdminPageData } from "../../../lib/admin/page-data";
 import styles from "../../admin.module.css";
 import { EmptyState, formatCount, formatWhen, Metric, PageHeader, Panel, ServiceError } from "../../components/UI";
 
+export const metadata = { title: "Waitlist" };
+
 export default async function WaitlistPage({ searchParams }: { searchParams: Promise<{ cursor?: string }> }) {
   const params = await searchParams;
   const cursor = typeof params.cursor === "string" ? params.cursor.slice(0, 100) : undefined;
@@ -11,7 +13,7 @@ export default async function WaitlistPage({ searchParams }: { searchParams: Pro
 
   return (
     <div className={styles.pageStack}>
-      <PageHeader eyebrow="Acquisition" title="Waitlist" description="Launch demand from plated.food. Email addresses stay masked in this view and are never exported by the console." />
+      <PageHeader title="Waitlist" description="Launch demand from plated.food. Email addresses stay masked in this view and are never exported by the console." />
       {!result.ok ? <ServiceError result={result} /> : (
         <>
           <div className={styles.metricGridThree}>
@@ -37,7 +39,7 @@ export default async function WaitlistPage({ searchParams }: { searchParams: Pro
             </section>
             <Panel title="Retention" detail="The API states the policy applied to this dataset.">
               <p className={styles.bodyMuted}>{result.data.data.retention}</p>
-              <p className={styles.smallMuted}>The founder view cannot reveal or export raw addresses. Deletion requests are handled through the privacy inbox.</p>
+              <p className={styles.smallMuted}>This view cannot reveal or export raw addresses. Deletion requests are handled through the privacy inbox.</p>
             </Panel>
           </div>
         </>

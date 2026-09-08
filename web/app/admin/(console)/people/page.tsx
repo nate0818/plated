@@ -12,6 +12,8 @@ function notificationState(news: boolean | null, authorization: string | null, e
   return { label: authorization.replaceAll("_", " "), status: "unknown" };
 }
 
+export const metadata = { title: "People" };
+
 export default async function PeoplePage({ searchParams }: { searchParams: Promise<{ cursor?: string }> }) {
   const params = await searchParams;
   const cursor = typeof params.cursor === "string" ? params.cursor.slice(0, 100) : undefined;
@@ -22,7 +24,7 @@ export default async function PeoplePage({ searchParams }: { searchParams: Promi
 
   return (
     <div className={styles.pageStack}>
-      <PageHeader eyebrow="Directory" title="People" description="Operational registration details only. Personal IDs, phone hashes, API tokens and push tokens never leave the server." />
+      <PageHeader title="People" description="Operational registration details only. Personal IDs, phone hashes, API tokens and push tokens never leave the server." />
       {!result.ok ? <ServiceError result={result} /> : (
         <section className={styles.tablePanel} aria-labelledby="people-table-title">
           <header className={styles.tableHeader}>
