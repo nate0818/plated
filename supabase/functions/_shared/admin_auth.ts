@@ -147,16 +147,31 @@ async function verifyHmac(req: Request, rawBody: string): Promise<void> {
   }
   const sentAt = Number(timestamp);
   if (!Number.isSafeInteger(sentAt) || Math.abs(Math.floor(Date.now() / 1000) - sentAt) > MAX_CLOCK_SKEW_SECONDS) {
+    console.error("founder signed request outside the accepted clock skew");
     throw new AdminHttpError(401, "The signed request has expired.");
   }
-  const pathname = new URL(req.url).pathname;
+  // Sign over the function's own name, not the request path. The gateway
+  // routes /functions/v1/<name> to a container that sees a different path
+  // than the caller sent, so signing the full path made every request fail
+  // verification with a correct secret on both sides. The name still binds a
+  // signature to one endpoint: an admin-read signature cannot be replayed
+  // against announce.
+  const endpoint = functionEndpoint(req);
   const expected = await hmacHex(
     secret,
-    signaturePayload(timestamp, req.method, pathname, rawBody),
+    signaturePayload(timestamp, req.method, endpoint, rawBody),
   );
   if (!constantTimeHexEquals(expected, signature)) {
+    console.error(`founder signature mismatch endpoint=${endpoint}`);
     throw new AdminHttpError(401, "The signed request is invalid.");
   }
+}
+
+/// The last non-empty path segment, which is the function's name whether or
+/// not the platform kept the /functions/v1 prefix.
+export function functionEndpoint(req: Request): string {
+  const segments = new URL(req.url).pathname.split("/").filter(Boolean);
+  return `/${segments.at(-1) ?? ""}`;
 }
 
 export async function authenticateAdmin(
@@ -172,7 +187,10 @@ export async function authenticateAdmin(
   // getUser performs the authoritative Auth validation. Only after that
   // succeeds do we inspect the verified token's standard Supabase `aal` claim.
   const { data: userData, error: userError } = await db.auth.getUser(token);
-  if (userError || !userData.user) throw new AdminHttpError(401, "The founder session is no longer valid.");
+  if (userError || !userData.user) {
+    console.error("founder session rejected by the auth server");
+    throw new AdminHttpError(401, "The founder session is no longer valid.");
+  }
   const claims = parseJwtAuthClaims(token);
   if (claims?.aal !== "aal2") {
     throw new AdminHttpError(403, "Complete multi-factor authentication to continue.");

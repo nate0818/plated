@@ -19,6 +19,10 @@ export type AdminEdgeResult<T> =
 
 class AdminEdgeConfigurationError extends Error {}
 
+function functionName(kind: "read" | "command"): string {
+  return kind === "read" ? "admin-read" : "announce";
+}
+
 function functionUrl(kind: "read" | "command"): URL {
   const supabase = getPublicSupabaseConfig();
   if (!supabase) throw new AdminEdgeConfigurationError("Supabase public configuration is missing.");
@@ -26,7 +30,7 @@ function functionUrl(kind: "read" | "command"): URL {
   const override = kind === "read"
     ? process.env.ADMIN_READ_FUNCTION_URL
     : process.env.ADMIN_COMMAND_FUNCTION_URL;
-  const fallbackName = kind === "read" ? "admin-read" : "announce";
+  const fallbackName = functionName(kind);
   const url = new URL(override?.trim() || `/functions/v1/${fallbackName}`, supabase.url);
   const expectedPath = `/functions/v1/${fallbackName}`;
 
@@ -103,7 +107,9 @@ export async function callAdminEdge<T>(
     const url = functionUrl(kind);
     const rawBody = JSON.stringify(payload);
     const timestamp = String(Math.floor(Date.now() / 1000));
-    const signed = `v1:${timestamp}:POST:${url.pathname}:${rawBody}`;
+    // The name, not the path: the function sees a different path than the one
+    // called, so the two sides only agree on which endpoint this is.
+    const signed = `v1:${timestamp}:POST:/${functionName(kind)}:${rawBody}`;
     const signature = createHmac("sha256", apiSecret()).update(signed).digest("hex");
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), kind === "read" ? 12_000 : 25_000);
