@@ -1304,15 +1304,10 @@ private struct PlanDateStrip: View {
             .accessibilityHidden(true)
     }
 
-    /// One view drawn twice: peers look like peers.
+    /// One view drawn twice here, and a third time on the month grid, so it
+    /// lives in Theme.swift rather than in either screen.
     private var edgeMark: some View {
-        Capsule()
-            .fill(Color.inkFaint)
-            .frame(width: Self.edgeMarkSize.width, height: Self.edgeMarkSize.height)
-            .padding(.horizontal, Self.edgeMarkInset)
-            .allowsHitTesting(false)
-            // A person hears the week actions on each day, not the punctuation.
-            .accessibilityHidden(true)
+        PlanEdgeMark().padding(.horizontal, Self.edgeMarkInset)
     }
 
     /// The jump the header arrows used to make, for readers who cannot

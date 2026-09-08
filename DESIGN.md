@@ -121,7 +121,13 @@ right-facing chevron is decoration, not an explanation. Back remains an
 explicit control with a directional arrow. The week's date strip has no
 arrows, at Nate's request (Sept 7): the strip itself swipes, its edges carry
 a quiet mark that says so, and Previous week and Next week stay reachable as
-accessibility actions on each day of the strip.
+accessibility actions on each day of the strip. The month planner follows
+(Sept 8): the grid gives 14pt to a sideways drag and then turns, the same
+`PlanEdgeMark` stands in the gutter at each end, and Previous month and Next
+month are actions on each day. Neither is the only door. The planner
+controls sit above the week and month branch, so Choose a date and Today are
+on screen in both, which is what lets the swipe be an accelerator rather
+than a gesture somebody has to discover.
 
 Radii live in `Radius` (`chip` 16, `row` 18, `card` 20, `hero` 24, `sheet` 28).
 Shadows live in four steps — `plCardShadow`, `plFloatShadow`, `plDishShadow`,

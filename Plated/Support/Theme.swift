@@ -714,6 +714,36 @@ enum ZoomID: Hashable {
 
 // MARK: - Shared atoms
 
+/// The mark that stands at each end of a surface which moves sideways.
+///
+/// It is the sheet grabber turned on its side. iOS has taught everyone that
+/// a short grey capsule means "this surface moves in the direction I am
+/// thin"; on a sheet that is down, here it is across. It is a stroke and not
+/// a glyph, which is the one thing `inkFaint` is allowed to paint, and it
+/// never animates, because a grabber does not perform on a sheet either.
+///
+/// It lives here rather than in the two screens that draw it. The week's
+/// date strip shipped it first and the month grid wanted the same mark a day
+/// later; two hand-kept copies of one component is the OptionRow story this
+/// codebase has already paid for once.
+///
+/// The dissolve that sits under the week strip's marks does NOT belong here.
+/// That strip scrolls its cells edge to edge and has something to fade; the
+/// month grid clips nothing and would be dissolving empty gutter.
+struct PlanEdgeMark: View {
+    static let size = CGSize(width: 3, height: 20)
+
+    var body: some View {
+        Capsule()
+            .fill(Color.inkFaint)
+            .frame(width: Self.size.width, height: Self.size.height)
+            .allowsHitTesting(false)
+            // A reader hears the week or month actions on each day, never
+            // the punctuation between them.
+            .accessibilityHidden(true)
+    }
+}
+
 /// The tracked micro-label above titles: "AUGUST 21–27", "WHO COOKS WHEN".
 struct MicroLabel: View {
     let text: String
