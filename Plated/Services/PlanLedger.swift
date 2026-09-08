@@ -478,7 +478,7 @@ final class PlanLedger {
             // rather than folded as an ordinary change, or the night stands
             // on every phone but the remover's with its dish unchanged.
             if remote.removed == 1 {
-                if let old = book.entries.removeValue(forKey: entry.recordName) {
+                if book.entries.removeValue(forKey: entry.recordName) != nil {
                     removePhoto(entry.recordName)
                     book.serverImages[entry.recordName] = nil
                     beforeEdit[entry.recordName] = nil

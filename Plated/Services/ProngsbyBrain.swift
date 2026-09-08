@@ -39,7 +39,11 @@ struct ProngsbyBrain {
     /// change, so a remote night only fills a date the local plan left open,
     /// which is the rule `WidgetBridge.publish` already follows.
     @MainActor
-    static func nights(meals: [PlannedMeal], ledger: PlanLedger = .shared) -> [Night] {
+    static func nights(meals: [PlannedMeal], ledger: PlanLedger? = nil) -> [Night] {
+        // Not a default argument: a default is evaluated in the CALLER's
+        // isolation and `PlanLedger.shared` is main-actor state, which
+        // Swift 6 makes an error rather than a warning.
+        let ledger = ledger ?? PlanLedger.shared
         let calendar = Calendar.current
         var out = meals.filter { $0.slotValue == .dinner }.map {
             Night(date: $0.date, title: $0.title, cookName: $0.cook?.name,

@@ -108,8 +108,13 @@ struct GroceryListBuilder {
     @MainActor
     static func nights(
         meals: [PlannedMeal], from start: Date, to end: Date,
-        ledger: PlanLedger = .shared
+        ledger: PlanLedger? = nil
     ) -> [SourceNight] {
+        // Not a default argument: a default is evaluated in the CALLER's
+        // isolation, and `PlanLedger.shared` is main-actor state, which
+        // Swift 6 makes an error rather than a warning. Resolved inside,
+        // where this function's own isolation already holds.
+        let ledger = ledger ?? PlanLedger.shared
         var out = meals.compactMap { meal -> SourceNight? in
             guard let id = meal.shoppingID else { return nil }
             return SourceNight(id: id, title: meal.title, date: meal.date,
