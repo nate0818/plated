@@ -187,6 +187,14 @@ final class PlanLedger {
     /// by (see `revert`).
     private var beforeEdit: [String: Entry] = [:]
 
+    /// The photograph that was on the night before this phone's un-landed
+    /// edit replaced it. `beforeEdit` restores the words on a refusal and
+    /// used to leave the picture, so a reverted dish put the old title back
+    /// over the new dish's photograph and nothing ever corrected it. The
+    /// outer optional is "we have a before image", the inner one is "and it
+    /// was no photograph at all", which are different restorations.
+    private var beforePhoto: [String: Data?] = [:]
+
     static let householdOwnerKey = "plated.plan.householdOwner"
     static let rehearsalOwner = "rehearsal-zone"
 
@@ -290,10 +298,18 @@ final class PlanLedger {
         return "\(entry.cookFirstName) is cooking"
     }
 
+    /// The entry decides, then the cache. The other way round, a writer that
+    /// forgets one `removePhoto` leaves a picture that is still reachable
+    /// and still drawn: the winning dish's title over the losing dish's
+    /// photograph. Asking the entry first makes that unreachable rather
+    /// than merely unlikely, whatever a future writer forgets.
     func photo(for recordName: String) -> Data? {
+        guard let entry = book.entries[recordName], entry.hasPhoto else {
+            photos[recordName] = nil
+            return nil
+        }
         if let cached = photos[recordName] { return cached }
-        guard let entry = book.entries[recordName], entry.hasPhoto,
-              let url = Self.photoDirectory?.appending(path: "\(recordName).jpg"),
+        guard let url = Self.photoDirectory?.appending(path: "\(recordName).jpg"),
               let data = try? Data(contentsOf: url) else { return nil }
         photos[recordName] = data
         return data
@@ -365,14 +381,26 @@ final class PlanLedger {
                 entry.pendingRemoval = true
             }
             if let before {
-                if before != entry, isNews(entry) || isNews(before) {
+                // A row carrying this phone's own un-landed edit is not a
+                // comparison anybody can learn from. `before` holds the
+                // optimistic values, so the zone's version differs from it by
+                // exactly the change the reader just made, and the digest
+                // announced their own edit back to them as somebody else's.
+                // The row is already telling them it has not gone yet; the
+                // delivery that settles it is what may speak.
+                if before.pendingSince == nil, before != entry,
+                   isNews(entry) || isNews(before) {
                     delta.changed.append((before, entry))
                 }
             } else if isNews(entry), leaving[entry.recordName] == nil {
                 delta.added.append(entry)
             }
             book.entries[entry.recordName] = entry
-            if let data = remote.photoData { writePhoto(entry.recordName, data) }
+            if let data = remote.photoData {
+                writePhoto(entry.recordName, data)
+            } else {
+                removePhoto(entry.recordName)
+            }
         }
 
         // The pair a two-device shoppingID backfill mints: one night taken
@@ -452,7 +480,13 @@ final class PlanLedger {
     @discardableResult
     func applyLocally(_ edit: PlanShare.Edit) -> Entry? {
         guard let before = book.entries[edit.recordName] else { return nil }
-        if beforeEdit[edit.recordName] == nil { beforeEdit[edit.recordName] = before }
+        if beforeEdit[edit.recordName] == nil {
+            beforeEdit[edit.recordName] = before
+            // Taken before the edit writes over it, and only on the first
+            // edit of a run, so a second change folded onto the first still
+            // reverts to the night as it was before either.
+            beforePhoto[edit.recordName] = photo(for: edit.recordName)
+        }
         var after: Entry?
         if edit.kind == .delete {
             // The row stays, marked as going. Removing it here made an
@@ -483,15 +517,29 @@ final class PlanLedger {
     /// delivery that brings this phone's own change back reads as a change
     /// somebody made and the digest raises a notice about the reader's own
     /// action, which the law forbids outright.
-    func settle(_ edit: PlanShare.Edit, _ outcome: PlanShare.WriteOutcome) {
+    /// Returns the night this settled off the plan, so the caller can take
+    /// its bell row and its banner down. A delete that landed left both
+    /// standing on the phone that did the deleting: every other phone had
+    /// the retraction through the delivery's delta, and the one person who
+    /// knew it was gone was the one still being told about it.
+    @discardableResult
+    func settle(_ edit: PlanShare.Edit, _ outcome: PlanShare.WriteOutcome) -> Entry? {
+        var removed: Entry?
         switch outcome {
         case .landed(let at):
             if edit.kind == .delete {
                 // Now it has really gone off everybody's plan, so now the
                 // row goes. Until this line the night was still standing in
                 // the zone and the entry said so.
-                book.entries.removeValue(forKey: edit.recordName)
+                removed = book.entries.removeValue(forKey: edit.recordName)
                 removePhoto(edit.recordName)
+                // The reminder is scheduled off myNights(), so the night has
+                // to announce that it left or "Your night tomorrow" fires
+                // for a dinner nobody is cooking. forget(zoneOwner:) already
+                // posts this for the same reason.
+                if removed != nil {
+                    NotificationCenter.default.post(name: Self.nightsDropped, object: nil)
+                }
             } else if var entry = book.entries[edit.recordName] {
                 entry.changedAt = at
                 entry.pendingSince = nil
@@ -499,27 +547,50 @@ final class PlanLedger {
                 book.entries[edit.recordName] = entry
             }
             beforeEdit[edit.recordName] = nil
+            beforePhoto[edit.recordName] = nil
             save()
         case .queued:
             // The row keeps saying it has not gone yet, because it has not.
             break
         case .theirs:
-            // `fold` already wrote the server's version over it.
+            // `fold` already wrote the server's version over it, photograph
+            // included, so the before image has nothing left to restore.
             beforeEdit[edit.recordName] = nil
+            beforePhoto[edit.recordName] = nil
         case .refused:
             revert(edit)
         }
+        return removed
     }
 
     /// Put the night back the way it was. Nothing to put back after a
     /// relaunch, and nothing to invent either: the row stops claiming it is
     /// on its way and the zone says what it is on the next delivery.
     private func revert(_ edit: PlanShare.Edit) {
+        let restore = beforePhoto.removeValue(forKey: edit.recordName)
         guard let before = beforeEdit.removeValue(forKey: edit.recordName) else {
-            book.entries[edit.recordName]?.pendingSince = nil
-            book.entries[edit.recordName]?.pendingRemoval = nil
+            // No before image, which after a relaunch is every refusal:
+            // `beforeEdit` is memory only. Clearing the mark and stopping
+            // left this phone's un-sent fields standing as settled fact, on
+            // a night the household never heard of, captioned as though the
+            // author had planned it. The entry goes instead, so the row says
+            // nothing until the next delivery says what the night really is.
+            // A night the zone still holds comes straight back; one it does
+            // not was never there to draw.
+            if book.entries.removeValue(forKey: edit.recordName) != nil {
+                removePhoto(edit.recordName)
+            }
             save()
             return
+        }
+        // The picture goes back with the words, or the old title lands over
+        // the new dish's photograph and stays there.
+        if let restore {
+            if let data = restore {
+                writePhoto(edit.recordName, data)
+            } else {
+                removePhoto(edit.recordName)
+            }
         }
         // Not into a household this phone has left. `rehome` empties that
         // zone's nights from the book and only then does the drain settle
@@ -537,12 +608,17 @@ final class PlanLedger {
     /// The zone does not hold this night any more, and no refusal may put it
     /// back. The before image goes with it: an edit answered by "somebody
     /// took this off" is not an edit to undo, it is a night that is gone.
-    func nightIsGone(_ recordName: String) {
+    @discardableResult
+    func nightIsGone(_ recordName: String) -> Entry? {
         beforeEdit[recordName] = nil
-        if book.entries.removeValue(forKey: recordName) != nil {
-            removePhoto(recordName)
-            save()
-        }
+        beforePhoto[recordName] = nil
+        guard let removed = book.entries.removeValue(forKey: recordName) else { return nil }
+        removePhoto(recordName)
+        save()
+        // Same reason as the landed delete: a night that has left has to say
+        // so, or its reminder outlives it.
+        NotificationCenter.default.post(name: Self.nightsDropped, object: nil)
+        return removed
     }
 
     /// One record read outside a delivery: the version that beat an edit.
@@ -554,8 +630,17 @@ final class PlanLedger {
         entry.pendingSince = nil
         entry.pendingRemoval = nil
         book.entries[entry.recordName] = entry
-        if let data = remote.photoData { writePhoto(entry.recordName, data) }
+        // Both directions, the way `applyLocally` does it. Writing only when
+        // the winner carries bytes left the loser's photograph on disk under
+        // the winner's title: the person picked a dish, lost the race, and
+        // watched the other dish's name settle over their picture.
+        if let data = remote.photoData {
+            writePhoto(entry.recordName, data)
+        } else {
+            removePhoto(entry.recordName)
+        }
         beforeEdit[entry.recordName] = nil
+        beforePhoto[entry.recordName] = nil
         save()
     }
 
@@ -605,6 +690,7 @@ final class PlanLedger {
         book = Book()
         photos = [:]
         beforeEdit = [:]
+        beforePhoto = [:]
         if let dir = Self.photoDirectory { try? FileManager.default.removeItem(at: dir) }
         householdOwner = nil
         save()
