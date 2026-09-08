@@ -48,6 +48,18 @@ if [ "$1" = "--accept" ]; then
   exit 0
 fi
 
+# A grep that matches nothing must not read as "no fields to check". A
+# refactor that renames the writers, or moves them to another file, would
+# otherwise silence this gate at exactly the moment it matters most: the
+# code changed under it.
+COUNT=$(current | wc -l | tr -d ' ')
+if [ "$COUNT" -lt 40 ]; then
+  echo "✗ Only $COUNT CloudKit fields found in the source. The extraction has broken," >&2
+  echo "  which is not the same as there being nothing to check. Fix the greps in" >&2
+  echo "  this script before shipping." >&2
+  exit 1
+fi
+
 if [ ! -f "$MANIFEST" ]; then
   echo "✗ No $MANIFEST. Deploy the CloudKit schema to Production, then run: scripts/check-schema --accept" >&2
   exit 1

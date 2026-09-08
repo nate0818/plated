@@ -638,7 +638,8 @@ enum PlanShare {
                     name: name,
                     by: served["editorName"] as? String ?? "",
                     title: served["title"] as? String ?? "",
-                    mine: upload.plan.title
+                    mine: upload.plan.title,
+                    day: upload.plan.day, slot: upload.plan.slot
                 ))
                 continue
             }
@@ -648,7 +649,8 @@ enum PlanShare {
                     name: name,
                     by: served["editorName"] as? String ?? "",
                     title: served["title"] as? String ?? "",
-                    mine: upload.plan.title
+                    mine: upload.plan.title,
+                    day: upload.plan.day, slot: upload.plan.slot
                 ))
                 continue
             }
@@ -681,7 +683,22 @@ enum PlanShare {
         // gains the mark. It is deliberately NOT republished on the next
         // pass by clearing the fingerprint: standing down has to be stable,
         // or the two phones take turns overwriting each other every pass.
-        for row in contested where book[row.name] != nil {
+        for row in contested {
+            // The entry is MINTED when the book has none, which on a
+            // reinstall or a second device is every night, and a reinstall
+            // is exactly when the editorID rule above fires. Skipping those
+            // rows, as this loop first did, meant the night was not
+            // published AND not recorded: no sentence, no contest, nothing
+            // on any screen, and the person's whole week silently never
+            // leaving the phone. An empty fingerprint re-offers the night
+            // next pass, so the stand-down stays visible rather than
+            // becoming a thing that happened once.
+            if book[row.name] == nil {
+                book[row.name] = BookEntry(
+                    fingerprint: "", photoCount: 0, zoneOwner: target,
+                    day: row.day, slot: row.slot
+                )
+            }
             // Only the first stand-down stamps the time, so the sentence
             // does not restate itself as new every pass. Who and what are
             // refreshed every time, because the household may have changed
@@ -735,6 +752,7 @@ enum PlanShare {
     /// pass; the screen reads `Contest`.
     private struct Contested {
         var name: String; var by: String; var title: String; var mine: String
+        var day: String; var slot: String
     }
 
     /// A night this phone planned that the household has since changed,
@@ -761,6 +779,28 @@ enum PlanShare {
     /// fact that somebody else changed it. A screen that says nothing here
     /// leaves the publisher quietly refusing to publish forever, which is
     /// the stall being silent rather than the stall being fixed.
+    /// The mint-and-stamp `pass` performs when it stands down, reachable
+    /// without CloudKit so the fresh-device case has a test. It is the case
+    /// that was wrong: the loop skipped a night the book had never heard of,
+    /// which on a reinstall is all of them.
+    @MainActor
+    static func recordContestForTesting(
+        recordName: String, day: String, slot: String, zoneOwner: String,
+        by: String, theirTitle: String, mineTitle: String, now: Date = .now
+    ) {
+        var book = loadBook()
+        if book[recordName] == nil {
+            book[recordName] = BookEntry(
+                fingerprint: "", photoCount: 0, zoneOwner: zoneOwner, day: day, slot: slot
+            )
+        }
+        if book[recordName]?.contestedAt == nil { book[recordName]?.contestedAt = now }
+        book[recordName]?.contestedBy = by
+        book[recordName]?.contestedTitle = theirTitle
+        book[recordName]?.contestedMineTitle = mineTitle
+        saveBook(book)
+    }
+
     @MainActor
     static func contestedNights() -> [Contest] {
         loadBook().compactMap { name, entry in

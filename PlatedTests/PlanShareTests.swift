@@ -470,6 +470,29 @@ final class PlanShareTests: XCTestCase {
         XCTAssertEqual(before, plan.linesKey)
     }
 
+    // MARK: A phone that has never published this night before
+
+    func testAContestOnAPhoneWithNoBookIsRecordedRatherThanSwallowed() {
+        // The publisher stands down when the fetched record names an editor
+        // that is not this phone, and on a reinstall or a second device the
+        // book is silent about EVERY night, so that is when it fires most.
+        // Recording it is what makes the difference between a night that
+        // waits and a week that silently never leaves the phone.
+        PlanShare.forgetBook()
+        XCTAssertNil(PlanShare.contest(for: "plan-n1"))
+        PlanShare.recordContestForTesting(
+            recordName: "plan-n1", day: PlanDay.string(Self.day(2)),
+            slot: MealSlot.dinner.rawValue, zoneOwner: "host",
+            by: "Riley Park", theirTitle: "Ragu", mineTitle: "Tacos"
+        )
+        let contest = PlanShare.contest(for: "plan-n1")
+        XCTAssertNotNil(contest, "a fresh device records the stand-down")
+        XCTAssertEqual(contest?.by, "Riley Park")
+        XCTAssertEqual(contest?.theirTitle, "Ragu")
+        XCTAssertEqual(contest?.mineTitle, "Tacos")
+        PlanShare.forgetBook()
+    }
+
     // MARK: A fold that arrives while the edit is on the wire
 
     func testAFoldDuringASendIsNotDroppedUnsentAndIsNotCalledASuccess() {
