@@ -216,6 +216,7 @@ enum TableShare {
                 root = CKRecord(recordType: rootType, recordID: rootID)
             }
             let tableTitle: String = hostName.isEmpty ? "Our table" : "\(hostName)'s table"
+            let shareTitle: String = "\(tableTitle) on Plated"
             root["title"] = tableTitle as CKRecordValue
 
             // An existing share is reused: minting a second one would
@@ -224,20 +225,32 @@ enum TableShare {
             if let ref = root.share,
                let existing = try? await db.record(for: ref.recordID) as? CKShare,
                let url = existing.url {
+                // The card Messages draws comes off the SHARE, not the root,
+                // and the share was only ever written on the launch that
+                // minted it. So a table that changed its name went on
+                // introducing itself by the old one on every invitation it
+                // ever sent again, and the two branches here did not even
+                // agree on the string: the mint wrote "... on Plated" and
+                // this one wrote the bare title. Both are now the same value
+                // and it is rewritten whenever it has fallen behind.
+                var stale = false
+                if (existing[CKShare.SystemFieldKey.title] as? String) != shareTitle {
+                    existing[CKShare.SystemFieldKey.title] = shareTitle as CKRecordValue
+                    stale = true
+                }
                 // A table minted before the mark existed still carries the
                 // generic iCloud card on every link it has ever sent. Fill
                 // it in once, here, rather than only on brand-new shares.
                 if existing[CKShare.SystemFieldKey.thumbnailImageData] == nil,
                    let icon = shareThumbnail() {
-                    existing[CKShare.SystemFieldKey.title] = tableTitle as CKRecordValue
                     existing[CKShare.SystemFieldKey.thumbnailImageData] = icon as CKRecordValue
-                    _ = try? await db.modifyRecords(saving: [existing], deleting: [])
+                    stale = true
                 }
+                if stale { _ = try? await db.modifyRecords(saving: [existing], deleting: []) }
                 return url
             }
 
             let share = CKShare(rootRecord: root)
-            let shareTitle: String = "\(tableTitle) on Plated"
             share[CKShare.SystemFieldKey.title] = shareTitle as CKRecordValue
             // Messages renders an iCloud share link from the share's own
             // title and thumbnail. With no thumbnail it falls back to a
@@ -1210,10 +1223,36 @@ enum TableShare {
         guard await TableSync.accountAvailable() else {
             return "PRIME SHARE: no iCloud account, nothing primed."
         }
+        // `invitationURL` names the table after whoever is inviting, and
+        // this probe has no business renaming a table a person actually
+        // uses: the name it writes is the one Messages draws on every
+        // invitation card. Read what is there first and put it back below.
+        // The share carries its own copy of the title, so both are taken.
+        let db = container.privateCloudDatabase
+        let rootID = CKRecord.ID(
+            recordName: "table-root",
+            zoneID: CKRecordZone.ID(zoneName: zoneName, ownerName: CKCurrentUserDefaultName)
+        )
+        let titleBefore = (try? await db.record(for: rootID))?["title"] as? String
         guard let url = await invitationURL(hostName: "Prime") else {
             return "PRIME SHARE FAILED: could not create the zone, root or share."
         }
         assertNoEntityCollision()
+
+        /// Puts the table's own name back. Nothing to restore on a container
+        /// that had no table before this ran: the first real invitation
+        /// names it then, and rewrites the share's copy with it.
+        func restoreTitle() async {
+            guard let titleBefore, let root = try? await db.record(for: rootID) else { return }
+            root["title"] = titleBefore as CKRecordValue
+            var saving: [CKRecord] = [root]
+            if let ref = root.share,
+               let share = try? await db.record(for: ref.recordID) as? CKShare {
+                share[CKShare.SystemFieldKey.title] = "\(titleBefore) on Plated" as CKRecordValue
+                saving.append(share)
+            }
+            _ = try? await db.modifyRecords(saving: saving, deleting: [])
+        }
 
         // Every field on every type, populated. A field that is nil while
         // priming does not exist in Production, and the first real save
@@ -1229,6 +1268,7 @@ enum TableShare {
         probe.pollOptions = ["a", "b"]
         probe.taggedNames = ["Prime"]
         guard let name = await publish(probe, hostName: "Prime") else {
+            await restoreTitle()
             return "PRIME SHARE FAILED: zone exists, but the post would not save.\nShare URL: \(url)"
         }
 
@@ -1253,6 +1293,7 @@ enum TableShare {
         // And it takes back what it wrote. The old primer left "Schema
         // probe" sitting in a real household's real table forever.
         let removed = await retract(recordName: name, zoneOwner: owner)
+        await restoreTitle()
 
         return """
         PRIME SHARE
