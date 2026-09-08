@@ -155,6 +155,38 @@ final class RemovedNightTests: XCTestCase {
         XCTAssertEqual(p.removed, 1)
     }
 
+    // MARK: One delivery carrying more than one kind of change
+
+    func testARemovalAndAnUnrelatedEditInOneDeliveryDoNotDisturbEachOther() {
+        // The one path where the removal arm, the drain, the retraction and
+        // the reminder rebuild all run in the same pass. Everything about
+        // the ordering between them has only ever been reasoned about, so
+        // the part that can be pinned here is pinned here: the two nights
+        // must not be able to answer for each other.
+        _ = meal(id: "mine")
+        _ = deliver([plan(id: "theirs", author: "_riley", title: "Ragu", day: 3)], me: me)
+        XCTAssertNotNil(PlanLedger.shared.entry("plan-theirs"))
+
+        var off = plan(id: "mine", author: me, title: "Tacos", day: 2, removed: 1)
+        off.editorID = "_riley"
+        off.editorName = "Riley Park"
+        var edited = plan(id: "theirs", author: "_riley", title: "Katsu curry", day: 3)
+        edited.editorID = "_sam"
+        edited.editorName = "Sam Okafor"
+
+        let delta = deliver([off, edited], me: me)
+        XCTAssertEqual(delta.ownRemoved.map(\.shoppingID), ["mine"], "only the author's own night is removed")
+        XCTAssertEqual(delta.changed.count, 1, "and the other night is an ordinary change")
+        XCTAssertEqual(delta.changed.first?.after.title, "Katsu curry")
+        XCTAssertNotNil(PlanLedger.shared.entry("plan-theirs"), "which stays in the ledger")
+
+        RemovedNights.park(delta.ownRemoved)
+        XCTAssertTrue(RemovedNights.drain(in: context))
+        let left = (try? context.fetch(FetchDescriptor<PlannedMeal>())) ?? []
+        XCTAssertTrue(left.isEmpty, "the removed night's meal went")
+        XCTAssertNotNil(PlanLedger.shared.entry("plan-theirs"), "and the edited night was not touched by the drain")
+    }
+
     // MARK: The one notice with no antecedent
 
     /// The digest reads `TableIdentity.cached` for "me", so the tests use
