@@ -169,6 +169,22 @@ a fast-forward that leaves the working tree alone:
 git fetch . <branch>:main
 ```
 
+**That command refuses when `main` is checked out in the shared checkout**,
+which it now usually is: git will not fetch into a branch somebody has out.
+Do the same fast-forward from inside that checkout instead, and check first
+that none of the files your commits touch are among its uncommitted ones:
+
+```
+git -C /Users/natemeadows/Plated merge --ff-only <branch>
+```
+
+Another session's work is routinely sitting there uncommitted, seventeen
+files on the afternoon this was written. A fast-forward cannot disturb a
+dirty file it does not touch, so the overlap check is the whole safety
+argument. Do it BEFORE the merge rather than restoring afterwards: copying
+files back over a merge silently reverts whatever the merge legitimately
+installed in them, and nothing reports it.
+
 ## Conventions
 
 - Commit messages are a sentence about the change, not a category prefix.
