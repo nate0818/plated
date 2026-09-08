@@ -159,33 +159,37 @@ final class RemovedNightTests: XCTestCase {
 
     // MARK: A fetch that overtook a write
 
-    func testADeliveryOlderThanTheRowIsNotApplied() {
+    func testAReadFetchedBeforeThisPhonesOwnWriteIsRefused() {
         // TablePull fetches and then folds with suspension points between,
-        // and `exclusively` guards writers only, so an edit can land in the
-        // gap and this fold would put the old dish back on screen.
+        // so an edit made in that gap lands first and the fold would put the
+        // old dish back on screen. The guard compares against what THIS
+        // phone wrote, so the local edit is what arms it.
         var first = plan(id: "n1", author: "_riley", title: "Tacos")
         first.changedAt = Date(timeIntervalSince1970: 1_700_000_000)
         _ = deliver([first], me: me)
-        var newer = plan(id: "n1", author: "_riley", title: "Ragu")
-        newer.changedAt = Date(timeIntervalSince1970: 1_700_000_060)
-        _ = deliver([newer], me: me)
+
+        var edit = PlanShare.Edit(changing: PlanLedger.shared.entry("plan-n1")!)
+        edit.title = "Ragu"
+        PlanLedger.shared.applyLocally(edit)
+        PlanLedger.shared.settle(edit, .landed(Date(timeIntervalSince1970: 1_700_000_060)))
         XCTAssertEqual(PlanLedger.shared.entry("plan-n1")?.title, "Ragu")
 
-        // The stale read, fetched before the write and folded after it.
+        // The stale read, fetched before that write and folded after it.
         let delta = deliver([first], me: me)
         XCTAssertEqual(PlanLedger.shared.entry("plan-n1")?.title, "Ragu", "the older read is refused")
         XCTAssertTrue(delta.changed.isEmpty, "and it is not news either")
     }
 
-    func testTheSameVersionArrivingTwiceIsStillApplied() {
-        // A date that goes to CloudKit and comes back is not a different
-        // version, so the comparison is in whole seconds.
-        var p = plan(id: "n1", author: "_riley", title: "Tacos")
-        p.changedAt = Date(timeIntervalSince1970: 1_700_000_000)
-        _ = deliver([p], me: me)
-        p.changedAt = Date(timeIntervalSince1970: 1_700_000_000.2)
-        p.title = "Ragu"
-        _ = deliver([p], me: me)
+    func testAnotherPhonesClockRunningBehindDoesNotRefuseTheirEdit() {
+        // The guard may never compare two devices' clocks. Theirs running a
+        // second behind would otherwise refuse a genuinely newer edit, on
+        // every delivery, for good.
+        var first = plan(id: "n1", author: "_riley", title: "Tacos")
+        first.changedAt = Date(timeIntervalSince1970: 1_700_000_000)
+        _ = deliver([first], me: me)
+        var theirs = plan(id: "n1", author: "_riley", title: "Ragu")
+        theirs.changedAt = Date(timeIntervalSince1970: 1_699_999_940)
+        _ = deliver([theirs], me: me)
         XCTAssertEqual(PlanLedger.shared.entry("plan-n1")?.title, "Ragu")
     }
 

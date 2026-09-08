@@ -227,6 +227,13 @@ final class PlanLedger {
     /// so a refusal can put it back. In memory on purpose: it is worth
     /// nothing after a relaunch, where the zone is the thing to be corrected
     /// by (see `revert`).
+    /// The `modifiedAt` THIS phone last wrote onto a record, in memory only.
+    ///
+    /// The fetch/fold race it guards lives inside one run of the app, and a
+    /// value that outlived the process would be compared against a clock
+    /// nobody can vouch for any more.
+    private var lastLocalWrite: [String: Date] = [:]
+
     private var beforeEdit: [String: Entry] = [:]
 
     /// The photograph that was on the night before this phone's un-landed
@@ -512,12 +519,18 @@ final class PlanLedger {
             // fold applies the record fetched BEFORE that write and puts the
             // old dish back on screen. Serialising the fold does not fix it,
             // because the staleness is in the fetch rather than in the fold.
-            // The record's own clock does: whole seconds, the same rounding
-            // `movedOn` uses, because a date that goes to CloudKit and comes
-            // back is not a different version. It also covers deliveries
-            // that arrive out of order for any other reason.
+            // Compared against a clock THIS phone wrote, never against
+            // another device's. `changedAt` on a delivered record is stamped
+            // by whoever saved it, so comparing two devices' clocks refuses
+            // a genuinely newer edit whenever theirs runs a second behind,
+            // and refuses it on every delivery, for good. `lastLocalWrite`
+            // is what this phone put on the record itself, so the only thing
+            // being compared is one device against its own clock. Whole
+            // seconds, the rounding `movedOn` uses, because a date that goes
+            // to CloudKit and comes back is not a different version.
             if let before, before.pendingSince == nil,
-               entry.changedAt.timeIntervalSince(before.changedAt) <= -1 {
+               let ours = lastLocalWrite[entry.recordName],
+               entry.changedAt.timeIntervalSince(ours) <= -1 {
                 continue
             }
             // An edit still waiting in the queue keeps its mark through a
@@ -721,6 +734,9 @@ final class PlanLedger {
                     NotificationCenter.default.post(name: Self.nightsDropped, object: nil)
                 }
             } else if var entry = book.entries[edit.recordName] {
+                // What this phone put on the record, which is the only clock
+                // the staleness check may compare against.
+                lastLocalWrite[edit.recordName] = at
                 entry.changedAt = at
                 entry.pendingSince = nil
                 entry.pendingRemoval = nil
@@ -878,6 +894,10 @@ final class PlanLedger {
         photos = [:]
         beforeEdit = [:]
         beforePhoto = [:]
+        // These name records in a zone this account is leaving. Kept, they
+        // would refuse the new account's first deliveries as stale against a
+        // clock reading from a household this phone is no longer in.
+        lastLocalWrite = [:]
         if let dir = Self.photoDirectory { try? FileManager.default.removeItem(at: dir) }
         householdOwner = nil
         save()

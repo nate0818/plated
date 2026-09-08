@@ -133,13 +133,19 @@ enum RemovedNights {
         // because `forget(day:slot:)` being called from `addBack` and not
         // from plate, pickForMe or markEatingOut is exactly the kind of
         // rule that holds until somebody adds a fifth door.
-        let replanned = Set(meals.compactMap { meal -> String? in
-            guard let id = meal.shoppingID else { return nil }
-            return book.contains(where: { $0.shoppingID != id && $0.day == PlanDay.string(meal.date) && $0.slot == meal.slot })
-                ? "\(PlanDay.string(meal.date))|\(meal.slot)" : nil
-        })
-        if !replanned.isEmpty {
-            book.removeAll { replanned.contains("\($0.day)|\($0.slot)") }
+        // ONLY a settled entry, and this is the whole of the bug that was
+        // here: the sweep keyed on day and slot, so a night removed, planned
+        // again and removed a second time put TWO entries on one slot, and
+        // the still-live meal of the second removal made the key match and
+        // took both. The removal this drain had been called to act on was
+        // deleted before the loop below could reach it, and the night stayed
+        // on the plan for good, which is the exact failure the feature
+        // exists to prevent. An entry with work left to do is never swept.
+        book.removeAll { gone in
+            gone.settled && meals.contains {
+                $0.shoppingID != gone.shoppingID
+                    && PlanDay.string($0.date) == gone.day && $0.slot == gone.slot
+            }
         }
         var deleted = false
         for i in book.indices where !book[i].settled {

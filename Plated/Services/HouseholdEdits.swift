@@ -125,12 +125,30 @@ enum HouseholdEdits {
             settle(change.shoppingID)
             return false
         }
-        if !change.title.isEmpty { meal.customTitle = change.title }
+        if !change.title.isEmpty, change.title != meal.title {
+            meal.customTitle = change.title
+            // The recipe goes with the name. Renaming a night to Ragu while
+            // a taco recipe stays attached leaves "Let's cook" opening the
+            // wrong dish and the wrong photograph under the new title: the
+            // same honesty rule `PhotoIntent` states for the picture, which
+            // this would have broken by the other door.
+            if let recipe = meal.recipe, recipe.title != change.title {
+                meal.recipe = nil
+            }
+        }
         if change.servings > 0 { meal.servings = change.servings }
         if !change.cookID.isEmpty {
             let members = (try? context.fetch(FetchDescriptor<HouseholdMember>())) ?? []
-            meal.cook = members.first { $0.participantID == change.cookID }
-                ?? (change.cookID == TableIdentity.cached ? members.me : nil)
+            // Only when somebody is actually found. Assigning the lookup
+            // straight through wrote nil over a cook the person had chosen
+            // whenever the household's id matched no row on this phone,
+            // which is a guest, a member mid-join, or simply a roster this
+            // device has not pulled yet: taking the cook OFF a night is not
+            // what "use their version" offered to do.
+            if let cook = members.first(where: { $0.participantID == change.cookID })
+                ?? (change.cookID == TableIdentity.cached ? members.me : nil) {
+                meal.cook = cook
+            }
         }
         settle(change.shoppingID)
         return true
