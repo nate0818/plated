@@ -1536,6 +1536,15 @@ enum HouseholdSync {
         member.participantID = "prime"; member.invitedAt = .now; member.joinedAt = .now; member.leftAt = .now
         let recipe = Recipe(title: "Prime recipe", summary: "prime", instructions: "prime", tags: ["prime"])
         recipe.photoData = root.hostPhoto; recipe.steps = ["one"]; recipe.weatherMoods = ["prime"]
+        // Every OPTIONAL field on a wire type has to be non-nil here.
+        // `Wire.set` omits a nil key, an omitted key is never minted, and a
+        // field that does not exist in Production fails the first real save
+        // that carries it with `.invalidArguments`. The recipe is the only
+        // household type with optionals: `importedAt`, which nothing else
+        // in this probe sets, and `photoData`, which the line above does.
+        // A field added to any of these types belongs in this probe on the
+        // same commit.
+        recipe.importedAt = .now
         let ingredient = Ingredient(name: "Prime", quantity: 1, unit: "cup", aisle: .other, isPantryStaple: false, sortIndex: 0)
         ingredient.recipe = recipe
         let photo = RecipePhoto(photoData: root.hostPhoto, sortIndex: 0)
@@ -1563,6 +1572,12 @@ enum HouseholdSync {
         for entry in entries {
             report += "  \(entry.kind.rawValue): \(outcomes[entry.id].map { "\($0)" } ?? "no answer")\n"
         }
+        // The night's record lives in THIS zone, and this function deletes
+        // the zone on its way out, so this is the only moment in the app's
+        // life when `PlatedHouseholdPlan` can be minted at all. Primed here
+        // rather than from `-plated-prime-share`, which runs when there is
+        // no household zone and could only ever answer "skipped".
+        report += "  \(TableShare.planType): \(await TableShare.primePlan())\n"
         do {
             _ = try await db.deleteRecordZone(withID: zoneID)
             TableShare.forgetToken(for: zoneID)

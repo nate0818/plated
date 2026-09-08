@@ -1274,8 +1274,19 @@ enum TableShare {
     /// it can be news. Nil fields are the trap: a field nil while priming
     /// does not exist in Production, and the first real save carrying it
     /// fails `.invalidArguments`.
-    private static func primePlan() async -> String {
-        // The plan lives in the household zone, which the household invite
+    /// Internal, not private, because `HouseholdSync.primeSchema` has to
+    /// call it: that is the only moment the household zone exists.
+    ///
+    /// The two primers deadlocked. `-plated-prime-household` mints the zone
+    /// and DELETES it at the end, leaving nothing behind, and this needs the
+    /// zone to be there, so run after it there was none and run before it
+    /// there was none either, because the zone is only ever minted by the
+    /// thing that then removes it. `PlatedHouseholdPlan` could not enter the
+    /// Development schema by any order, and the only symptom was the word
+    /// "skipped" inside an otherwise successful summary. Every field this
+    /// branch added to the plan record was unreachable in a real build.
+    static func primePlan() async -> String {
+        // The plan lives in the household zone, which the household primer
         // mints. No zone, nothing to teach yet: say so rather than fail.
         guard let (db, zoneID) = await householdZone(ownedBy: "") else {
             print("[PlanShare] prime: no household zone yet; run -plated-prime-household first")

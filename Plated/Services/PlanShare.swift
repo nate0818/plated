@@ -618,6 +618,30 @@ enum PlanShare {
                 print("[PlanShare] \(name) is off the household plan, not publishing over it")
                 continue
             }
+            // A book that has never heard of this night is not a book
+            // saying the night is unchanged. After a reinstall, and on a
+            // second device, the book is silent about EVERY night, so the
+            // rule below was skipped exactly when it was needed most and
+            // `planRecord` wrote every local field over whatever the
+            // household had made of it. The comment above claimed this hole
+            // was closed; it was closed only for a REMOVED night.
+            //
+            // The record answers when the book cannot. `editorID` is on the
+            // wire already, and the publisher stamps its own author into it
+            // on every pass, so an editor that is neither empty nor this
+            // phone means somebody else wrote this record last and it is
+            // not this phone's to overwrite sight unseen.
+            let editor = (served?["editorID"] as? String) ?? ""
+            if let served, book[name]?.serverModifiedAt == nil,
+               !editor.isEmpty, editor != TableIdentity.cached {
+                contested.append(Contested(
+                    name: name,
+                    by: served["editorName"] as? String ?? "",
+                    title: served["title"] as? String ?? "",
+                    mine: upload.plan.title
+                ))
+                continue
+            }
             if let served, let mine = book[name]?.serverModifiedAt,
                movedOn(served["modifiedAt"] as? Date, since: mine) {
                 contested.append(Contested(

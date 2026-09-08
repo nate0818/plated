@@ -57,6 +57,16 @@ fi
   echo "✗ Design tokens have drifted. Run scripts/check-tokens." >&2; exit 1; }
 "$(dirname "${BASH_SOURCE[0]}")/check-design" >/dev/null || {
   echo "✗ A DESIGN.md rule is broken. Run scripts/check-design." >&2; exit 1; }
+# A TestFlight build talks to PRODUCTION CloudKit, which does not mint types
+# on demand the way Development does. A field the schema has never seen
+# fails its save with `.invalidArguments`, and every one of those failures
+# in this app is silent: the outbox drops the row after twenty tries with a
+# print, and the host of a household simply gets no invite link back. This
+# is the one gate whose failure is invisible on the phone, so it is checked
+# here rather than remembered. Not applied to `make phone`, which is a Debug
+# build against Development and mints as it goes.
+"$(dirname "${BASH_SOURCE[0]}")/check-schema" >/dev/null || {
+  echo "✗ CloudKit fields are not deployed to Production. Run scripts/check-schema." >&2; exit 1; }
 
 rm -rf "$ARCHIVE" "$EXPORT"
 echo "▸ archiving…"
