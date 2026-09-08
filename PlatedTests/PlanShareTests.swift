@@ -438,6 +438,38 @@ final class PlanShareTests: XCTestCase {
         XCTAssertEqual(record["tagline"] as? String, "Kids pick")
     }
 
+    func testAnUnreadableIngredientListIsClearedRatherThanLeftUnderNewServings() {
+        // Leaving it stands the old servings' quantities under the new
+        // servings: a list that is confidently wrong, which is worse than
+        // one that is short.
+        let night = remoteNight()
+        var edit = PlanShare.Edit(changing: night)
+        edit.servings = 8
+        let zone = CKRecordZone.ID(zoneName: TableShare.householdZoneName, ownerName: "host")
+        let served = CKRecord(
+            recordType: TableShare.planType,
+            recordID: CKRecord.ID(recordName: "plan-n1", zoneID: zone)
+        )
+        served["servings"] = 4 as CKRecordValue
+        served["lines"] = "{ not json" as CKRecordValue
+        let (record, _) = PlanShare.record(for: edit, existing: served, zone: zone, now: .now)
+        XCTAssertEqual(record["lines"] as? String, "[]")
+    }
+
+    func testARescaleRoundTripDoesNotLookLikeAChangedNight() {
+        // 4 to 6 to 4 does not return the original bytes, and at full
+        // precision that drift republishes a window nobody touched.
+        let meal = PlannedMeal(date: Self.day(1), recipe: nil, customTitle: "Ragu")
+        context.insert(meal)
+        var plan = PlanShare.plan(for: meal, me: "_me")
+        plan.lines = [PlanShare.Line(name: "Beef mince", normalizedName: "beef mince",
+                                     unit: "oz", quantity: 16, aisle: "Meat & Seafood",
+                                     isPantryStaple: false)]
+        let before = plan.linesKey
+        plan.lines[0].quantity = plan.lines[0].quantity * 1.5 / 1.5
+        XCTAssertEqual(before, plan.linesKey)
+    }
+
     // MARK: A fold that arrives while the edit is on the wire
 
     func testAFoldDuringASendIsNotDroppedUnsentAndIsNotCalledASuccess() {

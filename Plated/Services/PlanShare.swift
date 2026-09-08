@@ -172,7 +172,11 @@ enum PlanShare {
         /// never churn the fingerprint and republish a window that did not
         /// change.
         var linesKey: String {
-            lines.map { "\($0.normalizedName)\u{1F}\($0.unit)\u{1F}\($0.quantity)\u{1F}\($0.aisle)\u{1F}\($0.isPantryStaple ? 1 : 0)" }
+            // Rounded, because a rescale is a multiply and 4 to 6 to 4
+            // does not return the original bytes. At full precision that
+            // drift reads as a changed night and republishes a window
+            // nobody touched.
+            lines.map { "\($0.normalizedName)\u{1F}\($0.unit)\u{1F}\(String(format: "%.4f", $0.quantity))\u{1F}\($0.aisle)\u{1F}\($0.isPantryStaple ? 1 : 0)" }
                 .sorted().joined(separator: ";")
         }
         var fingerprint: String {
@@ -307,6 +311,22 @@ enum PlanShare {
         /// the household changed it. The sentence that says so is drawn
         /// from here.
         var contestedAt: Date?
+        /// Who changed it and what they made it, read off the record at the
+        /// moment this phone stood down.
+        ///
+        /// The one moment the author's phone ever holds their own night's
+        /// server copy. `absorb` drops every record whose `authorID` is this
+        /// phone, which is the whole reason a night can be contested at all,
+        /// so the fetch in `pass` is the only place these two facts exist to
+        /// be taken. Without them the sentence could say that something
+        /// changed and never say who or to what, which is a notice that
+        /// tells a person to go and look rather than telling them anything.
+        var contestedBy: String?
+        var contestedTitle: String?
+        /// What this phone was about to publish, so the second clause can
+        /// say what the author's own plan still reads without the screen
+        /// having to go and fetch a `PlannedMeal` to find out.
+        var contestedMineTitle: String?
     }
 
     typealias Book = [String: BookEntry]
@@ -573,7 +593,7 @@ enum PlanShare {
         let existing = await TableShare.fetchPlanRecords(named: names, in: db, zone: zoneID)
         var records: [CKRecord] = []
         var temps: [URL] = []
-        var contested: [String] = []
+        var contested: [Contested] = []
         for upload in work.save {
             let name = upload.plan.recordName
             let served = existing[name]
@@ -587,7 +607,12 @@ enum PlanShare {
             // does not have is not contested: that is a night to mint.
             if let served, let mine = book[name]?.serverModifiedAt,
                movedOn(served["modifiedAt"] as? Date, since: mine) {
-                contested.append(name)
+                contested.append(Contested(
+                    name: name,
+                    by: served["editorName"] as? String ?? "",
+                    title: served["title"] as? String ?? "",
+                    mine: upload.plan.title
+                ))
                 continue
             }
             let photo: TableShare.PlanPhoto
@@ -619,8 +644,15 @@ enum PlanShare {
         // gains the mark. It is deliberately NOT republished on the next
         // pass by clearing the fingerprint: standing down has to be stable,
         // or the two phones take turns overwriting each other every pass.
-        for name in contested where book[name] != nil {
-            if book[name]?.contestedAt == nil { book[name]?.contestedAt = now }
+        for row in contested where book[row.name] != nil {
+            // Only the first stand-down stamps the time, so the sentence
+            // does not restate itself as new every pass. Who and what are
+            // refreshed every time, because the household may have changed
+            // it again since.
+            if book[row.name]?.contestedAt == nil { book[row.name]?.contestedAt = now }
+            book[row.name]?.contestedBy = row.by
+            book[row.name]?.contestedTitle = row.title
+            book[row.name]?.contestedMineTitle = row.mine
         }
         if !contested.isEmpty {
             print("[PlanShare] \(reason): \(contested.count) night(s) changed in the zone since this phone last wrote them, standing down")
@@ -634,6 +666,28 @@ enum PlanShare {
 
     // MARK: A night the household changed under its author
 
+    /// What `pass` read off the record when it stood down. Internal to the
+    /// pass; the screen reads `Contest`.
+    private struct Contested {
+        var name: String; var by: String; var title: String; var mine: String
+    }
+
+    /// A night this phone planned that the household has since changed,
+    /// with every noun the sentence about it needs.
+    ///
+    /// `by` is empty when the record predates `editorID`, and a sentence
+    /// built from this may not guess at a name in that case: the digest's
+    /// `changer(_:)` ladder made the same call, and says nothing rather
+    /// than naming the author for somebody else's edit.
+    nonisolated struct Contest: Equatable, Sendable {
+        var recordName: String
+        var day: String
+        var at: Date
+        var by: String
+        var theirTitle: String
+        var mineTitle: String
+    }
+
     /// Nights this phone stood down on, by record name, with when it first
     /// stood down.
     ///
@@ -643,8 +697,21 @@ enum PlanShare {
     /// leaves the publisher quietly refusing to publish forever, which is
     /// the stall being silent rather than the stall being fixed.
     @MainActor
-    static func contestedNights() -> [String: Date] {
-        loadBook().compactMapValues(\.contestedAt)
+    static func contestedNights() -> [Contest] {
+        loadBook().compactMap { name, entry in
+            guard let at = entry.contestedAt else { return nil }
+            return Contest(
+                recordName: name, day: entry.day, at: at,
+                by: entry.contestedBy ?? "",
+                theirTitle: entry.contestedTitle ?? "",
+                mineTitle: entry.contestedMineTitle ?? ""
+            )
+        }.sorted { $0.day < $1.day }
+    }
+
+    @MainActor
+    static func contest(for recordName: String) -> Contest? {
+        contestedNights().first { $0.recordName == recordName }
     }
 
     @MainActor
@@ -679,6 +746,9 @@ enum PlanShare {
         book = loadBook()
         book[recordName]?.serverModifiedAt = stamp
         book[recordName]?.contestedAt = nil
+        book[recordName]?.contestedBy = nil
+        book[recordName]?.contestedTitle = nil
+        book[recordName]?.contestedMineTitle = nil
         saveBook(book)
         print("[PlanShare] contest settled for \(recordName)")
         return true
@@ -1312,12 +1382,26 @@ enum PlanShare {
             // lying about a change the person watched land.
             if let was, was > 0, servings != was {
                 let factor = Double(servings) / Double(was)
-                let scaled = TableShare.decodeLines(record["lines"] as? String).map {
-                    var line = $0
-                    line.quantity *= factor
-                    return line
-                }
-                if !scaled.isEmpty {
+                let raw = record["lines"] as? String
+                let decoded = TableShare.decodeLines(raw)
+                if decoded.isEmpty {
+                    // No ingredients is nothing to rescale. A `lines` field
+                    // that would not DECODE is a different thing, and
+                    // leaving it stands the old servings' quantities under
+                    // the new servings: a grocery list that is confidently
+                    // wrong, which is worse than one that is short. Clearing
+                    // costs the household those lines and says so by their
+                    // absence.
+                    if let raw, raw != "[]" {
+                        print("PLATED HOUSEHOLD: \(edit.recordName) had ingredients that would not decode, clearing them rather than rescaling")
+                        record["lines"] = "[]" as CKRecordValue
+                    }
+                } else {
+                    let scaled = decoded.map { line -> Line in
+                        var l = line
+                        l.quantity *= factor
+                        return l
+                    }
                     record["lines"] = (TableShare.encodeLines(scaled) ?? "[]") as CKRecordValue
                 }
             }
