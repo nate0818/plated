@@ -1068,6 +1068,15 @@ struct WeekView: View {
         if let held = RemovedNights.heldLine(shoppingID: meal.shoppingID ?? "") {
             return held
         }
+        // The household changed this night and nobody has answered yet.
+        // Takes the caption for the same reason the hold-back does: the cook
+        // and the timing on this row are this phone's answer to a question
+        // the rest of the house has already moved on from, and being put
+        // down to cook is the one fact here with a consequence attached.
+        // The decision itself lives on the page this row opens.
+        if let id = meal.shoppingID, let change = HouseholdEdits.pending(shoppingID: id) {
+            return HouseholdEdits.rowLine(for: change, me: TableIdentity.cached)
+        }
         let base: String
         if today {
             // Tonight names its cook like every other night does. This

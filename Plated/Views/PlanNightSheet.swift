@@ -142,17 +142,29 @@ struct PlanNightSheet: View {
                 VStack(alignment: .leading, spacing: 10) {
                     if let meal {
                         currentMealCard(meal)
-                            .padding(.bottom, contestLine(for: meal) == nil ? 6 : 2)
-                        // The household changed a night this phone planned,
-                        // and this phone's copy is the one on screen. Nothing
-                        // reconciles the two: the publisher stood down rather
-                        // than overwrite their change, and the ledger drops
-                        // records this phone authored, so without this line
-                        // the person edits on top of a night that no longer
-                        // says what they think it says. It states both facts
-                        // and stops, because the app does not know which of
-                        // them is meant to win.
-                        if let line = contestLine(for: meal) {
+                            .padding(.bottom, householdChange(meal) == nil && contestLine(for: meal) == nil ? 6 : 2)
+                        // The household changed a night this phone planned.
+                        // This is the ONLY place the person finds out: the
+                        // ledger drops every delivered record this phone
+                        // authored, and the digest cannot speak about a night
+                        // with no bell row, which the author never has for
+                        // their own. Being put down to cook reached every
+                        // phone in the household except the one whose plan it
+                        // was.
+                        //
+                        // With a control, not just a sentence. The publisher
+                        // stands down rather than overwrite their version, and
+                        // that stand-down is stable, so a night left alone
+                        // stays disagreed with forever. Somebody has to be
+                        // able to say yes.
+                        if let change = householdChange(meal) {
+                            householdChangeBlock(change, meal: meal)
+                                .padding(.bottom, 6)
+                        } else if let line = contestLine(for: meal) {
+                            // No delivery has carried their version to this
+                            // phone, so there is nothing to adopt: the
+                            // publisher has simply refused to overwrite. Says
+                            // both facts and stops.
                             Text(line)
                                 .plType(.footnote)
                                 .foregroundStyle(Color.inkSecondary)
@@ -548,6 +560,63 @@ struct PlanNightSheet: View {
     /// household. A change that is still on this phone says so: the card
     /// already shows the new dish, and this is what keeps that from being a
     /// claim that everybody can see it.
+    /// The household's version of this night, waiting to be answered.
+    private func householdChange(_ meal: PlannedMeal) -> HouseholdEdits.Change? {
+        guard let id = meal.shoppingID else { return nil }
+        return HouseholdEdits.pending(shoppingID: id)
+    }
+
+    /// What they made of it, what this phone still says, and the one control
+    /// that agrees to it.
+    ///
+    /// "Keep mine" only settles the record so the same change stops being
+    /// offered; it changes nothing about the night, which is why it is the
+    /// quiet half of the pair. Leaving the sheet without answering is also
+    /// an answer, and the change waits.
+    @ViewBuilder
+    private func householdChangeBlock(_ change: HouseholdEdits.Change, meal: PlannedMeal) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(HouseholdEdits.line(for: change, me: TableIdentity.cached))
+                .plType(.footnote, .semibold)
+                .foregroundStyle(Color.ink)
+                .fixedSize(horizontal: false, vertical: true)
+            if let contrast = HouseholdEdits.contrast(for: change, mineTitle: meal.title) {
+                Text(contrast)
+                    .plType(.footnote)
+                    .foregroundStyle(Color.inkSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            HStack(spacing: 10) {
+                Button(HouseholdEdits.adoptTitle) {
+                    Haptic.plate()
+                    HouseholdEdits.adopt(change, in: context)
+                    Persist.save(context)
+                }
+                .plType(.footnote, .bold)
+                .plActionLabel()
+                .foregroundStyle(Color.canvas)
+                .padding(.horizontal, 16)
+                .frame(minHeight: 36)
+                .background(Color.ink, in: Capsule())
+                .frame(minHeight: 44)
+                .contentShape(Capsule())
+                .buttonStyle(.pressable)
+
+                Button(HouseholdEdits.keepTitle) {
+                    Haptic.tap()
+                    HouseholdEdits.settle(change.shoppingID)
+                }
+                .plType(.footnote, .semibold)
+                .plActionLabel()
+                .foregroundStyle(Color.inkSecondary)
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
+                .buttonStyle(.pressable)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
     /// What to say on a night this phone planned that the household has
     /// since changed. Nil when nothing is contested, which is almost always.
     ///
