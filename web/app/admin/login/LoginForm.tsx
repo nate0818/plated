@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import Field from "../components/Field";
 import { createClient } from "../../lib/supabase/client";
 import styles from "../admin.module.css";
 
@@ -46,29 +47,23 @@ export default function LoginForm() {
 
   return (
     <form className={styles.authForm} onSubmit={signIn}>
-      <label className={styles.field}>
-        <span className={styles.label}>Email</span>
-        <input
-          className={styles.input}
-          type="email"
-          autoComplete="username"
-          inputMode="email"
-          required
-          value={email}
-          onChange={(event) => setEmail(event.target.value)}
-        />
-      </label>
-      <label className={styles.field}>
-        <span className={styles.label}>Password</span>
-        <input
-          className={styles.input}
-          type="password"
-          autoComplete="current-password"
-          required
-          value={password}
-          onChange={(event) => setPassword(event.target.value)}
-        />
-      </label>
+      <Field
+        label="Email"
+        type="email"
+        autoComplete="username"
+        inputMode="email"
+        required
+        value={email}
+        onChange={(event) => setEmail(event.target.value)}
+      />
+      <Field
+        label="Password"
+        type="password"
+        autoComplete="current-password"
+        required
+        value={password}
+        onChange={(event) => setPassword(event.target.value)}
+      />
       {error ? <p className={styles.formError} role="alert">{error}</p> : null}
       <button className={styles.primaryButton} type="submit" disabled={busy || !email.trim() || !password}>
         {busy ? "Signing in…" : "Sign in"}

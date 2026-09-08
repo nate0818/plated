@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { createClient } from "../../lib/supabase/client";
+import Field from "../components/Field";
 import styles from "../admin.module.css";
 
 export default function PasswordForm() {
@@ -42,11 +43,10 @@ export default function PasswordForm() {
 
   return (
     <form className={styles.authForm} onSubmit={save}>
-      <label className={styles.field}><span className={styles.label}>New password</span><input className={styles.input} type="password" minLength={14} autoComplete="new-password" required value={password} onChange={(event) => setPassword(event.target.value)} /></label>
-      <label className={styles.field}><span className={styles.label}>Repeat password</span><input className={styles.input} type="password" minLength={14} autoComplete="new-password" required value={confirmation} onChange={(event) => setConfirmation(event.target.value)} /></label>
+      <Field label="New password" type="password" minLength={14} autoComplete="new-password" required value={password} onChange={(event) => setPassword(event.target.value)} />
+      <Field label="Repeat password" type="password" minLength={14} autoComplete="new-password" required value={confirmation} onChange={(event) => setConfirmation(event.target.value)} />
       {error ? <p className={styles.formError} role="alert">{error}</p> : null}
-      <button className={styles.primaryButton} type="submit" disabled={busy || password.length < 14 || confirmation.length < 14}>{busy ? "Saving…" : "Save and set up MFA"}</button>
-      <p className={styles.smallMuted}>A password manager-generated passphrase is best. The founder session will remain closed until TOTP verification succeeds.</p>
+      <button className={styles.primaryButton} type="submit" disabled={busy || password.length < 14 || confirmation.length < 14}>{busy ? "Saving…" : "Save and continue"}</button>
     </form>
   );
 }

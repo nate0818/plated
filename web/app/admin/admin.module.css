@@ -139,6 +139,60 @@
 .field { gap: 7px; position: relative; min-width: 0; }
 .input,.textarea { width: 100%; min-height: 46px; border: 1px solid transparent; border-radius: var(--radius-small); padding: 11px 13px; background: var(--fill); color: var(--ink); font: inherit; font-size: .94rem; outline: none; }
 .input:focus,.textarea:focus { border-color: var(--ink); box-shadow: 0 0 0 1px var(--ink); }
+
+/* The label lives inside the field and rises out of the way when there is
+   something to read. A placeholder would have been fewer lines and would have
+   taken the label off the screen the moment a person started typing, which is
+   exactly when they most want to know which box they are in. This stays a
+   real label element, so the whole field is still a click target and a screen
+   reader still hears the name. The filled state is driven by
+   :placeholder-shown rather than React state, so a browser autofilling the
+   password on load lands in the right position too. */
+.floatField { position: relative; min-width: 0; display: block; }
+
+.floatInput {
+  width: 100%;
+  min-height: 58px;
+  padding: 24px 14px 8px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-small);
+  background: var(--fill);
+  color: var(--ink);
+  font: inherit;
+  font-size: 1rem;
+}
+
+.floatInput:focus { border-color: var(--ink); box-shadow: 0 0 0 1px var(--ink); outline: none; }
+
+.floatLabel {
+  position: absolute;
+  top: 50%;
+  left: 15px;
+  transform: translateY(-50%);
+  transform-origin: left center;
+  color: var(--ink-secondary);
+  font-size: 1rem;
+  line-height: 1;
+  white-space: nowrap;
+  pointer-events: none;
+  transition: transform .19s ease, letter-spacing .19s ease;
+}
+
+.floatInput:focus + .floatLabel,
+.floatInput:not(:placeholder-shown) + .floatLabel {
+  transform: translateY(-152%) scale(.72);
+  letter-spacing: .075em;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+
+/* The code is centred, so its label centres with it until it rises. */
+.floatField:has(.codeInput) .floatLabel { left: 50%; transform: translate(-50%, -50%); }
+.floatField:has(.codeInput) .codeInput { padding-top: 26px; }
+.floatField:has(.codeInput) .floatInput:focus + .floatLabel,
+.floatField:has(.codeInput) .floatInput:not(:placeholder-shown) + .floatLabel {
+  transform: translate(-50%, -190%) scale(.72);
+}
 .textarea { resize: vertical; line-height: 1.5; }
 .codeInput { font-size: 1.45rem; letter-spacing: .35em; text-align: center; font-variant-numeric: tabular-nums; }
 .primaryButton,.secondaryButton,.smallButton,.textButton,.signOut,.primaryLink,.panelLink { font: inherit; font-weight: 700; cursor: pointer; }
@@ -304,7 +358,7 @@
 .loadingDot { width: 8px; height: 8px; border-radius: 50%; background: var(--tomato); animation: pulse 1s ease-in-out infinite alternate; }
 @keyframes pulse { to { transform: scale(1.7); opacity: .4; } }
 .visuallyHidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
-@media (prefers-reduced-motion: reduce) { .loadingDot { animation: none; } .authAtmosphere span { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .loadingDot { animation: none; } .authAtmosphere span { animation: none; } .floatLabel { transition: none; } }
 @media (max-width:1180px) { .audienceGrid { grid-template-columns: repeat(3,minmax(0,1fr)); } .announcementGrid { grid-template-columns: 1fr; } .historyPanel { position: static; } .coverageGrid { grid-template-columns: repeat(2,minmax(0,1fr)); } }
 @media (max-width:900px) { .console { display: block; } .sidebar { display: none; } .mobileBar { min-height: 58px; display: flex; align-items: center; gap: 9px; padding: max(12px,env(safe-area-inset-top)) 18px 10px; border-bottom: 1px solid var(--hairline); background: white; } .mobileBar .signOut { margin-left: auto; } .mobileNav { display: flex; gap: 5px; padding: 8px 14px; overflow-x: auto; border-bottom: 1px solid var(--hairline); background: white; scrollbar-width: none; } .mobileNav::-webkit-scrollbar { display: none; } .mobileNavLink { flex: none; padding: 7px 10px; border-radius: 999px; color: var(--ink-secondary); text-decoration: none; font-size: .75rem; font-weight: 700; } .mobileNavCurrent { background: var(--fill); color: var(--ink); } .main { padding: 28px 18px 56px; } .metricGrid { grid-template-columns: repeat(2,minmax(0,1fr)); } }
 @media (max-width:680px) { .pageHeader { align-items: flex-start; flex-direction: column; } .pageAction { width: 100%; } .pageAction>* { width: 100%; } .twoColumn,.twoColumnWide,.metricGridThree,.coverageGrid,.proseGrid,.composerIntro,.formGrid { grid-template-columns: 1fr; } .fieldWide { grid-column: auto; } .audienceGrid { grid-template-columns: repeat(2,minmax(0,1fr)); } .tableFooter { align-items: flex-start; flex-direction: column; } }

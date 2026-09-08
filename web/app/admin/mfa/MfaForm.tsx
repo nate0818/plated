@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { createClient } from "../../lib/supabase/client";
+import Field from "../components/Field";
 import styles from "../admin.module.css";
 
 type Enrollment = { factorId: string; qrCode: string; secret: string };
@@ -131,20 +132,18 @@ export default function MfaForm({
           <code className={styles.secret}>{enrollment.secret}</code>
         </div>
       ) : null}
-      <label className={styles.field}>
-        <span className={styles.label}>Six-digit code</span>
-        <input
-          className={`${styles.input} ${styles.codeInput}`}
-          inputMode="numeric"
-          autoComplete="one-time-code"
-          pattern="[0-9]{6}"
-          maxLength={6}
-          required
-          autoFocus={!enrollment}
-          value={code}
-          onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
-        />
-      </label>
+      <Field
+        label="Six-digit code"
+        className={styles.codeInput}
+        inputMode="numeric"
+        autoComplete="one-time-code"
+        pattern="[0-9]{6}"
+        maxLength={6}
+        required
+        autoFocus={!enrollment}
+        value={code}
+        onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
+      />
       {error ? <p className={styles.formError} role="alert">{error}</p> : null}
       <button className={styles.primaryButton} type="submit" disabled={Boolean(busy) || code.length !== 6}>
         {busy === "verify" ? "Verifying…" : stepUp ? "Confirm and continue" : "Open console"}
