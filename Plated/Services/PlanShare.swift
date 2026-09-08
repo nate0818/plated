@@ -1057,6 +1057,35 @@ enum PlanShare {
         return true
     }
 
+    /// Nights that have gone and whose bell rows have not been retracted
+    /// yet.
+    ///
+    /// **The queue may not write to the store.** `TableNews.retract` ends in
+    /// `Persist.save`, a save schedules a publisher pass three seconds
+    /// later, that pass drains the queue, the drain settles, and the settle
+    /// saves again: the first version of this wiring spun a test runner at
+    /// 98% CPU until it was killed. So a settle only records that a night
+    /// went, and somebody holding a `ModelContext` outside the queue takes
+    /// the list and retracts.
+    ///
+    /// The retraction still has to happen: the ledger knows the night left,
+    /// but only the news knows there are rows pointing at it, and a bell
+    /// counting a night nobody can open is the count claiming there is
+    /// something to see.
+    private static var pendingRetractions: [PlanLedger.Entry] = []
+
+    private static func noteGone(_ entry: PlanLedger.Entry?) {
+        guard let entry else { return }
+        pendingRetractions.append(entry)
+    }
+
+    /// The nights that went, for a caller with a context and a save of its
+    /// own to make. Cleared by the read, so two callers cannot both retract.
+    static func takeRetractions() -> [PlanLedger.Entry] {
+        defer { pendingRetractions = [] }
+        return pendingRetractions
+    }
+
     /// The key an outcome is filed under: this night AND this version of it.
     nonisolated static func answerKey(_ edit: Edit) -> String {
         "\(edit.recordName)#\(edit.revision)"
@@ -1209,7 +1238,7 @@ enum PlanShare {
                 // phone will ever republish or re-delete it. A deletion is
                 // the other person's version and it wins the way a newer
                 // `modifiedAt` does.
-                PlanLedger.shared.nightIsGone(edit.recordName)
+                noteGone(PlanLedger.shared.nightIsGone(edit.recordName))
                 print("PLATED HOUSEHOLD: \(edit.recordName) was taken off the plan on another phone, dropping the edit")
                 return .refused("That night was taken off the plan on another phone.")
             }
@@ -1264,7 +1293,7 @@ enum PlanShare {
             // ledger keeps saying so: clearing `pendingSince` here would put
             // the new dish on the row with nothing on its way to send it.
             if drop(edit.recordName, ifRevision: edit.revision) {
-                PlanLedger.shared.settle(edit, outcome)
+                noteGone(PlanLedger.shared.settle(edit, outcome))
             } else {
                 print("PLATED HOUSEHOLD: \(edit.recordName) changed while it was on the wire, the newer version stays queued")
                 answer = .queued("Your change goes out on the next try.")
@@ -1280,7 +1309,7 @@ enum PlanShare {
                     print("PLATED HOUSEHOLD: dropping the edit on \(edit.recordName) after \(edits[i].tries) refusals")
                     edits.remove(at: i)
                     let refusal = WriteOutcome.refused("This change could not reach your household.")
-                    PlanLedger.shared.settle(edit, refusal)
+                    noteGone(PlanLedger.shared.settle(edit, refusal))
                     answer = refusal
                 }
                 saveEdits(edits)

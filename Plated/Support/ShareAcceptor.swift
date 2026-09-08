@@ -176,7 +176,15 @@ final class ShareAcceptor: NSObject, UIApplicationDelegate {
         // author), but a row and a banner about it are claims about a
         // night that no longer exists: withdrawn the way a wire deletion's
         // are, after the delivery so `deliver` cannot write them back.
-        TableNews.retract(plans: swept.removed, context: context)
+        //
+        // The edit queue's nights are spent here too. A settle cannot
+        // retract its own, because `TableNews.retract` ends in a save, a
+        // save schedules a publisher pass three seconds later, and that
+        // pass drains the queue and settles again: wired that way it spun
+        // a test runner flat out until it was killed. So the queue records
+        // what went and it is redeemed here, on a context that was going
+        // to save anyway.
+        TableNews.retract(plans: swept.removed + PlanShare.takeRetractions(), context: context)
         if !plans.isEmpty || !swept.isEmpty {
             // A night whose cook is this person just arrived, moved or
             // left: the reminders read the ledger and must be rebuilt now,

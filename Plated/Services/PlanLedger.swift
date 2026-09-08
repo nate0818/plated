@@ -305,7 +305,15 @@ final class PlanLedger {
     /// than merely unlikely, whatever a future writer forgets.
     func photo(for recordName: String) -> Data? {
         guard let entry = book.entries[recordName], entry.hasPhoto else {
-            photos[recordName] = nil
+            // Only when there is something to clear. `photos[x] = nil` is a
+            // mutation of an observed property even when the key is already
+            // absent, and this is read from `RemotePlanRow`'s body, so an
+            // unconditional write invalidated the view that had just read it
+            // and spun the render loop at 99% of a core until the test host
+            // was killed. Guarded, a night with no photograph is a pure
+            // read, and a stale entry is still cleared once and then
+            // converges.
+            if photos[recordName] != nil { photos[recordName] = nil }
             return nil
         }
         if let cached = photos[recordName] { return cached }
@@ -386,11 +394,28 @@ final class PlanLedger {
                 // optimistic values, so the zone's version differs from it by
                 // exactly the change the reader just made, and the digest
                 // announced their own edit back to them as somebody else's.
-                // The row is already telling them it has not gone yet; the
-                // delivery that settles it is what may speak.
-                if before.pendingSince == nil, before != entry,
-                   isNews(entry) || isNews(before) {
-                    delta.changed.append((before, entry))
+                //
+                // The answer is a better baseline rather than silence.
+                // Suppressing every changed delta while anything is pending
+                // also swallowed a change SOMEBODY ELSE made that arrived
+                // while this phone had an edit queued, which is news the
+                // reader has no other way to get. `beforeEdit` holds the
+                // night as it was before this phone touched it, so comparing
+                // against that subtracts only the reader's own change: the
+                // zone matching it means nothing but their own edit is
+                // outstanding, and differing from it is somebody else.
+                var baseline = before.pendingSince == nil
+                    ? before
+                    : (beforeEdit[entry.recordName] ?? before)
+                // The marks were carried onto `entry` a few lines above and
+                // the pre-edit baseline has none, so without this the two
+                // differ by the marks alone and a night on its way off comes
+                // back as news about itself. The comparison is about what
+                // the night IS, never about what this phone still owes.
+                baseline.pendingSince = entry.pendingSince
+                baseline.pendingRemoval = entry.pendingRemoval
+                if baseline != entry, isNews(entry) || isNews(baseline) {
+                    delta.changed.append((baseline, entry))
                 }
             } else if isNews(entry), leaving[entry.recordName] == nil {
                 delta.added.append(entry)
