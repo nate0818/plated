@@ -1150,30 +1150,47 @@ enum TableNews {
     }
 
     /// Read on one device, quiet on the other. Whatever is still sitting
-    /// in Notification Centre about a dish whose rows are all read (here,
-    /// or on the iPad, through the mirror) is withdrawn. Seat banners and
-    /// reminders carry no post and are left alone.
+    /// in Notification Centre about news whose rows are all read (here, or
+    /// on the iPad, through the mirror) is withdrawn.
     static func reconcileDelivered(context: ModelContext) async {
         let unread = (try? context.fetch(FetchDescriptor<PlatedNotification>(
             predicate: #Predicate { !$0.isRead && $0.link != "" }
         ))) ?? []
         let unreadPosts = Set(unread.compactMap { $0.linkURL.flatMap(DeepLink.postID(in:)) })
+        // A notice with no post is identified by its own row instead. The
+        // household's four, and the plan's, carry no post at all, so keyed on
+        // the post alone they were never withdrawn: a join or a recipe read
+        // on the iPad sat in Notification Centre on the iPhone until the
+        // person swiped it away by hand.
+        let unreadKeys = Set(unread.map { idPrefix + $0.eventKey })
         let center = UNUserNotificationCenter.current()
         let delivered = await center.deliveredNotifications()
             .filter { $0.request.identifier.hasPrefix(idPrefix) }
             .map { (id: $0.request.identifier,
                     post: $0.request.content.userInfo[NotificationRouter.Key.post] as? String ?? "") }
-        let stale = staleDelivered(delivered: delivered, unreadPosts: unreadPosts)
+        let stale = staleDelivered(
+            delivered: delivered, unreadPosts: unreadPosts, unreadKeys: unreadKeys
+        )
         if !stale.isEmpty { center.removeDeliveredNotifications(withIdentifiers: stale) }
     }
 
     /// Which delivered notices no longer have an unread row behind them.
     /// Pure, so a test can hold it to the rule.
+    ///
+    /// Two questions, because notices are identified two ways. One about a
+    /// dish is stale when nothing unread points at that dish. One with no
+    /// post is stale when no unread row shares its identifier. The rolled-up
+    /// "more" banner goes when nothing at all is unread.
     static func staleDelivered(
-        delivered: [(id: String, post: String)], unreadPosts: Set<String>
+        delivered: [(id: String, post: String)], unreadPosts: Set<String>,
+        unreadKeys: Set<String> = []
     ) -> [String] {
+        let more = idPrefix + "more"
         var stale = delivered.filter { !$0.post.isEmpty && !unreadPosts.contains($0.post) }.map(\.id)
-        if unreadPosts.isEmpty { stale.append(idPrefix + "more") }
+        stale += delivered
+            .filter { $0.post.isEmpty && $0.id != more && !unreadKeys.contains($0.id) }
+            .map(\.id)
+        if unreadPosts.isEmpty && unreadKeys.isEmpty { stale.append(more) }
         return stale
     }
 

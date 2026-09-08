@@ -546,13 +546,41 @@ final class TableNewsTests: XCTestCase {
         let stale = TableNews.staleDelivered(
             delivered: [
                 (id: TableNews.idPrefix + "post:post-1", post: "post-1"),
-                (id: TableNews.idPrefix + "post:post-2", post: "post-2"),
-                (id: TableNews.idPrefix + "seat:x", post: "")
+                (id: TableNews.idPrefix + "post:post-2", post: "post-2")
             ],
-            unreadPosts: ["post-2"]
+            unreadPosts: ["post-2"],
+            unreadKeys: []
         )
         XCTAssertEqual(stale, [TableNews.idPrefix + "post:post-1"])
-        XCTAssertTrue(TableNews.staleDelivered(delivered: [], unreadPosts: []).contains(TableNews.idPrefix + "more"))
+        XCTAssertTrue(
+            TableNews.staleDelivered(delivered: [], unreadPosts: [], unreadKeys: [])
+                .contains(TableNews.idPrefix + "more")
+        )
+    }
+
+    /// A join, a recipe or a night carries no post, so keyed on the post
+    /// alone these were never withdrawn at all: read on the iPad, they sat
+    /// in Notification Centre on the iPhone until somebody swiped them away.
+    func testAHouseholdBannerReadElsewhereIsWithdrawnAndAnUnreadOneStays() {
+        let seat = TableNews.idPrefix + "seat:riley"
+        let plan = TableNews.idPrefix + "plan:plan-1"
+        let stale = TableNews.staleDelivered(
+            delivered: [(id: seat, post: ""), (id: plan, post: "")],
+            unreadPosts: [],
+            unreadKeys: [plan]
+        )
+        XCTAssertEqual(stale, [seat], "the read one goes and the unread one stays")
+    }
+
+    /// The rolled-up banner answers to both kinds of unread, not just to
+    /// dishes: with an unread household row and nothing else, it stays.
+    func testTheRolledUpBannerStaysWhileAnyRowIsUnread() {
+        let stale = TableNews.staleDelivered(
+            delivered: [(id: TableNews.idPrefix + "more", post: "")],
+            unreadPosts: [],
+            unreadKeys: [TableNews.idPrefix + "seat:riley"]
+        )
+        XCTAssertTrue(stale.isEmpty)
     }
 
     func testBadgeCountsOnlyOtherPeoplesUnreadRows() {
