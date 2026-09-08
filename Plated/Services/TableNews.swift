@@ -903,7 +903,6 @@ enum TableNews {
         let content = UNMutableNotificationContent()
         content.title = n.title
         content.body = n.body
-        content.sound = n.direct ? .default : nil
         content.threadIdentifier = thread(for: n)
         content.categoryIdentifier = NotificationRouter.category(for: n.kind)
         content.relevanceScore = n.relevance
@@ -913,6 +912,14 @@ enum TableNews {
         // join is direct by day and waits like the room by night.
         let quiet = isQuietHour(now) && (!n.direct || n.quietAtNight)
         content.interruptionLevel = (n.passive || quiet) ? .passive : .active
+        // After the quiet decision, not before it. Read from `direct` alone,
+        // a notice that is both direct and quietAtNight was handed to the
+        // system as passive AND with an explicit sound, so the two notices
+        // that deliberately wait until morning, a household join and a night
+        // the household took off yours, made a noise at two in the morning
+        // while presenting silently. Passive is a claim about how loud this
+        // is, and a sound contradicts it.
+        content.sound = (n.direct && !quiet) ? .default : nil
         content.userInfo = [
             NotificationRouter.Key.link: n.link.absoluteString,
             NotificationRouter.Key.post: n.post,

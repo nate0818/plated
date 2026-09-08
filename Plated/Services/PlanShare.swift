@@ -1357,7 +1357,11 @@ enum PlanShare {
         if let temp { try? FileManager.default.removeItem(at: temp) }
         guard saved.contains(edit.recordName) else {
             print("PLATED HOUSEHOLD: \(edit.recordName) would not save, keeping it queued")
-            return .queued("Your household did not take the change. It goes out on the next try.")
+            // Not "your household did not take the change", which was the
+            // old wording and which blames the people in it for what is a
+            // save that iCloud refused. Nobody declined anything: a person
+            // reading that had every reason to think Riley had.
+            return .queued("iCloud did not take the change. It goes out on the next try.")
         }
         print("PLATED HOUSEHOLD: \(edit.recordName) saved into \(edit.zoneOwner.isEmpty ? "the own household" : edit.zoneOwner)")
         return .landed(now)

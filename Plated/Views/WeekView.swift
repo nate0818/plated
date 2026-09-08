@@ -1111,7 +1111,16 @@ struct WeekView: View {
         // The same sentence the row draws, so a reader hears why the night
         // is empty rather than "Nothing plated yet" over a dinner that was
         // taken off ten minutes ago.
-        if others.isEmpty, let removed = RemovedNights.removedLine(on: date) { return removed }
+        //
+        // Said even when another slot is planned, because the ROW says it in
+        // that case too: gated on `others.isEmpty`, the screen stated the
+        // removal and VoiceOver stated the lunch, which is two answers to
+        // one question. The other slots follow it rather than replacing it.
+        if let removed = RemovedNights.removedLine(on: date) {
+            guard !others.isEmpty else { return removed }
+            let joined = ListFormatter.localizedString(byJoining: others.map { $0.title.lowercased() })
+            return "\(removed). \(joined.prefix(1).uppercased() + joined.dropFirst()) planned"
+        }
         guard !others.isEmpty else { return "Nothing plated yet" }
         let joined = ListFormatter.localizedString(byJoining: others.map { $0.title.lowercased() })
         return joined.prefix(1).uppercased() + joined.dropFirst() + " planned"

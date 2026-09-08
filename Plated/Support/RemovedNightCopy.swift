@@ -7,12 +7,14 @@ import Foundation
 /// the night sheet. Split across those four it is how the week and the hero
 /// come to disagree about the same night.
 ///
-/// **The author gets no push and no bell row.** `TableNews.planNotices`
-/// needs an already-read `plan:` row for the night, and the author never has
-/// one for a night they planned themselves. So these sentences are not
-/// decoration on top of a notification: they are the only way the person
-/// learns their dinner went, which is why an empty night draws one instead
-/// of "Plan dinner" rather than beside it.
+/// **These are what a person finds when they open the app, not the only
+/// word they get.** For a while they were: the digest could not speak to
+/// the author of a night, because `planNotices` needed an already-read
+/// `plan:` row and the author never has one for a night they planned
+/// themselves. The `ownRemoved` arm now sends a real push, so an empty
+/// night drawing one of these instead of "Plan dinner" is the screen
+/// agreeing with a banner rather than standing in for one. It still has to
+/// stand alone: a push can be missed, dismissed, or switched off.
 ///
 /// **A nameless removal loses the name and keeps the fact.** `Gone.by` is
 /// empty when the record named nobody, and a household is eight people, so a

@@ -201,6 +201,22 @@ struct PlanNightSheet: View {
                                 .padding(.bottom, notice == nil ? 6 : 2)
                         }
                         noticeRow
+                        // A night on its way off has one thing left to say
+                        // and one thing left to do. Without the door out,
+                        // every control withdrew the moment the removal
+                        // queued and the sheet collapsed under the person's
+                        // finger to a card and a sentence, with nothing to
+                        // press: the most destructive action in the app
+                        // ending in a screen that offers nothing at all.
+                        if going {
+                            Text("It leaves every phone in your household when this one is back on iCloud.")
+                                .plType(.caption)
+                                .foregroundStyle(Color.inkSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            InkPillButton(title: "Done", systemImage: "checkmark") { dismiss() }
+                                .padding(.top, 4)
+                        }
                         // Nothing to change on a night that is going. The
                         // page stays up to say what the delete answered, and
                         // a servings stepper over that sentence would be an
