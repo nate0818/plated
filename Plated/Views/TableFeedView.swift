@@ -464,11 +464,7 @@ struct TableFeedView: View {
                     // Ask CloudKit who we are. A placeholder minted while
                     // offline is re-attributed the moment a real id arrives,
                     // so nothing tapped on a plane is orphaned.
-                    let before = TableIdentity.cached
-                    if let real = await TableIdentity.confirm(), real != before {
-                        TableLedger.shared.reattribute(from: before, to: real)
-                        TableOutbox.shared.reattribute(from: before, to: real)
-                    }
+                    await TableIdentity.confirmAndReattribute()
                     await refreshFeed()
                 }
                 // A seat accepted from Messages while the Table is already

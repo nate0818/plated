@@ -1425,29 +1425,50 @@ enum TableShare {
     static func savePlans(_ records: [CKRecord], in db: CKDatabase) async -> Set<String> {
         var saved: Set<String> = []
         for batch in batches(records) {
-            let results: [CKRecord.ID: Result<CKRecord, Error>]
-            do {
-                results = try await db.modifyRecords(
-                    saving: batch, deleting: [], atomically: false
-                ).saveResults
-            } catch {
-                print("[PlanShare] save of \(batch.count) night(s) failed: \(error.localizedDescription)")
-                continue
-            }
-            for (id, result) in results {
-                switch result {
-                case .success:
+            saved.formUnion(await saveBatch(batch, in: db))
+        }
+        return saved
+    }
+
+    /// One batch, halved and retried when CloudKit says it was too big.
+    ///
+    /// `.limitExceeded` is a refusal of the operation's size, not of its
+    /// contents, and the documented remedy is to split and try again.
+    /// Treating it as a failure stalls forever rather than once: the book
+    /// only records what saved, so the next pass rebuilds the same
+    /// oversized batch and is refused identically. Twenty nights is well
+    /// under the count limit but each one can carry a photograph, so the
+    /// size limit is the one that bites.
+    private static func saveBatch(_ batch: [CKRecord], in db: CKDatabase) async -> Set<String> {
+        var saved: Set<String> = []
+        let results: [CKRecord.ID: Result<CKRecord, Error>]
+        do {
+            results = try await db.modifyRecords(
+                saving: batch, deleting: [], atomically: false
+            ).saveResults
+        } catch let error as CKError where error.code == .limitExceeded && batch.count > 1 {
+            print("[PlanShare] save of \(batch.count) night(s) was too big, splitting")
+            let half = batch.count / 2
+            saved.formUnion(await saveBatch(Array(batch[..<half]), in: db))
+            saved.formUnion(await saveBatch(Array(batch[half...]), in: db))
+            return saved
+        } catch {
+            print("[PlanShare] save of \(batch.count) night(s) failed: \(error.localizedDescription)")
+            return saved
+        }
+        for (id, result) in results {
+            switch result {
+            case .success:
+                saved.insert(id.recordName)
+            case .failure(let error as CKError) where error.code == .serverRecordChanged:
+                guard let mine = batch.first(where: { $0.recordID == id }) else { continue }
+                if await saveOverServerCopy(mine, in: db) {
                     saved.insert(id.recordName)
-                case .failure(let error as CKError) where error.code == .serverRecordChanged:
-                    guard let mine = batch.first(where: { $0.recordID == id }) else { continue }
-                    if await saveOverServerCopy(mine, in: db) {
-                        saved.insert(id.recordName)
-                    } else {
-                        print("[PlanShare] \(id.recordName) changed on the server twice, next pass")
-                    }
-                case .failure(let error):
-                    print("[PlanShare] \(id.recordName) would not save: \(error.localizedDescription)")
+                } else {
+                    print("[PlanShare] \(id.recordName) changed on the server twice, next pass")
                 }
+            case .failure(let error):
+                print("[PlanShare] \(id.recordName) would not save: \(error.localizedDescription)")
             }
         }
         return saved
@@ -1475,25 +1496,44 @@ enum TableShare {
     static func deletePlans(names: [String], in db: CKDatabase, zone: CKRecordZone.ID) async -> Set<String> {
         var gone: Set<String> = []
         for batch in batches(names) {
-            let ids = batch.map { CKRecord.ID(recordName: $0, zoneID: zone) }
-            let results: [CKRecord.ID: Result<Void, Error>]
-            do {
-                results = try await db.modifyRecords(
-                    saving: [], deleting: ids, atomically: false
-                ).deleteResults
-            } catch {
-                print("[PlanShare] delete of \(batch.count) night(s) failed: \(error.localizedDescription)")
-                continue
-            }
-            for (id, result) in results {
-                switch result {
-                case .success:
-                    gone.insert(id.recordName)
-                case .failure(let error as CKError) where error.code == .unknownItem:
-                    gone.insert(id.recordName)
-                case .failure(let error):
-                    print("[PlanShare] \(id.recordName) would not delete: \(error.localizedDescription)")
-                }
+            gone.formUnion(await deleteBatch(batch, in: db, zone: zone))
+        }
+        return gone
+    }
+
+    /// One batch of deletions, halved and retried on `.limitExceeded` for
+    /// the same reason as `saveBatch`: the refusal is about the size of the
+    /// operation, and a batch that is skipped is rebuilt identically next
+    /// pass. A retraction that never lands leaves a night on other phones
+    /// after it was taken off this one.
+    private static func deleteBatch(
+        _ batch: [String], in db: CKDatabase, zone: CKRecordZone.ID
+    ) async -> Set<String> {
+        var gone: Set<String> = []
+        let ids = batch.map { CKRecord.ID(recordName: $0, zoneID: zone) }
+        let results: [CKRecord.ID: Result<Void, Error>]
+        do {
+            results = try await db.modifyRecords(
+                saving: [], deleting: ids, atomically: false
+            ).deleteResults
+        } catch let error as CKError where error.code == .limitExceeded && batch.count > 1 {
+            print("[PlanShare] delete of \(batch.count) night(s) was too big, splitting")
+            let half = batch.count / 2
+            gone.formUnion(await deleteBatch(Array(batch[..<half]), in: db, zone: zone))
+            gone.formUnion(await deleteBatch(Array(batch[half...]), in: db, zone: zone))
+            return gone
+        } catch {
+            print("[PlanShare] delete of \(batch.count) night(s) failed: \(error.localizedDescription)")
+            return gone
+        }
+        for (id, result) in results {
+            switch result {
+            case .success:
+                gone.insert(id.recordName)
+            case .failure(let error as CKError) where error.code == .unknownItem:
+                gone.insert(id.recordName)
+            case .failure(let error):
+                print("[PlanShare] \(id.recordName) would not delete: \(error.localizedDescription)")
             }
         }
         return gone

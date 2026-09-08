@@ -58,6 +58,24 @@ enum TableIdentity {
         #endif
     }
 
+    /// Ask CloudKit who this is, and move everything written under the
+    /// placeholder onto the real id.
+    ///
+    /// Every book that stamps an author has to be listed here. Two call
+    /// sites confirm identity, the share absorb and the Table's first look,
+    /// and for a while only one of them carried the plan: whichever ran
+    /// first spent the placeholder, so the second saw no change and the
+    /// nights kept a stranger's name. `reset()` below already lists the
+    /// books in one place; this is the same list for the same reason.
+    @MainActor
+    static func confirmAndReattribute() async {
+        let before = cached
+        guard let real = await confirm(), real != before else { return }
+        TableLedger.shared.reattribute(from: before, to: real)
+        TableOutbox.shared.reattribute(from: before, to: real)
+        PlanLedger.shared.reattribute(from: before, to: real)
+    }
+
     /// The Apple ID changed underneath us.
     ///
     /// Without this, `cached` keeps answering with the previous account's

@@ -128,12 +128,7 @@ final class ShareAcceptor: NSObject, UIApplicationDelegate {
         // Who am I, before deciding what is mine. A placeholder id would
         // make every one of this person's own posts look like a stranger's,
         // and the news would narrate their dinner back to them.
-        let before = TableIdentity.cached
-        if let real = await TableIdentity.confirm(), real != before {
-            TableLedger.shared.reattribute(from: before, to: real)
-            TableOutbox.shared.reattribute(from: before, to: real)
-            PlanLedger.shared.reattribute(from: before, to: real)
-        }
+        await TableIdentity.confirmAndReattribute()
         TableShare.merge(changes, into: context)
         // Nights other phones planned, and what changed about them, kept
         // before the ledger is overwritten so the news can say "moved".
