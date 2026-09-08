@@ -177,6 +177,16 @@ final class PlanLedger {
 
     private struct Book: Codable {
         var entries: [String: Entry] = [:]
+        /// The night as the zone last delivered it, kept only while this
+        /// phone has an edit it has not landed. It is what a delivery must
+        /// be compared against: comparing against the row on screen means
+        /// comparing against this phone's own optimistic change, and the
+        /// digest then reports the reader's edit back to them as somebody
+        /// else's. Persisted rather than held in memory like `beforeEdit`,
+        /// because a queued edit survives a relaunch and the comparison has
+        /// to survive with it. Defaulted, so a book written before this
+        /// decodes as having none.
+        var serverImages: [String: Entry] = [:]
     }
 
     private var book = Book()
@@ -321,6 +331,16 @@ final class PlanLedger {
     /// own phones hold them as `PlannedMeal` rows already. A replayed zone
     /// carries no deletions, so for each replayed owner the delivered set
     /// is the whole truth.
+    /// The night as the zone sees it: this phone's own un-landed marks are
+    /// not facts about the household and must never be the difference that
+    /// makes a delivery into news.
+    private static func zoneFacing(_ entry: Entry) -> Entry {
+        var e = entry
+        e.pendingSince = nil
+        e.pendingRemoval = nil
+        return e
+    }
+
     @discardableResult
     func absorb(_ changes: TableShare.Changes, me: String) -> Delta {
         prune()
@@ -381,16 +401,37 @@ final class PlanLedger {
                 entry.pendingRemoval = true
             }
             if let before {
-                // A row carrying this phone's own un-landed edit is not a
-                // comparison anybody can learn from. `before` holds the
-                // optimistic values, so the zone's version differs from it by
-                // exactly the change the reader just made, and the digest
+                // Compared against the night as the ZONE last delivered it,
+                // not against the row on screen. While this phone holds an
+                // un-landed edit those two are different, and `before` is the
+                // optimistic one, so the zone's version differed from it by
+                // exactly the change the reader had just made and the digest
                 // announced their own edit back to them as somebody else's.
-                // The row is already telling them it has not gone yet; the
-                // delivery that settles it is what may speak.
-                if before.pendingSince == nil, before != entry,
-                   isNews(entry) || isNews(before) {
-                    delta.changed.append((before, entry))
+                //
+                // Suppressing the comparison outright was the first fix and
+                // it was too broad: somebody else changing the dish while
+                // this phone has a servings edit waiting is real news and has
+                // to survive. Comparing against the server image keeps it,
+                // and drops only the reader's own change.
+                // Both sides stripped of this phone's own marks before the
+                // comparison. The baseline is stored mark-free and `entry`
+                // carries the mark forward from the row, so comparing them
+                // raw made the MARK itself the difference: a night on its
+                // way off the plan was delivered back as news about itself.
+                let against = book.serverImages[entry.recordName] ?? before
+                if Self.zoneFacing(against) != Self.zoneFacing(entry),
+                   isNews(entry) || isNews(against) {
+                    delta.changed.append((against, entry))
+                }
+                // This delivery is the new baseline while the edit is still
+                // waiting, or the next one re-announces the same change.
+                // Stored without the local marks, which are this phone's and
+                // not the zone's.
+                if entry.pendingSince != nil {
+                    var image = entry
+                    image.pendingSince = nil
+                    image.pendingRemoval = nil
+                    book.serverImages[entry.recordName] = image
                 }
             } else if isNews(entry), leaving[entry.recordName] == nil {
                 delta.added.append(entry)
@@ -487,6 +528,12 @@ final class PlanLedger {
             // reverts to the night as it was before either.
             beforePhoto[edit.recordName] = photo(for: edit.recordName)
         }
+        // The same image, kept in the book so it outlives a relaunch. A
+        // delivery arriving on top of an un-landed edit is compared against
+        // this, never against the optimistic row.
+        if book.serverImages[edit.recordName] == nil {
+            book.serverImages[edit.recordName] = before
+        }
         var after: Entry?
         if edit.kind == .delete {
             // The row stays, marked as going. Removing it here made an
@@ -532,6 +579,7 @@ final class PlanLedger {
                 // row goes. Until this line the night was still standing in
                 // the zone and the entry said so.
                 removed = book.entries.removeValue(forKey: edit.recordName)
+                book.serverImages[edit.recordName] = nil
                 removePhoto(edit.recordName)
                 // The reminder is scheduled off myNights(), so the night has
                 // to announce that it left or "Your night tomorrow" fires
@@ -548,6 +596,8 @@ final class PlanLedger {
             }
             beforeEdit[edit.recordName] = nil
             beforePhoto[edit.recordName] = nil
+            // The waiting window is over, so the baseline goes with it.
+            book.serverImages[edit.recordName] = nil
             save()
         case .queued:
             // The row keeps saying it has not gone yet, because it has not.
@@ -557,6 +607,7 @@ final class PlanLedger {
             // included, so the before image has nothing left to restore.
             beforeEdit[edit.recordName] = nil
             beforePhoto[edit.recordName] = nil
+            book.serverImages[edit.recordName] = nil
         case .refused:
             revert(edit)
         }
@@ -568,6 +619,7 @@ final class PlanLedger {
     /// on its way and the zone says what it is on the next delivery.
     private func revert(_ edit: PlanShare.Edit) {
         let restore = beforePhoto.removeValue(forKey: edit.recordName)
+        book.serverImages[edit.recordName] = nil
         guard let before = beforeEdit.removeValue(forKey: edit.recordName) else {
             // No before image, which after a relaunch is every refusal:
             // `beforeEdit` is memory only. Clearing the mark and stopping
@@ -612,6 +664,7 @@ final class PlanLedger {
     func nightIsGone(_ recordName: String) -> Entry? {
         beforeEdit[recordName] = nil
         beforePhoto[recordName] = nil
+        book.serverImages[recordName] = nil
         guard let removed = book.entries.removeValue(forKey: recordName) else { return nil }
         removePhoto(recordName)
         save()
@@ -641,6 +694,7 @@ final class PlanLedger {
         }
         beforeEdit[entry.recordName] = nil
         beforePhoto[entry.recordName] = nil
+        book.serverImages[entry.recordName] = nil
         save()
     }
 
@@ -665,6 +719,7 @@ final class PlanLedger {
         let names = book.entries.filter { $0.value.zoneOwner == zoneOwner }.map(\.key)
         for name in names {
             book.entries.removeValue(forKey: name)
+            book.serverImages.removeValue(forKey: name)
             removePhoto(name)
         }
         if !names.isEmpty {
@@ -708,8 +763,12 @@ final class PlanLedger {
         let stale = book.entries.filter { $0.value.day < low || $0.value.day > high }.map(\.key)
         for name in stale {
             book.entries.removeValue(forKey: name)
+            book.serverImages.removeValue(forKey: name)
             removePhoto(name)
         }
+        // A baseline whose night has gone is dead weight that would otherwise
+        // sit in the book for the life of the install.
+        book.serverImages = book.serverImages.filter { book.entries[$0.key] != nil }
     }
 
     // MARK: Persistence

@@ -260,16 +260,45 @@ editor's id and name the way it folds the author's and the cook's.
 `-plated-prime-share` mints both non-nil through the probe's author, and the
 schema is deployed to Production before a build writes them.
 
-### One thing this leaves open, on purpose and out loud
+### The two phones disagree, on purpose, and say so
 
-- **The author's own phone does not hear the edit.** Nate's Thursday is a
-  `PlannedMeal` on Nate's phone; `absorb` keeps nothing he wrote, and his
-  publisher only sends what his own diff changed, so the zone shows Riley's
-  version and Nate's planner shows his. The two answers that are NOT
-  available are the ones the argument above rules out: folding the record
-  back into his `PlannedMeal` on each of his devices is exactly the two
-  writers Nate dropped. This wants deciding before two-way editing is put in
-  front of a household.
+This was the open question. It is now decided, and the decision is a limit
+rather than a mechanism, so it is written here to stop a later session
+"fixing" it back into the thing this whole document rules out.
+
+**The author's own phone does not hear the edit, and nothing reconciles the
+two.** Nate's Thursday is a `PlannedMeal` on Nate's phone. `absorb` keeps
+nothing he wrote, and his publisher sends only what his own diff changed,
+so the zone holds Riley's version and Nate's planner holds his. Three
+things were considered and two were refused:
+
+- **Folding the record back into his `PlannedMeal`** is the two writers on
+  one fact that the argument at the top of this file exists to forbid.
+  Refused, and it is the one answer that can never be taken.
+- **Drawing the ledger for a night the household has edited**, so the zone
+  becomes that night's truth. Proposed and withdrawn after review. There is
+  no stopping point between drawing it and owning it: `PlanNightSheet` takes
+  this phone's `PlannedMeal` when one exists in the slot, so the first tap on
+  a drawn ledger row opens a different dinner from the one on screen, which
+  is the continuity law. And the predicate is not stable across the author's
+  own devices, because `plan-share.json` is per device, so an iPad with no
+  book entry mints a full record and erases the edit with nobody touching it.
+- **What shipped**: the publisher refuses to overwrite, and the interface
+  says the two disagree. `pass` fetches before every save and stands down
+  when `movedOn` says the record has moved since `BookEntry.serverModifiedAt`,
+  which also closes the second-device case above. The stand-down is stable,
+  so the night is re-offered and re-refused every pass rather than two phones
+  taking turns overwriting each other. `PlanShare.Contest` carries the nouns
+  and `PlanNightSheet.contestLine(for:)` draws one sentence on the night
+  itself: "Riley changed this night on their phone. Your plan still says
+  Tacos", or, on a record written before `editorID`, the same sentence
+  naming nobody rather than inventing a "Someone".
+
+**A stated disagreement is not a lie; a silently overwritten edit is.** That
+is the whole of the reasoning. Nobody's change is destroyed, and the person
+holding the phone is told what happened and left to decide. Reconciliation
+is a later step with its own conflict rules, and the sentence is what makes
+its absence honest rather than hidden.
 
 ## Which zone is the household's
 
