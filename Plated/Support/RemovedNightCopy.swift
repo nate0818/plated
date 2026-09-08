@@ -91,9 +91,21 @@ extension RemovedNights {
     /// An id the book has never heard of means the drain took it, which is
     /// the ordinary case and the one the plain sentence is for.
     static func outcomeLine(for shoppingID: String) -> String {
+        // Nothing, when the book does not know. It used to say "It came off
+        // your week too" here, which is an INFERENCE presented as a fact:
+        // the id being absent was read as "the drain took it", and a row can
+        // also be absent because the fourteen-day prune reached it, because
+        // `forget` cleared it, or because some other bug erased it. One such
+        // bug existed, and it made this banner assert that a night had left
+        // a week it was still sitting on, with the row underneath saying so.
+        //
+        // The title carries the whole fact on its own: "Riley took Tacos off
+        // Thursday" is true however this phone's copy ended up. A second
+        // sentence is worth having only when it is known, and silence is the
+        // honest answer to a question the book cannot answer.
         guard !shoppingID.isEmpty,
               let gone = all.first(where: { $0.shoppingID == shoppingID })
-        else { return "It came off your week too." }
+        else { return "" }
         if gone.kept { return "You cooked it, so it stays on your week." }
         if !gone.settled { return "You are cooking it, so it stays on your week for now." }
         return "It came off your week too."

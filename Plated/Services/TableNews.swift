@@ -652,7 +652,10 @@ enum TableNews {
                 title: "\(who) took \(e.title) off \(night)",
                 body: outcome,
                 template: "{actor} took {object} off \(night).",
-                deed: "Took \(e.title) off \(night). \(outcome)",
+                // The outcome is empty when the book cannot say what
+                // happened to this phone's copy, and an empty second
+                // sentence must not leave a dangling space or a stray stop.
+                deed: "Took \(e.title) off \(night)." + (outcome.isEmpty ? "" : " \(outcome)"),
                 at: .now, passive: false
             )
             n.addressed = true

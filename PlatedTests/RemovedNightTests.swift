@@ -344,11 +344,34 @@ final class RemovedNightTests: XCTestCase {
             [plan(author: me, removed: 1, editorID: "_riley", editorName: "Riley Park")],
             me: me
         )
+        // Park and drain BEFORE the digest, which is the order
+        // `ShareAcceptor.absorb` runs them in and the reason the notice can
+        // say what happened at all. Without it this asserted a sentence that
+        // the copy layer was inferring rather than reading, and the test
+        // passed on that inference.
+        RemovedNights.park(delta.ownRemoved)
+        _ = RemovedNights.drain(in: context)
         let notices = digest(delta)
         XCTAssertEqual(notices.count, 1)
         XCTAssertEqual(notices[0].title, "Riley took Tacos off \(Stamp.nightPhrase(Self.day(2)))")
         XCTAssertEqual(notices[0].body, "It came off your week too.")
         XCTAssertTrue(notices[0].addressed, "it is about the reader, so it is never folded into a count")
+    }
+
+    /// The banner says what actually happened, and when the book cannot say,
+    /// it says nothing rather than guessing. The title carries the fact on
+    /// its own.
+    func testTheBannerSaysNothingAboutAWeekTheBookCannotAnswerFor() {
+        let delta = deliver(
+            [plan(author: me, removed: 1, editorID: "_riley", editorName: "Riley Park")],
+            me: me
+        )
+        // Deliberately NOT parked: nothing on this phone knows what became
+        // of the night.
+        let notices = digest(delta)
+        XCTAssertEqual(notices.count, 1)
+        XCTAssertEqual(notices[0].title, "Riley took Tacos off \(Stamp.nightPhrase(Self.day(2)))")
+        XCTAssertEqual(notices[0].body, "", "an absent row is not evidence the night left this week")
     }
 
     func testTheAuthorIsNotToldAboutTheirOwnRemovalOnTheirOtherDevice() {
