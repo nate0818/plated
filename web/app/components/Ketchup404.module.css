@@ -8,13 +8,8 @@
 }
 .header { display: flex; justify-content: space-between; align-items: center; position: relative; z-index: 2; }
 .wordmark { display: inline-flex; text-decoration: none; }
-.home { text-decoration: none; font-size: 14px; font-weight: 600; display: inline-flex; gap: 10px; align-items: center; min-height: 44px; }
-.home:hover { color: var(--tomato-pressed); }
 .main { flex: 1; display: grid; align-content: center; justify-items: center; padding-block: 10px 32px; }
-.footer { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; }
 @media (max-width: 600px) {
   .page { padding-top: max(16px, env(safe-area-inset-top)); }
   .main { padding-block: 32px 60px; }
-  .home { font-size: 12px; gap: 6px; }
-  .footer { font-size: 10px; }
 }
