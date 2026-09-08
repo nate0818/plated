@@ -77,6 +77,8 @@ struct PlanNightSheet: View {
     /// A stepper held down is one intention, not eight: the row moves on
     /// every tap and the zone hears the number they stopped on.
     @State private var servingsWrite: Task<Void, Never>?
+    /// The removal has been asked for and not yet agreed to.
+    @State private var confirmingRemoval = false
 
     private var meal: PlannedMeal? {
         // A named household night is the one being changed, even on a slot
@@ -470,8 +472,16 @@ struct PlanNightSheet: View {
             }
             Spacer()
             Button {
-                Haptic.plate()
-                send(PlanShare.Edit(deleting: entry), closing: true)
+                // Asked, not done. This is the one control in the app that
+                // changes what several other people see, it cannot be undone
+                // by anything on this branch, and the sheet carrying its
+                // answer closes behind it. A stated reach under the card is
+                // not a gate.
+                //
+                // `warn`, not `plate`. plate is for something landing, and
+                // nothing has landed: this opens a question.
+                Haptic.warn()
+                confirmingRemoval = true
             } label: {
                 // Working, in `TomatoPillButton`'s shape: the spinner takes
                 // the glyph's place inside the same 44pt target, so the card
@@ -502,6 +512,20 @@ struct PlanNightSheet: View {
         .padding(.vertical, 10)
         .background(Color.canvas, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: Radius.row, style: .continuous).strokeBorder(Color.navHairline))
+        .confirmationDialog(
+            "Take \(entry.title) off \(Stamp.nightPhrase(entry.date))?",
+            isPresented: $confirmingRemoval,
+            titleVisibility: .visible
+        ) {
+            // The verb names the outcome AND its reach, because the reach is
+            // the part that is not obvious: this is not "remove from my week".
+            Button("Take it off for everybody", role: .destructive) {
+                send(PlanShare.Edit(deleting: entry), closing: true)
+            }
+            Button("Keep it", role: .cancel) { }
+        } message: {
+            Text(removalWarning(entry))
+        }
     }
 
     /// Whose night it is, and whether the last change has reached the
@@ -637,8 +661,6 @@ struct PlanNightSheet: View {
         }
         let recipe = pick.recipe
         let minutes = recipe.totalMinutes
-        // The magic move earns the plate-weight thump, not a chrome tick.
-        Haptic.plate()
         // Say why — "Picked for you · grill weather" proves the engine
         // looked out the window.
         let why = pick.reason.components(separatedBy: ", ").first ?? ""
@@ -659,12 +681,23 @@ struct PlanNightSheet: View {
     /// and put the sentence in the row under the card, because a page that
     /// is gone cannot tell anybody anything and a deleted night has no row
     /// left to tell them with.
-    private func send(_ edit: PlanShare.Edit, photo: Data? = nil, closing: Bool = false) {
+    /// `haptic` is fired HERE and never by the caller, because it must not
+    /// fire for a write the guard below drops. Callers used to buzz first
+    /// and call second, so a second choice made while the first was on the
+    /// wire gave the person the thump that means a plate landed, changed
+    /// nothing, and left the menu reading what they had just replaced. A
+    /// confirmation for something that did not happen is the honesty rule,
+    /// and it was in three of the five call sites.
+    private func send(
+        _ edit: PlanShare.Edit, photo: Data? = nil, closing: Bool = false,
+        haptic: @escaping () -> Void = { Haptic.plate() }
+    ) {
         // One write at a time on one night. Two in flight are two
         // fetch-and-saves racing on one record, and the second would read a
         // `seenAt` the first is about to move, so the person would be told
         // somebody got there first about their own tap.
         guard !sending else { return }
+        haptic()
         notice = nil
         inFlight = edit.kind
         Task { @MainActor in
@@ -695,6 +728,18 @@ struct PlanNightSheet: View {
             }
             if closing, Self.closes(outcome) { dismiss() }
         }
+    }
+
+    /// What the person is agreeing to. Two facts: whose night it is, and
+    /// that it cannot be taken back. Both matter and neither is on screen.
+    static func removalWarning(_ entry: PlanLedger.Entry) -> String {
+        let who = entry.authorFirstName
+        let whose = who.isEmpty ? "This night" : "\(who)'s night"
+        return "\(whose) comes off the plan on every phone in your household. This cannot be undone."
+    }
+
+    private func removalWarning(_ entry: PlanLedger.Entry) -> String {
+        Self.removalWarning(entry)
     }
 
     /// What each answer says out loud, in one place so a test can read it.
@@ -756,14 +801,13 @@ struct PlanNightSheet: View {
     /// that was only invited travels without a name, because a name typed
     /// five seconds ago is not a cook.
     private func changeCook(_ member: HouseholdMember?, on entry: PlanLedger.Entry) {
-        Haptic.select()
         var edit = PlanShare.Edit(changing: entry)
         guard let member else {
             edit.cookID = ""
             edit.cookName = ""
             edit.cookColorHex = ""
             edit.cookSeat = ""
-            send(edit)
+            send(edit, haptic: { Haptic.select() })
             return
         }
         var id = member.participantID ?? ""
@@ -778,7 +822,6 @@ struct PlanNightSheet: View {
 
     private func markEatingOut() {
         if let remote {
-            Haptic.plate()
             var edit = PlanShare.Edit(changing: remote)
             edit.title = "Eating out"
             edit.tagline = "Night off the stove"
@@ -859,7 +902,6 @@ struct PlanNightSheet: View {
             // alone: changing what is for dinner is not a claim about who
             // is at the stove, and the rota's answer is about this phone's
             // own week.
-            Haptic.plate()
             var edit = PlanShare.Edit(changing: remote)
             edit.title = recipe.title
             edit.tagline = tagline

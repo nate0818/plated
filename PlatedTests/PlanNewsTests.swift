@@ -26,6 +26,7 @@ final class PlanNewsTests: XCTestCase {
         calendar.date(byAdding: .day, value: offset, to: today) ?? today
     }
     nonisolated private static var tomorrow: Date { day(1) }
+    nonisolated private static var inTwoDays: Date { day(2) }
     /// A writer's clock, whole seconds apart: the dedupe key folds
     /// `changedAt` in at second precision, so two saves in one test have
     /// to be told apart on purpose.
@@ -108,8 +109,10 @@ final class PlanNewsTests: XCTestCase {
         return (changes, delta)
     }
 
-    private func digest(_ d: (changes: TableShare.Changes, delta: PlanLedger.Delta)) -> [TableNews.Notice] {
-        TableNews.digest(d.changes, newSeats: [], plans: d.delta, context: context)
+    private func digest(
+        _ d: (changes: TableShare.Changes, delta: PlanLedger.Delta), at now: Date = .now
+    ) -> [TableNews.Notice] {
+        TableNews.digest(d.changes, newSeats: [], plans: d.delta, context: context, now: now)
     }
 
     private func rows(eventKey: String) -> [PlatedNotification] {
@@ -735,4 +738,40 @@ final class PlanNewsTests: XCTestCase {
             "a delivery does not send what this phone has still to send"
         )
     }
+
+    // MARK: One sitting, one interruption
+
+    /// A household enters a week in one go. Each night is its own record,
+    /// its own publisher pass and its own delivery, so without a window
+    /// across deliveries that is seven screen-lighting banners on every
+    /// other phone. The first still speaks; the rest arrive quietly and are
+    /// all still in the bell.
+    func testAPlanningBurstInterruptsOnce() {
+        let start = Date(timeIntervalSince1970: 1_700_000_000)
+        let first = digest(delivery([remotePlan(by: "riley", id: "n1", title: "Tacos")]), at: start)
+        XCTAssertEqual(first.count, 1)
+        XCTAssertFalse(first[0].passive, "the first night of a sitting is the first word of something new")
+
+        // Four minutes later, a second night, a second delivery.
+        let second = digest(
+            delivery([remotePlan(by: "riley", id: "n2", day: PlanNewsTests.inTwoDays, title: "Ragu")]),
+            at: start.addingTimeInterval(4 * 60)
+        )
+        XCTAssertEqual(second.count, 1, "still news, still in the bell")
+        XCTAssertTrue(second[0].passive, "a second night in the same sitting does not light the screen again")
+    }
+
+    /// Tomorrow evening is a different sitting, not a continuation of this
+    /// one, so it speaks again.
+    func testTheNextSittingSpeaksAgain() {
+        let start = Date(timeIntervalSince1970: 1_700_000_000)
+        _ = digest(delivery([remotePlan(by: "riley", id: "n1", title: "Tacos")]), at: start)
+        let later = digest(
+            delivery([remotePlan(by: "riley", id: "n2", day: PlanNewsTests.inTwoDays, title: "Ragu")]),
+            at: start.addingTimeInterval(3 * 60 * 60)
+        )
+        XCTAssertEqual(later.count, 1)
+        XCTAssertFalse(later[0].passive)
+    }
+
 }
