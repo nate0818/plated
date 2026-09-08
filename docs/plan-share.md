@@ -294,6 +294,19 @@ things were considered and two were refused:
   Tacos", or, on a record written before `editorID`, the same sentence
   naming nobody rather than inventing a "Someone".
 
+**Where the sentence is drawn, and the one place it is not yet.** v1 puts it
+on `PlanNightSheet` only, which is where a person goes to CHANGE a night and
+therefore the one place where acting on a stale night does damage. It is
+deliberately not on the week row, the hero or the month grid: a contested
+night is rare, and a line on four surfaces would make the quiet case loud.
+
+The gap that leaves, named here rather than left to be rediscovered: the day
+page on the day itself. That is where somebody reads the plan before cooking,
+and a person cooking the wrong dinner is the one consequence of this
+divergence that happens away from the sheet, which is exactly where they are
+not looking at that moment. Adding it there is the next step, and it is the
+only surface that has an argument for it.
+
 **A stated disagreement is not a lie; a silently overwritten edit is.** That
 is the whole of the reasoning. Nobody's change is destroyed, and the person
 holding the phone is told what happened and left to decide. Reconciliation
