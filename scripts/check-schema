@@ -29,15 +29,25 @@ MANIFEST="config/cloudkit-schema.txt"
 # Every literal record key the household and table writers use. Grepped from
 # the two files that own the wire, so a field added to a record shows up
 # here on the commit that adds it.
+# Each field is reported with the writer it lives in, not as a bare name.
+# A bare set cannot tell "a new field" from "a field this type has never had
+# before": `removed` is deployed on the night record, and adding `removed` to
+# the recipe record would have matched an entry already in the manifest and
+# shipped with a tick. The enclosing `func` is the cheapest stand-in for the
+# record type and it moves whenever the writer does.
 current() {
   {
-    grep -ohE 'Wire\.set(List|Asset|Assets)?\(record, "[A-Za-z0-9_]+"' \
-      Plated/Services/HouseholdShare.swift 2>/dev/null \
-      | grep -ohE '"[A-Za-z0-9_]+"'
-    grep -ohE 'record\["[A-Za-z0-9_]+"\] *=' \
-      Plated/Services/TableShare.swift Plated/Services/PlanShare.swift 2>/dev/null \
-      | grep -ohE '"[A-Za-z0-9_]+"'
-  } | tr -d '"' | sort -u
+    awk '/^ *(static )?func /{ fn=$0; sub(/^ *(static )?func /,"",fn); sub(/\(.*/,"",fn) }
+         match($0, /Wire\.set(List|Asset|Assets)?\(record, "[A-Za-z0-9_]+"/) {
+           k=substr($0,RSTART,RLENGTH); sub(/.*"/,"",k); sub(/"$/,"",k)
+           match($0, /"[A-Za-z0-9_]+"/); key=substr($0,RSTART+1,RLENGTH-2)
+           print fn "." key }' Plated/Services/HouseholdShare.swift 2>/dev/null
+    awk '/^ *(private )?(static )?func /{ fn=$0; sub(/^ *(private )?(static )?func /,"",fn); sub(/\(.*/,"",fn) }
+         match($0, /record\["[A-Za-z0-9_]+"\] *=/) {
+           s=substr($0,RSTART,RLENGTH); match(s, /"[A-Za-z0-9_]+"/)
+           print fn "." substr(s,RSTART+1,RLENGTH-2) }' \
+      Plated/Services/TableShare.swift Plated/Services/PlanShare.swift 2>/dev/null
+  } | sort -u
 }
 
 if [ "$1" = "--accept" ]; then
@@ -53,7 +63,7 @@ fi
 # otherwise silence this gate at exactly the moment it matters most: the
 # code changed under it.
 COUNT=$(current | wc -l | tr -d ' ')
-if [ "$COUNT" -lt 40 ]; then
+if [ "$COUNT" -lt 100 ]; then
   echo "✗ Only $COUNT CloudKit fields found in the source. The extraction has broken," >&2
   echo "  which is not the same as there being nothing to check. Fix the greps in" >&2
   echo "  this script before shipping." >&2

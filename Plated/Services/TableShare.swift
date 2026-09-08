@@ -1289,8 +1289,14 @@ enum TableShare {
         // The plan lives in the household zone, which the household primer
         // mints. No zone, nothing to teach yet: say so rather than fail.
         guard let (db, zoneID) = await householdZone(ownedBy: "") else {
-            print("[PlanShare] prime: no household zone yet; run -plated-prime-household first")
-            return "skipped: no household zone yet (run -plated-prime-household first)"
+            // Deliberately NOT "run -plated-prime-household first". That is
+            // the advice that made this unmintable: the household primer
+            // deletes the zone on its way out, so running it first is the
+            // one order guaranteed to leave none. It calls this itself now,
+            // in the moment the zone is alive, and reaching here means the
+            // household is not set up rather than that a step was missed.
+            print("[PlanShare] prime: no household zone; the household primer calls this itself")
+            return "skipped: no household zone (the household primer mints the plan itself)"
         }
         // `editorID` and `editorName` ride on the author here: `planRecord`
         // writes them from it, so this probe mints both non-nil. A field
