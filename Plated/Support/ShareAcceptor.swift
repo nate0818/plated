@@ -22,6 +22,20 @@ final class ShareAcceptor: NSObject, UIApplicationDelegate {
     /// Something changed at a table. Fetch, do not guess.
     @MainActor static let didChangeRemotely = Notification.Name("plated.table.remoteChange")
 
+    /// An invitation has been read and is waiting for a yes. Posted on the
+    /// main actor with `userInfo["received"]` a `Received`; the shell
+    /// presents the dialog or the join sheet. Nothing is accepted before a
+    /// person says so, on any road (docs/household.md section 7).
+    @MainActor static let invitationReceived = Notification.Name("plated.invitation.received")
+
+    /// What a link turned out to be, decided by the zone the share sits on
+    /// rather than by what the link claimed.
+    enum Received {
+        case table(metadata: CKShare.Metadata, host: String, invite: String?)
+        case household(metadata: CKShare.Metadata, root: HouseholdShare.RemoteRoot?, seat: String?, host: String)
+        case failed(reason: String)
+    }
+
     func application(
         _ application: UIApplication,
         didFinishLaunchingWithOptions options: [UIApplication.LaunchOptionsKey: Any]? = nil
@@ -128,7 +142,7 @@ final class ShareAcceptor: NSObject, UIApplicationDelegate {
         // Who am I, before deciding what is mine. A placeholder id would
         // make every one of this person's own posts look like a stranger's,
         // and the news would narrate their dinner back to them.
-        await TableIdentity.confirmAndReattribute()
+        await TableIdentity.confirmAndReattribute(in: context)
         TableShare.merge(changes, into: context)
         // Nights other phones planned, and what changed about them, kept
         // before the ledger is overwritten so the news can say "moved".
@@ -144,6 +158,13 @@ final class ShareAcceptor: NSObject, UIApplicationDelegate {
                 $0.seat == .joined && !before.contains($0.persistentModelID)
             }
         }
+        // An invitation the invitee answered stops being one that is
+        // waiting. The claim is written by the phone that accepted, so it
+        // arrives in this delta beside the seat it belongs to; settling
+        // here rather than at the call site keeps every fold of a delta
+        // saying the same thing about a seat. An empty claim list is a
+        // no-op, which is what the household's plan-only delta carries.
+        TableInvites.shared.settle(claims: changes.claims)
         if changes.householdShareChanged {
             // The head's own household zone keeps a departed member's
             // nights unless the head takes them out; nothing on the server
@@ -190,37 +211,148 @@ final class ShareAcceptor: NSObject, UIApplicationDelegate {
         print("[Push] no APNs token: \(error.localizedDescription)")
     }
 
+    /// A raw `icloud.com/share` link, handed over by the system. The same
+    /// road as every other: read, dispatch on the zone, and let the shell
+    /// ask. Accepting here would seat a person at whatever a tapped link
+    /// pointed at before they had seen whose it was.
     func application(
         _ application: UIApplication,
         userDidAcceptCloudKitShareWith metadata: CKShare.Metadata
     ) {
-        Task { @MainActor in await Self.accept(metadata) }
+        Task { @MainActor in
+            if let url = metadata.share.url {
+                await Self.received(shareURL: url, seat: nil, invite: nil, linkHost: "")
+            } else {
+                // No URL to re-fetch the root by; dispatch on what came.
+                Self.dispatch(metadata, seat: nil, invite: nil, linkHost: "")
+            }
+        }
     }
 
-    /// Accept an invitation that arrived through our own domain rather than
-    /// through iCloud's.
-    ///
-    /// A raw `icloud.com/share` link is handed to the delegate above by the
-    /// system. A `plated.food/join?s=…` link is not — it is a Universal
-    /// Link, so it arrives as an ordinary URL and the metadata has to be
-    /// fetched before it can be accepted. Both roads end in the same place.
-    ///
-    /// The wrapper exists because the raw link is a dead end for anyone who
-    /// doesn't have Plated yet: iCloud shows them a page about a share they
-    /// cannot open. Ours shows them what Plated is and where to get it.
+    /// Every road ends here (docs/household.md section 7): a Universal
+    /// Link, `plated://join`, the directory's `plated://invite` push, and
+    /// the CloudKit delegate above. The metadata is fetched with the root
+    /// record, because the join sheet is drawn from the root before
+    /// anything is accepted, and the kind is decided by the zone the share
+    /// sits on, never by what the URL claimed. Posts `invitationReceived`;
+    /// accepts nothing.
     @MainActor
-    static func accept(shareURL: URL) async {
+    static func received(shareURL: URL, seat: String?, invite: String?, linkHost: String) async {
+        print("PLATED HOUSEHOLD: reading invitation \(shareURL.host ?? "?")\(seat.map { " seat \($0)" } ?? "")\(invite.map { " invite \($0)" } ?? "")")
         do {
-            let metadata = try await TableShare.shareMetadata(for: shareURL)
-            await accept(metadata)
+            let metadata = try await metadataWithRoot(for: shareURL)
+            dispatch(metadata, seat: seat, invite: invite, linkHost: linkHost)
         } catch {
-            print("PLATED SHARE: couldn't read that invitation — \(error.localizedDescription)")
+            print("PLATED HOUSEHOLD: couldn't read that invitation: \(error.localizedDescription)")
             Haptic.warn()
+            let reason: String
+            if let ck = error as? CKError, ck.code == .unknownItem {
+                // The link's own `h` is never trusted for a name, and with
+                // no metadata there is no other source.
+                reason = "This link doesn't work anymore. Ask the person who sent it for a new one."
+            } else {
+                switch await TableSync.accountState() {
+                case .noAccount:
+                    reason = "Sign in to iCloud on this iPhone to join, then open the link again."
+                case .restricted:
+                    reason = "iCloud is restricted on this iPhone, so Plated can't join a household."
+                default:
+                    reason = "Couldn't reach iCloud. Check your connection and open the link again."
+                }
+            }
+            post(.failed(reason: reason))
+        }
+    }
+
+    /// Which room this share opens. The zone name is the one fact a link
+    /// cannot forge.
+    @MainActor
+    private static func dispatch(_ metadata: CKShare.Metadata, seat: String?, invite: String?, linkHost: String) {
+        let zone = metadata.hierarchicalRootRecordID?.zoneID.zoneName
+            ?? metadata.share.recordID.zoneID.zoneName
+        let parts = metadata.ownerIdentity.nameComponents
+        let owner = [parts?.givenName, parts?.familyName].compactMap { $0 }
+            .joined(separator: " ").trimmingCharacters(in: .whitespaces)
+        switch zone {
+        case HouseholdShare.zoneName:
+            let root = metadata.rootRecord.map(HouseholdShare.remoteRoot(from:))
+            let host = owner.isEmpty ? (root?.hostName ?? "") : owner
+            print("PLATED HOUSEHOLD: a household invitation from \(host.isEmpty ? "somebody unnamed" : host), root \(root == nil ? "missing" : "read")")
+            post(.household(metadata: metadata, root: root, seat: seat, host: host))
+        case TableShare.zoneName:
+            let host = owner.isEmpty ? linkHost.trimmingCharacters(in: .whitespaces) : owner
+            print("PLATED HOUSEHOLD: a table invitation from \(host.isEmpty ? "somebody unnamed" : host)")
+            post(.table(metadata: metadata, host: host, invite: invite))
+        default:
+            print("PLATED HOUSEHOLD: a share on zone \"\(zone)\" is not an invitation")
+            post(.failed(reason: "That link isn't a Plated invitation."))
         }
     }
 
     @MainActor
-    private static func accept(_ metadata: CKShare.Metadata) async {
+    private static func post(_ received: Received) {
+        NotificationCenter.default.post(name: invitationReceived, object: nil, userInfo: ["received": received])
+    }
+
+    /// The share's metadata with its root record, so a household invitation
+    /// can draw the join sheet before it is accepted. `TableShare.shareMetadata`
+    /// fetches without the root and is left as it is.
+    /// Internal rather than private: `HouseholdSync.join` asks for the root
+    /// again when a road dispatched without one, because `removedIDs` lives
+    /// there and a removed person may not join on the old link (§1).
+    static func metadataWithRoot(for url: URL) async throws -> CKShare.Metadata {
+        #if PLATED_CLOUDKIT
+        try await withCheckedThrowingContinuation { continuation in
+            let operation = CKFetchShareMetadataOperation(shareURLs: [url])
+            operation.shouldFetchRootRecord = true
+            operation.rootRecordDesiredKeys = [
+                "name", "hostName", "hostPhoto", "tableShareURL", "publishedAt",
+                "removedIDs", "autoRotateOpenNights", "modifiedAt"
+            ]
+            var found: CKShare.Metadata?
+            operation.perShareMetadataResultBlock = { _, result in
+                if case .success(let metadata) = result { found = metadata }
+            }
+            operation.fetchShareMetadataResultBlock = { result in
+                switch result {
+                case .success:
+                    if let found { continuation.resume(returning: found) }
+                    else { continuation.resume(throwing: CKError(.unknownItem)) }
+                case .failure(let error):
+                    continuation.resume(throwing: error)
+                }
+            }
+            CKContainer.default().add(operation)
+        }
+        #else
+        throw CKError(.unknownItem)
+        #endif
+    }
+
+    /// The old door, kept for any caller that still knocks on it: it now
+    /// reads and asks rather than accepting.
+    @MainActor
+    static func accept(shareURL: URL) async {
+        await received(shareURL: shareURL, seat: nil, invite: nil, linkHost: "")
+    }
+
+    /// A person said yes to a Table invitation. Accept, name the invitation
+    /// the link carried so the host's next pull can settle it, and pull.
+    @MainActor
+    static func acceptTable(_ metadata: CKShare.Metadata, invite: String?) async -> Bool {
+        guard await accept(metadata) else { return false }
+        if let invite, !invite.isEmpty {
+            let owner = metadata.hierarchicalRootRecordID?.zoneID.ownerName
+                ?? metadata.share.recordID.zoneID.ownerName
+            let claimed = await TableShare.pushClaim(inviteID: invite, zoneOwner: owner)
+            print("PLATED HOUSEHOLD: table claim \(claimed ? "written" : "refused")")
+        }
+        await TablePull.pull(reason: "accept")
+        return true
+    }
+
+    @MainActor
+    private static func accept(_ metadata: CKShare.Metadata) async -> Bool {
         let ok = await TableShare.accept(metadata)
         if ok {
             Haptic.kiss()
@@ -238,6 +370,7 @@ final class ShareAcceptor: NSObject, UIApplicationDelegate {
             // the seat simply doesn't appear, and the host can re-send.
             Haptic.warn()
         }
+        return ok
     }
 
     /// The share URL carried inside one of our own invitation links.

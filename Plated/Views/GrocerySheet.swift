@@ -168,6 +168,11 @@ struct GrocerySheet: View {
                         Button("Undo last check") {
                             guard let (item, data, checked) = undoCheck else { return }
                             item.purchasesData = data; item.isChecked = checked
+                            // The undo is a newer fact than the check it
+                            // takes back, so it goes to the household too;
+                            // otherwise the mark would win it back on the
+                            // next rebuild.
+                            item.recordMark()
                             undoCheck = nil; Persist.save(context)
                         }.plType(.footnote, .bold).plTapTarget()
                     }
@@ -307,6 +312,9 @@ struct GrocerySheet: View {
                 context.delete(item)
             } else {
                 item.isDismissed = true
+                // The dismissal is the household's fact, not this phone's:
+                // the mark carries the window it lapses with.
+                item.recordMark()
             }
         }
     }

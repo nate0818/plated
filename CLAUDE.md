@@ -64,9 +64,10 @@ rendering a hair larger so fixed-height layouts overflow, and Foundation Models.
 - **CloudKit needs table GRANTs, not just RLS** on the Supabase side; "expose new
   tables" being off locks out the service role too.
 - **Model changes must stay CloudKit-safe**: new properties optional or defaulted.
-- **Hand-written CloudKit types live in the `PlatedDish*` namespace and nothing
-  else may.** The SwiftData mirror adopts any private-database record whose
-  type matches one of its entity names, which is the ghost post in MEMORY.md.
+- **Hand-written CloudKit types carry a reserved `Plated` prefix (`PlatedDish*`
+  for the Table, `PlatedHousehold*` for the household) and nothing else may.**
+  The SwiftData mirror adopts any private-database record whose type matches
+  one of its entity names, which is the ghost post in MEMORY.md.
   `TableShare.assertNoEntityCollision()` makes that a DEBUG check rather than
   something to remember. `TablePost` is the one exception and is read-only: it
   IS the collision, and it cannot be renamed without abandoning tables shared

@@ -270,3 +270,113 @@ and a face. Reopen if Apple lets a service extension suppress a delivery,
 or if the directory grows a per-person "who to tell" so named Table alerts
 could be sent from a server that knows the author, at which point "never
 about your own action" has to be re-proven there before one alert is sent.
+
+## 17. A link-joined participant is removed one at a time, and CloudKit may not allow it
+
+`Seats.remove` (`Plated/Services/Seats.swift`, line 216) evicts a joined seat
+through `HouseholdShare.removeParticipant` (`Plated/Services/HouseholdShare.swift`,
+line 1627), which finds the participant by `userRecordID` on the household
+share and saves the share without them. docs/household.md section 1 records
+the constraint underneath it: Apple documents participant edits as allowed
+only while `publicPermission` is `.none`, and the household share is
+`.readWrite` public on purpose, because the participant-only shares the
+Table tried admitted almost nobody. So this code is written against a
+behaviour Apple has not promised. When it works, one person leaves and the
+rest keep the plan. When it is refused, the row says "Couldn't remove Riley"
+and stops, and the only certain eviction is the one nobody wants: set
+`publicPermission = .none`, which drops every participant at once, and then
+re-invite the others.
+
+The two answers: keep the one-at-a-time attempt and accept that Remove may
+be a control that says no on some accounts, or replace it with the certain
+version and make Remove mean "start the household's guest list again",
+which is honest but turns a one-person action into an everyone action.
+What settles it is a measurement, not an argument: Remove, on three phones
+with three Apple IDs, on a share that has two link-joined participants.
+Until that has been run once, the code tries, says what happened, and this
+entry stands.
+
+## 18. The chef's kiss denominator, now that the roster is shared
+
+Entry 1b measured `hasChefsKiss(seats:)` against the reader's own
+`members.count`. The household zone changes half of that. Every member's
+phone now carries the same roster, so `members.count` agrees across a
+household and the member's phone stops firing the kiss at a single plate.
+What it does not fix is the other half: a Table-only friend can plate and
+is not in the roster, and a by-name seat is in the roster and cannot plate.
+Ten call sites still pass `members.count` (`TablePost.hasChefsKiss`,
+`Plated/Models/TablePost.swift`, line 157; four of the sites are in
+`TableFeedView`).
+
+The honest denominator is still the Table's participants, which is a
+CloudKit round trip and unavailable in a body. Two ways to get there:
+count `.joined` seats plus the Table share's non-roster participants, cached
+in the ledger per zone, which changes what the kiss has meant since it
+shipped; or leave the roster count, which is now right for a household with
+no Table guests and wrong by exactly the number of guests otherwise. The
+first is a product call about what "everyone" means at a table that has
+guests. The second is what ships. A test that seeds two seats and one guest
+and asserts which plate count earns the kiss would make the choice visible
+either way.
+
+## 19. "Nothing for you to do" now reaches every member
+
+Entry 1c is about one reminder on one phone. The shared plan makes it
+several. `NotificationScheduler.scheduleTurns`
+(`Plated/Services/NotificationScheduler.swift`, line 216) sends "Riley cooks
+tomorrow. Sheet-pan chicken. Nothing for you to do." with a sound at 19:00
+to everybody who is not the cook, and it is rebuilt on every phone after
+every household pull, from the same meals. Before the household crossed
+Apple IDs that was the host's phone and a kid's; now it is every member's
+phone, and a household of four hears three phones say there is nothing to
+do about the fourth one's night.
+
+The two answers from the Sept 4 panel have not changed and neither has who
+decides: keep it and make it passive, or send only the cook's own reminder
+and let the widget carry the rest. What has changed is the cost of leaving
+it. It used to be a single reminder that arguably over-shared; it is now the
+one household notification that scales with the household. Nate's call,
+still, and this entry only records that the number went up.
+
+## 20. A joiner's past cooked nights stay on their phone and never travel
+
+`HouseholdSync.clearBeforeFirstPull` (`Plated/Services/HouseholdSync.swift`,
+line 935) deletes a joiner's planned meals from today on and keeps the
+earlier ones, with their `shareRecordName` cleared so the observer never
+enqueues them and the one-dinner rule can never pit them against the host's.
+docs/household.md section 14 states the intent: their insights are theirs;
+the household's are the household's. The visible effect is on
+`HouseholdStatsView` and `Awards.metrics`: a person who cooked forty nights
+before joining still sees forty on their own phone, and the household they
+joined sees none of them, which is right for the household and can read as
+a loss to the person the moment they compare phones.
+
+The other answer is to push past nights as history with the joiner's seat
+as cook, which gives the household an honest record of what its new member
+cooked and gives every other phone forty rows of somebody else's dinners
+from before they met. Both are defensible. What would settle it is a
+household where this actually happened: one joiner with a real history and
+a host looking at the month view afterwards. Until then the quieter answer
+ships, and a later push of history would need a pull rule for meals older
+than the join, which nothing today has.
+
+## 21. Extra photos arrive with the recipe and every mirror re-exports them
+
+`HouseholdShare.merge` (`Plated/Services/HouseholdShare.swift`, line 1340)
+replaces a recipe's `RecipePhoto` rows from `extraPhotos` on arrival, so a
+member's phone holds every photo the moment the recipe lands and the
+member's own private mirror then uploads all of them again to that
+member's iCloud. docs/household.md section 2 accepts the cost in words: a
+household of four stores its cookbook four times over plus once in the
+zone. The photos are most of the bytes, so the sentence is really about
+them. Fetching extras on demand would keep each phone to the hero image
+until a person opens the recipe, and would put a spinner on a photo strip
+that is instant today, on a screen that works offline today.
+
+Two defensible answers, and the tie-breaker is a number nobody has yet: how
+big a real household's cookbook gets. Six recipes with three photos each
+is nothing; two hundred with six each is a storage complaint. What settles
+it is the first such complaint, or a measurement of the mirror's upload
+after a join on a phone with a full cookbook, read off iCloud storage in
+Settings before and after. Section 14 already says revisit then; this entry
+says what to measure.

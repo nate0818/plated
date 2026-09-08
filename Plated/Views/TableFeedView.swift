@@ -94,7 +94,6 @@ struct TableFeedView: View {
     /// and the photo is a door — so the menu carries the rest.
     @State private var pendingDelete: TablePost?
     @State private var editingPost: TablePost?
-    @AppStorage("pendingSeats") private var pendingSeatsRaw = ""
 
     /// Everything worth showing. A post with no author, no dish, no words
     /// and no photo is not a post — see `TablePost.isBlank`. Filtered here
@@ -184,7 +183,7 @@ struct TableFeedView: View {
             return all.first { $0.shareRecordName == name }
         }
         await TableOutbox.shared.drain(
-            authorName: members.first(where: \.isOwner)?.name ?? ""
+            authorName: members.me?.name ?? ""
         )
         // Two different pipes, pulled together because the user pulled once.
         // The mirror carries this household's own devices; TableShare
@@ -295,58 +294,11 @@ struct TableFeedView: View {
         }
     }
 
-    /// The people you granted and invited when you set your table.
-    ///
-    /// An invite is not an account, so these people have no posts — which
-    /// meant "Everyone" quietly showed everyone who had *posted*, and the
-    /// contacts you had just handed over appeared nowhere. Same storage the
-    /// seats sheet reads, so cancelling an invite there empties it here.
-    private var invitedSeats: [String] {
-        pendingSeatsRaw.split(separator: "\n").map(String.init).filter { !$0.isEmpty }
-    }
-
     private func initials(for name: String) -> String {
         let parts = name.split(separator: " ")
             .filter { $0.first?.isLetter == true }
             .prefix(2)
         return parts.compactMap { $0.first }.map(String.init).joined().uppercased()
-    }
-
-    /// Faces before posts: who is at the table reads ahead of what they
-    /// cooked. Neutral tone, matching the seats sheet — an invited person
-    /// has not earned a color yet.
-    private var invitedStrip: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            MicroLabel("You invited")
-                .padding(.horizontal, 24)
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 16) {
-                    ForEach(invitedSeats, id: \.self) { name in
-                        Button {
-                            Haptic.tap()
-                            seatsPresented = true
-                        } label: {
-                            VStack(spacing: 6) {
-                                AvatarCircle(
-                                    initials: initials(for: name),
-                                    tone: .neutralPair, size: 48,
-                                    photo: members.photo(forAuthor: name)
-                                )
-                                Text(name.split(separator: " ").first.map(String.init) ?? name)
-                                    .plType(.micro, .semibold)
-                                    .foregroundStyle(Color.inkSecondary)
-                                    .lineLimit(1)
-                            }
-                            .frame(width: 62)
-                        }
-                        .buttonStyle(.pressable)
-                        .accessibilityLabel("\(name), invited")
-                    }
-                }
-                .padding(.horizontal, 24)
-            }
-        }
-        .padding(.vertical, 14)
     }
 
     /// True once "Everyone" and "Household" could return different lists —
@@ -406,9 +358,6 @@ struct TableFeedView: View {
 
                 ScrollView(showsIndicators: false) {
                     LazyVStack(spacing: 0) {
-                        if scope == .everyone, !invitedSeats.isEmpty {
-                            invitedStrip
-                        }
                         ForEach(Array(shownPosts.enumerated()),
                                 id: \.element.persistentModelID) { index, post in
                             // Before each card except the very first thing in
@@ -416,7 +365,7 @@ struct TableFeedView: View {
                             // the boundary BETWEEN two rows; trailing the final
                             // one, the feed ended on a hairline with nothing
                             // under it but the floating bar's inset.
-                            if index > 0 || (scope == .everyone && !invitedSeats.isEmpty) {
+                            if index > 0 {
                                 Divider().overlay(Color.hairlineSoft)
                             }
                             Group {
@@ -461,10 +410,14 @@ struct TableFeedView: View {
                     // Seed the ledger from the fields that used to hold
                     // this, once, before anything reads it.
                     TableReactions.backfill(posts, context: context)
-                    // Ask CloudKit who we are. A placeholder minted while
-                    // offline is re-attributed the moment a real id arrives,
-                    // so nothing tapped on a plane is orphaned.
-                    await TableIdentity.confirmAndReattribute()
+                    // Ask CloudKit who we are, through the one door: a
+                    // placeholder minted while offline is re-attributed the
+                    // moment a real id arrives, so nothing tapped on a plane
+                    // is orphaned, and a real id that became a different
+                    // real id is an account switch, not a rename. The copy
+                    // that used to live here moved the ledger and the outbox
+                    // and left the household rows behind.
+                    _ = await TableIdentity.confirmAndReattribute(in: context)
                     await refreshFeed()
                 }
                 // A seat accepted from Messages while the Table is already
@@ -476,9 +429,6 @@ struct TableFeedView: View {
                     for: ShareAcceptor.didChangeRemotely
                 )) { _ in
                     Task { await refreshFeed() }
-                }
-                .onReceive(NotificationCenter.default.publisher(for: ShareAcceptor.didAccept)) { _ in
-                    Task { await TablePull.pull(reason: "accept") }
                 }
                 // A notice about one dish opens that dish. The request is
                 // parked by the shell; the feed collects it here, or on
@@ -649,7 +599,7 @@ struct TableFeedView: View {
                     // does not exist, on the first screen every new user
                     // sees. It is an overflow marker, so it appears only
                     // when something has actually overflowed.
-                    let others = Array(members.filter { !$0.isOwner }.prefix(2))
+                    let others = Array(members.filter { !$0.isMe }.prefix(2))
                     ForEach(others, id: \.persistentModelID) { member in
                         AvatarCircle(member: member, size: 34)
                             .overlay(Circle().strokeBorder(Color.canvas, lineWidth: 2))
@@ -686,9 +636,12 @@ struct TableFeedView: View {
             } label: {
                 VStack(spacing: 2) {
                     AvatarCircle(initials: hostInitial, tone: .neutralPair, size: 38,
-                                 photo: members.first(where: \.isOwner)?.photoData)
+                                 photo: members.me?.photoData)
                         .matchedTransitionSource(id: ZoomID.host, in: zoom)
-                    Text("HOST")
+                    // The label is a fact about the row, not the corner: on
+                    // a member's phone the face in this corner is theirs and
+                    // the host is somebody else.
+                    Text(members.me?.isOwner == false ? "YOU" : "HOST")
                         .plType(.micro)
                         .foregroundStyle(Color.inkSecondary)
                         // One line, always. This sits in a squeezed masthead
@@ -712,11 +665,11 @@ struct TableFeedView: View {
     }
 
     private var hostInitial: String {
-        String(members.first(where: \.isOwner)?.name.first ?? "Y").uppercased()
+        String(members.me?.name.first ?? "Y").uppercased()
     }
 
     private func openOwnProfile() {
-        let me = members.first(where: \.isOwner)
+        let me = members.me
         personDoor = .host
         personShown = PersonRef(name: me?.name ?? "You", colorHex: me?.colorHex ?? "", memberID: me?.persistentModelID)
     }
@@ -1124,7 +1077,7 @@ struct TableFeedView: View {
         // always was. Two people called Sam broke this in about six places.
         if !post.authorID.isEmpty { return post.authorID == TableIdentity.cached }
         guard !post.isRemote else { return false }
-        guard let me = members.first(where: \.isOwner)?.name else { return false }
+        guard let me = members.me?.name else { return false }
         return post.authorName == me || post.firstName == me
     }
 

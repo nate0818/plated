@@ -100,7 +100,12 @@ enum WidgetBridge {
         var tonightPhoto: Data?
         var tonightPhotoDark: Data?
 
-        let owner = (try? context.fetch(FetchDescriptor<HouseholdMember>()))?.first(where: \.isOwner)
+        // One idea of you, read once and used everywhere below. The widget
+        // compares a cook's name against `ownerName` to say "You", so the
+        // head of table is the wrong person to ask on a member's phone:
+        // `.me` is identity first and falls back to the head only where the
+        // two really are the same person.
+        let me = (try? context.fetch(FetchDescriptor<HouseholdMember>()))?.me
         let ledger = PlanLedger.shared
 
         for offset in 0..<7 {
@@ -112,7 +117,7 @@ enum WidgetBridge {
             // open. The widget draws it the way the app does; it is never a
             // PlannedMeal, so it reaches the snapshot here and nowhere else.
             let remote = meal == nil ? ledger.dinner(on: date) : nil
-            let remoteCook = remote.map { cook(for: $0, owner: owner) }
+            let remoteCook = remote.map { cook(for: $0, me: me) }
             days.append(Snapshot.Day(
                 day: formatter.string(from: date).uppercased(),
                 planned: meal != nil || remote != nil,
@@ -163,8 +168,12 @@ enum WidgetBridge {
         let (table, tablePhoto) = latestTablePost(from: context)
         let (cookbook, cookbookPhoto) = mostLovedRecipe(from: context)
 
+        // The widget reads `ownerName == cookName` as "you". On a member's
+        // phone the head of table is somebody else, so the name written
+        // here is the reader's; the key keeps its name so the widget target,
+        // which cannot see this file, keeps working unchanged.
         let snapshot = Snapshot(
-            ownerName: owner?.name,
+            ownerName: me?.name,
             generatedAt: .now,
             plannedCount: days.filter(\.planned).count,
             tonight: tonight,
@@ -193,14 +202,16 @@ enum WidgetBridge {
     // MARK: Pieces
 
     /// The cook of a remote night as the widget names people. When the cook
-    /// is me, the owner's own name, initial and colour go in, so the
-    /// widget's string comparison against `ownerName` says "You" the way
-    /// the app does. A cook with no real seat is no cook, which the writer
-    /// already enforces by blanking the name.
+    /// is me, my own name, initial and colour go in, so the widget's string
+    /// comparison against `ownerName` says "You" the way the app does. It
+    /// is the same person the snapshot's `ownerName` carries, which on a
+    /// member's phone is the reader rather than the head of table. A cook
+    /// with no real seat is no cook, which the writer already enforces by
+    /// blanking the name.
     @MainActor
-    private static func cook(for entry: PlanLedger.Entry, owner: HouseholdMember?) -> (initial: String, hex: String, name: String?) {
-        if PlanLedger.shared.isMine(cook: entry), let owner {
-            return (owner.firstInitial, owner.colorHex, owner.name)
+    private static func cook(for entry: PlanLedger.Entry, me: HouseholdMember?) -> (initial: String, hex: String, name: String?) {
+        if PlanLedger.shared.isMine(cook: entry), let me {
+            return (me.firstInitial, me.colorHex, me.name)
         }
         guard entry.hasCook else { return ("", "", nil) }
         let initial = entry.cookName.first.map(String.init)?.uppercased() ?? ""

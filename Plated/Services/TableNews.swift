@@ -76,7 +76,17 @@ enum TableNews {
     private static let visibleCap = 4
 
     struct Notice {
-        enum Kind: String { case dish, ask, comment, plates, kiss, votes, seat, more, plan }
+        enum Kind: String {
+            case dish, ask, comment, plates, kiss, votes, seat, more
+            /// A night another phone planned, read from `PlanLedger`
+            /// (docs/plan-share.md).
+            case plan
+            /// The household (docs/household.md section 10): a seat joined
+            /// or left, a night planned, a recipe added, an edit that lost.
+            /// `night` is `plan`'s twin from the meal merge and goes with
+            /// it; the ledger's `plan` is the one that survives.
+            case householdSeat, householdLeft, night, recipe, conflict
+        }
         var kind: Kind
         /// Dedupe key, remembered (for the last 400). Several keys joined
         /// with "|" when one notice covers several events.
@@ -102,8 +112,13 @@ enum TableNews {
         /// Which bell row this is. Plates and votes share one per post, so
         /// a second delivery updates the row rather than adding a sibling.
         var rowKey: String
-        /// A seat's row is written by `Seats.reconcile`, which is the thing
-        /// that knows; the notice only says it out loud.
+        /// Whether this notice lands in the bell as well as on the screen.
+        /// Every notice the digest raises does: the row is the record a
+        /// person still has after they swipe the banner away. It was once
+        /// false for a seat, on the premise that `Seats.reconcile` wrote
+        /// that row itself; the rewritten reconcile writes nothing, so the
+        /// premise was a silently missing row and a bell that disagreed
+        /// with the banner.
         var writesRow = true
         /// In the list and on the icon, the screen dark, at any hour. A plate
         /// or a vote: the Table already draws it as a count, and replacing
@@ -133,6 +148,13 @@ enum TableNews {
         /// named in one line, which keeps the composed names.
         var template = ""
         var objectTitle = ""
+        /// Active with sound by day, passive between 22:00 and 08:00, even
+        /// though it is direct: a household join is good news, not a word
+        /// addressed to you, so it can wait until morning.
+        var quietAtNight = false
+        /// A bell row and nothing on the screen, at any hour: an edit that
+        /// lost to somebody else's is worth knowing and not worth a banner.
+        var bellOnly = false
     }
 
     // MARK: Deciding
@@ -190,12 +212,12 @@ enum TableNews {
     ) -> [Notice] {
         let me = TableIdentity.cached
         let members = Seats.all(in: context)
-        let owner = members.first(where: \.isOwner)
+        let myRow = members.me
         // Names are how replies, mentions and tags are addressed on the
         // wire, so a reply is "to me" when it names either thing I am
         // called. Identity would be better; the wire does not carry it yet.
         var myNames = Set<String>()
-        if let owner { myNames.insert(owner.name); myNames.insert(owner.firstName) }
+        if let myRow { myNames.insert(myRow.name); myNames.insert(myRow.firstName) }
         let typed = UserDefaults.standard.string(forKey: "userFirstName") ?? ""
         if !typed.isEmpty { myNames.insert(typed) }
         myNames.remove("")
@@ -381,13 +403,20 @@ enum TableNews {
             ))
         }
 
-        // A seat that just became real. `Seats.reconcile` decided that from
-        // what CloudKit reported and wrote the bell row; this only says so
-        // out loud.
+        // A seat that just became real. `Seats.reconcile` decided that
+        // from what CloudKit reported; the notice says it and writes the
+        // row, because reconcile writes neither. A person whose identity
+        // holds a household seat joined the Table by joining the
+        // household, and the household digest has already said so
+        // (docs/household.md section 10).
         for member in newSeats {
             let key = "seat:\(member.participantID ?? member.name)"
             guard !seen.contains(key), !HouseholdIdentity.isPlaceholder(member.name),
                   member.name != "Someone new" else { continue }
+            if let id = member.participantID, !id.isEmpty,
+               members.contains(where: { $0.userRecordName == id && ($0.seat == .joined || $0.seat == .head) }) {
+                continue
+            }
             notices.append(Notice(
                 kind: .seat, key: key, identifier: idPrefix + key,
                 title: "\(member.firstName) joined your table",
@@ -395,7 +424,7 @@ enum TableNews {
                 line: "\(member.firstName) joined. They can see the Table now.",
                 link: DeepLink.url(.home), post: "",
                 direct: true, photo: nil, feedKind: .seatJoined,
-                actor: member.name, at: .now, rowKey: key, writesRow: false,
+                actor: member.name, at: .now, rowKey: key,
                 relevance: 0.8, actorID: member.participantID ?? "",
                 deed: "Joined your table.", group: "The Table",
                 template: "{actor} joined. They can see the Table now."
@@ -558,7 +587,9 @@ enum TableNews {
     /// so the banner shows the neutral monogram, never a stand-in face.
     private static func dress(_ n: Notice, members: [HouseholdMember]) -> Notice {
         guard !n.actor.isEmpty else { return n }
-        let member = members.first { !n.actorID.isEmpty && $0.participantID == n.actorID }
+        let member = members.first {
+            !n.actorID.isEmpty && ($0.participantID == n.actorID || $0.userRecordName == n.actorID)
+        }
             ?? members.first {
                 $0.name == n.actor && $0.participantID == nil
                     && ($0.seat == .joined || $0.seat == .invited)
@@ -686,9 +717,10 @@ enum TableNews {
     /// was from. Pure, so a test can hold it to the count it promises.
     static func select(_ notices: [Notice]) -> [Notice] {
         // Passive notices never light the screen, so they never compete
-        // for it: four plates cannot crowd a dish out of the four.
-        let quiet = notices.filter(\.passive)
-        let ordered = notices.filter { !$0.passive }.sorted {
+        // for it: four plates cannot crowd a dish out of the four. A
+        // bell-only notice is not handed to the system at all.
+        let quiet = notices.filter { $0.passive && !$0.bellOnly }
+        let ordered = notices.filter { !$0.passive && !$0.bellOnly }.sorted {
             if $0.direct != $1.direct { return $0.direct }
             return $0.at > $1.at
         }
@@ -718,6 +750,7 @@ enum TableNews {
     static func thread(for n: Notice) -> String {
         switch n.kind {
         case .dish, .ask, .seat, .more, .plan: return "table"
+        case .householdSeat, .householdLeft, .night, .recipe, .conflict: return "household"
         default: return n.post.isEmpty ? "table" : n.post
         }
     }
@@ -733,8 +766,10 @@ enum TableNews {
         content.relevanceScore = n.relevance
         // The room can wait until morning. A word to you cannot: that is
         // what a person's Focus is for, and second-guessing it with a
-        // clock is how a reply from your partner goes unheard.
-        content.interruptionLevel = (n.passive || (!n.direct && isQuietHour(now))) ? .passive : .active
+        // clock is how a reply from your partner goes unheard. A household
+        // join is direct by day and waits like the room by night.
+        let quiet = isQuietHour(now) && (!n.direct || n.quietAtNight)
+        content.interruptionLevel = (n.passive || quiet) ? .passive : .active
         content.userInfo = [
             NotificationRouter.Key.link: n.link.absoluteString,
             NotificationRouter.Key.post: n.post,
@@ -1043,7 +1078,7 @@ enum TableNews {
     }
 
     private static func ownerName(in context: ModelContext) -> String {
-        Seats.all(in: context).first(where: \.isOwner)?.name ?? ""
+        Seats.all(in: context).me?.name ?? ""
     }
 
     // MARK: Memory
@@ -1101,10 +1136,246 @@ enum TableNews {
         store.set(names, forKey: namesKey)
     }
 
+    /// A seat carries the identity and the name of the person it is, so
+    /// the household's records can be narrated by the same book.
+    static func learnNames(fromSeats seats: [HouseholdShare.RemoteSeat]) {
+        var learned: [String: String] = [:]
+        for s in seats {
+            if let id = s.userRecordName, !id.isEmpty, !s.name.isEmpty { learned[id] = s.name }
+        }
+        guard !learned.isEmpty else { return }
+        var names = store.dictionary(forKey: namesKey) as? [String: String] ?? [:]
+        names.merge(learned) { _, new in new }
+        store.set(names, forKey: namesKey)
+    }
+
     static func name(for id: String) -> String? {
         let names = store.dictionary(forKey: namesKey) as? [String: String] ?? [:]
         let name = names[id] ?? ""
         return name.isEmpty ? nil : name
+    }
+
+    // MARK: The household (docs/household.md section 10)
+
+    /// Fold a household delivery: bell rows for everything, banners for
+    /// the few, through the same gate and the same cap as the Table's.
+    static func deliver(
+        household changes: HouseholdShare.Changes,
+        outcome: HouseholdShare.MergeOutcome,
+        context: ModelContext
+    ) async {
+        learnNames(fromSeats: changes.seats)
+        guard !TableIdentity.isPlaceholder || rehearsing else {
+            print("[TableNews] identity unconfirmed, nothing decided about the household")
+            return
+        }
+        let notices = digest(household: changes, outcome: outcome, context: context)
+        guard !notices.isEmpty else { return }
+        for n in notices where n.writesRow {
+            writeRow(n, context: context)
+        }
+        remember(notices.map(\.key))
+        dedupeRows(context)
+        Persist.save(context, "household news")
+        AppBadge.sync(context)
+        print("[TableNews] \(notices.count) household notice(s): \(notices.map(\.kind.rawValue))")
+        await show(notices)
+    }
+
+    /// What in a household delta is news for me. Pure over the store and
+    /// the names book, so the tests can hold it to the rules: never about
+    /// my own action (`modifiedBy != me`), never unnamed, never twice,
+    /// nothing at all from a zone read from the beginning, where the join
+    /// has already written the one row that is owed, and nothing about a
+    /// plan or a cookbook that is still being uploaded.
+    static func digest(
+        household changes: HouseholdShare.Changes,
+        outcome: HouseholdShare.MergeOutcome,
+        context: ModelContext
+    ) -> [Notice] {
+        guard !changes.replayed else { return [] }
+        let me = TableIdentity.cached
+        let members = Seats.all(in: context)
+        let seen = seenKeys()
+        var notices: [Notice] = []
+
+        // History is not news, and the host's first publish is history.
+        // A joiner's pull is incremental from the moment they joined
+        // (their join stored the token), so every row `publishAll` drains
+        // afterwards arrives here as a fresh night and a fresh recipe:
+        // hundreds of "Nate planned 3 Mar" and "Nate added Ragu" about a
+        // plan and a cookbook that were there before they were. While the
+        // root carries no `publishedAt` the app is already saying so on
+        // the Plan and in the Cookbook, "Still arriving from Nate's
+        // phone" (docs/household.md section 7, step 6), and the root is
+        // drained last precisely so that stamp means everything else has
+        // landed. Seats, departures and conflicts still speak: those are
+        // events, not a back catalogue.
+        let stillArriving = HouseholdShare.membership.owner != nil
+            && HouseholdShare.cachedPublishedAt == nil
+            && changes.root?.publishedAt == nil
+
+        // The same rule pointing the other way, on the host's phone. A
+        // joiner adopts and pushes everything they brought in one go
+        // (section 7, step 5), so their whole cookbook lands in the
+        // delivery that carries their seat. "Riley joined your household"
+        // is the news; the cookbook behind it is not.
+        let arriving = Set(outcome.newSeats.compactMap(\.userRecordName).filter { !$0.isEmpty })
+
+        // Who touched a record last, by name, from this delivery.
+        var modifiedBy: [String: String] = [:]
+        for s in changes.seats { modifiedBy[s.recordName] = s.modifiedBy }
+        for m in changes.meals { modifiedBy[m.recordName] = m.modifiedBy }
+        for r in changes.recipes { modifiedBy[r.recordName] = r.modifiedBy }
+        var modifiedAt: [String: Date] = [:]
+        for s in changes.seats { modifiedAt[s.recordName] = s.modifiedAt }
+        for m in changes.meals { modifiedAt[m.recordName] = m.modifiedAt }
+        for r in changes.recipes { modifiedAt[r.recordName] = r.modifiedAt }
+
+        /// The person behind an identity: their seat's name first, then
+        /// what earlier deliveries taught. Nil is "not sent".
+        func person(_ id: String) -> (full: String, first: String)? {
+            guard !id.isEmpty else { return nil }
+            let name = members.first { $0.userRecordName == id }?.name ?? name(for: id) ?? ""
+            guard !name.isEmpty, !HouseholdIdentity.isPlaceholder(name) else { return nil }
+            let first = firstName(name)
+            return first == "Someone" ? nil : (name, first)
+        }
+
+        for member in outcome.newSeats {
+            let by = modifiedBy[member.shareRecordName] ?? ""
+            guard by != me, member.userRecordName != me else { continue }
+            let id = member.userRecordName ?? member.shareRecordName
+            let key = "household:\(id)"
+            guard !seen.contains(key), !HouseholdIdentity.isPlaceholder(member.name) else { continue }
+            let who = firstName(member.name)
+            guard who != "Someone" else { continue }
+            notices.append(Notice(
+                kind: .householdSeat, key: key, identifier: idPrefix + key,
+                title: "\(who) joined your household",
+                body: "They can see the plan, the grocery list and the cookbook now.",
+                line: "\(who) joined your household. They can see the plan, the grocery list and the cookbook now.",
+                link: DeepLink.url(.home), post: "",
+                direct: true, photo: nil, feedKind: .householdJoined,
+                actor: member.name, at: modifiedAt[member.shareRecordName] ?? .now, rowKey: key,
+                relevance: 0.8, actorID: member.userRecordName ?? "",
+                deed: "Joined your household.", group: "Home",
+                quietAtNight: true
+            ))
+        }
+
+        for member in outcome.leftSeats {
+            let by = modifiedBy[member.shareRecordName] ?? ""
+            guard by != me, member.userRecordName != me else { continue }
+            let id = member.userRecordName ?? member.shareRecordName
+            let key = "household-left:\(id)"
+            guard !seen.contains(key), !HouseholdIdentity.isPlaceholder(member.name) else { continue }
+            let who = firstName(member.name)
+            guard who != "Someone" else { continue }
+            notices.append(Notice(
+                kind: .householdLeft, key: key, identifier: idPrefix + key,
+                title: "\(who) left your household",
+                body: "Their nights are open again.",
+                line: "\(who) left your household. Their nights are open again.",
+                link: DeepLink.url(.home), post: "",
+                direct: false, photo: nil, feedKind: .householdLeft,
+                actor: member.name, at: modifiedAt[member.shareRecordName] ?? .now, rowKey: key,
+                passive: true, relevance: 0.4, actorID: member.userRecordName ?? "",
+                deed: "Left your household.", group: "Home"
+            ))
+        }
+
+        for meal in outcome.newMeals where !stillArriving {
+            let by = modifiedBy[meal.shareRecordName] ?? ""
+            guard by != me, let who = person(by) else { continue }
+            let key = "night:\(meal.shareRecordName)"
+            guard !seen.contains(key) else { continue }
+            let dish = meal.title == "Unplanned" ? "Dinner" : meal.title
+            notices.append(Notice(
+                kind: .night, key: key, identifier: idPrefix + key,
+                title: "\(who.first) planned \(nightPhrase(meal.date))",
+                body: "\(dish).",
+                line: "\(who.first) planned \(nightPhrase(meal.date)): \(dish).",
+                link: DeepLink.url(.plan), post: "",
+                direct: false, photo: meal.recipe?.photoData, feedKind: .nightPlanned,
+                actor: who.full, at: modifiedAt[meal.shareRecordName] ?? .now, rowKey: key,
+                passive: true, relevance: 0.4, actorID: by,
+                deed: "Planned \(nightPhrase(meal.date)): \(dish).", group: "Home"
+            ))
+        }
+
+        for recipe in outcome.newRecipes where !stillArriving {
+            let by = modifiedBy[recipe.shareRecordName] ?? ""
+            guard by != me, !arriving.contains(by), let who = person(by) else { continue }
+            let key = "recipe:\(recipe.shareRecordName)"
+            guard !seen.contains(key), !recipe.title.isEmpty else { continue }
+            notices.append(Notice(
+                kind: .recipe, key: key, identifier: idPrefix + key,
+                title: "\(who.first) added \(recipe.title)",
+                body: "It's in the cookbook.",
+                line: "\(who.first) added \(recipe.title). It's in the cookbook.",
+                link: DeepLink.url(.cookbook), post: "",
+                direct: false, photo: recipe.photoData, feedKind: .recipeAdded,
+                actor: who.full, at: modifiedAt[recipe.shareRecordName] ?? .now, rowKey: key,
+                passive: true, relevance: 0.4, actorID: by,
+                deed: "Added \(recipe.title).", group: "Home"
+            ))
+        }
+
+        // An edit of mine that lost to a newer version. The row already
+        // shows theirs; the bell says so, and nothing lights the screen.
+        let recipes = (try? context.fetch(FetchDescriptor<Recipe>())) ?? []
+        let meals = (try? context.fetch(FetchDescriptor<PlannedMeal>())) ?? []
+        for name in outcome.conflicts {
+            let by = modifiedBy[name] ?? ""
+            guard by != me, let who = person(by) else { continue }
+            let key = "conflict:\(name)"
+            guard !seen.contains(key) else { continue }
+            let thing: String
+            let link: URL
+            if let recipe = recipes.first(where: { $0.shareRecordName == name }) {
+                thing = recipe.title.isEmpty ? "a recipe" : recipe.title
+                link = DeepLink.url(.cookbook)
+            } else if let meal = meals.first(where: { $0.shareRecordName == name }) {
+                thing = nightPhrase(meal.date)
+                link = DeepLink.url(.plan)
+            } else {
+                continue
+            }
+            notices.append(Notice(
+                kind: .conflict, key: key, identifier: idPrefix + key,
+                title: "\(who.first) changed \(thing) after you did",
+                body: "Their version is showing.",
+                line: "\(who.first) changed \(thing) after you did. Their version is showing.",
+                link: link, post: "",
+                direct: false, photo: nil, feedKind: .editConflict,
+                actor: who.full, at: modifiedAt[name] ?? .now, rowKey: key,
+                passive: true, relevance: 0.3, actorID: by,
+                deed: "Changed \(thing) after you did.", group: "Home",
+                bellOnly: true
+            ))
+        }
+
+        return notices.map { dress($0, members: members) }
+    }
+
+    /// A night as a person would say it: the weekday while it is
+    /// unambiguous, then the date. The Table's ladder runs backwards from
+    /// today; a plan runs forwards, so the same six-day rule is applied
+    /// in both directions.
+    static func nightPhrase(_ date: Date) -> String {
+        let calendar = Calendar.current
+        if calendar.isDateInToday(date) { return "tonight" }
+        if calendar.isDateInTomorrow(date) { return "tomorrow" }
+        if calendar.isDateInYesterday(date) { return "yesterday" }
+        let days = abs(calendar.dateComponents(
+            [.day], from: calendar.startOfDay(for: .now), to: calendar.startOfDay(for: date)
+        ).day ?? 0)
+        if days < 6 { return Stamp.weekdayFormat.string(from: date) }
+        if calendar.isDate(date, equalTo: .now, toGranularity: .year) {
+            return Stamp.dateFormat.string(from: date)
+        }
+        return Stamp.datedYearFormat.string(from: date)
     }
 
     private static func firstName(_ name: String) -> String {
@@ -1225,7 +1496,7 @@ enum TableNews {
         // push path runs after a fold; the rehearsal is not the push path,
         // so it runs one itself and then shows what the ledger earned.
         let meals = (try? context.fetch(FetchDescriptor<PlannedMeal>())) ?? []
-        await NotificationScheduler.rebuild(meals: meals, ownerName: owner)
+        await NotificationScheduler.rebuild(meals: meals)
         let pending = await UNUserNotificationCenter.current().pendingNotificationRequests()
             .filter { $0.identifier.hasPrefix(NotificationScheduler.remoteTurnPrefix) }
         print("[TableNews] rehearsal: \(pending.count) remote turn reminder(s)")

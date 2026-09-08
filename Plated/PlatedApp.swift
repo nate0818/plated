@@ -52,11 +52,27 @@ struct PlatedApp: App {
     /// equivalent — see ShareAcceptor.
     @UIApplicationDelegateAdaptor(ShareAcceptor.self) private var shareAcceptor
 
+    /// Flags that run the app over the memory-only preview container rather
+    /// than the live store. The household observer must not be installed
+    /// on those launches: `HouseholdSync.ensureObserving` reaches for
+    /// `PlatedStore.shared`, which would spin up the real store and its
+    /// mirror beside the preview.
+    private static let previewFlags = ["-plated-design-review", "-plated-test-groceries", "-plated-test-probe-cleanup", "-plated-test-drag-moves"]
+
+    private static var usesPreviewContainer: Bool {
+        #if DEBUG
+        let arguments = ProcessInfo.processInfo.arguments
+        return previewFlags.contains(where: { arguments.contains($0) })
+        #else
+        return false
+        #endif
+    }
+
     /// See PlatedStore — the app and App Intents share this one container.
     let container: ModelContainer = {
         #if DEBUG
         let arguments = ProcessInfo.processInfo.arguments
-        if ["-plated-design-review", "-plated-test-groceries", "-plated-test-probe-cleanup", "-plated-test-drag-moves"].contains(where: { arguments.contains($0) }) {
+        if usesPreviewContainer {
             let preview = SampleData.previewContainer
             if arguments.contains("-plated-design-review") && arguments.contains("-plated-review-drag") {
                 PlannerDragChecks.prepareReview(in: preview.mainContext)
@@ -92,6 +108,14 @@ struct PlatedApp: App {
         // screenshot at AX5.
         TypeScale.assertMonotone()
         #endif
+        // The household save observer, on the live store's main context and
+        // before the first view can save anything. PlatedStore cannot do
+        // this itself: its container is a static initialiser with no main
+        // actor to hop to.
+        if !Self.usesPreviewContainer {
+            _ = container
+            HouseholdSync.ensureObserving()
+        }
     }
 
     /// Somebody who deliberately turned the dark room on keeps it. Everybody
@@ -192,8 +216,19 @@ struct PlatedApp: App {
                     }
                     #endif
                     #if DEBUG
+                    if LaunchFlags.consume("-plated-prime-household") {
+                        print(await HouseholdSync.primeSchema(context: container.mainContext))
+                        try? await Task.sleep(for: .seconds(5))
+                        exit(0)
+                    }
+                    #endif
+                    #if DEBUG
                     if LaunchFlags.consume("-plated-prime-schema") {
                         do {
+                            // Primer rows already match nothing on the
+                            // wire; the observer would queue every one.
+                            HouseholdSync.suppressed = true
+                            defer { HouseholdSync.suppressed = false }
                             try SchemaPrimer.prime(into: container.mainContext)
                             print("PLATED PRIME: 12 rows saved — holding while CloudKit exports")
                             try await Task.sleep(for: .seconds(90))
@@ -224,9 +259,43 @@ struct PlatedApp: App {
                     // and Riley to the real household.
                     #if DEBUG
                     if LaunchFlags.consume("-plated-seed-sample") {
+                        HouseholdSync.suppressed = true
                         SampleData.seed(into: container.mainContext)
                         try? container.mainContext.save()
+                        HouseholdSync.suppressed = false
                         print("PLATED SEED: sample household in the live store")
+                    }
+                    #endif
+                    // Who this phone is, before anything decides what is
+                    // its own (docs/household.md section 5): the head row
+                    // takes the identity while the household is unshared,
+                    // and rows whose fingerprint drifted while the app was
+                    // dead are queued again.
+                    // Reattributed, not just confirmed: rows saved while
+                    // offline carry `authorID = local-...`, and a
+                    // placeholder left on the head row also blocks the
+                    // stamp below, which needs the field empty.
+                    await TableIdentity.confirmAndReattribute(in: container.mainContext)
+                    // Which household this phone is in, asked before the
+                    // stamp below decides the rows are unshared and its
+                    // own. The cache is per device, so the second device
+                    // of an Apple ID that joined on the first has no local
+                    // trace of the join until this runs.
+                    let wasSolo = HouseholdShare.membership == .solo
+                    let membership = await HouseholdShare.refreshMembership()
+                    if wasSolo, case .member = membership {
+                        HouseholdSync.adoptMySeat(in: container.mainContext)
+                    }
+                    HouseholdSync.stampIdentityIfUnshared(in: container.mainContext)
+                    HouseholdSync.sweep(in: container.mainContext)
+                    #if DEBUG && targetEnvironment(simulator)
+                    // Rehearsal: a household arriving from "Sam", so the
+                    // member's view, the notices and the roster can be
+                    // photographed without a second Apple ID. Writes real
+                    // rows and sets membership, so never on a phone.
+                    if LaunchFlags.consume("-plated-rehearse-household") {
+                        try? await Task.sleep(for: .seconds(2))
+                        await HouseholdSync.rehearse(context: container.mainContext)
                     }
                     #endif
                     #if DEBUG && targetEnvironment(simulator)

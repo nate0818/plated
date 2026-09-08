@@ -324,7 +324,11 @@ final class TableNewsTests: XCTestCase {
         XCTAssertEqual(TableNews.list(["Riley"], of: 2), "Riley and 1 other")
     }
 
-    func testAJoinedSeatIsSaidOutLoudButNotWrittenTwice() {
+    /// The banner and the bell agree. `Seats.reconcile` decides a seat is
+    /// real but writes no row of its own, so a seat whose notice skipped
+    /// the bell was a banner a person could swipe away with nothing left
+    /// to show it happened.
+    func testAJoinedSeatIsSaidOutLoudAndKeptInTheBell() {
         let joiner = HouseholdMember(name: "Jo Alvarez", role: "member", seat: .joined)
         joiner.participantID = "participant-jo"
         context.insert(joiner)
@@ -332,7 +336,10 @@ final class TableNewsTests: XCTestCase {
         XCTAssertEqual(notices.count, 1)
         XCTAssertEqual(notices[0].title, "Jo joined your table")
         XCTAssertEqual(notices[0].body, "They can see the Table now.")
-        XCTAssertFalse(notices[0].writesRow)
+        XCTAssertTrue(notices[0].writesRow)
+        // The key the old `Notifier.postKeyed` used, so a row written
+        // before this change is updated rather than joined by a sibling.
+        XCTAssertEqual(notices[0].rowKey, "seat:participant-jo")
     }
 
     func testMyOwnPlateIsNeverNarratedBackToMe() {
@@ -387,15 +394,6 @@ final class TableNewsTests: XCTestCase {
         XCTAssertEqual(DeepLink.postID(in: url), "post-ABC")
         XCTAssertNil(DeepLink.postID(in: DeepLink.url(.table)))
         XCTAssertEqual(DeepLink.destination(for: URL(string: "plated://activity")!), .activity)
-    }
-
-    func testAnInviteLinkCarriesWhoAndWhereAndRefusesPlainHTTP() {
-        let good = URL(string: "plated://invite?s=https%3A%2F%2Fwww.icloud.com%2Fshare%2Fabc&from=Riley")!
-        let invitation = DeepLink.invitation(in: good)
-        XCTAssertEqual(invitation?.from, "Riley")
-        XCTAssertEqual(invitation?.share.host, "www.icloud.com")
-        let bad = URL(string: "plated://invite?s=http%3A%2F%2Fevil.example%2Fshare")!
-        XCTAssertNil(DeepLink.invitation(in: bad))
     }
 
     // MARK: Passive plates, threads, photographs
@@ -566,32 +564,46 @@ final class TableNewsTests: XCTestCase {
         XCTAssertEqual(AppBadge.count(context), 0)
     }
 
-    func testAJoinedSeatRowIsKeyedOpensHomeAndIsWrittenOnce() {
-        Notifier.postKeyed(eventKey: "seat:p1", .seatJoined, actor: "Jo", body: "Jo joined. They can see the Table now.",
-                           link: DeepLink.url(.home).absoluteString, into: context)
-        Notifier.postKeyed(eventKey: "seat:p1", .seatJoined, actor: "Jo", body: "Jo joined. They can see the Table now.",
-                           link: DeepLink.url(.home).absoluteString, into: context)
+    /// Through the real road, not `Notifier` by hand: the news is what
+    /// writes a seat's row now, and a second delivery of the same seat
+    /// updates it rather than stacking "Jo joined" down the bell.
+    func testAJoinedSeatRowIsKeyedOpensHomeAndIsWrittenOnce() async {
+        let joiner = HouseholdMember(name: "Jo Alvarez", role: "member", seat: .joined)
+        joiner.participantID = "p1"
+        context.insert(joiner)
+        await TableNews.deliver(TableShare.Changes(), newSeats: [joiner], context: context)
+        TableNews.forgetAll()
+        await TableNews.deliver(TableShare.Changes(), newSeats: [joiner], context: context)
         let seat = rows(eventKey: "seat:p1")
         XCTAssertEqual(seat.count, 1)
         XCTAssertEqual(seat.first?.linkURL, DeepLink.url(.home))
+        XCTAssertEqual(seat.first?.actorName, "Jo Alvarez")
     }
 
-    func testAStandingMatchesByParticipantIDBeforeAddress() {
+    func testAStandingMatchesByIdentityAndNeverByAddress() {
+        // Identity is the only key (docs/household.md section 1): a link
+        // joiner is a public participant with no phone or email on the
+        // share, so an address can never say who a standing is.
         let byLink = HouseholdMember(name: "Jo Alvarez", role: "member", seat: .joined)
         byLink.participantID = "p-jo"
-        let byPhone = HouseholdMember(name: "Kim Lee", role: "member", seat: .invited, phoneE164: "+15550001111")
+        let byIdentity = HouseholdMember(name: "Kim Lee", role: "member", seat: .invited, phoneE164: "+15550001111")
+        byIdentity.userRecordName = "p-kim"
         let standing = TableShare.Standing(
             phone: nil, email: nil, name: "Jo", accepted: true, participantID: "p-jo"
         )
-        XCTAssertEqual(Seats.match(standing, in: [byPhone, byLink])?.name, "Jo Alvarez")
-        let invited = TableShare.Standing(
+        XCTAssertEqual(Seats.match(standing, in: [byIdentity, byLink])?.name, "Jo Alvarez")
+        let seated = TableShare.Standing(
             phone: "+15550001111", email: nil, name: "Kim", accepted: true, participantID: "p-kim"
         )
-        XCTAssertEqual(Seats.match(invited, in: [byPhone, byLink])?.name, "Kim Lee")
+        XCTAssertEqual(Seats.match(seated, in: [byIdentity, byLink])?.name, "Kim Lee")
+        let samePhoneOtherIdentity = TableShare.Standing(
+            phone: "+15550001111", email: nil, name: "Kim", accepted: true, participantID: "p-other"
+        )
+        XCTAssertNil(Seats.match(samePhoneOtherIdentity, in: [byIdentity, byLink]))
         let stranger = TableShare.Standing(
             phone: nil, email: nil, name: "", accepted: true, participantID: "p-new"
         )
-        XCTAssertNil(Seats.match(stranger, in: [byPhone, byLink]))
+        XCTAssertNil(Seats.match(stranger, in: [byIdentity, byLink]))
     }
 
     func testABannerAboutWhatIsOnScreenIsKeptToTheList() {

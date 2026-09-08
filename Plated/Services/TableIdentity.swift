@@ -1,4 +1,5 @@
 import Foundation
+import SwiftData
 #if canImport(CloudKit)
 import CloudKit
 #endif
@@ -38,6 +39,30 @@ enum TableIdentity {
 
     static var isPlaceholder: Bool { cached.hasPrefix("local-") }
 
+    /// Every app-group fact about which household this phone is in. The
+    /// two the model reads are named on `HouseholdMember.Keys`; the rest
+    /// are `HouseholdShare.Keys`, spelled through that enum so a key the
+    /// wire adds shows up here as a compile error rather than as a changed
+    /// Apple ID inheriting the previous one's household. The minter is the
+    /// one key only the sync glue writes.
+    private static let householdKeys: [String] = [
+        HouseholdMember.Keys.membershipKind,
+        HouseholdMember.Keys.mySeat,
+        HouseholdShare.Keys.owner,
+        HouseholdShare.Keys.ownerName,
+        HouseholdShare.Keys.name,
+        HouseholdShare.Keys.epoch,
+        HouseholdShare.Keys.publishedAt,
+        HouseholdShare.Keys.removedIDs,
+        HouseholdShare.Keys.tableShareURL,
+        HouseholdShare.Keys.autoRotate,
+        HouseholdShare.Keys.lastSyncedName,
+        HouseholdShare.Keys.unresolved,
+        HouseholdShare.Keys.sharedDatabaseToken,
+        HouseholdOutbox.publishTotalKey,
+        "plated.household.minter",
+    ]
+
     /// Ask CloudKit who this is, and remember.
     ///
     /// Returns nil when it could not ask. It never re-derives a placeholder
@@ -58,8 +83,16 @@ enum TableIdentity {
         #endif
     }
 
-    /// Ask CloudKit who this is, and move everything written under the
-    /// placeholder onto the real id.
+    /// Ask CloudKit who this is, and move everything a placeholder signed
+    /// onto the answer.
+    ///
+    /// One door, because there were three hand-copied ones and they had
+    /// already drifted. The launch pass called `confirm()` alone and threw
+    /// the answer away, which wrote the real id over the placeholder with
+    /// nobody told: every later `real != before` was then false, so the
+    /// `local-` ids stayed on the rows forever, the outbox stopped holding
+    /// them and pushed a stranger's name to the household, and Leave
+    /// deleted the person's own recipes as somebody else's.
     ///
     /// Every book that stamps an author has to be listed here. Two call
     /// sites confirm identity, the share absorb and the Table's first look,
@@ -67,13 +100,26 @@ enum TableIdentity {
     /// first spent the placeholder, so the second saw no change and the
     /// nights kept a stranger's name. `reset()` below already lists the
     /// books in one place; this is the same list for the same reason.
+    ///
+    /// A real id becoming a different real id is not a confirmation, it is
+    /// a different Apple ID. Claiming that account's rows would drain them
+    /// into this one's zone, which is the exact failure `reset` exists to
+    /// prevent, so that road resets instead.
     @MainActor
-    static func confirmAndReattribute() async {
+    @discardableResult
+    static func confirmAndReattribute(in context: ModelContext) async -> String? {
         let before = cached
-        guard let real = await confirm(), real != before else { return }
-        TableLedger.shared.reattribute(from: before, to: real)
-        TableOutbox.shared.reattribute(from: before, to: real)
-        PlanLedger.shared.reattribute(from: before, to: real)
+        guard let real = await confirm() else { return nil }
+        guard real != before else { return real }
+        if before.hasPrefix("local-") {
+            TableLedger.shared.reattribute(from: before, to: real)
+            TableOutbox.shared.reattribute(from: before, to: real)
+            PlanLedger.shared.reattribute(from: before, to: real)
+            HouseholdSync.reattribute(from: before, to: real, in: context)
+        } else {
+            reset()
+        }
+        return real
     }
 
     /// The Apple ID changed underneath us.
@@ -93,6 +139,17 @@ enum TableIdentity {
         // this account cannot see. The next pass republishes from nothing.
         PlanLedger.shared.clear()
         PlanShare.forgetBook()
+        // The household books and its membership describe a household the
+        // previous account was in. Left behind, the outbox would push that
+        // account's rows into this one's zone and `me` would answer with a
+        // seat this person never claimed.
+        HouseholdOutbox.shared.clear()
+        GroceryMarks.shared.clear()
+        TableInvites.shared.clear()
+        for k in householdKeys {
+            store.removeObject(forKey: k)
+        }
+        print("PLATED HOUSEHOLD: identity reset, household and plan books and membership cleared")
         for k in store.dictionaryRepresentation().keys
         where k.hasPrefix("plated.zonetoken.") {
             store.removeObject(forKey: k)

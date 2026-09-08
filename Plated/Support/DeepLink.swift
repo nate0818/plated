@@ -73,18 +73,6 @@ enum DeepLink: String {
         URL(string: "\(scheme)://\(destination.rawValue)")!
     }
 
-    /// The seat inside an `invite` link: who saved it, and the share.
-    static func invitation(in url: URL) -> (from: String, share: URL)? {
-        guard destination(for: url) == .invite,
-              let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems,
-              let raw = items.first(where: { $0.name == "s" })?.value,
-              let share = URL(string: raw),
-              share.scheme == "https"
-        else { return nil }
-        let from = items.first(where: { $0.name == "from" })?.value ?? ""
-        return (from, share)
-    }
-
     /// `plated://plan?day=2026-09-10`: one night on the plan. The day is a
     /// calendar string, not a timestamp, so it names the same night on
     /// every phone whatever its clock says. `PlanDay` is the one formatter

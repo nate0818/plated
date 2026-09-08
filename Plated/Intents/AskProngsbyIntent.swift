@@ -19,6 +19,9 @@ struct AskProngsbyIntent: AppIntent {
 
     @MainActor
     func perform() async throws -> some IntentResult & ProvidesDialog {
+        // Nothing here travels, but the observer is installed wherever the
+        // store is first touched so a later save in this process does.
+        HouseholdSync.ensureObserving()
         let context = PlatedStore.shared.mainContext
         let recipes = (try? context.fetch(FetchDescriptor<Recipe>())) ?? []
         let members = (try? context.fetch(FetchDescriptor<HouseholdMember>())) ?? []

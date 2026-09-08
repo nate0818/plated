@@ -57,6 +57,10 @@ enum TableShare {
     private static let plateType = "PlatedDishPlate"
     private static let ballotType = "PlatedDishBallot"
     private static let noteType = "PlatedDishNote"
+    /// A joiner's answer to a Table invitation: which invitation this
+    /// identity accepted (docs/household.md §9). Written by the joiner into
+    /// the zone they just accepted; the host's next pull settles the entry.
+    private static let claimType = "PlatedDishClaim"
     /// The household's own zone, minted and shared by the household invite
     /// (docs/household.md): roster, plan, recipes. The plan record below
     /// lives here, never under the Table share, because a Table guest must
@@ -78,10 +82,14 @@ enum TableShare {
     /// `legacyPostType` is deliberately excluded: "TablePost" IS the
     /// collision, it is read-only, and asserting on it would fire on the one
     /// type that can never be renamed. The reserved prefix closes the class
-    /// going forward, not retroactively.
+    /// going forward, not retroactively. The household's types are checked
+    /// here too: they live in the same private database, under the same
+    /// mirror.
     static func assertNoEntityCollision() {
         let entities = Set(PlatedStore.schema.entities.map(\.name))
-        let written: Set<String> = [rootType, postType, plateType, ballotType, noteType, householdRootType, planType]
+        let written = Set([rootType, postType, plateType, ballotType, noteType, claimType,
+                           householdRootType, planType])
+            .union(HouseholdShare.writtenTypes)
         let clash = entities.intersection(written)
         assert(clash.isEmpty, "CloudKit types collide with SwiftData entities: \(clash)")
     }
@@ -96,7 +104,30 @@ enum TableShare {
         return 0
     }
 
+    /// Bytes as a CKAsset: a temporary file the caller removes once the
+    /// save has answered. Outside the CloudKit gate because the household
+    /// codec builds records offline, in the tests and in an unarmed build.
+    static func asset(from data: Data) -> CKAsset? {
+        let url = FileManager.default.temporaryDirectory
+            .appending(path: "share-\(UUID().uuidString).jpg")
+        do {
+            try data.write(to: url)
+            return CKAsset(fileURL: url)
+        } catch {
+            return nil
+        }
+    }
+
     // MARK: Which zone is the household's
+
+    /// Where TableShare answers "which table" from (docs/household.md §9):
+    /// on a member's phone the Table is the household's, so the share is
+    /// read from the owner's zone in the shared database and nothing is
+    /// minted here. Nil is "not in somebody else's household", which is
+    /// both the head of its own and a phone in none; the answer comes from
+    /// the app group the household invite writes, the same one
+    /// `resolveHousehold` reads out of `householdOwnerKey` below.
+    private static var householdOwner: String? { HouseholdShare.membership.owner }
 
     /// Three states, never a guess. `unresolved` carries the candidates,
     /// "" for this phone's own table, so Settings can offer the choice.
@@ -151,6 +182,14 @@ enum TableShare {
     /// the caller shows as "your table is local for now" rather than an error.
     static func invitationURL(hostName: String) async -> URL? {
         guard await TableSync.accountAvailable() else { return nil }
+        // A member's Table is the household's. The link is the one the host
+        // minted, cached off the household root by the merge; minting one
+        // here would open a second table nobody in the household is at.
+        if householdOwner != nil {
+            let cached = HouseholdShare.cachedTableShareURL
+            if cached == nil { print("PLATED SHARE: member has no cached table link yet") }
+            return cached
+        }
         do {
             let db = container.privateCloudDatabase
             let zoneID = CKRecordZone.ID(zoneName: zoneName, ownerName: CKCurrentUserDefaultName)
@@ -206,8 +245,10 @@ enum TableShare {
             // failed. An unlisted link, sent by hand in a message the user
             // wrote, is the same trade Notes and Reminders make, and it is
             // the difference between an invite that works and one that
-            // doesn't. Anyone we CAN resolve is still added as a
-            // participant, which pre-authorises them.
+            // doesn't. Nobody is ever added as a participant on top: a
+            // share's participant list may only be modified while it is
+            // participant-only, and `addParticipant` on a public share
+            // raises an exception `try?` cannot catch.
             share.publicPermission = .readWrite
 
             // The URL is server-assigned, so it exists on the record that
@@ -231,7 +272,7 @@ enum TableShare {
     /// Read from the bundled icon file rather than `UIImage(named:)`: an
     /// app icon is not a normal asset at runtime and often will not resolve
     /// by name, which would silently put us back on the iCloud card.
-    private static func shareThumbnail() -> Data? {
+    static func shareThumbnail() -> Data? {
         let names = Bundle.main.object(forInfoDictionaryKey: "CFBundleIcons")
             .flatMap { ($0 as? [String: Any])?["CFBundlePrimaryIcon"] as? [String: Any] }
             .flatMap { $0["CFBundleIconFiles"] as? [String] } ?? []
@@ -252,68 +293,40 @@ enum TableShare {
     }
 
     /// What happened when we tried to make a real seat for somebody.
-    enum InviteOutcome {
+    /// Equatable so `Seats.Prepared` can be compared by the flows that
+    /// carry it through the composer.
+    enum InviteOutcome: Equatable {
         /// A link bound to them. Send it.
         case ready(URL)
-        /// No iCloud account answers to that number or address, so a link
-        /// sent there would not open the door.
+        /// Kept for the call sites that switch on it; never returned now
+        /// that nobody is looked up by address (docs/household.md §1).
         case noAccount
         /// No iCloud on this device at all, or CloudKit refused.
         case noCloud
     }
 
-    /// Add one person to the table's share and hand back their link.
+    /// The link that opens the table for somebody.
     ///
-    /// This is the step that was missing entirely. The share is created
-    /// with `publicPermission = .none` — correct, an invite-only table —
-    /// but with no participants ever added, that share admits literally
-    /// nobody. Every invitation the app had ever "sent" carried a link
-    /// that could not have worked for the person holding it.
+    /// The link is the credential and the whole invitation. This used to
+    /// look the person up by phone or email and call `addParticipant` on
+    /// the share, which was a line that only survived because the lookup
+    /// usually failed: a share's participants may only be modified while
+    /// `publicPermission` is `.none`, and on a `.readWrite` share the call
+    /// raises an Objective-C exception that `try?` cannot catch. The
+    /// address the message goes to is the messenger's business, not the
+    /// share's.
     static func invite(phone: String?, email: String?, hostName: String) async -> InviteOutcome {
         guard await TableSync.accountAvailable() else { return .noCloud }
-        guard let url = await invitationURL(hostName: hostName),
-              let share = await currentShare() else { return .noCloud }
+        guard let url = await invitationURL(hostName: hostName) else { return .noCloud }
 
         // Tables minted before the link became the credential are still
         // participant-only; open them so their links start working.
-        if share.publicPermission != .readWrite {
+        if householdOwner == nil, let share = await currentShare(),
+           share.publicPermission != .readWrite {
             share.publicPermission = .readWrite
             _ = try? await container.privateCloudDatabase.modifyRecords(saving: [share], deleting: [])
         }
-
-        // Look them up by the address the invitation is going to. A number
-        // that isn't the one on their iCloud account finds nobody, which is
-        // a thing to say out loud rather than fail silently on.
-        var identity: CKShare.Participant?
-        if let phone, !phone.isEmpty {
-            identity = try? await container.shareParticipant(forPhoneNumber: phone)
-        }
-        if identity == nil, let email, !email.isEmpty {
-            identity = try? await container.shareParticipant(forEmailAddress: email)
-        }
-        // Not finding them is no longer fatal: the link works regardless,
-        // and resolving them is a bonus that pre-authorises their seat.
-        guard let participant = identity else {
-            print("PLATED SHARE: no iCloud identity for that address — sending the open link")
-            return .ready(url)
-        }
-
-        // Already on it — reuse rather than adding them twice.
-        let known = share.participants.contains { existing in
-            existing.userIdentity.lookupInfo?.phoneNumber == phone
-                || existing.userIdentity.lookupInfo?.emailAddress == email
-        }
-        if known { return .ready(url) }
-
-        participant.permission = .readWrite
-        share.addParticipant(participant)
-        do {
-            _ = try await container.privateCloudDatabase.modifyRecords(saving: [share], deleting: [])
-            return .ready(url)
-        } catch {
-            print("PLATED SHARE: could not add participant — \(error)")
-            return .noCloud
-        }
+        return .ready(url)
     }
 
     /// Undo `invite` when the message was never sent. A participant left on
@@ -342,7 +355,7 @@ enum TableShare {
 
     static func standings() async -> [Standing] {
         guard await TableSync.accountAvailable() else { return [] }
-        guard let share = await currentShare() else { return [] }
+        guard let share = await tableShare() else { return [] }
         return share.participants.compactMap { p in
             guard p.role != .owner else { return nil }
             let name = [p.userIdentity.nameComponents?.givenName,
@@ -363,10 +376,15 @@ enum TableShare {
     /// The system does this for you when it routes an `icloud.com/share`
     /// link, but a link that arrives through our own domain is just a URL —
     /// so the metadata has to be fetched by hand before it can be accepted.
-    static func shareMetadata(for url: URL) async throws -> CKShare.Metadata {
+    ///
+    /// `shouldFetchRootRecord` is on for a household link: the join sheet
+    /// is drawn from the root record before anything is accepted
+    /// (docs/household.md section 7), and the zone name on the root is what
+    /// `ShareAcceptor.received` dispatches on, never what the URL claimed.
+    static func shareMetadata(for url: URL, shouldFetchRootRecord: Bool = false) async throws -> CKShare.Metadata {
         try await withCheckedThrowingContinuation { continuation in
             let operation = CKFetchShareMetadataOperation(shareURLs: [url])
-            operation.shouldFetchRootRecord = false
+            operation.shouldFetchRootRecord = shouldFetchRootRecord
             var found: CKShare.Metadata?
             operation.perShareMetadataResultBlock = { _, result in
                 if case .success(let metadata) = result { found = metadata }
@@ -619,17 +637,70 @@ enum TableShare {
         )
         record.setParent(CKRecord.ID(recordName: "table-root", zoneID: zoneID))
         fill(record)
-        do {
-            _ = try await db.save(record)
-            return true
-        } catch let error as CKError where error.code == .serverRecordChanged {
-            // Somebody's copy of this exact record won. With a deterministic
-            // name that means one of this person's own devices got there
-            // first, and last-writer-wins has already settled it.
-            return true
-        } catch {
+        return await saveChangedKeys(record, in: db)
+    }
+
+    /// Save a fresh record over whatever the zone holds under its name.
+    ///
+    /// `db.save` on a fresh `CKRecord` carries no change tag, so a second
+    /// write to a deterministic name was refused as `.serverRecordChanged`,
+    /// and the catch below this used to read that refusal as "one of my
+    /// own devices got there first" and report success. It was never a
+    /// race: it was every un-plate, and none of them ever reached the wire.
+    /// `.changedKeys` tells the server to take the keys this record sets
+    /// without comparing tags, which is what last-writer-wins on a
+    /// deterministic name means.
+    private static func saveChangedKeys(_ record: CKRecord, in db: CKDatabase) async -> Bool {
+        await withCheckedContinuation { continuation in
+            let operation = CKModifyRecordsOperation(recordsToSave: [record], recordIDsToDelete: [])
+            operation.savePolicy = .changedKeys
+            operation.modifyRecordsResultBlock = { result in
+                switch result {
+                case .success:
+                    continuation.resume(returning: true)
+                case .failure(let error):
+                    print("PLATED SHARE: could not save \(record.recordID.recordName): \(error.localizedDescription)")
+                    continuation.resume(returning: false)
+                }
+            }
+            db.add(operation)
+        }
+    }
+
+    /// A joiner's claim on a Table invitation (docs/household.md §9): the
+    /// entry id the link carried and the identity that accepted it, written
+    /// into the zone they just accepted. Named after the invitation, so a
+    /// retry overwrites itself.
+    struct Claim: Equatable {
+        var inviteID: String
+        var userRecordName: String
+    }
+
+    static func pushClaim(inviteID: String, zoneOwner: String) async -> Bool {
+        guard !inviteID.isEmpty, await TableSync.accountAvailable() else { return false }
+        guard let (db, zoneID) = await zone(ownedBy: zoneOwner) else {
+            print("PLATED SHARE: no zone to write a claim into")
             return false
         }
+        let record = CKRecord(
+            recordType: claimType,
+            recordID: CKRecord.ID(recordName: "claim-\(inviteID)", zoneID: zoneID)
+        )
+        record["inviteID"] = inviteID as CKRecordValue
+        record["userRecordName"] = TableIdentity.cached as CKRecordValue
+        let rootID = CKRecord.ID(recordName: "table-root", zoneID: zoneID)
+        record["parent"] = CKRecord.Reference(recordID: rootID, action: .deleteSelf)
+        record.setParent(rootID)
+        let ok = await saveChangedKeys(record, in: db)
+        print("PLATED SHARE: claim for invitation \(inviteID) \(ok ? "written" : "refused")")
+        return ok
+    }
+
+    private static func claim(from record: CKRecord) -> Claim {
+        Claim(
+            inviteID: record["inviteID"] as? String ?? "",
+            userRecordName: record["userRecordName"] as? String ?? ""
+        )
     }
 
     /// One comment on the table.
@@ -829,7 +900,11 @@ enum TableShare {
         var reactions: [RemoteReaction] = []
         var notes: [RemoteNote] = []
         /// Nights other phones planned. Folded by `PlanLedger`, never merged.
+        /// They are read out of the household zone, which has one reader
+        /// and it is not `postChanges` below; see the seam there.
         var plans: [RemotePlan] = []
+        /// Invitations answered: joiners naming the link they came in on.
+        var claims: [Claim] = []
         var deleted: Set<String> = []
         /// The CKShare itself came back changed: somebody accepted, or was
         /// removed. Which one is `Seats.reconcile`'s to say; this only
@@ -859,11 +934,16 @@ enum TableShare {
             all.reactions += part.reactions
             all.notes += part.notes
             all.plans += part.plans
+            all.claims += part.claims
             all.deleted.formUnion(part.deleted)
             all.replayedOwners.formUnion(part.replayedOwners)
-            // The flags too. `sharesChanged` was set per database and then
-            // dropped right here, so a seat accepted was never announced.
+            // Every flag too, including the ones this walk cannot raise.
+            // `sharesChanged` was set per database and then dropped right
+            // here, so a seat accepted was never announced; a field left
+            // out of this accumulator is that bug again, waiting for the
+            // day something starts setting it.
             all.sharesChanged = all.sharesChanged || part.sharesChanged
+            all.householdShareChanged = all.householdShareChanged || part.householdShareChanged
             all.replayed = all.replayed || part.replayed
         }
         return all
@@ -878,40 +958,33 @@ enum TableShare {
     private static func postChanges(in db: CKDatabase, isPrivate: Bool) async -> Changes {
         var found = Changes()
         guard let zones = try? await db.allRecordZones() else { return found }
-        for zone in zones where zone.zoneID.zoneName == zoneName || zone.zoneID.zoneName == householdZoneName {
+        // The Table's zones, and only those. The household zone sits in the
+        // same private database and carries the plan, but a zone has exactly
+        // one reader of its change token and the household's is
+        // `HouseholdShare.fetchChanges`: two readers each store a token over
+        // the other's, so each sees roughly half of what the zone said and
+        // neither can tell which half. The plan records that reader collects
+        // still arrive on a `Changes` and still reach `PlanLedger` through
+        // `ShareAcceptor.absorb`, carrying `replayedOwners` for a household
+        // zone it read from nothing, because a read from nothing delivers
+        // every live record and no deletion: for that owner what arrived is
+        // the whole truth, and the ledger reconciles against it.
+        for zone in zones where zone.zoneID.zoneName == zoneName {
             let owner = canonicalOwner(zone.zoneID, isPrivate: isPrivate)
-            // The Table zone carries dishes; the household zone carries the
-            // plan. A replay of the Table zone must never read as "the
-            // household's nights are gone", so the ledger's reconciliation
-            // hears only about household zones.
-            let isHousehold = zone.zoneID.zoneName == householdZoneName
             // A zone's read is all or nothing. Its records gather here and
             // join `found` only once every page has come and the token is
-            // stored: a replayed owner whose read threw halfway would
-            // otherwise hand the plan ledger one page as "the whole
-            // truth", and the ledger would drop every other night at that
-            // table, retract their rows and announce them taken off.
+            // stored: a read that threw halfway would otherwise fold one
+            // page in while the token stayed where it was, so the next pull
+            // hands the same page back over rows already settled, and any
+            // reader that treats a delta as complete is told half a story.
             var part = Changes()
             do {
-                // Asked to read this table again from the beginning (the
-                // household moved here): decided at the start of the read,
-                // inside the one pull that is running, so no fetch that
-                // began earlier can store a fresh token over the request.
-                if takeReplayRequest(for: zone.zoneID) {
-                    forgetToken(for: zone.zoneID)
-                }
                 // A page at a time until the server says there is no more.
                 // One call returns one page, so a table with more posts than
                 // a page holds used to arrive permanently truncated — and
                 // the token still advanced, so the rest never came at all.
                 var cursor = token(for: zone.zoneID)
-                if cursor == nil {
-                    part.replayed = true
-                    // A zone read from nothing delivers every live record
-                    // and no deletion, so for this owner what arrives is
-                    // the whole truth and the plan ledger reconciles to it.
-                    if isHousehold { part.replayedOwners.insert(owner) }
-                }
+                if cursor == nil { part.replayed = true }
                 var more = true
                 while more {
                     let changes = try await db.recordZoneChanges(
@@ -928,15 +1001,10 @@ enum TableShare {
                             part.reactions.append(remoteReaction(from: record))
                         case noteType:
                             part.notes.append(remoteNote(from: record))
-                        case planType:
-                            var plan = remotePlan(from: record)
-                            plan.zoneOwner = owner
-                            part.plans.append(plan)
+                        case claimType:
+                            part.claims.append(claim(from: record))
                         default:
-                            if record is CKShare {
-                                if isHousehold { part.householdShareChanged = true }
-                                else { part.sharesChanged = true }
-                            }
+                            if record is CKShare { part.sharesChanged = true }
                             continue
                         }
                     }
@@ -947,10 +1015,14 @@ enum TableShare {
                     more = changes.moreComing
                 }
                 store(cursor, for: zone.zoneID)
+                // Every field, for the reason `fetchChanges` gives: one
+                // left out of a copy like this is how a flag stops
+                // arriving without anything looking wrong.
                 found.posts += part.posts
                 found.reactions += part.reactions
                 found.notes += part.notes
                 found.plans += part.plans
+                found.claims += part.claims
                 found.deleted.formUnion(part.deleted)
                 found.replayedOwners.formUnion(part.replayedOwners)
                 found.sharesChanged = found.sharesChanged || part.sharesChanged
@@ -981,7 +1053,7 @@ enum TableShare {
     /// shared, which is not an error — it is most tables, most of the time.
     static func participants() async -> [Seat] {
         guard await TableSync.accountAvailable() else { return [] }
-        guard let share = await currentShare() else { return [] }
+        guard let share = await tableShare() else { return [] }
         let me = share.currentUserParticipant
         return share.participants.map { p in
             let name = [p.userIdentity.nameComponents?.givenName,
@@ -997,8 +1069,10 @@ enum TableShare {
     }
 
     /// Host removes a seat. The guest keeps nothing: CloudKit drops the zone
-    /// from their shared database on their next sync.
+    /// from their shared database on their next sync. Only the owner edits
+    /// participants, so on a member's phone this is a refusal.
     static func remove(seatID: String) async -> Bool {
+        guard householdOwner == nil else { return false }
         guard let share = await currentShare(),
               let victim = share.participants.first(where: {
                   $0.userIdentity.userRecordID?.recordName == seatID
@@ -1012,35 +1086,74 @@ enum TableShare {
         } catch { return false }
     }
 
-    /// A guest leaves. Deleting the zone from one's OWN shared database
-    /// removes only this user's copy — it cannot touch the host's table,
-    /// which is why leaving is safe to offer without a scary warning.
-    static func leaveTable() async -> Bool {
+    /// A guest leaves one table. Deleting the zone from one's OWN shared
+    /// database removes only this user's copy — it cannot touch the host's
+    /// table, which is why leaving is safe to offer without a scary warning.
+    ///
+    /// Exactly the zone with this owner, and only its token: "the first
+    /// PlatedTable zone in the shared database" was somebody else's table
+    /// as soon as a person had joined two. The household's own Table is
+    /// refused here; leaving it is Leave household, in Settings.
+    ///
+    /// The plan is not here: it lives in the household zone, which has its
+    /// own leave (docs/household.md), and that leave clears the household
+    /// key the plan ledger reads.
+    static func leaveTable(owner: String) async -> Bool {
+        guard !owner.isEmpty, owner != householdOwner else { return false }
         let db = container.sharedCloudDatabase
-        guard let zones = try? await db.allRecordZones(),
-              let zone = zones.first(where: { $0.zoneID.zoneName == zoneName })
-        else { return false }
+        let zoneID = CKRecordZone.ID(zoneName: zoneName, ownerName: owner)
         do {
-            _ = try await db.deleteRecordZone(withID: zone.zoneID)
-            forgetTokens()
-            // The plan is not here: it lives in the household zone, which
-            // has its own leave (docs/household.md), and that leave clears
-            // the household key the plan ledger reads.
+            _ = try await db.deleteRecordZone(withID: zoneID)
+            forgetToken(for: zoneID)
+            return true
+        } catch let error as CKError where error.code == .zoneNotFound {
+            forgetToken(for: zoneID)
             return true
         } catch { return false }
     }
 
-    /// True when this user is a guest somewhere rather than a host.
-    static func isGuest() async -> Bool {
-        let mine = CKRecordZone.ID(zoneName: zoneName, ownerName: CKCurrentUserDefaultName)
-        if (try? await container.privateCloudDatabase.recordZone(for: mine)) != nil { return false }
-        let zones = try? await container.sharedCloudDatabase.allRecordZones()
-        return zones?.contains { $0.zoneID.zoneName == zoneName } ?? false
+    /// The tables this person joined on their own (docs/household.md §9):
+    /// every `PlatedTable` zone in the shared database except the
+    /// household's, which is not a table one leaves here. The title is
+    /// what the host wrote on the root. A root that cannot be read still
+    /// lists, because the zone is real and Leave has to be reachable for
+    /// it; a listing that cannot be read at all is empty, and the caller
+    /// tells the two apart through `TableSync.accountState`.
+    static func joinedTables() async -> [(owner: String, title: String)] {
+        guard await TableSync.accountAvailable() else { return [] }
+        let db = container.sharedCloudDatabase
+        guard let zones = try? await db.allRecordZones() else { return [] }
+        var tables: [(owner: String, title: String)] = []
+        for zone in zones where zone.zoneID.zoneName == zoneName {
+            let owner = zone.zoneID.ownerName
+            guard !owner.isEmpty, owner != householdOwner else { continue }
+            let root = try? await db.record(
+                for: CKRecord.ID(recordName: "table-root", zoneID: zone.zoneID)
+            )
+            let title = (root?["title"] as? String)?.trimmingCharacters(in: .whitespaces) ?? ""
+            tables.append((owner: owner, title: title.isEmpty ? "Their table" : title))
+        }
+        return tables
     }
 
+    /// My own table's share, off the private root. Nil on a member's phone,
+    /// where there is no table of mine to speak of.
     private static func currentShare() async -> CKShare? {
+        guard householdOwner == nil else { return nil }
         let db = container.privateCloudDatabase
         let zoneID = CKRecordZone.ID(zoneName: zoneName, ownerName: CKCurrentUserDefaultName)
+        guard let root = try? await db.record(
+            for: CKRecord.ID(recordName: "table-root", zoneID: zoneID)
+        ), let ref = root.share else { return nil }
+        return try? await db.record(for: ref.recordID) as? CKShare
+    }
+
+    /// The share of THE table: mine when I host, the household's when I am
+    /// a member, read off the owner's root in the shared database.
+    private static func tableShare() async -> CKShare? {
+        guard let owner = householdOwner else { return await currentShare() }
+        let db = container.sharedCloudDatabase
+        let zoneID = CKRecordZone.ID(zoneName: zoneName, ownerName: owner)
         guard let root = try? await db.record(
             for: CKRecord.ID(recordName: "table-root", zoneID: zoneID)
         ), let ref = root.share else { return nil }
@@ -1595,9 +1708,11 @@ enum TableShare {
     ///
     /// Written down rather than done here: a pull may be mid-fetch, and a
     /// token forgotten now would be stored over by the page that fetch is
-    /// on. `postChanges` consumes the request at the start of that zone's
-    /// next read, where nothing can interleave. The flag is written beside
-    /// the tokens so a request survives the app dying before the next pull.
+    /// on. The zone's reader takes the request at the start of its next
+    /// read, where nothing can interleave: this names a household zone, so
+    /// that reader is `HouseholdShare.fetchChanges`. The flag is written
+    /// beside the tokens so a request survives the app dying before the
+    /// next pull.
     static func requestReplay(zoneOwner: String) {
         let ownerName = zoneOwner.isEmpty ? CKCurrentUserDefaultName : zoneOwner
         let id = CKRecordZone.ID(zoneName: householdZoneName, ownerName: ownerName)
@@ -1608,8 +1723,11 @@ enum TableShare {
         "plated.zonereplay.\(id.zoneName).\(id.ownerName)"
     }
 
-    /// True once per request, and the request is spent.
-    private static func takeReplayRequest(for id: CKRecordZone.ID) -> Bool {
+    /// True once per request, and the request is spent. Called by whoever
+    /// owns the zone's cursor at the start of its read, where nothing can
+    /// interleave: for the household zone that is
+    /// `HouseholdShare.fetchChanges`, not `postChanges`.
+    static func takeReplayRequest(for id: CKRecordZone.ID) -> Bool {
         guard UserDefaults.standard.bool(forKey: replayKey(id)) else { return false }
         UserDefaults.standard.removeObject(forKey: replayKey(id))
         return true
@@ -1627,14 +1745,14 @@ enum TableShare {
         "plated.zonetoken.\(id.zoneName).\(id.ownerName)"
     }
 
-    private static func token(for id: CKRecordZone.ID) -> CKServerChangeToken? {
+    static func token(for id: CKRecordZone.ID) -> CKServerChangeToken? {
         guard let data = UserDefaults.standard.data(forKey: tokenKey(id)) else { return nil }
         return try? NSKeyedUnarchiver.unarchivedObject(
             ofClass: CKServerChangeToken.self, from: data
         )
     }
 
-    private static func store(_ token: CKServerChangeToken?, for id: CKRecordZone.ID) {
+    static func store(_ token: CKServerChangeToken?, for id: CKRecordZone.ID) {
         guard let token,
               let data = try? NSKeyedArchiver.archivedData(
                 withRootObject: token, requiringSecureCoding: true
@@ -1642,15 +1760,10 @@ enum TableShare {
         UserDefaults.standard.set(data, forKey: tokenKey(id))
     }
 
-    private static func forgetToken(for id: CKRecordZone.ID) {
+    /// One zone's token. Never all of them: a token describes one zone,
+    /// and forgetting the others replays every table from the beginning.
+    static func forgetToken(for id: CKRecordZone.ID) {
         UserDefaults.standard.removeObject(forKey: tokenKey(id))
-    }
-
-    private static func forgetTokens() {
-        for key in UserDefaults.standard.dictionaryRepresentation().keys
-        where key.hasPrefix("plated.zonetoken.") {
-            UserDefaults.standard.removeObject(forKey: key)
-        }
     }
 
     private static func remoteReaction(from record: CKRecord) -> RemoteReaction {
@@ -1684,7 +1797,12 @@ enum TableShare {
         return p
     }
 
-    private static func remotePlan(from record: CKRecord) -> RemotePlan {
+    /// One night off the wire. Not private: the household zone has one
+    /// reader and it is `HouseholdShare.fetchChanges`, which goes past
+    /// these records on its way through the zone and hands them on. The
+    /// codec stays here beside `planType` so there is one spelling of a
+    /// plan record rather than two that can drift.
+    static func remotePlan(from record: CKRecord) -> RemotePlan {
         var p = RemotePlan()
         p.recordName = record.recordID.recordName
         p.authorID = record["authorID"] as? String ?? ""
@@ -1733,7 +1851,7 @@ enum TableShare {
     /// PERSON — do I host a table? — and let hosting always win. Anyone who
     /// has tapped Invite once hosts forever, so every write to a post on a
     /// table they had JOINED was aimed at their own zone instead.
-    private static func zone(ownedBy owner: String) async -> (CKDatabase, CKRecordZone.ID)? {
+    static func zone(ownedBy owner: String) async -> (CKDatabase, CKRecordZone.ID)? {
         if owner.isEmpty {
             let id = CKRecordZone.ID(zoneName: zoneName, ownerName: CKCurrentUserDefaultName)
             // `.zoneNotFound` means there is genuinely no table here. Any
@@ -1755,25 +1873,19 @@ enum TableShare {
         return (container.sharedCloudDatabase, z.zoneID)
     }
 
-    /// Where a NEW post goes: my own table if I host one, otherwise the
-    /// table I have joined.
+    /// Where a NEW post goes: the household's table when I am a member of
+    /// one, never a zone I happen to host; else my own table if I host one;
+    /// else the table I have joined.
     private static func myWritableZone() async -> (CKDatabase, CKRecordZone.ID, String)? {
+        if let owner = householdOwner {
+            guard let (db, id) = await zone(ownedBy: owner) else { return nil }
+            return (db, id, owner)
+        }
         if let (db, id) = await zone(ownedBy: "") { return (db, id, "") }
         guard let zones = try? await container.sharedCloudDatabase.allRecordZones(),
               let z = zones.first(where: { $0.zoneID.zoneName == zoneName })
         else { return nil }
         return (container.sharedCloudDatabase, z.zoneID, z.zoneID.ownerName)
-    }
-
-    private static func asset(from data: Data) -> CKAsset? {
-        let url = FileManager.default.temporaryDirectory
-            .appending(path: "share-\(UUID().uuidString).jpg")
-        do {
-            try data.write(to: url)
-            return CKAsset(fileURL: url)
-        } catch {
-            return nil
-        }
     }
 
     #else
@@ -1801,8 +1913,11 @@ enum TableShare {
                         var hasRecipe = false; var recipeMinutes = 0; var recipeOriginKey = ""
                         var shoppingID = ""; var photoData: Data?
                         var createdAt = Date.now; var changedAt = Date.now }
+    struct Claim: Equatable { var inviteID: String; var userRecordName: String }
+    static func pushClaim(inviteID: String, zoneOwner: String) async -> Bool { false }
     struct Changes { var posts: [RemotePost] = []; var reactions: [RemoteReaction] = []
                      var notes: [RemoteNote] = []; var plans: [RemotePlan] = []
+                     var claims: [Claim] = []
                      var deleted: Set<String> = []
                      var sharesChanged = false; var replayed = false
                      var replayedOwners: Set<String> = []; var householdShareChanged = false }
@@ -1816,18 +1931,18 @@ enum TableShare {
     static func fetchChanges() async -> Changes { Changes() }
     struct Seat: Identifiable { var id = ""; var name = ""; var isOwner = false; var isMe = false }
     static func participants() async -> [Seat] { [] }
-    static func shareMetadata(for url: URL) async throws -> CKShare.Metadata {
+    static func shareMetadata(for url: URL, shouldFetchRootRecord: Bool = false) async throws -> CKShare.Metadata {
         throw CKError(.unknownItem)
     }
     static func remove(seatID: String) async -> Bool { false }
-    static func leaveTable() async -> Bool { false }
-    enum InviteOutcome { case ready(URL), noAccount, noCloud }
+    static func leaveTable(owner: String) async -> Bool { false }
+    static func joinedTables() async -> [(owner: String, title: String)] { [] }
+    enum InviteOutcome: Equatable { case ready(URL), noAccount, noCloud }
     static func invite(phone: String?, email: String?, hostName: String) async -> InviteOutcome { .noCloud }
     static func revokeInvite(phone: String?, email: String?) async {}
     struct Standing { var phone: String?; var email: String?; var name = ""
                       var accepted = false; var participantID: String? }
     static func standings() async -> [Standing] { [] }
-    static func isGuest() async -> Bool { false }
     struct HouseholdResolution { var choice: Choice = .none; var tables: [PlanShare.Table] = []
                                  var database: CKDatabase?; var zoneID: CKRecordZone.ID? }
     static func resolveHousehold(stored: String?, me: String) async -> HouseholdResolution? { nil }
@@ -1848,6 +1963,7 @@ enum TableShare {
     static func deletePlans(names: [String], zoneOwner: String) async -> Set<String> { [] }
     @MainActor static func sweepDepartedPlans() async -> PlanLedger.Delta { PlanLedger.Delta() }
     static func requestReplay(zoneOwner: String) {}
+    static func takeReplayRequest(for id: CKRecordZone.ID) -> Bool { false }
     #endif
 
     /// Fold what came back into the local store, keyed on the record name so

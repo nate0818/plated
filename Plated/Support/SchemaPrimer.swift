@@ -42,11 +42,34 @@ enum SchemaPrimer {
         photo.recipe = recipe
 
         let member = HouseholdMember(name: marker)
+        // Every household-sync field, populated: a field that is nil or
+        // empty while priming does not exist in Production, and the first
+        // real join then fails on it (docs/household.md §12).
+        member.userRecordName = "primer-\(marker)"
+        member.bio = "Delete me"
+        member.authorID = "primer"
+        member.shareModifiedAt = .now
+        member.shareFingerprint = marker
+        member.leftAt = .now
         let meal = PlannedMeal(date: .now, slot: .dinner, recipe: recipe, cook: member)
         meal.cookReaction = 3
         meal.actualMinutes = 42
+        meal.authorID = "primer"
+        meal.shareModifiedAt = .now
+        meal.shareFingerprint = marker
+        meal.titleFallback = marker
+        recipe.authorID = "primer"
+        recipe.shareModifiedAt = .now
+        recipe.shareFingerprint = marker
+        recipe.sharePhotoHash = marker
         let gathering = Gathering(title: marker, notes: "Delete me")
-        let grocery = GroceryItem(name: marker, quantity: 1, unit: "ea")
+        gathering.authorID = "primer"
+        gathering.shareModifiedAt = .now
+        gathering.shareFingerprint = marker
+        let grocery = GroceryItem(name: marker, quantity: 1, unit: "ea", isManual: true)
+        grocery.authorID = "primer"
+        grocery.shareModifiedAt = .now
+        grocery.shareFingerprint = marker
 
         let post = TablePost(authorName: marker, dishTitle: marker)
         post.photoData = blob
@@ -56,6 +79,7 @@ enum SchemaPrimer {
         let message = DirectMessage(peerName: marker, text: "Delete me")
         let notification = PlatedNotification(kind: .recipeAdded, actorName: marker)
         let profile = HouseholdProfile(bannerPhotoData: blob)
+        profile.shareModifiedAt = .now
 
         let rows: [any PersistentModel] = [
             recipe, ingredient, photo, member, meal, gathering,

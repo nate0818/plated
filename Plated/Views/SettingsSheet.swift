@@ -36,13 +36,24 @@ struct SettingsSheet: View {
     @State private var editProfileShown = false
     @State private var sync = SyncStatus.shared
     @FocusState private var namingHousehold: Bool
+    /// Where this phone stands in the household (docs/household.md §8,
+    /// §10). The app-group cache is not observed and Settings is a sheet,
+    /// so it is read when the sheet opens and again after Leave.
+    @State private var membership = HouseholdShare.membership
+    @State private var leaveAsked = false
+    @State private var leaving = false
+    /// "Couldn't leave." Said under the Leave row, the same way Home says a
+    /// refused Remove.
+    @State private var leaveProblem: String?
 
-    private var owner: HouseholdMember? { members.first(where: \.isOwner) }
+    /// The person holding the phone, not the head of table: on a member's
+    /// phone the two are different people and Settings is about you.
+    private var me: HouseholdMember? { members.me }
     private var appearance: Appearance {
         Appearance(rawValue: appearanceRaw) ?? .system
     }
     private var displayName: String {
-        guard let name = owner?.name, !HouseholdIdentity.isPlaceholder(name) else {
+        guard let name = me?.name, !HouseholdIdentity.isPlaceholder(name) else {
             return "Complete your profile"
         }
         return name
@@ -93,7 +104,12 @@ struct SettingsSheet: View {
                 }
 
                 SettingsSection(title: "Household", caption: "The name everyone sees at home, and where your week goes.") {
-                    householdNameCard
+                    // The host names the household; a member reads the name
+                    // the host set and keeps the way out.
+                    switch membership {
+                    case .solo, .hosting: householdNameCard
+                    case .member: memberHouseholdCard
+                    }
                     SettingsGroup {
                         planShareRow
                     }
@@ -180,8 +196,15 @@ struct SettingsSheet: View {
         .presentationCornerRadius(Radius.sheet)
         .task { await refreshStatus() }
         .onAppear {
+            membership = HouseholdShare.membership
             if focusHouseholdName { namingHousehold = true }
         }
+        // The name goes to the household on commit only: Done, or the field
+        // losing focus, which includes the sheet closing over it.
+        .onChange(of: namingHousehold) { _, focused in
+            if !focused { commitHouseholdName() }
+        }
+        .onDisappear { commitHouseholdName() }
         .onChange(of: scenePhase) { _, phase in
             guard phase == .active else { return }
             Task { await refreshStatus() }
@@ -233,10 +256,10 @@ struct SettingsSheet: View {
         } label: {
             HStack(spacing: 14) {
                 AvatarCircle(
-                    initials: owner?.initials ?? "Me",
+                    initials: me?.initials ?? "Me",
                     tone: .neutralPair,
                     size: 54,
-                    photo: owner?.photoData
+                    photo: me?.photoData
                 )
                 .overlay(Circle().strokeBorder(Color.canvas, lineWidth: 3))
                 .shadow(color: Color.shadowInk.opacity(0.10), radius: 8, y: 4)
@@ -458,14 +481,14 @@ struct SettingsSheet: View {
         case .allowed:
             SettingsControlRow(
                 symbol: tableNewsOn ? "fork.knife.circle.fill" : "fork.knife.circle",
-                title: "Table activity",
+                title: "Household and Table activity",
                 detail: tableNewsOn
-                    ? "Dishes, replies, plates, plans and new seats"
+                    ? "Dishes, replies, plates, new seats and changes to the plan"
                     : "Off. The bell still keeps the list.",
                 tint: .tomatoTint,
                 tone: .tomato
             ) {
-                Toggle("Table activity", isOn: $tableNewsOn)
+                Toggle("Household and Table activity", isOn: $tableNewsOn)
                     .labelsHidden()
                     .tint(Color.tomato)
                     .sensoryFeedback(.selection, trigger: tableNewsOn)
@@ -475,8 +498,8 @@ struct SettingsSheet: View {
         case .notDetermined:
             SettingsControlRow(
                 symbol: "fork.knife.circle",
-                title: "Table activity",
-                detail: "When someone plates, replies, plans a night or takes a seat",
+                title: "Household and Table activity",
+                detail: "When someone plates, replies, takes a seat or changes the plan",
                 tint: .tomatoTint,
                 tone: .tomato
             ) {
@@ -498,7 +521,7 @@ struct SettingsSheet: View {
         case .denied:
             SettingsControlRow(
                 symbol: "fork.knife.circle",
-                title: "Table activity",
+                title: "Household and Table activity",
                 detail: "Notifications are off in iOS Settings",
                 tint: .fill,
                 tone: .inkSecondary
@@ -610,10 +633,183 @@ struct SettingsSheet: View {
                 .plTapToFocus { namingHousehold = true }
                 .submitLabel(.done)
                 .onSubmit { namingHousehold = false }
+
+            Text(hostCaption)
+                .plType(.caption)
+                .foregroundStyle(Color.inkSecondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .padding(16)
         .background(Color.raisedFill, in: Radius.shape(Radius.card))
         .overlay(Radius.shape(Radius.card).strokeBorder(Color.hairline))
+    }
+
+    // MARK: The household, from a member's phone (docs/household.md §8, §10)
+
+    /// The name read-only with who can change it, whose household it is and
+    /// when this phone joined, and the way out. The host's phone keeps the
+    /// field above; here the name is the host's to set.
+    private var memberHouseholdCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 13) {
+                SettingsIcon(symbol: "house.fill", tint: .basilTint, tone: .completion)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(memberHouseholdName)
+                        .plName()
+                        .plType(.body, .semibold)
+                        .foregroundStyle(Color.ink)
+                    Text("\(hostFirstName) can rename it.")
+                        .plType(.caption)
+                        .foregroundStyle(Color.inkSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            Text(memberLine)
+                .plType(.caption)
+                .foregroundStyle(Color.inkSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            leaveButton
+
+            if let leaveProblem {
+                ProblemRow(leaveProblem)
+                    .transition(.opacity)
+            }
+        }
+        .padding(16)
+        .background(Color.raisedFill, in: Radius.shape(Radius.card))
+        .overlay(Radius.shape(Radius.card).strokeBorder(Color.hairline))
+        .animation(.plSnap, value: leaveProblem)
+        // On the card, not the sheet root: the root already carries the
+        // sign-out dialog, and two presentation modifiers on one view is
+        // the undefined behaviour CLAUDE.md warns about.
+        .confirmationDialog(
+            "Leave \(hostFirstName)'s household?",
+            isPresented: $leaveAsked,
+            titleVisibility: .visible
+        ) {
+            Button("Leave", role: .destructive) { leave() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text(leaveMessage)
+        }
+    }
+
+    /// The tomato outline pill: the same shape the seats sheet gave "Leave
+    /// this table", quiet until pressed, never the filled tomato of a
+    /// committing action. Busy is a state of the label, not a fade of the
+    /// control (DESIGN.md: a disabled control changes colour, it does not
+    /// fade), so the tap is guarded rather than `.disabled`.
+    private var leaveButton: some View {
+        Button {
+            guard !leaving else { return }
+            Haptic.tap()
+            leaveAsked = true
+        } label: {
+            HStack(spacing: 8) {
+                if leaving {
+                    ProgressView().tint(Color.tomato)
+                }
+                Text(leaving ? "Leaving" : "Leave household")
+                    .plType(.body, .bold)
+                    .plActionLabel()
+            }
+            .foregroundStyle(Color.tomato)
+            .frame(maxWidth: .infinity)
+            .frame(minHeight: 48)
+            .overlay(Capsule().strokeBorder(Color.hairline, lineWidth: 1.5))
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.pressable)
+        .accessibilityLabel(leaving ? "Leaving the household" : "Leave household")
+        .accessibilityHint("Asks before you leave.")
+    }
+
+    /// The host's first name, from the app-group value the join recorded.
+    /// "The host" when it never arrived, rather than an empty possessive.
+    private var hostFirstName: String {
+        let host = HouseholdShare.cachedOwnerName.trimmingCharacters(in: .whitespaces)
+        let first = host.split(separator: " ").first.map(String.init) ?? host
+        return first.isEmpty ? "The host" : first
+    }
+
+    /// On a member's phone the name is the root's alone (§3.6): the typed
+    /// value the merge wrote, else the cached root name, else the host's.
+    private var memberHouseholdName: String {
+        let typed = householdName.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !typed.isEmpty { return typed }
+        let cached = HouseholdShare.cachedName.trimmingCharacters(in: .whitespacesAndNewlines)
+        return cached.isEmpty ? "\(hostFirstName)'s household" : cached
+    }
+
+    /// "Nate's household. You joined Tuesday." The date is the seat's own
+    /// `joinedAt`; without one the sentence stops at whose household it is
+    /// rather than inventing a day.
+    private var memberLine: String {
+        var line = "\(hostFirstName)'s household."
+        if let joined = me?.joinedAt {
+            line += " You joined \(HouseholdMember.when(joined))."
+        }
+        return line
+    }
+
+    /// Every other seat, joined and by-name alike: a place laid for
+    /// somebody is a place at this household whether or not they hold a
+    /// phone. An invited seat is not, and neither is one that left, so the
+    /// list is `hostedNames` rather than "everybody but me" (§10).
+    private var hostCaption: String {
+        let names = members.hostedNames
+        guard !names.isEmpty else { return "Add someone from Home to plan together." }
+        return "You host this household with \(HouseholdIdentity.seatedLine(names: names))."
+    }
+
+    /// Section 8, verbatim, plus the by-name seats this phone laid: they
+    /// were mine before the household and come back out with me.
+    private var leaveMessage: String {
+        var text = "You'll leave the Table too. Your recipes and awards stay with you, and the household keeps its copy of your recipes. The plan and the grocery list stay with the household."
+        let brought = members
+            .filter { $0.seat == .notOnPlated && $0.authorID == TableIdentity.cached }
+            .map(\.name)
+        if !brought.isEmpty {
+            text += " \(JoinHouseholdSheet.list(brought)) \(brought.count == 1 ? "comes" : "come") with you."
+        }
+        return text
+    }
+
+    /// The root goes out on commit only, and only when the trimmed name
+    /// differs from the one last exchanged (§3.6): a push per keystroke
+    /// would put every half-typed name in front of the household, and a
+    /// push of an unchanged name is a write that says nothing.
+    private func commitHouseholdName() {
+        guard membership == .hosting else { return }
+        let typed = householdName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let synced = HouseholdShare.groupDefaults.string(forKey: HouseholdShare.Keys.lastSyncedName) ?? ""
+        guard typed != synced else { return }
+        HouseholdOutbox.shared.enqueueRoot()
+        print("PLATED HOUSEHOLD: household name changed, root queued")
+    }
+
+    private func leave() {
+        guard !leaving else { return }
+        withAnimation(.plSnap) {
+            leaving = true
+            leaveProblem = nil
+        }
+        Task {
+            let left = await HouseholdSync.leave(context: context)
+            withAnimation(.plSnap) { leaving = false }
+            if left {
+                Haptic.plate()
+                membership = HouseholdShare.membership
+                dismiss()
+            } else {
+                Haptic.warn()
+                withAnimation(.plSnap) {
+                    leaveProblem = "Couldn't leave. Check your connection and try again."
+                }
+            }
+        }
     }
 
     /// Which table the nights planned on this phone go to. Three honest
@@ -727,7 +923,7 @@ struct SettingsSheet: View {
                 .frame(width: 34, height: 34)
                 .background(Color.basilTint, in: Circle())
                 .plChrome()
-            Text("Your plan and cookbook stay with your Apple account. Only posts you choose to share appear at the Table.")
+            Text("Your plan and cookbook are shared with your household and nobody else. Only posts you choose to share appear at the Table.")
                 .plType(.caption)
                 .foregroundStyle(Color.inkSecondary)
                 .fixedSize(horizontal: false, vertical: true)

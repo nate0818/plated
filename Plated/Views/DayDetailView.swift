@@ -390,7 +390,7 @@ struct DayDetailView: View {
             // Not you. The meta line already says "You cook"; your own face
             // beside it is the same fact twice. Same rule as the week's
             // rows — see WeekView.plannedRow.
-            if let cook = meal.cook, !cook.isOwner {
+            if let cook = meal.cook, !cook.isMe {
                 AvatarCircle(member: cook, size: 30)
             }
         }
@@ -508,7 +508,7 @@ struct DayDetailView: View {
             parts.append(Recipe.durationText(minutes))
         }
         if let cook = meal.cook {
-            parts.append(cook.isOwner ? "You cook" : "\(cook.name) cooks")
+            parts.append(cook.isMe ? "You cook" : "\(cook.name) cooks")
         }
         if meal.gathering != nil { parts.append("Gathering") }
         if meal.isCooked { parts.append("Cooked") }
@@ -551,7 +551,7 @@ struct DayDetailView: View {
         let weekday = Calendar.current.component(.weekday, from: date)
         let rostered = members.filter { $0.cookWeekdays.contains(weekday) }
         guard !rostered.isEmpty else { return nil }
-        let names = rostered.map { $0.isOwner ? "you" : $0.name }
+        let names = rostered.map { $0.isMe ? "you" : $0.name }
         return "Usually \(names.joined(separator: " and ")) on \(weekdayName)s"
     }
 

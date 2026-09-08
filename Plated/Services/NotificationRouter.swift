@@ -41,6 +41,14 @@ final class NotificationRouter: NSObject, UNUserNotificationCenterDelegate {
         static let turnMine = "plated.category.turn.mine"
         static let plan = "plated.category.plan"
         static let cook = "plated.category.cook"
+        /// A night planned, or an edit that lost: both open the plan.
+        static let household = "plated.category.household"
+        /// A seat joined or left. The placeholder has to name the same
+        /// door the tap opens, so these keep their own category rather
+        /// than borrowing the plan's sentence on a locked screen.
+        static let householdSeat = "plated.category.household.seat"
+        /// A recipe added, which opens the cookbook.
+        static let householdRecipe = "plated.category.household.recipe"
     }
 
     enum Action {
@@ -58,6 +66,9 @@ final class NotificationRouter: NSObject, UNUserNotificationCenterDelegate {
         // The same category the cook reminders wear: a tap lands on the
         // plan, and there is nothing to plate or answer about a night.
         case .plan: return Category.plan
+        case .householdSeat, .householdLeft: return Category.householdSeat
+        case .recipe: return Category.householdRecipe
+        case .night, .conflict: return Category.household
         }
     }
 
@@ -97,7 +108,10 @@ final class NotificationRouter: NSObject, UNUserNotificationCenterDelegate {
             category(Category.plates, [], "Open the dish."),
             category(Category.turnMine, [grocery], "Open the plan."),
             category(Category.plan, [], "Open the plan."),
-            category(Category.cook, [], "Time to check the pan.")
+            category(Category.cook, [], "Time to check the pan."),
+            category(Category.household, [], "Open the plan."),
+            category(Category.householdSeat, [], "Open Home."),
+            category(Category.householdRecipe, [], "Open the cookbook.")
         ])
     }
 

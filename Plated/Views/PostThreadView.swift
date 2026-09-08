@@ -530,7 +530,7 @@ struct PostThreadView: View {
 
     /// Your own comment, or any comment on your own post.
     private func canRemove(_ comment: TableComment) -> Bool {
-        let me = members.first(where: \.isOwner)?.name ?? userFirstName
+        let me = members.me?.name ?? userFirstName
         guard !me.isEmpty, comment.deletedAt == nil else { return false }
         return comment.authorName == me || post.authorName == me
     }
@@ -865,7 +865,7 @@ struct PostThreadView: View {
 
     private func send() {
         let author = userFirstName.isEmpty
-            ? (members.first(where: \.isOwner)?.name ?? "Me")
+            ? (members.me?.name ?? "Me")
             : userFirstName
         let normalized = link.isEmpty ? "" : (link.hasPrefix("http") ? link : "https://\(link)")
         let mentioned = members.map(\.name).filter { draft.contains("@\($0)") }

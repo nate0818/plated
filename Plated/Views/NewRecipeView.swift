@@ -977,7 +977,7 @@ struct RecipeEditorView: View {
             // finishSave — a second "joined the cookbook" line would double
             // the bell for one action.
             if prefill == nil {
-                let owner = members.first(where: \.isOwner)?.name ?? "Someone"
+                let owner = members.me?.name ?? "Someone"
                 Notifier.post(
                     .recipeAdded, actor: owner,
                     body: "You added \(recipe.title) to the cookbook.",
@@ -1001,7 +1001,7 @@ struct RecipeEditorView: View {
                 context.insert(item)
             }
             if !draftIngredients.isEmpty {
-                let owner = members.first(where: \.isOwner)?.name ?? "Someone"
+                let owner = members.me?.name ?? "Someone"
                 Notifier.post(
                     .groceriesAdded, actor: owner,
                     body: "\(draftIngredients.count.things("ingredient")) from \(recipe.title) added to the grocery list.",
@@ -1012,7 +1012,7 @@ struct RecipeEditorView: View {
 
         if let night {
             let cook = members.first { $0.cookWeekdays.contains(Calendar.current.component(.weekday, from: night)) }
-                ?? members.first(where: \.isOwner)
+                ?? members.me
             context.insert(PlannedMeal(
                 date: night, slot: .dinner, recipe: recipe,
                 servings: serves, cook: cook

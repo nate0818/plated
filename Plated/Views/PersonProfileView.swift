@@ -67,6 +67,8 @@ struct PersonProfileView: View {
             return "\(firstName) hasn't taken their seat yet."
         case .notOnPlated:
             return "\(firstName) isn't on Plated. This is the place you keep for them."
+        case .left:
+            return "\(firstName) left the household."
         default:
             return "\(firstName) hasn't shared a plate yet."
         }
@@ -81,7 +83,18 @@ struct PersonProfileView: View {
         return members.first { $0.name == personName || $0.name == pushedFirst }
     }
 
-    private var isMe: Bool { member?.isOwner ?? false }
+    private var isMe: Bool { member?.isMe ?? false }
+
+    /// The line a person wrote about themselves. It belongs to the seat
+    /// they are (docs/household.md §3.1), so it travels and everyone's page
+    /// can show it. `myBio` stays only as the reader's own fallback: a
+    /// phone with no seat row yet, and the bios written before the line
+    /// reached the row at all.
+    private var bioLine: String {
+        let seated = (member?.bio ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        if !seated.isEmpty { return seated }
+        return isMe ? myBio.trimmingCharacters(in: .whitespacesAndNewlines) : ""
+    }
 
     private var posts: [TablePost] {
         allPosts.filter { $0.kind == "dish" && ($0.authorName == name || $0.firstName == firstName) }
@@ -145,8 +158,8 @@ struct PersonProfileView: View {
                                 .foregroundStyle(Color.ink)
                         }
                         MicroLabel(roleLine)
-                        if isMe && !myBio.isEmpty {
-                            Text(myBio)
+                        if !bioLine.isEmpty {
+                            Text(bioLine)
                                 .plType(.footnote)
                                 .foregroundStyle(Color.inkSecondary)
                                 .padding(.top, 3)
@@ -197,7 +210,7 @@ struct PersonProfileView: View {
                 if profileTab == "Saved", isMe {
                     let saved = recipes.filter { $0.isImported }
                     if saved.isEmpty {
-                        profileEmpty("Your private recipe shelf", detail: "Recipes you save from the Table appear here. Only you can see them.")
+                        profileEmpty("Your recipe shelf", detail: "Recipes you save from the Table appear here. Your household can see them too.")
                     } else {
                         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 20) {
                             ForEach(saved) { recipe in
@@ -418,9 +431,11 @@ struct PersonProfileView: View {
         return name
     }
 
+    /// The person's role, and "Head of table" only for the row that holds
+    /// it. This used to print "Head of table" for whoever was reading,
+    /// which on a member's phone is a partner reading their own page.
     private var roleLine: String {
-        if isMe { return "Head of table" }
-        if let member { return member.roleLine.isEmpty ? member.role.capitalized : member.roleLine }
+        if let member { return member.roleTitle }
         return "At your table"
     }
 
@@ -474,7 +489,7 @@ struct EditProfileSheet: View {
     @State private var draftBio = ""
     @State private var saved = false
     private var draftKey: String {
-        "profile.editDraft." + (members.first(where: \.isOwner).map { String(describing: $0.persistentModelID) } ?? "local")
+        "profile.editDraft." + (members.me.map { String(describing: $0.persistentModelID) } ?? "local")
     }
     @State private var photoData: Data?
     @State private var pickerItem: PhotosPickerItem?
@@ -570,7 +585,7 @@ struct EditProfileSheet: View {
                 // refusal became invisible.
                 if saveName() {
                     savePhoto()
-                    bio = draftBio.trimmingCharacters(in: .whitespacesAndNewlines)
+                    saveBio()
                     saved = true
                     UserDefaults.standard.removeObject(forKey: draftKey)
                     dismiss()
@@ -579,11 +594,13 @@ struct EditProfileSheet: View {
             Spacer()
         }
         .onAppear {
-            let owner = members.first(where: \.isOwner)
+            let owner = members.me
             let name = owner?.name ?? firstName
             draftName = HouseholdIdentity.isPlaceholder(name) ? "" : name
             photoData = owner?.photoData
-            draftBio = bio
+            // The row is the bio's home, so the sheet opens on it. The
+            // stored value only seeds a row that has never carried one.
+            draftBio = (owner?.bio).flatMap { $0.isEmpty ? nil : $0 } ?? bio
             if let kept = UserDefaults.standard.dictionary(forKey: draftKey) {
                 draftName = kept["name"] as? String ?? draftName
                 draftBio = kept["bio"] as? String ?? draftBio
@@ -626,9 +643,22 @@ struct EditProfileSheet: View {
     /// collision aborts the whole Done and a half-applied edit is worse than
     /// none.
     private func savePhoto() {
-        guard let owner = members.first(where: \.isOwner),
+        guard let owner = members.me,
               owner.photoData != photoData else { return }
         owner.photoData = photoData
+        Persist.save(context)
+    }
+
+    /// The bio rides on the seat too. It used to be written only to
+    /// `userBio`, so `HouseholdMember.bio` was always "" on the wire and a
+    /// partner's page on the host's phone never showed the line they had
+    /// written about themselves. The preference is kept in step because
+    /// it is what a phone with no seat row still reads.
+    private func saveBio() {
+        let trimmed = draftBio.trimmingCharacters(in: .whitespacesAndNewlines)
+        bio = trimmed
+        guard let owner = members.me, owner.bio != trimmed else { return }
+        owner.bio = trimmed
         Persist.save(context)
     }
 
@@ -648,7 +678,7 @@ struct EditProfileSheet: View {
         // "Me" with no saves, while every new comment was stamped with the
         // new name. Identity split across two stores, and nothing told
         // anyone.
-        if let owner = members.first(where: \.isOwner) {
+        if let owner = members.me {
             // Through the one door: a bare `owner.name = name` orphans
             // every dish they have posted and their whole awards ledger.
             switch HouseholdIdentity.rename(owner, to: name, in: context) {
@@ -707,7 +737,7 @@ struct PaywallSheet: View {
 
             VStack(alignment: .leading, spacing: 12) {
                 perk("person.2", "Unlimited household seats", "Partners, kids, grandma. Everyone gets a color.")
-                perk("calendar", "The whole plan, shared", "Everyone sees the week and their nights.")
+                perk("calendar", "The whole plan, shared", "Everyone in the household sees the week and their nights.")
                 perk("bubble.left.and.bubble.right", "Comments and polls", "Ask the Table, run a poll, reply on any dish.")
                 perk("sparkles", "First in line", "New features land on Plated+ tables first.")
             }

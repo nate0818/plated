@@ -247,10 +247,10 @@ struct ProngsbyBrain {
             guard let cook = meal.cook else {
                 return "\(meal.title) is on for \(dayName), cook still to be decided. The pan waits for a hero."
             }
-            return "\(cook.isOwner ? "You're" : "\(cook.name) is") on \(dayName): \(meal.title). \(cook.isOwner ? "I believe in you." : "Send encouragement, or at least stay out of the kitchen.")"
+            return "\(cook.isMe ? "You're" : "\(cook.name) is") on \(dayName): \(meal.title). \(cook.isMe ? "I believe in you." : "Send encouragement, or at least stay out of the kitchen.")"
         }
         let minutes = meal.recipe?.totalMinutes ?? 0
-        let cookLine = meal.cook.map { $0.isOwner ? " You're cooking." : " \($0.name)'s cooking." } ?? ""
+        let cookLine = meal.cook.map { $0.isMe ? " You're cooking." : " \($0.name)'s cooking." } ?? ""
         return "\(dayName.capitalized): \(meal.title)\(minutes > 0 ? ", about \(Recipe.spokenDuration(minutes))" : "").\(cookLine)"
     }
 

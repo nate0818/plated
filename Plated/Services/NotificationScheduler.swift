@@ -165,7 +165,14 @@ enum NotificationScheduler {
     /// The ledger is read here rather than passed in, so no caller can
     /// forget it: the Plan tab, the night sheet and the push all rebuild
     /// through this one door.
-    static func rebuild(meals: [PlannedMeal], ownerName: String) async {
+    ///
+    /// No owner name either. Whose night it is is answered by identity on
+    /// both roads, `HouseholdMember.isMe` for a local night and
+    /// `PlanLedger.isMine(cook:)` for a remote one, so there is nothing
+    /// for a caller to pass and nothing for it to get wrong: two people
+    /// called Sam, and an owner who renamed themselves, both broke the
+    /// name compare this parameter used to feed.
+    static func rebuild(meals: [PlannedMeal]) async {
         // The user's switch, checked here rather than at each call site.
         // Without it the Plan tab's own rebuild would quietly re-add every
         // reminder the moment after somebody turned them off in Settings,
@@ -182,7 +189,7 @@ enum NotificationScheduler {
             withIdentifiers: pending.map(\.identifier)
                 .filter { $0 == ritualID || $0.hasPrefix(turnPrefix) }
         )
-        await scheduleTurns(meals: meals, ownerName: ownerName, center: center)
+        await scheduleTurns(meals: meals, center: center)
         await scheduleRemoteTurns(meals: meals, center: center)
         await scheduleRitual(meals: meals, center: center)
     }
@@ -193,8 +200,7 @@ enum NotificationScheduler {
     @MainActor
     static func rebuild(from context: ModelContext) async {
         let meals = (try? context.fetch(FetchDescriptor<PlannedMeal>())) ?? []
-        let owner = Seats.all(in: context).first(where: \.isOwner)?.name ?? ""
-        await rebuild(meals: meals, ownerName: owner)
+        await rebuild(meals: meals)
     }
 
     /// The night before a night somebody else planned with you cooking.
@@ -264,7 +270,7 @@ enum NotificationScheduler {
     /// look up. Your own night is phrased as yours, because the obligation
     /// lands differently when it's the one you took.
     private static func scheduleTurns(
-        meals: [PlannedMeal], ownerName: String, center: UNUserNotificationCenter
+        meals: [PlannedMeal], center: UNUserNotificationCenter
     ) async {
         let cal = Calendar.current
         let today = cal.startOfDay(for: .now)
@@ -272,9 +278,14 @@ enum NotificationScheduler {
 
         for meal in meals where meal.date > today && meal.date <= horizon {
             guard let cook = meal.cook else { continue }
-            // A system push saying "Riley cooks tomorrow" about a name typed
-            // five seconds ago, to somebody who has never heard of Plated.
-            guard cook.seat != .invited else { continue }
+            // Never an obligation about somebody who is not there: a name
+            // typed five seconds ago, to somebody who has never heard of
+            // Plated, or a seat that has left the household. A left seat's
+            // nights are meant to be handed back to unplanned
+            // (docs/household.md section 8) and today no road but Remove
+            // does it, so the reminder refuses the name rather than
+            // trusting the plan to have been cleared.
+            guard cook.seat != .invited, cook.seat != .left else { continue }
             let dish = meal.recipe?.title ?? meal.customTitle
             guard !dish.isEmpty else { continue }
 
@@ -288,8 +299,11 @@ enum NotificationScheduler {
             guard let fire = cal.date(from: when), fire > .now else { continue }
 
             // Identity, not a string compare — two people called Sam broke
-            // this, and so did the owner renaming themselves.
-            let mine = cook.isOwner
+            // this, and so did the owner renaming themselves. And identity
+            // rather than role: on a member's phone the head of table is
+            // somebody else, and "Your night tomorrow" about their night
+            // would be the wrong person's obligation.
+            let mine = cook.isMe
             // First name only. "Riley cooks tomorrow" is how a household
             // talks; the full name is how a system does.
             let who = cook.name.split(separator: " ").first.map(String.init) ?? cook.name

@@ -12,8 +12,16 @@ final class Gathering {
     var guestCount: Int = 0
     var location: String = ""
     /// EventKit identifier once mirrored to the user's calendar, so we update
-    /// rather than duplicate on subsequent syncs.
+    /// rather than duplicate on subsequent syncs. This device's, only: it
+    /// never travels to the household (docs/household.md §3.4).
     var calendarEventID: String?
+
+    // MARK: How this row travels
+
+    var shareRecordName: String = ""
+    var shareModifiedAt: Date?
+    var shareFingerprint: String = ""
+    var authorID: String = ""
 
     @Relationship(deleteRule: .nullify, inverse: \PlannedMeal.gathering)
     var plannedMeals: [PlannedMeal]? = []
@@ -32,6 +40,7 @@ final class Gathering {
         self.endDate = endDate ?? startDate.addingTimeInterval(3 * 3600)
         self.guestCount = guestCount
         self.location = location
+        self.shareRecordName = "gathering-\(UUID().uuidString)"
     }
 
     var meals: [PlannedMeal] {

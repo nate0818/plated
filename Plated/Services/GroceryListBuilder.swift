@@ -6,14 +6,31 @@ import SwiftData
 struct GroceryListBuilder {
     let context: ModelContext
 
+    /// Main actor because the marks it folds are; the sheet and the
+    /// regression checks, its only callers, both already are.
+    @MainActor
     @discardableResult
     func rebuild(weekOf date: Date, includePantryStaples: Bool = false) throws -> [GroceryItem] {
         let start = date.startOfDay
         let end = Calendar.current.date(byAdding: .day, value: 7, to: start) ?? start
+        // Sorted on facts every phone shares, never on fetch order: the
+        // aggregation appends sources in this order, and two phones
+        // rebuilding one plan have to produce one list.
         let meals = try context.fetch(FetchDescriptor<PlannedMeal>(predicate: #Predicate {
             $0.date >= start && $0.date < end && $0.cookedAt == nil
-        }))
-        for meal in meals where meal.shoppingID == nil { meal.shoppingID = UUID().uuidString }
+        })).sorted { ($0.date, $0.shoppingID ?? "") < ($1.date, $1.shoppingID ?? "") }
+        for meal in meals where meal.shoppingID == nil {
+            // A named meal's shoppingID is minted by the single minter with
+            // its record name (docs/household.md §3.2); minting one here
+            // would give every phone its own id for one dinner, and a
+            // purchase keyed on it would never match anywhere else. Only
+            // the pre-field legacy, still unnamed, is safe to backfill.
+            if meal.shareRecordName.isEmpty {
+                meal.shoppingID = UUID().uuidString
+            } else {
+                print("PLATED HOUSEHOLD: meal \(meal.shareRecordName) has no shoppingID, leaving it for the minter")
+            }
+        }
         let lines = aggregate(meals: meals, includePantryStaples: includePantryStaples)
         let all = try context.fetch(FetchDescriptor<GroceryItem>())
         let autos = all.filter { !$0.isManual }
@@ -46,9 +63,17 @@ struct GroceryListBuilder {
             item.aisleValue = line.aisle
             item.weekStart = start
             item.sources = line.sources
-            item.purchases = purchases
             item.originTitle = line.sources.map(\.title).joined(separator: ", ")
-            item.isChecked = item.isPurchased()
+            if let mark = GroceryMarks.shared.mark(for: key) {
+                // The mark is the household's fact and these rows are this
+                // phone's projection of it, so it wins outright: every local
+                // check-off writes a mark first, and a row that disagrees
+                // with its mark is a row from before the mark existed.
+                GroceryMarks.apply(mark, to: item)
+            } else {
+                item.purchases = purchases
+                item.isChecked = item.isPurchased()
+            }
             result.append(item)
         }
         // Retain rows in other date ranges: the user may be shopping ahead.

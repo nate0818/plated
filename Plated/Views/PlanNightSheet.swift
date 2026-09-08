@@ -88,14 +88,14 @@ struct PlanNightSheet: View {
                         .padding(.vertical, 6)
                         Menu {
                             Button("Unassigned") { meal.cook = nil; Persist.save(context) }
-                            ForEach(members) { member in
-                                Button(member.isOwner ? "You" : member.name) { meal.cook = member; Persist.save(context) }
+                            ForEach(members.assignableCooks) { member in
+                                Button(member.isMe ? "You" : member.name) { meal.cook = member; Persist.save(context) }
                             }
                         } label: {
                             HStack {
                                 Text("Cook").plType(.body)
                                 Spacer()
-                                Text(meal.cook.map { $0.isOwner ? "You" : $0.name } ?? "Unassigned").plType(.body, .semibold)
+                                Text(meal.cook.map { $0.isMe ? "You" : $0.name } ?? "Unassigned").plType(.body, .semibold)
                                 Image(systemName: "slider.horizontal.3").font(.footnote)
                             }.foregroundStyle(Color.ink).frame(minHeight: 44)
                         }
@@ -212,7 +212,7 @@ struct PlanNightSheet: View {
                     .plType(.body, .bold)
                     .foregroundStyle(Color.ink)
                 if let cook = meal.cook {
-                    Text(cook.isOwner ? "You cook" : "\(cook.name) cooks")
+                    Text(cook.isMe ? "You cook" : "\(cook.name) cooks")
                         .plType(.caption, .semibold)
                         .foregroundStyle(Color.inkSecondary)
                 }
@@ -343,7 +343,7 @@ struct PlanNightSheet: View {
                 ))
             }
         }
-        let cookName = (cook?.isOwner ?? true) ? "you" : (cook?.name ?? "someone")
+        let cookName = (cook?.isMe ?? true) ? "you" : (cook?.name ?? "someone")
         Notifier.post(
             .mealPlanned, actor: cook?.name ?? "",
             body: "\(dayTitle): \(recipe.title). \(cookName.capitalized) cook\(cookName == "you" ? "" : "s").",
@@ -356,9 +356,7 @@ struct PlanNightSheet: View {
         // has done anything worth being reminded about.
         Task {
             await NotificationScheduler.askOnce()
-            await NotificationScheduler.rebuild(
-                meals: meals, ownerName: members.first(where: \.isOwner)?.name ?? ""
-            )
+            await NotificationScheduler.rebuild(meals: meals)
         }
     }
 }
@@ -457,7 +455,7 @@ struct AskComposerSheet: View {
                         VStack(alignment: .leading, spacing: 8) {
                             MicroLabel("Tag someone")
                             HStack(spacing: 8) {
-                                ForEach(members.filter { !$0.isOwner }, id: \.persistentModelID) { member in
+                                ForEach(members.filter { !$0.isMe }, id: \.persistentModelID) { member in
                                     let active = tagged.contains(member.name)
                                     Button {
                                         Haptic.tap()
@@ -530,7 +528,7 @@ struct AskComposerSheet: View {
 
     private func post() {
         Haptic.plate()
-        let owner = members.first(where: \.isOwner)
+        let owner = members.me
         let post = TablePost(
             authorName: owner?.name ?? "Me",
             authorColorHex: owner?.colorHex ?? "FF5A3C",

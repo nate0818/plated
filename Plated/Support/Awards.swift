@@ -167,9 +167,14 @@ enum Awards {
         name.split(separator: " ").first.map { $0.lowercased() } ?? name.lowercased()
     }
 
-    /// Turns product activity into a compact set of award inputs. A meal with
-    /// no assigned cook belongs to the owner because older Plated builds did
-    /// not store a cook; assigned meals belong only to that person.
+    /// Turns product activity into a compact set of award inputs. An
+    /// assigned meal belongs only to its cook. An unassigned one belongs to
+    /// whoever planned it (`authorID`), and to the head of table only when
+    /// the row predates that field, because older builds stored neither a
+    /// cook nor an author. Recipes are the same: the author's, and an
+    /// unattributed one is the reader's, since it was written on the phone
+    /// that is reading it. `ownerFallback` vouches that a nil `person` is
+    /// the reader.
     @MainActor
     static func metrics(
         for person: HouseholdMember?,
@@ -181,15 +186,28 @@ enum Awards {
     ) -> AwardMetrics {
         let personName = person?.name ?? "Me"
         let personKey = normalize(personName)
-        let isOwner = person?.isOwner ?? ownerFallback
+        let isMe = person?.isMe ?? ownerFallback
+        let isHead = person?.isOwner ?? ownerFallback
+        // The identity an `authorID` is compared against: the row's own when
+        // it carries one, else this phone's when the row is the reader's.
+        let identity: String? = {
+            if let id = person?.userRecordName, !id.isEmpty { return id }
+            return isMe ? TableIdentity.cached : nil
+        }()
+        func owns(unassigned authorID: String) -> Bool {
+            authorID.isEmpty ? isHead : authorID == identity
+        }
+        func wrote(_ authorID: String) -> Bool {
+            authorID.isEmpty ? isMe : authorID == identity
+        }
         let cooked = meals.filter { meal in
             guard meal.cookedAt != nil else { return false }
             if let cook = meal.cook { return normalize(cook.name) == personKey }
-            return isOwner
+            return owns(unassigned: meal.authorID)
         }
         let planned = meals.filter { meal in
             if let cook = meal.cook { return normalize(cook.name) == personKey }
-            return isOwner
+            return owns(unassigned: meal.authorID)
         }
         let authored = posts.filter {
             !$0.isDiscover && $0.isUserContent && normalize($0.authorName) == personKey
@@ -214,7 +232,7 @@ enum Awards {
             distinctDishesCooked: dishNames.count,
             activeCookWeeks: cookedWeeks.count,
             fullestPlannedWeek: weekCounts.values.map(\.count).max() ?? 0,
-            cookbookRecipes: isOwner ? recipes.count : 0,
+            cookbookRecipes: recipes.filter { wrote($0.authorID) }.count,
             tablePosts: authored.count,
             happyPlates: authored.reduce(0) { $0 + $1.totalPlates },
             chefsKisses: authored.filter { $0.hasChefsKiss(seats: householdSize) }.count,

@@ -193,7 +193,7 @@ struct TonightCard: View {
         case let .cooked(meal):
             // Past tense, because it happened. The cook still gets the credit.
             guard let cook = meal.cook else { return "Cooked" }
-            return cook.isOwner ? "You cooked it" : "\(cook.name) cooked it"
+            return cook.isMe ? "You cooked it" : "\(cook.name) cooked it"
         case .open: return dayLoad
         }
     }

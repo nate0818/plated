@@ -5,6 +5,12 @@ import AuthenticationServices
 /// The journey: the opener sets the table, Sign in with Apple is the only
 /// door, then your face and name, then your people, then the week. Each
 /// stage is remembered, so returning users land straight on their week.
+///
+/// A person who installed from a household link takes a different road
+/// (docs/household.md §7): after their face and name they are shown the
+/// household they were invited to, full screen, and never the screen that
+/// asks them to invite their own people to a plan they are about to give
+/// up. Every other link is parked in `LinkRelay` for the shell.
 struct RootView: View {
     @AppStorage("didSignIn") private var didSignIn = false
     /// The photo-and-name step. Its own flag rather than folded into
@@ -26,6 +32,12 @@ struct RootView: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var splashDone = false
     @State private var appReady = false
+    /// A household invitation that arrived before the table was set. Held
+    /// here rather than parked in `LinkRelay`, because the shell must not
+    /// route it a second time after onboarding has already answered it.
+    /// State, not storage: a link lost to a kill mid-onboarding can be
+    /// tapped again, and a stale one must never join anybody later.
+    @State private var joinLink: Invitation.Parsed?
 
     /// A dead Apple credential — revoked in Settings, or unknown to the
     /// signed-in iCloud account (a handed-down device) — closes the door
@@ -88,6 +100,15 @@ struct RootView: View {
                 // same well inside Edit profile instead.
                 ProfileSetupView { didSetProfile = true }
                     .transition(.opacity)
+            } else if let joinLink, !didSetTable {
+                // The table is set by joining somebody else's, or by
+                // declining to; either way the invite-your-people screen is
+                // skipped, and the Tour follows.
+                JoinFromLinkStep(parsed: joinLink) {
+                    self.joinLink = nil
+                    didSetTable = true
+                }
+                .transition(.opacity)
             } else if !didSetTable {
                 ContactsView { didSetTable = true }
                     .transition(.opacity)
@@ -104,7 +125,19 @@ struct RootView: View {
         .animation(.plSettle, value: didSetProfile)
         .animation(.plSettle, value: didSetTable)
         .animation(.plSettle, value: sawTour)
+        .animation(.plSettle, value: joinLink != nil)
         .onAppear(perform: carryTourForward)
+        // The one door for every URL. Nothing else may add `onOpenURL`:
+        // SwiftUI calls every registered handler, so a second one on the
+        // shell would route the same link twice.
+        .onOpenURL { url in
+            if !didSetTable, let parsed = Invitation.parse(url), parsed.kind == .household {
+                print("PLATED HOUSEHOLD: a household link arrived during onboarding")
+                joinLink = parsed
+            } else {
+                LinkRelay.open(url)
+            }
+        }
         .task {
             // There is no wake-up work. This was a 1.4 second sleep standing
             // in for some, which means every cold launch paid 1.4 seconds for

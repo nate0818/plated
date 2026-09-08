@@ -1,7 +1,15 @@
 // POST /invite — tell somebody already on Plated that a seat is waiting.
 //
-// Body: { api_token, invitee_phone_e164, host_name, share_url }
+// Body: { api_token, invitee_phone_e164, host_name, share_url, kind?, seat? }
 // Returns: { ok } — always, whether or not the number belongs to anybody.
+//
+// `kind` is "table" (a seat at the host's Table, the default so an older
+// build that never sends it keeps working) or "household" (a place in the
+// host's household: the plan, the grocery list and the cookbook). The two
+// are different rooms and the banner has to say which; the app opens a
+// different sheet for each. `seat` is the household seat record name the
+// link was minted for, carried through so the joiner does not have to pick
+// their seat by hand. docs/household.md sections 6 and 7.
 //
 // The message with the link has already gone through Messages. This is the
 // banner on the invitee's own phone saying who it is from, for the person
@@ -10,10 +18,12 @@
 // directory's, the response is the same either way, and both lookups run
 // on every call so the time taken says nothing either.
 //
-// The share URL is a bearer credential for a seat, so it is stored only for
-// a number that belongs to somebody (that is what the push needs), never
-// logged, and only ever handed back to that person's own phones, inside a
-// link the app confirms before accepting.
+// The share URL is a bearer credential for a seat, so it is never stored and
+// never logged: it goes from the request straight into the push, to that
+// person's own phones, inside a link the app confirms before accepting. The
+// same goes for the seat name, which means nothing without the share it
+// belongs to. What the row keeps is the record that an invitation happened,
+// which is what the daily limits count and what the privacy policy describes.
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { send } from "./apns.ts";
 
@@ -45,6 +55,12 @@ async function phoneHash(e164: string): Promise<string> {
   return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
+type Kind = "table" | "household";
+
+// A CloudKit record name: "seat-<UUID>". Anything else is not a seat and
+// is dropped rather than forwarded into a link the app will open.
+const RECORD_NAME = /^[A-Za-z0-9_-]{1,80}$/;
+
 function isShareURL(raw: string): boolean {
   try {
     const url = new URL(raw);
@@ -63,6 +79,12 @@ Deno.serve(async (req: Request) => {
   const phone = String(body?.invitee_phone_e164 ?? "");
   const shareURL = String(body?.share_url ?? "");
   const typedHost = String(body?.host_name ?? "").slice(0, 80);
+  const kind: Kind = body?.kind === "household" ? "household" : "table";
+  const rawSeat = String(body?.seat ?? "");
+  // A malformed seat costs the joiner a seat picker, not the whole notice,
+  // so it is dropped with a log line rather than refused.
+  const seat = RECORD_NAME.test(rawSeat) ? rawSeat : "";
+  if (rawSeat && !seat) console.log("invite: seat dropped, not a record name");
   if (!/^[0-9a-f-]{36}$/.test(apiToken) || !/^\+\d{7,15}$/.test(phone) || !isShareURL(shareURL)) {
     return new Response("missing", { status: 400 });
   }
@@ -97,8 +119,7 @@ Deno.serve(async (req: Request) => {
     inviter_id: host.id,
     invitee_phone_hash: hash,
     host_name: typedHost,
-    // The credential is kept only where the push needs it.
-    share_url: known ? shareURL : "",
+    kind,
     status: known ? "pushed" : "sent",
   });
   if (!known || (pairToday ?? 0) >= PAIR_PER_DAY) return Response.json({ ok: true });
@@ -110,13 +131,15 @@ Deno.serve(async (req: Request) => {
   // The name the directory holds beats the one the app typed: the push is
   // signed by the server, so the server says who it is from.
   const who = (host.display_name || typedHost || "Someone").trim();
-  const link = `plated://invite?s=${encodeURIComponent(shareURL)}&from=${encodeURIComponent(who)}`;
-  const delivery = await send(devices, {
-    title: `${who} saved you a seat`,
-    body: "Open it to see what they're cooking.",
-    link,
-    thread: "seat",
-  });
+  let link = `plated://invite?s=${encodeURIComponent(shareURL)}&from=${encodeURIComponent(who)}&k=${kind}`;
+  if (kind === "household" && seat) link += `&seat=${encodeURIComponent(seat)}`;
+  // Two rooms, two sentences. The household one says what it is and not what
+  // is in it, because a banner has one line and "Open it to join" is the
+  // true outcome of the tap: the app asks before it seats anybody.
+  const push = kind === "household"
+    ? { title: `${who} invited you to their household`, body: "Open it to join.", thread: "household" }
+    : { title: `${who} kept you a seat at their table`, body: "Open it to see what they're cooking.", thread: "seat" };
+  const delivery = await send(devices, { ...push, link });
   if (delivery.dead.length) {
     await db.from("device_tokens").delete().eq("user_id", invitee!.id).in("apns_token", delivery.dead);
   }

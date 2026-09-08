@@ -170,7 +170,7 @@ struct MonthPlannerView: View {
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text(meal.slotValue.rawValue.capitalized).plType(.caption, .semibold).foregroundStyle(Color.inkSecondary)
                                     Text(meal.title).plType(.body, .bold)
-                                    Text("\(meal.servings) servings" + (meal.cook.map { " · \($0.isOwner ? "You cook" : $0.name + " cooks")" } ?? ""))
+                                    Text("\(meal.servings) servings" + (meal.cook.map { " · \($0.isMe ? "You cook" : $0.name + " cooks")" } ?? ""))
                                         .plType(.caption).foregroundStyle(Color.inkSecondary)
                                 }
                                 Spacer()

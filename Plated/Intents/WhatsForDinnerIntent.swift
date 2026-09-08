@@ -9,6 +9,7 @@ struct WhatsForDinnerIntent: AppIntent {
 
     @MainActor
     func perform() async throws -> some IntentResult & ProvidesDialog {
+        HouseholdSync.ensureObserving()
         let container = PlatedStore.shared
         let today = Calendar.current.startOfDay(for: .now)
         guard let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: today) else {

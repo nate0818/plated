@@ -12,6 +12,10 @@ struct PlateTonightIntent: AppIntent {
 
     @MainActor
     func perform() async throws -> some IntentResult & ProvidesDialog {
+        // Siri can cold-start this process with no app scene, so the save
+        // below would otherwise reach the store without the household
+        // observer and never reach the household.
+        HouseholdSync.ensureObserving()
         let container = PlatedStore.shared
         let context = container.mainContext
 
