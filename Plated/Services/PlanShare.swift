@@ -518,6 +518,18 @@ enum PlanShare {
     }
 
     private static func pass(reason: String) async {
+        // This guard holds up TWO things, and the second is not obvious from
+        // here, so it is written down: relaxing it breaks a fresh install.
+        //
+        // The obvious one is that a `local-` id must not be published as an
+        // author. The other is that the contest rule below compares the
+        // record's `editorID` against `TableIdentity.cached` to decide
+        // whether somebody ELSE wrote a night, and that comparison is what
+        // stands the publisher down when this phone's book is silent. A pass
+        // running before the identity is confirmed would find its own
+        // records carrying an id it does not recognise as itself, read every
+        // night of its own as somebody else's, and stand down on the whole
+        // week of a phone that had just been set up.
         guard !TableIdentity.isPlaceholder else {
             print("[PlanShare] \(reason): identity unconfirmed, nothing published")
             return
