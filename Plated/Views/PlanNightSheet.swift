@@ -255,8 +255,8 @@ struct PlanNightSheet: View {
                         // "Nate planned Tacos for Thursday" instead of a
                         // night reappearing with nobody's name on it.
                         if meal == nil, remote == nil,
-                           let detail = RemovedNights.addBackDetail(on: date),
-                           let title = RemovedNights.addBackTitle(on: date) {
+                           let detail = RemovedNights.addBackDetail(on: date, slot: slot),
+                           let title = RemovedNights.addBackTitle(on: date, slot: slot) {
                             OptionRow(
                                 icon: "calendar.badge.plus",
                                 title: "Add it back",

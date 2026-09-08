@@ -25,15 +25,15 @@ extension RemovedNights {
     /// Only for a night that actually went. A night held back, cooked or
     /// being cooked, still has its meal and draws `heldLine` on the planned
     /// row instead, where the dish it is talking about is visible.
-    static func removedLine(on date: Date) -> String? {
-        guard let gone = gone(on: date), gone.settled, !gone.kept else { return nil }
+    static func removedLine(on date: Date, slot: MealSlot = .dinner) -> String? {
+        guard let gone = gone(on: date, slot: slot), gone.settled, !gone.kept else { return nil }
         return sentence(gone, verb: "off the plan", trailing: "")
     }
 
     /// The heading the Tonight hero draws in place of "Something good starts
     /// here." A full sentence, because the hero sets it as one.
-    static func removedHeading(on date: Date) -> String? {
-        guard let line = removedLine(on: date) else { return nil }
+    static func removedHeading(on date: Date, slot: MealSlot = .dinner) -> String? {
+        guard let line = removedLine(on: date, slot: slot) else { return nil }
         return line + "."
     }
 
@@ -56,16 +56,16 @@ extension RemovedNights {
 
     /// The subtitle under "Add it back", which names the dish so the control
     /// says what it will do rather than what it is.
-    static func addBackDetail(on date: Date) -> String? {
-        guard let gone = gone(on: date), gone.settled, !gone.kept, !gone.title.isEmpty
+    static func addBackDetail(on date: Date, slot: MealSlot = .dinner) -> String? {
+        guard let gone = gone(on: date, slot: slot), gone.settled, !gone.kept, !gone.title.isEmpty
         else { return nil }
         return "Puts \(gone.title) back on the household plan."
     }
 
     /// The dish the household took off that day, for a control that has to
     /// name it. Same gate as `addBackDetail`, so the two never disagree.
-    static func addBackTitle(on date: Date) -> String? {
-        guard let gone = gone(on: date), gone.settled, !gone.kept, !gone.title.isEmpty
+    static func addBackTitle(on date: Date, slot: MealSlot = .dinner) -> String? {
+        guard let gone = gone(on: date, slot: slot), gone.settled, !gone.kept, !gone.title.isEmpty
         else { return nil }
         return gone.title
     }
