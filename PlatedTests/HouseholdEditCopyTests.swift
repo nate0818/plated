@@ -72,6 +72,37 @@ final class HouseholdEditCopyTests: XCTestCase {
         )
     }
 
+    /// The operand that decides WHICH sentence fires, which thirteen tests
+    /// of the sentence itself never touched.
+    ///
+    /// The record's `cookID` carries whichever spelling the writing phone
+    /// had: a member joined through the household share has a
+    /// `participantID`, and one this phone knows only through the directory
+    /// has a `userRecordName` until the share reconciles. Read the wrong
+    /// one and the cook sentence fires when nothing about the cook changed,
+    /// or stays silent when somebody has just been put down to cook, and
+    /// every test above still passes.
+    func testTheCookIdReadsEitherSpellingAndNeitherIsEmpty() {
+        let byParticipant = HouseholdMember(name: "Riley Park")
+        byParticipant.participantID = "p-riley"
+        byParticipant.userRecordName = "u-riley"
+        XCTAssertEqual(
+            PlanNightSheet.cookID(of: PlannedMeal(cook: byParticipant)), "p-riley",
+            "the share's own id wins where there is one"
+        )
+
+        let byRecordName = HouseholdMember(name: "Sam Okafor")
+        byRecordName.userRecordName = "u-sam"
+        XCTAssertEqual(
+            PlanNightSheet.cookID(of: PlannedMeal(cook: byRecordName)), "u-sam",
+            "a member known only through the directory still answers"
+        )
+
+        let unknown = HouseholdMember(name: "Max")
+        XCTAssertEqual(PlanNightSheet.cookID(of: PlannedMeal(cook: unknown)), "")
+        XCTAssertEqual(PlanNightSheet.cookID(of: PlannedMeal()), "", "no cook is not a cook id")
+    }
+
     func testTheRowSaysTheConsequenceFirst() {
         XCTAssertEqual(HouseholdEdits.rowLine(for: change(cookID: me), me: me, currentCookID: ""), "Riley put you down to cook")
         XCTAssertEqual(HouseholdEdits.rowLine(for: change(), me: me, currentCookID: ""), "Riley changed this night")
