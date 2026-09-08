@@ -243,11 +243,33 @@ struct PlanNightSheet: View {
                             detail: "Ask what everyone wants, or put up a poll."
                         ) { route = .ask }
 
-                        OptionRow(
-                            icon: "party.popper",
-                            title: "Plan a gathering",
-                            detail: "Guests, a time, and an event in your calendar."
-                        ) { route = .gathering }
+                        // The one row here that cannot write the night this
+                        // page is about. A gathering carries guests, a time
+                        // and a calendar event, and the household record
+                        // carries none of the three, so there is nothing to
+                        // write it into.
+                        //
+                        // Offered on a household night it took GatheringSheet's
+                        // else branch, because `meal` is nil on that path, and
+                        // inserted a fresh PlannedMeal on a slot the household
+                        // had already filled. The day then drew two dinners,
+                        // the week hero swapped to the private one, and nobody
+                        // else in the household ever saw the gathering. Every
+                        // other row on this page writes the household record,
+                        // so nothing on screen said which one went elsewhere.
+                        if remote == nil {
+                            OptionRow(
+                                icon: "party.popper",
+                                title: "Plan a gathering",
+                                detail: "Guests, a time, and an event in your calendar."
+                            ) { route = .gathering }
+                        } else {
+                            Text("A gathering has guests, a time and a calendar event, so it goes on a night of your own.")
+                                .plType(.footnote)
+                                .foregroundStyle(Color.inkSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
                     }
                 }
                 .padding(.horizontal, 24)
