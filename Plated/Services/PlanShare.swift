@@ -590,6 +590,13 @@ enum PlanShare {
         // Not in front: a silent push or a background breath gets a small
         // budget, and the rest waits for the next foreground pass.
         if UIApplication.shared.applicationState != .active {
+            // Nights the household took off are dropped BEFORE the budget,
+            // not after. They can never be deleted by this phone, so leaving
+            // them in the list spends a background pass's whole allowance on
+            // work that is refused a few lines later, and a real deletion
+            // behind them waits for a pass that has room. They accumulate,
+            // so given a few of them nothing else would ever be deleted.
+            work.delete.removeAll { RemovedNights.isTombstoned($0) }
             let cap = 10
             work.save = Array(work.save.prefix(cap))
             work.delete = Array(work.delete.prefix(max(0, cap - work.save.count)))

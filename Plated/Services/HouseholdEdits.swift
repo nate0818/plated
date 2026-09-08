@@ -83,6 +83,18 @@ enum HouseholdEdits {
         guard !entries.isEmpty else { return }
         var book = all
         for e in entries where !e.shoppingID.isEmpty {
+            // A question already answered is not asked again. `note` runs on
+            // every delivery carrying the record, and a zone replay after a
+            // reinstall or a token reset redelivers every night, so
+            // replacing the row wholesale put "Use their version" back in
+            // front of somebody who had already said Keep mine. Only a
+            // household change to something DIFFERENT is a new question.
+            let previous = book.first { $0.shoppingID == e.shoppingID }
+            let sameAnswer = previous.map {
+                $0.title == e.title && $0.cookID == e.cookID
+                    && $0.servings == e.servings && $0.day == e.day
+            } ?? false
+            if sameAnswer, previous?.settled == true { continue }
             book.removeAll { $0.shoppingID == e.shoppingID }
             book.append(Change(
                 shoppingID: e.shoppingID, recordName: e.recordName,

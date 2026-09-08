@@ -251,6 +251,28 @@ final class RemovedNightTests: XCTestCase {
         XCTAssertEqual(HouseholdEdits.pending(on: Self.day(2))?.title, "Katsu curry")
     }
 
+    func testAChangeAlreadyAnsweredIsNotAskedAgainOnAReplay() {
+        // A zone replay redelivers every night, and re-asking a question
+        // somebody answered is the app forgetting what they told it.
+        var p = plan(author: me, title: "Ragu")
+        p.editorID = "_riley"
+        p.editorName = "Riley Park"
+        HouseholdEdits.note(deliver([p], me: me).ownChanged)
+        HouseholdEdits.settle("n1")
+        XCTAssertNil(HouseholdEdits.pending(shoppingID: "n1"))
+
+        HouseholdEdits.note(deliver([p], me: me).ownChanged)
+        XCTAssertNil(HouseholdEdits.pending(shoppingID: "n1"), "the same change stays answered")
+
+        var again = p
+        again.title = "Katsu curry"
+        HouseholdEdits.note(deliver([again], me: me).ownChanged)
+        XCTAssertEqual(
+            HouseholdEdits.pending(shoppingID: "n1")?.title, "Katsu curry",
+            "but a genuinely new change is a new question"
+        )
+    }
+
     // MARK: One delivery carrying more than one kind of change
 
     func testARemovalAndAnUnrelatedEditInOneDeliveryDoNotDisturbEachOther() {

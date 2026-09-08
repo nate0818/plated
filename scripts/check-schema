@@ -20,6 +20,14 @@
 #
 # Same shape as check-tokens, and for the same reason: a rule that a person
 # has to remember on the day they ship is a rule that gets forgotten.
+#
+# WHAT THIS CANNOT TELL YOU, stated so nobody mistakes a tick for a promise.
+# The manifest is built from the CODE, not from CloudKit, so it answers "have
+# the fields the code writes changed since somebody last deployed" and never
+# "is the Production schema actually correct". A field that no primer mints
+# is invisible to CloudKit and would still be recorded as deployed by
+# --accept. The primers are what make a field real; this only makes sure
+# nobody ships past them without noticing.
 
 set -o pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1
