@@ -182,7 +182,22 @@ struct PlanNightSheet: View {
                         // the household record instead of a row in this
                         // phone's store.
                         remoteNightCard(remote)
-                            .padding(.bottom, notice == nil ? 6 : 2)
+                            .padding(.bottom, 6)
+                        // What the trash on that card actually reaches. The
+                        // card carries it on the trash's accessibility label
+                        // already, and a label is not a statement: a sighted
+                        // person taking a night off somebody else's plan was
+                        // told nothing about how far it went. Withheld once
+                        // the night is going, when the reach is no longer a
+                        // warning about something that might happen.
+                        if !going {
+                            Text("Taking this off removes it for everybody.")
+                                .plType(.caption)
+                                .foregroundStyle(Color.inkSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.bottom, notice == nil ? 6 : 2)
+                        }
                         noticeRow
                         // Nothing to change on a night that is going. The
                         // page stays up to say what the delete answered, and
