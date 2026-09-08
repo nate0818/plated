@@ -9,7 +9,7 @@ export default async function ReleasesPage() {
   const result = await loadAdminPageData({ op: "releases" }, decodeReleases);
   return (
     <div className={styles.pageStack}>
-      <PageHeader title="Releases" description="Device-reported builds, an explicit authoritative-source status and gaps where Plated has no instrumentation." />
+      <PageHeader title="Releases" />
       {!result.ok ? <ServiceError result={result} /> : (() => {
         const releases = result.data.data;
         const channels = Object.entries(releases.deviceReported);
@@ -40,12 +40,12 @@ export default async function ReleasesPage() {
             <section className={styles.coverageSection} aria-labelledby="coverage-heading">
               <div><p className={styles.eyebrow}>Coverage map</p><h2 id="coverage-heading" className={styles.sectionTitle}>Deliberate boundaries and missing sources</h2></div>
               <div className={styles.coverageGrid}>
-                <CoverageGap title="Product engagement" detail="Plated has no app analytics or tracking. The console cannot report daily active people, retention, funnels or feature use." />
-                <CoverageGap title="Household content" detail="Recipes, plans, grocery lists, Table posts and photos live in private CloudKit databases that the developer cannot read." />
-                <CoverageGap title="Crashes and performance" detail="No crash or app-performance provider is connected, so this console has no crash-free-session or latency metric." />
-                <CoverageGap title="Revenue and subscriptions" detail="Plated has no connected commerce source. Revenue, conversion, refunds and subscription health are unavailable." />
-                <CoverageGap title="Support" detail="The privacy inbox is not connected to the console. Messages and response time are unavailable here." />
-                <CoverageGap title="Notification reads" detail="Apple reports whether it accepted a push request, not whether a person saw or acted on it. No read rate is inferred." />
+                <CoverageGap title="Product engagement" detail="No analytics source. No active people, retention or funnels." />
+                <CoverageGap title="Household content" detail="Recipes, plans, groceries, Table posts and photos stay in private iCloud." />
+                <CoverageGap title="Crashes and performance" detail="No crash reporter connected." />
+                <CoverageGap title="Revenue and subscriptions" detail="No commerce source connected." />
+                <CoverageGap title="Support" detail="Privacy inbox not connected." />
+                <CoverageGap title="Notification reads" detail="Apple reports acceptance, not whether anyone saw it." />
               </div>
             </section>
           </>

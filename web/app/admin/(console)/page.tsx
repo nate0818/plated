@@ -13,7 +13,6 @@ export default async function FounderOverviewPage() {
     <div className={styles.pageStack}>
       <PageHeader
         title="Overview"
-        description="A current operational view of the public directory, notification registrations, waitlist and announcements."
         action={<Link className={styles.primaryLink} href="/admin/announcements">New announcement</Link>}
       />
       {!result.ok ? <ServiceError result={result} /> : (() => {
@@ -22,14 +21,14 @@ export default async function FounderOverviewPage() {
         return (
           <>
             <div className={styles.metricGrid}>
-              <Metric label="Directory accounts" value={formatCount(overview.accounts.directoryCount)} detail="Registered with Plated's public directory" />
-              <Metric label="Eligible devices" value={formatCount(overview.devices.eligibleForNewsCount)} detail={`${formatCount(overview.devices.registeredCount)} registrations in total`} />
-              <Metric label="Waitlist" value={formatCount(overview.waitlist.totalCount)} detail="Email addresses awaiting launch" />
-              <Metric label="Invites, 24 hours" value={formatCount(overview.invitations.last24HoursCount)} detail={`Metadata expires after ${overview.invitations.retentionDays} days`} />
+              <Metric label="Directory accounts" value={formatCount(overview.accounts.directoryCount)} detail="Public directory" />
+              <Metric label="Eligible devices" value={formatCount(overview.devices.eligibleForNewsCount)} detail={`of ${formatCount(overview.devices.registeredCount)} registered`} />
+              <Metric label="Waitlist" value={formatCount(overview.waitlist.totalCount)} detail="Awaiting launch" />
+              <Metric label="Invites, 24 hours" value={formatCount(overview.invitations.last24HoursCount)} detail={`${overview.invitations.retentionDays}-day retention`} />
             </div>
 
             <div className={styles.twoColumn}>
-              <Panel title="Notification eligibility" detail="Settings reported during device registration. They do not measure app activity.">
+              <Panel title="Notification eligibility" detail="Reported at registration">
                 <dl className={styles.definitionGrid}>
                   <div><dt>Eligible for News</dt><dd>{overview.devices.eligibleForNewsCount}</dd></div>
                   <div><dt>iOS denied</dt><dd>{overview.devices.deniedNotificationCount}</dd></div>
@@ -61,11 +60,11 @@ export default async function FounderOverviewPage() {
             </Panel>
 
             <div className={styles.twoColumn}>
-              <Panel title="Centrally readable" detail="Limited records needed to operate the service.">
+              <Panel title="Centrally readable">
                 <ul className={styles.plainList}>{overview.privacyBoundary.centrallyReadable.map((item) => <li key={item}>{item}</li>)}</ul>
               </Panel>
-              <Panel title="Private in iCloud" detail="These categories never enter this console.">
-                <CoverageGap title="Household content" detail={overview.privacyBoundary.privateInCloudKit.join(", ") + "."} href="/admin/releases" />
+              <Panel title="Private in iCloud" detail="Never reaches this console">
+                <CoverageGap title="Household content" detail={overview.privacyBoundary.privateInCloudKit.join(", ")} href="/admin/releases" />
               </Panel>
             </div>
           </>

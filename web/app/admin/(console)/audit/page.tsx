@@ -13,7 +13,7 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
 
   return (
     <div className={styles.pageStack}>
-      <PageHeader title="Audit trail" description="An append-only server record of successful privileged reads and announcement actions." />
+      <PageHeader title="Audit trail" description="Append-only" />
       {!result.ok ? <ServiceError result={result} /> : (
         <Panel title="Administrative events" detail={`${formatCount(result.data.data.totalCount)} total · snapshot ${formatWhen(result.data.generatedAt)}`}>
           <AuditList rows={result.data.data.rows} />

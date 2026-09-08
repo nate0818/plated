@@ -24,13 +24,13 @@ export default async function PeoplePage({ searchParams }: { searchParams: Promi
 
   return (
     <div className={styles.pageStack}>
-      <PageHeader title="People" description="Operational registration details only. Personal IDs, phone hashes, API tokens and push tokens never leave the server." />
+      <PageHeader title="People" description="Registration details only. Identifiers and tokens stay on the server." />
       {!result.ok ? <ServiceError result={result} /> : (
         <section className={styles.tablePanel} aria-labelledby="people-table-title">
           <header className={styles.tableHeader}>
             <div><h2 id="people-table-title">Directory registrations</h2><p>{formatCount(result.data.data.totalCount)} total · snapshot {formatWhen(result.data.generatedAt)}</p></div>
           </header>
-          {result.data.data.rows.length === 0 ? <EmptyState title="No registered people" detail="Directory registrations will appear after the app registers an account." /> : (
+          {result.data.data.rows.length === 0 ? <EmptyState title="No registered people" detail="Registrations appear once a phone signs in." /> : (
             <div className={styles.tableScroll}>
               <table className={styles.table}>
                 <thead><tr><th>Person</th><th>Directory</th><th>Devices</th><th>News reach</th></tr></thead>

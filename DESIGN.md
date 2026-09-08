@@ -49,8 +49,12 @@ something good happens, never as decoration.
 
 - The `+` button is the single always-tomato element in chrome.
 - A plate reaction filling, the Chef's kiss, a seat turning real: these earn colour.
-- Never reintroduce ambient accent colour into chrome. The one standing exception
-  is today's tinted date card in the Plan list, which Nate asked for explicitly.
+- Never reintroduce ambient accent colour into chrome. Two standing exceptions,
+  both asked for explicitly: today's tinted date card in the Plan list, and the
+  admin console's sign-in field on the web (Sept 8), a slow drift of tomato,
+  mango and grape held under 30% alpha and blurred past recognition. That one is
+  a door, not a room: every console screen behind it stays near-monochrome, and
+  the drift stops under Reduce Motion.
 
 Fun lives in **motion, haptics and voice** — never in loud paint.
 

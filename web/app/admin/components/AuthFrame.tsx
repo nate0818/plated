@@ -17,6 +17,14 @@ export default function AuthFrame({
 }) {
   return (
     <main className={styles.authPage}>
+      <div className={styles.authAtmosphere} aria-hidden="true">
+        <span />
+        <span />
+        <span />
+      </div>
+      <div className={styles.authGlow} aria-hidden="true" />
+      <div className={styles.authGrain} aria-hidden="true" />
+      <div className={styles.authVignette} aria-hidden="true" />
       <section className={styles.authCard}>
         <header className={styles.authBrand}>
           <Link href="/" aria-label="Plated home">

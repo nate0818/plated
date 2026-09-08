@@ -9,17 +9,17 @@ export default async function OperationsPage() {
   const result = await loadAdminPageData({ op: "operations" }, decodeOperations);
   return (
     <div className={styles.pageStack}>
-      <PageHeader title="Operations" description="Configuration, delivery state and the current limits of what the server can prove." />
+      <PageHeader title="Operations" />
       {!result.ok ? <ServiceError result={result} /> : (() => {
         const operations = result.data.data;
         const pending = (operations.push.deliveryCounts.pending ?? 0) + (operations.push.deliveryCounts.claimed ?? 0);
         return (
           <>
             <div className={styles.metricGrid}>
-              <Metric label="Active administrators" value={formatCount(operations.adminAuth.activePrincipalCount)} detail="Invite-only principals currently enabled" />
-              <Metric label="Pending deliveries" value={formatCount(pending)} detail="Persisted work not yet accepted or failed" />
-              <Metric label="Retryable" value={formatCount(operations.push.deliveryCounts.retryable)} detail="Transient APNs failures awaiting another attempt" />
-              <Metric label="Retry limit" value={formatCount(operations.push.exhaustedRetryCount)} detail="Rows at the ten-attempt ceiling" />
+              <Metric label="Active administrators" value={formatCount(operations.adminAuth.activePrincipalCount)} detail="Enabled" />
+              <Metric label="Pending deliveries" value={formatCount(pending)} detail="Not yet accepted or failed" />
+              <Metric label="Retryable" value={formatCount(operations.push.deliveryCounts.retryable)} detail="Awaiting another attempt" />
+              <Metric label="Retry limit" value={formatCount(operations.push.exhaustedRetryCount)} detail="At the ten-attempt ceiling" />
             </div>
 
             <div className={styles.twoColumn}>
@@ -32,7 +32,7 @@ export default async function OperationsPage() {
                   <li className={styles.checkRow}><div><p className={styles.checkLabel}>Phone hashing</p><p className={styles.tableSubtext}>Directory phone hashes require the server-only pepper.</p></div><StatusPill status={operations.phoneHashing.configured ? "ready" : "attention"} label={operations.phoneHashing.configured ? "Configured" : "Missing"} /></li>
                 </ul>
               </Panel>
-              <Panel title="Integrations" detail="A missing integration stays visible as a coverage gap.">
+              <Panel title="Integrations">
                 <ul className={styles.checkList}>
                   <li className={styles.checkRow}><div><p className={styles.checkLabel}>Instacart</p><p className={styles.tableSubtext}>{operations.integrations.instacart.reason}</p></div><StatusPill status="unavailable" label="Coverage gap" /></li>
                   <li className={styles.checkRow}><div><p className={styles.checkLabel}>App Store Connect</p><p className={styles.tableSubtext}>Authoritative release status and build readiness are not connected to this service.</p></div><StatusPill status="unavailable" label="Coverage gap" /></li>
@@ -40,7 +40,7 @@ export default async function OperationsPage() {
               </Panel>
             </div>
 
-            <Panel title="Data handling checks" detail="Operational facts that protect user privacy and delivery correctness.">
+            <Panel title="Data handling checks">
               <div className={styles.proseGrid}>
                 <div><h3>Invitation links</h3><p>{operations.invitations.shareUrlsStored ? "The server reports stored share URLs and needs review." : `Share URLs are not stored. Remaining invitation metadata expires after ${operations.invitations.metadataRetentionDays} days.`}</p></div>
                 <div><h3>Latest device registration</h3><p>{operations.deviceDirectory.lastRegistrationAt ? formatWhen(operations.deviceDirectory.lastRegistrationAt) : "No device has registered yet."} Registration is an operational check-in, not an activity event.</p></div>

@@ -13,18 +13,18 @@ export default async function WaitlistPage({ searchParams }: { searchParams: Pro
 
   return (
     <div className={styles.pageStack}>
-      <PageHeader title="Waitlist" description="Launch demand from plated.food. Email addresses stay masked in this view and are never exported by the console." />
+      <PageHeader title="Waitlist" />
       {!result.ok ? <ServiceError result={result} /> : (
         <>
           <div className={styles.metricGridThree}>
-            <Metric label="Waiting" value={formatCount(result.data.data.totalCount)} detail="Stored email addresses" />
-            <Metric label="Raw address access" value="Unavailable" detail="The console receives masked addresses only" />
-            <Metric label="Trend analytics" value="Unavailable" detail="No acquisition analytics source is connected" />
+            <Metric label="Waiting" value={formatCount(result.data.data.totalCount)} detail="Stored addresses" />
+            <Metric label="Raw address access" value="Unavailable" detail="Masked here" />
+            <Metric label="Trend analytics" value="Unavailable" detail="No source connected" />
           </div>
           <div className={styles.twoColumnWide}>
             <section className={styles.tablePanel} aria-labelledby="waitlist-table-title">
               <header className={styles.tableHeader}><div><h2 id="waitlist-table-title">Recent signups</h2><p>Snapshot {formatWhen(result.data.generatedAt)}</p></div></header>
-              {result.data.data.rows.length === 0 ? <EmptyState title="No waitlist entries" detail="New signups from plated.food will appear here." /> : (
+              {result.data.data.rows.length === 0 ? <EmptyState title="No waitlist entries" detail="Signups from plated.food appear here." /> : (
                 <div className={styles.tableScroll}>
                   <table className={styles.table}>
                     <thead><tr><th>Email</th><th>Source</th><th>Joined</th></tr></thead>
@@ -37,9 +37,9 @@ export default async function WaitlistPage({ searchParams }: { searchParams: Pro
                 {result.data.data.nextCursor ? <Link className={styles.panelLink} href={`/admin/waitlist?cursor=${encodeURIComponent(result.data.data.nextCursor)}`}>Next page</Link> : null}
               </footer>
             </section>
-            <Panel title="Retention" detail="The API states the policy applied to this dataset.">
+            <Panel title="Retention">
               <p className={styles.bodyMuted}>{result.data.data.retention}</p>
-              <p className={styles.smallMuted}>This view cannot reveal or export raw addresses. Deletion requests are handled through the privacy inbox.</p>
+              <p className={styles.smallMuted}>Deletion requests go through the privacy inbox.</p>
             </Panel>
           </div>
         </>

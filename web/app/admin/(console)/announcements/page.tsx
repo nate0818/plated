@@ -19,7 +19,7 @@ export default async function AnnouncementsPage({ searchParams }: { searchParams
 
   return (
     <div className={styles.pageStack}>
-      <PageHeader title="Announcements" description="Preview an immutable audience snapshot, authorize that exact intent, then follow each delivery attempt in the audit trail." />
+      <PageHeader title="Announcements" />
       {!history.ok ? <ServiceError result={history} /> : (
         <AnnouncementConsole
           history={history.data.data.rows}
