@@ -157,6 +157,38 @@ final class RemovedNightTests: XCTestCase {
         XCTAssertEqual(p.removed, 1)
     }
 
+    // MARK: A fetch that overtook a write
+
+    func testADeliveryOlderThanTheRowIsNotApplied() {
+        // TablePull fetches and then folds with suspension points between,
+        // and `exclusively` guards writers only, so an edit can land in the
+        // gap and this fold would put the old dish back on screen.
+        var first = plan(id: "n1", author: "_riley", title: "Tacos")
+        first.changedAt = Date(timeIntervalSince1970: 1_700_000_000)
+        _ = deliver([first], me: me)
+        var newer = plan(id: "n1", author: "_riley", title: "Ragu")
+        newer.changedAt = Date(timeIntervalSince1970: 1_700_000_060)
+        _ = deliver([newer], me: me)
+        XCTAssertEqual(PlanLedger.shared.entry("plan-n1")?.title, "Ragu")
+
+        // The stale read, fetched before the write and folded after it.
+        let delta = deliver([first], me: me)
+        XCTAssertEqual(PlanLedger.shared.entry("plan-n1")?.title, "Ragu", "the older read is refused")
+        XCTAssertTrue(delta.changed.isEmpty, "and it is not news either")
+    }
+
+    func testTheSameVersionArrivingTwiceIsStillApplied() {
+        // A date that goes to CloudKit and comes back is not a different
+        // version, so the comparison is in whole seconds.
+        var p = plan(id: "n1", author: "_riley", title: "Tacos")
+        p.changedAt = Date(timeIntervalSince1970: 1_700_000_000)
+        _ = deliver([p], me: me)
+        p.changedAt = Date(timeIntervalSince1970: 1_700_000_000.2)
+        p.title = "Ragu"
+        _ = deliver([p], me: me)
+        XCTAssertEqual(PlanLedger.shared.entry("plan-n1")?.title, "Ragu")
+    }
+
     // MARK: A night of this phone's own that somebody else changed
 
     func testTheAuthorHearsWhenSomebodyElseChangesTheirNight() {

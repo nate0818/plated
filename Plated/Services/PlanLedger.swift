@@ -502,6 +502,24 @@ final class PlanLedger {
                 continue
             }
             let before = book.entries[entry.recordName]
+            // A delivery OLDER than what this phone already holds is not a
+            // delivery, it is a stale read.
+            //
+            // `TablePull` fetches and then folds, with main-actor
+            // suspension points between the two, and `exclusively` guards
+            // writers only. So an edit can land in that gap: it saves the
+            // new version to the zone and settles the row, and then this
+            // fold applies the record fetched BEFORE that write and puts the
+            // old dish back on screen. Serialising the fold does not fix it,
+            // because the staleness is in the fetch rather than in the fold.
+            // The record's own clock does: whole seconds, the same rounding
+            // `movedOn` uses, because a date that goes to CloudKit and comes
+            // back is not a different version. It also covers deliveries
+            // that arrive out of order for any other reason.
+            if let before, before.pendingSince == nil,
+               entry.changedAt.timeIntervalSince(before.changedAt) <= -1 {
+                continue
+            }
             // An edit still waiting in the queue keeps its mark through a
             // delivery: the row is showing what the zone says now and what
             // this phone has still to send, and only `settle` or the drain's
