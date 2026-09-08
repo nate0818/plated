@@ -54,6 +54,30 @@ Five independent reasons, each sufficient, each verified against the code:
 5. CLAUDE.md: share-derived state does not go in the mirror. The zone is the
    one authority; the mirror would be a second writer.
 
+## Two-way editing: the destination, and the shape it may not take
+
+Read-only is a first step, not the end state. A household planner where a
+member sees Tuesday's dinner but cannot change it is half the feature, and
+the shared workspace is the ask. So this contract will grow a write path.
+
+**A member's edit writes the zone record. It never writes `PlannedMeal`.**
+The five reasons above do not weaken when the write arrives from a member
+instead of the head; reason 5 is the one that decides it. `PlannedMeal` is
+a `@Model` in a store configured `cloudKitDatabase: .automatic`, so a
+household fact placed there is owned by the zone and by the writer's own
+private mirror at the same time, and that mirror carries it to the same
+person's other devices, which are themselves merging the same zone record.
+That is two writers on one fact by construction, and a collapse pass that
+runs after every merge is a repair loop over the wrong shape rather than a
+fix: it holds in the cases somebody tested and fails quietly in the rest.
+
+The work this needs, when it is taken: `PlanLedger` gains a write path
+through `PlanShare` for a night whose author is another phone; the record
+keeps its existing `modifiedAt` clock and last writer wins on it; the
+planner surfaces that draw a remote night gain the edit affordance they
+currently withhold. Decided 2026-09-08 after both designs were built far
+enough to compare.
+
 ## Which zone is the household's
 
 **The household invite answers.** `docs/household.md` records membership
@@ -381,9 +405,8 @@ screen claims anything was shared.
 
 ## Not in v1, on purpose
 
-- A member editing or moving a night planned on another phone: the zone
-  permits the write, but the origin phone would have to merge remote edits
-  into its `PlannedMeal`, a two-writer sync with conflict rules.
+- A member editing or moving a night planned on another phone. The shape
+  it takes when built is settled above; only the work is deferred.
 - Ingredients across Apple IDs. Groceries stay per phone.
 - A conflict sheet when two phones plan the same night. Both show.
 - The guest side learning the host's identity from the share's
