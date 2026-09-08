@@ -703,29 +703,11 @@ enum PlanShare {
         // pass by clearing the fingerprint: standing down has to be stable,
         // or the two phones take turns overwriting each other every pass.
         for row in contested {
-            // The entry is MINTED when the book has none, which on a
-            // reinstall or a second device is every night, and a reinstall
-            // is exactly when the editorID rule above fires. Skipping those
-            // rows, as this loop first did, meant the night was not
-            // published AND not recorded: no sentence, no contest, nothing
-            // on any screen, and the person's whole week silently never
-            // leaving the phone. An empty fingerprint re-offers the night
-            // next pass, so the stand-down stays visible rather than
-            // becoming a thing that happened once.
-            if book[row.name] == nil {
-                book[row.name] = BookEntry(
-                    fingerprint: "", photoCount: 0, zoneOwner: target,
-                    day: row.day, slot: row.slot
-                )
-            }
-            // Only the first stand-down stamps the time, so the sentence
-            // does not restate itself as new every pass. Who and what are
-            // refreshed every time, because the household may have changed
-            // it again since.
-            if book[row.name]?.contestedAt == nil { book[row.name]?.contestedAt = now }
-            book[row.name]?.contestedBy = row.by
-            book[row.name]?.contestedTitle = row.title
-            book[row.name]?.contestedMineTitle = row.mine
+            recordContest(
+                &book, recordName: row.name, day: row.day, slot: row.slot,
+                zoneOwner: target, by: row.by, theirTitle: row.title,
+                mineTitle: row.mine, now: now
+            )
         }
         if !contested.isEmpty {
             print("[PlanShare] \(reason): \(contested.count) night(s) changed in the zone since this phone last wrote them, standing down")
@@ -798,16 +780,29 @@ enum PlanShare {
     /// fact that somebody else changed it. A screen that says nothing here
     /// leaves the publisher quietly refusing to publish forever, which is
     /// the stall being silent rather than the stall being fixed.
-    /// The mint-and-stamp `pass` performs when it stands down, reachable
-    /// without CloudKit so the fresh-device case has a test. It is the case
-    /// that was wrong: the loop skipped a night the book had never heard of,
-    /// which on a reinstall is all of them.
-    @MainActor
-    static func recordContestForTesting(
-        recordName: String, day: String, slot: String, zoneOwner: String,
-        by: String, theirTitle: String, mineTitle: String, now: Date = .now
+    /// One night, stood down and written into the book.
+    ///
+    /// `pass` calls this and so does its test, which is the point of it
+    /// being a function at all: the test used to carry its OWN copy of these
+    /// six lines, so it went green whether or not the loop in `pass` still
+    /// did any of it. A test that reimplements the thing it is checking
+    /// passes for the wrong reason and keeps passing after the reason goes.
+    ///
+    /// The entry is MINTED when the book has none, which on a reinstall or
+    /// a second device is every night, and a reinstall is exactly when the
+    /// editorID rule fires. Skipping those rows meant the night was not
+    /// published AND not recorded: no sentence, nothing on any screen, and
+    /// the person's whole week silently never leaving the phone. An empty
+    /// fingerprint re-offers the night next pass, so the stand-down stays
+    /// visible rather than becoming a thing that happened once.
+    ///
+    /// Only the first stand-down stamps the time, so the sentence does not
+    /// restate itself as new every pass. Who and what are refreshed every
+    /// time, because the household may have changed it again since.
+    nonisolated static func recordContest(
+        _ book: inout Book, recordName: String, day: String, slot: String,
+        zoneOwner: String, by: String, theirTitle: String, mineTitle: String, now: Date
     ) {
-        var book = loadBook()
         if book[recordName] == nil {
             book[recordName] = BookEntry(
                 fingerprint: "", photoCount: 0, zoneOwner: zoneOwner, day: day, slot: slot
@@ -817,6 +812,21 @@ enum PlanShare {
         book[recordName]?.contestedBy = by
         book[recordName]?.contestedTitle = theirTitle
         book[recordName]?.contestedMineTitle = mineTitle
+    }
+
+    /// The same call `pass` makes, against the stored book, so a test
+    /// exercises the production path rather than a copy of it.
+    @MainActor
+    static func recordContestForTesting(
+        recordName: String, day: String, slot: String, zoneOwner: String,
+        by: String, theirTitle: String, mineTitle: String, now: Date = .now
+    ) {
+        var book = loadBook()
+        recordContest(
+            &book, recordName: recordName, day: day, slot: slot,
+            zoneOwner: zoneOwner, by: by, theirTitle: theirTitle,
+            mineTitle: mineTitle, now: now
+        )
         saveBook(book)
     }
 

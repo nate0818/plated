@@ -150,11 +150,22 @@ final class RemovedNightTests: XCTestCase {
     }
 
     func testTheFlagSurvivesTheWire() {
-        var p = plan(removed: 1)
-        p.editorID = "_sam"
-        let entry = PlanLedger.Entry(p)
-        XCTAssertEqual(entry.editorID, "_sam")
-        XCTAssertEqual(p.removed, 1)
+        // Through a real CKRecord and back. The old version of this asserted
+        // `p.removed == 1` on a struct it had just assigned 1 to, which is a
+        // test of the assignment operator: green whatever the encoding did,
+        // and green if `remotePlan(from:)` never read the field at all.
+        let zone = CKRecordZone.ID(zoneName: TableShare.householdZoneName, ownerName: "host")
+        let record = CKRecord(
+            recordType: TableShare.planType,
+            recordID: CKRecord.ID(recordName: "plan-n1", zoneID: zone)
+        )
+        record["removed"] = 1 as CKRecordValue
+        record["editorID"] = "_sam" as CKRecordValue
+        record["editorName"] = "Sam Okafor" as CKRecordValue
+        let read = TableShare.remotePlan(from: record)
+        XCTAssertEqual(read.removed, 1, "INT64 in, INT64 out, never a Bool bridge")
+        XCTAssertEqual(read.editorID, "_sam")
+        XCTAssertEqual(PlanLedger.Entry(read).editorName, "Sam Okafor")
     }
 
     // MARK: A fetch that overtook a write
@@ -457,10 +468,12 @@ final class RemovedNightTests: XCTestCase {
         XCTAssertEqual(RemovedNights.gone(on: Self.day(2))?.by, "", "never a guessed name")
     }
 
-    func testThePublisherMayNotDeleteATombstoneOutOfTheZone() {
-        // The tombstone is the only carrier of who removed the night. The
-        // author's own pass runs seconds after the meal goes, and a phone
-        // that had not pulled yet would find a bare absence.
+    func testAParkedNightIsMarkedAsOneThePublisherMustNotDelete() {
+        // Named for what it actually checks. The refusal itself lives in
+        // `pass` and in `deletePlans`, both of which need CloudKit, so what
+        // is pinned here is the predicate they consult and nothing more. A
+        // test called "the publisher may not delete a tombstone" would have
+        // claimed cover it does not have.
         park()
         XCTAssertTrue(RemovedNights.isTombstoned("plan-n1"))
         XCTAssertFalse(RemovedNights.isTombstoned("plan-somebody-elses"))
