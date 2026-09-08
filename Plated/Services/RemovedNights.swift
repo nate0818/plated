@@ -1,15 +1,13 @@
 import Foundation
 import SwiftData
 
-/// Nights this phone planned that the household has taken off, waiting to
-/// leave this phone's own plan.
+/// Nights this phone planned that the household has taken off.
 ///
 /// A removal crosses Apple IDs as a `removed` flag on the night's record
-/// (docs/household.md 3.2), and `PlanLedger.absorb` hands the author's own
-/// ones back as `Delta.ownRemoved`. Acting on that is a `PlannedMeal`
-/// deletion, which is the first place in this app where a person's own row
-/// goes away because of something somebody else did, so it is worth being
-/// slow about.
+/// (docs/household.md 3.2a), and `PlanLedger.absorb` hands the author's own
+/// ones back as `Delta.ownRemoved`. Acting on that deletes a `PlannedMeal`,
+/// which is the first place in this app where a person's own row goes away
+/// because of something somebody else did, so it is worth being slow about.
 ///
 /// **This is not the merge the mirror law forbids.** After the deletion the
 /// household's night lives only in the zone and this phone's `PlannedMeal`
@@ -17,22 +15,44 @@ import SwiftData
 /// converge on and nothing to ping-pong. A VALUE crossing that seam would
 /// need a person; an ABSENCE does not.
 ///
-/// Parked rather than acted on immediately, and parked in the app group
-/// rather than in memory, because both hold-backs can outlive the delivery
-/// that brought the removal and one of them can outlive the process:
+/// This book holds three things at once, which is why it is a type rather
+/// than a set of ids:
 ///
-/// - **A night that was cooked is never deleted.** `cookedAt` is what
-///   `Recipe.timesCooked`, `Awards` and the insights all count, none of it
-///   snapshotted, so deleting a cooked night silently rewrites a person's
-///   history. The zone does not get to erase what happened in a kitchen.
-/// - **A night being cooked right now is not deleted under the person's
-///   hands.** It goes when they are finished. Re-checked at drain time and
-///   never at park time, because `CookingFocusView.finish()` writes
-///   `cookedAt` and then ends the session: a decision made when the removal
-///   arrived would delete the night it had just marked cooked.
+/// 1. **What is waiting.** Both hold-backs can outlive the delivery that
+///    brought the removal, and one of them can outlive the process, so the
+///    intent is in the app group rather than in memory.
+/// 2. **What the author is owed.** Once the meal is deleted nothing else on
+///    this phone remembers the night existed, so the screens that tell the
+///    person their dinner went have nowhere to read from. `since(_:)` is
+///    that.
+/// 3. **Which records the publisher must not delete.** A tombstone is the
+///    only carrier of who removed the night. The author's own publisher
+///    would otherwise see a book entry with no live meal and hard-delete
+///    the record within seconds, and every phone that had not pulled yet
+///    would get a bare absence, which names nobody and so says nothing.
 @MainActor
 enum RemovedNights {
     private static let file = "removed-nights.json"
+
+    /// One night the household took off, as this phone needs to remember it.
+    struct Gone: Codable, Equatable {
+        var shoppingID: String
+        var recordName: String
+        var title: String
+        /// The remover's name, empty when the record named nobody. A screen
+        /// built from this may not guess: a household is eight people, so a
+        /// wrong "someone" is a person in the room.
+        var by: String
+        /// `PlanDay` string, so the sentence can name the night.
+        var day: String
+        var at: Date
+        /// The `PlannedMeal` has gone, or was kept because it was cooked.
+        /// Either way there is nothing left to do but say so.
+        var settled: Bool = false
+        /// It was cooked, so it stays. A different sentence from a night
+        /// that simply went.
+        var kept: Bool = false
+    }
 
     private static var url: URL? {
         FileManager.default
@@ -40,66 +60,78 @@ enum RemovedNights {
             .appending(path: file)
     }
 
-    private static var cached: [String]?
+    private static var cached: [Gone]?
 
-    /// Shopping ids, which is what a night is called on both sides of the
-    /// seam: the record is `plan-<shoppingID>` and the meal carries the
-    /// same id.
-    static var parked: [String] {
+    static var all: [Gone] {
         if let cached { return cached }
-        var ids: [String] = []
+        var book: [Gone] = []
         if let url, let data = try? Data(contentsOf: url),
-           let decoded = try? JSONDecoder().decode([String].self, from: data) {
-            ids = decoded
+           let decoded = try? JSONDecoder().decode([Gone].self, from: data) {
+            book = decoded
         }
-        cached = ids
-        return ids
+        cached = book
+        return book
     }
 
-    private static func save(_ ids: [String]) {
-        cached = ids
+    private static func save(_ book: [Gone]) {
+        // A night whose day is well past has nothing left to say about it.
+        let floor = PlanDay.string(
+            Calendar.current.date(byAdding: .day, value: -14, to: .now) ?? .now
+        )
+        let kept = book.filter { $0.day >= floor }
+        cached = kept
         guard let url else { return }
-        if ids.isEmpty {
+        if kept.isEmpty {
             try? FileManager.default.removeItem(at: url)
             return
         }
-        guard let data = try? JSONEncoder().encode(ids) else { return }
+        guard let data = try? JSONEncoder().encode(kept) else { return }
         try? data.write(to: url, options: .atomic)
     }
 
     static func park(_ entries: [PlanLedger.Entry]) {
-        let ids = entries.map(\.shoppingID).filter { !$0.isEmpty }
-        guard !ids.isEmpty else { return }
-        var all = parked
-        for id in ids where !all.contains(id) { all.append(id) }
-        save(all)
-        print("PLATED HOUSEHOLD: \(ids.count) night(s) taken off by the household, waiting to leave this phone")
+        guard !entries.isEmpty else { return }
+        var book = all
+        var added = 0
+        for e in entries where !e.shoppingID.isEmpty {
+            guard !book.contains(where: { $0.shoppingID == e.shoppingID }) else { continue }
+            book.append(Gone(
+                shoppingID: e.shoppingID, recordName: e.recordName, title: e.title,
+                by: e.editorName ?? "", day: e.day, at: .now
+            ))
+            added += 1
+        }
+        guard added > 0 else { return }
+        save(book)
+        print("PLATED HOUSEHOLD: \(added) night(s) taken off by the household, waiting to leave this phone")
     }
 
     /// Take off the plan every parked night that is free to go.
     ///
     /// Returns true when something was deleted, so the caller can save and
     /// rebuild in the same pass rather than leaving the Lock Screen serving
-    /// a dinner that is off the plan.
-    ///
-    /// The caller saves. This function does not, for the reason
-    /// `PlanShare.takeRetractions` exists: a save schedules a publisher
-    /// pass, and a publisher pass that runs from inside a delivery is how
-    /// the queue ate itself the last time.
+    /// a dinner that is off the plan. The caller saves: a save schedules a
+    /// publisher pass, and this runs from inside a delivery.
     @discardableResult
     static func drain(in context: ModelContext) -> Bool {
-        let waiting = parked
-        guard !waiting.isEmpty else { return false }
+        var book = all
+        guard book.contains(where: { !$0.settled }) else { return false }
         let meals = (try? context.fetch(FetchDescriptor<PlannedMeal>())) ?? []
-        var keep: [String] = []
         var deleted = false
-        for id in waiting {
+        for i in book.indices where !book[i].settled {
+            let id = book[i].shoppingID
             guard let meal = meals.first(where: { $0.shoppingID == id }) else {
                 // No row to take off: already gone, or never on this device.
+                book[i].settled = true
                 continue
             }
             if meal.cookedAt != nil {
+                // `cookedAt` is what `Recipe.timesCooked`, Awards and the
+                // insights all count, none of it snapshotted. The zone does
+                // not get to erase what happened in a kitchen.
                 print("PLATED HOUSEHOLD: \(id) was cooked, so it stays on this phone's week")
+                book[i].settled = true
+                book[i].kept = true
                 continue
             }
             // By the night AND by its recipe. A session's `mealID` is
@@ -111,19 +143,45 @@ enum RemovedNights {
                 || (meal.recipe.map { CookLedger.shared.isCooking($0) } ?? false)
             if cooking {
                 print("PLATED HOUSEHOLD: \(id) is being cooked, it leaves when the session does")
-                keep.append(id)
                 continue
             }
             context.delete(meal)
+            book[i].settled = true
             deleted = true
         }
-        save(keep)
+        save(book)
         return deleted
+    }
+
+    /// The record names this phone must not delete out of the zone.
+    ///
+    /// The tombstone carries who removed the night, and it is the only thing
+    /// that does. The author's publisher sees a book entry with no live meal
+    /// and would hard-delete the record seconds later, so a phone that had
+    /// not pulled yet would find a bare absence: it takes the night off, but
+    /// it names nobody, so nothing can be said about it. Left alone, the
+    /// record ages out of the zone on the ordinary -30 day rule.
+    static func isTombstoned(_ recordName: String) -> Bool {
+        all.contains { $0.recordName == recordName }
+    }
+
+    /// What the household has taken off recently, newest first, for the
+    /// screens that tell the person their dinner went. Nothing else on this
+    /// phone remembers the night once the meal is deleted.
+    static func since(_ cutoff: Date) -> [Gone] {
+        all.filter { $0.at >= cutoff }.sorted { $0.at > $1.at }
+    }
+
+    /// The night the household took off a given day, if any.
+    static func gone(on date: Date) -> Gone? {
+        let day = PlanDay.string(date)
+        return all.first { $0.day == day }
     }
 
     /// An Apple ID change or a household leave: these name nights in a
     /// household this account is no longer in.
     static func clear() {
-        save([])
+        cached = []
+        if let url { try? FileManager.default.removeItem(at: url) }
     }
 }

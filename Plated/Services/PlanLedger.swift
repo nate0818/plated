@@ -399,6 +399,15 @@ final class PlanLedger {
             where changes.replayedOwners.contains(old.zoneOwner) && !delivered.contains(name) {
                 book.entries.removeValue(forKey: name)
                 removePhoto(name)
+                // A record that is simply GONE says nothing about who took
+                // it off, which is why a removal is a write now. What is
+                // left on this path is the age-out, a departed member's
+                // sweep, and a reader who never saw the tombstone because
+                // the author's publisher cleared the record first. The
+                // entry still belongs in `removed`, because that is what
+                // takes the night's bell row and its banner down. Whether
+                // anything is SAID about it is decided in `planNotices`,
+                // which will not name a remover it does not have.
                 if isNews(old) { delta.removed.append(old) }
             }
         }
@@ -432,11 +441,19 @@ final class PlanLedger {
                     book.serverImages[entry.recordName] = nil
                     beforeEdit[entry.recordName] = nil
                     beforePhoto[entry.recordName] = nil
+                    // The DELIVERED entry, not the book copy. `old` is the
+                    // night as it stood before the removal, so its editor
+                    // is whoever last changed it or nobody, and the notice
+                    // built from it fell straight back to naming the
+                    // author: the exact sentence this whole change exists
+                    // to stop. `entry` carries the tombstone's editor, and
+                    // every other field is the night as it was.
+                    //
                     // A removal this phone asked for is not news to it. The
-                    // reader who did it is told by the sheet closing, and
-                    // the law is that a notice is never about your own
-                    // action, on any of your devices.
-                    if isNews(old), remote.editorID != me { delta.removed.append(old) }
+                    // reader who did it is told by the sheet closing, and a
+                    // notice is never about your own action, on any of your
+                    // devices.
+                    if isNews(entry), remote.editorID != me { delta.removed.append(entry) }
                 }
                 // Nothing to remove is not an error: `prune` runs at the top
                 // of this function and may have taken the entry already.

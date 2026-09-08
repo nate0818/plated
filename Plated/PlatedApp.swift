@@ -352,6 +352,12 @@ struct PlatedApp: App {
                     // learns the week WITHOUT it.
                     if RemovedNights.drain(in: container.mainContext) {
                         Persist.save(container.mainContext, "nights the household took off")
+                        // The reminder is the reason this drain exists at
+                        // all: a night that has left the plan may not keep
+                        // its 19:00 notice, and nothing else in this branch
+                        // rebuilds them.
+                        let meals = (try? container.mainContext.fetch(FetchDescriptor<PlannedMeal>())) ?? []
+                        await NotificationScheduler.rebuild(meals: meals)
                     }
                     WidgetBridge.publish(from: container.mainContext)
                     // The icon's number and the bell's are one count. A row

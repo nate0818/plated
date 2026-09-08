@@ -670,7 +670,23 @@ enum PlanShare {
         if !contested.isEmpty {
             print("[PlanShare] \(reason): \(contested.count) night(s) changed in the zone since this phone last wrote them, standing down")
         }
-        let removals = work.delete + work.ageOut
+        // A night the household took off is NOT this phone's to delete out
+        // of the zone, even though its meal has gone and `diff` therefore
+        // reads it as one. The tombstone is the only thing carrying who
+        // removed the night, and this pass runs seconds after the meal was
+        // deleted, so a phone that had not pulled yet would find a bare
+        // absence: it takes the night off, but it names nobody, so nothing
+        // true can be said about it. The record ages out of the zone on the
+        // ordinary rule instead. Forgotten here so `diff` stops offering it
+        // every pass.
+        var mine = work.delete
+        let theirs = mine.filter { RemovedNights.isTombstoned($0) }
+        if !theirs.isEmpty {
+            mine.removeAll { RemovedNights.isTombstoned($0) }
+            for name in theirs { book[name] = nil }
+            print("[PlanShare] \(reason): \(theirs.count) night(s) the household took off, left in the zone to be read")
+        }
+        let removals = mine + work.ageOut
         let gone = await TableShare.deletePlans(names: removals, in: db, zone: zoneID)
         for name in gone { book[name] = nil }
         saveBook(book)
@@ -1265,8 +1281,21 @@ enum PlanShare {
         // this edit descends from, and before `record(for:)`, which would
         // otherwise happily write a title onto a night that is off the plan
         // and stand it back up on every phone.
+        // Already off the plan, and this edit is another removal: the
+        // household agrees. Answering `.landed` settles the queue and the
+        // row without a second write. Before the branch below, which would
+        // otherwise `fold` the tombstone into the ledger and stand the
+        // night back up on the phone that was trying to remove it.
+        if let existing, TableShare.int(existing, "removed") == 1, edit.kind == .delete {
+            print("PLATED HOUSEHOLD: \(edit.recordName) was already off the plan")
+            return .landed(edit.at)
+        }
         if let existing, TableShare.int(existing, "removed") == 1, edit.kind != .delete {
-            PlanLedger.shared.nightIsGone(edit.recordName)
+            // Through `noteGone`, so the night's bell row and its delivered
+            // banner come down with it. `nightIsGone` alone leaves both
+            // standing on the one phone that has just been told the night
+            // is off, which is the count claiming there is something to see.
+            noteGone(PlanLedger.shared.nightIsGone(edit.recordName))
             print("PLATED HOUSEHOLD: \(edit.recordName) was taken off the plan on another phone, dropping the edit")
             return .refused("That night was taken off the plan on another phone.")
         }

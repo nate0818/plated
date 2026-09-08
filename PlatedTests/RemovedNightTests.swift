@@ -165,12 +165,19 @@ final class RemovedNightTests: XCTestCase {
         return m
     }
 
+    private func park(editorName: String = "Riley Park") {
+        var p = plan(author: "_me", removed: 1)
+        p.editorID = "_riley"
+        p.editorName = editorName
+        RemovedNights.park([PlanLedger.Entry(p)])
+    }
+
     func testAnOrdinaryNightLeavesThePlan() {
-        let m = meal(id: "n1")
-        RemovedNights.park([PlanLedger.Entry(plan(author: "_me", removed: 1))])
+        _ = meal(id: "n1")
+        park()
         XCTAssertTrue(RemovedNights.drain(in: context))
-        XCTAssertTrue(m.isDeleted || (try? context.fetch(FetchDescriptor<PlannedMeal>()))?.isEmpty == true)
-        XCTAssertTrue(RemovedNights.parked.isEmpty, "and it stops waiting")
+        XCTAssertTrue(((try? context.fetch(FetchDescriptor<PlannedMeal>())) ?? []).isEmpty)
+        XCTAssertEqual(RemovedNights.all.first?.settled, true, "and it stops waiting")
     }
 
     func testANightThatWasCookedIsNeverDeleted() {
@@ -178,22 +185,50 @@ final class RemovedNightTests: XCTestCase {
         // none of it snapshotted. The zone does not get to erase what
         // happened in a kitchen.
         _ = meal(id: "n1", cooked: true)
-        RemovedNights.park([PlanLedger.Entry(plan(author: "_me", removed: 1))])
+        park()
         XCTAssertFalse(RemovedNights.drain(in: context))
         XCTAssertEqual((try? context.fetch(FetchDescriptor<PlannedMeal>()))?.count, 1)
-        XCTAssertTrue(RemovedNights.parked.isEmpty, "it is settled, not still waiting")
+        XCTAssertEqual(RemovedNights.all.first?.kept, true, "kept, and said so differently")
+        XCTAssertEqual(RemovedNights.all.first?.settled, true, "settled, not still waiting")
     }
 
     func testANightWithNoRowOnThisPhoneStopsWaiting() {
-        RemovedNights.park([PlanLedger.Entry(plan(author: "_me", removed: 1))])
+        park()
         XCTAssertFalse(RemovedNights.drain(in: context))
-        XCTAssertTrue(RemovedNights.parked.isEmpty)
+        XCTAssertEqual(RemovedNights.all.first?.settled, true)
     }
 
-    func testTheParkSurvivesBeingReadTwice() {
-        RemovedNights.park([PlanLedger.Entry(plan(author: "_me", removed: 1))])
-        XCTAssertEqual(RemovedNights.parked, ["n1"])
-        RemovedNights.park([PlanLedger.Entry(plan(author: "_me", removed: 1))])
-        XCTAssertEqual(RemovedNights.parked, ["n1"], "the same night does not queue twice")
+    func testTheSameNightDoesNotQueueTwice() {
+        park()
+        park()
+        XCTAssertEqual(RemovedNights.all.count, 1)
+    }
+
+    func testThePhoneRemembersWhoTookTheNightOffAfterTheMealHasGone() {
+        // Once the meal is deleted nothing else on this phone remembers the
+        // night existed, so the screens that tell the person have nowhere
+        // else to read from.
+        _ = meal(id: "n1")
+        park()
+        XCTAssertTrue(RemovedNights.drain(in: context))
+        let said = RemovedNights.gone(on: Self.day(2))
+        XCTAssertEqual(said?.title, "Tacos")
+        XCTAssertEqual(said?.by, "Riley Park")
+    }
+
+    func testARecordThatNamedNobodyIsRememberedWithoutAName() {
+        _ = meal(id: "n1")
+        park(editorName: "")
+        RemovedNights.drain(in: context)
+        XCTAssertEqual(RemovedNights.gone(on: Self.day(2))?.by, "", "never a guessed name")
+    }
+
+    func testThePublisherMayNotDeleteATombstoneOutOfTheZone() {
+        // The tombstone is the only carrier of who removed the night. The
+        // author's own pass runs seconds after the meal goes, and a phone
+        // that had not pulled yet would find a bare absence.
+        park()
+        XCTAssertTrue(RemovedNights.isTombstoned("plan-n1"))
+        XCTAssertFalse(RemovedNights.isTombstoned("plan-somebody-elses"))
     }
 }

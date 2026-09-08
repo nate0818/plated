@@ -1241,6 +1241,11 @@ enum HouseholdSync {
         if HouseholdShare.membership != .solo { HouseholdShare.setMembership(.solo) }
         HouseholdOutbox.shared.clear()
         GroceryMarks.shared.clear()
+        // A night the old household took off is not this plan's business
+        // any more. Left parked, it would take a dinner off a plan that no
+        // longer has anything to do with the people who removed it, on
+        // whatever the next drain happened to be.
+        RemovedNights.clear()
         HouseholdShare.mySeat = nil
         HouseholdShare.forgetUnresolved()
         let defaults = groupDefaults

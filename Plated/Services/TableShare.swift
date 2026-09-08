@@ -1706,6 +1706,18 @@ enum TableShare {
     private static func saveOverServerCopy(_ mine: CKRecord, in db: CKDatabase) async -> Bool {
         do {
             let server = try await db.record(for: mine.recordID)
+            // The last writer that can lift a tombstone, and so the last one
+            // that has to refuse to. `pass` already declines to publish over
+            // a removed night, but only when the fetch returned it: a fetch
+            // that came back empty leaves the publisher minting a fresh
+            // record, whose `removed` is 0 because a minted record has no
+            // history, and this replay would copy that 0 onto the server's 1
+            // and stand the night back up on every phone. The server copy is
+            // read here anyway, so this is the cheapest place to be sure.
+            if server.recordType == planType, int(server, "removed") == 1 {
+                print("[PlanShare] \(mine.recordID.recordName) is off the household plan, not saving over it")
+                return false
+            }
             for key in mine.changedKeys() { server[key] = mine[key] }
             server.parent = mine.parent
             let results = try await db.modifyRecords(

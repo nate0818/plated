@@ -314,13 +314,20 @@ final class PlanNewsTests: XCTestCase {
         XCTAssertTrue(rows(eventKey: "plan:plan-1").isEmpty, "the row went with the night")
     }
 
+    /// A removal reaches this phone as a tombstone carrying its remover,
+    /// not as a bare deletion: a deletion names nobody, and this sentence
+    /// used to name the night's AUTHOR for somebody else's doing.
     func testANightTakenOffAfterItWasReadIsQuietNews() async {
         let first = delivery([remotePlan(by: "riley", id: "1")])
         await TableNews.deliver(first.changes, plans: first.delta, context: context)
         rows(eventKey: "plan:plan-1").first?.isRead = true
         try? context.save()
 
-        let gone = delivery([], deleted: ["plan-1"])
+        var off = remotePlan(by: "riley", id: "1")
+        off.removed = 1
+        off.editorID = "riley"
+        off.editorName = "Riley Park"
+        let gone = delivery([off])
         let notices = digest(gone)
         XCTAssertEqual(notices.count, 1)
         XCTAssertEqual(notices[0].title, "Riley took Sheet-pan chicken off tomorrow")
@@ -472,7 +479,13 @@ final class PlanNewsTests: XCTestCase {
         rows(eventKey: "plan:plan-1").first?.isRead = true
         try? context.save()
 
-        let gone = delivery([], deleted: ["plan-1"])
+        // A tombstone, not a bare deletion: a deletion names nobody, and
+        // this sentence used to name the night's author for it.
+        var off = remotePlan(by: "riley", id: "1", day: farther, changedAt: Self.stamp(-1))
+        off.removed = 1
+        off.editorID = "riley"
+        off.editorName = "Riley Park"
+        let gone = delivery([off])
         let offNotices = digest(gone)
         XCTAssertEqual(offNotices.count, 1)
         XCTAssertEqual(offNotices[0].title, "Riley took Sheet-pan chicken off \(Stamp.nightPhrase(farther))")
@@ -517,9 +530,17 @@ final class PlanNewsTests: XCTestCase {
         XCTAssertEqual(notices[0].title, "Riley put you down to cook tomorrow: Sheet-pan chicken")
     }
 
-    /// A removal is about now, whatever the writer's clock said at the
-    /// last save: a replay that notices a read night gone still says so.
-    func testANightTakenOffOnAReplayIsStillSaid() async {
+    /// A night that is simply GONE takes its row down and says nothing.
+    ///
+    /// This used to say "Riley took Sheet-pan chicken off Thursday", naming
+    /// the night's AUTHOR because a bare absence carries nobody. A removal
+    /// is a write now and carries its remover, so the only things left on
+    /// this path are an age-out, a departed member's sweep, and a record the
+    /// author's own publisher cleared after acting on the removal. In every
+    /// one of those, naming the author is naming the wrong person, and
+    /// docs/notifications.md is explicit: if the sentence cannot name the
+    /// person, nothing is sent. The row still goes.
+    func testANightTakenOffOnAReplayTakesItsRowDownWithoutNamingAnybody() async {
         let first = delivery([remotePlan(by: "riley", id: "1", day: Self.day(4),
                                          changedAt: .now.addingTimeInterval(-4 * 24 * 3600))])
         await TableNews.deliver(first.changes, plans: first.delta, context: context)
@@ -527,10 +548,30 @@ final class PlanNewsTests: XCTestCase {
         try? context.save()
         var gone = delivery([], replayed: ["host"])
         gone.changes.replayed = true
+        XCTAssertEqual(gone.delta.removed.count, 1, "the night still leaves the ledger")
+        XCTAssertTrue(digest(gone).isEmpty, "and nothing is said, because nothing true can be")
+    }
+
+    /// A removal that carries its remover names them, which is the whole
+    /// reason it is a write rather than a delete.
+    func testATombstoneNamesThePersonWhoTookTheNightOff() async {
+        let first = delivery([remotePlan(by: "riley", id: "1", day: Self.day(4))])
+        await TableNews.deliver(first.changes, plans: first.delta, context: context)
+        rows(eventKey: "plan:plan-1").first?.isRead = true
+        try? context.save()
+        var off = remotePlan(by: "riley", id: "1", day: Self.day(4))
+        off.removed = 1
+        off.editorID = "sam"
+        off.editorName = "Sam Okafor"
+        let gone = delivery([off])
         XCTAssertEqual(gone.delta.removed.count, 1)
         let notices = digest(gone)
         XCTAssertEqual(notices.count, 1)
-        XCTAssertEqual(notices[0].title, "Riley took Sheet-pan chicken off \(Stamp.nightPhrase(Self.day(4)))")
+        XCTAssertEqual(
+            notices[0].title,
+            "Sam took Sheet-pan chicken off \(Stamp.nightPhrase(Self.day(4)))",
+            "the remover, never the night's author"
+        )
     }
 
     // MARK: Reminders

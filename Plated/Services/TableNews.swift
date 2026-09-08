@@ -582,7 +582,16 @@ enum TableNews {
         // is the right answer here: a household is eight people, so a wrong
         // "someone" is a person in the room.
         for e in plans.removed {
-            guard let by = changer(e), by.id != me else { continue }
+            // The record has to NAME the remover. `changer` falls back to
+            // the night's author when no editor is recorded, which is right
+            // for a change and is the whole lie for a removal: it is how
+            // Riley taking Nate's night off told the household that Nate
+            // did it. An entry with no editor reaches here only from a
+            // record that was gone rather than tombstoned, and a deletion
+            // carries nobody, so there is nothing true to say. The row is
+            // still taken down; only the sentence is withheld.
+            let editor = e.editorID ?? ""
+            guard !editor.isEmpty, let by = changer(e), by.id != me else { continue }
             guard let row = rows(eventKey: "plan:\(e.recordName)", context: context).first, row.isRead
             else { continue }
             let key = "plan:\(e.recordName):\(planHash(e, removed: true))"
