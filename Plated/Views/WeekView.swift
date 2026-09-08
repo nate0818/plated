@@ -1065,7 +1065,9 @@ struct WeekView: View {
         // household has already dropped is the row answering a question
         // nobody is asking. The cook and the timing are still on the day
         // page; what is not anywhere else is that the household let it go.
-        if let held = RemovedNights.heldLine(shoppingID: meal.shoppingID ?? "") {
+        // The row's short form. The sentence version belongs on a page with
+        // room; this line clips at one.
+        if let held = RemovedNights.heldRowLine(shoppingID: meal.shoppingID ?? "") {
             return held
         }
         // The household changed this night and nobody has answered yet.

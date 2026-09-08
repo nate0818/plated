@@ -56,6 +56,25 @@ extension RemovedNights {
                         trailing: ". You are cooking it, so it is still on your week.")
     }
 
+    /// The same fact for a week row, which is one line and clips.
+    ///
+    /// `heldLine` is a sentence and runs to about seventy-five characters;
+    /// the row draws its caption at `.caption` with `lineLimit(1)`, so that
+    /// sentence arrived as "Riley took Tacos off the household plan. You
+    /// cook…" and lost the half that matters. This says the same two facts
+    /// in the row's own telegraphic register, the one it already uses for
+    /// "Tonight · you cook · 25 min".
+    static func heldRowLine(shoppingID: String) -> String? {
+        guard !shoppingID.isEmpty,
+              let gone = all.first(where: { $0.shoppingID == shoppingID })
+        else { return nil }
+        let who = gone.by.split(separator: " ").first.map(String.init) ?? ""
+        let lead = who.isEmpty ? "Off the household plan" : "\(who) took it off"
+        if gone.kept { return "\(lead) · you cooked it" }
+        guard !gone.settled else { return nil }
+        return "\(lead) · you're cooking it"
+    }
+
     /// The subtitle under "Add it back", which names the dish so the control
     /// says what it will do rather than what it is.
     static func addBackDetail(on date: Date, slot: MealSlot = .dinner) -> String? {
