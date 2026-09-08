@@ -49,6 +49,19 @@ rendering a hair larger so fixed-height layouts overflow, and Foundation Models.
 - `make design` checks the DESIGN.md rules a machine can check, and both
   ship paths refuse a build that breaks one. A deliberate exception is fine
   but has to say so at the line: `// design-ok(<rule>): why this one is right`.
+- **A green suite is the weakest signal in this repo, and the reason is
+  usually a test that passes for the wrong reason.** Three of these were
+  found in one afternoon. The purest: a test written to prove a blocker was
+  fixed had the fix's own six lines copied INTO its helper, beside the
+  production loop that does the same thing, so it could not have detected
+  the fix being undone. Its siblings: a test named for behaviour its body
+  never exercised, and one asserting a value it had assigned two lines
+  earlier. The suite was also green throughout a render loop that hung the
+  app, a tombstone that was never deleted, and a reinstall that silently
+  stopped publishing. Before trusting a green test, ask what it would take
+  for it to fail, and if the answer is "nothing that could plausibly
+  happen", it is decoration. A test must never carry its own copy of the
+  code it checks: extract one function and have both call it.
 - `make test` runs `PlatedTests` on a simulator. The news digest
   (`TableNews.digest`) is pure and tested there; a test is how the merge's
   reaction-dropping bug was found, which no screen could ever have shown.
