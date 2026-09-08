@@ -851,6 +851,20 @@ enum TableShare {
         var authorID = ""
         var authorName = ""
         var authorColorHex = "FF5A3C"
+        /// Who made THIS version of the night, which is not always the
+        /// person who planned it: any member may change any household
+        /// night. Without it a digest reads the author off the record and
+        /// says "Nate changed Thursday to Ragu" about something Riley did,
+        /// and Riley's own phone is never told to stay quiet about her own
+        /// change. "" on every record written before these two fields, and
+        /// the reader falls back to the author there.
+        var editorID = ""
+        var editorName = ""
+        /// The night's ingredients, already canonical. Empty on every
+        /// record written before groceries were shared, which reads as a
+        /// night that contributes nothing to a list rather than as an
+        /// error: see `PlanShare.Line`.
+        var lines: [PlanShare.Line] = []
         var cookID = ""
         var cookName = ""
         var cookColorHex = ""
@@ -1256,6 +1270,13 @@ enum TableShare {
             print("[PlanShare] prime: no household zone yet; run -plated-prime-household first")
             return "skipped: no household zone yet (run -plated-prime-household first)"
         }
+        // `editorID` and `editorName` ride on the author here: `planRecord`
+        // writes them from it, so this probe mints both non-nil. A field
+        // that is nil while priming does not exist in Production, and the
+        // first real edit carrying it fails `.invalidArguments`. `lines`
+        // carries a real ingredient for the same reason. It mints as a
+        // STRING, which is the point: a list field minted from an empty
+        // array is minted at the wrong type permanently.
         let probe = PlanShare.Plan(
             recordName: "plan-prime-probe", shoppingID: "prime-probe",
             authorID: "prime", authorName: "Prime", authorColorHex: "FF5A3C",
@@ -1265,7 +1286,10 @@ enum TableShare {
             title: "Schema probe", servings: 4,
             tagline: "Written to teach CloudKit the type.",
             cooked: true, cookedAt: .now, hasRecipe: true, recipeMinutes: 35,
-            recipeOriginKey: "prime", createdAt: .now, photoData: nil
+            recipeOriginKey: "prime", createdAt: .now, photoData: nil,
+            lines: [PlanShare.Line(name: "Prime", normalizedName: "prime", unit: "oz",
+                                   quantity: 1, aisle: GroceryAisle.other.rawValue,
+                                   isPantryStaple: false)]
         )
         // A few grey pixels: enough to mint the asset field, small enough
         // to cost nothing.
@@ -1468,6 +1492,25 @@ enum TableShare {
     /// Build or update the record for one night: every field in the table
     /// in docs/plan-share.md, no lists and no Bools. The temp file behind
     /// a `.set` asset is the caller's to remove once the save is done.
+    /// The night's ingredients as JSON, and back.
+    ///
+    /// A string field and not a CloudKit list: a list field minted from an
+    /// empty array is minted as the wrong type permanently, and every later
+    /// save carrying a real list then fails `.invalidArguments`. A night
+    /// with no recipe has no ingredients, so the empty case is not the rare
+    /// one. Decoding failure returns no lines rather than throwing: a night
+    /// that contributes nothing to a grocery list is a much smaller wrong
+    /// than a whole delivery dropped.
+    static func encodeLines(_ lines: [PlanShare.Line]) -> String? {
+        guard let data = try? JSONEncoder().encode(lines) else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
+    static func decodeLines(_ json: String?) -> [PlanShare.Line] {
+        guard let json, let data = json.data(using: .utf8) else { return [] }
+        return (try? JSONDecoder().decode([PlanShare.Line].self, from: data)) ?? []
+    }
+
     static func planRecord(
         _ plan: PlanShare.Plan, existing: CKRecord?, zone: CKRecordZone.ID,
         photo: PlanPhoto, now: Date
@@ -1479,6 +1522,19 @@ enum TableShare {
         record["authorID"] = plan.authorID as CKRecordValue
         record["authorName"] = plan.authorName as CKRecordValue
         record["authorColorHex"] = plan.authorColorHex as CKRecordValue
+        // The publisher only ever sends its own `PlannedMeal` rows, so the
+        // person who made this version IS the author. Written all the same,
+        // and never left nil: a republish after somebody else edited the
+        // night has to say the author took it back, or the digest keeps
+        // naming the editor for a change the author made. It also mints the
+        // two fields on the schema probe, which builds its record here.
+        record["editorID"] = plan.authorID as CKRecordValue
+        record["editorName"] = plan.authorName as CKRecordValue
+        // JSON in a string field rather than a list field: a CloudKit list
+        // minted from an empty array is minted as the wrong type
+        // permanently, and a night with no recipe has no ingredients, so
+        // the empty case is the common one on day one. "[]" is a value.
+        record["lines"] = (encodeLines(plan.lines) ?? "[]") as CKRecordValue
         record["cookID"] = plan.cookID as CKRecordValue
         record["cookName"] = plan.cookName as CKRecordValue
         record["cookColorHex"] = plan.cookColorHex as CKRecordValue
@@ -1849,6 +1905,11 @@ enum TableShare {
         p.authorID = record["authorID"] as? String ?? ""
         p.authorName = record["authorName"] as? String ?? ""
         p.authorColorHex = record["authorColorHex"] as? String ?? "FF5A3C"
+        // Absent on every night written before the editor existed, and ""
+        // is the reader's cue to fall back to the author.
+        p.editorID = record["editorID"] as? String ?? ""
+        p.editorName = record["editorName"] as? String ?? ""
+        p.lines = decodeLines(record["lines"] as? String)
         p.cookID = record["cookID"] as? String ?? ""
         p.cookName = record["cookName"] as? String ?? ""
         p.cookColorHex = record["cookColorHex"] as? String ?? ""
@@ -1948,11 +2009,13 @@ enum TableShare {
                         var createdAt = Date.now; var photoData: Data? }
     struct RemotePlan: Equatable { var recordName = ""; var zoneOwner = ""; var authorID = ""
                         var authorName = ""; var authorColorHex = "FF5A3C"
+                        var editorID = ""; var editorName = ""
                         var cookID = ""; var cookName = ""; var cookColorHex = ""; var cookSeat = ""
                         var day = ""; var slot = MealSlot.dinner.rawValue; var title = ""
                         var servings = 4; var tagline = ""; var cooked = false; var cookedAt: Date?
                         var hasRecipe = false; var recipeMinutes = 0; var recipeOriginKey = ""
                         var shoppingID = ""; var photoData: Data?
+                        var lines: [PlanShare.Line] = []
                         var createdAt = Date.now; var changedAt = Date.now }
     struct Claim: Equatable { var inviteID: String; var userRecordName: String }
     static func pushClaim(inviteID: String, zoneOwner: String) async -> Bool { false }

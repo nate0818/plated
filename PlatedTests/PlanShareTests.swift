@@ -438,6 +438,49 @@ final class PlanShareTests: XCTestCase {
         XCTAssertEqual(record["tagline"] as? String, "Kids pick")
     }
 
+    func testChangingTheServingsRescalesTheNightsIngredients() {
+        // The edit path does not write `lines`, and the editor's phone does
+        // not have the author's recipe, so without this a member doubling a
+        // night left the household shopping for the old quantities: a list
+        // quietly disagreeing with a change the person watched land.
+        let night = remoteNight()
+        var edit = PlanShare.Edit(changing: night)
+        edit.servings = 8
+        let zone = CKRecordZone.ID(zoneName: TableShare.householdZoneName, ownerName: "host")
+        let served = CKRecord(
+            recordType: TableShare.planType,
+            recordID: CKRecord.ID(recordName: "plan-n1", zoneID: zone)
+        )
+        served["servings"] = 4 as CKRecordValue
+        served["lines"] = (TableShare.encodeLines([
+            PlanShare.Line(name: "Beef mince", normalizedName: "beef mince", unit: "oz",
+                           quantity: 16, aisle: "Meat & Seafood", isPantryStaple: false)
+        ]) ?? "[]") as CKRecordValue
+        let (record, _) = PlanShare.record(for: edit, existing: served, zone: zone, now: .now)
+        let lines = TableShare.decodeLines(record["lines"] as? String)
+        XCTAssertEqual(lines.first?.quantity, 32, "doubling the servings doubles the mince")
+        XCTAssertEqual(lines.first?.unit, "oz", "and does not change what it is measured in")
+    }
+
+    func testAnEditThatLeavesTheServingsAloneLeavesTheIngredientsAlone() {
+        let night = remoteNight()
+        var edit = PlanShare.Edit(changing: night)
+        edit.title = "Ragu"
+        let zone = CKRecordZone.ID(zoneName: TableShare.householdZoneName, ownerName: "host")
+        let served = CKRecord(
+            recordType: TableShare.planType,
+            recordID: CKRecord.ID(recordName: "plan-n1", zoneID: zone)
+        )
+        served["servings"] = 4 as CKRecordValue
+        let json = TableShare.encodeLines([
+            PlanShare.Line(name: "Beef mince", normalizedName: "beef mince", unit: "oz",
+                           quantity: 16, aisle: "Meat & Seafood", isPantryStaple: false)
+        ]) ?? "[]"
+        served["lines"] = json as CKRecordValue
+        let (record, _) = PlanShare.record(for: edit, existing: served, zone: zone, now: .now)
+        XCTAssertEqual(record["lines"] as? String, json)
+    }
+
     func testAServerVersionThisEditDidNotDescendFromWins() {
         let night = remoteNight()
         let edit = PlanShare.Edit(changing: night)

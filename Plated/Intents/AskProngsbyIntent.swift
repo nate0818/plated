@@ -27,7 +27,7 @@ struct AskProngsbyIntent: AppIntent {
         let members = (try? context.fetch(FetchDescriptor<HouseholdMember>())) ?? []
         let meals = (try? context.fetch(FetchDescriptor<PlannedMeal>())) ?? []
 
-        let brain = ProngsbyBrain(recipes: recipes, members: members, meals: meals)
+        let brain = ProngsbyBrain(recipes: recipes, members: members, nights: ProngsbyBrain.nights(meals: meals))
         let answer = await ProngsbyMind.reply(to: question, brain: brain)
 
         // The spoken exchange is still a conversation — it belongs in the

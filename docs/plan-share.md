@@ -224,17 +224,44 @@ number they stopped on. A change on somebody else's night raises no local
 bell row: a notice about the reader's own action is the rule
 docs/notifications.md breaks for nothing.
 
-### Two things this leaves open, on purpose and out loud
+### Who changed it: `editorID` and `editorName`
 
-- **An edit is attributed to the night's author, not to the editor.** The
-  record carries `authorID` and no editor, so after Riley changes Nate's
-  Thursday, Sam's digest says "Nate changed Thursday to Ragu". That is a
-  claim about what somebody did, and it is false. The fix is two fields,
-  `editorID` and `editorName`, written here, read in `TableShare.remotePlan`,
-  carried on `RemotePlan` and `PlanLedger.Entry`, and phrased by
-  `TableNews.digest`; `-plated-prime-share` mints them and the schema is
-  redeployed before a production build writes them. Until that lands, the
-  digest misnames the person on an edited night.
+The record carries the person who PLANNED the night, and any member may now
+change one, so the author is the wrong person to name for a change. Before
+these two fields, after Riley changed Nate's Thursday every other phone said
+"Nate changed Thursday to Ragu": a claim about what somebody did, and false.
+Riley's own phone said it too, because the own-action guard compared the
+author's id to `TableIdentity.cached` and the author was not Riley.
+
+So the record carries `editorID` and `editorName`, the identity that made
+THIS version. Written unconditionally, the way `modifiedAt` is, by both
+writers: `TableShare.planRecord` takes them from the author, because the
+publisher only ever sends its own `PlannedMeal` rows and the two are the
+same person there, and `PlanShare.record(for:)` takes them from
+`PlanShare.editor()`, this phone's identity and its own roster row's name.
+They ride on the `Edit` rather than being resolved when the queue drains: a
+drain happens on a scene change with no sheet and no roster in front of it.
+
+`PlanLedger.Entry` carries them as optionals, for the reason
+`pendingRemoval` is one, and `Entry.changedByID` is the editor, or the
+author when there is none. `PlanLedger.edited(_:by:)` does NOT fold them
+onto the optimistic row: like `changedAt` they are the record's stamp and
+not a field the person touched, and what keeps a reader quiet about their
+own edit is the digest's guard, which reads the record.
+
+`TableNews.planNotices` names the editor on a change and the author on a
+night newly planned or taken off, and its `changer(_:)` is the fallback
+ladder: the editor when the record names one, the author when it does not
+(every record written before these fields), and **nobody at all** when the
+editor is somebody this phone cannot name, because falling back to the
+author there would print the false sentence again. `learnNames` folds the
+editor's id and name the way it folds the author's and the cook's.
+
+`-plated-prime-share` mints both non-nil through the probe's author, and the
+schema is deployed to Production before a build writes them.
+
+### One thing this leaves open, on purpose and out loud
+
 - **The author's own phone does not hear the edit.** Nate's Thursday is a
   `PlannedMeal` on Nate's phone; `absorb` keeps nothing he wrote, and his
   publisher only sends what his own diff changed, so the zone shows Riley's
@@ -312,6 +339,8 @@ Fields, every one non-nil when primed, no lists, no Bools:
 | `authorID` | String | `TableIdentity.cached` of the phone that planned it |
 | `authorName` | String | |
 | `authorColorHex` | String | |
+| `editorID` | String | `TableIdentity.cached` of the phone that made THIS version; the author's own id when the author published it |
+| `editorName` | String | that person as their own household knows them; "" when this phone cannot name them, and a reader then says nothing rather than naming the author |
 | `cookID` | String | the cook's `participantID`; the owner's own id when the cook is the owner; "" otherwise |
 | `cookName` | String | "" when the cook's seat is `.invited`: a name typed five seconds ago is not a cook |
 | `cookColorHex` | String | |
@@ -532,6 +561,10 @@ and §1c says so.
   "Nate moved Tacos to Friday"; cook changed to me, "Nate put you down to
   cook Thursday: Tacos" (what Nate did, a field set, nothing more); title
   changed, "Nate changed Thursday to Tacos"; anything else raises nothing.
+  Every one of those names the EDITOR, not the author: the record's
+  `editorID` and `editorName` say who made this version, and the guard that
+  keeps a notice off the reader's own phone compares `Entry.changedByID`
+  rather than the author's id.
   Removed, day today or later: **retraction or news, decided by the row.**
   If the `plan:<record>` row is unread or absent, retract: delete the row,
   `removeDeliveredNotifications` for `plated.news.plan:<record>`, and say
@@ -565,8 +598,9 @@ and §1c says so.
 
 ## Priming and deploy
 
-`-plated-prime-share` writes one `PlatedHouseholdPlan` with every field set
-and a photo into the own household zone, dated `2000-01-01` so every
+`-plated-prime-share` writes one `PlatedHouseholdPlan` with every field set,
+`editorID` and `editorName` among them, and a photo into the own household
+zone, dated `2000-01-01` so every
 reader's prune discards it silently, then deletes it. It needs that zone
 to exist, so the order is `-plated-prime-household` (the invite's primer,
 which mints the zone) and then `-plated-prime-share`; without the zone the
@@ -581,10 +615,10 @@ screen claims anything was shared.
 - **Moving** a night planned on another phone, for the reason under
   "Changing a household night": a move is two writes in two authorities.
   Editing one in place is built.
-- Naming the editor on the wire, so a digest can say who changed a night
-  rather than naming its author, and the author's own phone hearing about
-  an edit at all. Both are written out at the end of that section; neither
-  is a thing to discover later.
+- The author's own phone hearing about an edit at all. Written out at the
+  end of "Changing a household night"; not a thing to discover later.
+  Naming the editor is no longer on this list: `editorID` and `editorName`
+  ride the record.
 - Ingredients across Apple IDs. Groceries stay per phone.
 - A conflict sheet when two phones plan the same night. Both show.
 - The guest side learning the host's identity from the share's
@@ -621,7 +655,10 @@ household filter, delta before overwrite), `TableNews.digest` plan notices
 removed-as-news, mine ignored, replay window on changedAt, `remember` then
 `digest` again raises nothing, removed+added pair cancelled),
 `NewsPreferences.category` for `.plan` and `.planShared` with addressed
-true, `PlanShare.record(for:)` (the mint's fields, the original author, both
+true, the editor on a changed night (the editor named and not the author, a
+night the reader changed raising nothing though its author is somebody else,
+a record with no editor falling back to the author, an editor this phone
+cannot name saying nothing at all, `learnNames` folding the editor), `PlanShare.record(for:)` (the mint's fields, the original author, both
 links, and only the touched fields on a fetched record), `PlanShare.movedOn`
 (the second's tolerance and the no-record case), the edit queue (one entry
 per night, the fold keeping the earlier `seenAt`, a delete staying a delete,

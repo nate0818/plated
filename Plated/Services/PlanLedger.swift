@@ -28,6 +28,26 @@ final class PlanLedger {
         var authorID: String
         var authorName: String
         var authorColorHex: String
+        /// Who made the version of this night that is on the record, which
+        /// is not always its author: any member may change any household
+        /// night. Without it the digest reads the author and tells a
+        /// household "Nate changed Thursday to Ragu" about something Riley
+        /// did, and never recognises the reader's own change coming back
+        /// off the zone as their own.
+        ///
+        /// Optional rather than defaulted, for the reason `pendingRemoval`
+        /// is: a synthesised `init(from:)` throws on a missing key, so a
+        /// book written before these two fields would decode as no nights
+        /// at all. Nil and "" mean the same thing here, an old record, and
+        /// the reader falls back to the author.
+        var editorID: String?
+        var editorName: String?
+        /// The night's ingredients, so this phone's grocery list can cover
+        /// a night it did not plan. Optional for the same decode reason as
+        /// the two above: a book written before groceries were shared must
+        /// still read, and nil means "this record predates the field", not
+        /// "this night has no ingredients". See `PlanShare.Line`.
+        var lines: [PlanShare.Line]?
         var cookID: String
         var cookName: String
         var cookColorHex: String
@@ -97,6 +117,14 @@ final class PlanLedger {
         var date: Date { PlanDay.date(day) ?? .distantPast }
         var slotValue: MealSlot { MealSlot(rawValue: slot) ?? .dinner }
         var authorFirstName: String { Entry.firstName(authorName) }
+        /// The identity behind this version of the night: the editor when
+        /// the record names one, the author otherwise. This is the id an
+        /// own-action guard has to compare, or Riley is told about Riley's
+        /// own change to Nate's night.
+        var changedByID: String {
+            let editor = editorID ?? ""
+            return editor.isEmpty ? authorID : editor
+        }
         var cookFirstName: String { Entry.firstName(cookName) }
         /// A cook with a real seat. A name typed five seconds ago for an
         /// invited seat is not a cook, and the writer already blanks it.
@@ -112,6 +140,9 @@ final class PlanLedger {
             authorID = r.authorID
             authorName = r.authorName
             authorColorHex = r.authorColorHex
+            editorID = r.editorID
+            editorName = r.editorName
+            lines = r.lines
             cookID = r.cookID
             cookName = r.cookName
             cookColorHex = r.cookColorHex
@@ -387,6 +418,17 @@ final class PlanLedger {
         case .clear: e.hasPhoto = false
         case .send: e.hasPhoto = true
         }
+        // `editorID` and `editorName` are deliberately NOT moved either,
+        // for the same reason and with the same shape: they are the
+        // record's stamp for who made the version the zone is holding, not
+        // a field the person touched, and `PlanShare.record(for:)` writes
+        // them the way it writes `modifiedAt`. Stamping the optimistic row
+        // with this phone would make the zone's own delivery of that same
+        // edit look like no change at all on one path and a change on
+        // another; what keeps a reader quiet about their own edit is the
+        // digest's guard on `changedByID`, which reads the record, not
+        // this row.
+        //
         // `changedAt` is deliberately NOT moved. It is the record's own
         // clock as this phone last saw it, and `PlanShare.Edit(changing:)`
         // reads it straight into `seenAt`, the version the write compares

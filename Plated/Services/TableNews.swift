@@ -458,8 +458,14 @@ enum TableNews {
             return ""
         }
 
+        /// The actor is passed in, never read off the night, because the
+        /// person a sentence is about is not always its author: a night
+        /// somebody CHANGED is the editor's deed, and the record says who
+        /// that was. The id travels with the name so the bell row composes
+        /// with that person's current name and the banner wears their face.
         func notice(
-            _ e: PlanLedger.Entry, key: String, title: String, body: String,
+            _ e: PlanLedger.Entry, key: String, actor: String, actorID: String,
+            title: String, body: String,
             template: String, deed: String, at: Date, passive: Bool
         ) -> Notice {
             Notice(
@@ -467,12 +473,33 @@ enum TableNews {
                 title: title, body: body, line: title + ".",
                 link: DeepLink.url(plan: e.date), post: "",
                 direct: false, photo: passive ? nil : PlanLedger.shared.photo(for: e.recordName),
-                feedKind: .planShared, actor: e.authorName, at: at,
+                feedKind: .planShared, actor: actor, at: at,
                 rowKey: "plan:\(e.recordName)", passive: passive,
                 relevance: PlanLedger.shared.isMine(cook: e) ? 0.8 : 0.6,
-                actorID: e.authorID, deed: deed, group: "The Table",
+                actorID: actorID, deed: deed, group: "The Table",
                 addressed: false, template: template, objectTitle: e.title
             )
+        }
+
+        /// Who a notice about a CHANGE names, or nobody.
+        ///
+        /// The record carries the identity that made this version, and a
+        /// member may change any household night, so the author is the
+        /// wrong person to name here: "Nate changed Thursday to Ragu" about
+        /// something Riley did is the interface claiming something that did
+        /// not happen. A record written before the editor fields existed
+        /// carries none, and the author is then the only answer there is.
+        /// An editor this phone cannot put a name to is nobody at all,
+        /// which is docs/notifications.md's "named, or not sent": falling
+        /// back to the author there would print the false sentence again.
+        func changer(_ e: PlanLedger.Entry) -> (id: String, name: String)? {
+            let editor = e.editorID ?? ""
+            guard !editor.isEmpty, editor != e.authorID else {
+                return e.authorID.isEmpty ? nil : (e.authorID, e.authorName)
+            }
+            let known = e.editorName ?? ""
+            let named = known.isEmpty ? (name(for: editor) ?? "") : known
+            return named.isEmpty ? nil : (editor, named)
         }
 
         for e in plans.added where !e.authorID.isEmpty && e.authorID != me && e.changedAt > cutoff {
@@ -483,7 +510,7 @@ enum TableNews {
             let night = Stamp.nightPhrase(e.date)
             let body = cookLine(e)
             notices.append(notice(
-                e, key: key,
+                e, key: key, actor: e.authorName, actorID: e.authorID,
                 title: "\(who) planned \(e.title) for \(night)", body: body,
                 template: "{actor} planned {object} for \(night).",
                 deed: "Planned \(e.title) for \(night)." + (body.isEmpty ? "" : " \(body)"),
@@ -491,11 +518,19 @@ enum TableNews {
             ))
         }
 
+        // `changedByID`, not `authorID`. A member may change any household
+        // night, so the person whose action this is is the editor, and
+        // comparing the author here told Riley about Riley's own change to
+        // Nate's Thursday every time the zone handed it back. A notice
+        // about the reader's own action is the one rule
+        // docs/notifications.md breaks for nothing.
         for (before, after) in plans.changed
-        where !after.authorID.isEmpty && after.authorID != me && after.changedAt > cutoff {
+        where !after.authorID.isEmpty && after.authorID != me
+            && after.changedByID != me && after.changedAt > cutoff {
             let key = "plan:\(after.recordName):\(planHash(after))"
             guard !seen.contains(key) else { continue }
-            let who = firstName(after.authorName)
+            guard let by = changer(after) else { continue }
+            let who = firstName(by.name)
             guard who != "Someone", !after.title.isEmpty else { continue }
             let night = Stamp.nightPhrase(after.date)
             let title: String, body: String, template: String, deed: String
@@ -522,7 +557,8 @@ enum TableNews {
                 continue
             }
             notices.append(notice(
-                after, key: key, title: title, body: body, template: template,
+                after, key: key, actor: by.name, actorID: by.id,
+                title: title, body: body, template: template,
                 deed: deed, at: after.changedAt, passive: false
             ))
         }
@@ -542,7 +578,7 @@ enum TableNews {
             guard who != "Someone", !e.title.isEmpty else { continue }
             let night = Stamp.nightPhrase(e.date)
             notices.append(notice(
-                e, key: key,
+                e, key: key, actor: e.authorName, actorID: e.authorID,
                 title: "\(who) took \(e.title) off \(night)", body: "",
                 template: "{actor} took {object} off \(night).",
                 deed: "Took \(e.title) off \(night).",
@@ -1123,11 +1159,14 @@ enum TableNews {
         for r in changes.reactions where !r.author.isEmpty && !r.authorName.isEmpty {
             learned[r.author] = r.authorName
         }
-        // A night carries two people: the phone that planned it and the
-        // cook it names. Both are ids the ledger and the bell will need
-        // names for.
+        // A night carries three people once a member can edit one: the
+        // phone that planned it, whoever last changed it, and the cook it
+        // names. The editor is the one the digest's sentence about a change
+        // is about, so a name for that id is the difference between saying
+        // it and saying nothing.
         for p in changes.plans {
             if !p.authorID.isEmpty, !p.authorName.isEmpty { learned[p.authorID] = p.authorName }
+            if !p.editorID.isEmpty, !p.editorName.isEmpty { learned[p.editorID] = p.editorName }
             if !p.cookID.isEmpty, !p.cookName.isEmpty { learned[p.cookID] = p.cookName }
         }
         guard !learned.isEmpty else { return }

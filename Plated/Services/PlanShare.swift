@@ -122,6 +122,27 @@ enum PlanShare {
     /// the rest of a pass never touches the model again. `photoData` is
     /// the recipe's SOURCE bytes: fingerprinted by count, downscaled only
     /// when that count changed.
+    /// One ingredient of one night, already canonical, as the wire carries
+    /// it.
+    ///
+    /// The record has to carry these, because nothing on the reader's phone
+    /// can supply them. `GroceryListBuilder` builds from `PlannedMeal` and a
+    /// night somebody else planned is never one (docs/household.md 3.2); the
+    /// recipe behind it need not be in this cookbook, and a night is not
+    /// required to have a recipe at all; and matching a title back to a
+    /// recipe on the reader's phone is a guess. Canonicalised on the
+    /// author's phone, where the recipe actually is, so that two phones key
+    /// on the same `GroceryMeasure.key`. That is what lets a mark made on
+    /// one of them land on the other's row rather than on nothing.
+    nonisolated struct Line: Codable, Equatable, Sendable {
+        var name: String
+        var normalizedName: String
+        var unit: String
+        var quantity: Double
+        var aisle: String
+        var isPantryStaple: Bool
+    }
+
     nonisolated struct Plan: Equatable, Sendable {
         var recordName: String
         var shoppingID: String
@@ -144,14 +165,23 @@ enum PlanShare {
         var recipeOriginKey: String
         var createdAt: Date
         var photoData: Data?
+        var lines: [Line] = []
 
         var photoCount: Int { photoData?.count ?? 0 }
+        /// Sorted, so the order `sortedIngredients` happens to return can
+        /// never churn the fingerprint and republish a window that did not
+        /// change.
+        var linesKey: String {
+            lines.map { "\($0.normalizedName)\u{1F}\($0.unit)\u{1F}\($0.quantity)\u{1F}\($0.aisle)\u{1F}\($0.isPantryStaple ? 1 : 0)" }
+                .sorted().joined(separator: ";")
+        }
         var fingerprint: String {
             PlanShare.fingerprint(
                 day: day, slot: slot, title: title, servings: servings,
                 cookID: cookID, cookName: cookName, cookSeat: cookSeat, tagline: tagline,
                 cooked: cooked, cookedAt: cookedAt, hasRecipe: hasRecipe,
-                recipeMinutes: recipeMinutes, recipeOriginKey: recipeOriginKey
+                recipeMinutes: recipeMinutes, recipeOriginKey: recipeOriginKey,
+                lines: linesKey
             )
         }
     }
@@ -164,13 +194,18 @@ enum PlanShare {
         day: String, slot: String, title: String, servings: Int,
         cookID: String, cookName: String, cookSeat: String, tagline: String,
         cooked: Bool, cookedAt: Date?, hasRecipe: Bool,
-        recipeMinutes: Int, recipeOriginKey: String
+        recipeMinutes: Int, recipeOriginKey: String, lines: String = ""
     ) -> String {
         let cookedStamp = cookedAt.map { String(Int($0.timeIntervalSince1970)) } ?? ""
+        // The ingredients are in here because they now ride the record, so
+        // editing a recipe has to republish the nights that use it or a
+        // member's list keeps the old quantities. It also means the first
+        // pass after this shipped republishes the whole window, which is
+        // how the existing records get a `lines` field at all.
         let parts = [
             day, slot, title, String(servings), cookID, cookName, cookSeat, tagline,
             cooked ? "1" : "0", cookedStamp, hasRecipe ? "1" : "0",
-            String(recipeMinutes), recipeOriginKey
+            String(recipeMinutes), recipeOriginKey, lines
         ]
         // Length-prefixed, so a title containing the separator cannot
         // collide with a different split of the same characters.
@@ -210,8 +245,29 @@ enum PlanShare {
             cooked: meal.cookedAt != nil, cookedAt: meal.cookedAt,
             hasRecipe: recipe != nil, recipeMinutes: recipe?.totalMinutes ?? 0,
             recipeOriginKey: recipe?.originID ?? "",
-            createdAt: meal.createdAt, photoData: recipe?.photoData
+            createdAt: meal.createdAt, photoData: recipe?.photoData,
+            lines: groceryLines(for: meal)
         )
+    }
+
+    /// The night's ingredients, scaled to its servings and canonicalised
+    /// exactly the way `GroceryListBuilder.aggregate` does it locally.
+    ///
+    /// The same two steps in the same order, because the whole point is
+    /// that the key this produces equals the key the reader's own nights
+    /// produce. A pantry staple is carried and flagged rather than dropped:
+    /// whether staples are shown is the reader's setting, not the author's.
+    static func groceryLines(for meal: PlannedMeal) -> [Line] {
+        meal.scaledIngredients.compactMap { ingredient, quantity in
+            guard !ingredient.normalizedName.isEmpty else { return nil }
+            let amount = GroceryMeasure.canonical(quantity, ingredient.unit)
+            return Line(
+                name: ingredient.name, normalizedName: ingredient.normalizedName,
+                unit: amount.unit, quantity: amount.quantity,
+                aisle: ingredient.aisleValue.rawValue,
+                isPantryStaple: ingredient.isPantryStaple
+            )
+        }
     }
 
     // MARK: The book
@@ -538,6 +594,27 @@ enum PlanShare {
 
     // MARK: Changing a night somebody else planned
 
+    /// Who is holding this phone, for the `editorID` and `editorName` an
+    /// edit signs its record with.
+    ///
+    /// The record already carries the person who PLANNED the night, and any
+    /// member may now change one, so without this a household hears "Nate
+    /// changed Thursday to Ragu" about a change Riley made: a false sentence
+    /// about a real person, which DESIGN.md's honesty rule and
+    /// docs/notifications.md both forbid outright. It is also the only way a
+    /// reader's own edit coming back off the zone can be recognised as their
+    /// own and kept quiet.
+    ///
+    /// The name comes from this household's own roster row for this
+    /// identity, the same place the cook's name comes from, so the two
+    /// sentences name a person the same way. A seat this phone cannot name
+    /// travels without a name rather than with an invented one; the reader
+    /// falls back to the author, and says nothing at all when the editor is
+    /// somebody it has never heard of.
+    static func editor() -> (id: String, name: String) {
+        (TableIdentity.cached, Seats.me(in: PlatedStore.shared.mainContext)?.name ?? "")
+    }
+
     /// What one person changed about one household night, on its way to the
     /// zone.
     ///
@@ -578,6 +655,19 @@ enum PlanShare {
         var authorID: String = ""
         var authorName: String = ""
         var authorColorHex: String = "FF5A3C"
+        /// Who is making THIS change, written onto the record so a reader
+        /// can say who did it. It rides on the edit rather than being
+        /// resolved when the queue drains, because a drain happens on a
+        /// scene change with no sheet and no roster in front of it, and an
+        /// edit made under one identity must not be signed by whoever the
+        /// phone belongs to when it finally goes out.
+        ///
+        /// Optional rather than defaulted, for the reason `pendingRemoval`
+        /// is: a synthesised `init(from:)` throws on a missing key, and a
+        /// queue written before these two fields would decode as nothing,
+        /// silently dropping every change waiting on this phone.
+        var editorID: String?
+        var editorName: String?
         var createdAt: Date = .now
         var title: String?
         var servings: Int?
@@ -601,6 +691,11 @@ enum PlanShare {
 
         /// Addressed at the night as this phone holds it, with no field set
         /// yet: the caller sets the ones the person touched.
+        ///
+        /// On the main actor because it signs itself: `PlanShare.editor()`
+        /// reads this phone's roster row, and an edit that leaves here
+        /// unsigned reaches the zone as a change nobody made.
+        @MainActor
         init(changing entry: PlanLedger.Entry) {
             recordName = entry.recordName
             zoneOwner = entry.zoneOwner
@@ -611,9 +706,13 @@ enum PlanShare {
             authorName = entry.authorName
             authorColorHex = entry.authorColorHex
             createdAt = entry.createdAt
+            let signer = PlanShare.editor()
+            editorID = signer.id
+            editorName = signer.name
         }
 
         /// Taking the night off the plan for everybody.
+        @MainActor
         init(deleting entry: PlanLedger.Entry) {
             self.init(changing: entry)
             kind = .delete
@@ -1030,6 +1129,7 @@ enum PlanShare {
             record["recipeOriginKey"] = "" as CKRecordValue
             record["shoppingID"] = shoppingID(of: edit.recordName) as CKRecordValue
             record["createdAt"] = edit.createdAt as CKRecordValue
+            record["lines"] = "[]" as CKRecordValue
             // Both links, exactly as the publisher writes them: the
             // reference is the cascade, the parent is what puts the record
             // under the household share so a member can see it at all.
@@ -1038,7 +1138,30 @@ enum PlanShare {
             record.setParent(rootID)
         }
         if let title = edit.title { record["title"] = title as CKRecordValue }
-        if let servings = edit.servings { record["servings"] = servings as CKRecordValue }
+        if let servings = edit.servings {
+            // Read before the overwrite: `record` IS `existing` here.
+            let was = record["servings"] as? Int
+            record["servings"] = servings as CKRecordValue
+            // The record's ingredients are scaled to the servings they were
+            // published at, and this phone does not have the recipe behind
+            // somebody else's night, so it rescales what the record carries
+            // rather than recomputing from a recipe it cannot see. Scaling
+            // is linear, so this is the arithmetic `scaledIngredients` does.
+            // Without it, doubling a night's servings left the household
+            // shopping for the old quantities, which is the list quietly
+            // lying about a change the person watched land.
+            if let was, was > 0, servings != was {
+                let factor = Double(servings) / Double(was)
+                let scaled = TableShare.decodeLines(record["lines"] as? String).map {
+                    var line = $0
+                    line.quantity *= factor
+                    return line
+                }
+                if !scaled.isEmpty {
+                    record["lines"] = (TableShare.encodeLines(scaled) ?? "[]") as CKRecordValue
+                }
+            }
+        }
         if let tagline = edit.tagline { record["tagline"] = tagline as CKRecordValue }
         if let cookID = edit.cookID { record["cookID"] = cookID as CKRecordValue }
         if let cookName = edit.cookName { record["cookName"] = cookName as CKRecordValue }
@@ -1047,6 +1170,13 @@ enum PlanShare {
         if let hasRecipe = edit.hasRecipe { record["hasRecipe"] = (hasRecipe ? 1 : 0) as CKRecordValue }
         if let minutes = edit.recipeMinutes { record["recipeMinutes"] = minutes as CKRecordValue }
         if let key = edit.recipeOriginKey { record["recipeOriginKey"] = key as CKRecordValue }
+        // Unconditional, like `modifiedAt` and unlike every line above it:
+        // these two are not fields the person touched, they are who touched
+        // them. A reader takes the sentence about a CHANGE from here, so a
+        // save that left the previous editor standing would keep telling a
+        // household that the last person to edit the night did this one too.
+        record["editorID"] = (edit.editorID ?? "") as CKRecordValue
+        record["editorName"] = (edit.editorName ?? "") as CKRecordValue
         record["modifiedAt"] = now as CKRecordValue
         var temp: URL?
         switch edit.photo {

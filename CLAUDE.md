@@ -64,6 +64,17 @@ rendering a hair larger so fixed-height layouts overflow, and Foundation Models.
 - **CloudKit needs table GRANTs, not just RLS** on the Supabase side; "expose new
   tables" being off locks out the service role too.
 - **Model changes must stay CloudKit-safe**: new properties optional or defaulted.
+- **A household night is not a `PlannedMeal`, so every reader of one went
+  blind at once.** Dropping the meal merge was right (a fact in a
+  `.automatic` store would have two writers), but it also meant a night
+  somebody else planned is only ever a `PlanLedger.Entry`. Ten files fetch
+  `PlannedMeal`; three of them were answering for half the plan and saying
+  so out loud. Siri said "Nothing plated yet tonight" over a housemate's
+  dinner, Prongsby said "Nothing's plated for Thursday", and the grocery
+  list left their ingredients off while still receiving their check-off
+  marks, keyed to rows it had never built. When a fact stops being mirrored,
+  grep the whole class (`FetchDescriptor<Model>`) rather than fixing the one
+  surface you noticed.
 - **Hand-written CloudKit types carry a reserved `Plated` prefix (`PlatedDish*`
   for the Table, `PlatedHousehold*` for the household) and nothing else may.**
   The SwiftData mirror adopts any private-database record whose type matches

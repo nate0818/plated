@@ -263,12 +263,46 @@ create a duplicate event.
 ### 3.5 Groceries: marks and lines, never rows
 
 Auto lines are regenerated from the plan on every phone by
-`GroceryListBuilder`, keyed on `GroceryMeasure.key(name, unit)`. Two phones
-each rebuilding from one shared plan produce identical keys, sources and
-quantities, but each mints its own rows, and a shared row would be deleted by
-whichever phone rebuilt second. So rows never travel. What travels is the
-human-owned fact, and it travels the way a plate does: a timestamped value,
-last writer wins, never a monotonic merge (a max can never carry an uncheck).
+`GroceryListBuilder`, keyed on `GroceryMeasure.key(name, unit)`. Each phone
+mints its own rows, and a shared row would be deleted by whichever phone
+rebuilt second, so rows never travel. What travels is the human-owned fact,
+and it travels the way a plate does: a timestamped value, last writer wins,
+never a monotonic merge (a max can never carry an uncheck).
+
+**The ingredients travel with the night, because nothing else can supply
+them.** This paragraph used to claim that two phones rebuilding one shared
+plan produce identical keys. That was true only while a remote night merged
+into a local `PlannedMeal`. §3.2 ended that merge, and `GroceryListBuilder`
+fetches `PlannedMeal` and nothing else, so without this a member's list
+covers their own nights only: Riley's ragu puts no beef on Nate's list, and
+Riley's mark on that beef arrives at a phone with no row to carry it. Nate
+asked for groceries to be part of the shared workspace, so this is a
+requirement and not a refinement. A recipe is a household record (§3.3), but
+a night is not required to have one and resolving a title back to a recipe on
+the reader's phone is a guess. So `PlatedHouseholdPlan` carries `lines`: the
+night's ingredients, scaled to its servings and canonicalised through
+`GroceryMeasure.canonical`, minted at publish time on the author's phone,
+which is the only phone the recipe is on. Each is `name`, `normalizedName`,
+`unit`, `quantity`, `aisle` and `isPantryStaple`. A staple is carried and
+flagged rather than dropped, because whether staples show is the reader's
+setting and not the author's.
+
+It is a JSON **string** field and not a CloudKit list, for the reason in
+CLAUDE.md: a list minted from an empty array is minted as the wrong type
+permanently, and a night is not required to have a recipe, so the empty case
+is the common one on day one. `"[]"` is a value. A field that is absent or
+will not decode reads as no ingredients rather than as a failed delivery.
+
+`Plan.fingerprint` covers the lines through `Plan.linesKey`, which is sorted
+so fetch order cannot churn it, so editing a recipe republishes the nights
+that use it. The first pass after this ships republishes the whole window,
+which is how existing records get the field at all.
+`GroceryListBuilder.nights(meals:from:to:)` gathers this phone's own nights
+and the ledger's into one sorted list and `aggregate(nights:)` folds them,
+with the local half going through `PlanShare.groceryLines` too, so the
+scaling and canonicalisation that decide the key are one piece of code
+rather than two that can drift. That is what makes the keys match across
+phones, and what gives the marks above a row to land on.
 
 - `PlatedHouseholdGroceryMark`, one per line key, record name
   `mark-<first 32 hex of sha256(lineKey)>` (a raw key has spaces and can
@@ -711,6 +745,27 @@ Copy that was false and is now true or rewritten:
   household" against "Nate kept you a seat at their table".
 - The Table dialog's verb is "Join the Table", not "Take the seat".
 - Privacy policy: the household paragraph and the directory sentence.
+
+## 10a. Deploying the directory change
+
+The invitation push learns a `kind`, so `supabase/functions/invite` and
+`supabase/migrations/20260907_invites_kind.sql` ship together, and the order
+is not reversible by guessing:
+
+1. Deploy the function. It stops writing `share_url`, which the old schema
+   tolerates because that column has a NOT NULL default.
+2. Apply the migration. It drops `share_url` and `seat`.
+
+The other order breaks the rate limit silently. The live function is the
+older one and writes `share_url` on every insert; against a table that has
+just lost the column, that insert fails, and both daily limits are counted
+by querying this table, so twenty-per-host and two-per-pair would stop
+counting while the pushes kept going out. The function now checks that
+insert and refuses to send when the row will not record, which makes the
+wrong order loud instead of invisible, but does not make it safe.
+
+Neither is deployed yet. See `docs/notifications.md` for the APNs key and
+the secrets that gate the push itself.
 
 ## 11. Debug and verification
 

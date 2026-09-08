@@ -48,7 +48,7 @@ enum ProngsbyMind {
     /// either refuse or invent. The rule brain has real onboarding lines
     /// for that case.
     private static func hasFacts(_ brain: ProngsbyBrain) -> Bool {
-        !brain.recipes.isEmpty || !brain.members.isEmpty || !brain.meals.isEmpty
+        !brain.recipes.isEmpty || !brain.members.isEmpty || !brain.nights.isEmpty
     }
 
     #if canImport(FoundationModels)
@@ -158,7 +158,7 @@ enum ProngsbyMind {
         // its window; this was the one that didn't, and it was the one
         // feeding the model.
         let today = Calendar.current.startOfDay(for: .now)
-        let upcoming = brain.meals
+        let upcoming = brain.nights
             .filter { $0.date >= today }
             .sorted { $0.date < $1.date }
             .prefix(10)
@@ -168,10 +168,10 @@ enum ProngsbyMind {
             // weeks ago is indistinguishable from this Monday, and the
             // model has no way to notice.
             formatter.dateFormat = "EEEE d MMMM"
-            let week = upcoming.map { meal -> String in
-                var line = "\(formatter.string(from: meal.date)): \(meal.title)"
-                if Calendar.current.isDateInToday(meal.date) { line += " (tonight)" }
-                if let cook = meal.cook { line += " (\(cook.name) cooks)" }
+            let week = upcoming.map { night -> String in
+                var line = "\(formatter.string(from: night.date)): \(night.title)"
+                if Calendar.current.isDateInToday(night.date) { line += " (tonight)" }
+                if let cook = night.cookName { line += " (\(cook) cooks)" }
                 return line
             }
             lines.append("The plan, from today onward: " + week.joined(separator: "; ") + ".")

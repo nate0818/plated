@@ -115,13 +115,27 @@ Deno.serve(async (req: Request) => {
   ]);
 
   const known = Boolean(invitee) && invitee!.id !== host.id;
-  await db.from("invites").insert({
+  // The insert's error is checked, and the check is load-bearing rather
+  // than tidy. This row IS the rate limit: both counts above are queries
+  // over this table, so an insert that fails silently does not lose a
+  // record, it turns twenty-per-host and two-per-pair off with nothing on
+  // any screen or in any log to say so. The way in is a migration applied
+  // before this function is redeployed, dropping a column the live version
+  // is still writing; see the banner in the 20260907 migration.
+  const { error: recorded } = await db.from("invites").insert({
     inviter_id: host.id,
     invitee_phone_hash: hash,
     host_name: typedHost,
     kind,
     status: known ? "pushed" : "sent",
   });
+  if (recorded) {
+    // Refusing to send is the honest answer: a push nobody counted is a
+    // push outside the limits that exist to stop this being a way to
+    // message a stranger repeatedly.
+    console.error("invite: the row would not record, so nothing was sent", recorded);
+    return new Response("unavailable", { status: 503 });
+  }
   if (!known || (pairToday ?? 0) >= PAIR_PER_DAY) return Response.json({ ok: true });
 
   const { data: devices } = await db

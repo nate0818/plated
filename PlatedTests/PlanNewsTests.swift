@@ -70,7 +70,8 @@ final class PlanNewsTests: XCTestCase {
         by author: String, id: String, day: Date = PlanNewsTests.tomorrow,
         title: String = "Sheet-pan chicken", cookID: String = "riley",
         cookName: String = "Riley Park", cookSeat: String = HouseholdMember.Seat.joined.rawValue,
-        zoneOwner: String = "host", changedAt: Date = .now
+        zoneOwner: String = "host", changedAt: Date = .now,
+        editorID: String = "", editorName: String = ""
     ) -> TableShare.RemotePlan {
         var p = TableShare.RemotePlan()
         p.recordName = "plan-\(id)"
@@ -90,6 +91,10 @@ final class PlanNewsTests: XCTestCase {
         p.title = title
         p.changedAt = changedAt
         p.createdAt = changedAt
+        // "" is a record written before the editor fields existed, which is
+        // every night in every test that does not ask for one.
+        p.editorID = editorID
+        p.editorName = editorName
         return p
     }
 
@@ -584,6 +589,96 @@ final class PlanNewsTests: XCTestCase {
         let back = delivery([again])
         XCTAssertTrue(back.delta.changed.isEmpty, "the ledger already holds exactly this")
         XCTAssertTrue(digest(back).isEmpty)
+    }
+
+    // MARK: Who changed the night
+
+    func testAnEditedNightNamesTheEditorAndNotItsAuthor() {
+        // Riley planned it, Sam changed it. "Riley changed tomorrow to
+        // Ragu" is a false sentence about a real person.
+        let first = delivery([remotePlan(by: "riley", id: "1", changedAt: Self.stamp(0))])
+        TableNews.remember(digest(first).map(\.key))
+        let edited = delivery([remotePlan(
+            by: "riley", id: "1", title: "Ragu", changedAt: Self.stamp(60),
+            editorID: "sam", editorName: "Sam Okafor"
+        )])
+        let notices = digest(edited)
+        XCTAssertEqual(notices.count, 1)
+        XCTAssertEqual(notices[0].title, "Sam changed tomorrow to Ragu")
+        XCTAssertEqual(notices[0].actorID, "sam", "the bell row composes with the editor's name")
+        XCTAssertEqual(notices[0].actor, "Sam Okafor")
+    }
+
+    func testAMovedNightNamesWhoMovedIt() {
+        let first = delivery([remotePlan(by: "riley", id: "1", changedAt: Self.stamp(0))])
+        TableNews.remember(digest(first).map(\.key))
+        let moved = delivery([remotePlan(
+            by: "riley", id: "1", day: Self.day(2), changedAt: Self.stamp(60),
+            editorID: "sam", editorName: "Sam Okafor"
+        )])
+        XCTAssertEqual(
+            digest(moved).first?.title,
+            "Sam moved Sheet-pan chicken to \(Stamp.nightPhrase(Self.day(2)))"
+        )
+    }
+
+    func testANightThisPhoneChangedRaisesNothingThoughItIsSomebodyElses() {
+        // The author is Riley, so the old guard (`authorID != me`) let it
+        // through and told this phone about its own change.
+        let first = delivery([remotePlan(by: "riley", id: "1", changedAt: Self.stamp(0))])
+        TableNews.remember(digest(first).map(\.key))
+        let mine = delivery([remotePlan(
+            by: "riley", id: "1", title: "Ragu", changedAt: Self.stamp(60),
+            editorID: me, editorName: "Nate Meadows"
+        )])
+        XCTAssertEqual(mine.delta.changed.count, 1, "the ledger took the new version")
+        XCTAssertTrue(digest(mine).isEmpty, "and said nothing about the reader's own change")
+    }
+
+    func testANightWithNoEditorStillNamesItsAuthor() {
+        // Every record written before the editor fields, and every night
+        // its own author republishes: the author is the only answer there
+        // is, and it is the right one.
+        let first = delivery([remotePlan(by: "riley", id: "1", changedAt: Self.stamp(0))])
+        TableNews.remember(digest(first).map(\.key))
+        let renamed = delivery([remotePlan(by: "riley", id: "1", title: "Tacos", changedAt: Self.stamp(60))])
+        let notices = digest(renamed)
+        XCTAssertEqual(notices.count, 1)
+        XCTAssertEqual(notices[0].title, "Riley changed tomorrow to Tacos")
+        XCTAssertEqual(notices[0].actorID, "riley")
+    }
+
+    func testAnEditorThisPhoneCannotNameSaysNothingRatherThanSomeone() {
+        let first = delivery([remotePlan(by: "riley", id: "1", changedAt: Self.stamp(0))])
+        TableNews.remember(digest(first).map(\.key))
+        let anonymous = delivery([remotePlan(
+            by: "riley", id: "1", title: "Ragu", changedAt: Self.stamp(60),
+            editorID: "_stranger", editorName: ""
+        )])
+        XCTAssertEqual(anonymous.delta.changed.count, 1)
+        XCTAssertTrue(
+            digest(anonymous).isEmpty,
+            "named, or not sent: naming the author here would print the false sentence again"
+        )
+    }
+
+    func testANewlyPlannedNightStillNamesItsAuthor() {
+        // A night nobody has edited yet carries the author as its editor,
+        // which is the same person; the sentence is about the planning.
+        let d = delivery([remotePlan(
+            by: "riley", id: "1", editorID: "riley", editorName: "Riley Park"
+        )])
+        let notices = digest(d)
+        XCTAssertEqual(notices.count, 1)
+        XCTAssertEqual(notices[0].title, "Riley planned Sheet-pan chicken for tomorrow")
+        XCTAssertEqual(notices[0].actorID, "riley")
+    }
+
+    func testLearnNamesFoldsTheEditor() {
+        var changes = TableShare.Changes()
+        changes.plans = [remotePlan(by: "riley", id: "1", editorID: "sam", editorName: "Sam Okafor")]
+        TableNews.learnNames(from: changes)
+        XCTAssertEqual(TableNews.name(for: "sam"), "Sam Okafor")
     }
 
     func testANightSomebodyElseChangedIsStillNewsWhileThisPhoneHasOneWaiting() {

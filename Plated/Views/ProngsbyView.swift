@@ -418,7 +418,7 @@ struct ProngsbyView: View {
         session.draft = ""
         session.thinkingLine = ProngsbyBrain.thinkingLines.randomElement() ?? ProngsbyBrain.thinkingLines[0]
         withAnimation(.plSnap) { session.thinking = true }
-        let brain = ProngsbyBrain(recipes: recipes, members: members, meals: meals)
+        let brain = ProngsbyBrain(recipes: recipes, members: members, nights: ProngsbyBrain.nights(meals: meals))
         // Unstructured on purpose, and load-bearing: this Task must outlive
         // the view so dismissing him mid-answer never eats the reply.
         Task {
