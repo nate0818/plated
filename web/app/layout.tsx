@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Gabarito, Plus_Jakarta_Sans } from "next/font/google";
-import { Analytics } from "@vercel/analytics/next";
 import AnimatedFavicon from "./components/AnimatedFavicon";
+import AnalyticsGate from "./components/AnalyticsGate";
 import "./globals.css";
 
 // The same two faces the app registers at launch, from Google Fonts so
@@ -87,7 +87,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body>
         <AnimatedFavicon />
         {children}
-        <Analytics />
+        <AnalyticsGate />
       </body>
     </html>
   );

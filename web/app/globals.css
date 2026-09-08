@@ -20,10 +20,14 @@
   --on-tomato: #FFFFFF;
   --tomato-pressed: #D6401F;
   --tomato-tint: #FFEDE3;
+  --accent-text: #A93620;
+  --completion: #386449;
   --basil: #3DA35D;
   --basil-tint: #EDF5EF;
   --mango: #FFB020;
+  --mango-tint: #FFF4DC;
   --grape: #B95CF4;
+  --grape-tint: #F5EDFB;
   --shadow-ink: 60 50 40; /* 0x3C3228 as rgb triplet for rgba() */
 
   --radius-small: 12px;

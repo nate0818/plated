@@ -10,10 +10,12 @@ export default function Ketchup404() {
         <Link href="/" aria-label="Plated home" className={styles.wordmark}>
           <Wordmark size={30} />
         </Link>
+        <Link href="/" className={styles.home}>Back to home <span aria-hidden="true">↗</span></Link>
       </header>
       <main className={styles.main}>
         <Ketchup404Scene />
       </main>
+      <footer className={styles.footer}>404 / Page not found</footer>
     </div>
   );
 }

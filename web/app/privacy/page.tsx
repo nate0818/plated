@@ -28,7 +28,7 @@ export default function Privacy() {
           <span aria-current="page">Privacy</span>
         </nav>
         <h1 className={styles.title}>What Plated keeps, and where.</h1>
-        <p className={`${styles.updated} secondary`}>Last updated 3 September 2026</p>
+        <p className={`${styles.updated} secondary`}>Last updated 5 September 2026</p>
 
         <p className={styles.lede}>
           Plated is a dinner planner for a household. Your recipes, plans,
@@ -64,6 +64,14 @@ export default function Privacy() {
             Your Apple account identifier, and a token that lets your phone ask
             the directory questions.
           </li>
+          <li>
+            An opaque push-notification token issued by Apple, the app version
+            and build, its release channel, whether iOS currently allows
+            notifications, your News preference and the last time that
+            registration was refreshed. Plated uses these to deliver invitations,
+            decide whether a service notice can reach that installation and
+            diagnose delivery failures.
+          </li>
         </ul>
         <p>
           When you look for contacts already on Plated, the phone numbers from
@@ -72,12 +80,23 @@ export default function Privacy() {
           are never kept. The server is hosted by Supabase in the United States.
         </p>
 
+        <h2>When somebody shares a seat</h2>
+        <p>
+          Plated records the inviter, a salted hash of the invited phone number,
+          the inviter&rsquo;s first name, the delivery result and the time of the
+          invitation. If the invited number already belongs to a Plated account,
+          its private CloudKit share link is sent to the server only to compose
+          that immediate notification and is not stored. The remaining
+          invitation metadata is retained for 30 days for abuse limits and
+          operational troubleshooting, then deleted.
+        </p>
+
         <h2>On this website</h2>
         <p>
           If you join the waitlist, plated.food stores the email address you
-          typed and the time you typed it. It is used for one announcement when
-          Plated is available and is deleted after that. Write to the address at
-          the bottom of this page to be removed sooner.
+          typed and the time you typed it. It is used only to announce when
+          Plated is available and remains until you ask Plated to delete it.
+          Write to the address at the bottom of this page to be removed.
         </p>
 
         <h2>What Plated never collects</h2>
@@ -115,6 +134,15 @@ export default function Privacy() {
           <li>
             <strong>Photos</strong> you add to a recipe or a post are stored with
             it in your own iCloud account.
+          </li>
+          <li>
+            <strong>Notifications</strong> let Plated tell you about a seat
+            shared with you or a rare service or release notice. Your choice is
+            optional. News from Plated starts off and must be turned on separately;
+            allowing Table or cooking notifications does not subscribe you to
+            founder announcements. Plated stores the delivery details described
+            above, and removes a device token when Apple reports that it is no
+            longer valid.
           </li>
         </ul>
         <p>

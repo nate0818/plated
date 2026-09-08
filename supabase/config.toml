@@ -1,0 +1,25 @@
+# Keep deployment-time gateway authentication aligned with each handler's
+# actual protocol. The iOS directory endpoints authenticate their bounded JSON
+# body with a private directory token; the founder endpoints carry a Supabase
+# user JWT and then perform stricter in-handler validation.
+
+[functions.device]
+verify_jwt = false
+
+[functions.invite]
+verify_jwt = false
+
+[functions.register]
+verify_jwt = false
+
+[functions.lookup]
+verify_jwt = false
+
+[functions.instacart-shopping-list]
+verify_jwt = false
+
+[functions.admin-read]
+verify_jwt = true
+
+[functions.announce]
+verify_jwt = true

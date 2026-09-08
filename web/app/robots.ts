@@ -4,7 +4,7 @@ import type { MetadataRoute } from "next";
 // addressed to one person and the API is not a page at all.
 export default function robots(): MetadataRoute.Robots {
   return {
-    rules: [{ userAgent: "*", allow: "/", disallow: ["/join", "/api/"] }],
+    rules: [{ userAgent: "*", allow: "/", disallow: ["/join", "/api/", "/admin", "/admin/"] }],
     sitemap: "https://plated.food/sitemap.xml",
     host: "https://plated.food",
   };
