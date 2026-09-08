@@ -636,6 +636,21 @@ struct PlanNightSheet: View {
             let outcome = await PlanShare.write(edit, photo: photo)
             inFlight = nil
             notice = Self.sentence(for: outcome)
+            // The bell row for a night that has just gone, taken down here
+            // rather than waiting for the next delivery. `PlanShare` cannot
+            // do it itself: `TableNews.retract` ends in a save, a save
+            // schedules a publisher pass, and that pass settles and retracts
+            // again, which spins. So the queue records what went and a caller
+            // with a context of its own redeems it. This is that caller, and
+            // it is outside every publisher pass.
+            //
+            // Without it a person takes a night off, the sheet closes, and
+            // the bell still says the night is planned until the zone answers.
+            // Offline that is until they are back.
+            let gone = PlanShare.takeRetractions()
+            if !gone.isEmpty {
+                TableNews.retract(plans: gone, context: context)
+            }
             // A refusal and a version somebody else got in first are both
             // the app saying no. Queued is not: the change is kept and it
             // will go, so it earns a sentence and no buzz.
