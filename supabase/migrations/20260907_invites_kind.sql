@@ -1,23 +1,27 @@
--- DEPLOY THE FUNCTION BEFORE YOU APPLY THIS FILE. Not the other way round.
+-- STEP 1 OF 3. Apply this one on its own, before the function is deployed.
 --
--- This migration drops `share_url`, and the `invite` function currently
--- live on the project is the older one, which writes `share_url` on every
--- insert. Applied first, that insert starts failing against a column that
--- is no longer there. The daily limits, twenty per host and two per pair,
--- are counted by querying this table, so they would quietly stop counting
--- while the pushes kept going out, with nothing on any screen to say so.
+-- The three steps, in this order, and not together:
+--   1. apply this migration (adds `kind`)
+--   2. supabase functions deploy invite --no-verify-jwt
+--   3. apply 20260908_invites_drop_share_url.sql (drops `share_url`, `seat`)
 --
--- The order that is safe:
---   1. supabase functions deploy invite --no-verify-jwt
---   2. apply this migration
--- The new function never writes `share_url`, and the old schema tolerates
--- that because the column has a NOT NULL default, so step 1 is safe on its
--- own and step 2 is safe once step 1 has landed.
+-- There is no safe order for an add and a drop in one file, which is what
+-- this migration used to be. The function live on the project writes
+-- `share_url` on every insert, so dropping that column first breaks it. The
+-- new function writes `kind`, so deploying it first breaks too, against a
+-- column that does not exist yet. Splitting the drop out is what makes each
+-- step safe on its own: this one is invisible to the old function, which
+-- never writes `kind` and never reads it.
 --
--- The function now also checks that insert's error and refuses to send when
--- the row will not record, so the silent version of this failure cannot
--- happen again. That check is what makes the wrong order loud rather than
--- invisible; it does not make the wrong order safe.
+-- `supabase db push` applies every pending migration at once, so do not run
+-- it while step 3 is sitting unapplied. Apply this file by name.
+--
+-- The insert's error is now checked in the function, so a wrong order is
+-- loud (a 503, and nothing sent) rather than silent. That check is what
+-- makes the mistake visible; it does not make the wrong order safe. The
+-- daily limits, twenty per host and two per pair, are counted by querying
+-- this table, so a silently failing insert would have stopped counting them
+-- while the pushes kept going out.
 
 -- An invitation is now to one of two rooms: a seat at the host's Table, or
 -- a place in the host's household (the plan, the grocery list and the
@@ -28,28 +32,3 @@
 -- docs/household.md sections 6 and 7.
 alter table public.invites
   add column if not exists kind text not null default 'table';
-
--- The share URL is a bearer credential for a seat, and nothing ever read it
--- back out of this table: /invite composes the push link from the request it
--- was given. So the row stops carrying one, and stops carrying the seat name
--- with it, which is meaningless without the share it belongs to. The row that
--- remains is the record that an invitation happened, which is what the daily
--- limits count and what docs/privacy-policy.md describes.
---
--- Blanked before the drop so the value leaves the live rows and not just the
--- schema. Guarded so a re-run against a table that has already lost the
--- column is a no-op rather than an error, like the rest of this file.
-do $$
-begin
-  if exists (
-    select 1 from information_schema.columns
-    where table_schema = 'public' and table_name = 'invites'
-      and column_name = 'share_url'
-  ) then
-    update public.invites set share_url = '' where share_url <> '';
-  end if;
-end $$;
-
-alter table public.invites
-  drop column if exists share_url,
-  drop column if exists seat;

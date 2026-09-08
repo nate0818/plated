@@ -438,6 +438,55 @@ final class PlanShareTests: XCTestCase {
         XCTAssertEqual(record["tagline"] as? String, "Kids pick")
     }
 
+    // MARK: A fold that arrives while the edit is on the wire
+
+    func testAFoldDuringASendIsNotDroppedUnsentAndIsNotCalledASuccess() {
+        // The drain used to drop the queue entry by record name after its
+        // send, which deleted a change made while that send was in flight
+        // and then handed its author the drain's own `.landed`. The sheet
+        // closed on a success that never left the phone.
+        let night = remoteNight()
+        var first = PlanShare.Edit(changing: night)
+        first.title = "Ragu"
+        first.revision = PlanShare.enqueue(first)
+
+        var second = PlanShare.Edit(changing: night)
+        second.cookID = "_sam"
+        second.cookName = "Sam Okafor"
+        let folded = PlanShare.enqueue(second)
+        XCTAssertEqual(folded, first.revision + 1, "a fold is a new version of the entry")
+
+        let answer = PlanShare.settle(first, .landed(.now))
+        guard case .queued = answer else {
+            return XCTFail("the fold has not been sent, so this is not a success")
+        }
+        let queued = PlanShare.queuedEdits()
+        XCTAssertEqual(queued.count, 1, "the fold stays queued rather than being dropped unsent")
+        XCTAssertEqual(queued.first?.cookID, "_sam")
+        XCTAssertEqual(queued.first?.title, "Ragu", "and still carries the version that did go out")
+    }
+
+    func testAnEditNothingFoldedOntoStillLeavesTheQueueOnLanding() {
+        let night = remoteNight()
+        var edit = PlanShare.Edit(changing: night)
+        edit.title = "Ragu"
+        edit.revision = PlanShare.enqueue(edit)
+        let answer = PlanShare.settle(edit, .landed(.now))
+        guard case .landed = answer else { return XCTFail("nothing folded, so it landed") }
+        XCTAssertTrue(PlanShare.queuedEdits().isEmpty, "and the entry is gone")
+    }
+
+    func testTwoVersionsOfOneNightAreAnsweredSeparately() {
+        // The reason `answers` is keyed by revision: a caller must never be
+        // able to read a different version's outcome as its own.
+        let night = remoteNight()
+        var first = PlanShare.Edit(changing: night)
+        first.revision = 0
+        var second = first
+        second.revision = 1
+        XCTAssertNotEqual(PlanShare.answerKey(first), PlanShare.answerKey(second))
+    }
+
     func testChangingTheServingsRescalesTheNightsIngredients() {
         // The edit path does not write `lines`, and the editor's phone does
         // not have the author's recipe, so without this a member doubling a

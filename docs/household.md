@@ -748,24 +748,41 @@ Copy that was false and is now true or rewritten:
 
 ## 10a. Deploying the directory change
 
-The invitation push learns a `kind`, so `supabase/functions/invite` and
-`supabase/migrations/20260907_invites_kind.sql` ship together, and the order
-is not reversible by guessing:
+The invitation push learns a `kind`, so `supabase/functions/invite` and the
+schema ship together. **There are three steps, and no two of them can be
+combined.** An earlier version of this section said to deploy the function
+and then apply one migration. That was wrong in a way worth keeping written
+down, because both single orders break:
 
-1. Deploy the function. It stops writing `share_url`, which the old schema
-   tolerates because that column has a NOT NULL default.
-2. Apply the migration. It drops `share_url` and `seat`.
+- Migration first: the function live on the project is the older one and
+  writes `share_url` on every insert. Against a table that has just lost the
+  column, every invitation fails.
+- Function first: the new function writes `kind` into a column that does not
+  exist yet, so every invitation fails that way instead.
 
-The other order breaks the rate limit silently. The live function is the
-older one and writes `share_url` on every insert; against a table that has
-just lost the column, that insert fails, and both daily limits are counted
-by querying this table, so twenty-per-host and two-per-pair would stop
-counting while the pushes kept going out. The function now checks that
-insert and refuses to send when the row will not record, which makes the
-wrong order loud instead of invisible, but does not make it safe.
+The add and the drop had to stop being one file. They now are not:
 
-Neither is deployed yet. See `docs/notifications.md` for the APNs key and
-the secrets that gate the push itself.
+1. Apply `supabase/migrations/20260907_invites_kind.sql`. It only adds
+   `kind`, which the old function never writes and never reads, so nothing
+   in flight notices.
+2. `supabase functions deploy invite --no-verify-jwt`. `kind` exists now,
+   and `share_url` still exists with a NOT NULL default, so the new
+   function not writing it is fine.
+3. Apply `supabase/migrations/20260908_invites_drop_share_url.sql`. It
+   blanks `share_url` on the live rows and then drops it and `seat`.
+
+`supabase db push` applies every pending migration at once, which would run
+steps 1 and 3 together and skip the deploy between them. Apply these two by
+name. Step 3 is irreversible and touches live rows.
+
+The function now checks the insert's error and refuses to send when the row
+will not record, so a wrong order is a 503 with nothing sent rather than a
+push that went out uncounted. Both daily limits, twenty per host and two per
+pair, are counted by querying this table, so the silent version of this
+failure would have stopped counting them while the pushes kept going.
+
+Nothing here is deployed yet. See `docs/notifications.md` for the APNs key
+and the secrets that gate the push itself.
 
 ## 11. Debug and verification
 
