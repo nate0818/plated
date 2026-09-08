@@ -1077,7 +1077,10 @@ struct WeekView: View {
         // down to cook is the one fact here with a consequence attached.
         // The decision itself lives on the page this row opens.
         if let id = meal.shoppingID, let change = HouseholdEdits.pending(shoppingID: id) {
-            return HouseholdEdits.rowLine(for: change, me: TableIdentity.cached)
+            return HouseholdEdits.rowLine(
+                for: change, me: TableIdentity.cached,
+                currentCookID: PlanNightSheet.cookID(of: meal)
+            )
         }
         let base: String
         if today {

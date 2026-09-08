@@ -117,7 +117,16 @@ enum TableIdentity {
             PlanLedger.shared.reattribute(from: before, to: real)
             HouseholdSync.reattribute(from: before, to: real, in: context)
         } else {
-            reset()
+            // `becoming:`, not a bare reset. This is the road that actually
+            // runs on an Apple ID change: the observer in ShareAcceptor only
+            // fires when the app was already open, while this one runs at
+            // launch and on every pull. Bare, it removed the key `confirm()`
+            // stored three lines above, so the phone came out on a fresh
+            // `local-` placeholder and PlanShare, TableNews and the
+            // household outbox all refuse to work under one. The fix was
+            // applied to the observer and not to the road, which is the
+            // whole of the bug.
+            reset(becoming: real)
         }
         return real
     }

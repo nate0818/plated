@@ -1093,12 +1093,7 @@ struct RecipeDetailView: View {
             .padding(.bottom, 24)
         }
         .background(Color.canvas)
-        .onAppear {
-            CookLedger.shared.pruneStale()
-            // A recipe joining the household cookbook opens this screen.
-            Presence.shared.cookbookVisible = true
-        }
-        .onDisappear { Presence.shared.cookbookVisible = false }
+        .onAppear { CookLedger.shared.pruneStale() }
         .toolbar(.hidden, for: .navigationBar)
         .plSwipeBack()
         .safeAreaInset(edge: .top) { topBar }

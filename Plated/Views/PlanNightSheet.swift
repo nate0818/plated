@@ -79,6 +79,15 @@ struct PlanNightSheet: View {
     @State private var servingsWrite: Task<Void, Never>?
     /// The removal has been asked for and not yet agreed to.
     @State private var confirmingRemoval = false
+    /// Bumped when the person answers the household's change, so the block
+    /// they answered goes.
+    ///
+    /// `HouseholdEdits` is a plain app-group book rather than an
+    /// `@Observable`, so `settle` and `adopt` change nothing SwiftUI is
+    /// watching. "Keep mine" left the sentence and both buttons standing,
+    /// which reads as a control that did nothing, and tapping it again did
+    /// nothing again. Adopt was masked by the meal changing underneath it.
+    @State private var answeredChange = 0
 
     private var meal: PlannedMeal? {
         // A named household night is the one being changed, even on a slot
@@ -220,7 +229,13 @@ struct PlanNightSheet: View {
                         // finger to a card and a sentence, with nothing to
                         // press: the most destructive action in the app
                         // ending in a screen that offers nothing at all.
-                        if going {
+                        // Only once the write has answered. `going` is set
+                        // optimistically by `applyLocally` BEFORE the save is
+                        // attempted, so between the tap and the zone's reply
+                        // this told a person on a perfectly good connection
+                        // that their phone was offline. While it is in flight
+                        // the spinner on the trash is the whole story.
+                        if going, inFlight == nil {
                             Text("It leaves every phone in your household when this one is back on iCloud.")
                                 .plType(.caption)
                                 .foregroundStyle(Color.inkSecondary)
@@ -560,8 +575,23 @@ struct PlanNightSheet: View {
     /// household. A change that is still on this phone says so: the card
     /// already shows the new dish, and this is what keeps that from being a
     /// claim that everybody can see it.
+    /// Who this phone's own copy says is cooking, in the same terms the wire
+    /// uses. Both spellings, because a member joined through the household
+    /// share carries `participantID` and one this phone knows only through
+    /// the directory carries `userRecordName`, and the record's `cookID` may
+    /// be either.
+    static func cookID(of meal: PlannedMeal) -> String {
+        guard let cook = meal.cook else { return "" }
+        let participant = cook.participantID ?? ""
+        return participant.isEmpty ? (cook.userRecordName ?? "") : participant
+    }
+
     /// The household's version of this night, waiting to be answered.
     private func householdChange(_ meal: PlannedMeal) -> HouseholdEdits.Change? {
+        // Read so the answer count is a dependency of this view. Without it
+        // nothing here is watching the book and the block outlives its own
+        // answer.
+        _ = answeredChange
         guard let id = meal.shoppingID else { return nil }
         return HouseholdEdits.pending(shoppingID: id)
     }
@@ -576,7 +606,10 @@ struct PlanNightSheet: View {
     @ViewBuilder
     private func householdChangeBlock(_ change: HouseholdEdits.Change, meal: PlannedMeal) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(HouseholdEdits.line(for: change, me: TableIdentity.cached))
+            Text(HouseholdEdits.line(
+                for: change, me: TableIdentity.cached,
+                currentCookID: Self.cookID(of: meal)
+            ))
                 .plType(.footnote, .semibold)
                 .foregroundStyle(Color.ink)
                 .fixedSize(horizontal: false, vertical: true)
@@ -591,6 +624,7 @@ struct PlanNightSheet: View {
                     Haptic.plate()
                     HouseholdEdits.adopt(change, in: context)
                     Persist.save(context)
+                    withAnimation(.plSnap) { answeredChange += 1 }
                 }
                 .plType(.footnote, .bold)
                 .plActionLabel()
@@ -605,6 +639,7 @@ struct PlanNightSheet: View {
                 Button(HouseholdEdits.keepTitle) {
                     Haptic.tap()
                     HouseholdEdits.settle(change.shoppingID)
+                    withAnimation(.plSnap) { answeredChange += 1 }
                 }
                 .plType(.footnote, .semibold)
                 .plActionLabel()

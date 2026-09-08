@@ -282,8 +282,10 @@ struct MainShellView: View {
         .environment(\.tabPop, tabPop)
         .environment(\.perchVisibility, perchVisibility)
         .animation(.plSnap, value: perchVisibility.isHidden)
+        .task { Presence.follow(selection) }
         .onChange(of: selection) { previous, current in
             visitedTabs.insert(current)
+            Presence.follow(current)
             guard !poppingTab else { poppingTab = false; return }
             tabHistory.append(previous)
             // A session's worth of tab hopping is not a browser history.

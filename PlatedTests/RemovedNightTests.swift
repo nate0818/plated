@@ -340,35 +340,6 @@ final class RemovedNightTests: XCTestCase {
         XCTAssertTrue(digest(delta).isEmpty, "but a notice is never about your own action")
     }
 
-    // ---- TEMPORARY REVIEW PROBE ----
-    func testProbePastDayOwnRemovalIsSilent() {
-        // Riley tidies the plan today and takes LAST TUESDAY off. The
-        // dinner has already happened; nothing hangs on hearing about it.
-        let delta = deliver(
-            [plan(author: me, day: -5, removed: 1, editorID: "_riley", editorName: "Riley Park")],
-            me: me
-        )
-        XCTAssertEqual(delta.ownRemoved.count, 1, "PROBE: ledger appended a past day to ownRemoved")
-        let notices = digest(delta)
-        for n in notices {
-            print("PROBE-NOTICE title=\(n.title) direct=\(n.direct) relevance=\(n.relevance) addressed=\(n.addressed) passive=\(n.passive)")
-        }
-        XCTAssertTrue(notices.isEmpty, "PROBE: a past-day removal must not speak")
-    }
-
-    func testProbePastDayOtherAuthorRemovalIsSilent() {
-        // The control: the SAME past night, planned by Riley, removed by
-        // Sam. Every other member of the household.
-        _ = deliver([plan(day: -5)], me: "_me")
-        let delta = deliver(
-            [plan(day: -5, removed: 1, editorID: "_sam", editorName: "Sam Okafor")],
-            me: "_me"
-        )
-        XCTAssertTrue(delta.removed.isEmpty, "PROBE: control arm filters past days")
-        XCTAssertTrue(digest(delta).isEmpty, "PROBE: control says nothing")
-    }
-    // ---- END TEMPORARY REVIEW PROBE ----
-
     func testARemovalThatNamesNobodyTellsTheAuthorNothing() {
         let delta = deliver([plan(author: me, removed: 1)], me: me)
         XCTAssertEqual(delta.ownRemoved.count, 1, "the meal still has to go")

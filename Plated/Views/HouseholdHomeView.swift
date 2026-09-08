@@ -265,12 +265,7 @@ struct HouseholdHomeView: View {
         .onReceive(NotificationCenter.default.publisher(for: LinkRelay.activityRequested)) { _ in
             if LinkRelay.takeActivity() { pushed = .activity }
         }
-        .onDisappear { Presence.shared.householdVisible = false }
         .onAppear {
-            // A join or a departure opens this screen, so a banner about one
-            // while it is in front announces the roster row already drawn
-            // underneath it.
-            Presence.shared.householdVisible = true
             if LinkRelay.takeActivity() { pushed = .activity }
             #if DEBUG
             // UI-test hook, one-shot: `simctl launch … -plated-open-stats`.

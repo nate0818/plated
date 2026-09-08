@@ -19,12 +19,12 @@ final class HouseholdEditCopyTests: XCTestCase {
     }
 
     func testBeingPutDownToCookLeads() {
-        let line = HouseholdEdits.line(for: change(cookID: me), me: me)
+        let line = HouseholdEdits.line(for: change(cookID: me), me: me, currentCookID: "")
         XCTAssertEqual(line, "Riley put you down to cook Ragu.")
     }
 
     func testAnOrdinaryChangeNamesTheDish() {
-        let line = HouseholdEdits.line(for: change(), me: me)
+        let line = HouseholdEdits.line(for: change(), me: me, currentCookID: "")
         XCTAssertEqual(line, "Riley changed this night to Ragu.")
     }
 
@@ -33,18 +33,18 @@ final class HouseholdEditCopyTests: XCTestCase {
     /// room.
     func testANamelessChangeLosesTheNameAndKeepsTheFact() {
         XCTAssertEqual(
-            HouseholdEdits.line(for: change(cookID: me, by: ""), me: me),
+            HouseholdEdits.line(for: change(cookID: me, by: ""), me: me, currentCookID: ""),
             "You have been put down to cook Ragu."
         )
         XCTAssertEqual(
-            HouseholdEdits.line(for: change(by: ""), me: me),
+            HouseholdEdits.line(for: change(by: ""), me: me, currentCookID: ""),
             "This night was changed to Ragu on another phone."
         )
     }
 
     /// Somebody else being put down to cook is not "you are cooking".
     func testAnotherPersonsCookIsNotTheCookSentence() {
-        let line = HouseholdEdits.line(for: change(cookID: "riley"), me: me)
+        let line = HouseholdEdits.line(for: change(cookID: "riley"), me: me, currentCookID: "")
         XCTAssertEqual(line, "Riley changed this night to Ragu.")
     }
 
@@ -57,9 +57,24 @@ final class HouseholdEditCopyTests: XCTestCase {
         )
     }
 
+    /// The sentence is about a CHANGE. A housemate renaming a dish on a
+    /// night the reader was ALREADY cooking is not "Riley put you down to
+    /// cook", which claims something Riley did not do.
+    func testTheCookSentenceOnlyFiresWhenTheCookIsNew() {
+        XCTAssertEqual(
+            HouseholdEdits.line(for: change(cookID: me), me: me, currentCookID: me),
+            "Riley changed this night to Ragu.",
+            "already the cook, so nothing about the cook changed"
+        )
+        XCTAssertEqual(
+            HouseholdEdits.rowLine(for: change(cookID: me), me: me, currentCookID: me),
+            "Riley changed this night"
+        )
+    }
+
     func testTheRowSaysTheConsequenceFirst() {
-        XCTAssertEqual(HouseholdEdits.rowLine(for: change(cookID: me), me: me), "Riley put you down to cook")
-        XCTAssertEqual(HouseholdEdits.rowLine(for: change(), me: me), "Riley changed this night")
-        XCTAssertEqual(HouseholdEdits.rowLine(for: change(by: ""), me: me), "Changed on another phone")
+        XCTAssertEqual(HouseholdEdits.rowLine(for: change(cookID: me), me: me, currentCookID: ""), "Riley put you down to cook")
+        XCTAssertEqual(HouseholdEdits.rowLine(for: change(), me: me, currentCookID: ""), "Riley changed this night")
+        XCTAssertEqual(HouseholdEdits.rowLine(for: change(by: ""), me: me, currentCookID: ""), "Changed on another phone")
     }
 }

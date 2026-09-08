@@ -290,4 +290,22 @@ final class Presence {
     /// The cookbook, for the same reason: a recipe joining it lands over the
     /// list that just gained the row.
     var cookbookVisible = false
+
+    /// The shell says which tab is showing, and these two follow it.
+    ///
+    /// They were driven from `onAppear` and `onDisappear` on the tab roots,
+    /// which is wrong under this shell: it is a `switch` on a selection and
+    /// not a `TabView`, so a root that has been shown once is not torn down
+    /// when another tab is chosen and its `onDisappear` does not fire. The
+    /// flag latched true and every household banner for the rest of the
+    /// session arrived silently, which is a worse failure than the one the
+    /// flags were added to fix, because nothing on screen says it happened.
+    ///
+    /// The Table's feed and the week keep their own hooks: those are pushed
+    /// and popped rather than switched, and they answer a finer question
+    /// than which tab is showing.
+    static func follow(_ tab: AppTab) {
+        shared.householdVisible = tab == .home
+        shared.cookbookVisible = tab == .cookbook
+    }
 }

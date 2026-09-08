@@ -30,12 +30,22 @@ extension HouseholdEdits {
     /// `me` is this phone's identity, passed rather than read, so the
     /// sentence is a pure function of what it is given and a test can drive
     /// the cook case without standing up an account.
-    static func line(for change: Change, me: String) -> String {
+    /// `currentCookID` is who this phone's own copy of the night says is
+    /// cooking, which is what makes the cook sentence a statement about a
+    /// CHANGE rather than about the record.
+    ///
+    /// Without it the sentence fired whenever the household's cook happened
+    /// to be the reader, so a housemate renaming a dish on a night the
+    /// reader was ALREADY cooking was announced as "Riley put you down to
+    /// cook", which is a claim about something Riley did not do. What
+    /// changed is the only thing worth saying, and it is the only thing
+    /// honest to say.
+    static func line(for change: Change, me: String, currentCookID: String) -> String {
         let who = change.by.split(separator: " ").first.map(String.init) ?? ""
         let dish = change.title.isEmpty ? "your night" : change.title
         // Being put down to cook is the fact with a consequence, so it leads
-        // whenever it is true. Everything else is a change to the dinner.
-        if !change.cookID.isEmpty, change.cookID == me {
+        // when it is NEW. Everything else is a change to the dinner.
+        if !change.cookID.isEmpty, change.cookID == me, change.cookID != currentCookID {
             return who.isEmpty
                 ? "You have been put down to cook \(dish)."
                 : "\(who) put you down to cook \(dish)."
@@ -67,9 +77,9 @@ extension HouseholdEdits {
     /// The week row's version, which has one line and no controls. Shorter
     /// than the sheet's, because the row is a list item and the decision
     /// lives on the page it opens.
-    static func rowLine(for change: Change, me: String) -> String {
+    static func rowLine(for change: Change, me: String, currentCookID: String) -> String {
         let who = change.by.split(separator: " ").first.map(String.init) ?? ""
-        if !change.cookID.isEmpty, change.cookID == me {
+        if !change.cookID.isEmpty, change.cookID == me, change.cookID != currentCookID {
             return who.isEmpty ? "You are down to cook this" : "\(who) put you down to cook"
         }
         return who.isEmpty ? "Changed on another phone" : "\(who) changed this night"
