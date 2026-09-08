@@ -161,6 +161,20 @@ git fetch . <branch>:main
 - Commit messages are a sentence about the change, not a category prefix.
 - Comments explain **why**, especially the non-obvious constraint that forced the
   shape of the code. Do not narrate what the line already says.
+- **A comment saying what the code DOES is a claim that needs re-verifying
+  every time the code changes, and never gets it.** A WHY comment explains a
+  decision, and a decision does not silently acquire a second caller. A WHAT
+  comment is a cached fact with no invalidation, and both sessions were
+  misled by one on the same afternoon. "The tombstone ages out of the zone"
+  was true when written and false two commits later, when the line that made
+  it true was removed to fix something else, and it was load-bearing: it is
+  why nobody looked, and every night any household ever removed would have
+  stayed in CloudKit for good. "Bell only, so this answer is never acted on"
+  was true about the banner path and read as true about the badge path,
+  which is a different function answering a different caller, and a
+  notification was removed for anybody with that switch off. Neither comment
+  was ever wrong when it was written. If a sentence would have to change
+  when the code beneath it changes, it belongs in a test, not a comment.
 - Keep `MEMORY.md` notes for decisions; keep durable project law in this file or
   DESIGN.md so every session and every human can see it.
 - `docs/open-decisions.md` holds the questions that were measured and

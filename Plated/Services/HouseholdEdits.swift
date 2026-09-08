@@ -157,8 +157,15 @@ enum HouseholdEdits {
             // which is a guest, a member mid-join, or simply a roster this
             // device has not pulled yet: taking the cook OFF a night is not
             // what "use their version" offered to do.
-            if let cook = members.first(where: { $0.participantID == change.cookID })
-                ?? (change.cookID == TableIdentity.cached ? members.me : nil) {
+            // BOTH ids, the way `Seats.match` does it. A member this phone
+            // knows only through the directory carries a `userRecordName`
+            // and no `participantID` until the share reconciles, so matching
+            // on the participant alone finds nobody for exactly the people a
+            // household has most recently added, and "use their version"
+            // becomes "clear the cook" for them.
+            if let cook = members.first(where: {
+                $0.participantID == change.cookID || $0.userRecordName == change.cookID
+            }) ?? (change.cookID == TableIdentity.cached ? members.me : nil) {
                 meal.cook = cook
             }
         }

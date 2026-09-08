@@ -273,6 +273,26 @@ final class RemovedNightTests: XCTestCase {
         )
     }
 
+    func testASecondRemovalOfOneNightIsNotEatenByTheFirst() {
+        // Two entries on one day and slot: a night removed, planned again,
+        // and removed again. The sweep that drops a spent explanation keyed
+        // on day and slot alone and took the live one with the settled one,
+        // so the night stayed on the plan for good.
+        _ = meal(id: "first")
+        var a = plan(id: "first", author: me, removed: 1)
+        a.editorID = "_riley"; a.editorName = "Riley Park"
+        RemovedNights.park([PlanLedger.Entry(a)])
+        XCTAssertTrue(RemovedNights.drain(in: context))
+
+        _ = meal(id: "second", title: "Ragu")
+        var b = plan(id: "second", author: me, title: "Ragu", removed: 1)
+        b.editorID = "_riley"; b.editorName = "Riley Park"
+        RemovedNights.park([PlanLedger.Entry(b)])
+
+        XCTAssertTrue(RemovedNights.drain(in: context), "the second removal is carried out too")
+        XCTAssertTrue(((try? context.fetch(FetchDescriptor<PlannedMeal>())) ?? []).isEmpty)
+    }
+
     // MARK: One delivery carrying more than one kind of change
 
     func testARemovalAndAnUnrelatedEditInOneDeliveryDoNotDisturbEachOther() {
