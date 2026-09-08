@@ -227,20 +227,29 @@ has a directory session. `Directory.notifyInvite` asks `/invite` to nudge an
 invitee who already has the app. The functions live in `supabase/functions`
 and the sender in `invite/apns.ts`, beside the one function that sends.
 
-**Not deployed yet, and not sending yet.** Three things have to happen, in
-order, and all three are Nate's:
+**Half deployed, and not sending yet.** State on the `plated` project as of
+2026-09-08:
 
-1. Create an APNs key in the Apple Developer portal (Keys, then a new key
-   with Apple Push Notifications service). Download the `.p8` once; it
-   cannot be downloaded again.
-2. Set the secrets on the `plated` Supabase project:
-   `APNS_TEAM_ID`, `APNS_KEY_ID`, `APNS_KEY_P8`.
-3. Apply `supabase/migrations/20260904_device_tokens_sandbox.sql` and deploy
-   `device` and `invite` with `verify_jwt` off, like `register` and `lookup`.
+- Done: the migration is applied, as `20260908113335_device_tokens_sandbox`.
+  `device_tokens.sandbox` and the two `invites` columns exist, both indexes
+  exist, RLS is on with no policies and the service role holds the grants.
+- Done: `device` is deployed and ACTIVE with `verify_jwt` off, matching
+  `register` and `lookup`. A phone with a directory session can register a
+  token today.
+- Still Nate's: create an APNs key in the Apple Developer portal (Keys, then
+  a new key with Apple Push Notifications service). The `.p8` downloads once
+  and never again.
+- Still Nate's: set `APNS_TEAM_ID`, `APNS_KEY_ID` and `APNS_KEY_P8` on the
+  project.
+- Still Nate's: deploy `invite` with `verify_jwt` off. It needs both
+  `index.ts` and its sibling `apns.ts` in the same deploy.
 
-Until then the app's calls to `/device` and `/invite` fail silently, which is
-the designed behaviour for every directory call: no error a person can see,
-nothing the app claims to have done.
+Until the key and the secrets are set, `apns.ts` returns
+`{ configured: false }` and the caller carries on, so an unconfigured push
+is a missing nicety rather than an error. The app's calls to a function
+that is not deployed fail silently too, which is the designed behaviour for
+every directory call: no error a person can see, nothing the app claims to
+have done.
 
 What the server refuses on its own: more than twenty invitations a day from
 one host, more than two a day from one host to one number, a share link
