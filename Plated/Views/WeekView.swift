@@ -360,6 +360,20 @@ struct WeekView: View {
                         Text(removedNotice)
                             .plType(.heading, .semibold).foregroundStyle(Color.ink)
                             .fixedSize(horizontal: false, vertical: true)
+                    } else if let took = RemovedNights.removedHeading(on: weekAnchor), !isPast(weekAnchor) {
+                        // This night is empty because the household took the
+                        // dinner off, not because nobody has got to it. The
+                        // author has no bell row and no push for that, so the
+                        // hero and the week row are the only places they can
+                        // learn it. An invitation here would be the app
+                        // claiming the night was never planned.
+                        Text(took)
+                            .plType(.heading, .semibold).foregroundStyle(Color.ink)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Text(Calendar.current.isDateInToday(weekAnchor)
+                             ? "Nothing is planned for tonight."
+                             : "Nothing is planned for this night.")
+                            .plType(.body).foregroundStyle(Color.inkSecondary)
                     } else {
                         Text(isPast(weekAnchor) ? "A night off the menu" : "Something good starts here.")
                             .plType(.display, .medium).foregroundStyle(Color.ink)
@@ -666,7 +680,15 @@ struct WeekView: View {
             // The row speaks for both targets below; a second announcement
             // here would just be the same night read twice.
             .accessibilityHidden(true)
-            Text("Plan dinner")
+            // An empty night that knows why it is empty. The household took
+            // this dinner off, the meal was deleted here, and nothing else on
+            // this phone remembers it existed: the digest cannot speak,
+            // because it needs an already-read bell row and the author never
+            // has one for a night they planned themselves. So this line and
+            // the hero are the only way the person learns their dinner went.
+            // The plus beside it still plans the night, which is what they
+            // are most likely to want next.
+            Text(RemovedNights.removedLine(on: date) ?? "Plan dinner")
                 .plType(.body)
                 .foregroundStyle(Color.inkSecondary)
                 // No limit, the way the past row's own "Nothing plated"
@@ -1036,6 +1058,16 @@ struct WeekView: View {
     }
 
     private func tagLine(for meal: PlannedMeal, today: Bool, date: Date) -> String {
+        // A night the household took off that is still standing here, which
+        // is the two hold-backs: it was cooked, or it is being cooked now.
+        // This takes the whole caption rather than being appended to it,
+        // because "Tonight · you cook" beside a dinner the rest of the
+        // household has already dropped is the row answering a question
+        // nobody is asking. The cook and the timing are still on the day
+        // page; what is not anywhere else is that the household let it go.
+        if let held = RemovedNights.heldLine(shoppingID: meal.shoppingID ?? "") {
+            return held
+        }
         let base: String
         if today {
             // Tonight names its cook like every other night does. This
@@ -1076,6 +1108,10 @@ struct WeekView: View {
     /// An open night is only truly empty when nothing else is planned either.
     private func openLine(_ date: Date) -> String {
         let others = otherSlots(on: date)
+        // The same sentence the row draws, so a reader hears why the night
+        // is empty rather than "Nothing plated yet" over a dinner that was
+        // taken off ten minutes ago.
+        if others.isEmpty, let removed = RemovedNights.removedLine(on: date) { return removed }
         guard !others.isEmpty else { return "Nothing plated yet" }
         let joined = ListFormatter.localizedString(byJoining: others.map { $0.title.lowercased() })
         return joined.prefix(1).uppercased() + joined.dropFirst() + " planned"

@@ -243,6 +243,26 @@ struct PlanNightSheet: View {
                     // away once the household has it, and this phone's own
                     // night on the same slot was never blocked at all.
                     if !going {
+                        // First, above everything, on a night the household
+                        // took off. It is the likeliest thing the person came
+                        // here to do, and it names the dish so the control
+                        // says what it will do rather than what it is.
+                        //
+                        // It plans the night again under a NEW shoppingID
+                        // rather than un-deleting: nothing contradicts the
+                        // record of the removal, it behaves the same on every
+                        // device, and the household hears the ordinary
+                        // "Nate planned Tacos for Thursday" instead of a
+                        // night reappearing with nobody's name on it.
+                        if meal == nil, remote == nil,
+                           let detail = RemovedNights.addBackDetail(on: date),
+                           let title = RemovedNights.addBackTitle(on: date) {
+                            OptionRow(
+                                icon: "calendar.badge.plus",
+                                title: "Add it back",
+                                detail: detail
+                            ) { addBack(title) }
+                        }
                         if !recipes.isEmpty {
                             OptionRow(
                                 icon: "wand.and.stars",
@@ -790,6 +810,36 @@ struct PlanNightSheet: View {
                 context.insert(meal)
             }
         }
+        dismiss()
+    }
+
+    /// Plan the night the household took off, again.
+    ///
+    /// A NEW `PlannedMeal` with a new `shoppingID`, deliberately, rather than
+    /// anything that reaches back for the one that went. Nothing contradicts
+    /// the record of the removal, the tombstone in the zone is never touched,
+    /// it behaves the same on a device that never saw the original, and the
+    /// household hears the ordinary "Nate planned Tacos for Thursday" rather
+    /// than a night reappearing with nobody's name on it.
+    ///
+    /// The recipe is looked up by title because that is all the record kept.
+    /// A dish that has since left the cookbook comes back as a named night
+    /// with no recipe behind it, which is what the person planned either way.
+    private func addBack(_ title: String) {
+        Haptic.plate()
+        withAnimation(.plPop) {
+            let meal = PlannedMeal(date: date, slot: slot)
+            if let recipe = recipes.first(where: { $0.title == title }) {
+                meal.recipe = recipe
+                meal.servings = recipe.servings
+            } else {
+                meal.customTitle = title
+            }
+            context.insert(meal)
+        }
+        // Nothing to forget. Every one of these captions is drawn only on a
+        // night with no meal on it, so planning one silences them all, and
+        // the record ages out of the book on its own.
         dismiss()
     }
 
