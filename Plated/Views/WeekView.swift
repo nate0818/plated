@@ -410,12 +410,32 @@ struct WeekView: View {
                 Spacer()
             }
         }
-        if let recipe = cookbookRecipe(for: entry) {
+        // A change made on this phone that the household has not got yet.
+        // The card above already shows it, so this sentence is what keeps
+        // the card from being a claim that everybody can see it. A night on
+        // its way off the plan says that instead, in the same quiet line and
+        // in the ledger's own words, so the hero and the row cannot drift:
+        // the hero is the largest drawing of a night in the app, and a
+        // delete still sitting on this phone must not look like a settled
+        // dinner from across the kitchen.
+        if let pending = entry.pendingSentence {
+            Text(pending)
+                .plType(.footnote).foregroundStyle(Color.inkSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        // No Let's cook on a night that is going. The pill is an invitation
+        // to start a cook session on a dinner this phone has just taken off
+        // the plan for everybody.
+        if let recipe = cookbookRecipe(for: entry), !entry.isGoing {
             TomatoPillButton(title: entry.cooked ? "View recipe" : "Let's cook", systemImage: "fork.knife") {
                 featuredRecipe = recipe
             }
         } else {
-            Text(entry.hasRecipe
+            // "Not in your cookbook" is a fact about this cookbook, and on a
+            // night that is going the pill is missing for a different reason
+            // entirely. Saying it there would be false whenever the recipe
+            // IS here, which is exactly when the pill would have shown.
+            Text(entry.hasRecipe && !entry.isGoing
                  ? "Planned by \(entry.authorFirstName). Not in your cookbook."
                  : "Planned by \(entry.authorFirstName).")
                 .plType(.footnote).foregroundStyle(Color.inkSecondary)

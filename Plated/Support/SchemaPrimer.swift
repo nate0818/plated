@@ -54,10 +54,9 @@ enum SchemaPrimer {
         let meal = PlannedMeal(date: .now, slot: .dinner, recipe: recipe, cook: member)
         meal.cookReaction = 3
         meal.actualMinutes = 42
+        // No share fields: a night is not a household record (see
+        // `PlannedMeal`), so there is nothing here for a zone to learn.
         meal.authorID = "primer"
-        meal.shareModifiedAt = .now
-        meal.shareFingerprint = marker
-        meal.titleFallback = marker
         recipe.authorID = "primer"
         recipe.shareModifiedAt = .now
         recipe.shareFingerprint = marker

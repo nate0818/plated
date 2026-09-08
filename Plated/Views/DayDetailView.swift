@@ -41,7 +41,12 @@ struct DayDetailView: View {
     struct SlotPlan: Identifiable {
         let date: Date
         let slot: MealSlot
-        var id: String { "\(date.timeIntervalSince1970)-\(slot.rawValue)" }
+        /// The household night this sheet is opening, when the person tapped
+        /// one. Named rather than looked up, because a day can hold this
+        /// phone's dinner and somebody else's at once, and the sheet has to
+        /// change the one that was touched.
+        var plan: String? = nil
+        var id: String { "\(date.timeIntervalSince1970)-\(slot.rawValue)-\(plan ?? "")" }
     }
 
     private var isToday: Bool { Calendar.current.isDateInToday(date) }
@@ -97,7 +102,8 @@ struct DayDetailView: View {
         }
         .sheet(item: activeSheet) { route in
             switch route {
-            case .plan(let plan): PlanNightSheet(date: plan.date, slot: plan.slot, askTheTable: askTheTable)
+            case .plan(let plan):
+                PlanNightSheet(date: plan.date, slot: plan.slot, editingPlan: plan.plan, askTheTable: askTheTable)
             case .move(let meal): MoveMealSheet(meal: meal) { date = $0; swipedSlot = nil }
             }
         }
@@ -274,10 +280,23 @@ struct DayDetailView: View {
                     .modifier(PlannerMealDrag(meal: meal))
                     .accessibilityIdentifier("day-meal-\(slot.rawValue)")
                 }
-                // Under the local one, no Remove and no Cooked: this page is
-                // already the day, so the row is a fact rather than a door.
+                // Under the local one, and a door: this is where a night
+                // somebody else planned is changed. The sheet is told which
+                // night, because the slot can hold one of each.
+                //
+                // Not a door while it is going. A night whose delete is
+                // still on this phone is on its way off the plan, and a
+                // page that let somebody change the dish on it would be
+                // offering an edit to a record about to be deleted: two
+                // intentions racing, with the queue folding the change back
+                // into the delete and the screen saying neither.
                 ForEach(remote) { entry in
-                    RemotePlanRow(entry: entry, date: date, members: members)
+                    RemotePlanRow(
+                        entry: entry, date: date, members: members,
+                        onOpen: entry.isGoing ? nil : { planning = SlotPlan(date: date, slot: slot, plan: entry.recordName) },
+                        openHint: "Opens the night",
+                        place: .day
+                    )
                 }
             }
             .padding(.top, 8)

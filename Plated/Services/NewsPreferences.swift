@@ -117,8 +117,6 @@ enum NewsPreferences {
         // activity" already covers both rooms, and a seventh switch for a
         // second kind of seat would be a switch nobody goes looking for.
         case .householdSeat, .householdLeft: return .seats
-        // The household's night and the ledger's are the same evening.
-        case .night: return .planning
         // A recipe joining the cookbook is the nearest the household has to
         // a dish being put out. There is no cookbook switch.
         case .recipe: return .dishes

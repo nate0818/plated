@@ -76,8 +76,12 @@ for `TablePost`.
   has.
 - **Different Apple IDs:** the household zone carries a record, and `merge`
   folds it into the local store keyed on `shareRecordName`, update-or-insert,
-  never delete-and-reinsert (cook sessions, `PlannedMeal.recipe` and the
-  rota all depend on row identity).
+  never delete-and-reinsert (cook sessions, the local nights that point at a
+  recipe, and the rota all depend on row identity).
+
+`PlannedMeal` is not in this. It is a private, per-Apple-ID row, and the
+week crosses Apple IDs through the plan pipe in the same zone, never through
+the mirror. Section 3.2 says why.
 
 **The mirror does not dedupe.** A member's second device can receive one
 record twice: once through the pull (an insert keyed on `shareRecordName`)
@@ -85,10 +89,13 @@ and once through the mirror (a second row the mirror imported from the first
 device, with the same `shareRecordName`). This is the class that multiplied
 seats before. `HouseholdSync.collapseDuplicates(in:)` runs after every merge
 and on every remote-change notification: for every synced entity, rows with
-one `shareRecordName` collapse onto the oldest by `createdAt`, relationships
-(`PlannedMeal.recipe`, `.cook`, `.gathering`, `Ingredient.recipe`,
-`RecipePhoto.recipe`) are rehomed onto the survivor, cook sessions are re-keyed,
-and the rest are deleted.
+one `shareRecordName` collapse onto the oldest by `createdAt`, the
+relationships that point at them (a night's `.recipe`, `.cook` and
+`.gathering`, `Ingredient.recipe`, `RecipePhoto.recipe`) are rehomed onto the
+survivor, cook sessions are re-keyed, and the rest are deleted. There is no
+pass over `PlannedMeal` and there must never be one again: a night has no
+household record to be duplicated by, and a collapse there was the repair for
+a shape section 3.2 has taken out instead.
 
 **Names are minted at birth.** Every synced model mints `shareRecordName` in
 its initialiser, like `shoppingID`, so the mirror exports the row already
@@ -98,10 +105,9 @@ transitions the household into `.hosting` (publishAll) or `.member` (join),
 inside that transaction, and it records itself as the minter in the app
 group. Any other device of that Apple ID that finds membership set and rows
 unnamed waits for the mirror and never mints. On pull, before inserting an
-unmatched record, `merge` looks for a nameless local twin (a meal by day,
-slot and `createdAt`; a recipe by title and `createdAt`; a seat by name; a
-gathering by title and `startDate`) and adopts the name onto it instead of
-inserting.
+unmatched record, `merge` looks for a nameless local twin (a recipe by title
+and `createdAt`; a seat by name; a gathering by title and `startDate`) and
+adopts the name onto it instead of inserting.
 
 **Enqueueing is content-based, never save-based.** A save observer that
 enqueues whatever saved would loop: the merge saves, the bookkeeping after a
@@ -120,8 +126,8 @@ store commit and the outbox write loses the entry with no other repair.
 server's `modifiedAt` differs from the row's `shareModifiedAt` (the version
 this device last exchanged), somebody else wrote since this device last
 looked: the server version is merged locally, the outbox entry is dropped,
-and for a recipe or a meal a bell row says so ("Riley changed Ragù after you
-did. Their version is showing."). Otherwise the fetched instance (it carries
+and for a recipe a bell row says so ("Riley changed Ragù after you did. Their
+version is showing."). Otherwise the fetched instance (it carries
 the change tag) is saved with `modifiedAt` = the outbox entry's `at`, which
 is the time of the first local change since the row last matched the server,
 never a later re-enqueue. A `.serverRecordChanged` from the save takes the
@@ -165,6 +171,11 @@ Wire dates that mean a calendar day travel as `yyyy-MM-dd` strings and are
 turned back into a `Date` with `Calendar.current` on the reading phone, so two
 time zones cannot move a dinner between days.
 
+What the household carries is **the roster, the cookbook, gatherings and the
+grocery list**. The week is in the same zone but is not one of these: it
+rides the plan pipe, as `PlatedHouseholdPlan` records, and docs/plan-share.md
+owns it end to end.
+
 ### 3.1 `PlatedHouseholdSeat` (one per `HouseholdMember`)
 
 `name`, `role`, `roleLine`, `colorHex`, `dietaryNotes`, `avoidedIngredients`
@@ -197,30 +208,33 @@ Field rules, applied on both push-conflict and pull:
 - `role` and `cookWeekdays` belong to the household; last writer wins, with
   the owner rule above.
 
-### 3.2 `PlatedHouseholdMeal` (one per `PlannedMeal`)
+### 3.2 The plan is not a household record
 
-`day` (yyyy-MM-dd), `slot`, `customTitle`, `titleSnapshot` (the meal's title
-at push time, so a night whose recipe has not arrived yet still has a name),
-`notes`, `servings`, `cookedAt`, `cookReaction`, `actualMinutes`, `createdAt`,
-`shoppingID`, `tagline`, `recipeRecordName`, `cookRecordName`,
-`gatheringRecordName`, `authorID`, `modifiedBy`, `modifiedAt`.
+There is no `PlatedHouseholdMeal`, and there must never be one.
 
-References are record names resolved to local rows at merge. After every
-pull, `merge` re-runs resolution for every local row whose reference is
-non-empty and whose relationship is nil, regardless of `modifiedAt`, so a
-recipe arriving after its meal repairs the meal. `publishAll` enqueues seats
-and recipes before meals, and the drain sends kinds in that order.
+A night used to travel here as a household record and merge into
+`PlannedMeal`. `PlannedMeal` is a `@Model` in a store configured
+`cloudKitDatabase: .automatic`, so a household fact placed there is owned by
+the zone AND by the writer's own private mirror at the same time, and that
+mirror carries it to the same person's other devices, which are themselves
+merging the same zone record. That is two writers on one fact by
+construction. `collapseDuplicates` running after every merge repaired that
+shape rather than fixing it: it held in the cases somebody tested and failed
+quietly in the rest. Nate's call, 2026-09-08: drop the meal merge.
 
-**One dinner per (day, slot) in a household.** When a pulled meal would
-occupy a (day, slot) a different named local row already holds, the row with
-the lexically smaller `shareRecordName` survives on every phone, the other is
-deleted locally and its deletion enqueued, and the loser's `shoppingID`
-purchases are folded into the winner's grocery mark. Two members who plan the
-same night at once converge without coordination.
+So a household night is a `PlatedHouseholdPlan` record in this same zone,
+held on the reading phone in `PlanLedger` beside the plates, and drawn by the
+planner beside that phone's own nights. **docs/plan-share.md** owns the
+record, the publisher, the reader, the ledger, the overlay, the notices and
+the reminders, including the write path that makes a remote night editable;
+last writer wins on the record's `modifiedAt`. Nothing in either document
+ever merges a plan into a `PlannedMeal`.
 
-`shoppingID` is minted by the single minter alongside the record name; a
-wire value always wins and is never cleared; the grocery builder no longer
-mints one for any row that carries a `shareRecordName`.
+What `PlannedMeal` keeps is `shoppingID` (the grocery and drag key, which
+predates all of this and is minted with the row) and `authorID` (what
+`Awards.metrics` reads to decide whose night an unassigned one is). It
+carries no `shareRecordName`, no `shareModifiedAt` and no `shareFingerprint`:
+there is no record for them to be about.
 
 ### 3.3 `PlatedHouseholdRecipe` (one per `Recipe`)
 
@@ -400,7 +414,7 @@ honest about being one.
 
 The host's first invitation is also the moment the household starts
 publishing: `HouseholdSync.publishAll` names every unnamed row, stamps
-`authorID`, and enqueues every seat, recipe, gathering, meal and manual line.
+`authorID`, and enqueues every seat, recipe, gathering and manual line.
 The drain batches by kind into `CKModifyRecordsOperation` calls of at most
 200 records and under 2 MB of non-asset payload, honours
 `CKError.retryAfterSeconds`, halves on `.limitExceeded`, never counts a
@@ -504,8 +518,9 @@ straight back to the picker instead of "You're already in Nate's household."
    failure here is retried, not fatal.
 2. Record membership as `.member(owner:)` in the app group, with the zone
    epoch and, once claimed, `plated.household.mySeat`.
-3. Pull the zone whole. Merge the roster, plan, recipes, gatherings, lines and
-   marks. This first pull raises no notices except one bell row, "You joined
+3. Pull the zone whole. Merge the roster, recipes, gatherings, lines and
+   marks; the week arrives beside them as plan records and lands in
+   `PlanLedger`, never in the store. This first pull raises no notices except one bell row, "You joined
    Nate's household."
 4. Claim the seat. If a seat record carries this identity, it is me. Else if
    the link named a seat that exists, is still `.invited` and carries no
@@ -518,8 +533,13 @@ straight back to the picker instead of "You're already in Nate's household."
    name, and then the old row is deleted locally.
 5. Adopt what I brought. Every recipe, gathering and by-name seat I own is
    stamped `authorID` = me and enqueued. Planned meals from today onward and
-   every grocery row and mark are deleted locally without being pushed; past
-   meals are kept as history and never pushed. Table posts are untouched.
+   every grocery row and mark are deleted locally. The nights go BEFORE the
+   first pull, and they go because the household's week is drawn beside this
+   phone's own (section 3.2): a joiner who kept theirs would open the Plan to
+   every night described twice, once by the household and once by the week
+   they planned alone, with no way for a reader to tell which one dinner is.
+   Past nights are kept as history: they are this person's, nobody else is
+   describing them, and their insights are theirs. Table posts are untouched.
 6. Haptic kiss and the Plan tab. Until the root's `publishedAt` is set, the
    Plan and Cookbook show a quiet line above whatever has landed: "Still
    arriving from Nate's phone."
@@ -542,10 +562,12 @@ comes with you." Button **Leave**. On confirm, in order:
 3. Set membership to `.solo`, clear `HouseholdOutbox`, `GroceryMarks` and
    `plated.household.mySeat`.
 4. Delete every local row that came from the household: seats other than
-   mine and the by-name seats I brought, meals, gatherings, grocery rows,
-   and recipes whose `authorID` is non-empty, not mine, and whose
+   mine and the by-name seats I brought, gatherings, grocery rows, and
+   recipes whose `authorID` is non-empty, not mine, and whose
    `shareModifiedAt` is non-nil. A row with an empty `authorID` is kept,
-   always.
+   always. Nights are not touched: every `PlannedMeal` here is this Apple
+   ID's own, and the household's week goes when `PlanLedger` forgets that
+   zone.
 5. Reset every kept row to never-synced: `shareModifiedAt = nil`,
    `shareFingerprint = ""`, a fresh `shareRecordName`.
 6. Promote my seat back to owner and head. Forget cook sessions for deleted
@@ -640,9 +662,13 @@ Bell rows and banners, through `TableNews`, with the law in
 |---|---|---|---|
 | a seat joined the household | `household:<userRecordName>` | "Riley joined your household" / "They can see the plan, the grocery list and the cookbook now." | active with sound by day, passive 22:00 to 08:00 |
 | a seat left | `household-left:<userRecordName>` | "Riley left your household" / "Their nights are open again." | passive |
-| somebody planned a night | `night:<mealRecordName>` | "Riley planned Tuesday" / "Sheet-pan chicken." (weekday within six days, then the date) | passive |
 | somebody added a recipe | `recipe:<recipeRecordName>` | "Riley added Ragù" / "It's in the cookbook." | passive |
 | your edit lost to theirs | `conflict:<recordName>` | "Riley changed Ragù after you did" / "Their version is showing." | passive, bell only |
+
+A planned night is not on this table. It comes from the plan pipe, whose
+notice is `Notice.Kind.plan`: "Riley planned Tacos for Thursday", under the
+Planning switch, with its own key and its own retraction rule
+(docs/plan-share.md). One evening, one digest.
 
 Never about your own action, on any of your devices (`modifiedBy != me`).
 Never unnamed. A join to the household also joins the Table, so the Table's
@@ -696,10 +722,11 @@ Copy that was false and is now true or rewritten:
   update-or-insert and the nameless-twin adoption, duplicate collapse with
   relationships rehomed, version-based conflict, the deletion rules, the seat
   field rules (forward-only seat, owner only on the owner, identity set once),
-  the seat claim, one dinner per (day, slot), grocery mark last-writer-wins
-  and dismissal expiry, leave-then-join keeping a recipe, the fingerprint
-  excluding bookkeeping, link grammar in and out, and the notices with their
-  own-action guard and first-pull silence. Tests reset every app-group book
+  the seat claim, a household delta never touching the local plan, grocery
+  mark last-writer-wins and dismissal expiry, leave-then-join keeping a
+  recipe, the fingerprint excluding bookkeeping, link grammar in and out, and
+  the notices with their own-action guard and first-pull silence. The week's
+  own tests are `PlanShareTests` and `PlanNewsTests`. Tests reset every app-group book
   and membership in setUp and tearDown, and the save observer ignores every
   context but `PlatedStore.shared.mainContext`.
 - `-plated-prime-household` writes one of every household record type and
@@ -737,12 +764,13 @@ enum HouseholdShare {
     static func accept(_ metadata: CKShare.Metadata) async -> Bool
 
     struct RemoteRoot { name, hostName, hostPhoto: Data?, banner: Data?, tableShareURL: URL?, autoRotate: Bool, publishedAt: Date?, removedIDs: [String], modifiedAt }
-    struct RemoteSeat, RemoteMeal, RemoteRecipe, RemoteGathering, RemoteLine, RemoteMark
-    struct Changes { root: RemoteRoot?, seats, meals, recipes, gatherings, lines, marks,
-                     deleted: Set<String>, sharesChanged, replayed, zoneGone, failed: Bool }
+    struct RemoteSeat, RemoteRecipe, RemoteGathering, RemoteLine, RemoteMark
+    struct Changes { root: RemoteRoot?, seats, recipes, gatherings, lines, marks,
+                     deleted: Set<String>, sharesChanged, replayed, zoneGone, failed: Bool,
+                     plan: TableShare.Changes /* collected here, folded by PlanLedger */ }
     static var isRateLimited: Bool { get }                       // §6, honoured before a drain starts
     static func fetchChanges() async -> Changes
-    struct MergeOutcome { newSeats, leftSeats: [HouseholdMember], newMeals: [PlannedMeal], newRecipes: [Recipe], conflicts: [String] }
+    struct MergeOutcome { newSeats, leftSeats: [HouseholdMember], newRecipes: [Recipe], conflicts: [String] }
     @MainActor static func merge(_ changes: Changes, into context: ModelContext) -> MergeOutcome
 
     enum PushOutcome { case saved(modifiedAt: Date), remoteNewer(theirs: Changes), gone, retry, failed }
@@ -753,13 +781,13 @@ enum HouseholdShare {
 
 @MainActor final class HouseholdOutbox {           // app group JSON, per device
     static let shared: HouseholdOutbox
-    enum Kind: String, Codable { case seat, meal, recipe, gathering, line, mark, root }
+    enum Kind: String, Codable { case seat, recipe, gathering, line, mark, root }   // no meal, §3.2
     struct Entry: Codable, Identifiable { var id: String /* recordName */; var kind: Kind; var isDelete: Bool; var at: Date; var tries: Int }
     func enqueueUpsert(_ kind: Kind, _ recordName: String, at: Date)   // keeps the earliest `at`
     func enqueueDelete(_ kind: Kind, _ recordName: String)
     func hasPending(_ recordName: String) -> Bool
     var pending: [Entry]; var isEmpty: Bool
-    @discardableResult func drain(context: ModelContext) async -> Bool  // ordered seat, recipe, gathering, meal, line, mark, root; true when it ran
+    @discardableResult func drain(context: ModelContext) async -> Bool  // ordered seat, recipe, gathering, line, mark, root; true when it ran
     func clear()
 }
 
@@ -851,9 +879,9 @@ each written non-empty by `SchemaPrimer`:
   `shareRecordName: String = ""` (init mints `seat-<UUID>`), `shareModifiedAt:
   Date?`, `shareFingerprint: String = ""`, `authorID: String = ""`,
   `leftAt: Date?`, `Seat.left`, `var isMe: Bool`, `[HouseholdMember].me`.
-- `PlannedMeal`: `shareRecordName` (init mints `meal-<UUID>`),
-  `shareModifiedAt`, `shareFingerprint`, `authorID`, `titleFallback: String =
-  ""` (used by `title` when `recipe` is nil and `customTitle` is empty).
+- `PlannedMeal`: `authorID: String = ""` and nothing else. A night carries no
+  record name, version or fingerprint, because it is not a household record
+  (§3.2); `authorID` is there for `Awards.metrics`.
 - `Recipe`: `shareRecordName` (`recipe-<UUID>`), `shareModifiedAt`,
   `shareFingerprint`, `authorID`, `sharePhotoHash: String = ""`.
 - `Gathering`: `shareRecordName` (`gathering-<UUID>`), `shareModifiedAt`,
@@ -867,8 +895,9 @@ each written non-empty by `SchemaPrimer`:
 New files need no project edit (synchronized groups). The signature changes
 land in this order so the tree compiles between steps:
 
-1. Models and fixtures. `HouseholdMember`, `PlannedMeal`, `Recipe`,
-   `Gathering`, `GroceryItem`, `HouseholdProfile`; `SchemaPrimer`;
+1. Models and fixtures. `HouseholdMember`, `Recipe`, `Gathering`,
+   `GroceryItem`, `HouseholdProfile` (`PlannedMeal` takes `authorID` only,
+   §3.2); `SchemaPrimer`;
    `SampleData`; the CLAUDE.md namespace sentence.
 2. The me migration, per the classification in section 5. `isOwner` stays
    defined, so this compiles alone.
@@ -906,6 +935,14 @@ and must be live before the first household link is sent.
 
 ## 14. Deliberately left open
 
+- **Decided 2026-09-08, and closed: the plan does not travel as a household
+  record.** Both designs were built far enough to compare, and the meal merge
+  lost on the argument in §3.2: `PlannedMeal` lives in a mirrored store, so a
+  household fact placed there has two writers by construction, and
+  `collapseDuplicates` was repairing that shape rather than fixing it. The
+  merge, `PlatedHouseholdMeal`, the outbox's `meal` kind and the night notice
+  are gone; the week rides the plan pipe (docs/plan-share.md), which grows
+  the two-way write path. Last writer wins on the record's `modifiedAt`.
 - Whether a link-joined participant can be removed one at a time; the code
   tries and says so (section 8).
 - Chef's kiss denominator (open-decisions 1b): a shared roster makes

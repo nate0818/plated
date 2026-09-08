@@ -182,8 +182,11 @@ final class ShareAcceptor: NSObject, UIApplicationDelegate {
             // left: the reminders read the ledger and must be rebuilt now,
             // not at the next visit to the Plan tab.
             let meals = (try? context.fetch(FetchDescriptor<PlannedMeal>())) ?? []
-            let owner = Seats.all(in: context).first(where: \.isOwner)?.name ?? ""
-            await NotificationScheduler.rebuild(meals: meals, ownerName: owner)
+            // No owner name goes in: whose night it is, is decided by
+            // identity now (`HouseholdMember.isMe` locally,
+            // `PlanLedger.isMine(cook:)` for a remote night), not by
+            // matching the head of table's name.
+            await NotificationScheduler.rebuild(meals: meals)
         }
     }
 

@@ -28,25 +28,24 @@ final class PlannedMeal {
     /// The line under the meal name on the week row — "Kids pick", "Fast one".
     var tagline: String = ""
 
-    // MARK: How this row travels (docs/household.md)
+    // MARK: How this row does NOT travel (docs/household.md §3.2)
 
-    /// The CloudKit record name in the household zone, minted at birth so the
-    /// mirror exports the row already named. "" only on rows that predate the
-    /// field; the single minter names those when the household is first
-    /// shared.
-    var shareRecordName: String = ""
-    /// `modifiedAt` of the version last exchanged with the zone; nil means
-    /// never synced. A version, never a clock.
-    var shareModifiedAt: Date?
-    /// Hash of the wire fields as last exchanged; the save observer enqueues
-    /// only when the live fingerprint differs.
-    var shareFingerprint: String = ""
+    /// This is a private, per-Apple-ID row and it carries no household
+    /// bookkeeping, on purpose. The store is configured
+    /// `cloudKitDatabase: .automatic`, so a household fact placed here has
+    /// two writers by construction: the household zone, and this phone's own
+    /// mirror carrying it to the same person's other devices while they
+    /// merge the same zone record. A collapse pass after every merge
+    /// repaired that shape rather than fixing it. A night reaches the rest
+    /// of the household as a `PlatedHouseholdPlan` record read into
+    /// `PlanLedger` (docs/plan-share.md), and is never merged back into a
+    /// `PlannedMeal` by anything.
+
     /// The identity that planned this night. "" on rows that predate the
-    /// field, which count as this device's own.
+    /// field, which count as this device's own. Not a wire field: it is
+    /// what `Awards.metrics` reads to decide whose night an unassigned one
+    /// is, and the plan pipe stamps its own `authorID` on the record.
     var authorID: String = ""
-    /// The meal's title as pushed, so a night whose recipe has not arrived
-    /// on this phone yet still has a name instead of "Unplanned".
-    var titleFallback: String = ""
 
     var recipe: Recipe?
     var gathering: Gathering?
@@ -70,7 +69,6 @@ final class PlannedMeal {
         self.tagline = tagline
         self.createdAt = .now
         self.shoppingID = UUID().uuidString
-        self.shareRecordName = "meal-\(UUID().uuidString)"
     }
 
     var slotValue: MealSlot {
@@ -83,7 +81,6 @@ final class PlannedMeal {
     var title: String {
         if !customTitle.isEmpty { return customTitle }
         if let recipe, !recipe.title.isEmpty { return recipe.title }
-        if !titleFallback.isEmpty { return titleFallback }
         return "Unplanned"
     }
 

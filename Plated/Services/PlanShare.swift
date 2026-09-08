@@ -317,6 +317,10 @@ enum PlanShare {
     static func forgetBook() {
         cachedBook = [:]
         if let url = bookURL { try? FileManager.default.removeItem(at: url) }
+        // A queued edit names a record in that same unreachable zone, and it
+        // was made by a person who is no longer signed in here. It goes with
+        // the book rather than being sent from somebody else's account.
+        forgetEdits()
         print("[PlanShare] book forgotten")
     }
 
@@ -325,6 +329,38 @@ enum PlanShare {
     private static var pendingSave: Task<Void, Never>?
     private static var inFlight: Task<Void, Never>?
     private static var again = false
+
+    /// The tail of the queue of things writing the household zone.
+    ///
+    /// `publish` guarded itself with `inFlight` and `write` ignored it, so a
+    /// pass draining this phone's own queued edit while a `write` was on the
+    /// wire landed that edit, and the write's own fetch then read a
+    /// `modifiedAt` newer than its `seenAt` and told the person somebody else
+    /// had changed their night. Nobody had: it was this phone's own drain.
+    /// The change still landed, so only the sentence was false, which is the
+    /// honesty rule with nothing else wrong. One writer at a time makes that
+    /// sentence impossible, and `deliver` catches the other half, an edit
+    /// already sent by the pass this call waited for.
+    private static var zoneTail: Task<Void, Never>?
+
+    /// Run `work` with nothing else writing the zone. Internal so the
+    /// serialisation itself can be tested without CloudKit.
+    static func exclusively<T: Sendable>(_ work: @escaping @Sendable @MainActor () async -> T) async -> T {
+        let ahead = zoneTail
+        // Unstructured for the reason `publish`'s pass is: this must outlive
+        // a cancelled caller rather than stop half way through a batch.
+        let job = Task { @MainActor () -> T in
+            await ahead?.value
+            return await work()
+        }
+        let tail = Task { @MainActor in _ = await job.value }
+        zoneTail = tail
+        let result = await job.value
+        // Only the last one out clears the slot: anybody who queued behind
+        // this is now the tail and still has to be waited for.
+        if zoneTail == tail { zoneTail = nil }
+        return result
+    }
 
     /// Ask for a pass. A burst of autosaves is one pass three seconds
     /// after the last; everything else runs now. One pass at a time, and
@@ -359,7 +395,7 @@ enum PlanShare {
         let task = Task { @MainActor in
             repeat {
                 again = false
-                await pass(reason: reason)
+                await exclusively { await pass(reason: reason) }
             } while again
             inFlight = nil
         }
@@ -407,6 +443,10 @@ enum PlanShare {
             }
             return
         }
+
+        // Changes this phone made to other people's nights, which are people
+        // waiting on something they can see, go before this phone's own diff.
+        await drainEdits(in: db, zone: zoneID, target: target)
 
         let now = Date.now
         let me = TableIdentity.cached
@@ -494,6 +534,566 @@ enum PlanShare {
         var updated = loadBook()
         for name in strays.keys { updated[name] = nil }
         saveBook(updated)
+    }
+
+    // MARK: Changing a night somebody else planned
+
+    /// What one person changed about one household night, on its way to the
+    /// zone.
+    ///
+    /// **An edit writes the `PlatedHouseholdPlan` record. It never writes a
+    /// `PlannedMeal`, and neither does anything downstream of it.** Nate's
+    /// argument, which is the whole reason this type exists rather than a
+    /// meal merge: `PlannedMeal` is a `@Model` in a store configured
+    /// `cloudKitDatabase: .automatic`, so a household fact placed there has
+    /// two writers by construction, the zone and this phone's own mirror
+    /// carrying it to its other devices while they merge the same record.
+    /// A collapse pass that runs after every merge repairs that shape rather
+    /// than fixing it: it holds in the cases somebody tested and fails
+    /// quietly in the rest. So the record is the one authority, the ledger
+    /// is how this phone holds it, and last writer wins on `modifiedAt`.
+    ///
+    /// A `nil` field means "leave what the record says". An edit carries
+    /// what the person touched, never a whole night, so two people changing
+    /// two different things about one night do not undo each other unless
+    /// they land inside the same version of the record.
+    struct Edit: Codable, Equatable, Sendable, Identifiable {
+        enum Kind: String, Codable, Sendable { case change, delete }
+
+        /// `plan-<shoppingID>`, the night's one name in the zone.
+        var recordName: String
+        /// The household this edit was made in. An edit for a zone this
+        /// phone has since left is dropped rather than sent.
+        var zoneOwner: String
+        var day: String
+        var slot: String
+        var kind: Kind = .change
+        /// The record's `modifiedAt` as this phone last saw it. The write
+        /// compares the server's against this and takes the server version
+        /// when they differ, so a person is told somebody got there first
+        /// instead of quietly overwriting them.
+        var seenAt: Date?
+        /// The night's AUTHOR, carried only for the mint in `record(for:)`.
+        /// Never the editor: see the comment there.
+        var authorID: String = ""
+        var authorName: String = ""
+        var authorColorHex: String = "FF5A3C"
+        var createdAt: Date = .now
+        var title: String?
+        var servings: Int?
+        var tagline: String?
+        var cookID: String?
+        var cookName: String?
+        var cookColorHex: String?
+        var cookSeat: String?
+        var hasRecipe: Bool?
+        var recipeMinutes: Int?
+        var recipeOriginKey: String?
+        var photo: PhotoIntent = .keep
+        /// When the person made it, which is what the row shows and what a
+        /// landed save stamps the record with.
+        var at: Date = .now
+        /// Refusals so far, the outbox's rule: a queue that retries forever
+        /// is a battery that never rests.
+        var tries: Int = 0
+
+        var id: String { recordName }
+
+        /// Addressed at the night as this phone holds it, with no field set
+        /// yet: the caller sets the ones the person touched.
+        init(changing entry: PlanLedger.Entry) {
+            recordName = entry.recordName
+            zoneOwner = entry.zoneOwner
+            day = entry.day
+            slot = entry.slot
+            seenAt = entry.changedAt
+            authorID = entry.authorID
+            authorName = entry.authorName
+            authorColorHex = entry.authorColorHex
+            createdAt = entry.createdAt
+        }
+
+        /// Taking the night off the plan for everybody.
+        init(deleting entry: PlanLedger.Entry) {
+            self.init(changing: entry)
+            kind = .delete
+        }
+    }
+
+    /// What an edit does with the record's photograph. A night whose dish
+    /// changed may not keep the old dish's picture: that is the honesty rule
+    /// with a photograph on it.
+    enum PhotoIntent: String, Codable, Sendable {
+        /// Nothing about the dish changed, so readers keep what they have
+        /// and download nothing.
+        case keep
+        /// The dish changed and this phone has no picture of the new one.
+        case clear
+        /// Send the bytes queued beside this edit.
+        case send
+    }
+
+    /// What a write did, in the words the sheet has to say out loud. A
+    /// queued write is not a landed write, and nothing here lets a caller
+    /// confuse the two.
+    enum WriteOutcome: Equatable {
+        /// It is in the zone, stamped with this clock.
+        case landed(Date)
+        /// Kept on this phone: the row says it has not gone yet and the next
+        /// pass sends it. The string is the sentence for the person, because
+        /// the causes are not one thing. "It goes out when this phone is back
+        /// online" was said about an account that is fine and a household
+        /// zone that would not read, and a person staring at four bars was
+        /// being told something false about their own phone.
+        case queued(String)
+        /// Somebody changed this night first. Their version is in the ledger
+        /// now, and the edit is gone.
+        case theirs
+        /// It will not land. The string is the sentence for the person.
+        case refused(String)
+    }
+
+    // MARK: The queue
+
+    /// Edits that have not reached the zone. A JSON book in the app group,
+    /// per device, beside `plan-share.json`, for the reason `TableOutbox`
+    /// and `HouseholdOutbox` are not mirrored: a mirrored queue is a
+    /// distributed queue with no lease, and two of one person's devices
+    /// would both drain the same row.
+    ///
+    /// The book of fingerprints cannot hold an intent (it answers "what did
+    /// this phone last publish", which is a different question), so this is
+    /// the small queue beside it. One entry per record: a second edit of the
+    /// same night while the first is waiting folds onto it, because the
+    /// person means the night to end up the way it looks now.
+    static let editsFile = "plan-edits.json"
+
+    private static var cachedEdits: [Edit]?
+
+    private static var editsURL: URL? {
+        FileManager.default
+            .containerURL(forSecurityApplicationGroupIdentifier: WidgetBridge.appGroupID)?
+            .appending(path: editsFile)
+    }
+
+    private static var editPhotoDirectory: URL? {
+        FileManager.default
+            .containerURL(forSecurityApplicationGroupIdentifier: WidgetBridge.appGroupID)?
+            .appending(path: "plan-edit-photos")
+    }
+
+    /// What is waiting, oldest first.
+    static func queuedEdits() -> [Edit] {
+        if let cachedEdits { return cachedEdits }
+        var edits: [Edit] = []
+        if let url = editsURL, let data = try? Data(contentsOf: url),
+           let decoded = try? JSONDecoder().decode([Edit].self, from: data) {
+            edits = decoded
+        }
+        cachedEdits = edits
+        return edits
+    }
+
+    private static func saveEdits(_ edits: [Edit]) {
+        cachedEdits = edits
+        guard let url = editsURL, let data = try? JSONEncoder().encode(edits) else { return }
+        // Atomic: a kill mid-write must not leave half a queue, which
+        // decodes as nothing and silently forgets the change a person made.
+        try? data.write(to: url, options: .atomic)
+    }
+
+    /// A relaunch, and the tests that stand in for one.
+    static func reloadEdits() {
+        cachedEdits = nil
+    }
+
+    /// Park an edit. Two edits of one night fold: the later fields win, the
+    /// earlier `seenAt` is kept (that is the version the person started
+    /// from), and a delete stays a delete, because a night taken off and
+    /// then edited is a night that is off.
+    static func enqueue(_ edit: Edit, photo: Data? = nil) {
+        var edits = queuedEdits()
+        var entry = edit
+        if let i = edits.firstIndex(where: { $0.recordName == edit.recordName }) {
+            let waiting = edits[i]
+            guard waiting.kind != .delete || edit.kind == .delete else { return }
+            entry.seenAt = waiting.seenAt
+            entry.tries = waiting.tries
+            entry.title = edit.title ?? waiting.title
+            entry.servings = edit.servings ?? waiting.servings
+            entry.tagline = edit.tagline ?? waiting.tagline
+            entry.cookID = edit.cookID ?? waiting.cookID
+            entry.cookName = edit.cookName ?? waiting.cookName
+            entry.cookColorHex = edit.cookColorHex ?? waiting.cookColorHex
+            entry.cookSeat = edit.cookSeat ?? waiting.cookSeat
+            entry.hasRecipe = edit.hasRecipe ?? waiting.hasRecipe
+            entry.recipeMinutes = edit.recipeMinutes ?? waiting.recipeMinutes
+            entry.recipeOriginKey = edit.recipeOriginKey ?? waiting.recipeOriginKey
+            if entry.photo == .keep { entry.photo = waiting.photo }
+            edits[i] = entry
+        } else {
+            edits.append(entry)
+        }
+        if let photo, let small = downscale(photo) { writeEditPhoto(entry.recordName, small) }
+        if entry.photo == .clear || entry.kind == .delete { removeEditPhoto(entry.recordName) }
+        saveEdits(edits)
+    }
+
+    /// Off the queue, with the bytes it was carrying.
+    private static func drop(_ recordName: String) {
+        var edits = queuedEdits()
+        edits.removeAll { $0.recordName == recordName }
+        removeEditPhoto(recordName)
+        saveEdits(edits)
+    }
+
+    /// An Apple ID change, a leave, and the tests.
+    static func forgetEdits() {
+        cachedEdits = []
+        answers = [:]
+        if let url = editsURL { try? FileManager.default.removeItem(at: url) }
+        if let dir = editPhotoDirectory { try? FileManager.default.removeItem(at: dir) }
+    }
+
+    private static func writeEditPhoto(_ recordName: String, _ data: Data) {
+        guard let dir = editPhotoDirectory else { return }
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        try? data.write(to: dir.appending(path: "\(recordName).jpg"), options: .atomic)
+    }
+
+    static func editPhoto(_ recordName: String) -> Data? {
+        guard let url = editPhotoDirectory?.appending(path: "\(recordName).jpg") else { return nil }
+        return try? Data(contentsOf: url)
+    }
+
+    private static func removeEditPhoto(_ recordName: String) {
+        guard let url = editPhotoDirectory?.appending(path: "\(recordName).jpg") else { return }
+        try? FileManager.default.removeItem(at: url)
+    }
+
+    // MARK: The write
+
+    /// One person's change to one household night, all the way through: the
+    /// row moves under the finger, the edit is parked so a kill cannot lose
+    /// it, and then it goes to the zone. The answer is what the sheet says.
+    ///
+    /// The optimistic row is marked as not landed until it has (see
+    /// `PlanLedger.applyLocally`), because a queued write is not a landed
+    /// write and the interface may never claim otherwise.
+    @discardableResult
+    static func write(_ edit: Edit, photo: Data? = nil) async -> WriteOutcome {
+        print("PLATED HOUSEHOLD: plan edit \(edit.kind.rawValue) on \(edit.recordName) for \(edit.day)")
+        if edit.kind == .change,
+           queuedEdits().contains(where: { $0.recordName == edit.recordName && $0.kind == .delete }) {
+            // The queue folds a change onto a waiting delete by keeping the
+            // delete, because a night taken off is off. Applying this one to
+            // the row anyway would move it under the finger with nothing on
+            // its way to send it. The row stays visible while a delete is
+            // going now, so that is reachable, and saying so is the only
+            // honest answer.
+            print("PLATED HOUSEHOLD: \(edit.recordName) is already on its way off the plan, refusing the change")
+            return .refused("This night is on its way off the plan.")
+        }
+        PlanLedger.shared.applyLocally(edit)
+        enqueue(edit, photo: photo)
+        // Whatever was last said about this record was said about an older
+        // edit; this one has not been answered yet.
+        answers[edit.recordName] = nil
+        let outcome = await exclusively { await deliver(edit) }
+        if case .queued = outcome {
+            // Nothing else was coming for it. The publisher runs on a scene
+            // change or three seconds after a `ModelContext` save, and an
+            // edit to somebody else's night is neither, so an edit made
+            // offline in the foreground sat there until the person
+            // backgrounded the app.
+            schedule(reason: "plan edit")
+        }
+        return outcome
+    }
+
+    /// The wire half of `write`, with nothing else writing the zone.
+    private static func deliver(_ edit: Edit) async -> WriteOutcome {
+        // What is ON THE QUEUE for this night, not what this caller was
+        // holding. `enqueue` folds a second change onto a waiting first one,
+        // so the queue entry is the union of everything this phone has done
+        // to the night and has not sent. Sending the caller's edit instead
+        // put only the newest field on the wire and then dropped the whole
+        // folded entry on `.landed`, so a title changed while the phone was
+        // offline and a cook changed after it came back left the ledger
+        // showing both with nothing queued and nothing said, while the
+        // household had only the cook. The fold also keeps the earlier
+        // `seenAt`, which is the version the person actually started from.
+        guard let queued = queuedEdits().first(where: { $0.recordName == edit.recordName }) else {
+            // A publisher pass drained this very edit while this call was
+            // waiting for the zone. Sending it again would read back the
+            // `modifiedAt` this phone itself just wrote and tell the person
+            // somebody else got to their night first. What the drain answered
+            // is what happened, so that is what is reported. The fallback is
+            // the other way an edit leaves the queue unanswered: `forgetEdits`
+            // on an identity change or a re-home took it.
+            let answered = answers.removeValue(forKey: edit.recordName)
+                ?? .refused("This change could not be sent.")
+            print("PLATED HOUSEHOLD: \(edit.recordName) was already answered by a publish pass")
+            return answered
+        }
+        guard await TableSync.accountAvailable() else {
+            print("PLATED HOUSEHOLD: no iCloud account, the change is kept on this phone")
+            return .queued("It goes to your household when this phone is back on iCloud.")
+        }
+        guard let (db, zoneID, owner) = await TableShare.householdZone() else {
+            print("PLATED HOUSEHOLD: the household zone could not be reached, the change is kept on this phone")
+            return .queued("Your household could not be reached. It goes out on the next try.")
+        }
+        guard owner == queued.zoneOwner else {
+            // The household moved between the tap and the write. The night
+            // belongs to a zone this phone no longer publishes into, so the
+            // edit cannot land and saying so is the only honest answer.
+            print("PLATED HOUSEHOLD: the household changed under the edit, dropping it")
+            return settle(queued, .refused("This night is at a household this phone has left."))
+        }
+        return settle(queued, await send(queued, in: db, zone: zoneID))
+    }
+
+    /// One edit on the wire. The fetch-compare-save the household contract
+    /// calls "versions, not clocks": the record is read first, and a server
+    /// copy this edit did not descend from wins outright.
+    private static func send(_ edit: Edit, in db: CKDatabase, zone: CKRecordZone.ID) async -> WriteOutcome {
+        if edit.kind == .delete {
+            let gone = await TableShare.deletePlans(names: [edit.recordName], in: db, zone: zone)
+            // `.unknownItem` counts as gone inside `deletePlans`: a night
+            // that is not in the zone is a night that is off the plan.
+            guard gone.contains(edit.recordName) else {
+                print("PLATED HOUSEHOLD: \(edit.recordName) would not delete, keeping it queued")
+                return .queued("Your household could not be reached. It goes out on the next try.")
+            }
+            print("PLATED HOUSEHOLD: \(edit.recordName) is off the plan")
+            return .landed(edit.at)
+        }
+        // Three answers, not two. A zone that would not answer is NOT a
+        // night the zone does not hold: taking one for the other mints a
+        // fresh record over a real one, and a fresh record reports every
+        // primed default as a changed key, so the save's own
+        // `.serverRecordChanged` retry writes "" over the title and 4 over
+        // the servings of the night being edited, and answers `.landed`.
+        let existing: CKRecord?
+        switch await TableShare.fetchPlan(named: edit.recordName, in: db, zone: zone) {
+        case .found(let record): existing = record
+        case .absent:
+            if wasTakenOffElsewhere(edit) {
+                // A ledger entry exists only because the record was
+                // delivered, so a record that is not there now was taken off
+                // by somebody between then and this edit. Minting it back
+                // would stand a permanent ghost on every phone but one: the
+                // mint carries the night's ORIGINAL author, and that author's
+                // publish book no longer holds the name, so nothing on their
+                // phone will ever republish or re-delete it. A deletion is
+                // the other person's version and it wins the way a newer
+                // `modifiedAt` does.
+                PlanLedger.shared.nightIsGone(edit.recordName)
+                print("PLATED HOUSEHOLD: \(edit.recordName) was taken off the plan on another phone, dropping the edit")
+                return .refused("That night was taken off the plan on another phone.")
+            }
+            existing = nil
+        case .unreachable:
+            print("PLATED HOUSEHOLD: \(edit.recordName) could not be read, keeping the change queued")
+            return .queued("This night could not be read just now. It goes out on the next try.")
+        }
+        if let existing, movedOn(existing["modifiedAt"] as? Date, since: edit.seenAt) {
+            var theirs = TableShare.remotePlan(from: existing)
+            // `remotePlan` reads a record, not a zone: the pull stamps the
+            // owner on its way past, and here the caller knows it.
+            theirs.zoneOwner = edit.zoneOwner
+            PlanLedger.shared.fold(theirs)
+            print("PLATED HOUSEHOLD: \(edit.recordName) changed on another phone first, taking that version")
+            return .theirs
+        }
+        let now = Date.now
+        let (record, temp) = record(for: edit, existing: existing, zone: zone, now: now)
+        let saved = await TableShare.savePlans([record], in: db)
+        if let temp { try? FileManager.default.removeItem(at: temp) }
+        guard saved.contains(edit.recordName) else {
+            print("PLATED HOUSEHOLD: \(edit.recordName) would not save, keeping it queued")
+            return .queued("Your household did not take the change. It goes out on the next try.")
+        }
+        print("PLATED HOUSEHOLD: \(edit.recordName) saved into \(edit.zoneOwner.isEmpty ? "the own household" : edit.zoneOwner)")
+        return .landed(now)
+    }
+
+    /// What the last write said about one record, for a caller whose edit was
+    /// answered by the publisher's drain while it waited for the zone. Read
+    /// once and removed; a record with nothing waiting keeps at most one
+    /// entry, so this is as big as the nights edited since launch.
+    private static var answers: [String: WriteOutcome] = [:]
+
+    /// What the queue and the ledger do with an answer, and the answer the
+    /// person is actually owed. Internal so the twenty-refusal drop can be
+    /// tested without CloudKit.
+    ///
+    /// It returns rather than swallowing, because the drop after twenty
+    /// refusals turns a queued write into a refused one: the caller was
+    /// telling the person it would go out later while the row snapped back
+    /// in front of them. One answer, and it is this one.
+    @discardableResult
+    static func settle(_ edit: Edit, _ outcome: WriteOutcome) -> WriteOutcome {
+        var answer = outcome
+        switch outcome {
+        case .landed, .theirs, .refused:
+            drop(edit.recordName)
+            PlanLedger.shared.settle(edit, outcome)
+        case .queued:
+            var edits = queuedEdits()
+            if let i = edits.firstIndex(where: { $0.recordName == edit.recordName }) {
+                edits[i].tries += 1
+                // Twenty refusals is not a network blip. Dropping it is
+                // honest; the row stops claiming it is on its way, and the
+                // zone's next delivery says what the night really is.
+                if edits[i].tries > 20 {
+                    print("PLATED HOUSEHOLD: dropping the edit on \(edit.recordName) after \(edits[i].tries) refusals")
+                    edits.remove(at: i)
+                    let refusal = WriteOutcome.refused("This change could not reach your household.")
+                    PlanLedger.shared.settle(edit, refusal)
+                    answer = refusal
+                }
+                saveEdits(edits)
+            }
+        }
+        answers[edit.recordName] = answer
+        return answer
+    }
+
+    /// True when this edit was made against a record that is now absent, so
+    /// the absence is somebody else's delete rather than a night that never
+    /// had a record. `seenAt` is the ledger entry's `changedAt`, and a ledger
+    /// entry exists only because the record was once delivered.
+    nonisolated static func wasTakenOffElsewhere(_ edit: Edit) -> Bool {
+        edit.seenAt != nil
+    }
+
+    /// True when the zone's copy is not the one this edit was made against.
+    ///
+    /// Whole seconds: a `Date` goes to CloudKit and comes back through a
+    /// double, and a comparison at full precision would call every record
+    /// moved and refuse every edit.
+    nonisolated static func movedOn(_ served: Date?, since seen: Date?) -> Bool {
+        guard let seen else {
+            // The edit expected no record at all. One being there is
+            // somebody else's night under the same name.
+            return served != nil
+        }
+        guard let served else { return false }
+        return abs(served.timeIntervalSince(seen)) >= 1
+    }
+
+    /// The record this edit saves: the fetched instance with the changed
+    /// fields on it, or a new one when the zone has none.
+    ///
+    /// The mint is for a night with no record at all. An edit to a night the
+    /// ledger holds never reaches it with `existing` nil: `send` reads that
+    /// absence as somebody else's delete and refuses (`wasTakenOffElsewhere`),
+    /// because re-minting one stands a ghost on every phone but the author's.
+    ///
+    /// The mint carries the night's ORIGINAL author, never the editor. A
+    /// record authored by the editor is dropped by that editor's own ledger
+    /// (`absorb` keeps nothing this phone wrote, because its own nights are
+    /// `PlannedMeal` rows), and there is no `PlannedMeal` behind a night
+    /// somebody else planned, so the night would vanish from the one phone
+    /// that just changed it while standing on every other.
+    static func record(
+        for edit: Edit, existing: CKRecord?, zone: CKRecordZone.ID, now: Date
+    ) -> (record: CKRecord, temp: URL?) {
+        let record: CKRecord
+        if let existing {
+            record = existing
+        } else {
+            record = CKRecord(
+                recordType: TableShare.planType,
+                recordID: CKRecord.ID(recordName: edit.recordName, zoneID: zone)
+            )
+            // Every field primed non-nil, the way the publisher primes one:
+            // a key first minted from nothing is minted at the wrong type,
+            // permanently.
+            record["authorID"] = edit.authorID as CKRecordValue
+            record["authorName"] = edit.authorName as CKRecordValue
+            record["authorColorHex"] = edit.authorColorHex as CKRecordValue
+            record["cookID"] = "" as CKRecordValue
+            record["cookName"] = "" as CKRecordValue
+            record["cookColorHex"] = "" as CKRecordValue
+            record["cookSeat"] = "" as CKRecordValue
+            record["day"] = edit.day as CKRecordValue
+            record["slot"] = edit.slot as CKRecordValue
+            record["title"] = "" as CKRecordValue
+            record["servings"] = 4 as CKRecordValue
+            record["tagline"] = "" as CKRecordValue
+            record["cooked"] = 0 as CKRecordValue
+            record["hasRecipe"] = 0 as CKRecordValue
+            record["recipeMinutes"] = 0 as CKRecordValue
+            record["recipeOriginKey"] = "" as CKRecordValue
+            record["shoppingID"] = shoppingID(of: edit.recordName) as CKRecordValue
+            record["createdAt"] = edit.createdAt as CKRecordValue
+            // Both links, exactly as the publisher writes them: the
+            // reference is the cascade, the parent is what puts the record
+            // under the household share so a member can see it at all.
+            let rootID = CKRecord.ID(recordName: TableShare.householdRootName, zoneID: zone)
+            record["parent"] = CKRecord.Reference(recordID: rootID, action: .deleteSelf)
+            record.setParent(rootID)
+        }
+        if let title = edit.title { record["title"] = title as CKRecordValue }
+        if let servings = edit.servings { record["servings"] = servings as CKRecordValue }
+        if let tagline = edit.tagline { record["tagline"] = tagline as CKRecordValue }
+        if let cookID = edit.cookID { record["cookID"] = cookID as CKRecordValue }
+        if let cookName = edit.cookName { record["cookName"] = cookName as CKRecordValue }
+        if let hex = edit.cookColorHex { record["cookColorHex"] = hex as CKRecordValue }
+        if let seat = edit.cookSeat { record["cookSeat"] = seat as CKRecordValue }
+        if let hasRecipe = edit.hasRecipe { record["hasRecipe"] = (hasRecipe ? 1 : 0) as CKRecordValue }
+        if let minutes = edit.recipeMinutes { record["recipeMinutes"] = minutes as CKRecordValue }
+        if let key = edit.recipeOriginKey { record["recipeOriginKey"] = key as CKRecordValue }
+        record["modifiedAt"] = now as CKRecordValue
+        var temp: URL?
+        switch edit.photo {
+        case .keep:
+            break
+        case .clear:
+            record["photo"] = nil
+        case .send:
+            if let data = editPhoto(edit.recordName), let asset = TableShare.asset(from: data) {
+                record["photo"] = asset
+                temp = asset.fileURL
+            } else {
+                // The bytes are gone: a picture that cannot be sent must not
+                // leave the old dish's photograph under the new dish's name.
+                record["photo"] = nil
+            }
+        }
+        return (record, temp)
+    }
+
+    /// `plan-<shoppingID>` is the one name a night has, so the id comes back
+    /// out of it rather than being minted twice.
+    nonisolated static func shoppingID(of recordName: String) -> String {
+        recordName.hasPrefix("plan-") ? String(recordName.dropFirst("plan-".count)) : recordName
+    }
+
+    /// Everything waiting, aimed at the household this pass resolved.
+    ///
+    /// Edits go before the publisher's own diff: somebody is looking at a
+    /// change they made on their screen, and the diff can have the rest of
+    /// the pass.
+    private static func drainEdits(in db: CKDatabase, zone: CKRecordZone.ID, target: String) async {
+        // A row that says it has not landed with nothing queued behind it is
+        // a row claiming something that is not going to happen: a kill
+        // between the ledger write and the queue write leaves exactly that.
+        PlanLedger.shared.clearPending(except: Set(queuedEdits().map(\.recordName)))
+        for stray in queuedEdits() where stray.zoneOwner != target {
+            print("PLATED HOUSEHOLD: dropping an edit for \(stray.zoneOwner.isEmpty ? "the own household" : stray.zoneOwner), which is not this phone's household now")
+            settle(stray, .refused("This night is at a household this phone has left."))
+        }
+        let waiting = queuedEdits()
+        guard !waiting.isEmpty else { return }
+        print("PLATED HOUSEHOLD: draining \(waiting.count) plan edit(s)")
+        for edit in waiting {
+            let outcome = await send(edit, in: db, zone: zone)
+            settle(edit, outcome)
+        }
     }
 
     /// 600px on the long side at JPEG 0.7, the widget's treatment. Called

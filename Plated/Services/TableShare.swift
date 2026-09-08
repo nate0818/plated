@@ -70,6 +70,17 @@ enum TableShare {
     static let householdRootType = "PlatedHousehold"
     /// A night on the plan, `plan-<shoppingID>`, in the household zone.
     static let planType = "PlatedHouseholdPlan"
+
+    /// What a read of one night's record found. Three answers, never two:
+    /// "the zone does not hold this name" and "the zone would not answer"
+    /// send an edit down opposite paths, and collapsing them is how a
+    /// network blip becomes a blanked dinner. See `fetchPlan`.
+    enum PlanFetch {
+        case found(CKRecord)
+        case absent
+        case unreachable
+    }
+
     /// Written by the household invite on join and on the head's first
     /// mint, read here as the one answer to "which household is this
     /// phone in": "" for the head's own zone, the host's user record name
@@ -1507,6 +1518,36 @@ enum TableShare {
         return (record, temp)
     }
 
+    /// One night, keeping the difference between a name the zone does not
+    /// hold and a zone that would not answer.
+    ///
+    /// `fetchPlanRecords` cannot tell those apart: it swallows the throw and
+    /// returns an empty dictionary, which is fine for the publisher (a night
+    /// it cannot read is a night it re-creates, and it owns every field of
+    /// it) and wrong for an edit. An edit that takes a failed fetch for an
+    /// absent record mints a fresh record, and a fresh `CKRecord` reports
+    /// every primed default as a changed key, so the `.serverRecordChanged`
+    /// retry writes "" over somebody's title and 4 over their servings and
+    /// then tells the person their change landed.
+    static func fetchPlan(
+        named name: String, in db: CKDatabase, zone: CKRecordZone.ID
+    ) async -> PlanFetch {
+        do {
+            let id = CKRecord.ID(recordName: name, zoneID: zone)
+            switch try await db.records(for: [id])[id] {
+            case .success(let record): return .found(record)
+            case .failure(let error as CKError) where error.code == .unknownItem: return .absent
+            case .failure(let error):
+                print("[PlanShare] fetch of \(name) failed: \(error.localizedDescription)")
+                return .unreachable
+            case nil: return .absent
+            }
+        } catch {
+            print("[PlanShare] fetch of \(name) failed: \(error.localizedDescription)")
+            return .unreachable
+        }
+    }
+
     /// The records the zone already holds, by name, so a known night is
     /// updated rather than raced. A name the zone lacks is simply absent
     /// and the caller creates it outright.
@@ -1958,6 +1999,8 @@ enum TableShare {
     }
     static func fetchPlanRecords(named names: [String], in db: CKDatabase,
                                  zone: CKRecordZone.ID) async -> [String: CKRecord] { [:] }
+    static func fetchPlan(named name: String, in db: CKDatabase,
+                          zone: CKRecordZone.ID) async -> PlanFetch { .unreachable }
     static func savePlans(_ records: [CKRecord], in db: CKDatabase) async -> Set<String> { [] }
     static func deletePlans(names: [String], in db: CKDatabase, zone: CKRecordZone.ID) async -> Set<String> { [] }
     static func deletePlans(names: [String], zoneOwner: String) async -> Set<String> { [] }

@@ -35,14 +35,31 @@ enum HouseholdShare {
     // `TableShare.assertNoEntityCollision` checks every one of these.
     static let rootType = TableShare.householdRootType
     static let seatType = "PlatedHouseholdSeat"
-    static let mealType = "PlatedHouseholdMeal"
     static let recipeType = "PlatedHouseholdRecipe"
     static let gatheringType = "PlatedHouseholdGathering"
     static let lineType = "PlatedHouseholdGroceryLine"
     static let markType = "PlatedHouseholdGroceryMark"
     static let writtenTypes: Set<String> = [
-        rootType, seatType, mealType, recipeType, gatheringType, lineType, markType
+        rootType, seatType, recipeType, gatheringType, lineType, markType
     ]
+
+    // There is no household meal type, and there may never be one.
+    //
+    // A night used to travel here as `PlatedHouseholdMeal` and merge into
+    // `PlannedMeal`. `PlannedMeal` is a `@Model` in a store configured
+    // `cloudKitDatabase: .automatic`, so a household fact placed there is
+    // owned by the zone AND by the writer's own private mirror at the same
+    // time, and that mirror carries it to the same person's other devices,
+    // which are themselves merging the same zone record. That is two
+    // writers on one fact by construction, and `collapseDuplicates` running
+    // after every merge repaired the shape rather than fixing it: it held
+    // in the cases somebody tested and failed quietly in the rest.
+    //
+    // So the household carries the roster, the cookbook, gatherings and the
+    // grocery list. The week travels through the plan pipe in this same
+    // zone, as `PlatedHouseholdPlan` records read into `PlanLedger`
+    // (docs/plan-share.md), and is never merged into `PlannedMeal` by
+    // anything.
 
     static func mintSeatName() -> String { "seat-\(UUID().uuidString)" }
 
@@ -88,8 +105,10 @@ enum HouseholdShare {
         static let tableShareURL = "plated.household.tableShareURL"
         static let autoRotate = "plated.household.autoRotate"
         static let lastSyncedName = "plated.household.lastSyncedName"
-        /// Meal references that named a record this phone has not received
-        /// yet, so a recipe arriving after its meal can still repair it.
+        /// Legacy. Nothing writes this any more: it parked a household
+        /// meal's unresolved references, and meals no longer travel. Kept
+        /// so `forgetUnresolved` and `TableIdentity.reset` can still clear
+        /// what an older build left in the app group.
         static let unresolved = "plated.household.unresolvedRefs"
         static let sharedDatabaseToken = "plated.dbtoken.shared"
     }
@@ -212,29 +231,6 @@ enum HouseholdShare {
         var photo: Data?
     }
 
-    struct RemoteMeal: Equatable {
-        var recordName = ""
-        var authorID = ""
-        var modifiedBy = ""
-        var modifiedAt = Date.now
-        /// yyyy-MM-dd, so two time zones cannot move a dinner between days.
-        var day = ""
-        var slot = MealSlot.dinner.rawValue
-        var customTitle = ""
-        var titleSnapshot = ""
-        var notes = ""
-        var servings = 4
-        var cookedAt: Date?
-        var cookReaction = 0
-        var actualMinutes = 0
-        var createdAt = Date.now
-        var shoppingID: String?
-        var tagline = ""
-        var recipeRecordName = ""
-        var cookRecordName = ""
-        var gatheringRecordName = ""
-    }
-
     /// One ingredient line as it rides inside `ingredientsJSON`.
     struct WireIngredient: Codable, Equatable {
         var name = ""
@@ -322,7 +318,6 @@ enum HouseholdShare {
     struct Changes {
         var root: RemoteRoot?
         var seats: [RemoteSeat] = []
-        var meals: [RemoteMeal] = []
         var recipes: [RemoteRecipe] = []
         var gatherings: [RemoteGathering] = []
         var lines: [RemoteLine] = []
@@ -355,7 +350,7 @@ enum HouseholdShare {
         var plan = TableShare.Changes()
 
         var isEmpty: Bool {
-            root == nil && seats.isEmpty && meals.isEmpty && recipes.isEmpty
+            root == nil && seats.isEmpty && recipes.isEmpty
                 && gatherings.isEmpty && lines.isEmpty && marks.isEmpty && deleted.isEmpty
         }
 
@@ -365,7 +360,6 @@ enum HouseholdShare {
             switch record.recordType {
             case HouseholdShare.rootType: root = HouseholdShare.remoteRoot(from: record)
             case HouseholdShare.seatType: seats.append(HouseholdShare.remoteSeat(from: record))
-            case HouseholdShare.mealType: meals.append(HouseholdShare.remoteMeal(from: record))
             case HouseholdShare.recipeType: recipes.append(HouseholdShare.remoteRecipe(from: record))
             case HouseholdShare.gatheringType: gatherings.append(HouseholdShare.remoteGathering(from: record))
             case HouseholdShare.lineType: lines.append(HouseholdShare.remoteLine(from: record))
@@ -387,7 +381,6 @@ enum HouseholdShare {
         mutating func absorb(_ other: Changes) {
             if let root = other.root { self.root = root }
             seats += other.seats
-            meals += other.meals
             recipes += other.recipes
             gatherings += other.gatherings
             lines += other.lines
@@ -430,7 +423,6 @@ enum HouseholdShare {
     struct MergeOutcome {
         var newSeats: [HouseholdMember] = []
         var leftSeats: [HouseholdMember] = []
-        var newMeals: [PlannedMeal] = []
         var newRecipes: [Recipe] = []
         /// Record names whose local edit lost to a newer server version.
         /// Empty from a pull; `HouseholdOutbox.drain` fills it from the
@@ -603,30 +595,6 @@ enum HouseholdShare {
         return s
     }
 
-    static func remoteMeal(from record: CKRecord) -> RemoteMeal {
-        var m = RemoteMeal()
-        m.recordName = record.recordID.recordName
-        m.authorID = Wire.string(record, "authorID")
-        m.modifiedBy = Wire.string(record, "modifiedBy")
-        m.modifiedAt = record["modifiedAt"] as? Date ?? .now
-        m.day = Wire.string(record, "day")
-        m.slot = record["slot"] as? String ?? MealSlot.dinner.rawValue
-        m.customTitle = Wire.string(record, "customTitle")
-        m.titleSnapshot = Wire.string(record, "titleSnapshot")
-        m.notes = Wire.string(record, "notes")
-        m.servings = record["servings"] == nil ? 4 : TableShare.int(record, "servings")
-        m.cookedAt = record["cookedAt"] as? Date
-        m.cookReaction = TableShare.int(record, "cookReaction")
-        m.actualMinutes = TableShare.int(record, "actualMinutes")
-        m.createdAt = record["createdAt"] as? Date ?? .now
-        m.shoppingID = record["shoppingID"] as? String
-        m.tagline = Wire.string(record, "tagline")
-        m.recipeRecordName = Wire.string(record, "recipeRecordName")
-        m.cookRecordName = Wire.string(record, "cookRecordName")
-        m.gatheringRecordName = Wire.string(record, "gatheringRecordName")
-        return m
-    }
-
     static func remoteRecipe(from record: CKRecord) -> RemoteRecipe {
         var r = RemoteRecipe()
         r.recordName = record.recordID.recordName
@@ -747,27 +715,6 @@ enum HouseholdShare {
         Wire.setAsset(record, "photo", s.photo)
     }
 
-    static func write(_ m: RemoteMeal, onto record: CKRecord) {
-        Wire.set(record, "authorID", m.authorID)
-        Wire.set(record, "modifiedBy", m.modifiedBy)
-        Wire.set(record, "modifiedAt", m.modifiedAt)
-        Wire.set(record, "day", m.day)
-        Wire.set(record, "slot", m.slot)
-        Wire.set(record, "customTitle", m.customTitle)
-        Wire.set(record, "titleSnapshot", m.titleSnapshot)
-        Wire.set(record, "notes", m.notes)
-        Wire.set(record, "servings", m.servings)
-        Wire.set(record, "cookedAt", m.cookedAt)
-        Wire.set(record, "cookReaction", m.cookReaction)
-        Wire.set(record, "actualMinutes", m.actualMinutes)
-        Wire.set(record, "createdAt", m.createdAt)
-        Wire.set(record, "shoppingID", m.shoppingID)
-        Wire.set(record, "tagline", m.tagline)
-        Wire.set(record, "recipeRecordName", m.recipeRecordName)
-        Wire.set(record, "cookRecordName", m.cookRecordName)
-        Wire.set(record, "gatheringRecordName", m.gatheringRecordName)
-    }
-
     /// `includingPhotos` false leaves the photo keys of a fetched record
     /// exactly as they are, so a title edit does not re-upload six assets.
     static func write(_ r: RemoteRecipe, onto record: CKRecord, includingPhotos: Bool = true) {
@@ -869,35 +816,6 @@ enum HouseholdShare {
     }
 
     @MainActor
-    static func remote(from meal: PlannedMeal) -> RemoteMeal {
-        var m = RemoteMeal()
-        m.recordName = meal.shareRecordName
-        m.authorID = meal.authorID
-        m.day = meal.day
-        m.slot = meal.slot
-        m.customTitle = meal.customTitle
-        m.titleSnapshot = meal.title
-        m.notes = meal.notes
-        m.servings = meal.servings
-        m.cookedAt = meal.cookedAt
-        m.cookReaction = meal.cookReaction
-        m.actualMinutes = meal.actualMinutes
-        m.createdAt = meal.createdAt
-        m.shoppingID = meal.shoppingID
-        m.tagline = meal.tagline
-        // A meal can arrive before the recipe it names: the reference is
-        // parked in `unresolved` and the relationship is nil until the
-        // recipe lands. Writing "" for it here would tell every other phone
-        // that this dinner has no recipe, and the host's own dinner would
-        // lose its ingredients off the grocery list.
-        let parked = unresolved[meal.shareRecordName] ?? [:]
-        m.recipeRecordName = meal.recipe?.shareRecordName ?? parked["recipe"] ?? ""
-        m.cookRecordName = meal.cook?.shareRecordName ?? parked["cook"] ?? ""
-        m.gatheringRecordName = meal.gathering?.shareRecordName ?? parked["gathering"] ?? ""
-        return m
-    }
-
-    @MainActor
     static func remote(from recipe: Recipe) -> RemoteRecipe {
         var r = RemoteRecipe()
         r.recordName = recipe.shareRecordName
@@ -980,30 +898,23 @@ enum HouseholdShare {
 
     // MARK: Unresolved references
     //
-    // A meal's references travel as record names and the local row keeps
-    // only the relationship, so a name this phone could not resolve yet has
-    // to be remembered somewhere or the recipe arriving next pull could
-    // never repair the meal. A small book in the app group, pruned as each
-    // reference resolves.
-
-    private static var unresolved: [String: [String: String]] {
-        get {
-            guard let data = groupDefaults.data(forKey: Keys.unresolved) else { return [:] }
-            return (try? JSONDecoder().decode([String: [String: String]].self, from: data)) ?? [:]
-        }
-        set {
-            if newValue.isEmpty { groupDefaults.removeObject(forKey: Keys.unresolved) }
-            else if let data = try? JSONEncoder().encode(newValue) { groupDefaults.set(data, forKey: Keys.unresolved) }
-        }
-    }
+    // Gone with the meal merge. A meal's references travelled as record
+    // names and had to be parked until the recipe they named arrived; no
+    // record here names another any more, so there is nothing to park.
+    // The clear stays because an older build's book is still sitting in
+    // the app group on any phone that ran one.
 
     static func forgetUnresolved() { groupDefaults.removeObject(forKey: Keys.unresolved) }
 
     // MARK: Merge (§2, §3)
 
     /// Fold a delta into the store, keyed on `shareRecordName`, update or
-    /// insert, never delete-and-reinsert: cook sessions, `PlannedMeal.recipe`
-    /// and the rota all depend on row identity.
+    /// insert, never delete-and-reinsert: cook sessions, the local nights
+    /// that point at a recipe, and the rota all depend on row identity.
+    ///
+    /// Nothing here ever writes a `PlannedMeal`. A night is not a household
+    /// record (see the type list above); it rides the plan pipe and lands in
+    /// `PlanLedger`, beside the store rather than inside it.
     ///
     /// `ignoringPending` is the push's door: a row whose own push found a
     /// newer server version is merged through here despite its outbox
@@ -1032,7 +943,6 @@ enum HouseholdShare {
         var members = (try? context.fetch(FetchDescriptor<HouseholdMember>())) ?? []
         var recipes = (try? context.fetch(FetchDescriptor<Recipe>())) ?? []
         var gatherings = (try? context.fetch(FetchDescriptor<Gathering>())) ?? []
-        var meals = (try? context.fetch(FetchDescriptor<PlannedMeal>())) ?? []
         var lines = ((try? context.fetch(FetchDescriptor<GroceryItem>())) ?? []).filter(\.isManual)
 
         func memberNamed(_ name: String) -> HouseholdMember? {
@@ -1047,22 +957,14 @@ enum HouseholdShare {
             guard !name.isEmpty else { return nil }
             return gatherings.first { $0.shareRecordName == name }
         }
-        func mealNamed(_ name: String) -> PlannedMeal? {
-            guard !name.isEmpty else { return nil }
-            return meals.first { $0.shareRecordName == name }
-        }
 
         // Taken away, of any kind. Deletion wins any conflict, as CloudKit's
-        // own semantics do. A deleted meal's mark is left alone: a mark is
-        // about a line, and the line may still be on the list from another
-        // night.
+        // own semantics do. A deleted line's mark is left alone: a mark is
+        // about a line key, and another night's line may still carry it.
         for name in changes.deleted {
             if let member = memberNamed(name) {
                 context.delete(member)
                 members.removeAll { $0 === member }
-            } else if let meal = mealNamed(name) {
-                context.delete(meal)
-                meals.removeAll { $0 === meal }
             } else if let recipe = recipeNamed(name) {
                 context.delete(recipe)
                 recipes.removeAll { $0 === recipe }
@@ -1074,24 +976,12 @@ enum HouseholdShare {
                 lines.removeAll { $0 === line }
             }
         }
-        if !changes.deleted.isEmpty {
-            var book = unresolved
-            for name in changes.deleted { book[name] = nil }
-            // A parked reference whose target has been deleted is not going
-            // to resolve, and `remote(from:)` reads the book, so leaving it
-            // would rewrite a dead recipe name onto the wire on every push.
-            for (mealName, refs) in book {
-                let kept = refs.filter { !changes.deleted.contains($0.value) }
-                if kept.count != refs.count { book[mealName] = kept.isEmpty ? nil : kept }
-            }
-            unresolved = book
-        }
-
         if let root = changes.root {
             applyRoot(root, in: context)
         }
 
-        // Seats first: meals name their cook.
+        // Seats first: a recipe's notices and a gathering's rows both read
+        // the roster the merge is about to write.
         let removed = Set(cachedRemovedIDs)
         let hosting: Bool = { if case .hosting = membership { return true }; return false }()
         for s in changes.seats where !s.recordName.isEmpty {
@@ -1142,7 +1032,6 @@ enum HouseholdShare {
             }
         }
 
-        // Recipes before meals, so a meal can find its recipe.
         for r in changes.recipes where !r.recordName.isEmpty {
             guard !pending(r.recordName) else { continue }
             var recipe = recipeNamed(r.recordName)
@@ -1193,83 +1082,6 @@ enum HouseholdShare {
             }
         }
 
-        var book = unresolved
-        // (day, slot) rivals hand their purchases to the winner, but that
-        // rewrite stamps `now` and `me`, so it is held until this delta's
-        // own marks have been folded. Otherwise the fold, not the person,
-        // becomes the newest fact about the line and a remote uncheck
-        // arriving in the same delta is thrown away.
-        var foldsPending: [(from: String, to: String)] = []
-        for m in changes.meals where !m.recordName.isEmpty {
-            guard !pending(m.recordName) else { continue }
-            let day = Wire.date(fromDay: m.day)
-            var meal = mealNamed(m.recordName)
-            if meal == nil, let day, let twin = meals.first(where: {
-                $0.shareRecordName.isEmpty && $0.date == day && $0.slot == m.slot
-                    && abs($0.createdAt.timeIntervalSince(m.createdAt)) < 2
-            }) {
-                twin.shareRecordName = m.recordName
-                meal = twin
-                print("PLATED HOUSEHOLD: adopted meal name \(m.recordName) onto \(twin.title)")
-            }
-            let target: PlannedMeal
-            if let meal {
-                guard meal.shareModifiedAt != m.modifiedAt else { continue }
-                target = meal
-            } else {
-                let fresh = PlannedMeal(date: day ?? .now)
-                fresh.shareRecordName = m.recordName
-                context.insert(fresh)
-                meals.append(fresh)
-                target = fresh
-                if m.modifiedBy != me { outcome.newMeals.append(fresh) }
-            }
-            applyMeal(m, onto: target, day: day)
-            var missing: [String: String] = [:]
-            if !m.recipeRecordName.isEmpty {
-                target.recipe = recipeNamed(m.recipeRecordName)
-                if target.recipe == nil { missing["recipe"] = m.recipeRecordName }
-            } else {
-                target.recipe = nil
-            }
-            if !m.cookRecordName.isEmpty {
-                target.cook = memberNamed(m.cookRecordName)
-                if target.cook == nil { missing["cook"] = m.cookRecordName }
-            } else {
-                target.cook = nil
-            }
-            if !m.gatheringRecordName.isEmpty {
-                target.gathering = gatheringNamed(m.gatheringRecordName)
-                if target.gathering == nil { missing["gathering"] = m.gatheringRecordName }
-            } else {
-                target.gathering = nil
-            }
-            book[m.recordName] = missing.isEmpty ? nil : missing
-            target.shareFingerprint = stamp(target)
-
-            // One dinner per (day, slot): the lexically smaller name survives
-            // on every phone, so two members who planned the same night at
-            // once converge without talking. The loser's purchases move to
-            // the winner's mark so nothing bought is forgotten.
-            let rivals = meals.filter {
-                $0 !== target && !$0.shareRecordName.isEmpty
-                    && $0.date == target.date && $0.slot == target.slot
-            }
-            for rival in rivals {
-                let loser = rival.shareRecordName < target.shareRecordName ? target : rival
-                let winner = loser === target ? rival : target
-                if let from = loser.shoppingID, let to = winner.shoppingID {
-                    foldsPending.append((from, to))
-                }
-                print("PLATED HOUSEHOLD: one dinner per night, \(loser.shareRecordName) yields to \(winner.shareRecordName)")
-                HouseholdOutbox.shared.enqueueDelete(.meal, loser.shareRecordName)
-                context.delete(loser)
-                meals.removeAll { $0 === loser }
-                book[loser.shareRecordName] = nil
-                if loser === target { break }
-            }
-        }
-
         for l in changes.lines where !l.recordName.isEmpty {
             guard !pending(l.recordName) else { continue }
             if let line = lines.first(where: { $0.shareRecordName == l.recordName }) {
@@ -1294,31 +1106,6 @@ enum HouseholdShare {
                 into: context
             )
         }
-
-        for fold in foldsPending { foldPurchases(from: fold.from, into: fold.to) }
-
-        // Repair, regardless of modifiedAt: a recipe arriving after its meal
-        // is the ordinary case on a fresh join, where the zone is read in
-        // whatever order the pages come.
-        for (mealName, refs) in book {
-            guard let meal = mealNamed(mealName) else { book[mealName] = nil; continue }
-            var remaining = refs
-            if let name = refs["recipe"], meal.recipe == nil, let recipe = recipeNamed(name) {
-                meal.recipe = recipe
-                remaining["recipe"] = nil
-            }
-            if let name = refs["cook"], meal.cook == nil, let cook = memberNamed(name) {
-                meal.cook = cook
-                remaining["cook"] = nil
-            }
-            if let name = refs["gathering"], meal.gathering == nil, let gathering = gatheringNamed(name) {
-                meal.gathering = gathering
-                remaining["gathering"] = nil
-            }
-            if remaining != refs { meal.shareFingerprint = stamp(meal) }
-            book[mealName] = remaining.isEmpty ? nil : remaining
-        }
-        unresolved = book
 
         Persist.save(context, "household merge")
         return outcome
@@ -1387,25 +1174,6 @@ enum HouseholdShare {
         }
         if member.authorID.isEmpty { member.authorID = s.authorID }
         member.shareModifiedAt = s.modifiedAt
-    }
-
-    @MainActor
-    private static func applyMeal(_ m: RemoteMeal, onto meal: PlannedMeal, day: Date?) {
-        if let day { meal.date = day }
-        meal.slot = m.slot
-        meal.customTitle = m.customTitle
-        meal.titleFallback = m.titleSnapshot
-        meal.notes = m.notes
-        meal.servings = m.servings
-        meal.cookedAt = m.cookedAt
-        meal.cookReaction = m.cookReaction
-        meal.actualMinutes = m.actualMinutes
-        meal.createdAt = m.createdAt
-        // A wire shoppingID always wins and is never cleared.
-        if let id = m.shoppingID, !id.isEmpty { meal.shoppingID = id }
-        meal.tagline = m.tagline
-        if meal.authorID.isEmpty { meal.authorID = m.authorID }
-        meal.shareModifiedAt = m.modifiedAt
     }
 
     @MainActor
@@ -1531,22 +1299,6 @@ enum HouseholdShare {
         }
         profile.shareModifiedAt = root.modifiedAt
         print("PLATED HOUSEHOLD: root applied, name \"\(root.name)\", host \(root.hostName), published \(root.publishedAt.map { "\($0)" } ?? "not yet")")
-    }
-
-    /// The loser's purchases go onto the winner's shoppingID in every mark
-    /// that carried them, so a check-off made against the night that lost
-    /// is not lost with it. Takes the two shopping ids rather than the rows
-    /// because it runs after the merge's own marks have been folded, by
-    /// which time the losing row is already deleted.
-    @MainActor
-    private static func foldPurchases(from: String, into to: String) {
-        guard !from.isEmpty, !to.isEmpty, from != to else { return }
-        for mark in GroceryMarks.shared.all where mark.purchases[from] != nil {
-            var purchases = mark.purchases
-            let moved = purchases.removeValue(forKey: from) ?? 0
-            purchases[to] = max(purchases[to] ?? 0, moved)
-            GroceryMarks.shared.rewrite(lineKey: mark.lineKey, purchases: purchases)
-        }
     }
 
     /// The root as this phone knows it, for a push of the root entry.
@@ -1882,6 +1634,19 @@ enum HouseholdShare {
     private static func zoneChanges(in db: CKDatabase, zoneID: CKRecordZone.ID, isShared: Bool) async -> Changes {
         var found = Changes()
         do {
+            // The plan's reader asks for a zone to be read whole when the
+            // household moves back to a table it had dropped
+            // (`PlanShare.readAgain`); the request is written down rather
+            // than acted on there, because a token forgotten mid-fetch is
+            // stored over by the page that fetch is on. This is the start
+            // of the household zone's only read, so it is the one place
+            // nothing can interleave. Taking it before the token is read
+            // makes the cursor nil, which is what says "whole" to
+            // everything below, including `replayedOwners`.
+            if TableShare.takeReplayRequest(for: zoneID) {
+                TableShare.forgetToken(for: zoneID)
+                print("PLATED HOUSEHOLD: reading \(zoneID.zoneName) whole, a replay was asked for")
+            }
             var cursor = TableShare.token(for: zoneID)
             if cursor == nil { found.replayed = true }
             var more = true
@@ -1898,7 +1663,7 @@ enum HouseholdShare {
                 more = changes.moreComing
             }
             TableShare.store(cursor, for: zoneID)
-            print("PLATED HOUSEHOLD: read \(isShared ? zoneID.ownerName + "'s" : "my") zone: \(found.seats.count) seats, \(found.meals.count) meals, \(found.recipes.count) recipes, \(found.gatherings.count) gatherings, \(found.lines.count) lines, \(found.marks.count) marks, \(found.deleted.count) deleted\(found.root != nil ? ", root" : "")\(found.replayed ? ", replayed" : "")")
+            print("PLATED HOUSEHOLD: read \(isShared ? zoneID.ownerName + "'s" : "my") zone: \(found.seats.count) seats, \(found.recipes.count) recipes, \(found.gatherings.count) gatherings, \(found.lines.count) lines, \(found.marks.count) marks, \(found.deleted.count) deleted\(found.root != nil ? ", root" : "")\(found.replayed ? ", replayed" : "")")
         } catch let error as CKError where error.code == .zoneNotFound {
             // Positive evidence only (§8): the account must be available and
             // a direct look at the zone must also say it is not there.
@@ -2151,7 +1916,7 @@ enum HouseholdShare {
             let ok = await delete(recordNames: deletes.map(\.id))
             for entry in deletes { outcomes[entry.id] = ok ? .saved(modifiedAt: entry.at) : .retry }
         }
-        for kind in [HouseholdOutbox.Kind.seat, .recipe, .gathering, .meal, .line, .mark] {
+        for kind in [HouseholdOutbox.Kind.seat, .recipe, .gathering, .line, .mark] {
             let batch = entries.filter { !$0.isDelete && $0.kind == kind }
             guard !batch.isEmpty else { continue }
             let candidates = candidates(for: kind, entries: batch, context: context)
@@ -2311,33 +2076,6 @@ enum HouseholdShare {
                     }
                 )
             }
-        case .meal:
-            let rows = (try? context.fetch(FetchDescriptor<PlannedMeal>(
-                predicate: #Predicate { names.contains($0.shareRecordName) }
-            ))) ?? []
-            for entry in entries {
-                guard let row = rows.first(where: { $0.shareRecordName == entry.id }) else { continue }
-                if row.authorID.isEmpty { row.authorID = me }
-                found[entry.id] = Candidate(
-                    entry: entry, shareModifiedAt: row.shareModifiedAt, markAt: nil, photoHash: nil,
-                    write: { record, _ in
-                        var m = remote(from: row)
-                        m.modifiedBy = me
-                        m.modifiedAt = entry.at
-                        write(m, onto: record)
-                    },
-                    saved: { at in bookkeeping {
-                        row.shareModifiedAt = at
-                        row.shareFingerprint = HouseholdSync.fingerprint(of: row) ?? ""
-                    } },
-                    gone: { bookkeeping { context.delete(row) } },
-                    applyRemote: { record in
-                        var changes = Changes()
-                        changes.add(record)
-                        merge(changes, into: context, ignoringPending: [entry.id])
-                    }
-                )
-            }
         case .line:
             let rows = (try? context.fetch(FetchDescriptor<GroceryItem>(
                 predicate: #Predicate { names.contains($0.shareRecordName) }
@@ -2446,7 +2184,7 @@ enum HouseholdShare {
 
         // The server record first, so the write lands on the instance that
         // carries the change tag. Batched for the same reason the save is:
-        // `publishAll` enqueues every recipe and every meal a household has,
+        // `publishAll` enqueues every recipe a household has,
         // and one request carrying all of them comes back `.limitExceeded`,
         // which used to mark the whole kind failed.
         var fetched: [CKRecord.ID: Result<CKRecord, Error>] = [:]
@@ -2476,7 +2214,6 @@ enum HouseholdShare {
         func typeName(_ kind: HouseholdOutbox.Kind) -> String {
             switch kind {
             case .seat: return seatType
-            case .meal: return mealType
             case .recipe: return recipeType
             case .gathering: return gatheringType
             case .line: return lineType

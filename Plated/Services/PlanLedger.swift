@@ -47,8 +47,52 @@ final class PlanLedger {
         var hasPhoto: Bool
         var createdAt: Date
         var changedAt: Date
+        /// When this phone changed the night without the zone having said
+        /// yes yet. A queued write is not a landed write, so the row says
+        /// so until `settle` clears this. Absent on every entry that came
+        /// off the wire, which is every entry until somebody edits one.
+        var pendingSince: Date?
+        /// Set beside `pendingSince` when the change on its way is taking the
+        /// night off the plan for everybody. The entry STAYS while that is
+        /// true: a delete that has not landed is a night still standing on
+        /// every other phone, and a row that vanishes here says it went when
+        /// it did not, with nothing on any screen to correct it.
+        ///
+        /// Optional rather than a `Bool` with a default, because a book
+        /// written before this key existed has to keep decoding: a
+        /// synthesised `init(from:)` throws on a missing key rather than
+        /// falling back to a property's default value.
+        var pendingRemoval: Bool?
 
         var id: String { recordName }
+        /// This night is on its way off the plan and has not gone yet.
+        var isGoing: Bool { pendingSince != nil && pendingRemoval == true }
+
+        /// The caption clause while this phone's change has not reached the
+        /// household. Two sentences, not one: "Not sent yet" on a night the
+        /// person took off does not say the thing they need to know, which
+        /// is that everybody else still has it.
+        var pendingLine: String? {
+            guard pendingSince != nil else { return nil }
+            return isGoing ? "Still on the other phones" : "Not sent yet"
+        }
+
+        /// The same fact with room to breathe, for the hero under the card.
+        var pendingSentence: String? {
+            guard pendingSince != nil else { return nil }
+            return isGoing
+                ? "You took this night off. It has not reached the other phones yet."
+                : "Your change has not been sent yet."
+        }
+
+        /// The same fact as a clause inside a spoken sentence.
+        var pendingSpoken: String? {
+            guard pendingSince != nil else { return nil }
+            return isGoing
+                ? "you took this night off and it has not reached the other phones yet"
+                : "your change has not been sent yet"
+        }
+
         /// Start of the night's day in the reader's own calendar.
         var date: Date { PlanDay.date(day) ?? .distantPast }
         var slotValue: MealSlot { MealSlot(rawValue: slot) ?? .dinner }
@@ -106,6 +150,11 @@ final class PlanLedger {
 
     private var book = Book()
     private var photos: [String: Data] = [:]
+    /// The night as it stood before an edit this phone has not landed yet,
+    /// so a refusal can put it back. In memory on purpose: it is worth
+    /// nothing after a relaunch, where the zone is the thing to be corrected
+    /// by (see `revert`).
+    private var beforeEdit: [String: Entry] = [:]
 
     static let householdOwnerKey = "plated.plan.householdOwner"
     static let rehearsalOwner = "rehearsal-zone"
@@ -156,6 +205,14 @@ final class PlanLedger {
     // MARK: Reading
 
     /// Every night this phone should draw, household only.
+    ///
+    /// A night whose delete is still queued is IN here, so the widget, the
+    /// grocery window and every "N planned" count keep counting it. That is
+    /// the honest half of `pendingRemoval`: the night is still on the plan
+    /// until the zone says otherwise, and dropping it from the counts would
+    /// be this phone claiming a delete that has not happened, which is the
+    /// same lie as the vanished row in the other direction. The row says
+    /// what is going on; nothing else has to pretend it already went.
     var all: [Entry] {
         // Read the book before the household guard: `householdOwner` lives
         // in UserDefaults, not in a tracked property, so a body that reads
@@ -224,6 +281,18 @@ final class PlanLedger {
         let today = PlanDay.string(.now)
         func isNews(_ e: Entry) -> Bool { e.day >= today }
 
+        // Nights this phone has taken off and not yet sent. `applyLocally`
+        // keeps the entry and marks it, so the ordinary carry below holds
+        // the mark; this map is what puts it back when the entry itself has
+        // gone (a prune, a `forget`, a book that never had it). Without it a
+        // delivery of a record still in the zone precisely because the
+        // delete has not landed would raise "Nate planned Tacos for
+        // Thursday" about the night the reader themself just took off.
+        var leaving: [String: Date] = [:]
+        for edit in PlanShare.queuedEdits() where edit.kind == .delete {
+            leaving[edit.recordName] = edit.at
+        }
+
         // Deletions by name. Only `plan-` names are nights.
         for name in changes.deleted where name.hasPrefix("plan-") {
             if let old = book.entries.removeValue(forKey: name) {
@@ -244,18 +313,31 @@ final class PlanLedger {
         }
 
         for remote in changes.plans {
-            let entry = Entry(remote)
+            var entry = Entry(remote)
             guard !entry.authorID.isEmpty, entry.authorID != me else {
                 // Mine, echoed back. If a stale copy was kept under a
                 // placeholder identity, let it go.
                 if book.entries.removeValue(forKey: entry.recordName) != nil { removePhoto(entry.recordName) }
                 continue
             }
-            if let before = book.entries[entry.recordName] {
+            let before = book.entries[entry.recordName]
+            // An edit still waiting in the queue keeps its mark through a
+            // delivery: the row is showing what the zone says now and what
+            // this phone has still to send, and only `settle` or the drain's
+            // sweep may say that is over. Carried before the comparison, so
+            // a local mark can never be the difference that makes news.
+            if let mark = before?.pendingSince {
+                entry.pendingSince = mark
+                entry.pendingRemoval = before?.pendingRemoval
+            } else if let leavingAt = leaving[entry.recordName] {
+                entry.pendingSince = leavingAt
+                entry.pendingRemoval = true
+            }
+            if let before {
                 if before != entry, isNews(entry) || isNews(before) {
                     delta.changed.append((before, entry))
                 }
-            } else if isNews(entry) {
+            } else if isNews(entry), leaving[entry.recordName] == nil {
                 delta.added.append(entry)
             }
             book.entries[entry.recordName] = entry
@@ -277,6 +359,178 @@ final class PlanLedger {
             print("[PlanLedger] +\(delta.added.count) ~\(delta.changed.count) -\(delta.removed.count)")
         }
         return delta
+    }
+
+    // MARK: Editing
+
+    /// The night as an edit would leave it.
+    ///
+    /// Pure, and the one place an edit's fields are folded onto an entry, so
+    /// the row that moves under the finger and the record `PlanShare` saves
+    /// can never come to mean different things. `PlanShare.record(for:)`
+    /// writes the same list onto the wire; a field added to one belongs in
+    /// both.
+    static func edited(_ entry: Entry, by edit: PlanShare.Edit) -> Entry {
+        var e = entry
+        if let title = edit.title { e.title = title }
+        if let servings = edit.servings { e.servings = servings }
+        if let tagline = edit.tagline { e.tagline = tagline }
+        if let cookID = edit.cookID { e.cookID = cookID }
+        if let cookName = edit.cookName { e.cookName = cookName }
+        if let hex = edit.cookColorHex { e.cookColorHex = hex }
+        if let seat = edit.cookSeat { e.cookSeat = seat }
+        if let hasRecipe = edit.hasRecipe { e.hasRecipe = hasRecipe }
+        if let minutes = edit.recipeMinutes { e.recipeMinutes = minutes }
+        if let key = edit.recipeOriginKey { e.recipeOriginKey = key }
+        switch edit.photo {
+        case .keep: break
+        case .clear: e.hasPhoto = false
+        case .send: e.hasPhoto = true
+        }
+        // `changedAt` is deliberately NOT moved. It is the record's own
+        // clock as this phone last saw it, and `PlanShare.Edit(changing:)`
+        // reads it straight into `seenAt`, the version the write compares
+        // the server's against. Stamping it with this phone's optimistic
+        // clock made the next edit on the night claim to descend from a
+        // version that exists on no server, so the write read the real
+        // server clock as somebody else's change and told the person
+        // "This night changed on another phone first" about their own tap.
+        // A landed write takes the clock the record was actually saved
+        // with, in `settle`, which is the only place it may move.
+        return e
+    }
+
+    /// Change the night before the zone has answered, so the row moves under
+    /// the finger. What keeps that honest is `pendingSince`: the row says
+    /// the change has not reached the household until `settle` says it has.
+    ///
+    /// The before image is held in memory only. A kill loses it, and the
+    /// zone's next delivery is what corrects the row then, which is the
+    /// right authority to be corrected by.
+    @discardableResult
+    func applyLocally(_ edit: PlanShare.Edit) -> Entry? {
+        guard let before = book.entries[edit.recordName] else { return nil }
+        if beforeEdit[edit.recordName] == nil { beforeEdit[edit.recordName] = before }
+        var after: Entry?
+        if edit.kind == .delete {
+            // The row stays, marked as going. Removing it here made an
+            // offline delete a night that vanished from the deleter's
+            // planner while it stood on every other phone, with no surface
+            // anywhere saying so: the honesty rule, and the one edit on this
+            // path that was not already answered by `pendingSince`.
+            var entry = before
+            entry.pendingSince = edit.at
+            entry.pendingRemoval = true
+            book.entries[edit.recordName] = entry
+            after = entry
+        } else {
+            var entry = Self.edited(before, by: edit)
+            entry.pendingSince = edit.at
+            book.entries[edit.recordName] = entry
+            if case .send = edit.photo, let data = PlanShare.editPhoto(edit.recordName) {
+                writePhoto(edit.recordName, data)
+            }
+            if case .clear = edit.photo { removePhoto(edit.recordName) }
+            after = entry
+        }
+        save()
+        return after
+    }
+
+    /// The zone answered. A landed edit takes the record's own clock, or the
+    /// delivery that brings this phone's own change back reads as a change
+    /// somebody made and the digest raises a notice about the reader's own
+    /// action, which the law forbids outright.
+    func settle(_ edit: PlanShare.Edit, _ outcome: PlanShare.WriteOutcome) {
+        switch outcome {
+        case .landed(let at):
+            if edit.kind == .delete {
+                // Now it has really gone off everybody's plan, so now the
+                // row goes. Until this line the night was still standing in
+                // the zone and the entry said so.
+                book.entries.removeValue(forKey: edit.recordName)
+                removePhoto(edit.recordName)
+            } else if var entry = book.entries[edit.recordName] {
+                entry.changedAt = at
+                entry.pendingSince = nil
+                entry.pendingRemoval = nil
+                book.entries[edit.recordName] = entry
+            }
+            beforeEdit[edit.recordName] = nil
+            save()
+        case .queued:
+            // The row keeps saying it has not gone yet, because it has not.
+            break
+        case .theirs:
+            // `fold` already wrote the server's version over it.
+            beforeEdit[edit.recordName] = nil
+        case .refused:
+            revert(edit)
+        }
+    }
+
+    /// Put the night back the way it was. Nothing to put back after a
+    /// relaunch, and nothing to invent either: the row stops claiming it is
+    /// on its way and the zone says what it is on the next delivery.
+    private func revert(_ edit: PlanShare.Edit) {
+        guard let before = beforeEdit.removeValue(forKey: edit.recordName) else {
+            book.entries[edit.recordName]?.pendingSince = nil
+            book.entries[edit.recordName]?.pendingRemoval = nil
+            save()
+            return
+        }
+        // Not into a household this phone has left. `rehome` empties that
+        // zone's nights from the book and only then does the drain settle
+        // its strays with `.refused`, so writing the before image back here
+        // would put a night nobody can draw into a book that was just
+        // cleared of it: dead data that outlives the household.
+        if let owner = householdOwner, before.zoneOwner != owner {
+            save()
+            return
+        }
+        book.entries[edit.recordName] = before
+        save()
+    }
+
+    /// The zone does not hold this night any more, and no refusal may put it
+    /// back. The before image goes with it: an edit answered by "somebody
+    /// took this off" is not an edit to undo, it is a night that is gone.
+    func nightIsGone(_ recordName: String) {
+        beforeEdit[recordName] = nil
+        if book.entries.removeValue(forKey: recordName) != nil {
+            removePhoto(recordName)
+            save()
+        }
+    }
+
+    /// One record read outside a delivery: the version that beat an edit.
+    /// Written straight in with no delta, because the person is being told
+    /// by the sheet in front of them, not by the bell.
+    func fold(_ remote: TableShare.RemotePlan) {
+        var entry = Entry(remote)
+        guard !entry.authorID.isEmpty, entry.authorID != TableIdentity.cached else { return }
+        entry.pendingSince = nil
+        entry.pendingRemoval = nil
+        book.entries[entry.recordName] = entry
+        if let data = remote.photoData { writePhoto(entry.recordName, data) }
+        beforeEdit[entry.recordName] = nil
+        save()
+    }
+
+    /// Nights marked as not landed with nothing queued behind them. A kill
+    /// between the ledger write and the queue write leaves exactly one of
+    /// those, and a row that says it is on its way when nothing is going to
+    /// send it is the honesty rule broken quietly.
+    func clearPending(except queued: Set<String>) {
+        var touched = false
+        for (name, entry) in book.entries where entry.pendingSince != nil && !queued.contains(name) {
+            book.entries[name]?.pendingSince = nil
+            // A night marked as going with no delete behind it is a night
+            // that is staying, and the row has to stop saying otherwise.
+            book.entries[name]?.pendingRemoval = nil
+            touched = true
+        }
+        if touched { save() }
     }
 
     /// A leave, a flip, or a rehearsal ending: that table's nights go.
@@ -308,6 +562,7 @@ final class PlanLedger {
         let had = !book.entries.isEmpty
         book = Book()
         photos = [:]
+        beforeEdit = [:]
         if let dir = Self.photoDirectory { try? FileManager.default.removeItem(at: dir) }
         householdOwner = nil
         save()

@@ -560,4 +560,43 @@ final class PlanNewsTests: XCTestCase {
         XCTAssertEqual(PlanLedger.shared.cookLine(for: PlanLedger.shared.entry("plan-mine")!), "You're cooking")
         XCTAssertEqual(PlanLedger.shared.cookLine(for: PlanLedger.shared.entry("plan-theirs")!), "Riley is cooking")
     }
+
+    // MARK: A change this phone made
+
+    func testThisPhonesOwnEditComesBackAsNothingToSay() {
+        // Riley planned it; this phone changed it and the zone said yes.
+        let first = delivery([remotePlan(by: "riley", id: "1", changedAt: Self.stamp(0))])
+        TableNews.remember(digest(first).map(\.key))
+        let night = PlanLedger.shared.entry("plan-1")!
+        var edit = PlanShare.Edit(changing: night)
+        edit.title = "Ragu"
+        PlanLedger.shared.applyLocally(edit)
+        let landed = Self.stamp(60)
+        PlanLedger.shared.settle(edit, .landed(landed))
+
+        // The record comes back the way it was saved. Nothing here is news:
+        // a notice about the reader's own action is the one rule
+        // docs/notifications.md breaks for nothing.
+        var again = remotePlan(by: "riley", id: "1", title: "Ragu", changedAt: landed)
+        // The record keeps the night's own birthday; only the helper above
+        // ties the two together.
+        again.createdAt = night.createdAt
+        let back = delivery([again])
+        XCTAssertTrue(back.delta.changed.isEmpty, "the ledger already holds exactly this")
+        XCTAssertTrue(digest(back).isEmpty)
+    }
+
+    func testANightSomebodyElseChangedIsStillNewsWhileThisPhoneHasOneWaiting() {
+        _ = delivery([remotePlan(by: "riley", id: "1", changedAt: Self.stamp(0))])
+        let night = PlanLedger.shared.entry("plan-1")!
+        var edit = PlanShare.Edit(changing: night)
+        edit.servings = 8
+        PlanLedger.shared.applyLocally(edit)
+        let theirs = delivery([remotePlan(by: "riley", id: "1", title: "Katsu curry", changedAt: Self.stamp(30))])
+        XCTAssertEqual(digest(theirs).first?.title, "Riley changed tomorrow to Katsu curry")
+        XCTAssertNotNil(
+            PlanLedger.shared.entry("plan-1")?.pendingSince,
+            "a delivery does not send what this phone has still to send"
+        )
+    }
 }

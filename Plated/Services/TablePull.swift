@@ -94,7 +94,7 @@ enum TablePull {
                 await HouseholdSync.ensureTableJoined()
 
                 lastPull = .now
-                print("[Pull] \(reason): \(changes.posts.count) posts, \(changes.notes.count) notes, \(changes.reactions.count) reactions\(changes.sharesChanged ? ", seats" : ""); household \(household.seats.count) seats, \(household.meals.count) meals, \(household.recipes.count) recipes, \(plan.plans.count) plans\(household.zoneGone ? ", zone gone" : "")")
+                print("[Pull] \(reason): \(changes.posts.count) posts, \(changes.notes.count) notes, \(changes.reactions.count) reactions\(changes.sharesChanged ? ", seats" : ""); household \(household.seats.count) seats, \(household.recipes.count) recipes, \(plan.plans.count) plans\(household.zoneGone ? ", zone gone" : "")")
                 // This phone's own nights go out AFTER both folds, and not
                 // awaited: a publish pass is CloudKit round trips of its
                 // own, and a silent push's budget is spent on the fetch.

@@ -112,11 +112,6 @@ enum PlatedNotificationKind: String, Codable, CaseIterable {
     case planShared
     case householdJoined  // somebody took a seat in the household, or you did
     case householdLeft    // somebody left the household, or you did
-    /// The household digest's own name for a night, written when a
-    /// `PlatedHouseholdMeal` merges into `PlannedMeal`. `planShared` is the
-    /// same event read from the plan ledger, and is the one that survives:
-    /// this goes when the meal merge it belongs to goes.
-    case nightPlanned
     case editConflict     // your edit lost to somebody else's newer one
     case general
 
@@ -124,7 +119,7 @@ enum PlatedNotificationKind: String, Codable, CaseIterable {
     var isAboutSomebody: Bool {
         switch self {
         case .plateReaction, .commentAdded, .askPosted, .dishPosted, .voteCast, .seatJoined,
-             .planShared, .householdJoined, .householdLeft, .nightPlanned, .editConflict:
+             .planShared, .householdJoined, .householdLeft, .editConflict:
             return true
         default:
             return false
@@ -151,7 +146,6 @@ enum PlatedNotificationKind: String, Codable, CaseIterable {
         case .planShared: return "calendar"
         case .householdJoined: return "person.2"
         case .householdLeft: return "person.badge.minus"
-        case .nightPlanned: return "calendar"
         case .editConflict: return "arrow.triangle.2.circlepath"
         case .general: return "bell"
         }

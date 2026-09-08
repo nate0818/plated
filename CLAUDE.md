@@ -75,7 +75,9 @@ rendering a hair larger so fixed-height layouts overflow, and Foundation Models.
 - **Share-derived state does not go in the mirror.** Plates and ballots live in
   `TableLedger`, a JSON book in the app group, the queue in `TableOutbox`
   beside it, and other phones' planned nights in `PlanLedger` (with the
-  publisher's book `plan-share.json`); see `docs/plan-share.md`. Put them in a `@Model` and the mirror becomes a second writer to
+  publisher's book `plan-share.json` and the edit queue `plan-edits.json`,
+  which is a queue and so is per device for the same reason `TableOutbox`
+  is); see `docs/plan-share.md`. Put them in a `@Model` and the mirror becomes a second writer to
   a fact the shared zone already owns: two devices mid-propagation ping-pong a
   recomputed count, and a person's own plate flickers on and off in front of
   them. A mirrored outbox is worse — a distributed queue with no lease, where

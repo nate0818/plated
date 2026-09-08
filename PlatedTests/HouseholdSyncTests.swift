@@ -99,6 +99,10 @@ final class HouseholdSyncTests: XCTestCase {
 
     // MARK: Duplicates
 
+    /// The night in this fixture is never collapsed: it has no household
+    /// record name to collapse on, and no pass over `PlannedMeal` exists
+    /// any more. It is here to prove a rehomed recipe and cook take the
+    /// nights that point at them along.
     func testCollapseKeepsTheOldestAndRehomesAMealsRecipeAndCook() throws {
         let older = Recipe(title: "Ragù")
         older.shareRecordName = "recipe-1"
@@ -194,19 +198,17 @@ final class HouseholdSyncTests: XCTestCase {
         let theirsUnsent = Recipe(title: "Sam's soup")
         theirsUnsent.authorID = "_host"
 
-        let plan = PlannedMeal(date: .now, recipe: theirs, cook: host)
-        plan.authorID = "_host"
-        plan.shareModifiedAt = .now
-        let mineButShared = PlannedMeal(date: .now.addingTimeInterval(86400), recipe: ours, cook: mine)
-        mineButShared.authorID = "_me"
-        mineButShared.shareModifiedAt = .now
+        // Every night on this phone is this phone's own: the household's
+        // week was never in `PlannedMeal` (docs/household.md §3.2), so a
+        // leave has nothing to take out of it.
+        let thisWeek = PlannedMeal(date: .now.addingTimeInterval(86400), recipe: ours, cook: mine)
+        thisWeek.authorID = "_me"
         let history = PlannedMeal(date: .now.addingTimeInterval(-86400 * 30), recipe: ours, cook: mine)
         history.authorID = "_me"
-        history.shareRecordName = ""
 
         for row in [mine, host, kid, theirKid] { context.insert(row) }
         for row in [unowned, ours, theirs, theirsUnsent] { context.insert(row) }
-        for row in [plan, mineButShared, history] { context.insert(row) }
+        for row in [thisWeek, history] { context.insert(row) }
         try context.save()
 
         HouseholdSync.forgetHousehold(in: context, me: "_me", mySeat: "seat-me")
@@ -227,9 +229,9 @@ final class HouseholdSyncTests: XCTestCase {
         XCTAssertTrue(ours.shareRecordName.hasPrefix("recipe-"))
 
         let meals = try context.fetch(FetchDescriptor<PlannedMeal>())
-        XCTAssertEqual(meals.count, 1)
-        XCTAssertTrue(meals.first === history)
-        XCTAssertTrue(history.shareRecordName.hasPrefix("meal-"))
+        XCTAssertEqual(meals.count, 2, "a leave takes no night off this phone")
+        XCTAssertTrue(meals.contains { $0 === thisWeek })
+        XCTAssertTrue(meals.contains { $0 === history })
         XCTAssertEqual(HouseholdShare.membership, .solo)
         XCTAssertNil(HouseholdShare.mySeat)
     }
@@ -489,50 +491,6 @@ final class HouseholdSyncTests: XCTestCase {
         XCTAssertTrue(TableNews.digest(household: changes, outcome: outcome, context: context).isEmpty)
     }
 
-    func testANightBySomebodyElseIsPassiveAndNamed() throws {
-        let (_, rileySeat) = seat("Riley Park", id: "riley", by: "riley", record: "seat-riley")
-        let recipe = Recipe(title: "Sheet-pan chicken")
-        recipe.shareRecordName = "recipe-chicken"
-        context.insert(recipe)
-        let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: .now)!
-        let meal = PlannedMeal(date: tomorrow, recipe: recipe)
-        meal.shareRecordName = "meal-1"
-        context.insert(meal)
-        try context.save()
-
-        var changes = HouseholdShare.Changes()
-        changes.seats = [rileySeat]
-        var remote = HouseholdShare.RemoteMeal()
-        remote.recordName = "meal-1"
-        remote.modifiedBy = "riley"
-        changes.meals = [remote]
-        var outcome = HouseholdShare.MergeOutcome()
-        outcome.newMeals = [meal]
-
-        let notices = TableNews.digest(household: changes, outcome: outcome, context: context)
-        XCTAssertEqual(notices.count, 1)
-        XCTAssertEqual(notices[0].kind, .night)
-        XCTAssertEqual(notices[0].key, "night:meal-1")
-        XCTAssertEqual(notices[0].title, "Riley planned tomorrow")
-        XCTAssertEqual(notices[0].body, "Sheet-pan chicken.")
-        XCTAssertTrue(notices[0].passive)
-        XCTAssertEqual(notices[0].link, DeepLink.url(.plan))
-        XCTAssertEqual(notices[0].actor, "Riley Park")
-
-        // A seat for the reader, so that "nothing was raised" is the
-        // own-action guard answering and not "named, or not sent": without
-        // a row and without a names book, `person(me)` is nil and the
-        // notice would be dropped either way.
-        _ = seat("Nate Meadows", id: me, by: me, record: "seat-me")
-        try context.save()
-        var mine = HouseholdShare.RemoteMeal()
-        mine.recordName = "meal-1"
-        mine.modifiedBy = me
-        var own = HouseholdShare.Changes()
-        own.meals = [mine]
-        XCTAssertTrue(TableNews.digest(household: own, outcome: outcome, context: context).isEmpty)
-    }
-
     func testARecipeIAddedIsNeverNarratedBackToMe() throws {
         _ = seat("Nate Meadows", id: me, by: me, record: "seat-me")
         let recipe = Recipe(title: "Ragù")
@@ -575,23 +533,15 @@ final class HouseholdSyncTests: XCTestCase {
         let recipe = Recipe(title: "Ragù")
         recipe.shareRecordName = "recipe-ragu"
         context.insert(recipe)
-        let meal = PlannedMeal(date: Calendar.current.date(byAdding: .day, value: 1, to: .now)!, recipe: recipe)
-        meal.shareRecordName = "meal-1"
-        context.insert(meal)
         try context.save()
 
         var changes = HouseholdShare.Changes()
         changes.seats = [samSeat]
-        var remoteMeal = HouseholdShare.RemoteMeal()
-        remoteMeal.recordName = "meal-1"
-        remoteMeal.modifiedBy = "sam"
-        changes.meals = [remoteMeal]
         var remoteRecipe = HouseholdShare.RemoteRecipe()
         remoteRecipe.recordName = "recipe-ragu"
         remoteRecipe.modifiedBy = "sam"
         changes.recipes = [remoteRecipe]
         var outcome = HouseholdShare.MergeOutcome()
-        outcome.newMeals = [meal]
         outcome.newRecipes = [recipe]
 
         // The back catalogue is silent, and the seat arriving beside it
@@ -606,7 +556,7 @@ final class HouseholdSyncTests: XCTestCase {
         root.publishedAt = .now
         changes.root = root
         let landed = TableNews.digest(household: changes, outcome: outcome, context: context)
-        XCTAssertEqual(Set(landed.map(\.kind)), [.night, .recipe])
+        XCTAssertEqual(Set(landed.map(\.kind)), [.recipe])
     }
 
     /// The mirror image on the host's phone: a joiner adopts and pushes
@@ -631,13 +581,6 @@ final class HouseholdSyncTests: XCTestCase {
 
         let notices = TableNews.digest(household: changes, outcome: outcome, context: context)
         XCTAssertEqual(notices.map(\.kind), [.householdSeat])
-    }
-
-    func testAWeekAwayIsADateNotAWeekday() {
-        let farOff = Calendar.current.date(byAdding: .day, value: 9, to: .now)!
-        XCTAssertFalse(Calendar.current.weekdaySymbols.contains(TableNews.nightPhrase(farOff)))
-        let soon = Calendar.current.date(byAdding: .day, value: 3, to: .now)!
-        XCTAssertTrue(Calendar.current.weekdaySymbols.contains(TableNews.nightPhrase(soon)))
     }
 
     func testAConflictIsABellRowAndNeverABanner() throws {
@@ -673,8 +616,9 @@ final class HouseholdSyncTests: XCTestCase {
     /// What `HouseholdOutbox.drain` hands the digest after a push: the
     /// names whose edit lost, and the server versions that won, so the row
     /// names the person who wrote them. A seat that came back newer is not a
-    /// loss worth a row, and a save is not a loss at all.
-    func testALostEditReachesTheBellNamedAndOnlyForARecipeOrAMeal() throws {
+    /// loss worth a row, and a save is not a loss at all. A night cannot
+    /// appear at all: it is not a household record.
+    func testALostEditReachesTheBellNamedAndOnlyForARecipe() throws {
         let (_, rileySeat) = seat("Riley Park", id: "riley", by: "riley", record: "seat-riley")
         let recipe = Recipe(title: "Ragù")
         recipe.shareRecordName = "recipe-ragu"
@@ -716,46 +660,6 @@ final class HouseholdSyncTests: XCTestCase {
         XCTAssertEqual(notices[0].body, "Their version is showing.")
         XCTAssertEqual(notices[0].actor, "Riley Park")
         XCTAssertTrue(notices[0].writesRow)
-        XCTAssertTrue(notices[0].bellOnly)
-        XCTAssertTrue(TableNews.select(notices).isEmpty)
-    }
-
-    /// A meal is named by its night, not by the dish. After the merge the
-    /// row already shows their dish, so "Riley changed Sheet-pan chicken"
-    /// would name the version that won as the thing that was changed; the
-    /// night is the one fact both versions share, and it is the grammar the
-    /// night notice already uses ("Riley planned Tuesday").
-    func testALostMealEditNamesTheNightAndOpensThePlan() throws {
-        let (_, rileySeat) = seat("Riley Park", id: "riley", by: "riley", record: "seat-riley")
-        let theirs = Recipe(title: "Sheet-pan chicken")
-        theirs.shareRecordName = "recipe-chicken"
-        context.insert(theirs)
-        let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: .now)!
-        let meal = PlannedMeal(date: tomorrow, recipe: theirs)
-        meal.shareRecordName = "meal-1"
-        context.insert(meal)
-        try context.save()
-
-        var theirMeal = HouseholdShare.RemoteMeal()
-        theirMeal.recordName = "meal-1"
-        theirMeal.modifiedBy = "riley"
-        var served = HouseholdShare.Changes()
-        served.meals = [theirMeal]
-        served.seats = [rileySeat]
-        let entries = [HouseholdOutbox.Entry(id: "meal-1", kind: .meal, isDelete: false, at: .now)]
-        let lost = HouseholdOutbox.conflicts(in: ["meal-1": .remoteNewer(theirs: served)], entries: entries)
-        XCTAssertEqual(lost.names, ["meal-1"])
-
-        let notices = TableNews.digest(
-            household: lost.theirs, outcome: HouseholdShare.MergeOutcome(conflicts: lost.names), context: context
-        )
-        XCTAssertEqual(notices.count, 1)
-        XCTAssertEqual(notices[0].kind, .conflict)
-        XCTAssertEqual(notices[0].key, "conflict:meal-1")
-        XCTAssertEqual(notices[0].title, "Riley changed tomorrow after you did")
-        XCTAssertEqual(notices[0].body, "Their version is showing.")
-        XCTAssertEqual(notices[0].link, DeepLink.url(.plan))
-        XCTAssertTrue(notices[0].passive)
         XCTAssertTrue(notices[0].bellOnly)
         XCTAssertTrue(TableNews.select(notices).isEmpty)
     }

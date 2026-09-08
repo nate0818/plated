@@ -68,7 +68,7 @@ final class NotificationRouter: NSObject, UNUserNotificationCenterDelegate {
         case .plan: return Category.plan
         case .householdSeat, .householdLeft: return Category.householdSeat
         case .recipe: return Category.householdRecipe
-        case .night, .conflict: return Category.household
+        case .conflict: return Category.household
         }
     }
 

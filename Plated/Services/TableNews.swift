@@ -82,10 +82,10 @@ enum TableNews {
             /// (docs/plan-share.md).
             case plan
             /// The household (docs/household.md section 10): a seat joined
-            /// or left, a night planned, a recipe added, an edit that lost.
-            /// `night` is `plan`'s twin from the meal merge and goes with
-            /// it; the ledger's `plan` is the one that survives.
-            case householdSeat, householdLeft, night, recipe, conflict
+            /// or left, a recipe added, an edit that lost. No night: a night
+            /// is not a household record, and `plan` above is the only thing
+            /// said about an evening.
+            case householdSeat, householdLeft, recipe, conflict
         }
         var kind: Kind
         /// Dedupe key, remembered (for the last 400). Several keys joined
@@ -750,7 +750,7 @@ enum TableNews {
     static func thread(for n: Notice) -> String {
         switch n.kind {
         case .dish, .ask, .seat, .more, .plan: return "table"
-        case .householdSeat, .householdLeft, .night, .recipe, .conflict: return "household"
+        case .householdSeat, .householdLeft, .recipe, .conflict: return "household"
         default: return n.post.isEmpty ? "table" : n.post
         }
     }
@@ -1225,11 +1225,9 @@ enum TableNews {
         // Who touched a record last, by name, from this delivery.
         var modifiedBy: [String: String] = [:]
         for s in changes.seats { modifiedBy[s.recordName] = s.modifiedBy }
-        for m in changes.meals { modifiedBy[m.recordName] = m.modifiedBy }
         for r in changes.recipes { modifiedBy[r.recordName] = r.modifiedBy }
         var modifiedAt: [String: Date] = [:]
         for s in changes.seats { modifiedAt[s.recordName] = s.modifiedAt }
-        for m in changes.meals { modifiedAt[m.recordName] = m.modifiedAt }
         for r in changes.recipes { modifiedAt[r.recordName] = r.modifiedAt }
 
         /// The person behind an identity: their seat's name first, then
@@ -1285,24 +1283,11 @@ enum TableNews {
             ))
         }
 
-        for meal in outcome.newMeals where !stillArriving {
-            let by = modifiedBy[meal.shareRecordName] ?? ""
-            guard by != me, let who = person(by) else { continue }
-            let key = "night:\(meal.shareRecordName)"
-            guard !seen.contains(key) else { continue }
-            let dish = meal.title == "Unplanned" ? "Dinner" : meal.title
-            notices.append(Notice(
-                kind: .night, key: key, identifier: idPrefix + key,
-                title: "\(who.first) planned \(nightPhrase(meal.date))",
-                body: "\(dish).",
-                line: "\(who.first) planned \(nightPhrase(meal.date)): \(dish).",
-                link: DeepLink.url(.plan), post: "",
-                direct: false, photo: meal.recipe?.photoData, feedKind: .nightPlanned,
-                actor: who.full, at: modifiedAt[meal.shareRecordName] ?? .now, rowKey: key,
-                passive: true, relevance: 0.4, actorID: by,
-                deed: "Planned \(nightPhrase(meal.date)): \(dish).", group: "Home"
-            ))
-        }
+        // No night notice here, and there must not be one again. A night is
+        // not a household record: it arrives through the plan pipe, and
+        // `digest(plans:)` above says "Nate planned Tacos for Thursday"
+        // about it (docs/plan-share.md). Two digests narrating one evening
+        // was the shape this change ended.
 
         for recipe in outcome.newRecipes where !stillArriving {
             let by = modifiedBy[recipe.shareRecordName] ?? ""
@@ -1324,24 +1309,18 @@ enum TableNews {
 
         // An edit of mine that lost to a newer version. The row already
         // shows theirs; the bell says so, and nothing lights the screen.
+        // Recipes only: `HouseholdOutbox.conflicts` raises a name for no
+        // other kind, and a night cannot lose an edit here because it is not
+        // a household record at all.
         let recipes = (try? context.fetch(FetchDescriptor<Recipe>())) ?? []
-        let meals = (try? context.fetch(FetchDescriptor<PlannedMeal>())) ?? []
         for name in outcome.conflicts {
             let by = modifiedBy[name] ?? ""
             guard by != me, let who = person(by) else { continue }
             let key = "conflict:\(name)"
             guard !seen.contains(key) else { continue }
-            let thing: String
-            let link: URL
-            if let recipe = recipes.first(where: { $0.shareRecordName == name }) {
-                thing = recipe.title.isEmpty ? "a recipe" : recipe.title
-                link = DeepLink.url(.cookbook)
-            } else if let meal = meals.first(where: { $0.shareRecordName == name }) {
-                thing = nightPhrase(meal.date)
-                link = DeepLink.url(.plan)
-            } else {
-                continue
-            }
+            guard let recipe = recipes.first(where: { $0.shareRecordName == name }) else { continue }
+            let thing = recipe.title.isEmpty ? "a recipe" : recipe.title
+            let link = DeepLink.url(.cookbook)
             notices.append(Notice(
                 kind: .conflict, key: key, identifier: idPrefix + key,
                 title: "\(who.first) changed \(thing) after you did",
@@ -1359,24 +1338,11 @@ enum TableNews {
         return notices.map { dress($0, members: members) }
     }
 
-    /// A night as a person would say it: the weekday while it is
-    /// unambiguous, then the date. The Table's ladder runs backwards from
-    /// today; a plan runs forwards, so the same six-day rule is applied
-    /// in both directions.
-    static func nightPhrase(_ date: Date) -> String {
-        let calendar = Calendar.current
-        if calendar.isDateInToday(date) { return "tonight" }
-        if calendar.isDateInTomorrow(date) { return "tomorrow" }
-        if calendar.isDateInYesterday(date) { return "yesterday" }
-        let days = abs(calendar.dateComponents(
-            [.day], from: calendar.startOfDay(for: .now), to: calendar.startOfDay(for: date)
-        ).day ?? 0)
-        if days < 6 { return Stamp.weekdayFormat.string(from: date) }
-        if calendar.isDate(date, equalTo: .now, toGranularity: .year) {
-            return Stamp.dateFormat.string(from: date)
-        }
-        return Stamp.datedYearFormat.string(from: date)
-    }
+    // A night as a person would say it lives in `Stamp.nightPhrase`
+    // (Theme.swift), and that is the only one. The copy that stood here
+    // said a bare "Tuesday" for a night three days gone, which asserts the
+    // week it is not; the survivor says "last Tuesday" (DESIGN.md, a
+    // relative timestamp runs only while it is unambiguous).
 
     private static func firstName(_ name: String) -> String {
         let first = name.split(separator: " ").first.map(String.init) ?? name
@@ -1460,9 +1426,15 @@ enum TableNews {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: .now)
         let owner = Seats.all(in: context).first(where: \.isOwner)?.name ?? ""
+        // The name is stable per night, not a fresh UUID: a rehearsal is a
+        // restatement of the same two nights, and a new name every launch
+        // made the ledger keep the previous ones, so the planner grew a
+        // third and a fourth "Sheet-pan chicken" on one Wednesday. That
+        // reads exactly like the duplication this whole design exists to
+        // prevent, on the one screen the flag is there to photograph.
         func night(_ daysAhead: Int, title: String, cookID: String, cookName: String, cookSeat: String) -> TableShare.RemotePlan {
             var plan = TableShare.RemotePlan()
-            plan.recordName = "plan-rehearsal-\(UUID().uuidString)"
+            plan.recordName = "plan-rehearsal-\(daysAhead)"
             plan.zoneOwner = PlanLedger.rehearsalOwner
             plan.authorID = "rehearsal-riley"
             plan.authorName = "Riley Park"

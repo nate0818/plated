@@ -35,8 +35,10 @@ enum HouseholdSync {
     /// bytes enter as their own SHA256 so a hundred kilobytes of JPEG is
     /// hashed once, not copied into a string.
     ///
-    /// Nil for a row that does not travel: an auto grocery line (rebuilt on
-    /// every phone from the plan) or a type that is not synced at all.
+    /// Nil for a row that does not travel: a `PlannedMeal` (a night is not
+    /// a household record at all, see `HouseholdOutbox.Kind`), an auto
+    /// grocery line (rebuilt on every phone from the plan), or a type that
+    /// is not synced.
     static func fingerprint(of model: any PersistentModel) -> String? {
         var fields: [(String, String)]
         switch model {
@@ -59,25 +61,6 @@ enum HouseholdSync {
                 ("userRecordName", member.userRecordName ?? ""),
                 ("bio", member.bio),
                 ("photo", bytes(member.photoData)),
-            ]
-        case let meal as PlannedMeal:
-            fields = [
-                ("authorID", meal.authorID),
-                ("day", meal.day),
-                ("slot", meal.slot),
-                ("customTitle", meal.customTitle),
-                ("titleSnapshot", meal.title),
-                ("notes", meal.notes),
-                ("servings", String(meal.servings)),
-                ("cookedAt", date(meal.cookedAt)),
-                ("cookReaction", String(meal.cookReaction)),
-                ("actualMinutes", String(meal.actualMinutes)),
-                ("createdAt", date(meal.createdAt)),
-                ("shoppingID", meal.shoppingID ?? ""),
-                ("tagline", meal.tagline),
-                ("recipe", meal.recipe?.shareRecordName ?? ""),
-                ("cook", meal.cook?.shareRecordName ?? ""),
-                ("gathering", meal.gathering?.shareRecordName ?? ""),
             ]
         case let recipe as Recipe:
             fields = [
@@ -263,7 +246,6 @@ enum HouseholdSync {
     private static func wire(_ model: any PersistentModel) -> (HouseholdOutbox.Kind, String)? {
         switch model {
         case let m as HouseholdMember: return m.shareRecordName.isEmpty ? nil : (.seat, m.shareRecordName)
-        case let m as PlannedMeal: return m.shareRecordName.isEmpty ? nil : (.meal, m.shareRecordName)
         case let r as Recipe: return r.shareRecordName.isEmpty ? nil : (.recipe, r.shareRecordName)
         case let g as Gathering: return g.shareRecordName.isEmpty ? nil : (.gathering, g.shareRecordName)
         case let l as GroceryItem:
@@ -276,7 +258,6 @@ enum HouseholdSync {
     private static func storedFingerprint(_ model: any PersistentModel) -> String {
         switch model {
         case let m as HouseholdMember: return m.shareFingerprint
-        case let m as PlannedMeal: return m.shareFingerprint
         case let r as Recipe: return r.shareFingerprint
         case let g as Gathering: return g.shareFingerprint
         case let l as GroceryItem: return l.shareFingerprint
@@ -287,6 +268,11 @@ enum HouseholdSync {
     /// Stamp the creator on a new row. In `willSave` because a save is in
     /// progress and the stamp rides in it; a placeholder identity is
     /// rewritten by `reattribute` when CloudKit answers who this is.
+    ///
+    /// A `PlannedMeal` is stamped too, even though a night never goes to
+    /// the zone: `Awards.metrics` reads `authorID` to decide whose night an
+    /// uncooked, unassigned one is, and that question predates the
+    /// household and outlives it.
     private static func stampAuthor(_ model: any PersistentModel, me: String) {
         switch model {
         case let m as HouseholdMember: if m.authorID.isEmpty { m.authorID = me }
@@ -388,11 +374,6 @@ enum HouseholdSync {
                 HouseholdOutbox.shared.enqueueUpsert(.gathering, row.shareRecordName); count += 1
             }
         }
-        for row in fetchAll(PlannedMeal.self, context) where !row.shareRecordName.isEmpty {
-            if fingerprint(of: row) != row.shareFingerprint {
-                HouseholdOutbox.shared.enqueueUpsert(.meal, row.shareRecordName); count += 1
-            }
-        }
         for row in fetchAll(GroceryItem.self, context) where row.isManual && !row.shareRecordName.isEmpty {
             if fingerprint(of: row) != row.shareFingerprint {
                 HouseholdOutbox.shared.enqueueUpsert(.line, row.shareRecordName); count += 1
@@ -425,10 +406,9 @@ enum HouseholdSync {
 
     // MARK: The single minter (§2)
 
-    /// Name every row that predates `shareRecordName`, and mint a
-    /// `shoppingID` for meals lacking one. Only ever called from the two
-    /// transitions (`publishAll`, `join`), on the one device that makes
-    /// them; it records itself as the minter. The save observer skips
+    /// Name every row that predates `shareRecordName`. Only ever called
+    /// from the two transitions (`publishAll`, `join`), on the one device
+    /// that makes them; it records itself as the minter. The save observer skips
     /// unnamed rows, so no other device of this Apple ID can name them
     /// first: it waits for the mirror to bring the names.
     static func ensureRecordNames(in context: ModelContext) {
@@ -443,10 +423,6 @@ enum HouseholdSync {
         }
         for row in fetchAll(Gathering.self, context) where row.shareRecordName.isEmpty {
             row.shareRecordName = "gathering-\(UUID().uuidString)"; named += 1
-        }
-        for row in fetchAll(PlannedMeal.self, context) {
-            if row.shareRecordName.isEmpty { row.shareRecordName = "meal-\(UUID().uuidString)"; named += 1 }
-            if (row.shoppingID ?? "").isEmpty { row.shoppingID = UUID().uuidString }
         }
         for row in fetchAll(GroceryItem.self, context) where row.isManual && row.shareRecordName.isEmpty {
             row.shareRecordName = "line-\(UUID().uuidString)"; named += 1
@@ -476,10 +452,6 @@ enum HouseholdSync {
             if row.authorID.isEmpty { row.authorID = me }
             outbox.enqueueUpsert(.gathering, row.shareRecordName); count += 1
         }
-        for row in fetchAll(PlannedMeal.self, context) {
-            if row.authorID.isEmpty { row.authorID = me }
-            outbox.enqueueUpsert(.meal, row.shareRecordName); count += 1
-        }
         for row in fetchAll(GroceryItem.self, context) where row.isManual {
             if row.authorID.isEmpty { row.authorID = me }
             outbox.enqueueUpsert(.line, row.shareRecordName); count += 1
@@ -506,6 +478,11 @@ enum HouseholdSync {
     /// `createdAt`; relationships are rehomed onto the survivor and the
     /// rest are deleted. A `Gathering` has no `createdAt`, so the survivor
     /// there is the row that already holds meals, else the first found.
+    ///
+    /// No pass over `PlannedMeal`, and there must never be one again. A
+    /// night is not a household record, so two rows can no longer describe
+    /// it; a collapse here was the repair for a shape (one fact, two
+    /// writers) that has been taken out instead.
     ///
     /// Cook sessions are keyed on `persistentModelID` and `CookLedger`
     /// exposes no re-key, so a session on a deleted twin is lost; the
@@ -551,17 +528,6 @@ enum HouseholdSync {
             let survivor = group.first { !($0.plannedMeals ?? []).isEmpty } ?? group[0]
             for twin in group where twin !== survivor {
                 for meal in twin.plannedMeals ?? [] { meal.gathering = survivor }
-                context.delete(twin); removed += 1
-            }
-        }
-
-        let meals = fetchAll(PlannedMeal.self, context)
-        for group in groups(meals, by: \.shareRecordName) {
-            let survivor = group.min { $0.createdAt < $1.createdAt }!
-            for twin in group where twin !== survivor {
-                if survivor.recipe == nil { survivor.recipe = twin.recipe }
-                if survivor.cook == nil { survivor.cook = twin.cook }
-                if survivor.gathering == nil { survivor.gathering = twin.gathering }
                 context.delete(twin); removed += 1
             }
         }
@@ -1018,10 +984,11 @@ enum HouseholdSync {
     /// came back carrying the other identity. Rather than fight for it,
     /// this device takes a fresh seat and brings its nights along.
     ///
-    /// `freshSeat` saves under `suppressed`, so the new row and the meals
-    /// that moved are enqueued by hand here.
+    /// `freshSeat` saves under `suppressed`, so the new seat is enqueued by
+    /// hand here. The nights that moved are not: they are local rows, and
+    /// the plan pipe republishes what it sees on its next pass.
     static func claimFreshSeat(replacing taken: HouseholdMember, in context: ModelContext) {
-        let meals = (taken.assignedMeals ?? []).filter { !$0.shareRecordName.isEmpty }
+        let meals = taken.assignedMeals ?? []
         guard let fresh = freshSeat(in: context), fresh !== taken else {
             print("PLATED HOUSEHOLD: that seat is somebody else's and no fresh one could be minted")
             return
@@ -1032,7 +999,6 @@ enum HouseholdSync {
         suppressed = false
         HouseholdShare.mySeat = fresh.shareRecordName
         HouseholdOutbox.shared.enqueueUpsert(.seat, fresh.shareRecordName, at: .now)
-        for meal in meals { HouseholdOutbox.shared.enqueueUpsert(.meal, meal.shareRecordName, at: .now) }
         print("PLATED HOUSEHOLD: seat \(taken.shareRecordName) was claimed by somebody else, took \(fresh.shareRecordName)")
     }
 
@@ -1071,20 +1037,23 @@ enum HouseholdSync {
     }
 
     /// Before the first pull, not after it (§7 step 5 says after; the order
-    /// here is deliberate). A local dinner on a night the household has
-    /// planned would rival the household's under the one-dinner rule and
-    /// could win, enqueueing a delete of the host's record. Past nights are
-    /// kept as history and unnamed, which is exactly "never pushed": the
-    /// observer skips unnamed rows and the rival rule needs a name. Marks
-    /// are cleared here so the household's, folded by the pull, survive.
+    /// here is deliberate). The joiner's own future nights go, and this
+    /// outlives the meal merge that first asked for it: the household's week
+    /// now arrives in `PlanLedger` and the planner draws it BESIDE this
+    /// phone's own nights (docs/plan-share.md). A joiner who kept theirs
+    /// would open the Plan to every night described twice, once by the
+    /// household and once by the week they planned alone before joining, and
+    /// no screen could tell a reader which one dinner is. Past nights stay:
+    /// they are this person's history, nobody else is describing them, and
+    /// their insights are theirs. Marks are cleared here so the household's,
+    /// folded by the pull, survive.
     private static func clearBeforeFirstPull(in context: ModelContext) {
         suppressed = true
         defer { suppressed = false }
         let today = Calendar.current.startOfDay(for: .now)
         var dropped = 0
-        for meal in fetchAll(PlannedMeal.self, context) where meal.shareModifiedAt == nil {
-            if meal.date >= today { context.delete(meal); dropped += 1 }
-            else { meal.shareRecordName = "" }
+        for meal in fetchAll(PlannedMeal.self, context) where meal.date >= today {
+            context.delete(meal); dropped += 1
         }
         for line in fetchAll(GroceryItem.self, context) where line.shareModifiedAt == nil {
             context.delete(line); dropped += 1
@@ -1256,12 +1225,16 @@ enum HouseholdSync {
     /// target can hold it to the deletion rule.
     ///
     /// The rule: a row that came from the household goes. Seats other than
-    /// mine and the places I laid; meals, gatherings and manual lines that
-    /// were exchanged with the zone or signed by somebody else; recipes
-    /// whose `authorID` is somebody else's and which were exchanged. A row
-    /// with an empty `authorID` is kept, always. Auto grocery rows are
-    /// derived from a plan that is gone and are dropped for the builder to
-    /// rebuild.
+    /// mine and the places I laid; gatherings and manual lines that were
+    /// exchanged with the zone or signed by somebody else; recipes whose
+    /// `authorID` is somebody else's and which were exchanged. A row with an
+    /// empty `authorID` is kept, always. Auto grocery rows are derived from
+    /// a plan that is gone and are dropped for the builder to rebuild.
+    ///
+    /// Nights are not touched. Every `PlannedMeal` on this phone was planned
+    /// on it or mirrored from its owner's other device; the household's week
+    /// was never here, it was in `PlanLedger`, and leaving drops it there
+    /// (`PlanLedger.forget(zoneOwner:)`).
     static func forgetHousehold(in context: ModelContext, me: String, mySeat: String?) {
         suppressed = true
         defer { suppressed = false }
@@ -1299,10 +1272,6 @@ enum HouseholdSync {
             }
         }
 
-        for row in fetchAll(PlannedMeal.self, context) {
-            guard !row.authorID.isEmpty else { continue }
-            if row.shareModifiedAt != nil || row.authorID != me { context.delete(row); deleted += 1 }
-        }
         for row in fetchAll(Gathering.self, context) {
             guard !row.authorID.isEmpty else { continue }
             if row.shareModifiedAt != nil || row.authorID != me { context.delete(row); deleted += 1 }
@@ -1322,9 +1291,6 @@ enum HouseholdSync {
         // never fire on these in the next household.
         for row in fetchAll(HouseholdMember.self, context) where !row.isDeleted {
             row.shareModifiedAt = nil; row.shareFingerprint = ""; row.shareRecordName = HouseholdShare.mintSeatName()
-        }
-        for row in fetchAll(PlannedMeal.self, context) where !row.isDeleted {
-            row.shareModifiedAt = nil; row.shareFingerprint = ""; row.shareRecordName = "meal-\(UUID().uuidString)"
         }
         for row in fetchAll(Recipe.self, context) where !row.isDeleted {
             row.shareModifiedAt = nil; row.shareFingerprint = ""; row.shareRecordName = "recipe-\(UUID().uuidString)"
@@ -1354,8 +1320,7 @@ enum HouseholdSync {
     /// Answers whether the zone is actually gone. A zone left behind is
     /// read by `fetchChanges` on every later pull, and its rows merge back
     /// under their old names beside the renamed ones this function keeps:
-    /// duplicate recipes, duplicate meals, and a second row carrying this
-    /// identity. So the caller refuses the join rather than proceeding.
+    /// duplicate recipes and a second row carrying this identity. So the caller refuses the join rather than proceeding.
     private static func abandonHosting(context: ModelContext) async -> Bool {
         #if PLATED_CLOUDKIT
         let zoneID = CKRecordZone.ID(zoneName: HouseholdShare.zoneName, ownerName: CKCurrentUserDefaultName)
@@ -1427,9 +1392,11 @@ enum HouseholdSync {
                 Persist.save(context, "seats that had already left")
             }
         }
-        let planChanged = !changes.meals.isEmpty || changes.deleted.contains { $0.hasPrefix("meal-") }
-            || !changes.seats.isEmpty
-        if planChanged {
+        // A seat is the only thing in a household delta that can move a
+        // reminder: whose night it is. The week itself arrives through the
+        // plan pipe, and `NotificationScheduler.rebuild` reads `PlanLedger`
+        // on its own (docs/plan-share.md), so nothing here has to know that.
+        if !changes.seats.isEmpty {
             await NotificationScheduler.rebuild(meals: fetchAll(PlannedMeal.self, context))
         }
         // Every household delta moves something the widget draws: a mark or
@@ -1503,32 +1470,20 @@ enum HouseholdSync {
         riley.colorHex = "C88A00"
         changes.seats = [sam, riley]
 
-        let calendar = Calendar.current
-        let today = calendar.startOfDay(for: .now)
-        for (index, title) in ["Sheet-pan chicken", "Ragù", "Miso salmon"].enumerated() {
+        // Recipes only. Sam's week is not a household record and never
+        // arrives here; `-plated-fake-table-news` rehearses remote nights
+        // through `PlanLedger`, which is where they land.
+        for (index, title) in ["Sheet-pan chicken", "Ragù"].enumerated() {
             var recipe = HouseholdShare.RemoteRecipe()
-            if index < 2 {
-                recipe.recordName = "recipe-rehearsal-\(index)"
-                recipe.authorID = "rehearsal-sam"
-                recipe.modifiedBy = "rehearsal-sam"
-                recipe.title = title
-                recipe.summary = "From Sam's kitchen."
-                recipe.servings = 4
-                recipe.cookMinutes = 35
-                recipe.ingredients = [HouseholdShare.WireIngredient(name: "Chicken thighs", quantity: 6, unit: "", aisle: GroceryAisle.other.rawValue, isPantryStaple: false, sortIndex: 0)]
-                changes.recipes.append(recipe)
-            }
-            var meal = HouseholdShare.RemoteMeal()
-            meal.recordName = "meal-rehearsal-\(index)"
-            meal.authorID = "rehearsal-sam"
-            meal.modifiedBy = "rehearsal-sam"
-            meal.day = HouseholdMember.day(calendar.date(byAdding: .day, value: index + 1, to: today) ?? today)
-            meal.titleSnapshot = title
-            meal.createdAt = .now
-            meal.shoppingID = UUID().uuidString
-            if index < 2 { meal.recipeRecordName = "recipe-rehearsal-\(index)" }
-            meal.cookRecordName = index == 1 ? "seat-rehearsal-riley" : "seat-rehearsal-sam"
-            changes.meals.append(meal)
+            recipe.recordName = "recipe-rehearsal-\(index)"
+            recipe.authorID = "rehearsal-sam"
+            recipe.modifiedBy = "rehearsal-sam"
+            recipe.title = title
+            recipe.summary = "From Sam's kitchen."
+            recipe.servings = 4
+            recipe.cookMinutes = 35
+            recipe.ingredients = [HouseholdShare.WireIngredient(name: "Chicken thighs", quantity: 6, unit: "", aisle: GroceryAisle.other.rawValue, isPantryStaple: false, sortIndex: 0)]
+            changes.recipes.append(recipe)
         }
         TableNews.rehearsing = true
         defer { TableNews.rehearsing = false }
@@ -1581,11 +1536,9 @@ enum HouseholdSync {
         let photo = RecipePhoto(photoData: root.hostPhoto, sortIndex: 0)
         photo.recipe = recipe
         let gathering = Gathering(title: "Prime gathering", notes: "prime", guestCount: 2, location: "here")
-        let meal = PlannedMeal(date: .now, recipe: recipe, customTitle: "Prime meal", cook: member)
-        meal.gathering = gathering; meal.notes = "prime"; meal.cookedAt = .now; meal.tagline = "prime"
         let line = GroceryItem(name: "Prime line", quantity: 1, unit: "cup", isManual: true)
         line.originTitle = "prime"
-        for row in [member, recipe, ingredient, photo, gathering, meal, line] as [any PersistentModel] { scratch.insert(row) }
+        for row in [member, recipe, ingredient, photo, gathering, line] as [any PersistentModel] { scratch.insert(row) }
         let mark = GroceryMarks.Mark(lineKey: "prime|cup", purchases: ["prime": 1], dismissedUntil: "2026-01-01", at: .now, by: "prime")
         _ = GroceryMarks.shared.fold(mark, into: scratch)
         suppressed = false
@@ -1594,7 +1547,6 @@ enum HouseholdSync {
             HouseholdOutbox.Entry(id: member.shareRecordName, kind: .seat, isDelete: false, at: .now),
             HouseholdOutbox.Entry(id: recipe.shareRecordName, kind: .recipe, isDelete: false, at: .now),
             HouseholdOutbox.Entry(id: gathering.shareRecordName, kind: .gathering, isDelete: false, at: .now),
-            HouseholdOutbox.Entry(id: meal.shareRecordName, kind: .meal, isDelete: false, at: .now),
             HouseholdOutbox.Entry(id: line.shareRecordName, kind: .line, isDelete: false, at: .now),
             HouseholdOutbox.Entry(id: GroceryMarks.recordName(for: mark.lineKey), kind: .mark, isDelete: false, at: .now),
         ]

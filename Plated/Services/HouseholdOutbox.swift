@@ -21,8 +21,13 @@ import UIKit
 final class HouseholdOutbox {
     static let shared = HouseholdOutbox()
 
+    /// No `meal`. A night is not a household record: `PlannedMeal` lives
+    /// in a store the private mirror already carries, so putting it in the
+    /// zone as well gives one fact two writers (docs/household.md §3.2).
+    /// The week travels through the plan pipe instead, which keeps its own
+    /// book (docs/plan-share.md).
     enum Kind: String, Codable, CaseIterable {
-        case seat, meal, recipe, gathering, line, mark, root
+        case seat, recipe, gathering, line, mark, root
     }
 
     struct Entry: Codable, Identifiable, Equatable {
@@ -36,10 +41,10 @@ final class HouseholdOutbox {
         var tries: Int = 0
     }
 
-    /// Seats and recipes go before the meals that reference them, so a
-    /// meal never lands pointing at a record that is not there yet, and the
-    /// root goes last because `publishedAt` on it means everything else has.
-    static let drainOrder: [Kind] = [.seat, .recipe, .gathering, .meal, .line, .mark, .root]
+    /// Seats and recipes go first, because a notice about either reads the
+    /// other, and the root goes last because `publishedAt` on it means
+    /// everything else has already landed.
+    static let drainOrder: [Kind] = [.seat, .recipe, .gathering, .line, .mark, .root]
 
     /// How many records `publishAll` queued, written by it and read by
     /// Home's "Sharing with your household, 40 of 360." Its presence is
@@ -195,7 +200,7 @@ final class HouseholdOutbox {
     private func run(context: ModelContext) async -> Bool {
         guard !entries.isEmpty, !draining else { return false }
         // CloudKit already told us not before a certain time (§6). Walking
-        // the seven kinds to be handed `.retry` seven times costs nothing
+        // the six kinds to be handed `.retry` seven times costs nothing
         // but log noise and a background assertion, and the next drain
         // comes from the next save or the next pull anyway.
         guard !HouseholdShare.isRateLimited else {
@@ -326,18 +331,19 @@ final class HouseholdOutbox {
 
     /// What a drain owes the bell: the names whose local edit lost, and the
     /// server versions that won, shaped as a pull delivery so the digest can
-    /// read `modifiedBy` and `modifiedAt` off them. Only a recipe or a meal
-    /// earns the row (docs/household.md §2 and §10). A seat's fields have
-    /// rules that make "theirs" the right answer rather than a loss, a mark
-    /// is last-writer by design, and a line or a gathering is not a thing a
-    /// person edits for long enough to be surprised by. Pure, so a test can
+    /// read `modifiedBy` and `modifiedAt` off them. Only a recipe earns the
+    /// row (docs/household.md §2 and §10). A seat's fields have rules that
+    /// make "theirs" the right answer rather than a loss, a mark is
+    /// last-writer by design, and a line or a gathering is not a thing a
+    /// person edits for long enough to be surprised by. A night cannot
+    /// appear here at all: it is not a household record. Pure, so a test can
     /// hold it to that without a zone.
     static func conflicts(
         in outcomes: [String: HouseholdShare.PushOutcome], entries: [Entry]
     ) -> (theirs: HouseholdShare.Changes, names: [String]) {
         var theirs = HouseholdShare.Changes()
         var names: [String] = []
-        for entry in entries where entry.kind == .recipe || entry.kind == .meal {
+        for entry in entries where entry.kind == .recipe {
             guard case .remoteNewer(let served)? = outcomes[entry.id] else { continue }
             theirs.absorb(served)
             names.append(entry.id)
@@ -348,9 +354,29 @@ final class HouseholdOutbox {
     // MARK: Disk
 
     private func load() {
-        guard let url = Self.url, let data = try? Data(contentsOf: url),
-              let decoded = try? JSONDecoder().decode([Entry].self, from: data) else { return }
-        entries = decoded
+        guard let url = Self.url, let data = try? Data(contentsOf: url) else { return }
+        if let decoded = try? JSONDecoder().decode([Entry].self, from: data) {
+            entries = decoded
+            return
+        }
+        // A book written before the plan stopped travelling as a household
+        // record holds `meal` entries this build has no kind for, and
+        // decoding the array as a whole throws on the first of them: the
+        // seats and recipes queued beside them would be dropped with
+        // nothing said. Read one at a time, only the retired entries are
+        // lost, which is what retiring them meant.
+        guard let rows = (try? JSONSerialization.jsonObject(with: data)) as? [[String: Any]] else { return }
+        var kept: [Entry] = []
+        var dropped = 0
+        for row in rows {
+            guard let one = try? JSONSerialization.data(withJSONObject: row),
+                  let entry = try? JSONDecoder().decode(Entry.self, from: one) else { dropped += 1; continue }
+            kept.append(entry)
+        }
+        guard dropped > 0 else { return }
+        entries = kept
+        print("PLATED HOUSEHOLD: outbox dropped \(dropped) queued record(s) of a kind this build no longer sends")
+        save()
     }
 
     private func save() {

@@ -19,17 +19,14 @@ struct GroceryListBuilder {
         let meals = try context.fetch(FetchDescriptor<PlannedMeal>(predicate: #Predicate {
             $0.date >= start && $0.date < end && $0.cookedAt == nil
         })).sorted { ($0.date, $0.shoppingID ?? "") < ($1.date, $1.shoppingID ?? "") }
+        // A night is this Apple ID's own row and its `shoppingID` is minted
+        // with it, so a backfill here can only be a row that predates the
+        // field. No household minter to wait for: a night is not a household
+        // record (docs/household.md §3.2), and the id the plan pipe names
+        // its record with rides the private mirror to this person's other
+        // devices like the row itself.
         for meal in meals where meal.shoppingID == nil {
-            // A named meal's shoppingID is minted by the single minter with
-            // its record name (docs/household.md §3.2); minting one here
-            // would give every phone its own id for one dinner, and a
-            // purchase keyed on it would never match anywhere else. Only
-            // the pre-field legacy, still unnamed, is safe to backfill.
-            if meal.shareRecordName.isEmpty {
-                meal.shoppingID = UUID().uuidString
-            } else {
-                print("PLATED HOUSEHOLD: meal \(meal.shareRecordName) has no shoppingID, leaving it for the minter")
-            }
+            meal.shoppingID = UUID().uuidString
         }
         let lines = aggregate(meals: meals, includePantryStaples: includePantryStaples)
         let all = try context.fetch(FetchDescriptor<GroceryItem>())

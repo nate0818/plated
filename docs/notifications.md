@@ -62,15 +62,14 @@ cap, gated by the switch titled "Household and Table activity":
 |---|---|---|---|
 | a seat joined the household | `household:<userRecordName>` | "Riley joined your household" / "They can see the plan, the grocery list and the cookbook now." | active with sound by day, passive 22:00 to 08:00 |
 | a seat left | `household-left:<userRecordName>` | "Riley left your household" / "Their nights are open again." | passive |
-| somebody planned a night | `night:<mealRecordName>` | "Riley planned Tuesday" / "Sheet-pan chicken." (tonight, tomorrow, the weekday within six days, then the date) | passive |
 | somebody added a recipe | `recipe:<recipeRecordName>` | "Riley added Ragù" / "It's in the cookbook." | passive |
 | your edit lost to theirs | `conflict:<recordName>` | "Riley changed Ragù after you did" / "Their version is showing." | bell only, never a banner |
 
-The night row is the household digest's own, written when a
-`PlatedHouseholdMeal` merges into `PlannedMeal`. It says the same thing
-the plan pipe's notice says about the same evening, and it goes when that
-merge goes: the plan lands in `PlanLedger`, never in `PlannedMeal`, and
-the ledger's notice is the one that survives.
+A planned night is not on this table and never comes back to it. The
+household digest had a night row of its own, written when a household meal
+record merged into `PlannedMeal`; that merge is gone (docs/household.md
+§3.2) and the row went with it. The plan pipe's notice, "Riley planned
+Tacos for Thursday", is the one and only thing said about an evening.
 
 The person is `modifiedBy` on the record, named through their seat. A
 join to the household also joins the Table, so the Table's seat notice is
@@ -78,7 +77,8 @@ suppressed for any participant whose identity holds a household seat. The
 join pull, and any household pull read from the beginning, raises nothing
 but the one row the join itself writes, "You joined Nate's household."
 Every household notice writes a bell row and stacks under "household";
-a night opens the plan, a recipe the cookbook, a seat Home.
+a recipe opens the cookbook, a seat Home. A plan notice opens the night
+it is about (`plated://plan?day=`), which is the plan pipe's own rule.
 
 And the rules that keep it quiet:
 
@@ -95,11 +95,10 @@ And the rules that keep it quiet:
   trusted whole: a dish written on a plane last week and uploaded today is
   told once, now. The one exception is a household still being uploaded: a
   joiner's pull is incremental from the moment they joined, so the host's
-  `publishAll` would otherwise arrive as one fresh night and one fresh
-  recipe per record. While the root carries no `publishedAt` (the Plan and
-  the Cookbook are saying "Still arriving from Nate's phone") the digest
-  raises no nights and no recipes. Seats, departures and conflicts still
-  speak. The mirror image on the host's phone is the cookbook a joiner
+  `publishAll` would otherwise arrive as one fresh recipe per record. While
+  the root carries no `publishedAt` (the Plan and the Cookbook are saying
+  "Still arriving from Nate's phone") the digest raises no recipes. Seats,
+  departures and conflicts still speak. The mirror image on the host's phone is the cookbook a joiner
   brings: recipes whose `modifiedBy` is a seat arriving in the same
   delivery are what they came with, and "Riley joined your household"
   already says it.
@@ -174,8 +173,8 @@ not blind. The icon counts only rows the person still wants to hear.
   actually exist in the pipe: Dishes and asks, Replies and mentions,
   Comments on your dishes, Plates and votes on yours, New seats, Planning.
   The household's notices answer to the same six: a household seat and a
-  Table seat are both New seats, a household night is Planning, a recipe
-  joining the cookbook is Dishes. There is no seventh switch, because a
+  Table seat are both New seats, a recipe joining the cookbook is Dishes.
+  A night is the plan pipe's and is Planning. There is no seventh switch, because a
   second kind of seat is not a second thing a person wants to decide.
   A tag, a reply and a mention are words to you and live under Replies
   whatever record carried them. A plan notice answers to Planning before the
@@ -340,9 +339,11 @@ Three debug flags stand in:
   Riley's.
 - `-plated-rehearse-household` seeds the sample household if the store is
   empty, stamps its head with this identity, sets membership to a fake
-  host "Sam" and absorbs a household delta from him: two seats, three
-  nights and two recipes, so the household notices and the member's view
-  can be photographed without a second Apple ID.
+  host "Sam" and absorbs a household delta from him: two seats and two
+  recipes, so the household notices and the member's view can be
+  photographed without a second Apple ID. Sam's week is not in that delta:
+  a night is not a household record, and `-plated-fake-table-news`
+  rehearses remote nights through `PlanLedger`.
 
 Always `simctl terminate` before a flag-carrying launch; a running process
 keeps its original arguments.
@@ -366,7 +367,8 @@ rules above, and `HouseholdSyncTests` holds the household digest to its
 own-action guard (held one half at a time, with a seat for the reader in
 the fixture so that silence is the guard answering and not "named, or not
 sent"), its first-pull silence, the host's first publish, the cookbook a
-joiner brings, the seat that left and its quiet night: never
+joiner brings, the seat that left, and a household delta never touching
+the local plan: never
 about you, named or not sent, once, the replay window, coalescing, the
 cap, the fold, passive plates outside the cap, the kiss, quiet hours with
 the direct exception, threads, retractions that are never re-dated, rows

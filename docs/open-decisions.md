@@ -275,7 +275,7 @@ about your own action" has to be re-proven there before one alert is sent.
 
 `Seats.remove` (`Plated/Services/Seats.swift`, line 216) evicts a joined seat
 through `HouseholdShare.removeParticipant` (`Plated/Services/HouseholdShare.swift`,
-line 1627), which finds the participant by `userRecordID` on the household
+line 1535), which finds the participant by `userRecordID` on the household
 share and saves the share without them. docs/household.md section 1 records
 the constraint underneath it: Apple documents participant edits as allowed
 only while `publicPermission` is `.none`, and the household share is
@@ -341,10 +341,12 @@ still, and this entry only records that the number went up.
 ## 20. A joiner's past cooked nights stay on their phone and never travel
 
 `HouseholdSync.clearBeforeFirstPull` (`Plated/Services/HouseholdSync.swift`,
-line 935) deletes a joiner's planned meals from today on and keeps the
-earlier ones, with their `shareRecordName` cleared so the observer never
-enqueues them and the one-dinner rule can never pit them against the host's.
-docs/household.md section 14 states the intent: their insights are theirs;
+line 1050) deletes a joiner's planned meals from today on and keeps the
+earlier ones. The reason for the deletion has changed and the decision has
+not: the household's week is now drawn beside this phone's own nights out of
+`PlanLedger` (docs/plan-share.md), so a joiner who kept their future nights
+would see every evening described twice. docs/household.md section 14 states
+the intent: their insights are theirs;
 the household's are the household's. The visible effect is on
 `HouseholdStatsView` and `Awards.metrics`: a person who cooked forty nights
 before joining still sees forty on their own phone, and the household they
@@ -357,12 +359,13 @@ cooked and gives every other phone forty rows of somebody else's dinners
 from before they met. Both are defensible. What would settle it is a
 household where this actually happened: one joiner with a real history and
 a host looking at the month view afterwards. Until then the quieter answer
-ships, and a later push of history would need a pull rule for meals older
-than the join, which nothing today has.
+ships. A later push of history would need `PlanShare` to publish outside its
+seven-day-back window and every reader to keep entries it currently prunes,
+which nothing today does.
 
 ## 21. Extra photos arrive with the recipe and every mirror re-exports them
 
-`HouseholdShare.merge` (`Plated/Services/HouseholdShare.swift`, line 1340)
+`HouseholdShare.merge` (`Plated/Services/HouseholdShare.swift`, line 1223)
 replaces a recipe's `RecipePhoto` rows from `extraPhotos` on arrival, so a
 member's phone holds every photo the moment the recipe lands and the
 member's own private mirror then uploads all of them again to that

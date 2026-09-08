@@ -56,21 +56,6 @@ final class HouseholdShareTests: XCTestCase {
         return s
     }
 
-    private func meal(record: String, day: Date, slot: MealSlot = .dinner, title: String = "Ragù",
-                      recipe: String = "", at: Date = .now, createdAt: Date = .now) -> HouseholdShare.RemoteMeal {
-        var m = HouseholdShare.RemoteMeal()
-        m.recordName = record
-        m.day = HouseholdShare.Wire.day(day)
-        m.slot = slot.rawValue
-        m.titleSnapshot = title
-        m.recipeRecordName = recipe
-        m.createdAt = createdAt
-        m.modifiedBy = "riley"
-        m.modifiedAt = at
-        m.shoppingID = "shop-\(record)"
-        return m
-    }
-
     private func recipe(record: String, title: String = "Ragù", at: Date = .now,
                         createdAt: Date = .now) -> HouseholdShare.RemoteRecipe {
         var r = HouseholdShare.RemoteRecipe()
@@ -89,9 +74,6 @@ final class HouseholdShareTests: XCTestCase {
 
     private func members() -> [HouseholdMember] {
         (try? context.fetch(FetchDescriptor<HouseholdMember>())) ?? []
-    }
-    private func meals() -> [PlannedMeal] {
-        (try? context.fetch(FetchDescriptor<PlannedMeal>())) ?? []
     }
     private func recipes() -> [Recipe] {
         (try? context.fetch(FetchDescriptor<Recipe>())) ?? []
@@ -132,22 +114,6 @@ final class HouseholdShareTests: XCTestCase {
     }
 
     // MARK: Nameless twins
-
-    func testNamelessMealTwinAdoptsTheName() {
-        let created = Date.now
-        let local = PlannedMeal(date: tonight, customTitle: "Tacos")
-        local.shareRecordName = ""
-        local.createdAt = created
-        context.insert(local)
-        try? context.save()
-
-        var changes = HouseholdShare.Changes()
-        changes.meals = [meal(record: "meal-a", day: tonight, title: "Tacos", createdAt: created.addingTimeInterval(1))]
-        HouseholdShare.merge(changes, into: context)
-        XCTAssertEqual(meals().count, 1)
-        XCTAssertEqual(meals()[0].shareRecordName, "meal-a")
-        XCTAssertTrue(meals()[0] === local)
-    }
 
     func testNamelessRecipeTwinAdoptsTheName() {
         let created = Date.now
@@ -233,36 +199,25 @@ final class HouseholdShareTests: XCTestCase {
         XCTAssertEqual(mine.colorHex, "3DA35D", "household-owned fields still arrive")
     }
 
-    // MARK: One dinner per night (§3.2)
-
-    func testOneDinnerPerDayAndSlotKeepsTheSmallerName() {
-        let local = PlannedMeal(date: tonight, customTitle: "Tacos")
-        local.shareRecordName = "meal-b"
-        local.shoppingID = "shop-b"
-        context.insert(local)
-        try? context.save()
-        GroceryMarks.shared.record(lineKey: "beef|g", purchases: ["shop-b": 500], dismissedUntil: nil)
-
-        var changes = HouseholdShare.Changes()
-        changes.meals = [meal(record: "meal-a", day: tonight, title: "Ragù")]
-        HouseholdShare.merge(changes, into: context)
-        XCTAssertEqual(meals().map(\.shareRecordName), ["meal-a"])
-        XCTAssertTrue(HouseholdOutbox.shared.pending.contains { $0.id == "meal-b" && $0.isDelete })
-        XCTAssertEqual(GroceryMarks.shared.mark(for: "beef|g")?.purchases["shop-meal-a"], 500,
-                       "the loser's purchases move to the winner")
-    }
-
-    func testOneDinnerPerDayAndSlotDeletesTheArrivalWhenItIsLarger() {
-        let local = PlannedMeal(date: tonight, customTitle: "Tacos")
-        local.shareRecordName = "meal-a"
-        context.insert(local)
+    /// A night is not a household record, so a delta can never carry one
+    /// and a local night can never be deleted by one arriving
+    /// (docs/household.md §3.2). The pipe that does carry the week is held
+    /// to its own rules in `PlanShareTests` and `PlanNewsTests`.
+    func testAHouseholdDeltaNeverTouchesTheLocalPlan() {
+        let mine = PlannedMeal(date: tonight, customTitle: "Tacos")
+        context.insert(mine)
         try? context.save()
 
         var changes = HouseholdShare.Changes()
-        changes.meals = [meal(record: "meal-b", day: tonight, title: "Ragù")]
+        changes.recipes = [recipe(record: "recipe-a", title: "Ragù")]
+        changes.seats = [seat("Riley Park", record: "seat-1")]
         HouseholdShare.merge(changes, into: context)
-        XCTAssertEqual(meals().map(\.shareRecordName), ["meal-a"])
-        XCTAssertTrue(HouseholdOutbox.shared.pending.contains { $0.id == "meal-b" && $0.isDelete })
+
+        let nights = (try? context.fetch(FetchDescriptor<PlannedMeal>())) ?? []
+        XCTAssertEqual(nights.count, 1)
+        XCTAssertTrue(nights[0] === mine)
+        XCTAssertEqual(nights[0].title, "Tacos")
+        XCTAssertTrue(HouseholdOutbox.shared.isEmpty, "nothing about a night is ever queued")
     }
 
     // MARK: Pending and deleted
@@ -320,37 +275,6 @@ final class HouseholdShareTests: XCTestCase {
         XCTAssertEqual(all.count, 3, "the stale row is gone, not orphaned")
     }
 
-    // MARK: References (§3.2)
-
-    func testMealBeforeItsRecipeShowsFallbackAndIsRepaired() {
-        var first = HouseholdShare.Changes()
-        first.meals = [meal(record: "meal-a", day: tonight, title: "Ragù", recipe: "recipe-a")]
-        HouseholdShare.merge(first, into: context)
-        let night = meals()[0]
-        XCTAssertNil(night.recipe)
-        XCTAssertEqual(night.title, "Ragù")
-
-        var second = HouseholdShare.Changes()
-        second.recipes = [recipe(record: "recipe-a", title: "Ragù")]
-        HouseholdShare.merge(second, into: context)
-        XCTAssertNotNil(night.recipe, "the recipe arriving later repairs the meal")
-        XCTAssertEqual(night.recipe?.shareRecordName, "recipe-a")
-    }
-
-    func testMealResolvesCookAndRecipeInOneDelta() {
-        var changes = HouseholdShare.Changes()
-        changes.seats = [seat("Riley Park", record: "seat-1")]
-        changes.recipes = [recipe(record: "recipe-a")]
-        var night = meal(record: "meal-a", day: tonight, recipe: "recipe-a")
-        night.cookRecordName = "seat-1"
-        changes.meals = [night]
-        let outcome = HouseholdShare.merge(changes, into: context)
-        XCTAssertEqual(meals()[0].cook?.name, "Riley Park")
-        XCTAssertEqual(meals()[0].recipe?.title, "Ragù")
-        XCTAssertEqual(outcome.newMeals.count, 1)
-        XCTAssertEqual(outcome.newRecipes.count, 1)
-    }
-
     // MARK: The root (§3.6)
 
     func testRootWritesNameAndBannerAndCaches() {
@@ -393,19 +317,6 @@ final class HouseholdShareTests: XCTestCase {
         XCTAssertEqual(TableShare.int(rec, "isPrimaryCook"), 1)
         XCTAssertEqual(HouseholdShare.remoteSeat(from: rec), s)
         HouseholdShare.Wire.removeTemporaryAssets(on: [rec])
-    }
-
-    func testMealRoundTrip() {
-        var m = meal(record: "meal-a", day: tonight, recipe: "recipe-a")
-        m.cookedAt = Date(timeIntervalSince1970: 1_700_000_000)
-        m.cookReaction = 3
-        m.actualMinutes = 42
-        m.notes = "Riley's birthday"
-        let rec = record(HouseholdShare.mealType, m.recordName)
-        HouseholdShare.write(m, onto: rec)
-        XCTAssertEqual(rec["day"] as? String, HouseholdShare.Wire.day(tonight))
-        XCTAssertEqual(HouseholdShare.remoteMeal(from: rec), m)
-        XCTAssertEqual(HouseholdShare.Wire.date(fromDay: m.day), tonight)
     }
 
     func testRecipeRoundTripCarriesIngredientsAndPhotos() {
@@ -494,12 +405,10 @@ final class HouseholdShareTests: XCTestCase {
     func testChangesSortRecordsByType() {
         var changes = HouseholdShare.Changes()
         changes.add(record(HouseholdShare.seatType, "seat-1"))
-        changes.add(record(HouseholdShare.mealType, "meal-1"))
         changes.add(record(HouseholdShare.recipeType, "recipe-1"))
         changes.add(record(HouseholdShare.rootType, HouseholdShare.rootRecordName))
         changes.add(record("PlatedDish", "post-1"))
         XCTAssertEqual(changes.seats.count, 1)
-        XCTAssertEqual(changes.meals.count, 1)
         XCTAssertEqual(changes.recipes.count, 1)
         XCTAssertNotNil(changes.root)
         XCTAssertFalse(changes.sharesChanged)
