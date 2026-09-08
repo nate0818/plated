@@ -128,6 +128,19 @@ enum RemovedNights {
         var book = all
         guard book.contains(where: { !$0.settled }) else { return false }
         let meals = (try? context.fetch(FetchDescriptor<PlannedMeal>())) ?? []
+        // A night that has been planned again has nothing left to explain.
+        // Swept here rather than at the four places that can plan one,
+        // because `forget(day:slot:)` being called from `addBack` and not
+        // from plate, pickForMe or markEatingOut is exactly the kind of
+        // rule that holds until somebody adds a fifth door.
+        let replanned = Set(meals.compactMap { meal -> String? in
+            guard let id = meal.shoppingID else { return nil }
+            return book.contains(where: { $0.shoppingID != id && $0.day == PlanDay.string(meal.date) && $0.slot == meal.slot })
+                ? "\(PlanDay.string(meal.date))|\(meal.slot)" : nil
+        })
+        if !replanned.isEmpty {
+            book.removeAll { replanned.contains("\($0.day)|\($0.slot)") }
+        }
         var deleted = false
         for i in book.indices where !book[i].settled {
             let id = book[i].shoppingID
@@ -190,7 +203,14 @@ enum RemovedNights {
     /// find it by: the row it would have drawn is gone.
     static func gone(on date: Date, slot: MealSlot = .dinner) -> Gone? {
         let day = PlanDay.string(date)
-        return all.first { $0.day == day && $0.slot == slot.rawValue }
+        // NEWEST, not first. The book appends, so `first` answered with the
+        // OLDEST removal of that night: plan a dinner, have it taken off,
+        // plan another, have that taken off, and every screen named the
+        // person who removed the first one and offered to restore a dish
+        // nobody had touched since. `since` already sorted this way and the
+        // two readers disagreed.
+        return all.filter { $0.day == day && $0.slot == slot.rawValue }
+            .max { $0.at < $1.at }
     }
 
     /// The night is back on the plan, so the sentence explaining its

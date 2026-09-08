@@ -1745,9 +1745,36 @@ enum TableShare {
     /// Delete nights by name, twenty at a time. `.unknownItem` is success:
     /// the night is not in the zone, which is what a delete is for.
     /// Returns the names now absent.
-    static func deletePlans(names: [String], in db: CKDatabase, zone: CKRecordZone.ID) async -> Set<String> {
+    /// `reaping` is the age-out, which is the ONE caller allowed to take a
+    /// tombstone out of the zone.
+    ///
+    /// Every other caller is refused, and the reason is a device this phone
+    /// cannot see. `RemovedNights` is per device, so the author's second
+    /// phone can learn that a night is gone through the MIRROR, which
+    /// carries the `PlannedMeal` deletion but knows nothing about the
+    /// household: it then finds a book entry with no live meal, reads that
+    /// as a night the person took off themselves, and deletes the record.
+    /// That destroys the only carrier of who removed the night, before the
+    /// phones that had not pulled yet ever read it, and they are then left
+    /// with a bare absence that names nobody.
+    static func deletePlans(names: [String], in db: CKDatabase, zone: CKRecordZone.ID,
+                            reaping: Bool = false) async -> Set<String> {
+        var todo = names
+        if !reaping, !todo.isEmpty {
+            let served = await fetchPlanRecords(named: todo, in: db, zone: zone)
+            let held = Set(todo.filter { served[$0].map { int($0, "removed") == 1 } ?? false })
+            if !held.isEmpty {
+                // NOT reported as gone: the caller clears its book entry for
+                // anything in the returned set, and the age-out is driven
+                // entirely by book entries, so saying "gone" here would put
+                // the record beyond the reach of the one caller that may
+                // take it.
+                print("[PlanShare] \(held.count) night(s) are off the household plan and are not this phone's to delete")
+                todo.removeAll { held.contains($0) }
+            }
+        }
         var gone: Set<String> = []
-        for batch in batches(names) {
+        for batch in batches(todo) {
             gone.formUnion(await deleteBatch(batch, in: db, zone: zone))
         }
         return gone

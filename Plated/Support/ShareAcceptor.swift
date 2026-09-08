@@ -151,6 +151,10 @@ final class ShareAcceptor: NSObject, UIApplicationDelegate {
         // was cooked, and a night being cooked right now) are re-checked at
         // drain time, and one of them can outlive this process.
         RemovedNights.park(plans.ownRemoved)
+        // Never applied here: a cook or a title is a value, and only a
+        // person may carry one across this seam. Remembered so the screens
+        // can offer it, because the delivery is the only moment it exists.
+        HouseholdEdits.note(plans.ownChanged)
         var joined: [HouseholdMember] = []
         var swept = PlanLedger.Delta()
         if changes.sharesChanged {

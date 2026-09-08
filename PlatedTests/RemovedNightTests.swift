@@ -35,11 +35,13 @@ final class RemovedNightTests: XCTestCase {
         PlanLedger.shared.clear()
         PlanShare.forgetEdits()
         RemovedNights.clear()
+        HouseholdEdits.clear()
         PlanLedger.shared.householdOwner = "host"
     }
 
     override func tearDown() async throws {
         RemovedNights.clear()
+        HouseholdEdits.clear()
         PlanShare.forgetEdits()
         PlanLedger.shared.clear()
         PlanLedger.shared.householdOwner = savedOwner
@@ -153,6 +155,64 @@ final class RemovedNightTests: XCTestCase {
         let entry = PlanLedger.Entry(p)
         XCTAssertEqual(entry.editorID, "_sam")
         XCTAssertEqual(p.removed, 1)
+    }
+
+    // MARK: A night of this phone's own that somebody else changed
+
+    func testTheAuthorHearsWhenSomebodyElseChangesTheirNight() {
+        var p = plan(author: me, title: "Ragu")
+        p.editorID = "_riley"
+        p.editorName = "Riley Park"
+        p.cookID = me
+        p.cookName = "Nate Meadows"
+        let delta = deliver([p], me: me)
+        XCTAssertEqual(delta.ownChanged.count, 1, "the deafness this closes")
+        XCTAssertEqual(delta.ownChanged.first?.title, "Ragu")
+        XCTAssertEqual(delta.ownChanged.first?.cookID, me, "including being put down to cook")
+        XCTAssertFalse(delta.isEmpty)
+    }
+
+    func testTheAuthorsOwnPublishIsNotAChangeToThemselves() {
+        var p = plan(author: me, title: "Tacos")
+        p.editorID = me
+        p.editorName = "Nate Meadows"
+        XCTAssertTrue(deliver([p], me: me).ownChanged.isEmpty)
+    }
+
+    func testARemovalIsNotAlsoAChange() {
+        var p = plan(author: me, removed: 1)
+        p.editorID = "_riley"
+        p.editorName = "Riley Park"
+        let delta = deliver([p], me: me)
+        XCTAssertEqual(delta.ownRemoved.count, 1)
+        XCTAssertTrue(delta.ownChanged.isEmpty, "a night that is gone is not a night that changed")
+    }
+
+    func testTheHouseholdsVersionIsNeverTakenWithoutSomebodyTapping() {
+        // A value crossing the seam needs a human. Noting it must not move
+        // a single field of the person's own night.
+        let m = meal(id: "n1", title: "Tacos")
+        var p = plan(author: me, title: "Ragu")
+        p.editorID = "_riley"
+        p.editorName = "Riley Park"
+        HouseholdEdits.note(deliver([p], me: me).ownChanged)
+        XCTAssertEqual(m.title, "Tacos", "the plan is untouched until a person says so")
+        XCTAssertEqual(HouseholdEdits.pending(shoppingID: "n1")?.title, "Ragu")
+
+        XCTAssertTrue(HouseholdEdits.adopt(HouseholdEdits.pending(shoppingID: "n1")!, in: context))
+        XCTAssertEqual(m.title, "Ragu", "and taken only when they do")
+        XCTAssertNil(HouseholdEdits.pending(shoppingID: "n1"), "and not offered twice")
+    }
+
+    func testTheNewestVersionOfANightIsTheOneOffered() {
+        for title in ["Ragu", "Katsu curry"] {
+            var p = plan(author: me, title: title)
+            p.editorID = "_riley"
+            p.editorName = "Riley Park"
+            HouseholdEdits.note(deliver([p], me: me).ownChanged)
+        }
+        XCTAssertEqual(HouseholdEdits.all.count, 1, "one night, one answer")
+        XCTAssertEqual(HouseholdEdits.pending(on: Self.day(2))?.title, "Katsu curry")
     }
 
     // MARK: One delivery carrying more than one kind of change

@@ -186,8 +186,24 @@ final class PlanLedger {
         /// delivery that only removes a night still has to take its 19:00
         /// reminder down with it.
         var ownRemoved: [Entry] = []
+        /// Nights THIS phone planned that somebody else has CHANGED.
+        ///
+        /// The other half of the same deafness. `absorb` drops every record
+        /// this phone authored, so a member setting the author down to cook,
+        /// or changing the dish, reached every phone except the one whose
+        /// plan it was: no banner, no bell row, no reminder, and a household
+        /// believing somebody had an obligation nobody had told them about.
+        ///
+        /// Unlike `ownRemoved` this may NOT be acted on by itself. A removal
+        /// is an absence and converges on nothing; a cook or a title is a
+        /// VALUE, and writing it into the author's `PlannedMeal` from a
+        /// delivery is the two-writer shape the mirror law forbids outright.
+        /// So this is shown, and a person decides. See CLAUDE.md, "A value
+        /// crossing the seam needs a human. An absence does not."
+        var ownChanged: [Entry] = []
         var isEmpty: Bool {
-            added.isEmpty && changed.isEmpty && removed.isEmpty && ownRemoved.isEmpty
+            added.isEmpty && changed.isEmpty && removed.isEmpty
+                && ownRemoved.isEmpty && ownChanged.isEmpty
         }
     }
 
@@ -422,8 +438,18 @@ final class PlanLedger {
                 // `me` being a placeholder cannot match a real author id, so
                 // an unconfirmed identity yields nothing rather than
                 // everything.
-                if !entry.authorID.isEmpty, entry.authorID == me, remote.removed == 1 {
-                    delta.ownRemoved.append(entry)
+                if !entry.authorID.isEmpty, entry.authorID == me {
+                    let editor = entry.editorID ?? ""
+                    if remote.removed == 1 {
+                        delta.ownRemoved.append(entry)
+                    } else if !editor.isEmpty, editor != me {
+                        // Somebody else wrote this version of a night this
+                        // phone planned. The publisher stamps its own author
+                        // into `editorID` on every pass, so an editor that
+                        // is neither empty nor this phone is the only signal
+                        // there is, and it is enough.
+                        delta.ownChanged.append(entry)
+                    }
                 }
                 // Mine, echoed back. If a stale copy was kept under a
                 // placeholder identity, let it go.

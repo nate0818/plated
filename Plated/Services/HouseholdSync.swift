@@ -1246,6 +1246,7 @@ enum HouseholdSync {
         // longer has anything to do with the people who removed it, on
         // whatever the next drain happened to be.
         RemovedNights.clear()
+        HouseholdEdits.clear()
         HouseholdShare.mySeat = nil
         HouseholdShare.forgetUnresolved()
         let defaults = groupDefaults

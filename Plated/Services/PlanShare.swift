@@ -707,14 +707,26 @@ enum PlanShare {
         let theirs = mine.filter { RemovedNights.isTombstoned($0) }
         if !theirs.isEmpty {
             mine.removeAll { RemovedNights.isTombstoned($0) }
-            for name in theirs { book[name] = nil }
+            // The book entry STAYS. Forgetting it here was meant to stop
+            // `diff` offering the night every pass, and it also put the
+            // record beyond reach of the age-out, which is driven entirely
+            // by book entries: the comment claiming the tombstone ages out
+            // of the zone described something nothing did, and every night
+            // any household ever removed would have stayed in CloudKit for
+            // good. Re-offered and re-skipped each pass is the cheap half
+            // of that trade.
             print("[PlanShare] \(reason): \(theirs.count) night(s) the household took off, left in the zone to be read")
         }
-        let removals = mine + work.ageOut
-        let gone = await TableShare.deletePlans(names: removals, in: db, zone: zoneID)
+        // Split, because the age-out is the one caller allowed to take a
+        // tombstone: a night older than the mint window cannot be published
+        // by any phone any more, so nothing is left to read it.
+        var gone = await TableShare.deletePlans(names: mine, in: db, zone: zoneID)
+        gone.formUnion(
+            await TableShare.deletePlans(names: work.ageOut, in: db, zone: zoneID, reaping: true)
+        )
         for name in gone { book[name] = nil }
         saveBook(book)
-        print("[PlanShare] \(reason): saved \(saved.count)/\(work.save.count), deleted \(gone.count)/\(removals.count) in \(target.isEmpty ? "the own table" : target)")
+        print("[PlanShare] \(reason): saved \(saved.count)/\(work.save.count), deleted \(gone.count)/\(mine.count + work.ageOut.count) in \(target.isEmpty ? "the own table" : target)")
     }
 
     // MARK: A night the household changed under its author
