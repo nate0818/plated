@@ -829,7 +829,14 @@ struct PlanNightSheet: View {
         Haptic.plate()
         withAnimation(.plPop) {
             let meal = PlannedMeal(date: date, slot: slot)
-            if let recipe = recipes.first(where: { $0.title == title }) {
+            // By origin key first, so a dish that has since been renamed
+            // comes back as itself and two recipes sharing a title cannot
+            // return the wrong one. The title is the fallback, and a
+            // home-written recipe with no key falls to it by design.
+            let origin = RemovedNights.addBackOrigin(on: date, slot: slot) ?? ""
+            let recipe = (origin.isEmpty ? nil : recipes.first { $0.originID == origin })
+                ?? recipes.first { $0.title == title }
+            if let recipe {
                 meal.recipe = recipe
                 meal.servings = recipe.servings
             } else {
@@ -837,9 +844,12 @@ struct PlanNightSheet: View {
             }
             context.insert(meal)
         }
-        // Nothing to forget. Every one of these captions is drawn only on a
-        // night with no meal on it, so planning one silences them all, and
-        // the record ages out of the book on its own.
+        // Cleared rather than left to age out. Every caption is gated on the
+        // night having no meal, so leaving it would be harmless today, and
+        // that is the point: the gate is a property of four call sites
+        // rather than of the data, and the fifth reader will not know to
+        // write it.
+        RemovedNights.forget(day: PlanDay.string(date), slot: slot)
         dismiss()
     }
 

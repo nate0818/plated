@@ -70,6 +70,14 @@ extension RemovedNights {
         return gone.title
     }
 
+    /// The origin key of the dish that was taken off, so add-back can find
+    /// the recipe it actually was rather than the first one sharing a name.
+    /// Empty for a home-written recipe, which falls back to the title.
+    static func addBackOrigin(on date: Date, slot: MealSlot = .dinner) -> String? {
+        guard let gone = gone(on: date, slot: slot), gone.settled, !gone.kept else { return nil }
+        return gone.recipeOriginKey
+    }
+
     /// Named or not, and never a guess in between. `trailing` carries its
     /// own leading full stop, so the opening clause needs no punctuation of
     /// its own and a line with no trailing stays a label rather than
