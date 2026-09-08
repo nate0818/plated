@@ -466,6 +466,9 @@ enum TableNews {
         context: ModelContext, now: Date
     ) -> [Notice] {
         var notices: [Notice] = []
+        // `PlanDay` strings compare as dates because the format sorts, which
+        // is why the ledger's own prune compares them this way too.
+        let today = PlanDay.string(now)
 
         /// The body under the title: whose night it is, when that is
         /// worth saying. "You cook." is the one line that changes what the
@@ -522,7 +525,14 @@ enum TableNews {
         }
 
         // One sitting, one interruption. See `plannedSpokeKey`.
-        var plannedSpoke = spokeRecently(plannedSpokeKey, within: plannedBurst, at: now)
+        //
+        // Two variables, not one. Sharing them re-stamped the window on
+        // EVERY delivery, including the great majority that carry no planned
+        // night at all, so a household that pulls every few minutes silenced
+        // its own planning banners permanently after the first one. The
+        // window may only be pushed forward by a night that actually spoke.
+        let spokeAlready = spokeRecently(plannedSpokeKey, within: plannedBurst, at: now)
+        var spokeNow = false
         for e in plans.added where !e.authorID.isEmpty && e.authorID != me && e.changedAt > cutoff {
             let key = "plan:\(e.recordName):\(planHash(e))"
             guard !seen.contains(key) else { continue }
@@ -535,11 +545,11 @@ enum TableNews {
                 title: "\(who) planned \(e.title) for \(night)", body: body,
                 template: "{actor} planned {object} for \(night).",
                 deed: "Planned \(e.title) for \(night)." + (body.isEmpty ? "" : " \(body)"),
-                at: e.changedAt, passive: plannedSpoke
+                at: e.changedAt, passive: spokeAlready || spokeNow
             ))
-            plannedSpoke = true
+            spokeNow = true
         }
-        if plannedSpoke { store.set(now, forKey: plannedSpokeKey) }
+        if spokeNow { store.set(now, forKey: plannedSpokeKey) }
 
         // `changedByID`, not `authorID`. A member may change any household
         // night, so the person whose action this is is the editor, and
@@ -609,7 +619,14 @@ enum TableNews {
         // Named or not sent, as everywhere: a record that names no remover
         // says nothing, and `changedByID` keeps a person from being told
         // about their own doing on their other device.
-        for e in plans.ownRemoved where e.changedAt > cutoff {
+        // Not about a night that has already been and gone. `cutoff` is the
+        // replay window and answers a different question, when the WRITE
+        // happened; this asks whether the dinner is still ahead. Escalating
+        // this notice to a sound made that gap audible: a housemate tidying
+        // up last Tuesday now makes a noise about a dinner that was eaten.
+        // The other arms are windowed on `changedAt` because a night newly
+        // planned is always ahead; a removal is not.
+        for e in plans.ownRemoved where e.changedAt > cutoff && e.day >= today {
             // The replay window, which this branch alone was missing. Every
             // other arm is held either by `cutoff` or by needing a read row
             // to answer; this one had neither, and the ledger appends to it

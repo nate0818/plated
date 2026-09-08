@@ -761,6 +761,29 @@ final class PlanNewsTests: XCTestCase {
         XCTAssertTrue(second[0].passive, "a second night in the same sitting does not light the screen again")
     }
 
+    /// The window may only be pushed forward by a night that actually
+    /// spoke. Seeded from the stored value and written back unconditionally,
+    /// every delivery re-stamped it, including the great majority carrying
+    /// no planned night, so a household that pulls often silenced its own
+    /// planning banners permanently after the first.
+    func testADeliveryWithNoPlannedNightDoesNotHoldTheWindowOpen() {
+        let start = Date(timeIntervalSince1970: 1_700_000_000)
+        let first = digest(delivery([remotePlan(by: "riley", id: "n1", title: "Tacos")]), at: start)
+        XCTAssertFalse(first[0].passive)
+
+        // Forty minutes of ordinary deliveries carrying nothing planned.
+        for minute in stride(from: 5, through: 40, by: 5) {
+            _ = digest(delivery([]), at: start.addingTimeInterval(Double(minute) * 60))
+        }
+        // Fifty minutes after the FIRST night, the sitting is over.
+        let later = digest(
+            delivery([remotePlan(by: "riley", id: "n2", day: PlanNewsTests.inTwoDays, title: "Ragu")]),
+            at: start.addingTimeInterval(50 * 60)
+        )
+        XCTAssertEqual(later.count, 1)
+        XCTAssertFalse(later[0].passive, "the empty deliveries must not have held the window open")
+    }
+
     /// Tomorrow evening is a different sitting, not a continuation of this
     /// one, so it speaks again.
     func testTheNextSittingSpeaksAgain() {
