@@ -77,6 +77,8 @@ struct PlanNightSheet: View {
     /// A stepper held down is one intention, not eight: the row moves on
     /// every tap and the zone hears the number they stopped on.
     @State private var servingsWrite: Task<Void, Never>?
+    /// The removal has been asked for and not yet agreed to.
+    @State private var confirmingRemoval = false
 
     private var meal: PlannedMeal? {
         // A named household night is the one being changed, even on a slot
@@ -470,8 +472,16 @@ struct PlanNightSheet: View {
             }
             Spacer()
             Button {
-                Haptic.plate()
-                send(PlanShare.Edit(deleting: entry), closing: true)
+                // Asked, not done. This is the one control in the app that
+                // changes what several other people see, it cannot be undone
+                // by anything on this branch, and the sheet carrying its
+                // answer closes behind it. A stated reach under the card is
+                // not a gate.
+                //
+                // `warn`, not `plate`. plate is for something landing, and
+                // nothing has landed: this opens a question.
+                Haptic.warn()
+                confirmingRemoval = true
             } label: {
                 // Working, in `TomatoPillButton`'s shape: the spinner takes
                 // the glyph's place inside the same 44pt target, so the card
@@ -502,6 +512,21 @@ struct PlanNightSheet: View {
         .padding(.vertical, 10)
         .background(Color.canvas, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: Radius.row, style: .continuous).strokeBorder(Color.navHairline))
+        .confirmationDialog(
+            "Take \(entry.title) off \(Stamp.nightPhrase(entry.date))?",
+            isPresented: $confirmingRemoval,
+            titleVisibility: .visible
+        ) {
+            // The verb names the outcome AND its reach, because the reach is
+            // the part that is not obvious: this is not "remove from my week".
+            Button("Take it off for everybody", role: .destructive) {
+                Haptic.plate()
+                send(PlanShare.Edit(deleting: entry), closing: true)
+            }
+            Button("Keep it", role: .cancel) { }
+        } message: {
+            Text(removalWarning(entry))
+        }
     }
 
     /// Whose night it is, and whether the last change has reached the
@@ -695,6 +720,18 @@ struct PlanNightSheet: View {
             }
             if closing, Self.closes(outcome) { dismiss() }
         }
+    }
+
+    /// What the person is agreeing to. Two facts: whose night it is, and
+    /// that it cannot be taken back. Both matter and neither is on screen.
+    static func removalWarning(_ entry: PlanLedger.Entry) -> String {
+        let who = entry.authorFirstName
+        let whose = who.isEmpty ? "This night" : "\(who)'s night"
+        return "\(whose) comes off the plan on every phone in your household. This cannot be undone."
+    }
+
+    private func removalWarning(_ entry: PlanLedger.Entry) -> String {
+        Self.removalWarning(entry)
     }
 
     /// What each answer says out loud, in one place so a test can read it.

@@ -284,16 +284,20 @@ struct DayDetailView: View {
                 // somebody else planned is changed. The sheet is told which
                 // night, because the slot can hold one of each.
                 //
-                // Not a door while it is going. A night whose delete is
-                // still on this phone is on its way off the plan, and a
-                // page that let somebody change the dish on it would be
-                // offering an edit to a record about to be deleted: two
-                // intentions racing, with the queue folding the change back
-                // into the delete and the screen saying neither.
+                // A door even while it is going, and especially then. The
+                // sheet is where the delete's own answer is said: it draws
+                // the card, the sentence the write returned, and none of the
+                // editing controls, because `going` already withholds those.
+                // Closing the door here left a person who queued a removal
+                // by mistake, or offline, with a row that had become a fact
+                // and no screen anywhere explaining it or carrying what the
+                // zone eventually replied. The race this once guarded
+                // against is guarded in the sheet, which is the layer that
+                // knows what is queued.
                 ForEach(remote) { entry in
                     RemotePlanRow(
                         entry: entry, date: date, members: members,
-                        onOpen: entry.isGoing ? nil : { planning = SlotPlan(date: date, slot: slot, plan: entry.recordName) },
+                        onOpen: { planning = SlotPlan(date: date, slot: slot, plan: entry.recordName) },
                         openHint: "Opens the night",
                         place: .day
                     )
