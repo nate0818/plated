@@ -36,6 +36,9 @@ export default function AuthFrame({
           {detail ? <p className={styles.bodyMuted}>{detail}</p> : null}
         </div>
         {children}
+        <p className={styles.authNotice}>
+          Authorized use only. Activity on this system is recorded.
+        </p>
       </section>
     </main>
   );

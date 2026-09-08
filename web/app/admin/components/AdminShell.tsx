@@ -78,6 +78,7 @@ export default function AdminShell({ userLabel, children }: { userLabel: string;
             {signingOut ? "Signing out…" : "Sign out"}
           </button>
         </div>
+        <p className={styles.shellNotice}>Authorized use only. Activity is recorded.</p>
       </aside>
       <div className={styles.mobileBar}>
         <Link href="/admin" aria-label="Plated admin"><Wordmark size={23} /></Link>

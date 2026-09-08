@@ -148,7 +148,8 @@
    reader still hears the name. The filled state is driven by
    :placeholder-shown rather than React state, so a browser autofilling the
    password on load lands in the right position too. */
-.floatField { position: relative; min-width: 0; display: block; }
+.floatField { min-width: 0; display: block; }
+.floatControl { position: relative; display: block; }
 
 .floatInput {
   width: 100%;
@@ -185,6 +186,31 @@
   text-transform: uppercase;
   font-weight: 700;
 }
+
+/* An example belongs to a focused field. Shown at rest it would sit under
+   the label and read as a value that is already there. */
+.floatInput:not(:focus)::placeholder { color: transparent; }
+
+/* A textarea's label sits on its first line rather than in its middle. */
+.floatFieldArea .floatLabel { top: 25px; transform: none; }
+.floatArea { min-height: 116px; padding-top: 26px; resize: vertical; line-height: 1.5; }
+.floatFieldArea .floatInput:focus + .floatLabel,
+.floatFieldArea .floatInput:not(:placeholder-shown) + .floatLabel {
+  transform: translateY(-16px) scale(.72);
+}
+
+/* A select is never empty, so its label starts raised and stays there. */
+.floatSelect { appearance: none; cursor: pointer; }
+.floatFieldSelect .floatLabel {
+  transform: translateY(-152%) scale(.72);
+  letter-spacing: .075em;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+
+/* Counters and help live with the field they count. */
+.floatField .counter { top: 9px; right: 12px; }
+.floatField .fieldHelp { display: block; margin-top: 6px; }
 
 /* The code is centred, so its label centres with it until it rises. */
 .floatField:has(.codeInput) .floatLabel { left: 50%; transform: translate(-50%, -50%); }
@@ -363,3 +389,6 @@
 @media (max-width:900px) { .console { display: block; } .sidebar { display: none; } .mobileBar { min-height: 58px; display: flex; align-items: center; gap: 9px; padding: max(12px,env(safe-area-inset-top)) 18px 10px; border-bottom: 1px solid var(--hairline); background: white; } .mobileBar .signOut { margin-left: auto; } .mobileNav { display: flex; gap: 5px; padding: 8px 14px; overflow-x: auto; border-bottom: 1px solid var(--hairline); background: white; scrollbar-width: none; } .mobileNav::-webkit-scrollbar { display: none; } .mobileNavLink { flex: none; padding: 7px 10px; border-radius: 999px; color: var(--ink-secondary); text-decoration: none; font-size: .75rem; font-weight: 700; } .mobileNavCurrent { background: var(--fill); color: var(--ink); } .main { padding: 28px 18px 56px; } .metricGrid { grid-template-columns: repeat(2,minmax(0,1fr)); } }
 @media (max-width:680px) { .pageHeader { align-items: flex-start; flex-direction: column; } .pageAction { width: 100%; } .pageAction>* { width: 100%; } .twoColumn,.twoColumnWide,.metricGridThree,.coverageGrid,.proseGrid,.composerIntro,.formGrid { grid-template-columns: 1fr; } .fieldWide { grid-column: auto; } .audienceGrid { grid-template-columns: repeat(2,minmax(0,1fr)); } .tableFooter { align-items: flex-start; flex-direction: column; } }
 @media (max-width:430px) { .main { padding-inline: 13px; } .metricGrid { grid-template-columns: 1fr; } .metric { min-height: 118px; } .audienceGrid,.previewFacts,.definitionGrid { grid-template-columns: 1fr; } .authCard { padding: 24px 20px; } }
+
+.authNotice { margin-top: -6px; color: var(--ink-secondary); font-size: .72rem; line-height: 1.45; text-align: center; }
+.shellNotice { margin-top: 14px; color: var(--ink-secondary); font-size: .68rem; line-height: 1.4; }

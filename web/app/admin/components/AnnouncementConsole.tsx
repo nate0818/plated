@@ -16,6 +16,7 @@ import {
   type AppLink,
 } from "../../lib/admin/contracts";
 import { formatWhen, StatusPill } from "./UI";
+import Field, { FieldArea, FieldSelect } from "./Field";
 import styles from "../admin.module.css";
 
 const AUDIENCE_COPY: Record<AnnouncementAudience, { label: string; detail: string }> = {
@@ -334,8 +335,8 @@ export default function AnnouncementConsole({
     <div className={styles.announcementGrid}>
       <section className={styles.composer} aria-labelledby="compose-title">
         <div className={styles.composerIntro}>
-          <div><p className={styles.eyebrow}>Compose</p><h2 id="compose-title" className={styles.sectionTitle}>A rare note from Plated</h2></div>
-          <p>Use a founder announcement only for service or release news that the people at a Table cannot say themselves.</p>
+          <div><h2 id="compose-title" className={styles.sectionTitle}>New announcement</h2></div>
+          <p>Service and release news only.</p>
         </div>
         {!commandReady ? <div className={styles.callout}><p className={styles.calloutTitle}>Sending is not configured</p><p className={styles.smallMuted}>Set ADMIN_API_SECRET and the command function URL on Vercel. The APNs credentials remain in Supabase.</p></div> : null}
         {commandReady && needsStepUp ? (
@@ -370,11 +371,11 @@ export default function AnnouncementConsole({
         </fieldset>
 
         <div className={styles.formGrid}>
-          <label className={styles.field}><span className={styles.label}>Title</span><input className={styles.input} value={draft.title} maxLength={32} onChange={(event) => change("title", event.target.value)} placeholder="A new build to test" disabled={Boolean(busy)} /><span className={styles.counter}>{draft.title.trim().length}/32</span></label>
-          <label className={`${styles.field} ${styles.fieldWide}`}><span className={styles.label}>Body</span><textarea className={styles.textarea} value={draft.body} maxLength={140} rows={4} onChange={(event) => change("body", event.target.value)} placeholder="Photos at the Table load more reliably in build 24. Update in TestFlight when it appears." disabled={Boolean(busy)} /><span className={styles.counter}>{draft.body.trim().length}/140</span></label>
-          <label className={styles.field}><span className={styles.label}>Opens</span><select className={styles.input} value={draft.link} onChange={(event) => change("link", event.target.value as AppLink)} disabled={Boolean(busy)}>{APP_LINKS.map((link) => <option key={link} value={link}>{link.replace("plated://", "")}</option>)}</select></label>
-          <label className={styles.field}><span className={styles.label}>Only below build</span><input className={styles.input} inputMode="numeric" value={draft.belowBuild} onChange={(event) => change("belowBuild", event.target.value.replace(/\D/g, "").slice(0, 10))} placeholder="Required for update notices" disabled={Boolean(busy)} /></label>
-          <label className={`${styles.field} ${styles.fieldWide}`}><span className={styles.label}>Corrects announcement ID</span><input className={styles.input} value={draft.replaces} onChange={(event) => change("replaces", event.target.value.trim())} placeholder="Optional UUID from the audit history" autoComplete="off" disabled={Boolean(busy)} /><span className={styles.fieldHelp}>A correction keeps the original audience and collapse behavior. The server verifies the relationship.</span></label>
+          <Field label="Title" value={draft.title} maxLength={32} onChange={(event) => change("title", event.target.value)} placeholder="A new build to test" disabled={Boolean(busy)} trailing={<span className={styles.counter}>{draft.title.trim().length}/32</span>} />
+          <FieldArea label="Body" wrapperClassName={styles.fieldWide} value={draft.body} maxLength={140} rows={4} onChange={(event) => change("body", event.target.value)} placeholder="Photos at the Table load more reliably in build 24. Update in TestFlight when it appears." disabled={Boolean(busy)} trailing={<span className={styles.counter}>{draft.body.trim().length}/140</span>} />
+          <FieldSelect label="Opens" value={draft.link} onChange={(event) => change("link", event.target.value as AppLink)} disabled={Boolean(busy)}>{APP_LINKS.map((link) => <option key={link} value={link}>{link.replace("plated://", "")}</option>)}</FieldSelect>
+          <Field label="Only below build" inputMode="numeric" value={draft.belowBuild} onChange={(event) => change("belowBuild", event.target.value.replace(/\D/g, "").slice(0, 10))} placeholder="Required for update notices" disabled={Boolean(busy)} />
+          <Field label="Corrects announcement ID" wrapperClassName={styles.fieldWide} value={draft.replaces} onChange={(event) => change("replaces", event.target.value.trim())} placeholder="Optional UUID from the audit history" autoComplete="off" disabled={Boolean(busy)} help={<span className={styles.fieldHelp}>A correction keeps the original audience. The server verifies it.</span>} />
         </div>
         {localError ? <p className={styles.formError} role="alert">{localError}</p> : null}
         <div className={styles.composerActions}>
@@ -401,7 +402,7 @@ export default function AnnouncementConsole({
                 {!draft.overrideCap ? <button className={styles.textButton} type="button" onClick={() => change("overrideCap", true)} disabled={Boolean(busy)}>Override deliberately, then preview again</button> : null}
               </div>
             ) : preview.recipientCount === 0 ? <p className={styles.formError}>There are no eligible devices. Nothing can be sent.</p> : (
-              <label className={styles.field}><span className={styles.label}>Type the title to authorize this exact intent</span><input className={styles.input} value={confirmation} onChange={(event) => setConfirmation(event.target.value)} autoComplete="off" disabled={Boolean(busy) || needsStepUp} /></label>
+              <Field label="Type the title to confirm" value={confirmation} onChange={(event) => setConfirmation(event.target.value)} autoComplete="off" disabled={Boolean(busy) || needsStepUp} />
             )}
             <button className={styles.primaryButton} type="button" onClick={send} disabled={Boolean(busy) || needsStepUp || Boolean(preview.capWarning && !preview.overrideCap) || !preview.apnsConfigured || preview.recipientCount === 0 || confirmation !== draft.title.trim()}>{busy === "send" ? "Sending…" : `Send to ${preview.recipientCount}`}</button>
           </div>
