@@ -1093,7 +1093,7 @@ struct AskComposerSheet: View {
                                 Spacer()
                                 Button {
                                     Haptic.tap()
-                                    withAnimation(.plSnap) { options.remove(at: index) }
+                                    withAnimation(.plSnap) { _ = options.remove(at: index) }
                                 } label: {
                                     Image(systemName: "xmark")
                                         .accessibilityLabel("Remove option")
