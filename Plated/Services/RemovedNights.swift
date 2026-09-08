@@ -45,6 +45,10 @@ enum RemovedNights {
         var by: String
         /// `PlanDay` string, so the sentence can name the night.
         var day: String
+        /// Which meal of that day, because a day can hold more than one and
+        /// the screen that explains an EMPTY night has only the date and the
+        /// slot to find it by.
+        var slot: String
         var at: Date
         /// The `PlannedMeal` has gone, or was kept because it was cooked.
         /// Either way there is nothing left to do but say so.
@@ -97,7 +101,7 @@ enum RemovedNights {
             guard !book.contains(where: { $0.shoppingID == e.shoppingID }) else { continue }
             book.append(Gone(
                 shoppingID: e.shoppingID, recordName: e.recordName, title: e.title,
-                by: e.editorName ?? "", day: e.day, at: .now
+                by: e.editorName ?? "", day: e.day, slot: e.slot, at: .now
             ))
             added += 1
         }
@@ -172,10 +176,14 @@ enum RemovedNights {
         all.filter { $0.at >= cutoff }.sorted { $0.at > $1.at }
     }
 
-    /// The night the household took off a given day, if any.
-    static func gone(on date: Date) -> Gone? {
+    /// The night the household took off a given day and slot, if any.
+    ///
+    /// By slot as well as day, because a day can hold more than one meal and
+    /// the screen that has to explain an EMPTY night has nothing else to
+    /// find it by: the row it would have drawn is gone.
+    static func gone(on date: Date, slot: MealSlot = .dinner) -> Gone? {
         let day = PlanDay.string(date)
-        return all.first { $0.day == day }
+        return all.first { $0.day == day && $0.slot == slot.rawValue }
     }
 
     /// An Apple ID change or a household leave: these name nights in a

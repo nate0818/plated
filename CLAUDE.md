@@ -130,16 +130,19 @@ rendering a hair larger so fixed-height layouts overflow, and Foundation Models.
   none, because nothing about it looks stale. `scripts/check-tokens` diffs the
   two and both `make phone` and `scripts/testflight.sh` now refuse to ship on
   drift. Change a colour in Theme.swift, change it there too.
-- **A read that a SwiftUI body performs may not write observed state, even
-  a write that changes nothing.** `PlanLedger.photo(for:)` cleared its cache
-  on the miss path, and a night with no photograph is a miss every time. The
-  ledger is `@Observable`, `RemotePlanRow`'s body calls it, and assigning
-  `nil` to a dictionary key that is ALREADY ABSENT still counts as a
-  mutation, so every read invalidated the view that had just done the read.
-  The render loop ran at 99% of a core and the test host never finished. It
-  does not fail: the suite simply stops, which both sessions then blamed on
-  the simulator for six runs. `sample <pid>` on the stuck process is what
-  found it.
+- **A read a SwiftUI body performs may not write observed state, and a write
+  that changes nothing is still a write.** `PlanLedger.photo(for:)` was made
+  to clear its own cache on a miss, `photos[name] = nil`. A night with no
+  photograph misses every time, the class is `@Observable`, and assigning nil
+  to a key that is ALREADY ABSENT still counts as a mutation, so every read
+  invalidated the view that had just performed it. One core at 99%, the test
+  host never finishing, and the suite stopping rather than failing. It was
+  diagnosed by sampling the stuck process; six runs before that were blamed
+  on the simulator, a wedged device and a missing binary, because a hang
+  looks exactly like a slow machine. Guard the write (`if photos[name] != nil`)
+  and, when a run stalls with no output, sample the process before blaming
+  the environment. "The environment did it" is a claim like any other and
+  does not get to skip verification because it is convenient.
 - The store migration in `PlatedStore` is precious. An unreadable live store must
   always abort. Never simplify it to an existence check.
 
