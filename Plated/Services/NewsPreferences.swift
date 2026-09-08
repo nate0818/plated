@@ -147,7 +147,15 @@ enum NewsPreferences {
         // drifting apart is exactly how this happened.
         case .householdJoined, .householdLeft: return .seats
         case .recipeAdded: return .dishes
-        case .editConflict: return .planning
+        // NOT `.editConflict`, deliberately, and it is the one of the four
+        // that must stay unmapped. A nil answer here counts unconditionally,
+        // and the bell is the only place a conflict exists at all: `select`
+        // drops it before the screen, so it never has a banner to suppress.
+        // Mapping it to Planning therefore did not bring the icon into line
+        // with a banner, it removed the notice entirely for anybody with
+        // that switch off. "Your change lost to somebody else's" is also not
+        // what that switch describes, which is somebody planning, moving or
+        // taking off a night.
         default: return nil
         }
     }
