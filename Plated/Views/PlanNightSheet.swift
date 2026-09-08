@@ -140,7 +140,24 @@ struct PlanNightSheet: View {
                 VStack(alignment: .leading, spacing: 10) {
                     if let meal {
                         currentMealCard(meal)
-                            .padding(.bottom, 6)
+                            .padding(.bottom, contestLine(for: meal) == nil ? 6 : 2)
+                        // The household changed a night this phone planned,
+                        // and this phone's copy is the one on screen. Nothing
+                        // reconciles the two: the publisher stood down rather
+                        // than overwrite their change, and the ledger drops
+                        // records this phone authored, so without this line
+                        // the person edits on top of a night that no longer
+                        // says what they think it says. It states both facts
+                        // and stops, because the app does not know which of
+                        // them is meant to win.
+                        if let line = contestLine(for: meal) {
+                            Text(line)
+                                .plType(.footnote)
+                                .foregroundStyle(Color.inkSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.bottom, 6)
+                        }
                         Stepper(value: Binding(get: { meal.servings }, set: { meal.servings = $0; Persist.save(context) }), in: 1...99) {
                             Text("\(meal.servings) servings").plType(.body, .semibold)
                                 .contentTransition(.numericText())
@@ -456,6 +473,34 @@ struct PlanNightSheet: View {
     /// household. A change that is still on this phone says so: the card
     /// already shows the new dish, and this is what keeps that from being a
     /// claim that everybody can see it.
+    /// What to say on a night this phone planned that the household has
+    /// since changed. Nil when nothing is contested, which is almost always.
+    ///
+    /// Two facts and no advice. "Riley changed this night on their phone"
+    /// is a recorded action by a named person, which is what the
+    /// notification law asks of every sentence about somebody else. "Your
+    /// plan still says Tacos" is what is under the reader's thumb. The app
+    /// does not say which should win, because it does not know.
+    ///
+    /// A record written before `editorID` names nobody, and this may not
+    /// invent a "Someone": the digest's own ladder refuses to name the
+    /// author for another person's edit and this makes the same call. It
+    /// loses the name and keeps both facts.
+    ///
+    /// The second clause is dropped rather than left dangling when this
+    /// phone's night has no title to quote.
+    private func contestLine(for meal: PlannedMeal) -> String? {
+        guard let id = meal.shoppingID,
+              let contest = PlanShare.contest(for: "plan-\(id)") else { return nil }
+        let who = contest.by.trimmingCharacters(in: .whitespaces)
+        let opening = who.isEmpty
+            ? "This night was changed on another phone."
+            : "\(PlanLedger.Entry.firstName(who)) changed this night on their phone."
+        let mine = contest.mineTitle.trimmingCharacters(in: .whitespaces)
+        guard !mine.isEmpty else { return opening }
+        return "\(opening) Your plan still says \(mine)."
+    }
+
     private func remoteCaption(_ entry: PlanLedger.Entry) -> String {
         // The row's own words, from the row: the card and the row are the
         // same night on two screens, and a second copy of the sentence is a
