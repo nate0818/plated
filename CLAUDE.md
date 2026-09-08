@@ -38,6 +38,14 @@ rendering a hair larger so fixed-height layouts overflow, and Foundation Models.
   an XCUITest (`XCUIApplication(bundleIdentifier: "com.apple.springboard")`)
   in a throwaway project outside the repo; `press(forDuration:)` on a
   widget opens its menu, on a bare icon it launches the app.
+- **A connected iPhone that is locked stalls `xcodebuild` forever.** It
+  retries `com.apple.mobile.notification_proxy` every three seconds, with
+  the device listed under Devices Offline the whole time, and never reaches
+  compilation. Through `make test`'s grep it looks exactly like a slow
+  build: no output, no error, xcodebuild at 0% CPU. Two sessions lost about
+  an hour each to it on the same afternoon. Unlock the phone, or read
+  `xcodebuild` raw rather than filtered before believing anything about the
+  code.
 - `make design` checks the DESIGN.md rules a machine can check, and both
   ship paths refuse a build that breaks one. A deliberate exception is fine
   but has to say so at the line: `// design-ok(<rule>): why this one is right`.
@@ -112,6 +120,16 @@ rendering a hair larger so fixed-height layouts overflow, and Foundation Models.
   none, because nothing about it looks stale. `scripts/check-tokens` diffs the
   two and both `make phone` and `scripts/testflight.sh` now refuse to ship on
   drift. Change a colour in Theme.swift, change it there too.
+- **A read that a SwiftUI body performs may not write observed state, even
+  a write that changes nothing.** `PlanLedger.photo(for:)` cleared its cache
+  on the miss path, and a night with no photograph is a miss every time. The
+  ledger is `@Observable`, `RemotePlanRow`'s body calls it, and assigning
+  `nil` to a dictionary key that is ALREADY ABSENT still counts as a
+  mutation, so every read invalidated the view that had just done the read.
+  The render loop ran at 99% of a core and the test host never finished. It
+  does not fail: the suite simply stops, which both sessions then blamed on
+  the simulator for six runs. `sample <pid>` on the stuck process is what
+  found it.
 - The store migration in `PlatedStore` is precious. An unreadable live store must
   always abort. Never simplify it to an existence check.
 

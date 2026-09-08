@@ -32,7 +32,11 @@ design:
 ## called "iPhone 17 Pro" and xcodebuild silently picked the iOS 27 one,
 ## not the booted one. Override with PLATED_SIM=<udid>. The tests run
 ## inside the app host and rewrite that simulator's app-group ledgers, so
-## point this at a simulator no other session is driving.
+## point this at a simulator no other session is driving. Two sessions on
+## one simulator do not fail a test: the second run is killed while it is
+## still bootstrapping, so it reports zero tests executed and exit 65,
+## which reads as a broken build rather than a collision. A green run whose
+## count came back low was probably interleaved with somebody else's.
 PLATED_SIM ?= FDC94B74-3C20-49A0-8174-6188E4BF45B1
 test:
 	@set -o pipefail; xcodebuild -project Plated.xcodeproj -scheme Plated -configuration Debug \
