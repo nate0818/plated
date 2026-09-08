@@ -236,6 +236,49 @@ predates all of this and is minted with the row) and `authorID` (what
 carries no `shareRecordName`, no `shareModifiedAt` and no `shareFingerprint`:
 there is no record for them to be about.
 
+### 3.2a Taking a night off is a write, not a delete
+
+A removal sets `removed` (INT64, read through `TableShare.int`) on the
+night's record, beside `editorID` and `editorName`. It is never a CloudKit
+deletion, for two reasons that are both about who is told.
+
+A deletion arrives as a bare record name with nobody attached, so the notice
+had to name the night's AUTHOR. Riley taking Nate's night off told the whole
+household that Nate did it, told Riley the same thing about her own action,
+and never reached Nate at all: three of the laws in `docs/notifications.md`
+broken by one loop. A record that stays and says it is off carries the
+person who removed it, and `TableNews.changer(_:)` names them.
+
+And the author's phone drops every delivered record it wrote (`absorb`'s
+own-author guard), so an ABSENCE was the one thing it could never be told.
+A tombstone is a record, so it arrives. `PlanLedger.Delta.ownRemoved` is the
+arm, and `RemovedNights` acts on it: the `PlannedMeal` goes, once.
+
+- The flag is only ever set. Putting a night back is a NEW night under a new
+  `shoppingID`, so nothing has to un-remove one and no tombstone is ever
+  contradicted.
+- **A tombstone is never saved over.** `pass` checks it before the contest
+  rule, because it is not a contest: there is no version to go back to. This
+  is also what closes the fresh-device hole, where a second phone with no
+  book entry mints a whole record over the removal.
+- `wasTakenOffElsewhere` no longer fires, because it reads the record being
+  absent and a tombstone is present. `send` checks `removed` instead, before
+  `movedOn`, so an edit that was in flight is refused rather than standing
+  the night back up on every phone.
+- **Age-out, re-home and the departed-member sweep stay hard deletes.** The
+  age-out exists so the zone does not keep a year of dinners; written as
+  tombstones it would keep them forever. A re-home deletes out of a zone
+  this phone has left, where a tombstone is unreachable litter.
+- Two hold-backs, both re-checked when the removal is acted on and never
+  when it arrives, because `CookingFocusView.finish()` writes `cookedAt` and
+  then ends the session. A night that was **cooked** is never deleted:
+  `cookedAt` is what `Recipe.timesCooked`, `Awards` and the insights count,
+  none of it snapshotted. A night being **cooked right now** goes when the
+  session does, not under the person's hands.
+
+See CLAUDE.md, "A value crossing the seam needs a human. An absence does
+not.", for why this is not the mirror merge.
+
 ### 3.3 `PlatedHouseholdRecipe` (one per `Recipe`)
 
 Every field on `Recipe` except `isFavorite` and `isPinned`, plus

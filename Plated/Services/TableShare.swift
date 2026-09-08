@@ -860,6 +860,17 @@ enum TableShare {
         /// the reader falls back to the author there.
         var editorID = ""
         var editorName = ""
+        /// The night was taken off the household plan, and by whom.
+        ///
+        /// A removal is a WRITE rather than a CloudKit delete, because a
+        /// deletion arrives as a bare record name with nobody attached: the
+        /// notice then had to name the night's AUTHOR, so a removal Riley
+        /// performed told the whole household that Nate did it, told Riley
+        /// the same about her own action, and never reached Nate at all.
+        /// A record that stays and says it is off carries `editorID` and
+        /// `editorName` like any other edit, and all three of those close
+        /// at once. INT64, never Bool: CloudKit has no boolean type.
+        var removed = 0
         /// The night's ingredients, already canonical. Empty on every
         /// record written before groceries were shared, which reads as a
         /// night that contributes nothing to a list rather than as an
@@ -1535,6 +1546,14 @@ enum TableShare {
         // permanently, and a night with no recipe has no ingredients, so
         // the empty case is the common one on day one. "[]" is a value.
         record["lines"] = (encodeLines(plan.lines) ?? "[]") as CKRecordValue
+        // Read and written back rather than set from the plan: a tombstone
+        // is not the publisher's to lift, and this phone's `PlannedMeal`
+        // knows nothing about it. On a record being minted `int` answers 0,
+        // which is what teaches CloudKit the type, so the primer mints the
+        // field through this same line. Assigned unconditionally so it is
+        // always in `changedKeys()`, which is all `saveOverServerCopy`
+        // replays onto a server copy after a conflict.
+        record["removed"] = int(record, "removed") as CKRecordValue
         record["cookID"] = plan.cookID as CKRecordValue
         record["cookName"] = plan.cookName as CKRecordValue
         record["cookColorHex"] = plan.cookColorHex as CKRecordValue
@@ -1910,6 +1929,7 @@ enum TableShare {
         p.editorID = record["editorID"] as? String ?? ""
         p.editorName = record["editorName"] as? String ?? ""
         p.lines = decodeLines(record["lines"] as? String)
+        p.removed = int(record, "removed")
         p.cookID = record["cookID"] as? String ?? ""
         p.cookName = record["cookName"] as? String ?? ""
         p.cookColorHex = record["cookColorHex"] as? String ?? ""
@@ -2015,6 +2035,7 @@ enum TableShare {
                         var servings = 4; var tagline = ""; var cooked = false; var cookedAt: Date?
                         var hasRecipe = false; var recipeMinutes = 0; var recipeOriginKey = ""
                         var shoppingID = ""; var photoData: Data?
+                        var removed = 0
                         var lines: [PlanShare.Line] = []
                         var createdAt = Date.now; var changedAt = Date.now }
     struct Claim: Equatable { var inviteID: String; var userRecordName: String }

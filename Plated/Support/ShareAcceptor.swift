@@ -147,6 +147,10 @@ final class ShareAcceptor: NSObject, UIApplicationDelegate {
         // Nights other phones planned, and what changed about them, kept
         // before the ledger is overwritten so the news can say "moved".
         let plans = PlanLedger.shared.absorb(changes, me: TableIdentity.cached)
+        // Parked rather than acted on here: both hold-backs (a night that
+        // was cooked, and a night being cooked right now) are re-checked at
+        // drain time, and one of them can outlive this process.
+        RemovedNights.park(plans.ownRemoved)
         var joined: [HouseholdMember] = []
         var swept = PlanLedger.Delta()
         if changes.sharesChanged {
@@ -185,7 +189,20 @@ final class ShareAcceptor: NSObject, UIApplicationDelegate {
         // what went and it is redeemed here, on a context that was going
         // to save anyway.
         TableNews.retract(plans: swept.removed + PlanShare.takeRetractions(), context: context)
-        if !plans.isEmpty || !swept.isEmpty {
+        // A night this phone planned that the household has taken off. It
+        // leaves this phone's own plan here, BEFORE the fetch below, or the
+        // rebuild is handed a meals array that still holds it and the 19:00
+        // reminder goes on standing for a dinner that is off the plan. The
+        // save is here rather than inside the drain for the reason
+        // `takeRetractions` exists: a save schedules a publisher pass, and
+        // the queue may not start one from inside a delivery.
+        let took = RemovedNights.drain(in: context)
+        if took { Persist.save(context, "nights the household took off") }
+        // `plans` and `swept` are the wrong question on their own: a
+        // delivery that ONLY carries a removal of this phone's own night
+        // leaves both empty, and that is exactly the delivery whose
+        // reminder, widget and grocery list are now wrong.
+        if !plans.isEmpty || !swept.isEmpty || took {
             // A night whose cook is this person just arrived, moved or
             // left: the reminders read the ledger and must be rebuilt now,
             // not at the next visit to the Plan tab.
@@ -195,6 +212,10 @@ final class ShareAcceptor: NSObject, UIApplicationDelegate {
             // `PlanLedger.isMine(cook:)` for a remote night), not by
             // matching the head of table's name.
             await NotificationScheduler.rebuild(meals: meals)
+            // Nothing else in this pass republishes it, and the Lock Screen
+            // prefers the local row: clearing the ledger entry alone leaves
+            // the author's widget serving a night that has gone.
+            WidgetBridge.publish(from: context)
         }
     }
 

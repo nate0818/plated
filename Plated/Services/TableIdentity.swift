@@ -146,6 +146,10 @@ enum TableIdentity {
         HouseholdOutbox.shared.clear()
         GroceryMarks.shared.clear()
         TableInvites.shared.clear()
+        // These name nights in a household this account is not in. Drained
+        // under the new identity they would take meals off a plan that has
+        // nothing to do with the household that removed them.
+        RemovedNights.clear()
         for k in householdKeys {
             store.removeObject(forKey: k)
         }

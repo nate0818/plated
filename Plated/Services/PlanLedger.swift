@@ -172,7 +172,23 @@ final class PlanLedger {
         var added: [Entry] = []
         var changed: [(before: Entry, after: Entry)] = []
         var removed: [Entry] = []
-        var isEmpty: Bool { added.isEmpty && changed.isEmpty && removed.isEmpty }
+        /// Nights THIS phone planned that the household has taken off.
+        ///
+        /// The one delivery the author was never able to hear. `absorb`
+        /// drops every record whose author is this phone, and a removal used
+        /// to be a CloudKit deletion, so the night stood on the author's
+        /// plan forever under a control that said it had gone for everybody.
+        /// A tombstone is a record, so it arrives, and this is what the app
+        /// acts on: the `PlannedMeal` goes, once.
+        ///
+        /// Defaulted, so every existing `Delta()` still compiles, and in
+        /// `isEmpty`, because that is what gates the reminder rebuild: a
+        /// delivery that only removes a night still has to take its 19:00
+        /// reminder down with it.
+        var ownRemoved: [Entry] = []
+        var isEmpty: Bool {
+            added.isEmpty && changed.isEmpty && removed.isEmpty && ownRemoved.isEmpty
+        }
     }
 
     private struct Book: Codable {
@@ -390,9 +406,40 @@ final class PlanLedger {
         for remote in changes.plans {
             var entry = Entry(remote)
             guard !entry.authorID.isEmpty, entry.authorID != me else {
+                // The one thing a phone needs to hear about a night it
+                // planned itself. Tested with `==` rather than leaning on
+                // the guard, because the guard's else also catches a record
+                // with an EMPTY author, and an empty id is not this phone.
+                // `me` being a placeholder cannot match a real author id, so
+                // an unconfirmed identity yields nothing rather than
+                // everything.
+                if !entry.authorID.isEmpty, entry.authorID == me, remote.removed == 1 {
+                    delta.ownRemoved.append(entry)
+                }
                 // Mine, echoed back. If a stale copy was kept under a
                 // placeholder identity, let it go.
                 if book.entries.removeValue(forKey: entry.recordName) != nil { removePhoto(entry.recordName) }
+                continue
+            }
+            // Somebody else's night, taken off. It used to arrive as a name
+            // in `changes.deleted`; a tombstone is a record, so it comes
+            // through here instead and has to be turned back into a removal
+            // rather than folded as an ordinary change, or the night stands
+            // on every phone but the remover's with its dish unchanged.
+            if remote.removed == 1 {
+                if let old = book.entries.removeValue(forKey: entry.recordName) {
+                    removePhoto(entry.recordName)
+                    book.serverImages[entry.recordName] = nil
+                    beforeEdit[entry.recordName] = nil
+                    beforePhoto[entry.recordName] = nil
+                    // A removal this phone asked for is not news to it. The
+                    // reader who did it is told by the sheet closing, and
+                    // the law is that a notice is never about your own
+                    // action, on any of your devices.
+                    if isNews(old), remote.editorID != me { delta.removed.append(old) }
+                }
+                // Nothing to remove is not an error: `prune` runs at the top
+                // of this function and may have taken the entry already.
                 continue
             }
             let before = book.entries[entry.recordName]

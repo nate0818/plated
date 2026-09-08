@@ -605,6 +605,19 @@ enum PlanShare {
             // the night publishes once and the value is established rather
             // than every night standing down at once. A record the zone
             // does not have is not contested: that is a night to mint.
+            // A night the household has taken off is never saved over,
+            // whatever this phone's book says. Checked before the contest
+            // rule because it is not a contest: there is no version of this
+            // night to go back to, and standing it up again would put a
+            // dinner on every phone that somebody had removed. It also
+            // closes the fresh-device hole nothing local can reach: this
+            // book is per device, so the author's second phone has no entry
+            // for the night, mints on `existing: nil`, and would otherwise
+            // replay a whole record over the tombstone.
+            if let served, TableShare.int(served, "removed") == 1 {
+                print("[PlanShare] \(name) is off the household plan, not publishing over it")
+                continue
+            }
             if let served, let mine = book[name]?.serverModifiedAt,
                movedOn(served["modifiedAt"] as? Date, since: mine) {
                 contested.append(Contested(
@@ -1207,17 +1220,15 @@ enum PlanShare {
     /// calls "versions, not clocks": the record is read first, and a server
     /// copy this edit did not descend from wins outright.
     private static func send(_ edit: Edit, in db: CKDatabase, zone: CKRecordZone.ID) async -> WriteOutcome {
-        if edit.kind == .delete {
-            let gone = await TableShare.deletePlans(names: [edit.recordName], in: db, zone: zone)
-            // `.unknownItem` counts as gone inside `deletePlans`: a night
-            // that is not in the zone is a night that is off the plan.
-            guard gone.contains(edit.recordName) else {
-                print("PLATED HOUSEHOLD: \(edit.recordName) would not delete, keeping it queued")
-                return .queued("Your household could not be reached. It goes out on the next try.")
-            }
-            print("PLATED HOUSEHOLD: \(edit.recordName) is off the plan")
-            return .landed(edit.at)
-        }
+        // A removal is NOT a delete. It writes `removed = 1` onto the record
+        // and takes the same fetch-compare-save road as any other edit, so
+        // it carries `editorID` and `editorName`. A CloudKit deletion
+        // arrives as a bare record name with nobody attached, which is why
+        // the removal notice had to name the night's author and told the
+        // household that the wrong person did it. The record also has to
+        // stay for the author's phone to hear about it at all: `absorb`
+        // drops every delivered record this phone authored, so an absence
+        // was the one thing it could never be told.
         // Three answers, not two. A zone that would not answer is NOT a
         // night the zone does not hold: taking one for the other mints a
         // fresh record over a real one, and a fresh record reports every
@@ -1246,6 +1257,25 @@ enum PlanShare {
         case .unreachable:
             print("PLATED HOUSEHOLD: \(edit.recordName) could not be read, keeping the change queued")
             return .queued("This night could not be read just now. It goes out on the next try.")
+        }
+        // Somebody else took this night off while this edit was waiting.
+        // `wasTakenOffElsewhere` cannot see this any more: it reads the
+        // record being ABSENT, and a tombstone is present. Checked before
+        // `movedOn`, because a removal is the one version that wins whatever
+        // this edit descends from, and before `record(for:)`, which would
+        // otherwise happily write a title onto a night that is off the plan
+        // and stand it back up on every phone.
+        if let existing, TableShare.int(existing, "removed") == 1, edit.kind != .delete {
+            PlanLedger.shared.nightIsGone(edit.recordName)
+            print("PLATED HOUSEHOLD: \(edit.recordName) was taken off the plan on another phone, dropping the edit")
+            return .refused("That night was taken off the plan on another phone.")
+        }
+        // A removal of a night the zone does not hold is a night already off
+        // the plan. Minting a tombstone from nothing would stand a record on
+        // every phone for a dinner none of them has.
+        if existing == nil, edit.kind == .delete {
+            print("PLATED HOUSEHOLD: \(edit.recordName) is already off the plan")
+            return .landed(edit.at)
         }
         if let existing, movedOn(existing["modifiedAt"] as? Date, since: edit.seenAt) {
             var theirs = TableShare.remotePlan(from: existing)
@@ -1389,6 +1419,7 @@ enum PlanShare {
             record["shoppingID"] = shoppingID(of: edit.recordName) as CKRecordValue
             record["createdAt"] = edit.createdAt as CKRecordValue
             record["lines"] = "[]" as CKRecordValue
+            record["removed"] = 0 as CKRecordValue
             // Both links, exactly as the publisher writes them: the
             // reference is the cascade, the parent is what puts the record
             // under the household share so a member can see it at all.
@@ -1451,6 +1482,12 @@ enum PlanShare {
         record["editorID"] = (edit.editorID ?? "") as CKRecordValue
         record["editorName"] = (edit.editorName ?? "") as CKRecordValue
         record["modifiedAt"] = now as CKRecordValue
+        // The removal itself, written like any other change so the record
+        // carries who did it. Only ever set, never cleared: putting a night
+        // back is a NEW night under a new `shoppingID`, so nothing ever has
+        // to un-remove one, and a tombstone that could be lifted would be a
+        // record two phones could argue about.
+        if edit.kind == .delete { record["removed"] = 1 as CKRecordValue }
         var temp: URL?
         switch edit.photo {
         case .keep:

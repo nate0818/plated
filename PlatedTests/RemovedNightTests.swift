@@ -1,0 +1,199 @@
+import XCTest
+import SwiftData
+import CloudKit
+@testable import Plated
+
+/// Taking a night off the household plan, held to docs/household.md.
+///
+/// A removal is a WRITE of `removed = 1`, never a CloudKit delete, because a
+/// deletion arrives as a bare record name with nobody attached: the notice
+/// then had to name the night's author, and the author's own phone, which
+/// drops every record it wrote, could never be told at all. These are the
+/// pure pieces: the flag on the wire, the author hearing it, the reader
+/// hearing it, the publisher refusing to stand the night back up, and the
+/// two hold-backs that decide when the meal may actually go.
+@MainActor
+final class RemovedNightTests: XCTestCase {
+
+    private var container: ModelContainer!
+    private var context: ModelContext { container.mainContext }
+
+    private static let calendar = Calendar.current
+    private static var today: Date { calendar.startOfDay(for: .now) }
+    private static func day(_ offset: Int) -> Date {
+        calendar.date(byAdding: .day, value: offset, to: today) ?? today
+    }
+
+    private var savedOwner: String?
+
+    override func setUp() async throws {
+        container = try ModelContainer(
+            for: PlatedStore.schema,
+            configurations: [ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)]
+        )
+        savedOwner = PlanLedger.shared.householdOwner
+        PlanLedger.shared.clear()
+        PlanShare.forgetEdits()
+        RemovedNights.clear()
+        PlanLedger.shared.householdOwner = "host"
+    }
+
+    override func tearDown() async throws {
+        RemovedNights.clear()
+        PlanShare.forgetEdits()
+        PlanLedger.shared.clear()
+        PlanLedger.shared.householdOwner = savedOwner
+        container = nil
+    }
+
+    private func plan(
+        id: String = "n1", author: String = "_riley", title: String = "Tacos",
+        day offset: Int = 2, removed: Int = 0, editorID: String = "", editorName: String = ""
+    ) -> TableShare.RemotePlan {
+        var p = TableShare.RemotePlan()
+        p.recordName = "plan-\(id)"
+        p.shoppingID = id
+        p.zoneOwner = "host"
+        p.authorID = author
+        p.authorName = author == "_riley" ? "Riley Park" : "Nate Meadows"
+        p.day = PlanDay.string(Self.day(offset))
+        p.slot = MealSlot.dinner.rawValue
+        p.title = title
+        p.removed = removed
+        p.editorID = editorID
+        p.editorName = editorName
+        return p
+    }
+
+    private func deliver(_ plans: [TableShare.RemotePlan], me: String) -> PlanLedger.Delta {
+        var changes = TableShare.Changes()
+        changes.plans = plans
+        return PlanLedger.shared.absorb(changes, me: me)
+    }
+
+    // MARK: The author hears it
+
+    func testTheAuthorIsToldTheHouseholdTookTheirNightOff() {
+        // The delivery the author could never hear. Their own records are
+        // dropped on arrival, so an ABSENCE was the one thing that could
+        // not reach them; a tombstone is a record, so it does.
+        let delta = deliver([plan(author: "_me", removed: 1, editorID: "_riley", editorName: "Riley Park")], me: "_me")
+        XCTAssertEqual(delta.ownRemoved.count, 1)
+        XCTAssertEqual(delta.ownRemoved.first?.shoppingID, "n1")
+        XCTAssertEqual(delta.ownRemoved.first?.editorName, "Riley Park")
+        XCTAssertFalse(delta.isEmpty, "isEmpty gates the reminder rebuild, so a removal may not read as nothing")
+    }
+
+    func testTheAuthorsOwnLivingNightIsStillDroppedRatherThanDrawn() {
+        let delta = deliver([plan(author: "_me")], me: "_me")
+        XCTAssertTrue(delta.isEmpty, "a night this phone planned is a PlannedMeal, never a ledger entry")
+        XCTAssertNil(PlanLedger.shared.entry("plan-n1"))
+    }
+
+    func testARecordWithNoAuthorIsNobodysOwnRemoval() {
+        // The own-author guard's else fires on an EMPTY author too, and an
+        // empty id is not this phone.
+        let delta = deliver([plan(author: "", removed: 1)], me: "_me")
+        XCTAssertTrue(delta.ownRemoved.isEmpty)
+    }
+
+    // MARK: A reader hears it
+
+    func testATombstoneTakesSomebodyElsesNightOffThisPhone() {
+        _ = deliver([plan()], me: "_me")
+        XCTAssertNotNil(PlanLedger.shared.entry("plan-n1"), "the night arrived first")
+        let delta = deliver([plan(removed: 1, editorID: "_sam", editorName: "Sam Okafor")], me: "_me")
+        XCTAssertNil(PlanLedger.shared.entry("plan-n1"), "and the tombstone took it off")
+        XCTAssertEqual(delta.removed.count, 1)
+        XCTAssertTrue(delta.changed.isEmpty, "a removal is not an ordinary change")
+    }
+
+    func testTheRemoverIsNotToldAboutTheirOwnRemoval() {
+        _ = deliver([plan()], me: "_sam")
+        let delta = deliver([plan(removed: 1, editorID: "_sam", editorName: "Sam Okafor")], me: "_sam")
+        XCTAssertNil(PlanLedger.shared.entry("plan-n1"), "it still leaves their plan")
+        XCTAssertTrue(delta.removed.isEmpty, "a notice is never about your own action")
+    }
+
+    // MARK: The wire
+
+    func testARemovalIsAWriteThatCarriesWhoDidIt() {
+        let night = PlanLedger.Entry(plan())
+        let edit = PlanShare.Edit(deleting: night)
+        let zone = CKRecordZone.ID(zoneName: TableShare.householdZoneName, ownerName: "host")
+        let served = CKRecord(
+            recordType: TableShare.planType,
+            recordID: CKRecord.ID(recordName: "plan-n1", zoneID: zone)
+        )
+        served["title"] = "Tacos" as CKRecordValue
+        served["removed"] = 0 as CKRecordValue
+        let (record, _) = PlanShare.record(for: edit, existing: served, zone: zone, now: .now)
+        XCTAssertEqual(TableShare.int(record, "removed"), 1)
+        XCTAssertEqual(record["title"] as? String, "Tacos", "a removal does not rewrite the night")
+        XCTAssertFalse((record["editorID"] as? String ?? "").isEmpty, "and it carries who did it")
+    }
+
+    func testAChangeNeverSetsTheRemovedFlag() {
+        let night = PlanLedger.Entry(plan())
+        var edit = PlanShare.Edit(changing: night)
+        edit.title = "Ragu"
+        let zone = CKRecordZone.ID(zoneName: TableShare.householdZoneName, ownerName: "host")
+        let served = CKRecord(
+            recordType: TableShare.planType,
+            recordID: CKRecord.ID(recordName: "plan-n1", zoneID: zone)
+        )
+        served["removed"] = 0 as CKRecordValue
+        let (record, _) = PlanShare.record(for: edit, existing: served, zone: zone, now: .now)
+        XCTAssertEqual(TableShare.int(record, "removed"), 0)
+    }
+
+    func testTheFlagSurvivesTheWire() {
+        var p = plan(removed: 1)
+        p.editorID = "_sam"
+        let entry = PlanLedger.Entry(p)
+        XCTAssertEqual(entry.editorID, "_sam")
+        XCTAssertEqual(p.removed, 1)
+    }
+
+    // MARK: When the meal may actually go
+
+    private func meal(id: String, cooked: Bool = false, title: String = "Tacos") -> PlannedMeal {
+        let m = PlannedMeal(date: Self.day(2), recipe: nil, customTitle: title)
+        m.shoppingID = id
+        if cooked { m.cookedAt = .now }
+        context.insert(m)
+        return m
+    }
+
+    func testAnOrdinaryNightLeavesThePlan() {
+        let m = meal(id: "n1")
+        RemovedNights.park([PlanLedger.Entry(plan(author: "_me", removed: 1))])
+        XCTAssertTrue(RemovedNights.drain(in: context))
+        XCTAssertTrue(m.isDeleted || (try? context.fetch(FetchDescriptor<PlannedMeal>()))?.isEmpty == true)
+        XCTAssertTrue(RemovedNights.parked.isEmpty, "and it stops waiting")
+    }
+
+    func testANightThatWasCookedIsNeverDeleted() {
+        // cookedAt is what timesCooked, Awards and the insights all count,
+        // none of it snapshotted. The zone does not get to erase what
+        // happened in a kitchen.
+        _ = meal(id: "n1", cooked: true)
+        RemovedNights.park([PlanLedger.Entry(plan(author: "_me", removed: 1))])
+        XCTAssertFalse(RemovedNights.drain(in: context))
+        XCTAssertEqual((try? context.fetch(FetchDescriptor<PlannedMeal>()))?.count, 1)
+        XCTAssertTrue(RemovedNights.parked.isEmpty, "it is settled, not still waiting")
+    }
+
+    func testANightWithNoRowOnThisPhoneStopsWaiting() {
+        RemovedNights.park([PlanLedger.Entry(plan(author: "_me", removed: 1))])
+        XCTAssertFalse(RemovedNights.drain(in: context))
+        XCTAssertTrue(RemovedNights.parked.isEmpty)
+    }
+
+    func testTheParkSurvivesBeingReadTwice() {
+        RemovedNights.park([PlanLedger.Entry(plan(author: "_me", removed: 1))])
+        XCTAssertEqual(RemovedNights.parked, ["n1"])
+        RemovedNights.park([PlanLedger.Entry(plan(author: "_me", removed: 1))])
+        XCTAssertEqual(RemovedNights.parked, ["n1"], "the same night does not queue twice")
+    }
+}

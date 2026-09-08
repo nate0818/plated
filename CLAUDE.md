@@ -101,6 +101,16 @@ rendering a hair larger so fixed-height layouts overflow, and Foundation Models.
   recomputed count, and a person's own plate flickers on and off in front of
   them. A mirrored outbox is worse — a distributed queue with no lease, where
   two of one person's devices both drain the same row.
+- **A value crossing the seam needs a human. An absence does not.** The
+  household may take a night off the author's plan outright: a `removed`
+  flag on the record, and the author's phone deletes that one `PlannedMeal`.
+  That is NOT the merge the rule above forbids, and the difference is worth
+  stating so nobody reads it as permission. After the deletion the
+  household's night lives only in the zone and this phone's row is gone, so
+  there is no second version of any fact for two writers to converge on and
+  nothing to ping-pong. Folding a title, a cook or a serving count back into
+  a `PlannedMeal` is still two writers and still forbidden. The test is
+  whether anything is left to disagree about.
 - **A CloudKit list field minted from an empty array is minted as the wrong
   type, permanently**, and every later save carrying a real list then fails
   `.invalidArguments`. Omit the key instead of writing `[]`.

@@ -344,6 +344,15 @@ struct PlatedApp: App {
                 // out before the phone sleeps.
                 PlanShare.schedule(reason: "scene")
                 Task { @MainActor in
+                    // A night the household took off while this phone was
+                    // cooking it waits for the session to end, and a session
+                    // ending is not a delivery: without a drain here it
+                    // would sit until the zone happened to say something
+                    // else. Before the widget publishes, so the home screen
+                    // learns the week WITHOUT it.
+                    if RemovedNights.drain(in: container.mainContext) {
+                        Persist.save(container.mainContext, "nights the household took off")
+                    }
                     WidgetBridge.publish(from: container.mainContext)
                     // The icon's number and the bell's are one count. A row
                     // read on the iPad clears it here on the next breath,

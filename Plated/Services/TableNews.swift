@@ -569,16 +569,29 @@ enum TableNews {
         // is owed "Nate took Tacos off", quietly. Not windowed on
         // `changedAt`: that is when the writer last saved the night, not
         // when it went, and a replay that notices a removal notices it now.
-        for e in plans.removed where !e.authorID.isEmpty && e.authorID != me {
+        // A removal names the person who REMOVED it, which is only
+        // possible now that a removal is a write. It used to name the
+        // night's author off the last book copy, because a CloudKit
+        // deletion arrives as a bare record name with nobody on it: Riley
+        // taking Nate's night off told the household that Nate did it, told
+        // Riley the same about her own action, and never reached Nate at
+        // all. Three of the laws in docs/notifications.md in one loop.
+        //
+        // `changer(_:)` is the same ladder the change notices use, and it
+        // answers nothing rather than a name it cannot stand behind. Nothing
+        // is the right answer here: a household is eight people, so a wrong
+        // "someone" is a person in the room.
+        for e in plans.removed {
+            guard let by = changer(e), by.id != me else { continue }
             guard let row = rows(eventKey: "plan:\(e.recordName)", context: context).first, row.isRead
             else { continue }
             let key = "plan:\(e.recordName):\(planHash(e, removed: true))"
             guard !seen.contains(key) else { continue }
-            let who = firstName(e.authorName)
+            let who = firstName(by.name)
             guard who != "Someone", !e.title.isEmpty else { continue }
             let night = Stamp.nightPhrase(e.date)
             notices.append(notice(
-                e, key: key, actor: e.authorName, actorID: e.authorID,
+                e, key: key, actor: by.name, actorID: by.id,
                 title: "\(who) took \(e.title) off \(night)", body: "",
                 template: "{actor} took {object} off \(night).",
                 deed: "Took \(e.title) off \(night).",
