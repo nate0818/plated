@@ -175,20 +175,43 @@ final class RemovedNightTests: XCTestCase {
         // so an edit made in that gap lands first and the fold would put the
         // old dish back on screen. The guard compares against what THIS
         // phone wrote, so the local edit is what arms it.
+        // Real timings, because the guard is now bounded to two minutes
+        // after this phone's own write: it cannot compare clocks across
+        // devices safely for longer than the race it exists for, so a
+        // fixture from 2023 is outside the window by years and would have
+        // proved the opposite of what it claims.
         var first = plan(id: "n1", author: "_riley", title: "Tacos")
-        first.changedAt = Date(timeIntervalSince1970: 1_700_000_000)
+        first.changedAt = Date().addingTimeInterval(-30)
         _ = deliver([first], me: me)
 
         var edit = PlanShare.Edit(changing: PlanLedger.shared.entry("plan-n1")!)
         edit.title = "Ragu"
         PlanLedger.shared.applyLocally(edit)
-        PlanLedger.shared.settle(edit, .landed(Date(timeIntervalSince1970: 1_700_000_060)))
+        PlanLedger.shared.settle(edit, .landed(Date()))
         XCTAssertEqual(PlanLedger.shared.entry("plan-n1")?.title, "Ragu")
 
         // The stale read, fetched before that write and folded after it.
         let delta = deliver([first], me: me)
         XCTAssertEqual(PlanLedger.shared.entry("plan-n1")?.title, "Ragu", "the older read is refused")
         XCTAssertTrue(delta.changed.isEmpty, "and it is not news either")
+    }
+
+    func testAnEditLongAfterThisPhonesOwnWriteIsNeverRefused() {
+        // The bound. Outside the window the guard stands aside entirely,
+        // so a person whose clock runs behind loses the guard and never
+        // loses their edit.
+        var first = plan(id: "n1", author: "_riley", title: "Tacos")
+        first.changedAt = Date().addingTimeInterval(-30)
+        _ = deliver([first], me: me)
+        var edit = PlanShare.Edit(changing: PlanLedger.shared.entry("plan-n1")!)
+        edit.title = "Ragu"
+        PlanLedger.shared.applyLocally(edit)
+        PlanLedger.shared.settle(edit, .landed(Date().addingTimeInterval(-600)))
+
+        var theirs = plan(id: "n1", author: "_riley", title: "Katsu curry")
+        theirs.changedAt = Date().addingTimeInterval(-900)
+        _ = deliver([theirs], me: me)
+        XCTAssertEqual(PlanLedger.shared.entry("plan-n1")?.title, "Katsu curry")
     }
 
     func testAnotherPhonesClockRunningBehindDoesNotRefuseTheirEdit() {
@@ -422,7 +445,23 @@ final class RemovedNightTests: XCTestCase {
         park()
         XCTAssertTrue(RemovedNights.drain(in: context))
         XCTAssertTrue(((try? context.fetch(FetchDescriptor<PlannedMeal>())) ?? []).isEmpty)
+        // The caller's order: delete, save, and only then settle.
+        RemovedNights.confirmDeletions()
         XCTAssertEqual(RemovedNights.all.first?.settled, true, "and it stops waiting")
+    }
+
+    func testADeletionWhoseSaveNeverLandedIsTriedAgain() {
+        // `settled` gates the retry AND the captions, so writing it before
+        // the save left a night nothing would try again and screens saying
+        // it had gone while it sat on the week.
+        _ = meal(id: "n1")
+        park()
+        XCTAssertTrue(RemovedNights.drain(in: context))
+        XCTAssertEqual(
+            RemovedNights.all.first?.settled, false,
+            "unconfirmed, because the caller's save has not been reported"
+        )
+        XCTAssertNotNil(RemovedNights.all.first, "so the next drain still has it")
     }
 
     func testANightThatWasCookedIsNeverDeleted() {

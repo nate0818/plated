@@ -148,6 +148,7 @@ enum RemovedNights {
             }
         }
         var deleted = false
+        staged = []
         for i in book.indices where !book[i].settled {
             let id = book[i].shoppingID
             guard let meal = meals.first(where: { $0.shoppingID == id }) else {
@@ -176,12 +177,35 @@ enum RemovedNights {
                 continue
             }
             context.delete(meal)
-            book[i].settled = true
+            staged.append(book[i].shoppingID)
             deleted = true
         }
         save(book)
         return deleted
     }
+
+    /// The caller's save went through, so the deletions it committed are
+    /// settled.
+    ///
+    /// Split from `drain` because `settled` gates every retry AND every
+    /// caption: written before the save, a `Persist.save` that threw left a
+    /// night that would never be retried and screens saying it had gone
+    /// while it sat on the week. The caller cannot save from inside a
+    /// delivery either, so the two halves cannot be one call.
+    static func confirmDeletions() {
+        guard !staged.isEmpty else { return }
+        var book = all
+        for i in book.indices where staged.contains(book[i].shoppingID) {
+            book[i].settled = true
+        }
+        staged = []
+        save(book)
+    }
+
+    /// Nights whose `context.delete` has been issued and whose save has not
+    /// been confirmed. In memory: an unconfirmed deletion that does not
+    /// survive a kill is one the next drain simply tries again.
+    private static var staged: [String] = []
 
     /// The record names this phone must not delete out of the zone.
     ///

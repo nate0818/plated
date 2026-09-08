@@ -352,6 +352,7 @@ struct PlatedApp: App {
                     // learns the week WITHOUT it.
                     if RemovedNights.drain(in: container.mainContext) {
                         Persist.save(container.mainContext, "nights the household took off")
+                        RemovedNights.confirmDeletions()
                         // The reminder is the reason this drain exists at
                         // all: a night that has left the plan may not keep
                         // its 19:00 notice, and nothing else in this branch

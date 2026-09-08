@@ -35,6 +35,12 @@ enum HouseholdEdits {
         var servings: Int
         var day: String
         var slot: String
+        /// The recipe the household's version is built on, so adopting can
+        /// ATTACH their dish rather than only detaching this phone's. Its
+        /// sibling `RemovedNights.Gone` has carried this since add-back
+        /// needed it for the same problem, and this was the one place that
+        /// could take a night's name without being able to give it a dish.
+        var recipeOriginKey: String = ""
         /// Who made it so, empty when the record names nobody. A screen
         /// built from this may not guess a name.
         var by: String
@@ -100,6 +106,7 @@ enum HouseholdEdits {
                 shoppingID: e.shoppingID, recordName: e.recordName,
                 title: e.title, cookID: e.cookID, cookName: e.cookName,
                 servings: e.servings, day: e.day, slot: e.slot,
+                recipeOriginKey: e.recipeOriginKey,
                 by: e.editorName ?? "", at: .now
             ))
         }
@@ -145,7 +152,17 @@ enum HouseholdEdits {
             // same honesty rule `PhotoIntent` states for the picture, which
             // this would have broken by the other door.
             if let recipe = meal.recipe, recipe.title != change.title {
-                meal.recipe = nil
+                // Their dish if this phone has it, and nothing rather than
+                // the wrong one. Detaching alone left a named night with no
+                // recipe behind it even when the household's dish was
+                // sitting in this cookbook, so "Use their version" could
+                // take a dish away and never give one back: `addBack`
+                // already solved this with the same key.
+                let recipes = (try? context.fetch(FetchDescriptor<Recipe>())) ?? []
+                meal.recipe = recipes.first {
+                    !change.recipeOriginKey.isEmpty && $0.originID == change.recipeOriginKey
+                } ?? recipes.first { $0.title == change.title }
+                _ = recipe
             }
         }
         if change.servings > 0 { meal.servings = change.servings }

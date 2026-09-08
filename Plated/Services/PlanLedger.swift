@@ -392,7 +392,8 @@ final class PlanLedger {
     func absorb(_ changes: TableShare.Changes, me: String) -> Delta {
         prune()
         var delta = Delta()
-        let today = PlanDay.string(.now)
+        let now = Date.now
+        let today = PlanDay.string(now)
         func isNews(_ e: Entry) -> Bool { e.day >= today }
 
         // Nights this phone has taken off and not yet sent. `applyLocally`
@@ -519,17 +520,23 @@ final class PlanLedger {
             // fold applies the record fetched BEFORE that write and puts the
             // old dish back on screen. Serialising the fold does not fix it,
             // because the staleness is in the fetch rather than in the fold.
-            // Compared against a clock THIS phone wrote, never against
-            // another device's. `changedAt` on a delivered record is stamped
-            // by whoever saved it, so comparing two devices' clocks refuses
-            // a genuinely newer edit whenever theirs runs a second behind,
-            // and refuses it on every delivery, for good. `lastLocalWrite`
-            // is what this phone put on the record itself, so the only thing
-            // being compared is one device against its own clock. Whole
-            // seconds, the rounding `movedOn` uses, because a date that goes
-            // to CloudKit and comes back is not a different version.
+            // BOUNDED, because it cannot avoid comparing two clocks and
+            // the earlier comment claiming otherwise was wrong. The stale
+            // record in this race was written by whoever wrote the version
+            // before ours, so its stamp is THEIR clock and `lastLocalWrite`
+            // is ours: there is no same-clock comparison available without
+            // a server-side version on the wire, which the record does not
+            // carry. What is available is the window. The race is a fetch
+            // and a fold seconds apart, so a delivery more than two minutes
+            // after this phone's own write is never refused, and a person
+            // whose clock runs behind loses nothing but the guard. Inside
+            // the window an older stamp is taken as the read that overtook
+            // the write. Whole seconds, the rounding `movedOn` uses,
+            // because a date that goes to CloudKit and comes back is not a
+            // different version.
             if let before, before.pendingSince == nil,
                let ours = lastLocalWrite[entry.recordName],
+               now.timeIntervalSince(ours) < 120,
                entry.changedAt.timeIntervalSince(ours) <= -1 {
                 continue
             }

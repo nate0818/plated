@@ -221,7 +221,13 @@ final class ShareAcceptor: NSObject, UIApplicationDelegate {
         // case the second drain exists for.
         let tookLate = RemovedNights.drain(in: context)
         let took = tookEarly || tookLate
-        if took { Persist.save(context, "nights the household took off") }
+        if took {
+            Persist.save(context, "nights the household took off")
+            // Only now. `settled` gates the retry and the captions, so a
+            // save that failed would leave a night nothing tries again and
+            // screens saying it had gone.
+            RemovedNights.confirmDeletions()
+        }
         // `plans` and `swept` are the wrong question on their own: a
         // delivery that ONLY carries a removal of this phone's own night
         // leaves both empty, and that is exactly the delivery whose
