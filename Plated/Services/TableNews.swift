@@ -71,6 +71,21 @@ enum TableNews {
     static let tableOnKey = "tableNewsOn"
 
     private static let seenKey = "plated.news.seen"
+    /// When this phone last let a planned night light the screen.
+    ///
+    /// Planning is bursty by nature: a household sits down on a Sunday and
+    /// enters a week. Each night is its own record, its own publisher pass
+    /// three seconds after its own save, its own delivery and its own
+    /// banner, so seven nights was seven interruptions on every other
+    /// phone. `select`'s four-banner cap counts within ONE delivery and
+    /// cannot see the burst at all.
+    ///
+    /// This is the plates lesson, which this file already learned and the
+    /// plan pipe reproduced. The first night still speaks, because the
+    /// household starting to plan is genuinely the first word of something
+    /// new; the rest of the sitting arrives quietly and is all still in the
+    /// bell.
+    private static let plannedSpokeKey = "plated.news.plannedSpokeAt"
     private static let namesKey = "plated.news.names"
     private static let window: TimeInterval = 36 * 3600
     private static let visibleCap = 4
@@ -208,7 +223,10 @@ enum TableNews {
         _ changes: TableShare.Changes,
         newSeats: [HouseholdMember],
         plans: PlanLedger.Delta = PlanLedger.Delta(),
-        context: ModelContext
+        context: ModelContext,
+        // Injected so a test can drive the planning burst window without
+        // sleeping through three quarters of an hour.
+        now: Date = .now
     ) -> [Notice] {
         let me = TableIdentity.cached
         let members = Seats.all(in: context)
@@ -431,7 +449,7 @@ enum TableNews {
             ))
         }
 
-        notices.append(contentsOf: planNotices(plans, me: me, cutoff: cutoff, seen: seen, context: context))
+        notices.append(contentsOf: planNotices(plans, me: me, cutoff: cutoff, seen: seen, context: context, now: now))
 
         return notices.map { dress($0, members: members) }
     }
@@ -444,7 +462,8 @@ enum TableNews {
     /// added pair a two-device `shoppingID` backfill mints; none of that is
     /// assumed here, only relied on not to be doubled.
     private static func planNotices(
-        _ plans: PlanLedger.Delta, me: String, cutoff: Date, seen: Set<String>, context: ModelContext
+        _ plans: PlanLedger.Delta, me: String, cutoff: Date, seen: Set<String>,
+        context: ModelContext, now: Date
     ) -> [Notice] {
         var notices: [Notice] = []
 
@@ -502,6 +521,8 @@ enum TableNews {
             return named.isEmpty ? nil : (editor, named)
         }
 
+        // One sitting, one interruption. See `plannedSpokeKey`.
+        var plannedSpoke = spokeRecently(plannedSpokeKey, within: plannedBurst, at: now)
         for e in plans.added where !e.authorID.isEmpty && e.authorID != me && e.changedAt > cutoff {
             let key = "plan:\(e.recordName):\(planHash(e))"
             guard !seen.contains(key) else { continue }
@@ -514,9 +535,11 @@ enum TableNews {
                 title: "\(who) planned \(e.title) for \(night)", body: body,
                 template: "{actor} planned {object} for \(night).",
                 deed: "Planned \(e.title) for \(night)." + (body.isEmpty ? "" : " \(body)"),
-                at: e.changedAt, passive: false
+                at: e.changedAt, passive: plannedSpoke
             ))
+            plannedSpoke = true
         }
+        if plannedSpoke { store.set(now, forKey: plannedSpokeKey) }
 
         // `changedByID`, not `authorID`. A member may change any household
         // night, so the person whose action this is is the editor, and
@@ -586,7 +609,14 @@ enum TableNews {
         // Named or not sent, as everywhere: a record that names no remover
         // says nothing, and `changedByID` keeps a person from being told
         // about their own doing on their other device.
-        for e in plans.ownRemoved {
+        for e in plans.ownRemoved where e.changedAt > cutoff {
+            // The replay window, which this branch alone was missing. Every
+            // other arm is held either by `cutoff` or by needing a read row
+            // to answer; this one had neither, and the ledger appends to it
+            // with no past-day filter. A reinstall or a change-token reset
+            // therefore raised one banner per tombstone still in the zone,
+            // up to thirty days of them, about nights weeks past whose meals
+            // are not even on this phone.
             let editor = e.editorID ?? ""
             guard !editor.isEmpty, editor != me else { continue }
             guard let by = changer(e) else { continue }
@@ -595,16 +625,32 @@ enum TableNews {
             let key = "plan:\(e.recordName):\(planHash(e, removed: true))"
             guard !seen.contains(key) else { continue }
             let night = Stamp.nightPhrase(e.date)
+            // What actually happened to this phone's copy, read after the
+            // drain rather than assumed before it. The two hold-backs keep
+            // the night, and saying it came off a week that still shows it
+            // is the interface contradicting the row underneath.
+            let outcome = RemovedNights.outcomeLine(for: e.shoppingID)
             var n = notice(
                 e, key: key, actor: by.name, actorID: by.id,
                 title: "\(who) took \(e.title) off \(night)",
-                body: "It came off your week too.",
+                body: outcome,
                 template: "{actor} took {object} off \(night).",
-                deed: "Took \(e.title) off \(night). It came off your week too.",
-                at: .now, passive: true
+                deed: "Took \(e.title) off \(night). \(outcome)",
+                at: .now, passive: false
             )
             n.addressed = true
             n.relevance = 1.0
+            // Direct, so it makes a sound and lights a locked screen. The
+            // code argued this was the highest-consequence notice in the
+            // feature and then handed it to the system at the quietest level
+            // iOS offers, where it cannot reach the person it is for. It IS
+            // addressed to them: their night, changed by somebody else,
+            // with shopping and cooking hanging on it.
+            n.direct = true
+            // Not at two in the morning, though. The dinner is tomorrow at
+            // the earliest, so this waits for daylight like a household
+            // join does.
+            n.quietAtNight = true
             notices.append(n)
         }
 
@@ -1180,6 +1226,19 @@ enum TableNews {
 
     // MARK: Memory
 
+    /// How long a sitting is taken to last. Long enough to cover a household
+    /// entering a week over a cup of tea, short enough that tomorrow's first
+    /// planned night still speaks.
+    private static let plannedBurst: TimeInterval = 45 * 60
+
+    /// Whether this phone spoke about this kind of thing inside the window.
+    static func spokeRecently(_ key: String, within: TimeInterval, at now: Date) -> Bool {
+        guard let last = store.object(forKey: key) as? Date else { return false }
+        // A clock that has gone backwards is not a recent utterance.
+        let gap = now.timeIntervalSince(last)
+        return gap >= 0 && gap < within
+    }
+
     private static var store: UserDefaults {
         UserDefaults(suiteName: WidgetBridge.appGroupID) ?? .standard
     }
@@ -1193,6 +1252,11 @@ enum TableNews {
     static func forgetAll() {
         store.removeObject(forKey: seenKey)
         store.removeObject(forKey: namesKey)
+        // The planning burst window too. It is app-group state that outlives
+        // a launch by design, so a test that did not clear it inherited the
+        // previous test's sitting and watched its one planned night arrive
+        // silently.
+        store.removeObject(forKey: plannedSpokeKey)
     }
 
     /// Rolling. Old keys age out, and a notice about something months old

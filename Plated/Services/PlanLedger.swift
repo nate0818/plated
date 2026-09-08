@@ -385,9 +385,25 @@ final class PlanLedger {
         }
 
         // Deletions by name. Only `plan-` names are nights.
+        //
+        // The entry loses its editor on the way out. A bare deletion carries
+        // NOBODY: the record is gone, so the only editor available is the one
+        // stamped on the last copy this phone happened to hold, which is
+        // whoever last CHANGED the night rather than whoever removed it.
+        // Left on, Riley editing Nate's servings and Nate then deleting his
+        // own night announced to the household that Riley took it off.
+        //
+        // This is the same bug the tombstone was introduced to fix, running
+        // in the other direction, and the honest answer is the same one the
+        // digest already reaches for elsewhere: with no name to give, give
+        // none. `changer(_:)` then falls back to the author, who for a bare
+        // deletion is the only person the record can honestly be said to
+        // belong to.
         for name in changes.deleted where name.hasPrefix("plan-") {
-            if let old = book.entries.removeValue(forKey: name) {
+            if var old = book.entries.removeValue(forKey: name) {
                 removePhoto(name)
+                old.editorID = nil
+                old.editorName = nil
                 if isNews(old) { delta.removed.append(old) }
             }
         }

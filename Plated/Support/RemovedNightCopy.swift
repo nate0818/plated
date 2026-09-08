@@ -62,6 +62,22 @@ extension RemovedNights {
         return "Puts \(gone.title) back on the household plan."
     }
 
+    /// What actually happened to this phone's copy, for the notice that has
+    /// to say it. Read AFTER the drain has decided, never composed before:
+    /// the two hold-backs keep the night, and a banner claiming it came off
+    /// a week that still shows it contradicts the row underneath it.
+    ///
+    /// An id the book has never heard of means the drain took it, which is
+    /// the ordinary case and the one the plain sentence is for.
+    static func outcomeLine(for shoppingID: String) -> String {
+        guard !shoppingID.isEmpty,
+              let gone = all.first(where: { $0.shoppingID == shoppingID })
+        else { return "It came off your week too." }
+        if gone.kept { return "You cooked it, so it stays on your week." }
+        if !gone.settled { return "You are cooking it, so it stays on your week for now." }
+        return "It came off your week too."
+    }
+
     /// The dish the household took off that day, for a control that has to
     /// name it. Same gate as `addBackDetail`, so the two never disagree.
     static func addBackTitle(on date: Date, slot: MealSlot = .dinner) -> String? {

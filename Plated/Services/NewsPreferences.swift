@@ -137,6 +137,17 @@ enum NewsPreferences {
         case .plateReaction, .voteCast: return .plates
         case .seatJoined: return .seats
         case .planShared: return .planning
+        // The household's four, answering to the same switches their
+        // banners already answer to. Falling to `default: nil` here meant
+        // the banner was correctly suppressed and the red number on the
+        // icon still climbed for it, so turning a switch off made the app
+        // quieter and the Home Screen no less insistent. Kept in step with
+        // `category(for kind: TableNews.Notice.Kind, addressed:)` above:
+        // these two answer the same question about the same notice and
+        // drifting apart is exactly how this happened.
+        case .householdJoined, .householdLeft: return .seats
+        case .recipeAdded: return .dishes
+        case .editConflict: return .planning
         default: return nil
         }
     }

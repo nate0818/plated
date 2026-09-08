@@ -151,6 +151,17 @@ final class ShareAcceptor: NSObject, UIApplicationDelegate {
         // was cooked, and a night being cooked right now) are re-checked at
         // drain time, and one of them can outlive this process.
         RemovedNights.park(plans.ownRemoved)
+        // Drained BEFORE the digest speaks, not after. The notice says what
+        // happened to this phone's own night, and the two hold-backs mean
+        // that is not knowable until the drain has decided: composed first,
+        // it asserted "It came off your week too" over a dinner that was
+        // cooked and is still standing, with the plan row underneath saying
+        // the opposite about the same night.
+        //
+        // The save has to wait for the one below, which is outside every
+        // publisher pass: a save from here schedules a pass, and the queue
+        // may not start one from inside a delivery.
+        let tookEarly = RemovedNights.drain(in: context)
         var joined: [HouseholdMember] = []
         var swept = PlanLedger.Delta()
         if changes.sharesChanged {
@@ -196,7 +207,10 @@ final class ShareAcceptor: NSObject, UIApplicationDelegate {
         // save is here rather than inside the drain for the reason
         // `takeRetractions` exists: a save schedules a publisher pass, and
         // the queue may not start one from inside a delivery.
-        let took = RemovedNights.drain(in: context)
+        // Anything the first drain could not settle, re-checked: a Cook Mode
+        // session that ended while the delivery was in flight leaves here
+        // rather than waiting for the next one.
+        let took = tookEarly || RemovedNights.drain(in: context)
         if took { Persist.save(context, "nights the household took off") }
         // `plans` and `swept` are the wrong question on their own: a
         // delivery that ONLY carries a removal of this phone's own night
