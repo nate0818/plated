@@ -816,7 +816,18 @@ struct PlanNightSheet: View {
         // fetch-and-saves racing on one record, and the second would read a
         // `seenAt` the first is about to move, so the person would be told
         // somebody got there first about their own tap.
-        guard !sending else { return }
+        guard !sending else {
+            // A guard that fires and tells nobody is the shape this feature
+            // has been bitten by all day. Moving the haptic below this line
+            // stopped the app CONFIRMING a write it had dropped, which was
+            // the lie; it left the person tapping a control that answered
+            // with nothing at all, which is the silence. `OptionRow` draws
+            // no disabled state, so disabling these would be the same
+            // silence enforced a step earlier. So it says so.
+            notice = "Still sending the last change. Try that again in a moment."
+            Haptic.warn()
+            return
+        }
         haptic()
         notice = nil
         inFlight = edit.kind
