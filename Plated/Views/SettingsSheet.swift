@@ -414,7 +414,7 @@ struct SettingsSheet: View {
                 symbol: remindersOn ? "bell.badge.fill" : "bell",
                 title: "Cook reminders",
                 detail: remindersOn
-                    ? "Your cook nights and an unfinished week"
+                    ? "The evening before your night, and Sundays when the week is still open"
                     : "Off. Plated will stay quiet.",
                 tint: .tomatoTint,
                 tone: .tomato
@@ -445,9 +445,10 @@ struct SettingsSheet: View {
                     }
                 }
                 .plType(.footnote, .bold)
+                .plActionLabel()
                 .foregroundStyle(Color.onTomato)
                 .padding(.horizontal, 13)
-                .frame(minHeight: 40)
+                .frame(minHeight: 44)
                 .background(Color.tomato, in: Capsule())
                 .contentShape(Capsule())
                 .buttonStyle(.pressable)
@@ -511,9 +512,10 @@ struct SettingsSheet: View {
                     }
                 }
                 .plType(.footnote, .bold)
+                .plActionLabel()
                 .foregroundStyle(Color.onTomato)
                 .padding(.horizontal, 13)
-                .frame(minHeight: 40)
+                .frame(minHeight: 44)
                 .background(Color.tomato, in: Capsule())
                 .contentShape(Capsule())
                 .buttonStyle(.pressable)

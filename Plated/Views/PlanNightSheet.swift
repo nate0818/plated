@@ -319,14 +319,11 @@ struct PlanNightSheet: View {
                                 detail: detail
                             ) { addBack(title) }
                         }
-                        if !recipes.isEmpty {
-                            OptionRow(
-                                icon: "wand.and.stars",
-                                title: "Pick for me",
-                                detail: "Matched to the weather and what your household eats."
-                            ) { pickForMe() }
-                        }
 
+                        // Food first: the night is about dinner. Eating out,
+                        // asking the Table and gatherings stay reachable but
+                        // sit under a quieter "Or" so they do not compete
+                        // with choosing what to cook.
                         OptionRow(
                             icon: "book.closed",
                             title: "Choose a recipe",
@@ -338,6 +335,16 @@ struct PlanNightSheet: View {
                             title: "Add a recipe",
                             detail: "Save it and plan it in one go."
                         ) { route = .newRecipe }
+
+                        if !recipes.isEmpty {
+                            OptionRow(
+                                icon: "wand.and.stars",
+                                title: "Pick for me",
+                                detail: "Matched to the weather and what your household eats."
+                            ) { pickForMe() }
+                        }
+
+                        MicroLabel("Or")
 
                         OptionRow(
                             icon: "fork.knife.circle",

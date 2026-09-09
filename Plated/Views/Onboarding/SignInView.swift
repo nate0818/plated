@@ -11,6 +11,10 @@ struct SignInView: View {
 
     @AppStorage("userFirstName") private var userFirstName = ""
     @AppStorage("userFamilyName") private var userFamilyName = ""
+    /// Set when Sign in with Apple failed for a reason other than cancel.
+    /// The door still opens (planning is not hostage to Apple's outage);
+    /// AccountHomeView shows a quiet notice until an identity lands.
+    @AppStorage("appleIdentityMissing") private var appleIdentityMissing = false
     @State private var arrived = false
 
     var body: some View {
@@ -75,7 +79,9 @@ struct SignInView: View {
                     switch result {
                     case .success(let auth):
                         if let credential = auth.credential as? ASAuthorizationAppleIDCredential {
-                            AppleIdentity.save(credential.user)
+                            // Planning continues either way; the flag tells
+                            // Account when Keychain never got the id.
+                            appleIdentityMissing = !AppleIdentity.save(credential.user)
                             userFirstName = credential.fullName?.givenName ?? userFirstName
                             userFamilyName = credential.fullName?.familyName ?? userFamilyName
                             // Publish presence to the directory so other
@@ -104,10 +110,12 @@ struct SignInView: View {
                         // enter — unentitled dev builds fail auth by design.
                         #if DEBUG
                         _ = error
+                        appleIdentityMissing = true
                         Haptic.tap()
                         onSignedIn()
                         #else
                         if (error as? ASAuthorizationError)?.code != .canceled {
+                            appleIdentityMissing = true
                             Haptic.tap()
                             onSignedIn()
                         }

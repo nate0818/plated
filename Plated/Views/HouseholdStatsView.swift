@@ -96,7 +96,10 @@ struct HouseholdStatsView: View {
     }
 
     private var dishPosts: [TablePost] { ourPosts.filter { $0.kind == "dish" } }
-    private var kissCount: Int { ourPosts.filter { $0.hasChefsKiss(seats: members.count) }.count }
+    private var kissCount: Int {
+        let seats = TableKiss.seating(members: members, dishAuthors: ourPosts.map(\.authorName))
+        return ourPosts.filter { $0.hasChefsKiss(seats: seats) }.count
+    }
     private var platesEarned: Int { ourPosts.reduce(0) { $0 + $1.totalPlates } }
 
     /// Dinners that have actually happened.
@@ -249,7 +252,10 @@ struct HouseholdStatsView: View {
                 countCell("Chef's kisses", kissCount, .symbol("sparkles"), accent: kissCount > 0)
                 countCell("Recipes", recipes.count, .symbol("text.book.closed"))
                 countCell("On the table", dishPosts.count, .symbol("table.furniture"))
-                countCell("Saved by others",
+                // Honest about Awards.savesReceived: it counts dishes this
+                // phone saved, keyed by author — never saves other households
+                // made of ours (docs/open-decisions.md §3).
+                countCell("Dishes you saved",
                           members.reduce(0) { $0 + Awards.savesReceived(by: $1.name) },
                           .symbol("bookmark"))
             }
@@ -447,11 +453,11 @@ struct BadgeDetailSheet: View {
             .padding(.bottom, 30)
         }
         // Large type outgrows a fixed detent — at AX1 this stack wants
-        // ~445pt against 340, and the detail line and the progress capsule
-        // are the only place the sheet says what the badge IS and how far
-        // off it is. A second detent plus the scroll keeps them reachable;
-        // CreateMenuSheet solved this same case the same way.
-        .presentationDetents([.height(340), .large])
+        // ~445pt against a short first stop, and the detail line and the
+        // progress capsule are the only place the sheet says what the badge
+        // IS and how far off it is. Medium + large keep them reachable
+        // without inventing a pixel height that will be wrong tomorrow.
+        .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
         .presentationBackground(Color.canvas)
         .presentationCornerRadius(Radius.sheet)

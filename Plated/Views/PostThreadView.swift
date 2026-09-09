@@ -73,7 +73,7 @@ struct PostThreadView: View {
                         ZStack(alignment: .topTrailing) {
                             PhotoWell(image: image, clamped: true)
                                 .plCardShadow()
-                            if post.hasChefsKiss(seats: members.count) {
+                            if post.hasChefsKiss(seats: TableKiss.seating(members: members, dishAuthors: [post.authorName])) {
                                 chefsKissPill.offset(x: 6, y: -10)
                             }
                         }

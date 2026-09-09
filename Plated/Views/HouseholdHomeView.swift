@@ -91,7 +91,10 @@ struct HouseholdHomeView: View {
     }
 
     private var owner: HouseholdMember? { members.first(where: \.isOwner) }
-    private var kissCount: Int { posts.filter { $0.hasChefsKiss(seats: members.count) }.count }
+    private var kissCount: Int {
+        let seats = TableKiss.seating(members: members, dishAuthors: posts.map(\.authorName))
+        return posts.filter { $0.hasChefsKiss(seats: seats) }.count
+    }
     private var platesEarned: Int { posts.reduce(0) { $0 + $1.totalPlates } }
     /// Every dinner this household has ever put on the plan.
     private var nightsPlated: Int { meals.count }

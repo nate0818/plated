@@ -262,7 +262,7 @@ struct MainShellView: View {
                                 .foregroundStyle(Color.canvas)
                                 .frame(width: 30, height: 30)
                                 .background(Color.ink, in: Circle())
-                        }.foregroundStyle(Color.ink).padding(.horizontal, 16).frame(height: 54)
+                        }.foregroundStyle(Color.ink).padding(.horizontal, 16).frame(minHeight: 54)
                             .background(Color.canvas, in: Capsule()).overlay(Capsule().strokeBorder(Color.hairline))
                     }.buttonStyle(.pressable).accessibilityLabel("Resume cooking \(session.titleSnapshot ?? recipe.title)")
                 }

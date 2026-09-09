@@ -102,18 +102,12 @@ struct TableFeedView: View {
     private var realPosts: [TablePost] { posts.filter(\.isUserContent) }
 
     private var seatCount: Int {
-        // "Sam Meadows" the author is "Sam" the household member — first
-        // names bridge the two worlds until real user IDs exist.
-        let knownNames = Set(members.map(\.name))
-        let guests = Set(
-            realPosts.filter { $0.kind == "dish" }
-                .map(\.authorName)
-                .filter { !knownNames.contains($0) && !knownNames.contains(String($0.split(separator: " ").first ?? "")) }
+        // Who can plate: head/joined seats plus Table guest authors —
+        // same denominator the Chef's kiss uses (TableKiss.seating).
+        TableKiss.seating(
+            members: members,
+            dishAuthors: realPosts.filter { $0.kind == "dish" }.map(\.authorName)
         )
-        // Members already include everyone invited or joined — the old sum
-        // double-counted pending ghosts while omitting people who had
-        // actually accepted.
-        return max(members.count + guests.count, 1)
     }
 
     /// Pull to refresh. `@Query` is live, so anything CloudKit has already
@@ -612,10 +606,10 @@ struct TableFeedView: View {
 
     @ViewBuilder
     private var headerControls: some View {
-            // Discover lives with the other icon buttons rather than alone in
-            // a row of its own. It is chrome, not a filter, and it has
-            // nothing to do with the scope beside which it used to sit.
-            IconDiscButton(systemName: "magnifyingglass", label: "Discover", glyphSize: 15) {
+            // Sparkles, not a magnifying glass: Discover is finding dishes
+            // worth plating, not searching a catalogue, and a search glyph
+            // promised a filter that this button never opened.
+            IconDiscButton(systemName: "sparkles", label: "Discover", glyphSize: 15) {
                 pushed = .discover
             }
             ActivityBellButton {
@@ -854,7 +848,7 @@ struct TableFeedView: View {
                         .allowsHitTesting(false)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
-                if post.hasChefsKiss(seats: members.count) {
+                if post.hasChefsKiss(seats: seatCount) {
                     chefsKissPill
                         .offset(x: 6, y: -10)
                         // Appears; does not launch. 0.01 threw it in from
@@ -1027,7 +1021,7 @@ struct TableFeedView: View {
         .padding(.horizontal, 24)
         .padding(.top, 16)
         .padding(.bottom, 18)
-        .animation(.plPop, value: post.hasChefsKiss(seats: members.count))
+        .animation(.plPop, value: post.hasChefsKiss(seats: seatCount))
         .contextMenu { postMenu(post, canSave: true) }
     }
 
@@ -1331,7 +1325,7 @@ struct TableFeedView: View {
             turningOn = TableReactions.togglePlate(post)
         }
         if turningOn {
-            post.hasChefsKiss(seats: members.count) ? Haptic.kiss() : Haptic.plate()
+            post.hasChefsKiss(seats: seatCount) ? Haptic.kiss() : Haptic.plate()
             // NO notification here, deliberately.
             //
             // `Notifier.postOnce` writes into the LOCAL context, and plates
@@ -1547,7 +1541,7 @@ struct PlateReactionButton: View {
                 bounce = true
             }
             if turningOn {
-                post.hasChefsKiss(seats: members.count) ? Haptic.kiss() : Haptic.plate()
+                post.hasChefsKiss(seats: seatCount) ? Haptic.kiss() : Haptic.plate()
                 // The second copy of the notification removed in
                 // togglePlate above, and the same reason: it was written
                 // into the local context, so it only ever reached the

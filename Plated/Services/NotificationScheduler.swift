@@ -181,9 +181,21 @@ enum NotificationScheduler {
         // has to count as on.
         let defaults = UserDefaults.standard
         let wanted = defaults.object(forKey: "remindersOn") as? Bool ?? true
-        guard wanted else { return }
-        guard await authorized() else { return }
         let center = UNUserNotificationCenter.current()
+        // Still clear ours when the switch is off: without it a stale turn
+        // from before the toggle stayed pending forever, because cancelAll
+        // only runs from the Settings onChange and any other caller of
+        // rebuild (Plan tab, night sheet, push) would have returned here
+        // without touching the centre.
+        if !wanted {
+            let pending = await center.pendingNotificationRequests()
+            center.removePendingNotificationRequests(
+                withIdentifiers: pending.map(\.identifier)
+                    .filter { $0 == ritualID || $0.hasPrefix(turnPrefix) }
+            )
+            return
+        }
+        guard await authorized() else { return }
         let pending = await center.pendingNotificationRequests()
         center.removePendingNotificationRequests(
             withIdentifiers: pending.map(\.identifier)
@@ -206,12 +218,13 @@ enum NotificationScheduler {
     /// The night before a night somebody else planned with you cooking.
     ///
     /// Only the cook's own reminder: a remote night is "Your night
-    /// tomorrow" or nothing (docs/open-decisions.md §1c, the second answer,
-    /// chosen for remote nights). The body names who planned it, because
-    /// the obligation came from them and the dish is not in this cookbook.
-    /// No grocery action: the list has nothing for a night planned on
-    /// another phone. One turn reminder per day, ever: a day this phone's
-    /// own plan says anything about is that plan's to remind.
+    /// tomorrow" or nothing (docs/open-decisions.md §1c / §19). The body
+    /// names who planned it, because the obligation came from them and
+    /// the dish is not in this cookbook, and still offers the grocery
+    /// list — a remote night's ingredients land in PlanLedger and the
+    /// list covers them the same way as a local night. One turn reminder
+    /// per day, ever: a day this phone's own plan says anything about is
+    /// that plan's to remind.
     private static func scheduleRemoteTurns(
         meals: [PlannedMeal], center: UNUserNotificationCenter
     ) async {
@@ -231,9 +244,10 @@ enum NotificationScheduler {
             let by = night.authorFirstName
             let content = UNMutableNotificationContent()
             content.title = "Your night tomorrow"
-            content.body = by.isEmpty ? "\(night.title)." : "\(night.title). Planned by \(by)."
+            let lead = by.isEmpty ? "\(night.title)." : "\(night.title). Planned by \(by)."
+            content.body = "\(lead) Check the grocery list tonight."
             content.sound = .default
-            content.categoryIdentifier = NotificationRouter.Category.plan
+            content.categoryIdentifier = NotificationRouter.Category.turnMine
             content.userInfo = [NotificationRouter.Key.link: DeepLink.url(plan: date).absoluteString]
 
             let request = UNNotificationRequest(
@@ -304,19 +318,17 @@ enum NotificationScheduler {
             // somebody else, and "Your night tomorrow" about their night
             // would be the wrong person's obligation.
             let mine = cook.isMe
-            // First name only. "Riley cooks tomorrow" is how a household
-            // talks; the full name is how a system does.
-            let who = cook.name.split(separator: " ").first.map(String.init) ?? cook.name
+            // Cook only (docs/open-decisions.md §1c / §19): never light a
+            // screen to say there is nothing to do. The widget and the plan
+            // already carry other people's nights.
+            guard mine else { continue }
             let content = UNMutableNotificationContent()
-            content.title = mine ? "Your night tomorrow" : "\(who) cooks tomorrow"
-            content.body = mine
-                ? "\(dish). Check the grocery list tonight."
-                : "\(dish). Nothing for you to do."
+            content.title = "Your night tomorrow"
+            content.body = "\(dish). Check the grocery list tonight."
             content.sound = .default
-            // A tap lands on the plan; your own night also offers the list
-            // the body just mentioned, so the sentence and the button agree.
-            content.categoryIdentifier = mine
-                ? NotificationRouter.Category.turnMine : NotificationRouter.Category.plan
+            // A tap lands on the plan; the list the body just mentioned
+            // is offered as an action so the sentence and the button agree.
+            content.categoryIdentifier = NotificationRouter.Category.turnMine
             content.userInfo = [NotificationRouter.Key.link: DeepLink.url(.plan).absoluteString]
 
             let request = UNNotificationRequest(

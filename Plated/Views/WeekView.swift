@@ -655,8 +655,9 @@ struct WeekView: View {
         .matchedTransitionSource(id: date, in: zoom)
     }
 
-    /// The plus plans dinner directly; the rest of the row opens every meal
-    /// on that day. VoiceOver offers both actions on the combined row.
+    /// The whole empty row plans dinner — one primary target, matching the
+    /// plus that used to be the only door. Opening the day stays available
+    /// as a secondary VoiceOver action and in the context menu.
     private func emptyRow(date: Date) -> some View {
         SwipeRow(isOpen: swipeBinding(date), actions: [
             SwipeAction(symbol: "plus", label: "Plan") { planDay = date },
@@ -664,28 +665,17 @@ struct WeekView: View {
         ], actionLabel: "Actions for \(date.formatted(.dateTime.weekday(.wide).month(.abbreviated).day()))") {
         HStack(spacing: 10) {
             dateColumn(date)
-            Button {
-                Haptic.tap()
-                planDay = date
-            } label: {
-                Image(systemName: "plus")
-                    .font(.system(size: 16, weight: .regular))
-                    .foregroundStyle(Color.inkSecondary)
-                    .frame(width: 48, height: 48)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.pressable)
-            // The row speaks for both targets below; a second announcement
-            // here would just be the same night read twice.
-            .accessibilityHidden(true)
+            Image(systemName: "plus")
+                .font(.system(size: 16, weight: .regular))
+                .foregroundStyle(Color.inkSecondary)
+                .frame(width: 48, height: 48)
+                .accessibilityHidden(true)
             // An empty night that knows why it is empty. The household took
             // this dinner off, the meal was deleted here, and nothing else on
             // this phone remembers it existed: the digest cannot speak,
             // because it needs an already-read bell row and the author never
             // has one for a night they planned themselves. So this line and
             // the hero are the only way the person learns their dinner went.
-            // The plus beside it still plans the night, which is what they
-            // are most likely to want next.
             Text(RemovedNights.removedLine(on: date) ?? "Plan dinner")
                 .plType(.body)
                 .foregroundStyle(Color.inkSecondary)
@@ -701,17 +691,12 @@ struct WeekView: View {
         .padding(.leading, 8)
         .padding(.trailing, 14)
         .frame(minHeight: 76)
-        .background(Color.canvas)
+        // Same hover geometry as plannedRow: Radius.shape, not a bare
+        // RoundedRectangle, so the lean matches the planned peer beside it.
+        .background(dropHoverDay == date ? Color.tomatoTint : Color.canvas, in: Radius.shape(Radius.row))
         .overlay {
-            // A hovering plate turns the dashed invitation solid. Same
-            // corner and weight as a planned row — see plannedRow.
             if dropHoverDay == date {
-                RoundedRectangle(cornerRadius: Radius.row, style: .continuous)
-                    .fill(Color.tomatoTint)
-                    .overlay {
-                        RoundedRectangle(cornerRadius: Radius.row, style: .continuous)
-                            .strokeBorder(Color.tomato, lineWidth: 1.5)
-                    }
+                Radius.shape(Radius.row).strokeBorder(Color.tomato, lineWidth: 1.5)
             } else {
                 VStack { Spacer(); Rectangle().fill(Color.hairline).frame(height: 0.5) }
             }
@@ -719,15 +704,23 @@ struct WeekView: View {
         .contentShape(Rectangle())
         .onTapGesture {
             Haptic.tap()
-            dayShown = date
+            planDay = date
         }
         .accessibilityElement(children: .ignore)
         .accessibilityAddTraits(.isButton)
         .accessibilityLabel("\(dayName(date).capitalized), \(openLine(date))")
-        .accessibilityHint("Opens the day")
-        .accessibilityAction(named: "Plan dinner") { planDay = date }
+        .accessibilityHint("Plans dinner")
+        .accessibilityAction(named: "Open day") { dayShown = date }
         .accessibilityAction(named: "Eating out") { markEatingOut(on: date) }
-        .contextMenu { nightMenu(date) }
+        .contextMenu {
+            Button {
+                Haptic.tap()
+                dayShown = date
+            } label: {
+                Label("Open day", systemImage: "calendar")
+            }
+            nightMenu(date)
+        }
         .dropDestination(for: String.self) { tokens, _ in
             moveMeal(from: tokens.first, to: date)
         } isTargeted: { over in

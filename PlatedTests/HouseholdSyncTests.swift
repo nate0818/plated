@@ -129,6 +129,26 @@ final class HouseholdSyncTests: XCTestCase {
         XCTAssertTrue(meal.cook === cookOlder)
     }
 
+    func testCollapseKeepsTheOldestTablePostAndRehomesComments() throws {
+        let older = TablePost(authorName: "Nate", dishTitle: "Ragù")
+        older.shareRecordName = "post-1"
+        older.createdAt = .now.addingTimeInterval(-600)
+        let newer = TablePost(authorName: "Nate", dishTitle: "Ragù")
+        newer.shareRecordName = "post-1"
+        let note = TableComment(authorName: "Riley", text: "Saving this.")
+        note.post = newer
+        for row in [older, newer] { context.insert(row) }
+        context.insert(note)
+        try context.save()
+
+        HouseholdSync.collapseDuplicates(in: context)
+
+        let posts = try context.fetch(FetchDescriptor<TablePost>())
+        XCTAssertEqual(posts.count, 1)
+        XCTAssertEqual(posts.first?.createdAt, older.createdAt)
+        XCTAssertTrue(note.post === older)
+    }
+
     // MARK: Identity
 
     func testReattributeRewritesAuthorAndIdentity() throws {
