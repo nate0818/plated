@@ -81,7 +81,7 @@ struct TableSeatsSheet: View {
     /// Only the host edits seats (docs/household.md §8, §9). On a member's
     /// phone `me` is the claimed seat, never the head, so this is false
     /// there without a membership check.
-    private var readerIsHead: Bool { members.me?.isOwner == true }
+    private var readerIsHead: Bool { members.readable.me?.isOwner == true }
 
     /// The people at the table who are not in the household: the share's
     /// participants minus every identity the roster already carries, minus
@@ -145,7 +145,7 @@ struct TableSeatsSheet: View {
                     // so the two screens cannot disagree about what somebody
                     // is.
                     seatGroup("Household", problem: .household) {
-                        ForEach(members, id: \.persistentModelID) { member in
+                        ForEach(members.readable, id: \.persistentModelID) { member in
                             memberRow(member)
                         }
                     }

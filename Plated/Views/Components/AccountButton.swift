@@ -7,7 +7,7 @@ struct AccountButton: View {
     @Query(sort: \HouseholdMember.createdAt) private var members: [HouseholdMember]
     @State private var showing = false
 
-    private var me: HouseholdMember? { members.me }
+    private var me: HouseholdMember? { members.readable.me }
 
     var body: some View {
         Button {
@@ -69,7 +69,11 @@ struct AccountHomeView: View {
     @State private var awards: [PlatedAward] = []
     private var hasCover: Bool { profiles.first?.bannerPhotoData != nil }
 
-    private var me: HouseholdMember? { members.me }
+    /// Seats a body may touch. Opening Account walked the raw `@Query`
+    /// for `me`, awards, and the Household eyebrow; one invalidated row
+    /// trapped in SwiftData before the sheet finished drawing.
+    private var roster: [HouseholdMember] { members.readable }
+    private var me: HouseholdMember? { roster.me }
     private var ownerName: String {
         guard let name = me?.name, !HouseholdIdentity.isPlaceholder(name) else {
             return "Add your name"
@@ -389,7 +393,7 @@ struct AccountHomeView: View {
     }
 
     private var householdEyebrow: String {
-        "\(members.count) \(members.count == 1 ? "person" : "people")"
+        [HouseholdMember].peopleEyebrow(roster.peopleCount)
     }
 
     private var householdTitle: String {
@@ -398,19 +402,20 @@ struct AccountHomeView: View {
     }
 
     private var awardActivitySignature: String {
-        let cooked = plannedMeals.filter { $0.cookedAt != nil }.count
-        let plates = tablePosts.reduce(0) { $0 + $1.totalPlates }
-        return "\(plannedMeals.count).\(cooked).\(recipes.count).\(tablePosts.count).\(plates).\(members.count)"
+        let cooked = plannedMeals.filter { !$0.isDeleted && $0.cookedAt != nil }.count
+        let livePosts = tablePosts.filter { !$0.isDeleted }
+        let plates = livePosts.reduce(0) { $0 + $1.totalPlates }
+        return "\(plannedMeals.count).\(cooked).\(recipes.count).\(livePosts.count).\(plates).\(roster.peopleCount)"
     }
 
     private func refreshAwards() {
         let metrics = Awards.metrics(
             for: me,
-            meals: plannedMeals,
-            recipes: recipes,
-            posts: tablePosts,
-            householdSize: members.count,
-            kissSeats: TableKiss.seating(members: members, dishAuthors: tablePosts.map(\.authorName))
+            meals: plannedMeals.filter { !$0.isDeleted },
+            recipes: recipes.filter { !$0.isDeleted },
+            posts: tablePosts.filter { !$0.isDeleted },
+            householdSize: roster.peopleCount,
+            kissSeats: TableKiss.seating(members: roster, dishAuthors: tablePosts.filter { !$0.isDeleted }.map(\.authorName))
         )
         awards = Awards.evaluate(metrics, for: awardsIdentityName)
     }
