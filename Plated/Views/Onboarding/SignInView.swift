@@ -11,11 +11,14 @@ struct SignInView: View {
 
     @AppStorage("userFirstName") private var userFirstName = ""
     @AppStorage("userFamilyName") private var userFamilyName = ""
-    /// Set when Sign in with Apple failed for a reason other than cancel.
-    /// The door still opens (planning is not hostage to Apple's outage);
-    /// AccountHomeView shows a quiet notice until an identity lands.
+    /// Set when Sign in with Apple failed for a reason other than cancel,
+    /// or Apple succeeded and Keychain never got the id. Planning is not
+    /// hostage to Apple's outage; the person has to see that, and choose.
     @AppStorage("appleIdentityMissing") private var appleIdentityMissing = false
     @State private var arrived = false
+    /// The fail-open sheet. Apple did not land; Continue still opens the
+    /// door, Try again asks Apple again. The app does not open silently.
+    @State private var appleFailed = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -78,48 +81,9 @@ struct SignInView: View {
                 } onCompletion: { result in
                     switch result {
                     case .success(let auth):
-                        if let credential = auth.credential as? ASAuthorizationAppleIDCredential {
-                            // Planning continues either way; the flag tells
-                            // Account when Keychain never got the id.
-                            appleIdentityMissing = !AppleIdentity.save(credential.user)
-                            userFirstName = credential.fullName?.givenName ?? userFirstName
-                            userFamilyName = credential.fullName?.familyName ?? userFamilyName
-                            // Publish presence to the directory so other
-                            // households can find you. The identity token
-                            // exists only here and only for minutes, so
-                            // this is the one moment registration can
-                            // happen; it trades that for a lasting token.
-                            // Silent either way — the app is whole without it.
-                            if let tokenData = credential.identityToken,
-                               let identityToken = String(data: tokenData, encoding: .utf8) {
-                                let name = credential.fullName?.givenName ?? userFirstName
-                                Task { await Directory.register(
-                                    identityToken: identityToken,
-                                    displayName: name,
-                                    phone: nil
-                                ) }
-                            }
-                        }
-                        Haptic.tap()
-                        onSignedIn()
+                        applyApple(auth)
                     case .failure(let error):
-                        // Cancel means cancel — the door stays shut. Any
-                        // other failure (broken auth service, no network to
-                        // Apple) still opens a local table: planning must
-                        // not be hostage to an outage. Debug builds always
-                        // enter — unentitled dev builds fail auth by design.
-                        #if DEBUG
-                        _ = error
-                        appleIdentityMissing = true
-                        Haptic.tap()
-                        onSignedIn()
-                        #else
-                        if (error as? ASAuthorizationError)?.code != .canceled {
-                            appleIdentityMissing = true
-                            Haptic.tap()
-                            onSignedIn()
-                        }
-                        #endif
+                        handleAppleFailure(error)
                     }
                 }
                 .signInWithAppleButtonStyle(colorScheme == .dark ? .white : .black)
@@ -142,6 +106,75 @@ struct SignInView: View {
         }
         .plFitsOrScrolls()
         .onAppear { withAnimation(.plSettle.delay(0.1)) { arrived = true } }
+        .sheet(isPresented: $appleFailed) {
+            AppleFailOpenSheet(
+                onTryAgain: {
+                    appleFailed = false
+                    Task { await retryApple() }
+                },
+                onContinue: {
+                    appleFailed = false
+                    Haptic.tap()
+                    onSignedIn()
+                }
+            )
+        }
+    }
+
+    /// Names land even when Keychain does not: they are not the identity.
+    private func applyCredential(_ credential: ASAuthorizationAppleIDCredential) {
+        userFirstName = credential.fullName?.givenName ?? userFirstName
+        userFamilyName = credential.fullName?.familyName ?? userFamilyName
+        let name = credential.fullName?.givenName ?? userFirstName
+        if AppleIdentity.accept(credential, displayName: name) {
+            appleIdentityMissing = false
+            appleFailed = false
+            Haptic.tap()
+            onSignedIn()
+        } else {
+            presentFailOpen()
+        }
+    }
+
+    private func applyApple(_ auth: ASAuthorization) {
+        guard let credential = auth.credential as? ASAuthorizationAppleIDCredential else {
+            presentFailOpen()
+            return
+        }
+        applyCredential(credential)
+    }
+
+    private func handleAppleFailure(_ error: Error) {
+        // Cancel means cancel — the door stays shut. Any other failure
+        // (broken auth service, no network to Apple) still offers a local
+        // table: planning must not be hostage to an outage. Debug builds
+        // always offer Continue — unentitled dev builds fail auth by design.
+        #if DEBUG
+        _ = error
+        presentFailOpen()
+        #else
+        if (error as? ASAuthorizationError)?.code != .canceled {
+            presentFailOpen()
+        }
+        #endif
+    }
+
+    private func presentFailOpen() {
+        appleIdentityMissing = true
+        Haptic.warn()
+        appleFailed = true
+    }
+
+    /// Ask Apple again after the sheet is gone. Presenting over a
+    /// disappearing sheet would take the system dialog with it.
+    private func retryApple() async {
+        try? await Task.sleep(for: .milliseconds(400))
+        switch await AppleIdentity.request() {
+        case .success(let credential):
+            applyCredential(credential)
+        case .failure(let error):
+            handleAppleFailure(error)
+        }
     }
 
     private func bob(_ t: Double, _ phase: Double, amp: Double = 7) -> Double {
@@ -164,5 +197,49 @@ struct SignInView: View {
             .overlay(Text(emoji).font(.system(size: size * 0.5)))
             .overlay(Circle().strokeBorder(Color.hairline, lineWidth: 1))
             .plDishShadow()
+    }
+}
+
+/// Copywriter-locked fail-open sheet. Swiping it away leaves the door shut,
+/// the same as Try again without asking Apple again.
+private struct AppleFailOpenSheet: View {
+    let onTryAgain: () -> Void
+    let onContinue: () -> Void
+    @State private var measured: CGFloat = 280
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            Text("Signed in without Apple")
+                .plType(.title, .semibold)
+                .foregroundStyle(Color.ink)
+                .fixedSize(horizontal: false, vertical: true)
+            Text("Sharing and invites are off until Apple sign-in works. Planning still works on this iPhone.")
+                .plType(.body, .medium)
+                .foregroundStyle(Color.inkSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+            VStack(spacing: 10) {
+                TomatoPillButton(title: "Try again", action: onTryAgain)
+                Button("Continue without Apple") {
+                    onContinue()
+                }
+                .plType(.footnote, .bold)
+                .plActionLabel()
+                .foregroundStyle(Color.ink)
+                .frame(maxWidth: .infinity)
+                .frame(minHeight: 48)
+                .overlay(Capsule().strokeBorder(Color.hairline, lineWidth: 1.5))
+                .contentShape(Capsule())
+                .buttonStyle(.pressable)
+            }
+        }
+        .padding(.horizontal, 24)
+        .padding(.top, 28)
+        .padding(.bottom, 30)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { measured = $0 }
+        .presentationDetents([.height(measured), .large])
+        .presentationDragIndicator(.visible)
+        .presentationBackground(Color.canvas)
+        .presentationCornerRadius(Radius.sheet)
     }
 }

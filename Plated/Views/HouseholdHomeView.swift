@@ -1,6 +1,5 @@
 import SwiftUI
 import SwiftData
-import Contacts
 import PhotosUI
 
 /// Home — the household itself. Who sits here, what they have earned
@@ -1241,36 +1240,12 @@ struct HouseholdHomeView: View {
     }
 }
 
-/// New seat at the household table — name, role, and the next color around
-/// the rotation.
-/// Adding someone to the household, with the three doors that actually
-/// exist rather than the one that didn't.
-///
-/// **What was wrong.** This sheet asked for a name, offered three role
-/// chips, and inserted a local row. Nobody was contacted. The person
-/// appeared at the table having never been told they were invited to
-/// anything, and there was no way from here to reach them — the real
-/// invite lived on a different screen, behind the Table's avatar cluster,
-/// which is not where anybody looks for "add someone to the household".
-///
-/// **The three doors.** Someone already on Plated is one tap, no
-/// invitation needed. Someone in your contacts who isn't gets a real text
-/// with a real link. And a name typed by hand still works, because a
-/// six-year-old has no phone and still eats dinner — it is just no longer
-/// the only thing on offer, and it says what it is.
 /// Adding somebody, with the invitation as the thing the sheet is for.
 ///
-/// **What was wrong.** The tomato pill — the app's one always-tomato
-/// element, its strongest possible affordance — sat on a text field that
-/// inserted a local row and contacted nobody. Setting a role there did
-/// nothing twice over: the chip wrote a display string that was never read
-/// again, and the person it described had no account to hold a role in.
-///
-/// **Now.** The primary door binds them to the table's CloudKit share and
-/// opens a message carrying a link that actually opens it — and the seat
-/// exists only if that message reports itself sent. The by-name door stays,
-/// because a six-year-old has no phone and still eats dinner, but it says
-/// what it is and takes the quieter pill.
+/// The host's door is a text with a link. The by-name door stays for a
+/// kid or a grandparent who will never have the app. The directory
+/// shortcut is hidden until invite APNs is live: an "Already on Plated"
+/// row would promise a nudge the server cannot send.
 struct AddMemberSheet: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
@@ -1285,16 +1260,6 @@ struct AddMemberSheet: View {
     @State private var copying = false
     @State private var copied = false
     @State private var problem: String?
-    /// People in this phone's contacts who already have Plated.
-    ///
-    /// The Table's own invite sheet has offered this since it shipped and
-    /// the household's did not, so the more intimate room was the one that
-    /// texted a signup link to somebody already holding the app. Empty
-    /// until the directory answers and empty forever if it never does: the
-    /// two doors below work regardless, so this is a shortcut and never a
-    /// dependency.
-    @State private var onPlated: [Directory.Match] = []
-    @State private var searchingContacts = false
 
     var body: some View {
         ScrollView(showsIndicators: false) {
@@ -1307,12 +1272,6 @@ struct AddMemberSheet: View {
                     .padding(.top, 22)
 
                 roleChips
-
-                // Before the text door, because somebody already on Plated
-                // is the likeliest person being added and asking them by
-                // name costs one tap instead of a contact picker and a
-                // message they do not need.
-                if isHost { alreadyOnPlated }
 
                 inviteDoor
 
@@ -1345,39 +1304,6 @@ struct AddMemberSheet: View {
         .presentationDragIndicator(.visible)
         .presentationBackground(Color.canvas)
         .presentationCornerRadius(Radius.sheet)
-        .task { await findPeople() }
-    }
-
-    /// Ask the directory which of this phone's contacts already have the
-    /// app. Nothing here is required for either invite door to work, so a
-    /// refused permission, an unregistered phone or a directory that never
-    /// answers all end the same way: the section is simply not drawn.
-    private func findPeople() async {
-        guard isHost, Directory.isRegistered else { return }
-        let store = CNContactStore()
-        guard (try? await store.requestAccess(for: .contacts)) == true else { return }
-
-        searchingContacts = true
-        defer { searchingContacts = false }
-
-        let keys = [
-            CNContactGivenNameKey, CNContactFamilyNameKey,
-            CNContactNicknameKey, CNContactPhoneNumbersKey
-        ] as [CNKeyDescriptor]
-        var contacts: [CNContact] = []
-        // Off the main thread: a large address book takes real time to walk.
-        await Task.detached(priority: .utility) {
-            let request = CNContactFetchRequest(keysToFetch: keys)
-            try? store.enumerateContacts(with: request) { contact, _ in
-                contacts.append(contact)
-            }
-        }.value
-
-        let found = await Directory.onPlated(contacts: contacts)
-        withAnimation(.plSnap) {
-            // Somebody already in the household is not a suggestion.
-            onPlated = found.filter { !Seats.isTaken($0.name, in: context) }
-        }
     }
 
     /// The role, above both doors, because it is true of both: an invited
@@ -1453,76 +1379,6 @@ struct AddMemberSheet: View {
         }
     }
 
-    /// The door for somebody who will never have the app.
-    /// The people this phone knows who already have Plated, each a single
-    /// tap away from an invitation.
-    ///
-    /// Hidden entirely when the directory finds nobody, which is the common
-    /// case early on: an empty "Already on Plated" heading is a verdict on
-    /// the person's friends rather than a state of the app. The spinner
-    /// says nothing while it looks, for the same reason.
-    @ViewBuilder
-    private var alreadyOnPlated: some View {
-        if searchingContacts {
-            HStack(spacing: 8) {
-                ProgressView().controlSize(.small)
-                Text("Looking for people you know")
-                    .plType(.footnote, .semibold)
-                    .foregroundStyle(Color.inkSecondary)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        } else if !onPlated.isEmpty {
-            VStack(alignment: .leading, spacing: 10) {
-                MicroLabel("Already on Plated")
-                ForEach(onPlated) { match in
-                    HStack(spacing: 12) {
-                        // Neutral, not the tone a real seat wears: nobody
-                        // here has been asked yet.
-                        AvatarCircle(
-                            initials: initials(for: match.name),
-                            tone: .neutralPair,
-                            size: 40
-                        )
-                        Text(match.name)
-                            .plType(.body, .bold)
-                            .foregroundStyle(Color.ink)
-                            .lineLimit(1)
-                        Spacer()
-                        if InviteComposer.isAvailable {
-                            Button {
-                                withAnimation(.plSnap) { problem = nil }
-                                startInvite(to: InviteFlow.Recipient(name: match.name, phone: match.phone))
-                            } label: {
-                                Text("Invite")
-                                    .plType(.footnote, .bold)
-                                    .plActionLabel()
-                                    .foregroundStyle(Color.canvas)
-                                    .padding(.horizontal, 18)
-                                    .frame(minHeight: 36)
-                                    .background(Color.ink, in: Capsule())
-                                    .frame(minHeight: 44)
-                                    .contentShape(Capsule())
-                            }
-                            .buttonStyle(.pressable)
-                            .accessibilityLabel("Invite \(match.name) to your household")
-                        }
-                    }
-                    .frame(minHeight: 44)
-                }
-            }
-        }
-    }
-
-    /// Two letters for the avatar. A fifth private copy of this in the app,
-    /// which is the OptionRow story starting again; it belongs on
-    /// AvatarCircle and moving all five is its own change.
-    private func initials(for name: String) -> String {
-        let parts = name.split(separator: " ")
-            .filter { $0.first?.isLetter == true }
-            .prefix(2)
-        return parts.compactMap { $0.first }.map(String.init).joined().uppercased()
-    }
-
     private var byNameDoor: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Add by name")
@@ -1560,11 +1416,10 @@ struct AddMemberSheet: View {
     /// before it is genuinely gone. See `InviteFlow`. Nothing is created
     /// here: the seat is laid only when the composer reports the message
     /// sent, and a link that cannot be minted says so and lays nothing.
-    private func startInvite(to recipient: InviteFlow.Recipient? = nil) {
+    private func startInvite() {
         InviteFlow.run(
             kind: .household,
             hostName: userFirstName,
-            to: recipient,
             prepare: {
                 // CloudKit can sit forever on a bad network. A spinner that
                 // never resolves is the same experience as a button that

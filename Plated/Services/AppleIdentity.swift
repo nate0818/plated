@@ -1,6 +1,7 @@
 import Foundation
 import AuthenticationServices
 import Security
+import UIKit
 
 /// The one durable fact of sign-in: Apple's stable user identifier, kept in
 /// the Keychain (never UserDefaults — it is the key CloudKit sharing will
@@ -10,6 +11,24 @@ import Security
 enum AppleIdentity {
     private static let service = "com.natemeadows.plated.apple-id"
     private static let account = "apple-user-id"
+
+    /// Persist the Apple user id and offer the identity token to the
+    /// directory. The token exists only here and only for minutes, so this
+    /// is the one moment registration can happen. A false return means
+    /// Keychain never got the id: sharing and invites stay dark.
+    @discardableResult
+    static func accept(_ credential: ASAuthorizationAppleIDCredential, displayName: String) -> Bool {
+        let saved = save(credential.user)
+        if let tokenData = credential.identityToken,
+           let identityToken = String(data: tokenData, encoding: .utf8) {
+            Task { await Directory.register(
+                identityToken: identityToken,
+                displayName: displayName,
+                phone: nil
+            ) }
+        }
+        return saved
+    }
 
     /// True when the identifier is durably stored. A false return means
     /// revocation checking is dark until the next successful sign-in —
@@ -72,5 +91,66 @@ enum AppleIdentity {
         guard let state = try? await ASAuthorizationAppleIDProvider()
             .credentialState(forUserID: id) else { return false }
         return state == .revoked || state == .notFound
+    }
+
+    /// Present Sign in with Apple from a custom control. The door itself
+    /// uses `SignInWithAppleButton`; Try again after a miss cannot.
+    @MainActor
+    static func request() async -> Result<ASAuthorizationAppleIDCredential, Error> {
+        await SignInRunner().run()
+    }
+
+    @MainActor
+    private final class SignInRunner: NSObject, ASAuthorizationControllerDelegate, ASAuthorizationControllerPresentationContextProviding {
+        private var continuation: CheckedContinuation<Result<ASAuthorizationAppleIDCredential, Error>, Never>?
+        /// The controller does not retain its delegate. Pin self until Apple answers.
+        private var pin: SignInRunner?
+
+        func run() async -> Result<ASAuthorizationAppleIDCredential, Error> {
+            pin = self
+            return await withCheckedContinuation { continuation in
+                self.continuation = continuation
+                let request = ASAuthorizationAppleIDProvider().createRequest()
+                request.requestedScopes = [.fullName]
+                let controller = ASAuthorizationController(authorizationRequests: [request])
+                controller.delegate = self
+                controller.presentationContextProvider = self
+                controller.performRequests()
+            }
+        }
+
+        private func finish(_ result: Result<ASAuthorizationAppleIDCredential, Error>) {
+            continuation?.resume(returning: result)
+            continuation = nil
+            pin = nil
+        }
+
+        func authorizationController(
+            controller: ASAuthorizationController,
+            didCompleteWithAuthorization authorization: ASAuthorization
+        ) {
+            if let credential = authorization.credential as? ASAuthorizationAppleIDCredential {
+                finish(.success(credential))
+            } else {
+                finish(.failure(ASAuthorizationError(.unknown)))
+            }
+        }
+
+        func authorizationController(controller: ASAuthorizationController, didCompleteWithError error: Error) {
+            finish(.failure(error))
+        }
+
+        func presentationAnchor(for controller: ASAuthorizationController) -> ASPresentationAnchor {
+            let scene = UIApplication.shared.connectedScenes
+                .compactMap { $0 as? UIWindowScene }
+                .first { $0.activationState == .foregroundActive }
+            if let window = scene?.windows.first(where: \.isKeyWindow) ?? scene?.windows.first {
+                return window
+            }
+            return UIApplication.shared.connectedScenes
+                .compactMap { $0 as? UIWindowScene }
+                .flatMap(\.windows)
+                .first ?? UIWindow()
+        }
     }
 }

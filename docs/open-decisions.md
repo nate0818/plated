@@ -189,6 +189,10 @@ identity, and features that depend on one will quietly do nothing. Where to
 say so, and how loudly, is a design question about a screen somebody has
 already left.
 
+**Decided:** fail-open stays. Non-cancel Apple failure presents a sheet
+(title "Signed in without Apple", Continue still opens the app). Account
+shows the same fact with Try again, not a dead path to Settings.
+
 ---
 
 ## 10. The pin toggle buzzes `plate`, not `select`
