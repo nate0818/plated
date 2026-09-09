@@ -70,6 +70,18 @@ final class SeatsNoLinkReasonTests: XCTestCase {
 @MainActor
 final class SeatsInviteClaimTests: XCTestCase {
 
+    override func setUp() async throws {
+        HouseholdInviteLog.reset()
+        HouseholdShare.setMembership(.solo)
+        HouseholdShare.mySeat = nil
+    }
+
+    override func tearDown() async throws {
+        HouseholdInviteLog.reset()
+        HouseholdShare.setMembership(.solo)
+        HouseholdShare.mySeat = nil
+    }
+
     private func standing(
         name: String = "",
         phone: String? = nil,
@@ -250,5 +262,121 @@ final class SeatsInviteClaimTests: XCTestCase {
         )
         XCTAssertGreaterThan(changed, 0)
         XCTAssertEqual(unnamed.name, "Alessandra Rossi")
+    }
+
+    /// TF26: the invite was marked settled when a named twin existed, then
+    /// the drawn seat was a restored "New member" with no phone. Bind must
+    /// still take Alessandra off the log.
+    func testBindShareIdentityUsesASettledInviteLogName() async throws {
+        let container = try ModelContainer(
+            for: PlatedStore.schema,
+            configurations: [ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)]
+        )
+        let context = container.mainContext
+        HouseholdInviteLog.record(
+            name: "Alessandra", phone: "+15551112222", email: nil, seat: "seat-invite"
+        )
+        HouseholdInviteLog.markSettled(name: "Alessandra")
+        let unnamed = HouseholdMember(
+            name: "New member", role: "partner", seat: .joined,
+            shareRecordName: "seat-new"
+        )
+        unnamed.userRecordName = "ck-ale"
+        unnamed.participantID = "ck-ale"
+        context.insert(unnamed)
+        try context.save()
+
+        let changed = Seats.bindShareIdentity(in: context, standings: [])
+        XCTAssertGreaterThan(changed, 0)
+        XCTAssertEqual(unnamed.name, "Alessandra")
+        XCTAssertNotEqual(unnamed.name, "New member")
+    }
+
+    /// Host Invited row still named, restored accept sitting as New member
+    /// with the CloudKit id: bind copies name and photo without a pull.
+    func testBindShareIdentityPairsNamedInviteWithUnnamedJoin() async throws {
+        let container = try ModelContainer(
+            for: PlatedStore.schema,
+            configurations: [ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)]
+        )
+        let context = container.mainContext
+        let invited = HouseholdMember(
+            name: "Alessandra", role: "partner", seat: .invited,
+            shareRecordName: "seat-invite"
+        )
+        invited.photoData = Data([1, 2, 3])
+        let unnamed = HouseholdMember(
+            name: "New member", role: "partner", seat: .joined,
+            shareRecordName: "seat-new"
+        )
+        unnamed.userRecordName = "ck-ale"
+        unnamed.participantID = "ck-ale"
+        context.insert(invited)
+        context.insert(unnamed)
+        try context.save()
+
+        let changed = Seats.bindShareIdentity(in: context, standings: [])
+        XCTAssertGreaterThan(changed, 0)
+        XCTAssertEqual(unnamed.name, "Alessandra")
+        XCTAssertEqual(unnamed.photoData, invited.photoData)
+    }
+
+    func testAttachableRowTakesTheNamedInviteInsteadOfMinting() {
+        let invited = HouseholdMember(
+            name: "Alessandra", role: "partner", seat: .invited,
+            shareRecordName: "seat-invite"
+        )
+        let head = HouseholdMember(
+            name: "Nate", role: "owner", seat: .head, shareRecordName: "seat-nate"
+        )
+        head.userRecordName = "ck-nate"
+        let hit = Seats.attachableRow(
+            for: standing(name: ""),
+            among: [head, invited]
+        )
+        XCTAssertTrue(hit === invited)
+    }
+
+    func testBindDoesNotRenameOwnerMeFromTheInviteLog() async throws {
+        let container = try ModelContainer(
+            for: PlatedStore.schema,
+            configurations: [ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)]
+        )
+        let context = container.mainContext
+        HouseholdInviteLog.record(
+            name: "Alessandra", phone: nil, email: nil, seat: "seat-invite"
+        )
+        let me = HouseholdMember(
+            name: "Me", role: "owner", seat: .head, shareRecordName: "seat-nate"
+        )
+        me.userRecordName = TableIdentity.cached
+        context.insert(me)
+        try context.save()
+
+        _ = Seats.bindShareIdentity(in: context, standings: [])
+        XCTAssertEqual(me.name, "Me")
+    }
+
+    func testResolvedDisplayUsesInviteNameAndYouOnSelf() {
+        HouseholdInviteLog.record(
+            name: "Alessandra", phone: nil, email: nil, seat: "seat-invite"
+        )
+        let nate = HouseholdMember(
+            name: "Nate Meadows", role: "owner", seat: .head,
+            shareRecordName: "seat-nate"
+        )
+        nate.userRecordName = TableIdentity.cached
+        let unnamed = HouseholdMember(
+            name: "New member", role: "partner", seat: .joined,
+            shareRecordName: "seat-new"
+        )
+        unnamed.userRecordName = "ck-ale"
+        let people = [nate, unnamed]
+        let ale = Seats.resolvedDisplay(for: unnamed, among: people, reader: nate)
+        XCTAssertEqual(ale.name, "Alessandra")
+        XCTAssertNotEqual(ale.subtitle, "You")
+        let selfRow = Seats.resolvedDisplay(for: nate, among: people, reader: nate)
+        XCTAssertEqual(selfRow.subtitle, "You")
+        XCTAssertFalse(selfRow.subtitle.contains("Head of table"))
     }
 }

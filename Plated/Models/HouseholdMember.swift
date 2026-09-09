@@ -188,17 +188,23 @@ final class HouseholdMember {
     /// `isOwner` to find "you" was about to call the host "you".
     var isMe: Bool {
         if let userRecordName, !userRecordName.isEmpty {
-            return userRecordName == TableIdentity.cached
+            if userRecordName == TableIdentity.cached { return true }
+            // A real CloudKit id on the row vs a `local-` placeholder on
+            // this phone is not a mismatch: `confirm()` has not answered
+            // yet. Treating it as "someone else" painted Head of table /
+            // Host on Nate's own People row in TF26.
+            if !TableIdentity.isPlaceholder { return false }
         }
-        // No identity on the row yet. In a household that has never been
-        // shared there is exactly one head and it is the person holding
-        // the phone: every household that predates identity, and every
-        // simulator, which has no iCloud to confirm one. On a member's
-        // phone the head is somebody else, and the seat this phone claimed
-        // is remembered in the app group, so neither fallback can name the
-        // host "you" there.
+        if let claimed = Self.claimedSeatName, !claimed.isEmpty {
+            return shareRecordName == claimed
+        }
+        // No identity on the row yet, or a placeholder still on this phone.
+        // In a household that has never been shared there is exactly one
+        // head and it is the person holding the phone. On a member's phone
+        // the head is somebody else; `isMemberElsewhere` keeps that row
+        // from becoming "you" when the claimed-seat key is also missing.
         guard isOwner, !Self.isMemberElsewhere else { return false }
-        return Self.claimedSeatName == nil
+        return true
     }
 
     /// The role as a person would say it. Not drawn on the reader's own
@@ -251,18 +257,31 @@ final class HouseholdMember {
     /// "You" and nothing else: a role on that line is DESIGN.md's copy lock
     /// against Head of table on self. Another host is Host, not that title.
     var subtitle: String {
-        if isMe { return "You" }
-        switch seat {
-        case .head: return "Host"
-        case .joined:
-            return role == "partner" || role == "owner"
-                ? "Plans and cooks with you" : "Sees the plan with you"
-        case .invited:
-            guard let invitedAt else { return "Invited a while back" }
-            return "Invited \(Self.when(invitedAt))"
-        case .notOnPlated: return "You cook for them"
-        case .left: return "Left"
+        let line: String
+        if isMe {
+            line = "You"
+        } else {
+            switch seat {
+            case .head: line = "Host"
+            case .joined:
+                line = role == "partner" || role == "owner"
+                    ? "Plans and cooks with you" : "Sees the plan with you"
+            case .invited:
+                if let invitedAt {
+                    line = "Invited \(Self.when(invitedAt))"
+                } else {
+                    line = "Invited a while back"
+                }
+            case .notOnPlated: line = "You cook for them"
+            case .left: line = "Left"
+            }
         }
+        // DESIGN.md: own row is You only; another host is Host. The stored
+        // `roleLine` is still "Head of table" for the owner wire field —
+        // this is the one string a People list may print, so the title
+        // cannot leak here even if `isMe` is late.
+        if line.contains("Head of table") { return isMe ? "You" : "Host" }
+        return line
     }
 
     /// Colour is earned by being here. An invitation is the one unresolved
@@ -437,14 +456,22 @@ extension Array where Element == HouseholdMember {
         let joined = members.filter {
             ($0.seat == .joined || $0.seat == .head) && !($0.userRecordName ?? "").isEmpty
         }
+        let namedInvites = invited.filter { !HouseholdIdentity.isUnnamed($0.name) }
+        let unnamedJoined = joined.filter { HouseholdIdentity.isRestoredPlaceholder($0.name) }
         return invited.filter { invite in
             let key = occupancyFirstNameKey(invite.name)
-            guard !key.isEmpty else { return false }
-            let matches = joined.filter {
-                occupancyFirstNameKey($0.name) == key
-                    && $0.shareRecordName != invite.shareRecordName
+            if !key.isEmpty {
+                let matches = joined.filter {
+                    occupancyFirstNameKey($0.name) == key
+                        && $0.shareRecordName != invite.shareRecordName
+                }
+                if matches.count == 1 { return true }
             }
-            return matches.count == 1
+            // "Alessandra" Invited beside one restored "New member" is
+            // the same person even before bind copies the name across.
+            return namedInvites.count == 1
+                && unnamedJoined.count == 1
+                && namedInvites[0] === invite
         }
     }
 

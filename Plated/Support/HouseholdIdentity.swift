@@ -36,6 +36,13 @@ enum HouseholdIdentity {
     /// yet — the share, the invite log, or a twin seat still has to bind one.
     static func isUnnamed(_ name: String) -> Bool {
         if isPlaceholder(name) { return true }
+        return isRestoredPlaceholder(name)
+    }
+
+    /// The restored-accept labels only. Not "Me": that is the owner's
+    /// bootstrap, and the invite log must never overwrite it with the
+    /// joiner's name.
+    static func isRestoredPlaceholder(_ name: String) -> Bool {
         let trimmed = name.trimmingCharacters(in: .whitespaces).lowercased()
         return trimmed == "new member" || trimmed == "someone" || trimmed == "someone new"
     }

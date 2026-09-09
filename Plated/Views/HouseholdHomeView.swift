@@ -275,10 +275,14 @@ struct HouseholdHomeView: View {
         }
         .onAppear {
             if LinkRelay.takeActivity() { pushed = .activity }
-            // Stuck Invited labels (Alessandra) settle when Home is opened,
-            // not only when CloudKit happens to send a share delta. Replay
-            // the zone first so a seat we deleted locally but that still
-            // exists in iCloud is not skipped by a stale change token.
+            // Names already on this phone (invite log, twin seats) bind
+            // before any CloudKit wait. TF26 left Alessandra as New member
+            // until a pull that never had to run for the name to be known.
+            Seats.bindShareIdentity(in: context, standings: [])
+            // Stuck Invited labels settle when Home is opened, not only
+            // when CloudKit happens to send a share delta. Replay the zone
+            // so a seat we deleted locally but that still exists in iCloud
+            // is not skipped by a stale change token.
             Task {
                 TableShare.requestReplay(zoneOwner: "")
                 await TablePull.pull(reason: "home")
@@ -778,10 +782,11 @@ struct HouseholdHomeView: View {
             VStack(spacing: 0) {
                 let people = roster.listed
                 let lastID = people.last?.persistentModelID
-                let readerIsHead = people.me?.isOwner == true
+                let reader = people.me
+                let readerIsHead = reader?.isOwner == true
                 ForEach(people, id: \.persistentModelID) { member in
                     SwipeRow(isOpen: swipeBinding(member), actions: swipeActions(for: member, readerIsHead: readerIsHead)) {
-                        memberRow(member, readerIsHead: readerIsHead)
+                        memberRow(member, readerIsHead: readerIsHead, reader: reader, among: people)
                     }
                     if member.persistentModelID != lastID {
                         Divider().overlay(Color.hairlineSoft)
@@ -861,18 +866,25 @@ struct HouseholdHomeView: View {
     ///
     /// `readerIsHead` is computed once in `peopleSection` so this row never
     /// walks the full `@Query` (and a deleted twin) via `members.me`.
-    private func memberRow(_ member: HouseholdMember, readerIsHead: Bool) -> some View {
-        let name = member.name
+    private func memberRow(
+        _ member: HouseholdMember,
+        readerIsHead: Bool,
+        reader: HouseholdMember?,
+        among people: [HouseholdMember]
+    ) -> some View {
+        let drawn = Seats.resolvedDisplay(for: member, among: people, reader: reader)
+        let name = drawn.name
         let colorHex = member.colorHex
         let memberID = member.persistentModelID
         let isMe = member.isMe
+            || (reader != nil && reader!.persistentModelID == member.persistentModelID)
         let seat = member.seat
         let cooks = member.cooks
         let weekdays = member.cookWeekdays.filter { (1...7).contains($0) }
         let tone = member.tone
-        let subtitle = member.subtitle
-        let photo = member.photoData
-        let firstInitial = member.firstInitial
+        let subtitle = drawn.subtitle
+        let photo = drawn.photo
+        let firstInitial = name.first.map(String.init)?.uppercased() ?? member.firstInitial
         let showsColor = member.showsColor
         return HStack(spacing: 12) {
             AvatarCircle(
