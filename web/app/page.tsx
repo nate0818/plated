@@ -70,15 +70,14 @@ export default function Home() {
             planned together.
           </h1>
           <p className={`${styles.lede} secondary`}>
-            For people who love food and the people they share it with. Plan
-            the week together, cook it, and show them how it turned out.
+            Plated is dinner planning for your household. Plan the week
+            together, cook it, and show them how it turned out.
           </p>
           <div id="waitlist" className={styles.heroForm}>
             <WaitlistForm />
           </div>
           <div className={styles.store}>
             <AppStoreBadge height={52} />
-            <p className={`${styles.soon} secondary`}>Coming soon</p>
           </div>
           </div>
         </section>
@@ -94,15 +93,16 @@ export default function Home() {
           <article className={styles.feature}>
             <h2>Share it with your people.</h2>
             <p className="secondary">
-              Post what you made to the family and friends you invite, whether
-              they live with you or across the country. Nobody else sees it.
+              Post what you made on The Table, a private, invite-only feed for
+              family and friends. Only the people you invite see it.
             </p>
           </article>
           <article className={styles.feature}>
             <h2>Keep the recipes you love.</h2>
             <p className="secondary">
-              Paste a link, take a photo of the card, or type it in. The
-              week&rsquo;s ingredients turn into a grocery list in Reminders.
+              Paste a link, take a photo of the card, or type it in. Cooking
+              mode walks you through amounts, timing, and steps. The
+              week&rsquo;s plan turns into a grocery list in Reminders.
             </p>
           </article>
           <article className={styles.feature}>
@@ -121,7 +121,6 @@ export default function Home() {
           <WaitlistForm compact />
           <div className={`${styles.store} ${styles.storeCenter}`}>
             <AppStoreBadge height={52} />
-            <p className={`${styles.soon} secondary`}>Coming soon</p>
           </div>
         </section>
       </main>
