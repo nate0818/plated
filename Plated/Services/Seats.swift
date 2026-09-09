@@ -184,6 +184,9 @@ enum Seats {
             // open the link in the next breath, and a named seat that is
             // not in the zone yet used to make them mint a second one.
             HouseholdOutbox.shared.enqueueUpsert(.seat, member.shareRecordName)
+            HouseholdInviteLog.record(
+                name: name, phone: number, email: email, seat: prepared.seat
+            )
             print("PLATED HOUSEHOLD: seat \(member.shareRecordName) invited for \(name)")
             Task { await HouseholdOutbox.shared.drain(context: context) }
 
@@ -393,6 +396,9 @@ enum Seats {
             }
         }
         if claimed { Persist.save(context, "invited seats claimed from share") }
+        for member in all(in: context) where member.seat == .joined {
+            HouseholdInviteLog.markSettled(name: member.name)
+        }
 
         // Do NOT retire joined seats when they are missing from standings.
         // A partial or identity-less participant list used to delete real
@@ -555,14 +561,20 @@ enum Seats {
                 restored += 1
                 continue
             }
-            let name = standing.name.trimmingCharacters(in: .whitespacesAndNewlines)
+            let ckName = standing.name.trimmingCharacters(in: .whitespacesAndNewlines)
+            let remembered = HouseholdInviteLog.rememberedName(
+                forPhone: standing.phone, email: standing.email
+            )
+            let name = !ckName.isEmpty ? ckName : (remembered ?? "")
+            let phone = standing.phone ?? HouseholdInviteLog.unsettled(against: members)
+                .first { !$0.name.isEmpty && $0.name.caseInsensitiveCompare(name) == .orderedSame }?.phone
             let row = HouseholdMember(
-                name: name.isEmpty ? "Someone" : name,
+                name: name.isEmpty ? "New member" : name,
                 colorHex: nextTone(in: context),
                 role: "partner",
                 roleLine: roleLine(for: "partner"),
                 seat: .joined,
-                phoneE164: standing.phone,
+                phoneE164: phone,
                 inviteEmail: standing.email,
                 invitedAt: nil,
                 shareRecordName: HouseholdShare.mintSeatName()
@@ -575,9 +587,26 @@ enum Seats {
             row.authorID = TableIdentity.cached
             context.insert(row)
             HouseholdOutbox.shared.enqueueUpsert(.seat, row.shareRecordName)
+            if !row.name.isEmpty { HouseholdInviteLog.markSettled(name: row.name) }
             print("PLATED HOUSEHOLD: restored joined seat for \(row.name) id=\(id.isEmpty ? "nil" : String(id.prefix(12)))")
             members = all(in: context)
             restored += 1
+        }
+        // Rename any blank "New member" / "Someone" using the invite log.
+        for row in all(in: context)
+        where (row.seat == .joined || row.seat == .head)
+            && (row.name == "Someone" || row.name == "New member"
+                || HouseholdIdentity.isPlaceholder(row.name)) {
+            if let remembered = HouseholdInviteLog.rememberedName(
+                forPhone: row.phoneE164, email: row.inviteEmail
+            ) {
+                row.name = remembered
+                HouseholdInviteLog.markSettled(name: remembered)
+                if !row.shareRecordName.isEmpty {
+                    HouseholdOutbox.shared.enqueueUpsert(.seat, row.shareRecordName)
+                }
+                print("PLATED HOUSEHOLD: renamed restored seat to \(remembered)")
+            }
         }
         if restored > 0 {
             Persist.save(context, "restored accepted seats")

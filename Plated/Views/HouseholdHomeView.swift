@@ -274,8 +274,11 @@ struct HouseholdHomeView: View {
         .onAppear {
             if LinkRelay.takeActivity() { pushed = .activity }
             // Stuck Invited labels (Alessandra) settle when Home is opened,
-            // not only when CloudKit happens to send a share delta.
+            // not only when CloudKit happens to send a share delta. Replay
+            // the zone first so a seat we deleted locally but that still
+            // exists in iCloud is not skipped by a stale change token.
             Task {
+                TableShare.requestReplay(zoneOwner: "")
                 await TablePull.pull(reason: "home")
                 await Seats.settleStuckInvites(in: context)
             }
@@ -815,22 +818,33 @@ struct HouseholdHomeView: View {
         }
     }
 
-    /// Host recovery after a stuck Invited clear: pull, then rebuild any
-    /// accepted share participant who has no seat on this phone.
+    /// Host recovery after a stuck Invited clear: full zone reread, then
+    /// rebuild any accepted share participant who has no seat on this phone.
     private func refreshPeopleFromiCloud() async {
         withAnimation(.plSnap) { peopleRefreshNote = "Looking in iCloud…" }
+        // Reread the whole household zone so a seat that still exists there
+        // is not skipped because our change token moved past it.
+        TableShare.requestReplay(zoneOwner: "")
         await TablePull.pull(reason: "refresh-people")
         let before = Set(members.map(\.persistentModelID))
         await Seats.settleStuckInvites(in: context)
         let after = Seats.all(in: context)
         let added = after.filter { !before.contains($0.persistentModelID) && $0.seat == .joined }
+        let missing = HouseholdInviteLog.unsettled(against: after)
         withAnimation(.plSnap) {
             if let someone = added.first {
+                let label = someone.name == "New member" || someone.name == "Someone"
+                    ? "A household member"
+                    : someone.firstName
                 peopleRefreshNote = added.count == 1
-                    ? "\(someone.firstName) is back."
+                    ? "\(label) is back — tap their row to open and rename if needed."
                     : "\(added.count) people restored."
+            } else if let invite = missing.first {
+                peopleRefreshNote = "\(invite.name) isn’t on iCloud’s share anymore. Invite them again."
+                addPresented = true
             } else {
-                peopleRefreshNote = "If they’re still missing, use Add someone and invite them again."
+                peopleRefreshNote = "They’re not on your household share in iCloud anymore. Invite them again."
+                addPresented = true
             }
         }
     }
