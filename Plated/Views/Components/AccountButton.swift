@@ -123,6 +123,7 @@ struct AccountHomeView: View {
                 VStack(spacing: 10) {
                     spaceCard(
                         icon: "house.fill",
+                        eyebrow: householdEyebrow,
                         title: householdTitle,
                         caption: "People, invites, and who cooks.",
                         tint: .basilTint,
@@ -387,6 +388,10 @@ struct AccountHomeView: View {
         .accessibilityLabel("Edit profile")
     }
 
+    private var householdEyebrow: String {
+        "\(members.count) \(members.count == 1 ? "person" : "people")"
+    }
+
     private var householdTitle: String {
         let trimmed = householdName.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? "Household" : trimmed
@@ -412,6 +417,7 @@ struct AccountHomeView: View {
 
     private func spaceCard(
         icon: String,
+        eyebrow: String? = nil,
         title: String,
         caption: String,
         tint: Color,
@@ -432,6 +438,9 @@ struct AccountHomeView: View {
                     .plChrome()
 
                 VStack(alignment: .leading, spacing: 4) {
+                    if let eyebrow {
+                        MicroLabel(eyebrow)
+                    }
                     Text(title)
                         .plName()
                         .plType(.heading, .semibold)

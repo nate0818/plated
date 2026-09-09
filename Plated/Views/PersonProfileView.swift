@@ -439,13 +439,12 @@ struct PersonProfileView: View {
         return name
     }
 
-    /// Own Account and own Table profile omit a role. Other household
-    /// hosts read as Host. Head of table is not a person-facing label here.
+    /// Own page has no role. Host is only for the other person when they
+    /// host this household. Partner, kid, guest, and a name with no seat
+    /// get nothing: roleTitle and "At your table" are not this path's voice.
     private var roleLine: String? {
-        if isMe { return nil }
-        if member?.isOwner == true { return "Host" }
-        if let member { return member.roleTitle }
-        return "At your table"
+        guard !isMe, member?.isOwner == true else { return nil }
+        return "Host"
     }
 
     private var awardActivitySignature: String {
