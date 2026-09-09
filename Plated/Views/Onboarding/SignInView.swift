@@ -213,10 +213,16 @@ private struct AppleFailOpenSheet: View {
                 .plType(.title, .semibold)
                 .foregroundStyle(Color.ink)
                 .fixedSize(horizontal: false, vertical: true)
-            Text("Sharing and invites are off until Apple sign-in works. Planning still works on this iPhone.")
-                .plType(.body, .medium)
-                .foregroundStyle(Color.inkSecondary)
-                .fixedSize(horizontal: false, vertical: true)
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Sharing and invites are off.")
+                    .plType(.body, .medium)
+                    .foregroundStyle(Color.inkSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text("Planning still works on this iPhone.")
+                    .plType(.body, .medium)
+                    .foregroundStyle(Color.inkSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             VStack(spacing: 10) {
                 TomatoPillButton(title: "Try again", action: onTryAgain)
                 Button("Continue without Apple") {
