@@ -863,6 +863,7 @@ struct HouseholdHomeView: View {
     /// walks the full `@Query` (and a deleted twin) via `members.me`.
     private func memberRow(_ member: HouseholdMember, readerIsHead: Bool) -> some View {
         let name = member.name
+        let colorHex = member.colorHex
         let memberID = member.persistentModelID
         let isMe = member.isMe
         let seat = member.seat
