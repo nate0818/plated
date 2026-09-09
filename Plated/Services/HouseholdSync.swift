@@ -1121,12 +1121,11 @@ enum HouseholdSync {
         }
         do {
             let table = try await TableShare.shareMetadata(for: url)
-            guard table.participantStatus != .accepted else {
-                print("PLATED HOUSEHOLD: already at the household's table")
-                return
-            }
-            let ok = await TableShare.accept(table)
-            print("PLATED HOUSEHOLD: table accept \(ok ? "ok" : "refused, will retry on the next pull")")
+            // The already-a-participant check lives in `TableShare.accept`
+            // now, so both roads into a Table get it from one place.
+            let outcome = await TableShare.accept(table)
+            print("PLATED HOUSEHOLD: table accept \(outcome)"
+                  + (outcome.seated ? "" : ", will retry on the next pull"))
         } catch {
             print("PLATED HOUSEHOLD: could not read the table share: \(error.localizedDescription)")
         }

@@ -400,9 +400,14 @@ final class ShareAcceptor: NSObject, UIApplicationDelegate {
 
     /// A person said yes to a Table invitation. Accept, name the invitation
     /// the link carried so the host's next pull can settle it, and pull.
+    ///
+    /// The claim and the pull run for an already-accepted share too: that
+    /// is precisely the phone whose first accept landed and whose claim
+    /// and first pull did not.
     @MainActor
-    static func acceptTable(_ metadata: CKShare.Metadata, invite: String?) async -> Bool {
-        guard await accept(metadata) else { return false }
+    static func acceptTable(_ metadata: CKShare.Metadata, invite: String?) async -> TableShare.Accepted {
+        let outcome = await accept(metadata)
+        guard outcome.seated else { return outcome }
         if let invite, !invite.isEmpty {
             let owner = metadata.hierarchicalRootRecordID?.zoneID.ownerName
                 ?? metadata.share.recordID.zoneID.ownerName
@@ -410,13 +415,13 @@ final class ShareAcceptor: NSObject, UIApplicationDelegate {
             print("PLATED HOUSEHOLD: table claim \(claimed ? "written" : "refused")")
         }
         await TablePull.pull(reason: "accept")
-        return true
+        return outcome
     }
 
     @MainActor
-    private static func accept(_ metadata: CKShare.Metadata) async -> Bool {
-        let ok = await TableShare.accept(metadata)
-        if ok {
+    private static func accept(_ metadata: CKShare.Metadata) async -> TableShare.Accepted {
+        let outcome = await TableShare.accept(metadata)
+        if outcome.seated {
             Haptic.kiss()
             NotificationCenter.default.post(name: didAccept, object: nil)
             // Somebody's table just arrived on this phone. That is an
@@ -428,11 +433,12 @@ final class ShareAcceptor: NSObject, UIApplicationDelegate {
             // nothing. The shell asks once it is in front.
             NotificationScheduler.askSoon()
         } else {
-            // A dead or revoked link. Not a crash and not a dialog —
-            // the seat simply doesn't appear, and the host can re-send.
+            // Not a crash and not a dialog: the caller says the one true
+            // thing `outcome.line` carries, which is no longer always
+            // about the network.
             Haptic.warn()
         }
-        return ok
+        return outcome
     }
 
     /// The share URL carried inside one of our own invitation links.

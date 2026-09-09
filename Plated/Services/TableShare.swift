@@ -183,6 +183,116 @@ enum TableShare {
         return .unresolved(candidates)
     }
 
+    // MARK: Taking a seat
+
+    /// What accepting a Table invitation came to.
+    ///
+    /// This was a `Bool`, and the false branch carried one sentence:
+    /// "Couldn't join the Table. Check your connection and open the link
+    /// again." The connection is the one cause that can be ruled out by
+    /// the time it is shown, because the invitation was read off iCloud
+    /// seconds earlier to draw the dialog the person just tapped. Every
+    /// other cause was told the same untrue thing, and the console said
+    /// nothing at all: `accept` threw its error away.
+    ///
+    /// Three of these are a seat. A share this identity is already on is
+    /// joined, not refused: `CKContainer.accept` throws on a second
+    /// accept, so a person who opened the link twice, or whose first
+    /// accept landed while the pull was still running, was told they
+    /// could not join a Table they were already sitting at.
+    enum Accepted: Equatable {
+        case joined
+        /// Already a participant. `docs/household.md` §7 step 1 has
+        /// required this check on the household road since it was
+        /// written; the direct Table road never had it.
+        case alreadyJoined
+        /// The host's own link, opened on the host's own phone.
+        case ownTable
+        /// The share is gone: revoked, or its zone deleted.
+        case gone
+        /// A participant-only share this account is not on. Tables minted
+        /// before the link became the credential are still
+        /// `publicPermission == .none`, and a link already sitting in
+        /// somebody's messages points at one until its host sends again.
+        case notInvited
+        case noAccount
+        case restricted
+        /// iCloud could not be reached. The only outcome that may blame
+        /// the network.
+        case unreachable
+        /// Something else, with the CloudKit code kept for the log.
+        case refused(code: Int)
+
+        /// Whether there is a seat at the end of this.
+        var seated: Bool {
+            switch self {
+            case .joined, .alreadyJoined, .ownTable: return true
+            default: return false
+            }
+        }
+
+        /// What the person is told. Nil exactly when they are seated: a
+        /// person is either at the table or told why not, never both and
+        /// never neither.
+        var line: String? {
+            switch self {
+            case .joined, .alreadyJoined, .ownTable:
+                return nil
+            case .gone:
+                return "This link doesn't work anymore. Ask the person who sent it for a new one."
+            case .notInvited:
+                return "This link isn't open to this iCloud account. Ask them to send a new one."
+            case .noAccount:
+                return "Sign in to iCloud on this iPhone to join, then open the link again."
+            case .restricted:
+                return "iCloud is restricted on this iPhone, so Plated can't join a Table."
+            case .unreachable:
+                return "Couldn't reach iCloud. Check your connection and open the link again."
+            case .refused:
+                return "iCloud wouldn't finish the join. Open the link again in a moment."
+            }
+        }
+
+        /// Whether one more try is worth a person's time. Only the codes
+        /// that mean "later", and only ever once.
+        var isTransient: Bool { self == .unreachable }
+    }
+
+    /// A CloudKit accept failure as an outcome. Pure, so the test holds
+    /// the same table the app does rather than a copy of it.
+    ///
+    /// `account` settles the ambiguous codes: iCloud refusing to
+    /// authenticate is a signed-out phone, not a flaky network, and
+    /// nothing about the error alone says which.
+    static func accepted(from code: CKError.Code, account: TableSync.AccountState) -> Accepted {
+        switch code {
+        case .unknownItem:
+            return .gone
+        case .participantMayNeedVerification, .permissionFailure:
+            return .notInvited
+        case .alreadyShared:
+            return .alreadyJoined
+        case .managedAccountRestricted:
+            return .restricted
+        case .notAuthenticated:
+            return account == .restricted ? .restricted : .noAccount
+        case .networkUnavailable, .networkFailure, .serviceUnavailable,
+             .requestRateLimited, .zoneBusy, .operationCancelled:
+            return byAccount(account, otherwise: .unreachable)
+        default:
+            return byAccount(account, otherwise: .refused(code: code.rawValue))
+        }
+    }
+
+    /// A phone with no iCloud account fails everything, and says so once.
+    private static func byAccount(_ account: TableSync.AccountState, otherwise: Accepted) -> Accepted {
+        switch account {
+        case .noAccount: return .noAccount
+        case .restricted: return .restricted
+        default: return otherwise
+        }
+    }
+
     #if PLATED_CLOUDKIT
     private static var container: CKContainer { .default() }
 
@@ -428,13 +538,51 @@ enum TableShare {
 
     /// Someone tapped an invitation. Accepting puts the host's zone into
     /// this user's shared database; the next refresh reads it.
-    static func accept(_ metadata: CKShare.Metadata) async -> Bool {
-        do {
-            _ = try await container.accept(metadata)
-            return true
-        } catch {
-            return false
+    ///
+    /// Printed at every step on purpose. This crosses into another
+    /// process and then into iCloud, and the whole failure was invisible
+    /// for as long as it was: the error was caught, discarded, and
+    /// rendered as one sentence about the network.
+    static func accept(_ metadata: CKShare.Metadata) async -> Accepted {
+        // Asked before iCloud is, because both answers are already on the
+        // metadata and both throw if they reach `container.accept`.
+        if metadata.participantRole == .owner {
+            print("PLATED SHARE: that invitation is this phone's own table")
+            return .ownTable
         }
+        if metadata.participantStatus == .accepted {
+            print("PLATED SHARE: already a participant on this share")
+            return .alreadyJoined
+        }
+        var current = metadata
+        for attempt in 1...2 {
+            do {
+                _ = try await container.accept(current)
+                print("PLATED SHARE: accepted the share on attempt \(attempt)")
+                return .joined
+            } catch {
+                let code = (error as? CKError)?.code ?? .internalError
+                let account = await TableSync.accountState()
+                print("PLATED SHARE: accept refused on attempt \(attempt), "
+                      + "CKError \(code.rawValue), iCloud \(account): "
+                      + error.localizedDescription)
+                let outcome = accepted(from: code, account: account)
+                guard attempt == 1, outcome.isTransient,
+                      let url = current.share.url,
+                      let again = try? await shareMetadata(for: url)
+                else { return outcome }
+                // The metadata has been sitting under a confirmation
+                // dialog for as long as the person took to read it, so
+                // the second try is made against a freshly read share
+                // rather than the one that was already stale.
+                if again.participantStatus == .accepted {
+                    print("PLATED SHARE: the first accept had landed after all")
+                    return .alreadyJoined
+                }
+                current = again
+            }
+        }
+        return .unreachable
     }
 
     // MARK: Posts across the wire
@@ -2109,7 +2257,7 @@ enum TableShare {
 
     #else
     static func invitationURL(hostName: String) async -> URL? { nil }
-    static func accept(_ metadata: CKShare.Metadata) async -> Bool { false }
+    static func accept(_ metadata: CKShare.Metadata) async -> Accepted { .unreachable }
     static func publish(_ post: TablePost, hostName: String) async -> String? { nil }
     static func retract(recordName: String, zoneOwner: String) async -> Bool { true }
     struct RemotePost { var recordName = ""; var zoneOwner = ""; var authorID = ""
