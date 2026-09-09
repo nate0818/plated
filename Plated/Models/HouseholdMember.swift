@@ -456,22 +456,14 @@ extension Array where Element == HouseholdMember {
         let joined = members.filter {
             ($0.seat == .joined || $0.seat == .head) && !($0.userRecordName ?? "").isEmpty
         }
-        let namedInvites = invited.filter { !HouseholdIdentity.isUnnamed($0.name) }
-        let unnamedJoined = joined.filter { HouseholdIdentity.isRestoredPlaceholder($0.name) }
         return invited.filter { invite in
             let key = occupancyFirstNameKey(invite.name)
-            if !key.isEmpty {
-                let matches = joined.filter {
-                    occupancyFirstNameKey($0.name) == key
-                        && $0.shareRecordName != invite.shareRecordName
-                }
-                if matches.count == 1 { return true }
+            guard !key.isEmpty else { return false }
+            let matches = joined.filter {
+                occupancyFirstNameKey($0.name) == key
+                    && $0.shareRecordName != invite.shareRecordName
             }
-            // "Alessandra" Invited beside one restored "New member" is
-            // the same person even before bind copies the name across.
-            return namedInvites.count == 1
-                && unnamedJoined.count == 1
-                && namedInvites[0] === invite
+            return matches.count == 1
         }
     }
 
