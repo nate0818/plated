@@ -1,4 +1,5 @@
 import XCTest
+import SwiftData
 @testable import Plated
 
 /// Product-wide people-trust: any host, any invitee. A joined seat must
