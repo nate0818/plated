@@ -1,6 +1,6 @@
 // POST /invite — tell somebody already on Plated that a seat is waiting.
 //
-// Body: { api_token, invitee_phone_e164, host_name, share_url, kind?, seat? }
+// Body: { api_token, invitee_phone_e164, host_name, share_url, kind?, seat?, invite? }
 // Returns: { ok } — always, whether or not the number belongs to anybody.
 //
 // `kind` is "table" (a seat at the host's Table, the default so an older
@@ -8,8 +8,9 @@
 // host's household: the plan, the grocery list and the cookbook). The two
 // are different rooms and the banner has to say which; the app opens a
 // different sheet for each. `seat` is the household seat record name the
-// link was minted for, carried through so the joiner does not have to pick
-// their seat by hand. docs/household.md sections 6 and 7.
+// link was minted for; `invite` is the Table invitation id. Both ride
+// through so the joiner does not have to pick by hand and the host's
+// Invited row can settle. docs/household.md sections 6, 7 and 9.
 //
 // The message with the link has already gone through Messages. This is the
 // banner on the invitee's own phone saying who it is from, for the person
@@ -85,6 +86,9 @@ Deno.serve(async (req: Request) => {
   // so it is dropped with a log line rather than refused.
   const seat = RECORD_NAME.test(rawSeat) ? rawSeat : "";
   if (rawSeat && !seat) console.log("invite: seat dropped, not a record name");
+  const rawInvite = String(body?.invite ?? "");
+  const invite = RECORD_NAME.test(rawInvite) ? rawInvite : "";
+  if (rawInvite && !invite) console.log("invite: invite id dropped, not a record name");
   if (!/^[0-9a-f-]{36}$/.test(apiToken) || !/^\+\d{7,15}$/.test(phone) || !isShareURL(shareURL)) {
     return new Response("missing", { status: 400 });
   }
@@ -147,6 +151,10 @@ Deno.serve(async (req: Request) => {
   const who = (host.display_name || typedHost || "Someone").trim();
   let link = `plated://invite?s=${encodeURIComponent(shareURL)}&from=${encodeURIComponent(who)}&k=${kind}`;
   if (kind === "household" && seat) link += `&seat=${encodeURIComponent(seat)}`;
+  // Table Invited rows settle on the invitation id. The wrapped share_url
+  // usually already carries `i=`, but the push link is what the app parses
+  // when the nested unwrap fails — keep `i=` here too.
+  if (kind === "table" && invite) link += `&i=${encodeURIComponent(invite)}`;
   // Two rooms, two sentences. The household one says what it is and not what
   // is in it, because a banner has one line and "Open it to join" is the
   // true outcome of the tap: the app asks before it seats anybody.

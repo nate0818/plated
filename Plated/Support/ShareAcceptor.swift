@@ -413,6 +413,15 @@ final class ShareAcceptor: NSObject, UIApplicationDelegate {
                 ?? metadata.share.recordID.zoneID.ownerName
             let claimed = await TableShare.pushClaim(inviteID: invite, zoneOwner: owner)
             print("PLATED HOUSEHOLD: table claim \(claimed ? "written" : "refused")")
+            // A seated join with a refused claim leaves the host's Invited
+            // row standing forever. Queue it and drain on every Table pull.
+            if claimed {
+                TableClaimOutbox.forget(inviteID: invite)
+            } else {
+                TableClaimOutbox.remember(inviteID: invite, zoneOwner: owner)
+            }
+        } else {
+            print("PLATED HOUSEHOLD: table claim skipped (no invite id on the link)")
         }
         await TablePull.pull(reason: "accept")
         return outcome

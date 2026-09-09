@@ -68,6 +68,9 @@ enum TablePull {
                     return all.first { $0.shareRecordName == name }
                 }
                 await TableOutbox.shared.drain(authorName: Seats.all(in: context).me?.name ?? "")
+                // Claims that failed on accept get another try here, so an
+                // Invited row on the host does not stick after a seated join.
+                await TableClaimOutbox.drain()
                 await HouseholdOutbox.shared.drain(context: context)
 
                 let changes = await TableShare.fetchChanges()

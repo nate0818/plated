@@ -281,8 +281,12 @@ struct ContactsView: View {
                 if let index = candidates.firstIndex(where: { $0.id == person.id }) {
                     withAnimation(.plPop) { candidates[index].seated = true }
                 }
-            case .notSent(_, _, let prepared):
+            case .failed(_, _, let prepared), .declined(_, _, let prepared):
                 Seats.abandon(kind: .household, prepared: prepared)
+                if case .failed = result {
+                    Haptic.warn()
+                    withAnimation(.plSnap) { problem = "The message didn't send. Try again." }
+                }
             case .noLink(_, let reason):
                 Haptic.warn()
                 withAnimation(.plSnap) { problem = reason }
@@ -361,9 +365,12 @@ struct ContactsView: View {
                 .frame(minHeight: 36)
                 .background(Color.basilTint, in: Capsule())
                 .transition(.plArrive)
-            } else {
+            } else if InviteComposer.isAvailable {
                 invitePill(person)
             }
+            // No Messages: Share a link at the bottom of the screen is the
+            // door. A tomato Invite that opens a blank composer is worse
+            // than no pill.
         }
         .padding(.vertical, 12)
     }

@@ -194,9 +194,11 @@ enum Seats {
         // courtesy, and the app never learns whether it landed.
         if let number {
             let seat = prepared.seat
+            let invite = prepared.invite
             Task {
                 await Directory.notifyInvite(
-                    phone: number, hostName: host, shareURL: link, kind: kind, seat: seat
+                    phone: number, hostName: host, shareURL: link, kind: kind,
+                    seat: seat, invite: invite
                 )
             }
         }

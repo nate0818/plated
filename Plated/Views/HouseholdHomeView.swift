@@ -827,8 +827,9 @@ struct HouseholdHomeView: View {
         let readerIsHead = members.me?.isOwner == true
         var actions: [SwipeAction] = []
         // An invitation nobody answered needs a way forward, not just a way
-        // out. Same live link, sent again.
-        if member.canResend {
+        // out. Same live link, sent again — and only when Messages can
+        // actually open. Without it the resend sheet crashed or blanked.
+        if member.canResend, InviteComposer.isAvailable, readerIsHead {
             actions.append(SwipeAction(symbol: "paperplane", label: "Send again") {
                 swipedMember = nil
                 Task { await resend(member) }
@@ -1375,22 +1376,24 @@ struct AddMemberSheet: View {
                             .foregroundStyle(Color.ink)
                             .lineLimit(1)
                         Spacer()
-                        Button {
-                            withAnimation(.plSnap) { problem = nil }
-                            startInvite(to: InviteFlow.Recipient(name: match.name, phone: match.phone))
-                        } label: {
-                            Text("Invite")
-                                .plType(.footnote, .bold)
-                                .plActionLabel()
-                                .foregroundStyle(Color.canvas)
-                                .padding(.horizontal, 18)
-                                .frame(minHeight: 36)
-                                .background(Color.ink, in: Capsule())
-                                .frame(minHeight: 44)
-                                .contentShape(Capsule())
+                        if InviteComposer.isAvailable {
+                            Button {
+                                withAnimation(.plSnap) { problem = nil }
+                                startInvite(to: InviteFlow.Recipient(name: match.name, phone: match.phone))
+                            } label: {
+                                Text("Invite")
+                                    .plType(.footnote, .bold)
+                                    .plActionLabel()
+                                    .foregroundStyle(Color.canvas)
+                                    .padding(.horizontal, 18)
+                                    .frame(minHeight: 36)
+                                    .background(Color.ink, in: Capsule())
+                                    .frame(minHeight: 44)
+                                    .contentShape(Capsule())
+                            }
+                            .buttonStyle(.pressable)
+                            .accessibilityLabel("Invite \(match.name) to your household")
                         }
-                        .buttonStyle(.pressable)
-                        .accessibilityLabel("Invite \(match.name) to your household")
                     }
                     .frame(minHeight: 44)
                 }
@@ -1471,12 +1474,14 @@ struct AddMemberSheet: View {
                 )
                 Persist.save(context, "seat invited")
                 dismiss()
-            case .notSent(let name, _, let prepared):
+            case .failed(let name, _, let prepared):
                 Seats.abandon(kind: .household, prepared: prepared)
                 Haptic.warn()
                 withAnimation(.plSnap) {
                     problem = "The message didn't send, so \(firstWord(name)) wasn't added. Try again."
                 }
+            case .declined(_, _, let prepared):
+                Seats.abandon(kind: .household, prepared: prepared)
             case .noLink(_, let reason):
                 Haptic.warn()
                 withAnimation(.plSnap) { problem = reason }

@@ -1580,15 +1580,45 @@ enum HouseholdShare {
         }
     }
 
-    static func accept(_ metadata: CKShare.Metadata) async -> Bool {
-        do {
-            _ = try await container.accept(metadata)
-            print("PLATED HOUSEHOLD: accepted the household share")
-            return true
-        } catch {
-            print("PLATED HOUSEHOLD: could not accept the household share: \(error)")
-            return false
+    /// Someone tapped a household invitation. Outcomes match the Table
+    /// road: a second accept on a share this identity already holds is a
+    /// seat, not a refusal, and only a genuine network failure may blame
+    /// the network. Same classifier as `TableShare.accept` — CloudKit's
+    /// codes do not care which zone the share sits in.
+    static func accept(_ metadata: CKShare.Metadata) async -> TableShare.Accepted {
+        if metadata.participantRole == .owner {
+            print("PLATED HOUSEHOLD: that invitation is this phone's own household")
+            return .ownTable
         }
+        if metadata.participantStatus == .accepted {
+            print("PLATED HOUSEHOLD: already a participant on this household share")
+            return .alreadyJoined
+        }
+        var current = metadata
+        for attempt in 1...2 {
+            do {
+                _ = try await container.accept(current)
+                print("PLATED HOUSEHOLD: accepted the household share on attempt \(attempt)")
+                return .joined
+            } catch {
+                let code = (error as? CKError)?.code ?? .internalError
+                let account = await TableSync.accountState()
+                print("PLATED HOUSEHOLD: accept refused on attempt \(attempt), "
+                      + "CKError \(code.rawValue), iCloud \(account): "
+                      + error.localizedDescription)
+                let outcome = TableShare.accepted(from: code, account: account)
+                guard attempt == 1, outcome.isTransient,
+                      let url = current.share.url,
+                      let again = try? await TableShare.shareMetadata(for: url)
+                else { return outcome }
+                if again.participantStatus == .accepted {
+                    print("PLATED HOUSEHOLD: the first accept had landed after all")
+                    return .alreadyJoined
+                }
+                current = again
+            }
+        }
+        return .unreachable
     }
 
     // MARK: Pull
@@ -2402,7 +2432,7 @@ enum HouseholdShare {
     static func standings() async -> [TableShare.Standing] { [] }
     static func removeParticipant(userRecordName: String) async -> Bool { false }
     static func leave() async -> Bool { false }
-    static func accept(_ metadata: CKShare.Metadata) async -> Bool { false }
+    static func accept(_ metadata: CKShare.Metadata) async -> TableShare.Accepted { .unreachable }
     static func fetchChanges() async -> Changes { Changes() }
     @MainActor
     static func push(entries: [HouseholdOutbox.Entry], context: ModelContext) async -> [String: PushOutcome] {

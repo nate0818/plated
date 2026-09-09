@@ -119,10 +119,13 @@ enum Directory {
     ///
     /// `shareURL` is the wrapped plated.food link, which the server accepts
     /// beside iCloud's. `kind` tells the push which sentence to show, and
-    /// `seat` names the household seat the link was minted for
-    /// (docs/household.md sections 6 and 7); both are omitted when empty so
-    /// an older function still reads the body.
-    static func notifyInvite(phone: String, hostName: String, shareURL: URL, kind: Seats.Kind, seat: String?) async {
+    /// `seat` / `invite` name the household seat or Table invitation the
+    /// link was minted for (docs/household.md sections 6, 7 and 9); both
+    /// are omitted when empty so an older function still reads the body.
+    static func notifyInvite(
+        phone: String, hostName: String, shareURL: URL, kind: Seats.Kind,
+        seat: String?, invite: String?
+    ) async {
         guard let token, let e164 = normalize(phone) else { return }
         var body: [String: Any] = [
             "api_token": token,
@@ -132,6 +135,7 @@ enum Directory {
             "kind": kind.rawValue
         ]
         if let seat, !seat.isEmpty { body["seat"] = seat }
+        if let invite, !invite.isEmpty { body["invite"] = invite }
         print("PLATED HOUSEHOLD: nudging the directory about a \(kind.rawValue) invitation")
         _ = await post("invite", body: body)
     }
