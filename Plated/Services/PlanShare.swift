@@ -1581,7 +1581,7 @@ enum PlanShare {
             // Without it, doubling a night's servings left the household
             // shopping for the old quantities, which is the list quietly
             // lying about a change the person watched land.
-            if let was, was > 0, servings != was {
+            if was > 0, servings != was {
                 let factor = Double(servings) / Double(was)
                 let raw = record["lines"] as? String
                 let decoded = TableShare.decodeLines(raw)
