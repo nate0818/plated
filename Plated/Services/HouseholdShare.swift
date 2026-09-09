@@ -1494,11 +1494,25 @@ enum HouseholdShare {
     /// The household's share: off my private root when I host, off the
     /// owner's root in the shared database when I am a member.
     private static func currentShare() async -> (CKDatabase, CKShare)? {
-        guard let (db, zoneID) = await householdZone() else { return nil }
-        guard let root = try? await db.record(for: CKRecord.ID(recordName: rootRecordName, zoneID: zoneID)),
-              let ref = root.share,
-              let share = try? await db.record(for: ref.recordID) as? CKShare else { return nil }
-        return (db, share)
+        guard let (db, zoneID) = await householdZone() else {
+            print("PLATED HOUSEHOLD: currentShare — no household zone")
+            return nil
+        }
+        do {
+            let root = try await db.record(for: CKRecord.ID(recordName: rootRecordName, zoneID: zoneID))
+            guard let ref = root.share else {
+                print("PLATED HOUSEHOLD: currentShare — root has no share reference")
+                return nil
+            }
+            guard let share = try await db.record(for: ref.recordID) as? CKShare else {
+                print("PLATED HOUSEHOLD: currentShare — share record is not a CKShare")
+                return nil
+            }
+            return (db, share)
+        } catch {
+            print("PLATED HOUSEHOLD: currentShare failed: \(error.localizedDescription)")
+            return nil
+        }
     }
 
     /// Everyone on the household share. Link joiners are public
@@ -1517,15 +1531,23 @@ enum HouseholdShare {
             let name = [p.userIdentity.nameComponents?.givenName,
                         p.userIdentity.nameComponents?.familyName]
                 .compactMap { $0 }.joined(separator: " ")
+            let id = p.userIdentity.userRecordID?.recordName
+            // Accepted, or already carrying an identity (some link joins
+            // briefly report a status other than `.accepted` while the
+            // record id is already real). Pending with no id stays out.
+            let inHousehold = p.acceptanceStatus == .accepted
+                || (!(id ?? "").isEmpty && p.acceptanceStatus != .pending)
+            print("PLATED HOUSEHOLD: participant name=\(name.isEmpty ? "—" : name) status=\(String(describing: p.acceptanceStatus)) id=\(id?.prefix(12) ?? "nil") in=\(inHousehold)")
+            guard inHousehold else { return nil }
             return TableShare.Standing(
                 phone: p.userIdentity.lookupInfo?.phoneNumber,
                 email: p.userIdentity.lookupInfo?.emailAddress,
                 name: name,
-                accepted: p.acceptanceStatus == .accepted,
-                participantID: p.userIdentity.userRecordID?.recordName
+                accepted: true,
+                participantID: id
             )
         }
-        print("PLATED HOUSEHOLD: standings \(rows.count) participant(s), \(rows.filter(\.accepted).count) accepted")
+        print("PLATED HOUSEHOLD: standings \(rows.count) household participant(s)")
         return rows
     }
 

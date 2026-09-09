@@ -477,7 +477,12 @@ enum Seats {
     /// Host pull / Home open: settle Invited rows and restore anyone who
     /// accepted the share but has no seat on this phone.
     static func settleStuckInvites(in context: ModelContext) async {
-        guard case .hosting = HouseholdShare.membership else { return }
+        _ = await HouseholdShare.refreshMembership()
+        print("PLATED HOUSEHOLD: settleStuckInvites membership=\(String(describing: HouseholdShare.membership))")
+        guard case .hosting = HouseholdShare.membership else {
+            print("PLATED HOUSEHOLD: settleStuckInvites skipped, not hosting")
+            return
+        }
         await reconcile(in: context)
         await restoreUnmatchedAccepts(in: context)
 
@@ -498,15 +503,28 @@ enum Seats {
 
     /// An accepted share participant with no roster row at all — for example
     /// after a bad clear of their Invited seat — gets a joined seat back.
-    static func restoreUnmatchedAccepts(in context: ModelContext) async {
+    @discardableResult
+    static func restoreUnmatchedAccepts(in context: ModelContext) async -> Int {
         let standings = await HouseholdShare.standings()
         let accepted = standings.filter(\.accepted)
-        guard !accepted.isEmpty else { return }
+        guard !accepted.isEmpty else {
+            print("PLATED HOUSEHOLD: restoreUnmatchedAccepts — no accepted participants on the share")
+            return 0
+        }
         var members = all(in: context)
         var restored = 0
         for standing in accepted {
-            guard let id = standing.participantID, !id.isEmpty else { continue }
-            if match(standing, in: members) != nil { continue }
+            let id = standing.participantID ?? ""
+            if !id.isEmpty, match(standing, in: members) != nil { continue }
+            if id.isEmpty {
+                let key = firstNameKey(standing.name)
+                if !key.isEmpty,
+                   members.contains(where: {
+                       firstNameKey($0.name) == key && ($0.seat == .joined || $0.seat == .head)
+                   }) {
+                    continue
+                }
+            }
             if let invite = inviteToClaim(for: standing, among: members) {
                 claimInvite(invite, with: standing, in: context)
                 members = all(in: context)
@@ -525,20 +543,25 @@ enum Seats {
                 invitedAt: nil,
                 shareRecordName: HouseholdShare.mintSeatName()
             )
-            row.userRecordName = id
-            row.participantID = id
+            if !id.isEmpty {
+                row.userRecordName = id
+                row.participantID = id
+            }
             row.joinedAt = .now
             row.authorID = TableIdentity.cached
             context.insert(row)
             HouseholdOutbox.shared.enqueueUpsert(.seat, row.shareRecordName)
-            print("PLATED HOUSEHOLD: restored joined seat for accepted \(row.name) (\(id.prefix(12)))")
+            print("PLATED HOUSEHOLD: restored joined seat for \(row.name) id=\(id.isEmpty ? "nil" : String(id.prefix(12)))")
             members = all(in: context)
             restored += 1
         }
         if restored > 0 {
             Persist.save(context, "restored accepted seats")
             Haptic.kiss()
+        } else {
+            print("PLATED HOUSEHOLD: restoreUnmatchedAccepts — nothing to restore (\(accepted.count) on share, \(members.count) local)")
         }
+        return restored
     }
 
     /// Host tapped "They're in" on an Invited row. Promotes that seat to

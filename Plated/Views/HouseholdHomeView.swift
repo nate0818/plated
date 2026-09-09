@@ -59,6 +59,8 @@ struct HouseholdHomeView: View {
     /// A member's phone that cannot reach iCloud right now (§10): edits
     /// still land locally and go out when it is back, and the line says so.
     @State private var cloudUnreachable = false
+    /// Host tapped Refresh people — brief status under the roster.
+    @State private var peopleRefreshNote: String?
 
     enum RosterDialog: Identifiable {
         case remove(HouseholdMember)
@@ -786,8 +788,50 @@ struct HouseholdHomeView: View {
                 ProblemRow(problem)
                     .transition(.opacity)
             }
+            if let peopleRefreshNote {
+                Text(peopleRefreshNote)
+                    .plType(.caption, .semibold)
+                    .foregroundStyle(Color.inkSecondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .transition(.opacity)
+            }
 
             addSomeoneButton
+            if members.me?.isOwner == true {
+                Button {
+                    Haptic.tap()
+                    Task { await refreshPeopleFromiCloud() }
+                } label: {
+                    Text("Refresh people from iCloud")
+                        .plType(.caption, .bold)
+                        .plActionLabel()
+                        .foregroundStyle(Color.accentText)
+                        .frame(maxWidth: .infinity)
+                        .frame(minHeight: 44)
+                }
+                .buttonStyle(.pressable)
+                .accessibilityHint("Looks for household members who are on your share but missing from this list.")
+            }
+        }
+    }
+
+    /// Host recovery after a stuck Invited clear: pull, then rebuild any
+    /// accepted share participant who has no seat on this phone.
+    private func refreshPeopleFromiCloud() async {
+        withAnimation(.plSnap) { peopleRefreshNote = "Looking in iCloud…" }
+        await TablePull.pull(reason: "refresh-people")
+        let before = Set(members.map(\.persistentModelID))
+        await Seats.settleStuckInvites(in: context)
+        let after = Seats.all(in: context)
+        let added = after.filter { !before.contains($0.persistentModelID) && $0.seat == .joined }
+        withAnimation(.plSnap) {
+            if let someone = added.first {
+                peopleRefreshNote = added.count == 1
+                    ? "\(someone.firstName) is back."
+                    : "\(added.count) people restored."
+            } else {
+                peopleRefreshNote = "Nobody new on the share. Invite them again from Add someone."
+            }
         }
     }
 
@@ -827,9 +871,7 @@ struct HouseholdHomeView: View {
                 }
             }
             Spacer(minLength: 6)
-            // Stuck invitation: one tap clears the waiting label. Swipe-
-            // to-remove was easy to miss, and reconcile alone did not
-            // always see her accept.
+            // Stuck invitation: one tap marks them joined in place.
             if member.seat == .invited, members.me?.isOwner == true {
                 Button {
                     Haptic.tap()
