@@ -579,6 +579,9 @@ struct MainShellView: View {
             if Seats.migrateTableSeats(in: context) {
                 Persist.save(context, "table seats")
             }
+            // Invite-log / twin names before any CloudKit wait, so Account
+            // and Activity do not open on "New member".
+            Seats.bindShareIdentity(in: context, standings: [])
             // What CloudKit knows about who actually accepted.
             Task {
                 await Seats.reconcile(in: context)

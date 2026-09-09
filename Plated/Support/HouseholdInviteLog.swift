@@ -79,8 +79,27 @@ enum HouseholdInviteLog {
     }
 
     /// Best remembered name for a restored share participant with no CloudKit name.
-    static func rememberedName(forPhone phone: String?, email: String?) -> String? {
-        let rows = all().filter { !$0.settled }
+    ///
+    /// Settled entries still count: that flag means "we already have a
+    /// joined seat for this person", not "forget who they are". TF26 left
+    /// Alessandra as "New member" after the log was marked settled and the
+    /// drawn seat had no name.
+    static func rememberedName(forPhone phone: String?, email: String?, seat: String? = nil) -> String? {
+        let rows = all().filter { !HouseholdIdentity.isUnnamed($0.name) }
+        if let seat, !seat.isEmpty,
+           let hit = rows.first(where: { $0.seat == seat }) {
+            return hit.name
+        }
+        let unsettled = rows.filter { !$0.settled }
+        if let name = match(phone: phone, email: email, in: unsettled) { return name }
+        if unsettled.count == 1 { return unsettled[0].name }
+        if let name = match(phone: phone, email: email, in: rows) { return name }
+        let unique = Set(rows.map { $0.name.lowercased() })
+        if unique.count == 1 { return rows[0].name }
+        return nil
+    }
+
+    private static func match(phone: String?, email: String?, in rows: [Entry]) -> String? {
         if let phone, !phone.isEmpty {
             let want = Directory.normalize(phone) ?? phone
             if let hit = rows.first(where: {
@@ -96,9 +115,13 @@ enum HouseholdInviteLog {
                 return hit.name
             }
         }
-        // Sole unsettled invitation is the only person this restore could be.
-        if rows.count == 1 { return rows[0].name }
         return nil
+    }
+
+    /// Test hook. The log lives in the app group and otherwise leaks
+    /// across in-memory store tests in one process.
+    static func reset() {
+        defaults.removeObject(forKey: key)
     }
 
     private static func save(_ rows: [Entry]) {

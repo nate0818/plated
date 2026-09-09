@@ -145,8 +145,10 @@ struct TableSeatsSheet: View {
                     // so the two screens cannot disagree about what somebody
                     // is.
                     seatGroup("Household", problem: .household) {
-                        ForEach(members.readable.listed, id: \.persistentModelID) { member in
-                            memberRow(member)
+                        let people = members.readable.listed
+                        let reader = people.me
+                        ForEach(people, id: \.persistentModelID) { member in
+                            memberRow(member, reader: reader, among: people)
                         }
                     }
 
@@ -195,6 +197,7 @@ struct TableSeatsSheet: View {
         .presentationBackground(Color.canvas)
         .presentationCornerRadius(Radius.sheet)
         .task {
+            Seats.bindShareIdentity(in: context, standings: [])
             // Everything CloudKit is asked at once; the roster is local and
             // already on screen. `reach` lands with the answers rather than
             // before them, because it is what says whether an empty list
@@ -242,16 +245,23 @@ struct TableSeatsSheet: View {
 
     // MARK: Rows
 
-    private func memberRow(_ member: HouseholdMember) -> some View {
+    private func memberRow(
+        _ member: HouseholdMember,
+        reader: HouseholdMember?,
+        among people: [HouseholdMember]
+    ) -> some View {
+        let drawn = Seats.resolvedDisplay(for: member, among: people, reader: reader)
+        let isMe = member.isMe
+            || (reader != nil && reader!.persistentModelID == member.persistentModelID)
         seatRow(
-            name: member.name,
-            subtitle: member.subtitle,
+            name: drawn.name,
+            subtitle: drawn.subtitle,
             // Colour is earned by being here. An invitation is the one
             // unresolved thing, so it stays grey until they arrive. The
             // reader's own row is neutral (§10); on a member's phone the
             // host keeps their colour.
-            tone: (member.isMe || !member.showsColor) ? .neutralPair : member.tone,
-            photo: member.photoData
+            tone: (isMe || !member.showsColor) ? .neutralPair : member.tone,
+            photo: drawn.photo
         ) {
             // `messageURL` rather than a boolean: a Message button is only
             // honest where there is somewhere for the message to go, and

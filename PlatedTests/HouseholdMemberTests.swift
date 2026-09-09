@@ -117,8 +117,33 @@ final class HouseholdMemberHostingTests: XCTestCase {
     func testOwnRowOmitsRole() {
         let nate = seat("Nate Meadows", .head, role: "owner", user: TableIdentity.cached)
         XCTAssertEqual(nate.subtitle, "You")
+        XCTAssertFalse(nate.subtitle.contains("Head of table"))
         let partner = seat("Alessandra", .joined, role: "partner", user: TableIdentity.cached)
         XCTAssertEqual(partner.subtitle, "You")
+        XCTAssertFalse(partner.subtitle.contains("Head of table"))
+    }
+
+    /// TF26: the owner row already carried a real CloudKit id while this
+    /// phone's cache was still a `local-` placeholder. `isMe` was false,
+    /// so the People row could not say You (and DESIGN forbids Head of
+    /// table there).
+    func testOwnRowIsYouWhileIdentityIsStillAPlaceholder() {
+        HouseholdShare.setMembership(.hosting)
+        defer { HouseholdShare.setMembership(.solo) }
+        XCTAssertTrue(TableIdentity.isPlaceholder)
+        let nate = seat("Nate Meadows", .head, role: "owner", user: "ck-nate-real")
+        nate.shareRecordName = "seat-nate"
+        XCTAssertTrue(nate.isMe)
+        XCTAssertEqual(nate.subtitle, "You")
+        XCTAssertFalse(nate.subtitle.contains("Head of table"))
+    }
+
+    func testForeignRowIsNotMeWhileIdentityIsAPlaceholder() {
+        HouseholdShare.setMembership(.hosting)
+        defer { HouseholdShare.setMembership(.solo) }
+        let ale = seat("Alessandra", .joined, role: "partner", user: "ck-ale")
+        XCTAssertFalse(ale.isMe)
+        XCTAssertEqual(ale.subtitle, "Plans and cooks with you")
     }
 
     func testAnotherHostReadsAsHost() {
@@ -127,6 +152,23 @@ final class HouseholdMemberHostingTests: XCTestCase {
         let nate = seat("Nate Meadows", .head, role: "owner", user: "nate-id")
         XCTAssertEqual(nate.subtitle, "Host")
         XCTAssertNotEqual(nate.subtitle, "You · Head of table")
+        XCTAssertFalse(nate.subtitle.contains("Head of table"))
+    }
+
+    func testOccupyingDropsNamedInviteBesideUnnamedJoin() {
+        let nate = seat("Nate Meadows", .head, role: "owner", user: "nate-id")
+        nate.shareRecordName = "seat-nate"
+        let unnamed = seat("New member", .joined, role: "partner", user: "ale-id")
+        unnamed.shareRecordName = "seat-new"
+        let invited = seat("Alessandra", .invited, role: "partner")
+        invited.shareRecordName = "seat-invite"
+        let occupying = [HouseholdMember].occupying(from: [nate, unnamed, invited])
+        XCTAssertEqual(
+            occupying.map(\.name),
+            ["Nate Meadows", "New member"],
+            "the Invited name is the same person as the restored join"
+        )
+        XCTAssertEqual([HouseholdMember].peopleEyebrow(occupying.count), "2 people")
     }
 
     func testActorLookupUsesUserRecordName() {
@@ -150,7 +192,9 @@ final class HouseholdMemberHostingTests: XCTestCase {
 
     func testSeatedLineDropsUnnamedPlaceholders() {
         XCTAssertTrue(HouseholdIdentity.isUnnamed("New member"))
+        XCTAssertTrue(HouseholdIdentity.isRestoredPlaceholder("New member"))
         XCTAssertTrue(HouseholdIdentity.isUnnamed("Someone"))
+        XCTAssertFalse(HouseholdIdentity.isRestoredPlaceholder("Me"))
         XCTAssertFalse(HouseholdIdentity.isUnnamed("Alessandra"))
         XCTAssertEqual(
             HouseholdIdentity.seatedLine(names: ["Nate Meadows", "New member"]),
