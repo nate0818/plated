@@ -29,17 +29,30 @@ enum CookRotation {
             return nil
         }
 
-        // Fewest dinners in this night's week takes the pan.
+        // Fewest dinners in this night's week takes the pan. Local
+        // `PlannedMeal`s and remote `PlanLedger` nights both count: a week
+        // where Riley cooked three nights on their phone and Maya cooked
+        // none here would otherwise keep handing open nights to Riley.
         let weekStart = Calendar.current.startOfWeek(for: date)
         guard let weekEnd = Calendar.current.date(byAdding: .day, value: 7, to: weekStart) else {
             return members.first(where: \.isOwner)
         }
-        let counts = Dictionary(
-            meals.filter { $0.date >= weekStart && $0.date < weekEnd && $0.slotValue == .dinner }
-                .compactMap { $0.cook?.persistentModelID }
-                .map { ($0, 1) },
-            uniquingKeysWith: +
-        )
+        var counts: [PersistentIdentifier: Int] = [:]
+        for meal in meals where meal.date >= weekStart && meal.date < weekEnd && meal.slotValue == .dinner {
+            if let id = meal.cook?.persistentModelID {
+                counts[id, default: 0] += 1
+            }
+        }
+        for entry in PlanLedger.shared.all
+            where entry.date >= weekStart && entry.date < weekEnd
+                && entry.slotValue == .dinner
+                && !entry.isGoing
+                && !entry.cookID.isEmpty
+        {
+            if let member = members.first(where: { ($0.userRecordName ?? "") == entry.cookID }) {
+                counts[member.persistentModelID, default: 0] += 1
+            }
+        }
         return members.min { lhs, rhs in
             let l = counts[lhs.persistentModelID] ?? 0
             let r = counts[rhs.persistentModelID] ?? 0

@@ -110,12 +110,16 @@ enum PlatedNotificationKind: String, Codable, CaseIterable {
     /// from the shared zone. Its own kind rather than `.mealPlanned`, which
     /// is this phone's own doing and wears a badge, not a person.
     case planShared
+    case householdJoined  // somebody took a seat in the household, or you did
+    case householdLeft    // somebody left the household, or you did
+    case editConflict     // your edit lost to somebody else's newer one
     case general
 
     /// Whether the row's actor is a person to show, rather than a thing.
     var isAboutSomebody: Bool {
         switch self {
-        case .plateReaction, .commentAdded, .askPosted, .dishPosted, .voteCast, .seatJoined, .planShared:
+        case .plateReaction, .commentAdded, .askPosted, .dishPosted, .voteCast, .seatJoined,
+             .planShared, .householdJoined, .householdLeft, .editConflict:
             return true
         default:
             return false
@@ -140,6 +144,9 @@ enum PlatedNotificationKind: String, Codable, CaseIterable {
         case .voteCast: return "checkmark.circle"
         case .seatJoined: return "person.badge.plus"
         case .planShared: return "calendar"
+        case .householdJoined: return "person.2"
+        case .householdLeft: return "person.badge.minus"
+        case .editConflict: return "arrow.triangle.2.circlepath"
         case .general: return "bell"
         }
     }
@@ -151,6 +158,9 @@ enum PlatedNotificationKind: String, Codable, CaseIterable {
 final class HouseholdProfile {
     @Attribute(.externalStorage) var bannerPhotoData: Data?
     var createdAt: Date = Date.now
+    /// The household root record's `modifiedAt` as last exchanged; the
+    /// banner rides on the root (docs/household.md §3.6).
+    var shareModifiedAt: Date?
 
     init(bannerPhotoData: Data? = nil) {
         self.bannerPhotoData = bannerPhotoData

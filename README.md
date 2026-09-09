@@ -4,7 +4,14 @@ A meal scheduling app for a household — plan the week, cook from your own
 recipes, shop from a list that builds itself, and see what you actually eat.
 
 Native iOS and iPadOS, SwiftUI, SwiftData over CloudKit. Everything stays in
-your iCloud account; there is no Plated server.
+your iCloud account, apart from a small directory that answers which of your
+contacts are already on Plated (see `docs/privacy-policy.md`).
+
+A household is shared across Apple IDs through a second CloudKit share: every
+member sees and edits one plan, one grocery list and one cookbook, and a Table
+guest sees none of them. `docs/household.md` is the contract that sync, the
+invitation links and the join flow are written to; read it before touching any
+of them.
 
 ---
 
@@ -64,10 +71,12 @@ it, favorite status, and whether it fits a weeknight. No network call, no model.
 open Plated.xcodeproj
 ```
 
-Pick a simulator and run. On a simulator the app seeds a few recipes and some
-cooking history on first launch so there is something to look at; a real device
-deliberately starts empty, so no sample rows ever reach the owner's CloudKit
-database.
+Pick a simulator and run. A fresh simulator starts empty, the same as a phone:
+no household, so every widget and half the screens have nothing to show. To
+put the preview household into the live store, launch with the Debug-only
+`-plated-seed-sample` argument (`xcrun simctl launch <udid>
+com.natemeadows.plated -plated-seed-sample`). Never do that on a phone signed
+into iCloud, because the sample rows would reach the owner's CloudKit database.
 
 ### Running on a real device
 

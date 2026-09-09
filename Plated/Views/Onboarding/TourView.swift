@@ -27,11 +27,14 @@ struct TourView: View {
     ///
     /// Each line is a fact about what the app does, not a description of how
     /// it feels to use it. The first draft said "Everyone in the household
-    /// sees the same week", which is false: the store is
-    /// `cloudKitDatabase: .automatic`, so the plan reaches this person's own
-    /// devices and nobody else's. Only the Table has a shared zone. An
-    /// onboarding screen is the worst possible place to be wrong about that,
-    /// because it is the one screen a person has no way to check.
+    /// sees the same week", which was false for a long time: the store is
+    /// `cloudKitDatabase: .automatic`, so the plan reached this person's own
+    /// devices and nobody else's. The household share (docs/household.md)
+    /// makes it true only for people who have joined, and a person on this
+    /// screen has not invited anybody yet, so the line still says what the
+    /// plan does for one person. An onboarding screen is the worst possible
+    /// place to be wrong, because it is the one screen a person has no way
+    /// to check.
     private let panels: [Panel] = [
         Panel(eyebrow: "Tonight",
               title: "What's for dinner",

@@ -2,14 +2,14 @@ import SwiftUI
 import SwiftData
 import Contacts
 
-/// "Set a place" — inviting someone is laying a place setting for them.
-/// Contacts are matched on-device; nothing leaves the phone.
+/// "Invite your household": a household invitation through the same door
+/// Home uses (docs/household.md §6), with a shortlist from Contacts to make
+/// the first one easy. Contacts are matched on-device; nothing leaves the
+/// phone. Nothing is minted until somebody taps Invite or Share a link, so
+/// a person passing through on their way to somebody else's household
+/// never hosts an empty Table.
 struct ContactsView: View {
     let onDone: () -> Void
-
-    /// Names the user seated, newline-separated. Real invites ride on CloudKit
-    /// sharing later; until then the choice is kept, not thrown away.
-    @AppStorage("pendingSeats") private var pendingSeatsRaw = ""
 
     struct Candidate: Identifiable {
         let id: String
@@ -26,36 +26,45 @@ struct ContactsView: View {
     @Environment(\.openURL) private var openURL
     @State private var candidates: [Candidate] = []
     @State private var accessState: AccessState = .notAsked
-    /// The live CKShare link and the message that carries it, once CloudKit
-    /// has minted one. A nil link means the invite goes out as words alone —
-    /// still worth sending, and exactly what shipped before sharing existed.
-    @State private var invite: Invitation.Ready?
-    /// Who the open message composer is addressed to.
-    @State private var inviteTarget: InviteTarget?
     @State private var arrived = false
+    /// Minting the seatless link for Share a link. The button says so
+    /// rather than doing nothing for the seconds CloudKit takes.
+    @State private var minting = false
+    /// Whose Invite is in flight. Minting the household share is several
+    /// CloudKit round trips, and with nothing on screen saying so the
+    /// second tap presented a second composer over the first and dropped
+    /// the first one's delegate. See `InviteFlow`.
+    @State private var inviting: Candidate.ID?
+    @State private var problem: String?
 
     enum AccessState { case notAsked, granted, denied }
 
-    /// Every table has a host. Simulators get theirs from the sample seed
-    /// (inserting here would defeat the seed's members.isEmpty check); a
-    /// real device lays the owner's own place from the sign-in name —
-    /// without it the user's profile, posts, and the cook rotation all
-    /// point at nobody. A fetch FAILURE aborts rather than inserting: only
-    /// a confirmed zero earns a new row. The delete-and-reinstall race —
-    /// zero local owners while the first CloudKit import is still inbound —
-    /// can't be closed here; MainShellView collapses duplicate owners
-    /// whenever they appear.
+    /// Every table has a host. `ProfileSetupView` lays the owner's place
+    /// now, so the host seat exists before the first invitation; this is
+    /// the safety net for a row that is somehow still missing on the way
+    /// out. Simulators get theirs from the sample seed (inserting here
+    /// would defeat the seed's members.isEmpty check); a real device lays
+    /// the owner's own place from the sign-in name — without it the user's
+    /// profile, posts, and the cook rotation all point at nobody. A fetch
+    /// FAILURE aborts rather than inserting: only a confirmed zero earns a
+    /// new row. The delete-and-reinstall race — zero local owners while the
+    /// first CloudKit import is still inbound — can't be closed here;
+    /// MainShellView collapses duplicate owners whenever they appear.
     private func finish() {
         #if !targetEnvironment(simulator)
         let owners = try? context.fetchCount(
             FetchDescriptor<HouseholdMember>(predicate: #Predicate { $0.role == "owner" })
         )
         if owners == 0 {
-            context.insert(HouseholdMember(
+            let me = HouseholdMember(
                 name: userFirstName.isEmpty ? "Me" : userFirstName,
                 colorHex: "FF5A3C", isPrimaryCook: true,
-                role: "owner", roleLine: "Head of table", cookWeekdays: []
-            ))
+                role: "owner", roleLine: "Head of table", cookWeekdays: [],
+                seat: .head
+            )
+            if !TableIdentity.isPlaceholder { me.userRecordName = TableIdentity.cached }
+            me.authorID = TableIdentity.cached
+            context.insert(me)
             Persist.save(context)
         }
         #endif
@@ -74,7 +83,7 @@ struct ContactsView: View {
                 }
                 .padding(.bottom, 8)
 
-                Text("Invite your people")
+                Text("Invite your household")
                     .plType(.hero)
                     .foregroundStyle(Color.ink)
                     .multilineTextAlignment(.center)
@@ -84,7 +93,7 @@ struct ContactsView: View {
                     // title may never do. Its own subtitle already had it.
                     .fixedSize(horizontal: false, vertical: true)
                 Text(accessState == .granted
-                     ? "Anyone you invite sees your plan and what you cook."
+                     ? "Anyone who joins sees the plan, the grocery list and the cookbook, and can change them."
                      : "Plated is invite only. Nobody sees your plan or your recipes unless you invite them.")
                     .plType(.body, .medium)
                     .foregroundStyle(Color.inkSecondary)
@@ -133,29 +142,39 @@ struct ContactsView: View {
             }
 
             VStack(spacing: 12) {
+                if let problem {
+                    ProblemRow(problem)
+                        .transition(.opacity)
+                }
                 if accessState == .granted {
                     // Always offered, not only once somebody is seated: the
                     // five names above are a shortlist, and the person you
                     // most want at your table is often not on it.
-                    // Only when there is a real link — the old fallback
-                    // shared a domain Plated does not own.
-                    if let url = invite?.url {
-                    ShareLink(
-                        item: url,
-                        message: Text(TableSync.inviteMessage(hostName: userFirstName))
-                    ) {
+                    // The link is minted on the tap, never ahead of it, and
+                    // the share sheet opens only once there is one: no
+                    // link, no sheet, and the line under it says why.
+                    Button {
+                        shareLink()
+                    } label: {
                         HStack(spacing: 6) {
-                            Image(systemName: "square.and.arrow.up")
-                                .font(.system(size: 13, weight: .semibold))
-                            Text("Share a link")
+                            if minting {
+                                ProgressView().controlSize(.small).tint(Color.ink)
+                            } else {
+                                Image(systemName: "square.and.arrow.up")
+                                    .font(.system(size: 13, weight: .semibold))
+                            }
+                            Text(minting ? "Preparing the link" : "Share a link")
                                 .plType(.body, .bold)
+                                .plActionLabel()
                         }
                         .foregroundStyle(Color.ink)
                         .frame(maxWidth: .infinity)
                         .frame(minHeight: 48)
                         .overlay(Capsule().strokeBorder(Color.hairline, lineWidth: 1.5))
+                        .contentShape(Capsule())
                     }
-                    }
+                    .buttonStyle(.pressable)
+                    .disabled(minting)
                     TomatoPillButton(title: "Done") { finish() }
                 } else if accessState == .denied {
                     // iOS asks once. After a refusal `requestContacts()`
@@ -226,32 +245,75 @@ struct ContactsView: View {
             if LaunchFlags.consume("-plated-find-people") { requestContacts() }
         }
         .animation(.plSettle, value: accessState == .granted)
-        .task {
-            guard invite == nil else { return }
-            invite = await Invitation.prepare(hostName: userFirstName)
+        .animation(.plSnap, value: problem)
+    }
+
+    /// The same door Home uses, with the person already chosen so the
+    /// picker is skipped. The link is minted between the tap and the
+    /// composer, and a seat is laid only when the composer says the message
+    /// went: cancelling used to still mark them "Waiting on them", which
+    /// was a lie about a message that was never sent.
+    private func startInvite(_ person: Candidate) {
+        guard inviting == nil else { return }
+        withAnimation(.plSnap) {
+            problem = nil
+            inviting = person.id
         }
-        .sheet(item: $inviteTarget) { target in
-            InviteComposer(
-                recipients: [target.phone].compactMap { $0 },
-                body: invite?.body ?? Invitation.body(hostName: userFirstName, link: nil)
-            ) { sent in
-                inviteTarget = nil
-                // A seat is claimed only by an invitation that actually
-                // went. Cancelling the composer used to still mark them
-                // "Waiting on them", which was a lie about a message that
-                // was never sent.
-                guard sent, let index = candidates.firstIndex(where: { $0.id == target.id || $0.name == target.name })
-                else { return }
+        InviteFlow.run(
+            kind: .household,
+            hostName: userFirstName,
+            to: InviteFlow.Recipient(name: person.name, phone: person.phone),
+            prepare: { await Seats.prepareInvite(kind: .household, hostName: userFirstName) }
+        ) { result in
+            withAnimation(.plSnap) { inviting = nil }
+            switch result {
+            case .sent(let name, let phone, let prepared):
                 Haptic.plate()
-                withAnimation(.plPop) { candidates[index].seated = true }
                 // A real seat, not a name in a string only one sheet could
                 // read. Onboarding used to invite three people and hand you
-                // a household of one.
+                // a household of one. Partner, because the first person
+                // invited from here is almost always the one who cooks.
                 Seats.confirmSent(
-                    name: target.name, phone: target.phone, email: nil, in: context
+                    kind: .household, prepared: prepared, name: name, phone: phone,
+                    email: nil, role: "partner", in: context
                 )
+                Persist.save(context, "invited from onboarding")
+                if let index = candidates.firstIndex(where: { $0.id == person.id }) {
+                    withAnimation(.plPop) { candidates[index].seated = true }
+                }
+            case .failed(_, _, let prepared), .declined(_, _, let prepared):
+                Seats.abandon(kind: .household, prepared: prepared)
+                if case .failed = result {
+                    Haptic.warn()
+                    withAnimation(.plSnap) { problem = "The message didn't send. Try again." }
+                }
+            case .noLink(_, let reason):
+                Haptic.warn()
+                withAnimation(.plSnap) { problem = reason }
+            case .cancelled:
+                break
             }
-            .ignoresSafeArea()
+        }
+    }
+
+    /// A seatless household link, handed over however they like. Whoever
+    /// joins picks their seat on arrival (docs/household.md §7).
+    private func shareLink() {
+        guard !minting else { return }
+        Haptic.tap()
+        withAnimation(.plSnap) {
+            problem = nil
+            minting = true
+        }
+        Task {
+            let url = await Seats.shareableLink(kind: .household, hostName: userFirstName)
+            withAnimation(.plSnap) { minting = false }
+            guard let url else {
+                Haptic.warn()
+                withAnimation(.plSnap) { problem = Seats.noLinkReason() }
+                return
+            }
+            InviteFlow.share(url, message: Invitation.sentence(hostName: userFirstName, kind: .household))
         }
     }
 
@@ -303,24 +365,48 @@ struct ContactsView: View {
                 .frame(minHeight: 36)
                 .background(Color.basilTint, in: Capsule())
                 .transition(.plArrive)
-            } else {
-                Button {
-                    Haptic.plate()
-                    inviteTarget = InviteTarget(name: person.name, phone: person.phone)
-                } label: {
-                    Text("Invite")
-                        .plType(.footnote, .bold)
-                        .plActionLabel()
-                        .foregroundStyle(Color.onTomato)
-                        .padding(.horizontal, 18)
-                        .frame(minHeight: 36)
-                        .background(Color.tomato, in: Capsule())
-                        .plDishShadow()
-                }
-                .buttonStyle(.pressable)
+            } else if InviteComposer.isAvailable {
+                invitePill(person)
             }
+            // No Messages: Share a link at the bottom of the screen is the
+            // door. A tomato Invite that opens a blank composer is worse
+            // than no pill.
         }
         .padding(.vertical, 12)
+    }
+
+    /// The one control on this row, and it says what it is doing. Minting
+    /// the household share takes seconds, so the tapped pill takes the off
+    /// dress a disabled `TomatoPillButton` wears (`inkSecondary` on `fill`,
+    /// never a faded tomato) and every pill on the screen goes with it: a
+    /// second invitation cannot be started while the first is in flight.
+    private func invitePill(_ person: Candidate) -> some View {
+        let busy = inviting == person.id
+        return Button {
+            Haptic.tap()
+            startInvite(person)
+        } label: {
+            HStack(spacing: 6) {
+                if busy {
+                    ProgressView().controlSize(.small).tint(Color.inkSecondary)
+                }
+                Text(busy ? "Preparing the link" : "Invite")
+                    .plType(.footnote, .bold)
+                    .plActionLabel()
+            }
+            .foregroundStyle(inviting == nil ? Color.onTomato : Color.inkSecondary)
+            .padding(.horizontal, 18)
+            // 44, not the 36 the label happened to be: a stroked or filled
+            // capsule is only tappable across what it draws, and the row
+            // beside it is 68 high.
+            .frame(minHeight: 44)
+            .background(inviting == nil ? Color.tomato : Color.fill, in: Capsule())
+            .plDishShadow()
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.pressable)
+        .disabled(inviting != nil)
+        .accessibilityLabel(busy ? "Preparing the link for \(person.name)" : "Invite \(person.name)")
     }
 
     private func initials(of name: String) -> String {

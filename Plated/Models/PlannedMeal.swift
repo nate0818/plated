@@ -28,6 +28,25 @@ final class PlannedMeal {
     /// The line under the meal name on the week row — "Kids pick", "Fast one".
     var tagline: String = ""
 
+    // MARK: How this row does NOT travel (docs/household.md §3.2)
+
+    /// This is a private, per-Apple-ID row and it carries no household
+    /// bookkeeping, on purpose. The store is configured
+    /// `cloudKitDatabase: .automatic`, so a household fact placed here has
+    /// two writers by construction: the household zone, and this phone's own
+    /// mirror carrying it to the same person's other devices while they
+    /// merge the same zone record. A collapse pass after every merge
+    /// repaired that shape rather than fixing it. A night reaches the rest
+    /// of the household as a `PlatedHouseholdPlan` record read into
+    /// `PlanLedger` (docs/plan-share.md), and is never merged back into a
+    /// `PlannedMeal` by anything.
+
+    /// The identity that planned this night. "" on rows that predate the
+    /// field, which count as this device's own. Not a wire field: it is
+    /// what `Awards.metrics` reads to decide whose night an unassigned one
+    /// is, and the plan pipe stamps its own `authorID` on the record.
+    var authorID: String = ""
+
     var recipe: Recipe?
     var gathering: Gathering?
     var cook: HouseholdMember?
@@ -64,6 +83,9 @@ final class PlannedMeal {
         if let recipe, !recipe.title.isEmpty { return recipe.title }
         return "Unplanned"
     }
+
+    /// The calendar day this meal is on, as the wire spells it.
+    var day: String { HouseholdMember.day(date) }
 
     var isCooked: Bool { cookedAt != nil }
 

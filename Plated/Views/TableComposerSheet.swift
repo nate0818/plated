@@ -85,7 +85,7 @@ struct TableComposerSheet: View {
                             // scroll sideways instead of walking off-screen.
                             ScrollView(.horizontal, showsIndicators: false) {
                                 HStack(spacing: 8) {
-                                    ForEach(members.filter { !$0.isOwner }, id: \.persistentModelID) { member in
+                                    ForEach(members.filter { !$0.isMe }, id: \.persistentModelID) { member in
                                         let active = tagged.contains(member.name)
                                         Button {
                                             Haptic.tap()
@@ -293,7 +293,7 @@ struct TableComposerSheet: View {
         Haptic.plate()
         // Posted is the one outcome that certainly retires the draft.
         clearDraft()
-        let owner = members.first(where: \.isOwner)
+        let owner = members.me
         let post = TablePost(
             authorName: owner?.name ?? "Me",
             authorColorHex: owner?.colorHex ?? "FF5A3C",

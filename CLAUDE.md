@@ -38,9 +38,30 @@ rendering a hair larger so fixed-height layouts overflow, and Foundation Models.
   an XCUITest (`XCUIApplication(bundleIdentifier: "com.apple.springboard")`)
   in a throwaway project outside the repo; `press(forDuration:)` on a
   widget opens its menu, on a bare icon it launches the app.
+- **A connected iPhone that is locked stalls `xcodebuild` forever.** It
+  retries `com.apple.mobile.notification_proxy` every three seconds, with
+  the device listed under Devices Offline the whole time, and never reaches
+  compilation. Through `make test`'s grep it looks exactly like a slow
+  build: no output, no error, xcodebuild at 0% CPU. Two sessions lost about
+  an hour each to it on the same afternoon. Unlock the phone, or read
+  `xcodebuild` raw rather than filtered before believing anything about the
+  code.
 - `make design` checks the DESIGN.md rules a machine can check, and both
   ship paths refuse a build that breaks one. A deliberate exception is fine
   but has to say so at the line: `// design-ok(<rule>): why this one is right`.
+- **A green suite is the weakest signal in this repo, and the reason is
+  usually a test that passes for the wrong reason.** Three of these were
+  found in one afternoon. The purest: a test written to prove a blocker was
+  fixed had the fix's own six lines copied INTO its helper, beside the
+  production loop that does the same thing, so it could not have detected
+  the fix being undone. Its siblings: a test named for behaviour its body
+  never exercised, and one asserting a value it had assigned two lines
+  earlier. The suite was also green throughout a render loop that hung the
+  app, a tombstone that was never deleted, and a reinstall that silently
+  stopped publishing. Before trusting a green test, ask what it would take
+  for it to fail, and if the answer is "nothing that could plausibly
+  happen", it is decoration. A test must never carry its own copy of the
+  code it checks: extract one function and have both call it.
 - `make test` runs `PlatedTests` on a simulator. The news digest
   (`TableNews.digest`) is pure and tested there; a test is how the merge's
   reaction-dropping bug was found, which no screen could ever have shown.
@@ -64,9 +85,21 @@ rendering a hair larger so fixed-height layouts overflow, and Foundation Models.
 - **CloudKit needs table GRANTs, not just RLS** on the Supabase side; "expose new
   tables" being off locks out the service role too.
 - **Model changes must stay CloudKit-safe**: new properties optional or defaulted.
-- **Hand-written CloudKit types live in the `PlatedDish*` namespace and nothing
-  else may.** The SwiftData mirror adopts any private-database record whose
-  type matches one of its entity names, which is the ghost post in MEMORY.md.
+- **A household night is not a `PlannedMeal`, so every reader of one went
+  blind at once.** Dropping the meal merge was right (a fact in a
+  `.automatic` store would have two writers), but it also meant a night
+  somebody else planned is only ever a `PlanLedger.Entry`. Ten files fetch
+  `PlannedMeal`; three of them were answering for half the plan and saying
+  so out loud. Siri said "Nothing plated yet tonight" over a housemate's
+  dinner, Prongsby said "Nothing's plated for Thursday", and the grocery
+  list left their ingredients off while still receiving their check-off
+  marks, keyed to rows it had never built. When a fact stops being mirrored,
+  grep the whole class (`FetchDescriptor<Model>`) rather than fixing the one
+  surface you noticed.
+- **Hand-written CloudKit types carry a reserved `Plated` prefix (`PlatedDish*`
+  for the Table, `PlatedHousehold*` for the household) and nothing else may.**
+  The SwiftData mirror adopts any private-database record whose type matches
+  one of its entity names, which is the ghost post in MEMORY.md.
   `TableShare.assertNoEntityCollision()` makes that a DEBUG check rather than
   something to remember. `TablePost` is the one exception and is read-only: it
   IS the collision, and it cannot be renamed without abandoning tables shared
@@ -74,11 +107,23 @@ rendering a hair larger so fixed-height layouts overflow, and Foundation Models.
 - **Share-derived state does not go in the mirror.** Plates and ballots live in
   `TableLedger`, a JSON book in the app group, the queue in `TableOutbox`
   beside it, and other phones' planned nights in `PlanLedger` (with the
-  publisher's book `plan-share.json`); see `docs/plan-share.md`. Put them in a `@Model` and the mirror becomes a second writer to
+  publisher's book `plan-share.json` and the edit queue `plan-edits.json`,
+  which is a queue and so is per device for the same reason `TableOutbox`
+  is); see `docs/plan-share.md`. Put them in a `@Model` and the mirror becomes a second writer to
   a fact the shared zone already owns: two devices mid-propagation ping-pong a
   recomputed count, and a person's own plate flickers on and off in front of
   them. A mirrored outbox is worse — a distributed queue with no lease, where
   two of one person's devices both drain the same row.
+- **A value crossing the seam needs a human. An absence does not.** The
+  household may take a night off the author's plan outright: a `removed`
+  flag on the record, and the author's phone deletes that one `PlannedMeal`.
+  That is NOT the merge the rule above forbids, and the difference is worth
+  stating so nobody reads it as permission. After the deletion the
+  household's night lives only in the zone and this phone's row is gone, so
+  there is no second version of any fact for two writers to converge on and
+  nothing to ping-pong. Folding a title, a cook or a serving count back into
+  a `PlannedMeal` is still two writers and still forbidden. The test is
+  whether anything is left to disagree about.
 - **A CloudKit list field minted from an empty array is minted as the wrong
   type, permanently**, and every later save carrying a real list then fails
   `.invalidArguments`. Omit the key instead of writing `[]`.
@@ -98,6 +143,19 @@ rendering a hair larger so fixed-height layouts overflow, and Foundation Models.
   none, because nothing about it looks stale. `scripts/check-tokens` diffs the
   two and both `make phone` and `scripts/testflight.sh` now refuse to ship on
   drift. Change a colour in Theme.swift, change it there too.
+- **A read a SwiftUI body performs may not write observed state, and a write
+  that changes nothing is still a write.** `PlanLedger.photo(for:)` was made
+  to clear its own cache on a miss, `photos[name] = nil`. A night with no
+  photograph misses every time, the class is `@Observable`, and assigning nil
+  to a key that is ALREADY ABSENT still counts as a mutation, so every read
+  invalidated the view that had just performed it. One core at 99%, the test
+  host never finishing, and the suite stopping rather than failing. It was
+  diagnosed by sampling the stuck process; six runs before that were blamed
+  on the simulator, a wedged device and a missing binary, because a hang
+  looks exactly like a slow machine. Guard the write (`if photos[name] != nil`)
+  and, when a run stalls with no output, sample the process before blaming
+  the environment. "The environment did it" is a claim like any other and
+  does not get to skip verification because it is convenient.
 - The store migration in `PlatedStore` is precious. An unreadable live store must
   always abort. Never simplify it to an existence check.
 
@@ -111,11 +169,41 @@ a fast-forward that leaves the working tree alone:
 git fetch . <branch>:main
 ```
 
+**That command refuses when `main` is checked out in the shared checkout**,
+which it now usually is: git will not fetch into a branch somebody has out.
+Do the same fast-forward from inside that checkout instead, and check first
+that none of the files your commits touch are among its uncommitted ones:
+
+```
+git -C /Users/natemeadows/Plated merge --ff-only <branch>
+```
+
+Another session's work is routinely sitting there uncommitted, seventeen
+files on the afternoon this was written. A fast-forward cannot disturb a
+dirty file it does not touch, so the overlap check is the whole safety
+argument. Do it BEFORE the merge rather than restoring afterwards: copying
+files back over a merge silently reverts whatever the merge legitimately
+installed in them, and nothing reports it.
+
 ## Conventions
 
 - Commit messages are a sentence about the change, not a category prefix.
 - Comments explain **why**, especially the non-obvious constraint that forced the
   shape of the code. Do not narrate what the line already says.
+- **A comment saying what the code DOES is a claim that needs re-verifying
+  every time the code changes, and never gets it.** A WHY comment explains a
+  decision, and a decision does not silently acquire a second caller. A WHAT
+  comment is a cached fact with no invalidation, and both sessions were
+  misled by one on the same afternoon. "The tombstone ages out of the zone"
+  was true when written and false two commits later, when the line that made
+  it true was removed to fix something else, and it was load-bearing: it is
+  why nobody looked, and every night any household ever removed would have
+  stayed in CloudKit for good. "Bell only, so this answer is never acted on"
+  was true about the banner path and read as true about the badge path,
+  which is a different function answering a different caller, and a
+  notification was removed for anybody with that switch off. Neither comment
+  was ever wrong when it was written. If a sentence would have to change
+  when the code beneath it changes, it belongs in a test, not a comment.
 - Keep `MEMORY.md` notes for decisions; keep durable project law in this file or
   DESIGN.md so every session and every human can see it.
 - `docs/open-decisions.md` holds the questions that were measured and

@@ -25,8 +25,8 @@ Each phone publishes its own `PlannedMeal` rows into its household's zone,
 as `PlatedHouseholdPlan` records named `plan-<shoppingID>`, by
 diffing the plan against a book of what it last published. Every phone
 already pulls that zone's changes; plan records land in `PlanLedger`, a JSON
-book in the app group, and are drawn by the planner as a read-only overlay
-beside the phone's own nights. The digest raises "Nate planned Tacos for
+book in the app group, and are drawn by the planner beside the phone's own
+nights, where they can be changed (see "Changing a household night"). The digest raises "Nate planned Tacos for
 Thursday", and a remote night whose cook is the reader schedules "Your
 night tomorrow" the way a local one does. Nothing about a remote night is
 ever written into `PlannedMeal`, so nothing that counts, moves, swaps,
@@ -54,31 +54,268 @@ Five independent reasons, each sufficient, each verified against the code:
 5. CLAUDE.md: share-derived state does not go in the mirror. The zone is the
    one authority; the mirror would be a second writer.
 
-## Two-way editing: the destination, and the shape it may not take
+## Changing a household night
 
-Read-only is a first step, not the end state. A household planner where a
-member sees Tuesday's dinner but cannot change it is half the feature, and
-the shared workspace is the ask. So this contract will grow a write path.
+Read-only was the first step. A member can now change any night the ledger
+holds, and the change **writes the zone record. It never writes a
+`PlannedMeal`.** Nate's words, 2026-09-08, and the whole reason this is a
+record and not a merged row:
 
-**A member's edit writes the zone record. It never writes `PlannedMeal`.**
-The five reasons above do not weaken when the write arrives from a member
-instead of the head; reason 5 is the one that decides it. `PlannedMeal` is
-a `@Model` in a store configured `cloudKitDatabase: .automatic`, so a
-household fact placed there is owned by the zone and by the writer's own
-private mirror at the same time, and that mirror carries it to the same
-person's other devices, which are themselves merging the same zone record.
-That is two writers on one fact by construction, and a collapse pass that
-runs after every merge is a repair loop over the wrong shape rather than a
-fix: it holds in the cases somebody tested and fails quietly in the rest.
+> That model is in a store set to `cloudKitDatabase: .automatic`, so a
+> household fact there has two writers by construction: the zone, and your
+> own mirror carrying it to your other devices while they merge the same
+> record. `collapseDuplicates` repairs that shape rather than fixing it.
 
-The work this needs, when it is taken: `PlanLedger` gains a write path
-through `PlanShare` for a night whose author is another phone; the record
-keeps its existing `modifiedAt` clock and last writer wins on it; the
-planner surfaces that draw a remote night gain the edit affordance they
-currently withhold. Decided 2026-09-08 after both designs were built far
-enough to compare.
+The five reasons under "Why not a mirrored PlannedMeal" do not weaken when
+the write comes from a member instead of the head; the fifth is the one that
+decides it. So `PlannedMeal` is a private, per-Apple-ID model, a household
+night is a `PlatedHouseholdPlan` record held locally in `PlanLedger`, and
+nothing merges one into the other in either direction.
+
+**What a person can change:** the dish (a recipe from their cookbook, a new
+one, "Pick for me", or Eating out), the cook, the servings, the tag line the
+dish arrives with, and taking the night off the plan for everybody. The
+servings stepper parks its edit before its 700ms debounce, not after it:
+a kill inside that window left a row showing six servings, the stray
+sweep clearing the one mark that said so, and nothing anywhere ever
+sending it.
+
+**What they cannot:** move it to another date. A move is a swap, and the
+night on the other date is very often this phone's own `PlannedMeal`, so one
+gesture would be two writes in two authorities with nothing to roll either
+back if the other refused. `RemotePlanRow` therefore still carries no drag
+lift and no Move, `MoveMealSheet` still takes a `PlannedMeal`, and both say
+so at the line. Nor a Cooked toggle: cooking is a thing that happens at a
+stove, and the phone that planned the night is where its cook session lives.
+
+### `PlanShare.Edit` and the write
+
+`Edit` names the record, the household it was made in, the day and slot, the
+`modifiedAt` this phone last saw, and **only the fields the person touched**
+(a `nil` field is "leave what the record says"), so two people changing two
+different things about one night do not undo each other's work unless they
+land inside one version.
+
+`PlanShare.write(_:photo:)` is the whole path:
+
+1. `PlanLedger.applyLocally` changes the row under the finger and marks it
+   `pendingSince`. A queued write is not a landed write, and the row says
+   "Not sent yet" until it is one. A delete marks the row `pendingRemoval`
+   and **keeps it**. Removing the entry outright made an offline delete a
+   night that vanished from the deleter's planner while it still stood on
+   every other phone, with nothing on any screen saying so: the honesty
+   rule, and the one edit on this path that was not already answered by
+   `pendingSince`. The row draws as going, captioned "Still on the other
+   phones", and it leaves for real when the delete lands or comes back when
+   it is refused. A night on its way off is still counted by the widget, the
+   grocery window and every "N planned" count: it is still on the plan until
+   the zone says otherwise, and hiding it from the counts would be this
+   phone claiming the delete that has not happened, which is the same lie in
+   the other direction. A change made on a night whose delete is waiting is
+   refused rather than folded away, because the queue keeps the delete.
+2. The edit is parked in `plan-edits.json`, an app-group queue beside
+   `plan-share.json`, per device for the reason `TableOutbox` and
+   `HouseholdOutbox` are: a mirrored queue is a distributed queue with no
+   lease. The fingerprint book cannot hold an intent (it answers what this
+   phone last published), so this is the small queue beside it. One entry per
+   record: a second edit folds onto the first, keeping the earlier `seenAt`,
+   which is the version the person started from. A delete stays a delete. A
+   photograph rides as a downscaled file under `plan-edit-photos/<record>.jpg`,
+   so the queue stays small and a kill loses neither.
+3. The record is fetched by name. When its `modifiedAt` differs from
+   `seenAt` by a second or more, **somebody got there first**: the server
+   version is folded into the ledger, the edit is dropped, and the answer is
+   `.theirs`, which the sheet says out loud. Whole seconds, because a `Date`
+   goes to CloudKit and comes back through a double.
+4. Otherwise the changed fields go onto the fetched instance, `modifiedAt`
+   becomes now, and it saves through the publisher's own `savePlans`, which
+   carries the `.serverRecordChanged` fetch-and-retry. **Last writer wins on
+   `modifiedAt`.**
+5. A record the zone no longer holds, for a night the ledger has, is **not a
+   mint**. A ledger entry exists only because the record was delivered, so
+   its absence can only be somebody's delete: a race the other person won,
+   answered the way `movedOn` is. The deletion is folded into the ledger, the
+   edit is dropped, and the sheet says the night was taken off on another
+   phone. Re-minting it stood a permanent ghost on every phone but one,
+   because the mint carries the night's ORIGINAL author and that author's
+   publish book no longer holds the name, so nothing on their phone would
+   ever republish or re-delete it. `wasTakenOffElsewhere` is the line: an
+   edit with a `seenAt` came off a delivered record; an edit without one is
+   the genuine mint, a night with no record at all. That mint writes the
+   `parent` reference and `setParent` the publisher writes, and the night's
+   ORIGINAL author. Never the editor: `absorb` keeps nothing this phone
+   wrote (its own nights are `PlannedMeal` rows), and there is no
+   `PlannedMeal` behind somebody else's night, so a record authored by the
+   editor would vanish from the one phone that just changed it while standing
+   on every other.
+6. A delete deletes the record; `.unknownItem` is success.
+7. `settle` takes the queue and the ledger through the answer, and hands
+   back the answer the person is actually owed: landed drops the edit and
+   stamps the entry with the record's own clock (or the delivery that brings
+   this phone's own edit back reads as a change and the digest raises a
+   notice about the reader's own action), and for a delete it is the line
+   where the row finally goes; queued keeps it and counts a refusal,
+   dropping it after twenty and **answering refused when it does**, because
+   the person was otherwise told it would go out later while the row snapped
+   back in front of them; theirs and refused drop it, and refused puts the
+   night back the way it was, unless the household has moved under it, which
+   would write dead data into a book `rehome` has just cleared.
+
+**The row's clock is not the record's clock.** `Entry.changedAt` is the
+record's `modifiedAt` as this phone last saw it, and `Edit(changing:)` reads
+it straight into `seenAt`. `applyLocally` therefore may NOT stamp it with
+this phone's own clock: the optimistic row would make the next edit on the
+night claim to descend from a version that exists on no server, and the
+write's own fetch would read the real server clock as somebody else's,
+telling the person "This night changed on another phone first" about their
+own previous tap. The servings stepper said it on the FIRST tap, because it
+applies locally and then builds its edit from the row it just moved. Only
+`settle(.landed)` moves `changedAt`, and it moves it to the clock the record
+was actually saved with.
+
+**The wire carries the queue's entry, not the caller's.** `enqueue` folds a
+second change onto a waiting first one, so the queue entry is the union of
+everything this phone has done to the night and has not sent. `deliver`
+reads that entry and sends it. Sending the caller's own edit put only the
+newest field on the wire and then dropped the whole folded entry on
+`.landed`, so a title changed offline and a cook changed after the phone
+came back left the ledger showing both, with nothing queued and nothing
+said, while the household had only the cook.
+
+**One writer to the zone.** `publish` guards itself with `inFlight` and
+`write` ignored it, so a pass draining this phone's own queued edit while a
+`write` was on the wire landed that edit, and the write's own fetch then read
+a `modifiedAt` newer than its `seenAt` and told the person somebody else had
+changed their night. Nobody had. Both go through `PlanShare.exclusively`
+now, one at a time, and a `write` that finds its own edit no longer queued
+reports what the drain answered rather than sending it a second time.
+
+**What "queued" says.** `.queued` carries its sentence, because its causes
+are not one thing: no iCloud account, a household zone that would not read, a
+record that would not fetch, a save the zone did not take. "It goes out when
+this phone is back online" was said to a person on four bars whose zone was
+the problem. A queued write also asks for a pass itself: nothing else was
+coming for it, since the publisher runs on a scene change or three seconds
+after a `ModelContext` save and an edit to somebody else's night is neither.
+
+**Offline.** Nothing is lost by a kill: the edit is on disk before the wire
+is touched. Every publish pass drains the queue before its own diff, because
+somebody is looking at a change they made. A pass also clears any
+`pendingSince` with nothing queued behind it, which is what a kill between
+the ledger write and the queue write leaves. Edits for a household this phone
+has left are dropped and said so.
+
+### Drawing it
+
+`RemotePlanRow` is a door now, not a fact: on the day page a tap opens
+`PlanNightSheet` for that night, named by record, because a slot can hold
+this phone's dinner and somebody else's at once and only the tap says which
+is being changed. In the week and the month the row still opens the day, the
+way the local row does, so the two stay peers.
+
+`PlanNightSheet` gained **one more source of truth, not a second sheet**: the
+night it changes is this phone's `PlannedMeal`, or the household night when
+there is no local meal in the slot (or when a row named one). Every control
+acts on whichever is there; the local path is untouched when there is no
+household night. The card, the servings stepper and the cook menu are the
+same controls; the trash takes the night off for everybody. A stepper held
+down is one intention, so the row moves on every tap and the zone hears the
+number they stopped on. A change on somebody else's night raises no local
+bell row: a notice about the reader's own action is the rule
+docs/notifications.md breaks for nothing.
+
+### Who changed it: `editorID` and `editorName`
+
+The record carries the person who PLANNED the night, and any member may now
+change one, so the author is the wrong person to name for a change. Before
+these two fields, after Riley changed Nate's Thursday every other phone said
+"Nate changed Thursday to Ragu": a claim about what somebody did, and false.
+Riley's own phone said it too, because the own-action guard compared the
+author's id to `TableIdentity.cached` and the author was not Riley.
+
+So the record carries `editorID` and `editorName`, the identity that made
+THIS version. Written unconditionally, the way `modifiedAt` is, by both
+writers: `TableShare.planRecord` takes them from the author, because the
+publisher only ever sends its own `PlannedMeal` rows and the two are the
+same person there, and `PlanShare.record(for:)` takes them from
+`PlanShare.editor()`, this phone's identity and its own roster row's name.
+They ride on the `Edit` rather than being resolved when the queue drains: a
+drain happens on a scene change with no sheet and no roster in front of it.
+
+`PlanLedger.Entry` carries them as optionals, for the reason
+`pendingRemoval` is one, and `Entry.changedByID` is the editor, or the
+author when there is none. `PlanLedger.edited(_:by:)` does NOT fold them
+onto the optimistic row: like `changedAt` they are the record's stamp and
+not a field the person touched, and what keeps a reader quiet about their
+own edit is the digest's guard, which reads the record.
+
+`TableNews.planNotices` names the editor on a change and the author on a
+night newly planned or taken off, and its `changer(_:)` is the fallback
+ladder: the editor when the record names one, the author when it does not
+(every record written before these fields), and **nobody at all** when the
+editor is somebody this phone cannot name, because falling back to the
+author there would print the false sentence again. `learnNames` folds the
+editor's id and name the way it folds the author's and the cook's.
+
+`-plated-prime-share` mints both non-nil through the probe's author, and the
+schema is deployed to Production before a build writes them.
+
+### The two phones disagree, on purpose, and say so
+
+This was the open question. It is now decided, and the decision is a limit
+rather than a mechanism, so it is written here to stop a later session
+"fixing" it back into the thing this whole document rules out.
+
+**The author's own phone does not hear the edit, and nothing reconciles the
+two.** Nate's Thursday is a `PlannedMeal` on Nate's phone. `absorb` keeps
+nothing he wrote, and his publisher sends only what his own diff changed,
+so the zone holds Riley's version and Nate's planner holds his. Three
+things were considered and two were refused:
+
+- **Folding the record back into his `PlannedMeal`** is the two writers on
+  one fact that the argument at the top of this file exists to forbid.
+  Refused, and it is the one answer that can never be taken.
+- **Drawing the ledger for a night the household has edited**, so the zone
+  becomes that night's truth. Proposed and withdrawn after review. There is
+  no stopping point between drawing it and owning it: `PlanNightSheet` takes
+  this phone's `PlannedMeal` when one exists in the slot, so the first tap on
+  a drawn ledger row opens a different dinner from the one on screen, which
+  is the continuity law. And the predicate is not stable across the author's
+  own devices, because `plan-share.json` is per device, so an iPad with no
+  book entry mints a full record and erases the edit with nobody touching it.
+- **What shipped**: the publisher refuses to overwrite, and the interface
+  says the two disagree. `pass` fetches before every save and stands down
+  when `movedOn` says the record has moved since `BookEntry.serverModifiedAt`,
+  which also closes the second-device case above. The stand-down is stable,
+  so the night is re-offered and re-refused every pass rather than two phones
+  taking turns overwriting each other. `PlanShare.Contest` carries the nouns
+  and `PlanNightSheet.contestLine(for:)` draws one sentence on the night
+  itself: "Riley changed this night on their phone. Your plan still says
+  Tacos", or, on a record written before `editorID`, the same sentence
+  naming nobody rather than inventing a "Someone".
+
+**Where the sentence is drawn, and the one place it is not yet.** v1 puts it
+on `PlanNightSheet` only, which is where a person goes to CHANGE a night and
+therefore the one place where acting on a stale night does damage. It is
+deliberately not on the week row, the hero or the month grid: a contested
+night is rare, and a line on four surfaces would make the quiet case loud.
+
+The gap that leaves, named here rather than left to be rediscovered: the day
+page on the day itself. That is where somebody reads the plan before cooking,
+and a person cooking the wrong dinner is the one consequence of this
+divergence that happens away from the sheet, which is exactly where they are
+not looking at that moment. Adding it there is the next step, and it is the
+only surface that has an argument for it.
+
+**A stated disagreement is not a lie; a silently overwritten edit is.** That
+is the whole of the reasoning. Nobody's change is destroyed, and the person
+holding the phone is told what happened and left to decide. Reconciliation
+is a later step with its own conflict rules, and the sentence is what makes
+its absence honest rather than hidden.
 
 ## Which zone is the household's
+
+
 
 **The household invite answers.** `docs/household.md` records membership
 in the app group under `plated.household.owner` (read here through
@@ -144,6 +381,8 @@ Fields, every one non-nil when primed, no lists, no Bools:
 | `authorID` | String | `TableIdentity.cached` of the phone that planned it |
 | `authorName` | String | |
 | `authorColorHex` | String | |
+| `editorID` | String | `TableIdentity.cached` of the phone that made THIS version; the author's own id when the author published it |
+| `editorName` | String | that person as their own household knows them; "" when this phone cannot name them, and a reader then says nothing rather than naming the author |
 | `cookID` | String | the cook's `participantID`; the owner's own id when the cook is the owner; "" otherwise |
 | `cookName` | String | "" when the cook's seat is `.invited`: a name typed five seconds ago is not a cook |
 | `cookColorHex` | String | |
@@ -269,8 +508,13 @@ draw it get one sibling component, `RemotePlanRow` in
 geometry (canvas ground at `Radius.row`, the 0.5pt hairline underline, the
 40pt `dateColumn`, 60pt `RecipeArtwork` at `Radius.small`, minHeight 76),
 because peers look like peers. What it may never have: a swipe tray, a
-drag lift, an ellipsis, Edit, Move, Remove, Cooked, or a Let's cook it
-cannot honour. A control that does nothing is the honesty rule broken.
+drag lift, an ellipsis, Move, Cooked, or a Let's cook it cannot honour. A
+control that does nothing is the honesty rule broken. Edit is no longer on
+that list: a tap on the day page opens the night in `PlanNightSheet`, which
+writes the record. The caption carries "Not sent yet" while a change made
+here is still queued, and "Still on the other phones" while a night taken off
+here has not gone yet: those are different facts and the row says which
+(`Entry.pendingLine`, `pendingSentence`, `pendingSpoken`).
 
 - **WeekView.** Each day: the local dinner as today; then any remote
   dinner on that day as a `RemotePlanRow` beneath it (both when both exist;
@@ -359,6 +603,10 @@ and §1c says so.
   "Nate moved Tacos to Friday"; cook changed to me, "Nate put you down to
   cook Thursday: Tacos" (what Nate did, a field set, nothing more); title
   changed, "Nate changed Thursday to Tacos"; anything else raises nothing.
+  Every one of those names the EDITOR, not the author: the record's
+  `editorID` and `editorName` say who made this version, and the guard that
+  keeps a notice off the reader's own phone compares `Entry.changedByID`
+  rather than the author's id.
   Removed, day today or later: **retraction or news, decided by the row.**
   If the `plan:<record>` row is unread or absent, retract: delete the row,
   `removeDeliveredNotifications` for `plated.news.plan:<record>`, and say
@@ -392,8 +640,9 @@ and §1c says so.
 
 ## Priming and deploy
 
-`-plated-prime-share` writes one `PlatedHouseholdPlan` with every field set
-and a photo into the own household zone, dated `2000-01-01` so every
+`-plated-prime-share` writes one `PlatedHouseholdPlan` with every field set,
+`editorID` and `editorName` among them, and a photo into the own household
+zone, dated `2000-01-01` so every
 reader's prune discards it silently, then deletes it. It needs that zone
 to exist, so the order is `-plated-prime-household` (the invite's primer,
 which mints the zone) and then `-plated-prime-share`; without the zone the
@@ -405,8 +654,13 @@ screen claims anything was shared.
 
 ## Not in v1, on purpose
 
-- A member editing or moving a night planned on another phone. The shape
-  it takes when built is settled above; only the work is deferred.
+- **Moving** a night planned on another phone, for the reason under
+  "Changing a household night": a move is two writes in two authorities.
+  Editing one in place is built.
+- The author's own phone hearing about an edit at all. Written out at the
+  end of "Changing a household night"; not a thing to discover later.
+  Naming the editor is no longer on this list: `editorID` and `editorName`
+  ride the record.
 - Ingredients across Apple IDs. Groceries stay per phone.
 - A conflict sheet when two phones plan the same night. Both show.
 - The guest side learning the host's identity from the share's
@@ -426,7 +680,8 @@ NewsPreferences.swift's "not here because the plan does not cross" comment.
 SettingsSheet.swift's Table activity captions. NotificationScheduler's
 "we schedule at most eight". CLAUDE.md's share-derived-state paragraph
 names `PlanLedger` and `plan-share.json` beside `TableLedger` and
-`TableOutbox`.
+`TableOutbox`, and `plan-edits.json` beside those once the write path
+landed (2026-09-08): it is the same rule, a queue that may not be mirrored.
 
 ## Tests
 
@@ -442,5 +697,20 @@ household filter, delta before overwrite), `TableNews.digest` plan notices
 removed-as-news, mine ignored, replay window on changedAt, `remember` then
 `digest` again raises nothing, removed+added pair cancelled),
 `NewsPreferences.category` for `.plan` and `.planShared` with addressed
-true, `Stamp.nightPhrase`, `DeepLink` plan day round trip, the reminder
+true, the editor on a changed night (the editor named and not the author, a
+night the reader changed raising nothing though its author is somebody else,
+a record with no editor falling back to the author, an editor this phone
+cannot name saying nothing at all, `learnNames` folding the editor), `PlanShare.record(for:)` (the mint's fields, the original author, both
+links, and only the touched fields on a fetched record), `PlanShare.movedOn`
+(the second's tolerance and the no-record case), the edit queue (one entry
+per night, the fold keeping the earlier `seenAt`, a delete staying a delete,
+surviving a relaunch), `PlanLedger.applyLocally` and `settle` (the row moves
+and says it has not landed, the record's clock on landing, a refusal putting
+the night back, `clearPending`), a delete keeping the row until it lands and
+counting until then, `PlanShare.wasTakenOffElsewhere` and the night that
+stays gone, `PlanShare.exclusively` letting one writer into the zone at a
+time, the twenty-refusal drop answering refused rather than queued, a
+refusal not putting a night back into a household this phone has left,
+the edit coming back as no news at all,
+`Stamp.nightPhrase`, `DeepLink` plan day round trip, the reminder
 dedupe (local night wins the day).

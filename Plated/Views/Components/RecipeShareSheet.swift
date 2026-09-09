@@ -33,7 +33,7 @@ struct RecipeShareSheet: View {
     /// Starts at a sensible guess so the first frame is not a jump.
     @State private var measured: CGFloat = 520
 
-    private var owner: HouseholdMember? { members.first(where: \.isOwner) }
+    private var owner: HouseholdMember? { members.me }
 
     /// The title block above the rows, measured the same way.
     @State private var header: CGFloat = 92

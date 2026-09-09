@@ -6,7 +6,7 @@ struct AccountButton: View {
     @Query(sort: \HouseholdMember.createdAt) private var members: [HouseholdMember]
     @State private var showing = false
 
-    private var owner: HouseholdMember? { members.first(where: \.isOwner) }
+    private var me: HouseholdMember? { members.me }
 
     var body: some View {
         Button {
@@ -14,10 +14,10 @@ struct AccountButton: View {
             showing = true
         } label: {
             AvatarCircle(
-                initials: owner?.initials ?? "Me",
+                initials: me?.initials ?? "Me",
                 tone: .neutralPair,
                 size: 42,
-                photo: owner?.photoData
+                photo: me?.photoData
             )
             .overlay(Circle().strokeBorder(Color.canvas.opacity(0.9), lineWidth: 2))
             .shadow(color: Color.shadowInk.opacity(0.10), radius: 8, y: 3)
@@ -51,22 +51,29 @@ struct AccountHomeView: View {
     @AppStorage("appearance") private var appearanceRaw = Appearance.system.rawValue
     @AppStorage("remindersOn") private var remindersOn = true
     @AppStorage("householdName") private var householdName = ""
+    /// Set when Sign in with Apple failed non-cancel; cleared once an
+    /// identity is saved. The sign-in screen dismisses before it can say so.
+    @AppStorage("appleIdentityMissing") private var appleIdentityMissing = false
 
     @State private var sheet: AccountSheet?
     @State private var sync = SyncStatus.shared
     @State private var remindersAllowed = false
     @State private var awards: [PlatedAward] = []
 
-    private var owner: HouseholdMember? { members.first(where: \.isOwner) }
+    private var me: HouseholdMember? { members.me }
     private var ownerName: String {
-        guard let name = owner?.name, !HouseholdIdentity.isPlaceholder(name) else {
+        guard let name = me?.name, !HouseholdIdentity.isPlaceholder(name) else {
             return "Complete your profile"
         }
         return name
     }
-    private var awardsIdentityName: String { owner?.name ?? "Me" }
+    private var awardsIdentityName: String { me?.name ?? "Me" }
     private var appearance: Appearance {
         Appearance(rawValue: appearanceRaw) ?? .system
+    }
+    /// Soft notice only while the flag is set and Keychain still has no id.
+    private var showAppleIdentityNotice: Bool {
+        appleIdentityMissing && AppleIdentity.load() == nil
     }
 
     private enum AccountSheet: String, Identifiable {
@@ -85,6 +92,13 @@ struct AccountHomeView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 .padding(.top, 8)
+
+                if showAppleIdentityNotice {
+                    Text("Apple Sign In didn’t finish, so sharing seats may be limited until you sign in again from Settings.")
+                        .plType(.footnote)
+                        .foregroundStyle(Color.inkSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
 
                 identityHero
 
@@ -137,6 +151,11 @@ struct AccountHomeView: View {
         .toolbar(.hidden, for: .navigationBar)
         .safeAreaInset(edge: .top) { topBar }
         .task {
+            // Flag can linger after a later successful save elsewhere; drop
+            // it once Keychain actually holds an id.
+            if appleIdentityMissing, AppleIdentity.load() != nil {
+                appleIdentityMissing = false
+            }
             await sync.refresh()
             remindersAllowed = await NotificationScheduler.authorized()
             refreshAwards()
@@ -166,11 +185,11 @@ struct AccountHomeView: View {
                 }
             case .profile:
                 NavigationStack {
-                    if let owner {
+                    if let me {
                         PersonProfileView(
-                            personName: owner.name,
-                            colorHex: owner.colorHex,
-                            memberID: owner.persistentModelID
+                            personName: me.name,
+                            colorHex: me.colorHex,
+                            memberID: me.persistentModelID
                         )
                     } else {
                         PersonProfileView(personName: "Me", colorHex: "", memberID: nil)
@@ -215,10 +234,10 @@ struct AccountHomeView: View {
             VStack(alignment: .leading, spacing: 18) {
                 HStack(alignment: .center, spacing: 16) {
                     AvatarCircle(
-                        initials: owner?.initials ?? "Me",
+                        initials: me?.initials ?? "Me",
                         tone: .neutralPair,
                         size: 82,
-                        photo: owner?.photoData
+                        photo: me?.photoData
                     )
                     .overlay(Circle().strokeBorder(Color.canvas, lineWidth: 4))
                     .shadow(color: Color.shadowWarm.opacity(0.16), radius: 14, y: 7)
@@ -228,7 +247,7 @@ struct AccountHomeView: View {
                             .plName()
                             .plType(.title, .semibold)
                             .foregroundStyle(Color.ink)
-                        MicroLabel(owner?.isOwner == true ? "Head of table" : "Your account")
+                        MicroLabel(me?.isOwner == true ? "Head of table" : "Your account")
                         if !bio.isEmpty {
                             Text(bio)
                                 .plType(.caption)
@@ -318,11 +337,12 @@ struct AccountHomeView: View {
 
     private func refreshAwards() {
         let metrics = Awards.metrics(
-            for: owner,
+            for: me,
             meals: plannedMeals,
             recipes: recipes,
             posts: tablePosts,
-            householdSize: members.count
+            householdSize: members.count,
+            kissSeats: TableKiss.seating(members: members, dishAuthors: tablePosts.map(\.authorName))
         )
         awards = Awards.evaluate(metrics, for: awardsIdentityName)
     }

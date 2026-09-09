@@ -50,6 +50,15 @@ struct WeekView: View {
     }
     @State private var forecast = ForecastProvider.shared
     @State private var events = DayEventsProvider.shared
+    /// The host's first name while their household is still uploading
+    /// (docs/household.md §7, step 6): nil once the root's `publishedAt`
+    /// lands, "" when the name never arrived. The app-group cache is not
+    /// observed, so it is polled while the plan is on screen, the way Home
+    /// reads the outbox.
+    @State private var arrivingHost: String?
+    /// The sentence a removal left for the first empty week (§8), shown in
+    /// place of the invitation until a meal is planned.
+    @State private var removedNotice: String?
 
     /// How far ahead the plan scrolls — this week plus three more.
     private let weeksAhead = 4
@@ -95,6 +104,31 @@ struct WeekView: View {
         weekDates.filter { hasAnyDinner(on: $0) }.count
     }
 
+    /// What the app group says about the household, folded into the two
+    /// lines this screen can show (docs/household.md §7 step 6, §8).
+    ///
+    /// The removal notice is cleared the first time a week with a meal on
+    /// it is looked at: the invitation is true again, and a sentence about
+    /// a household that is gone must not outlive the plan that replaced it.
+    private func readHouseholdStanding() {
+        var arriving: String?
+        if case .member = HouseholdShare.membership, HouseholdShare.cachedPublishedAt == nil {
+            let host = HouseholdShare.cachedOwnerName.trimmingCharacters(in: .whitespaces)
+            arriving = host.split(separator: " ").first.map(String.init) ?? host
+        }
+        let defaults = HouseholdShare.groupDefaults
+        var notice = defaults.string(forKey: HouseholdSync.Keys.removedNotice)
+        if notice != nil, plannedCount > 0 {
+            defaults.removeObject(forKey: HouseholdSync.Keys.removedNotice)
+            notice = nil
+        }
+        guard arriving != arrivingHost || notice != removedNotice else { return }
+        withAnimation(.plSnap) {
+            arrivingHost = arriving
+            removedNotice = notice
+        }
+    }
+
     /// Nights still askable — today and later, nothing plated. Past days are
     /// spent, not owed, so they can't hold the week hostage.
     private var openAheadCount: Int {
@@ -107,6 +141,20 @@ struct WeekView: View {
                 VStack(spacing: 0) {
                     header.padding(.horizontal, 24).padding(.top, 6)
                     plannerControls.padding(.horizontal, 24).padding(.vertical, 12)
+                    if let arrivingHost {
+                        // One quiet line, no spinner: the plan below is
+                        // real, there is simply more of it on its way.
+                        Text(arrivingHost.isEmpty
+                             ? "Still arriving from the host's phone."
+                             : "Still arriving from \(arrivingHost)'s phone.")
+                            .plType(.caption, .medium)
+                            .foregroundStyle(Color.inkSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 24)
+                            .padding(.bottom, 10)
+                            .transition(.plUnfold)
+                    }
                     if showMonth {
                         MonthPlannerView(anchor: $weekAnchor, askTheTable: askTheTable)
                     } else {
@@ -168,18 +216,27 @@ struct WeekView: View {
             // moved and cooks get swapped from several places, and a
             // reminder for a dish nobody is making any more is worse than
             // no reminder. No-ops when notifications aren't authorised.
-            await NotificationScheduler.rebuild(
-                meals: meals, ownerName: members.first(where: \.isOwner)?.name ?? ""
-            )
+            await NotificationScheduler.rebuild(meals: meals)
         }
         // A notice about a night lands on that night. Parked by the shell,
         // collected here or on appear if the week was not on screen.
         .onReceive(NotificationCenter.default.publisher(for: LinkRelay.dayRequested)) { _ in
             if let day = LinkRelay.takeDay() { withAnimation(.plSnap) { weekAnchor = day } }
         }
-        .onDisappear { Presence.shared.planVisible = false }
+        .task {
+            // The household's standing lives in the app group, which no
+            // SwiftUI body observes. Read it while the plan is on screen:
+            // the line answers within a few seconds of the root arriving.
+            while !Task.isCancelled {
+                readHouseholdStanding()
+                try? await Task.sleep(for: .seconds(3))
+            }
+        }
+        // A meal planned on this week settles the removal notice at once,
+        // without waiting for the next poll.
+        .onChange(of: meals.count) { _, _ in readHouseholdStanding() }
+        .onChange(of: weekAnchor) { _, _ in readHouseholdStanding() }
         .onAppear {
-            Presence.shared.planVisible = true
             if let day = LinkRelay.takeDay() { weekAnchor = day }
             if forceMonth || verticalSizeClass == .compact { showMonth = true }
             #if DEBUG
@@ -271,7 +328,7 @@ struct WeekView: View {
                     .accessibilityHint("Tap to open the day. Hold and drag to another date to move dinner.")
                 HStack(spacing: 8) {
                     if let cook = meal.cook { AvatarCircle(member: cook, size: 26) }
-                    Text(meal.cook.map { $0.isOwner ? "You're cooking" : "\($0.firstName) is cooking" } ?? "Cook unassigned")
+                    Text(meal.cook.map { $0.isMe ? "You're cooking" : "\($0.firstName) is cooking" } ?? "Cook unassigned")
                         .plType(.footnote).foregroundStyle(Color.inkSecondary)
                     Spacer()
                     Button { planDay = weekAnchor } label: {
@@ -293,10 +350,34 @@ struct WeekView: View {
                 remoteFeatured(remote)
             } else {
                 VStack(alignment: .leading, spacing: 12) {
-                    Text(isPast(weekAnchor) ? "A night off the menu" : "Something good starts here.")
-                        .plType(.display, .medium).foregroundStyle(Color.ink)
-                    Text(isPast(weekAnchor) ? "No dinner was planned for this date." : "Choose a favorite, try a new recipe, or take the night off.")
-                        .plType(.body).foregroundStyle(Color.inkSecondary)
+                    if let removedNotice, !isPast(weekAnchor) {
+                        // The first empty week after a removal says what
+                        // happened instead of inviting (docs/household.md
+                        // §8). A heading, not the display size: it is two
+                        // sentences, and it has to be read whole.
+                        Text(removedNotice)
+                            .plType(.heading, .semibold).foregroundStyle(Color.ink)
+                            .fixedSize(horizontal: false, vertical: true)
+                    } else if let took = RemovedNights.removedHeading(on: weekAnchor), !isPast(weekAnchor) {
+                        // This night is empty because the household took the
+                        // dinner off, not because nobody has got to it. The
+                        // author has no bell row and no push for that, so the
+                        // hero and the week row are the only places they can
+                        // learn it. An invitation here would be the app
+                        // claiming the night was never planned.
+                        Text(took)
+                            .plType(.heading, .semibold).foregroundStyle(Color.ink)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Text(Calendar.current.isDateInToday(weekAnchor)
+                             ? "Nothing is planned for tonight."
+                             : "Nothing is planned for this night.")
+                            .plType(.body).foregroundStyle(Color.inkSecondary)
+                    } else {
+                        Text(isPast(weekAnchor) ? "A night off the menu" : "Something good starts here.")
+                            .plType(.display, .medium).foregroundStyle(Color.ink)
+                        Text(isPast(weekAnchor) ? "No dinner was planned for this date." : "Choose a favorite, try a new recipe, or take the night off.")
+                            .plType(.body).foregroundStyle(Color.inkSecondary)
+                    }
                     if !isPast(weekAnchor) {
                         TomatoPillButton(title: "Plan this night", systemImage: "plus") { planDay = weekAnchor }
                     }
@@ -341,12 +422,32 @@ struct WeekView: View {
                 Spacer()
             }
         }
-        if let recipe = cookbookRecipe(for: entry) {
+        // A change made on this phone that the household has not got yet.
+        // The card above already shows it, so this sentence is what keeps
+        // the card from being a claim that everybody can see it. A night on
+        // its way off the plan says that instead, in the same quiet line and
+        // in the ledger's own words, so the hero and the row cannot drift:
+        // the hero is the largest drawing of a night in the app, and a
+        // delete still sitting on this phone must not look like a settled
+        // dinner from across the kitchen.
+        if let pending = entry.pendingSentence {
+            Text(pending)
+                .plType(.footnote).foregroundStyle(Color.inkSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        // No Let's cook on a night that is going. The pill is an invitation
+        // to start a cook session on a dinner this phone has just taken off
+        // the plan for everybody.
+        if let recipe = cookbookRecipe(for: entry), !entry.isGoing {
             TomatoPillButton(title: entry.cooked ? "View recipe" : "Let's cook", systemImage: "fork.knife") {
                 featuredRecipe = recipe
             }
         } else {
-            Text(entry.hasRecipe
+            // "Not in your cookbook" is a fact about this cookbook, and on a
+            // night that is going the pill is missing for a different reason
+            // entirely. Saying it there would be false whenever the recipe
+            // IS here, which is exactly when the pill would have shown.
+            Text(entry.hasRecipe && !entry.isGoing
                  ? "Planned by \(entry.authorFirstName). Not in your cookbook."
                  : "Planned by \(entry.authorFirstName).")
                 .plType(.footnote).foregroundStyle(Color.inkSecondary)
@@ -485,7 +586,7 @@ struct WeekView: View {
                         // Not the owner: the tagline already refuses to say
                         // "Nate cooks" to Nate, and your own face on your own
                         // dish every night is decoration, not information.
-                        if let cook = meal.cook, !cook.isOwner, !eatingOut {
+                        if let cook = meal.cook, !cook.isMe, !eatingOut {
                             AvatarCircle(member: cook, size: 22)
                                 // A face on a photograph needs its own edge
                                 // or it reads as part of the dish.
@@ -554,8 +655,9 @@ struct WeekView: View {
         .matchedTransitionSource(id: date, in: zoom)
     }
 
-    /// The plus plans dinner directly; the rest of the row opens every meal
-    /// on that day. VoiceOver offers both actions on the combined row.
+    /// The whole empty row plans dinner — one primary target, matching the
+    /// plus that used to be the only door. Opening the day stays available
+    /// as a secondary VoiceOver action and in the context menu.
     private func emptyRow(date: Date) -> some View {
         SwipeRow(isOpen: swipeBinding(date), actions: [
             SwipeAction(symbol: "plus", label: "Plan") { planDay = date },
@@ -563,21 +665,18 @@ struct WeekView: View {
         ], actionLabel: "Actions for \(date.formatted(.dateTime.weekday(.wide).month(.abbreviated).day()))") {
         HStack(spacing: 10) {
             dateColumn(date)
-            Button {
-                Haptic.tap()
-                planDay = date
-            } label: {
-                Image(systemName: "plus")
-                    .font(.system(size: 16, weight: .regular))
-                    .foregroundStyle(Color.inkSecondary)
-                    .frame(width: 48, height: 48)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.pressable)
-            // The row speaks for both targets below; a second announcement
-            // here would just be the same night read twice.
-            .accessibilityHidden(true)
-            Text("Plan dinner")
+            Image(systemName: "plus")
+                .font(.system(size: 16, weight: .regular))
+                .foregroundStyle(Color.inkSecondary)
+                .frame(width: 48, height: 48)
+                .accessibilityHidden(true)
+            // An empty night that knows why it is empty. The household took
+            // this dinner off, the meal was deleted here, and nothing else on
+            // this phone remembers it existed: the digest cannot speak,
+            // because it needs an already-read bell row and the author never
+            // has one for a night they planned themselves. So this line and
+            // the hero are the only way the person learns their dinner went.
+            Text(RemovedNights.removedLine(on: date) ?? "Plan dinner")
                 .plType(.body)
                 .foregroundStyle(Color.inkSecondary)
                 // No limit, the way the past row's own "Nothing plated"
@@ -592,17 +691,12 @@ struct WeekView: View {
         .padding(.leading, 8)
         .padding(.trailing, 14)
         .frame(minHeight: 76)
-        .background(Color.canvas)
+        // Same hover geometry as plannedRow: Radius.shape, not a bare
+        // RoundedRectangle, so the lean matches the planned peer beside it.
+        .background(dropHoverDay == date ? Color.tomatoTint : Color.canvas, in: Radius.shape(Radius.row))
         .overlay {
-            // A hovering plate turns the dashed invitation solid. Same
-            // corner and weight as a planned row — see plannedRow.
             if dropHoverDay == date {
-                RoundedRectangle(cornerRadius: Radius.row, style: .continuous)
-                    .fill(Color.tomatoTint)
-                    .overlay {
-                        RoundedRectangle(cornerRadius: Radius.row, style: .continuous)
-                            .strokeBorder(Color.tomato, lineWidth: 1.5)
-                    }
+                Radius.shape(Radius.row).strokeBorder(Color.tomato, lineWidth: 1.5)
             } else {
                 VStack { Spacer(); Rectangle().fill(Color.hairline).frame(height: 0.5) }
             }
@@ -610,15 +704,23 @@ struct WeekView: View {
         .contentShape(Rectangle())
         .onTapGesture {
             Haptic.tap()
-            dayShown = date
+            planDay = date
         }
         .accessibilityElement(children: .ignore)
         .accessibilityAddTraits(.isButton)
         .accessibilityLabel("\(dayName(date).capitalized), \(openLine(date))")
-        .accessibilityHint("Opens the day")
-        .accessibilityAction(named: "Plan dinner") { planDay = date }
+        .accessibilityHint("Plans dinner")
+        .accessibilityAction(named: "Open day") { dayShown = date }
         .accessibilityAction(named: "Eating out") { markEatingOut(on: date) }
-        .contextMenu { nightMenu(date) }
+        .contextMenu {
+            Button {
+                Haptic.tap()
+                dayShown = date
+            } label: {
+                Label("Open day", systemImage: "calendar")
+            }
+            nightMenu(date)
+        }
         .dropDestination(for: String.self) { tokens, _ in
             moveMeal(from: tokens.first, to: date)
         } isTargeted: { over in
@@ -732,8 +834,8 @@ struct WeekView: View {
             if let meal = planned {
                 Menu {
                     Button("Unassigned") { meal.cook = nil; Persist.save(context) }
-                    ForEach(members) { member in
-                        Button(member.isOwner ? "You" : member.name) { meal.cook = member; Persist.save(context) }
+                    ForEach(members.assignableCooks) { member in
+                        Button(member.isMe ? "You" : member.name) { meal.cook = member; Persist.save(context) }
                     }
                 } label: { Label("Who's cooking", systemImage: "person.crop.circle") }
             }
@@ -863,7 +965,7 @@ struct WeekView: View {
 
     private var cooksFooter: some View {
         HStack(spacing: 6) {
-            if let first = members.first(where: { !$0.isOwner && !$0.cookWeekdays.isEmpty }) {
+            if let first = members.first(where: { !$0.isMe && !$0.cookWeekdays.isEmpty }) {
                 AvatarCircle(member: first, size: 26)
             }
             Text(cooksLine)
@@ -947,6 +1049,30 @@ struct WeekView: View {
     }
 
     private func tagLine(for meal: PlannedMeal, today: Bool, date: Date) -> String {
+        // A night the household took off that is still standing here, which
+        // is the two hold-backs: it was cooked, or it is being cooked now.
+        // This takes the whole caption rather than being appended to it,
+        // because "Tonight · you cook" beside a dinner the rest of the
+        // household has already dropped is the row answering a question
+        // nobody is asking. The cook and the timing are still on the day
+        // page; what is not anywhere else is that the household let it go.
+        // The row's short form. The sentence version belongs on a page with
+        // room; this line clips at one.
+        if let held = RemovedNights.heldRowLine(shoppingID: meal.shoppingID ?? "") {
+            return held
+        }
+        // The household changed this night and nobody has answered yet.
+        // Takes the caption for the same reason the hold-back does: the cook
+        // and the timing on this row are this phone's answer to a question
+        // the rest of the house has already moved on from, and being put
+        // down to cook is the one fact here with a consequence attached.
+        // The decision itself lives on the page this row opens.
+        if let id = meal.shoppingID, let change = HouseholdEdits.pending(shoppingID: id) {
+            return HouseholdEdits.rowLine(
+                for: change, me: TableIdentity.cached,
+                currentCookID: PlanNightSheet.cookID(of: meal)
+            )
+        }
         let base: String
         if today {
             // Tonight names its cook like every other night does. This
@@ -956,14 +1082,14 @@ struct WeekView: View {
             // widget beside it drew the cook's face the whole time.
             var parts: [String] = ["Tonight"]
             if let cook = meal.cook {
-                parts.append(cook.isOwner ? "you cook" : "\(cook.name) cooks")
+                parts.append(cook.isMe ? "you cook" : "\(cook.name) cooks")
             }
             let minutes = meal.recipe?.totalMinutes ?? 0
             if minutes > 0 { parts.append(Recipe.durationText(minutes)) }
             base = parts.joined(separator: " · ")
         } else if !meal.tagline.isEmpty {
             base = meal.tagline
-        } else if let cook = meal.cook, !cook.isOwner {
+        } else if let cook = meal.cook, !cook.isMe {
             base = "\(cook.name) cooks"
         } else {
             let minutes = meal.recipe?.totalMinutes ?? 0
@@ -987,6 +1113,19 @@ struct WeekView: View {
     /// An open night is only truly empty when nothing else is planned either.
     private func openLine(_ date: Date) -> String {
         let others = otherSlots(on: date)
+        // The same sentence the row draws, so a reader hears why the night
+        // is empty rather than "Nothing plated yet" over a dinner that was
+        // taken off ten minutes ago.
+        //
+        // Said even when another slot is planned, because the ROW says it in
+        // that case too: gated on `others.isEmpty`, the screen stated the
+        // removal and VoiceOver stated the lunch, which is two answers to
+        // one question. The other slots follow it rather than replacing it.
+        if let removed = RemovedNights.removedLine(on: date) {
+            guard !others.isEmpty else { return removed }
+            let joined = ListFormatter.localizedString(byJoining: others.map { $0.title.lowercased() })
+            return "\(removed). \(joined.prefix(1).uppercased() + joined.dropFirst()) planned"
+        }
         guard !others.isEmpty else { return "Nothing plated yet" }
         let joined = ListFormatter.localizedString(byJoining: others.map { $0.title.lowercased() })
         return joined.prefix(1).uppercased() + joined.dropFirst() + " planned"
@@ -1023,13 +1162,13 @@ struct WeekView: View {
     }
 
     private var hostInitial: String {
-        members.first(where: \.isOwner)?.firstInitial ?? "?"
+        members.me?.firstInitial ?? "?"
     }
 
     private var cooksLine: String {
         let names = DateFormatter()
         names.dateFormat = "EEE"
-        let parts: [String] = members.filter { !$0.isOwner && !$0.cookWeekdays.isEmpty }.map { member in
+        let parts: [String] = members.filter { !$0.isMe && !$0.cookWeekdays.isEmpty }.map { member in
             let todayWeekday = Calendar.current.component(.weekday, from: .now)
             let ordered = member.cookWeekdays.sorted {
                 (($0 - todayWeekday + 7) % 7) < (($1 - todayWeekday + 7) % 7)
@@ -1058,7 +1197,7 @@ struct WeekView: View {
     // MARK: Actions
 
     private func openOwnProfile() {
-        guard let owner = members.first(where: \.isOwner) else { return }
+        guard let owner = members.me else { return }
         personShown = PersonRef(name: owner.name, colorHex: owner.colorHex, memberID: owner.persistentModelID)
     }
 

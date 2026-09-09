@@ -41,7 +41,12 @@ struct DayDetailView: View {
     struct SlotPlan: Identifiable {
         let date: Date
         let slot: MealSlot
-        var id: String { "\(date.timeIntervalSince1970)-\(slot.rawValue)" }
+        /// The household night this sheet is opening, when the person tapped
+        /// one. Named rather than looked up, because a day can hold this
+        /// phone's dinner and somebody else's at once, and the sheet has to
+        /// change the one that was touched.
+        var plan: String? = nil
+        var id: String { "\(date.timeIntervalSince1970)-\(slot.rawValue)-\(plan ?? "")" }
     }
 
     private var isToday: Bool { Calendar.current.isDateInToday(date) }
@@ -97,7 +102,8 @@ struct DayDetailView: View {
         }
         .sheet(item: activeSheet) { route in
             switch route {
-            case .plan(let plan): PlanNightSheet(date: plan.date, slot: plan.slot, askTheTable: askTheTable)
+            case .plan(let plan):
+                PlanNightSheet(date: plan.date, slot: plan.slot, editingPlan: plan.plan, askTheTable: askTheTable)
             case .move(let meal): MoveMealSheet(meal: meal) { date = $0; swipedSlot = nil }
             }
         }
@@ -274,10 +280,27 @@ struct DayDetailView: View {
                     .modifier(PlannerMealDrag(meal: meal))
                     .accessibilityIdentifier("day-meal-\(slot.rawValue)")
                 }
-                // Under the local one, no Remove and no Cooked: this page is
-                // already the day, so the row is a fact rather than a door.
+                // Under the local one, and a door: this is where a night
+                // somebody else planned is changed. The sheet is told which
+                // night, because the slot can hold one of each.
+                //
+                // A door even while it is going, and especially then. The
+                // sheet is where the delete's own answer is said: it draws
+                // the card, the sentence the write returned, and none of the
+                // editing controls, because `going` already withholds those.
+                // Closing the door here left a person who queued a removal
+                // by mistake, or offline, with a row that had become a fact
+                // and no screen anywhere explaining it or carrying what the
+                // zone eventually replied. The race this once guarded
+                // against is guarded in the sheet, which is the layer that
+                // knows what is queued.
                 ForEach(remote) { entry in
-                    RemotePlanRow(entry: entry, date: date, members: members)
+                    RemotePlanRow(
+                        entry: entry, date: date, members: members,
+                        onOpen: { planning = SlotPlan(date: date, slot: slot, plan: entry.recordName) },
+                        openHint: "Opens the night",
+                        place: .day
+                    )
                 }
             }
             .padding(.top, 8)
@@ -390,7 +413,7 @@ struct DayDetailView: View {
             // Not you. The meta line already says "You cook"; your own face
             // beside it is the same fact twice. Same rule as the week's
             // rows — see WeekView.plannedRow.
-            if let cook = meal.cook, !cook.isOwner {
+            if let cook = meal.cook, !cook.isMe {
                 AvatarCircle(member: cook, size: 30)
             }
         }
@@ -508,7 +531,7 @@ struct DayDetailView: View {
             parts.append(Recipe.durationText(minutes))
         }
         if let cook = meal.cook {
-            parts.append(cook.isOwner ? "You cook" : "\(cook.name) cooks")
+            parts.append(cook.isMe ? "You cook" : "\(cook.name) cooks")
         }
         if meal.gathering != nil { parts.append("Gathering") }
         if meal.isCooked { parts.append("Cooked") }
@@ -551,7 +574,7 @@ struct DayDetailView: View {
         let weekday = Calendar.current.component(.weekday, from: date)
         let rostered = members.filter { $0.cookWeekdays.contains(weekday) }
         guard !rostered.isEmpty else { return nil }
-        let names = rostered.map { $0.isOwner ? "you" : $0.name }
+        let names = rostered.map { $0.isMe ? "you" : $0.name }
         return "Usually \(names.joined(separator: " and ")) on \(weekdayName)s"
     }
 

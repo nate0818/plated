@@ -5,12 +5,26 @@ import SwiftData
 /// in one place: pick for me, your recipes, a brand-new recipe, eating
 /// out, asking the table (with a poll), or a full gathering. Opened from
 /// any open night, any planned night, and any month-view day.
+///
+/// **Two sources of truth, one set of controls.** The night this page
+/// changes is either this phone's own `PlannedMeal` or, when there is none
+/// and the household ledger holds one, that household night. Every control
+/// below acts on whichever is there. A household night is changed by writing
+/// its `PlatedHouseholdPlan` record through `PlanShare.write`, and never by
+/// making a `PlannedMeal` out of it: a household fact in a store configured
+/// `cloudKitDatabase: .automatic` has two writers by construction, the zone
+/// and this phone's own mirror carrying it to its other devices while they
+/// merge the same record (docs/plan-share.md, "Two-way editing").
 struct PlanNightSheet: View {
     let date: Date
     /// Which eating occasion is being filled. Dinner is the week's spine and
     /// stays the default, so every existing caller is unchanged; the day
     /// view passes breakfast, lunch, dessert and snack through the same page.
     var slot: MealSlot = .dinner
+    /// The household night the person tapped, when they tapped one. A day
+    /// can hold this phone's dinner and somebody else's at once, and then
+    /// nothing but the tap says which one is being changed.
+    var editingPlan: String? = nil
     var askTheTable: () -> Void = {}
 
     @Environment(\.modelContext) private var context
@@ -42,14 +56,71 @@ struct PlanNightSheet: View {
     @State private var events = DayEventsProvider.shared
     @State private var forecast = ForecastProvider.shared
 
+    /// What the last write answered, in the words this page says out loud.
+    @State private var notice: String?
+    /// The kind of write on the wire, or nil. The sheet stays up until it
+    /// answers.
+    ///
+    /// Sending and dismissing in the same breath threw away three of the
+    /// four answers `PlanShare.write` can give: queued, theirs and refused
+    /// were being set on a page nobody was looking at, and a delete leaves
+    /// no row behind to carry them either. So the outcome decides the
+    /// dismissal, and while it is deciding the control that started it
+    /// reads as working and cannot be fired again.
+    ///
+    /// The kind and not a bare flag, because the trash says what IT is
+    /// doing: dressed off a plain "a write is happening" it would read
+    /// "Taking this night off the plan" while the person was changing the
+    /// cook, which is the interface claiming something that is not so.
+    @State private var inFlight: PlanShare.Edit.Kind?
+    private var sending: Bool { inFlight != nil }
+    /// A stepper held down is one intention, not eight: the row moves on
+    /// every tap and the zone hears the number they stopped on.
+    @State private var servingsWrite: Task<Void, Never>?
+    /// The removal has been asked for and not yet agreed to.
+    @State private var confirmingRemoval = false
+    /// Bumped when the person answers the household's change, so the block
+    /// they answered goes.
+    ///
+    /// `HouseholdEdits` is a plain app-group book rather than an
+    /// `@Observable`, so `settle` and `adopt` change nothing SwiftUI is
+    /// watching. "Keep mine" left the sentence and both buttons standing,
+    /// which reads as a control that did nothing, and tapping it again did
+    /// nothing again. Adopt was masked by the meal changing underneath it.
+    @State private var answeredChange = 0
+
     private var meal: PlannedMeal? {
-        meals.first { Calendar.current.isSameDay($0.date, date) && $0.slotValue == slot }
+        // A named household night is the one being changed, even on a slot
+        // this phone has also planned.
+        guard editingPlan == nil else { return nil }
+        return meals.first { Calendar.current.isSameDay($0.date, date) && $0.slotValue == slot }
     }
+
+    /// The household night this page changes: the one that was tapped, or
+    /// the one on this slot when this phone has planned nothing here.
+    ///
+    /// A night that is going is never picked up implicitly. It is still in
+    /// the ledger, and taking it as the night this page changes would put
+    /// the dish, the servings and the cook on a record whose delete is
+    /// already queued: the queue folds the change back into the delete, so
+    /// the person would watch the sheet accept an edit that can never
+    /// happen. The slot is free as far as this page is concerned, and what
+    /// they plan there is this phone's own night. A night they tapped by
+    /// name stays, because that is where the delete's own answer is said.
+    private var remote: PlanLedger.Entry? {
+        if let editingPlan { return PlanLedger.shared.entry(editingPlan) }
+        guard meal == nil else { return nil }
+        return PlanLedger.shared.plans(on: date, slot: slot).first { !$0.isGoing }
+    }
+
+    /// The night this page is changing is on its way off the plan, so the
+    /// page is its answer and not its editor.
+    private var going: Bool { remote?.isGoing ?? false }
 
     var body: some View {
         VStack(spacing: 0) {
             VStack(spacing: 4) {
-                MicroLabel(meal == nil ? planLabel : "Planned")
+                MicroLabel(meal == nil && remote == nil ? planLabel : "Planned")
                 Text(dayTitle)
                     .plType(.title)
                     .foregroundStyle(Color.ink)
@@ -80,7 +151,36 @@ struct PlanNightSheet: View {
                 VStack(alignment: .leading, spacing: 10) {
                     if let meal {
                         currentMealCard(meal)
-                            .padding(.bottom, 6)
+                            .padding(.bottom, householdChange(meal) == nil && contestLine(for: meal) == nil ? 6 : 2)
+                        // The household changed a night this phone planned.
+                        // This is the ONLY place the person finds out: the
+                        // ledger drops every delivered record this phone
+                        // authored, and the digest cannot speak about a night
+                        // with no bell row, which the author never has for
+                        // their own. Being put down to cook reached every
+                        // phone in the household except the one whose plan it
+                        // was.
+                        //
+                        // With a control, not just a sentence. The publisher
+                        // stands down rather than overwrite their version, and
+                        // that stand-down is stable, so a night left alone
+                        // stays disagreed with forever. Somebody has to be
+                        // able to say yes.
+                        if let change = householdChange(meal) {
+                            householdChangeBlock(change, meal: meal)
+                                .padding(.bottom, 6)
+                        } else if let line = contestLine(for: meal) {
+                            // No delivery has carried their version to this
+                            // phone, so there is nothing to adopt: the
+                            // publisher has simply refused to overwrite. Says
+                            // both facts and stops.
+                            Text(line)
+                                .plType(.footnote)
+                                .foregroundStyle(Color.inkSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.bottom, 6)
+                        }
                         Stepper(value: Binding(get: { meal.servings }, set: { meal.servings = $0; Persist.save(context) }), in: 1...99) {
                             Text("\(meal.servings) servings").plType(.body, .semibold)
                                 .contentTransition(.numericText())
@@ -88,57 +188,204 @@ struct PlanNightSheet: View {
                         .padding(.vertical, 6)
                         Menu {
                             Button("Unassigned") { meal.cook = nil; Persist.save(context) }
-                            ForEach(members) { member in
-                                Button(member.isOwner ? "You" : member.name) { meal.cook = member; Persist.save(context) }
+                            ForEach(members.assignableCooks) { member in
+                                Button(member.isMe ? "You" : member.name) { meal.cook = member; Persist.save(context) }
                             }
                         } label: {
                             HStack {
                                 Text("Cook").plType(.body)
                                 Spacer()
-                                Text(meal.cook.map { $0.isOwner ? "You" : $0.name } ?? "Unassigned").plType(.body, .semibold)
+                                Text(meal.cook.map { $0.isMe ? "You" : $0.name } ?? "Unassigned").plType(.body, .semibold)
                                 Image(systemName: "slider.horizontal.3").font(.footnote)
                             }.foregroundStyle(Color.ink).frame(minHeight: 44)
                         }
                         MicroLabel("Something else")
+                    } else if let remote {
+                        // The same card and the same two controls, writing
+                        // the household record instead of a row in this
+                        // phone's store.
+                        remoteNightCard(remote)
+                            .padding(.bottom, 6)
+                        // What the trash on that card actually reaches. The
+                        // card carries it on the trash's accessibility label
+                        // already, and a label is not a statement: a sighted
+                        // person taking a night off somebody else's plan was
+                        // told nothing about how far it went. Withheld once
+                        // the night is going, when the reach is no longer a
+                        // warning about something that might happen.
+                        if !going {
+                            Text("Taking this off removes it for everybody.")
+                                .plType(.caption)
+                                .foregroundStyle(Color.inkSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.bottom, notice == nil ? 6 : 2)
+                        }
+                        noticeRow
+                        // A night on its way off has one thing left to say
+                        // and one thing left to do. Without the door out,
+                        // every control withdrew the moment the removal
+                        // queued and the sheet collapsed under the person's
+                        // finger to a card and a sentence, with nothing to
+                        // press: the most destructive action in the app
+                        // ending in a screen that offers nothing at all.
+                        // Only once the write has answered. `going` is set
+                        // optimistically by `applyLocally` BEFORE the save is
+                        // attempted, so between the tap and the zone's reply
+                        // this told a person on a perfectly good connection
+                        // that their phone was offline. While it is in flight
+                        // the spinner on the trash is the whole story.
+                        if going, inFlight == nil {
+                            // NOT "when this one is back on iCloud". The
+                            // queue's five answers include a record somebody
+                            // else changed first, a save iCloud refused, and
+                            // a household this phone cannot resolve, and on
+                            // four of them the connection is fine. `notice`
+                            // already carries the queue's own words for
+                            // whichever it was, in a vocabulary written to
+                            // be cause-specific; asserting one cause over
+                            // the top of it contradicted the line above.
+                            if notice == nil {
+                                Text("It leaves every phone in your household on the next try.")
+                                    .plType(.caption)
+                                    .foregroundStyle(Color.inkSecondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                            InkPillButton(title: "Done", systemImage: "checkmark") { dismiss() }
+                                .padding(.top, 4)
+                        }
+                        // Nothing to change on a night that is going. The
+                        // page stays up to say what the delete answered, and
+                        // a servings stepper over that sentence would be an
+                        // edit the queue folds straight back into the
+                        // delete: a control that looks alive and cannot act.
+                        if !going {
+                            Stepper(value: Binding(get: { remote.servings }, set: { changeServings($0, on: remote) }), in: 1...99) {
+                                Text("\(remote.servings) servings").plType(.body, .semibold)
+                                    .contentTransition(.numericText())
+                            }
+                            .padding(.vertical, 6)
+                            Menu {
+                                Button("Unassigned") { changeCook(nil, on: remote) }
+                                ForEach(members.assignableCooks) { member in
+                                    Button(member.isMe ? "You" : member.name) { changeCook(member, on: remote) }
+                                }
+                            } label: {
+                                HStack {
+                                    Text("Cook").plType(.body)
+                                    Spacer()
+                                    Text(remoteCookName(remote)).plType(.body, .semibold)
+                                    Image(systemName: "slider.horizontal.3").font(.footnote)
+                                }.foregroundStyle(Color.ink).frame(minHeight: 44)
+                            }
+                            MicroLabel("Something else")
+                        }
+                    } else if notice != nil {
+                        // The night this page was changing is gone: somebody
+                        // else took it off the plan while this edit was on
+                        // the wire, and `write` answers that with a refusal
+                        // and drops the entry. The card goes with it, so
+                        // without this the one sentence explaining where the
+                        // night went would have nowhere to be drawn, and the
+                        // page would silently become an empty night.
+                        noticeRow
                     }
 
-                    if !recipes.isEmpty {
+                    // Every one of these writes the night this page is
+                    // changing, so none of them is offered on a night that
+                    // is already on its way off the plan. The page is the
+                    // delete's answer now; planning something here is a tap
+                    // away once the household has it, and this phone's own
+                    // night on the same slot was never blocked at all.
+                    if !going {
+                        // First, above everything, on a night the household
+                        // took off. It is the likeliest thing the person came
+                        // here to do, and it names the dish so the control
+                        // says what it will do rather than what it is.
+                        //
+                        // It plans the night again under a NEW shoppingID
+                        // rather than un-deleting: nothing contradicts the
+                        // record of the removal, it behaves the same on every
+                        // device, and the household hears the ordinary
+                        // "Nate planned Tacos for Thursday" instead of a
+                        // night reappearing with nobody's name on it.
+                        if meal == nil, remote == nil,
+                           let detail = RemovedNights.addBackDetail(on: date, slot: slot),
+                           let title = RemovedNights.addBackTitle(on: date, slot: slot) {
+                            OptionRow(
+                                icon: "calendar.badge.plus",
+                                title: "Add it back",
+                                detail: detail
+                            ) { addBack(title) }
+                        }
+
+                        // Food first: the night is about dinner. Eating out,
+                        // asking the Table and gatherings stay reachable but
+                        // sit under a quieter "Or" so they do not compete
+                        // with choosing what to cook.
                         OptionRow(
-                            icon: "wand.and.stars",
-                            title: "Pick for me",
-                            detail: "Matched to the weather and what your household eats."
-                        ) { pickForMe() }
+                            icon: "book.closed",
+                            title: "Choose a recipe",
+                            detail: "\(recipes.count) \(recipes.count == 1 ? "dish" : "dishes") your household already knows."
+                        ) { route = .picker }
+
+                        OptionRow(
+                            icon: "plus.circle",
+                            title: "Add a recipe",
+                            detail: "Save it and plan it in one go."
+                        ) { route = .newRecipe }
+
+                        if !recipes.isEmpty {
+                            OptionRow(
+                                icon: "wand.and.stars",
+                                title: "Pick for me",
+                                detail: "Matched to the weather and what your household eats."
+                            ) { pickForMe() }
+                        }
+
+                        MicroLabel("Or")
+
+                        OptionRow(
+                            icon: "fork.knife.circle",
+                            title: "Eating out",
+                            detail: "Counts as a planned night."
+                        ) { markEatingOut() }
+
+                        OptionRow(
+                            icon: "bubble.and.pencil",
+                            title: "Ask the Table",
+                            detail: "Ask what everyone wants, or put up a poll."
+                        ) { route = .ask }
+
+                        // The one row here that cannot write the night this
+                        // page is about. A gathering carries guests, a time
+                        // and a calendar event, and the household record
+                        // carries none of the three, so there is nothing to
+                        // write it into.
+                        //
+                        // Offered on a household night it took GatheringSheet's
+                        // else branch, because `meal` is nil on that path, and
+                        // inserted a fresh PlannedMeal on a slot the household
+                        // had already filled. The day then drew two dinners,
+                        // the week hero swapped to the private one, and nobody
+                        // else in the household ever saw the gathering. Every
+                        // other row on this page writes the household record,
+                        // so nothing on screen said which one went elsewhere.
+                        if remote == nil {
+                            OptionRow(
+                                icon: "party.popper",
+                                title: "Plan a gathering",
+                                detail: "Guests, a time, and an event in your calendar."
+                            ) { route = .gathering }
+                        } else {
+                            Text("A gathering has guests, a time and a calendar event, so it goes on a night of your own.")
+                                .plType(.footnote)
+                                .foregroundStyle(Color.inkSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
                     }
-
-                    OptionRow(
-                        icon: "book.closed",
-                        title: "Choose a recipe",
-                        detail: "\(recipes.count) \(recipes.count == 1 ? "dish" : "dishes") your household already knows."
-                    ) { route = .picker }
-
-                    OptionRow(
-                        icon: "plus.circle",
-                        title: "Add a recipe",
-                        detail: "Save it and plan it in one go."
-                    ) { route = .newRecipe }
-
-                    OptionRow(
-                        icon: "fork.knife.circle",
-                        title: "Eating out",
-                        detail: "Counts as a planned night."
-                    ) { markEatingOut() }
-
-                    OptionRow(
-                        icon: "bubble.and.pencil",
-                        title: "Ask the Table",
-                        detail: "Ask what everyone wants, or put up a poll."
-                    ) { route = .ask }
-
-                    OptionRow(
-                        icon: "party.popper",
-                        title: "Plan a gathering",
-                        detail: "Guests, a time, and an event in your calendar."
-                    ) { route = .gathering }
                 }
                 .padding(.horizontal, 24)
                 .padding(.bottom, 24)
@@ -161,13 +408,13 @@ struct PlanNightSheet: View {
             case .picker:
                 // Switches the route rather than dismissing itself first.
                 RecipePickerSheet(date: date, onWriteNew: { route = .newRecipe }) { recipe in
+                    // `plate` closes the sheet: at once for this phone's own
+                    // night, and on the zone's answer for a household one.
                     plate(recipe, tagline: "")
-                    dismiss()
                 }
             case .newRecipe:
                 RecipeEditorView(hidePlateShortcut: true) { recipe in
                     plate(recipe, tagline: "")
-                    dismiss()
                 }
             case .ask:
                 AskComposerSheet(date: date) {
@@ -183,6 +430,19 @@ struct PlanNightSheet: View {
     }
 
     // MARK: Pieces
+
+    /// What the last write answered. Not a problem colour: queued is not a
+    /// failure, and `ink` is what the page reads its own sentences in.
+    @ViewBuilder
+    private var noticeRow: some View {
+        if let notice {
+            Text(notice)
+                .plType(.footnote)
+                .foregroundStyle(Color.ink)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.bottom, 6)
+        }
+    }
 
     private func currentMealCard(_ meal: PlannedMeal) -> some View {
         HStack(spacing: 12) {
@@ -212,7 +472,7 @@ struct PlanNightSheet: View {
                     .plType(.body, .bold)
                     .foregroundStyle(Color.ink)
                 if let cook = meal.cook {
-                    Text(cook.isOwner ? "You cook" : "\(cook.name) cooks")
+                    Text(cook.isMe ? "You cook" : "\(cook.name) cooks")
                         .plType(.caption, .semibold)
                         .foregroundStyle(Color.inkSecondary)
                 }
@@ -238,6 +498,274 @@ struct PlanNightSheet: View {
     }
 
 
+    /// A household night, in the local card's geometry because peers look
+    /// like peers: the same 52pt dish, the same title, the cook line under
+    /// it, and the same one control on the right, which takes the night off
+    /// the plan for everybody rather than only here.
+    private func remoteNightCard(_ entry: PlanLedger.Entry) -> some View {
+        HStack(spacing: 12) {
+            // A 26pt radius on a 52pt square is the local card's circle,
+            // drawn by the component that already knows what to do when a
+            // night has no photograph. Peers look like peers, and these two
+            // cards are peers on one page.
+            RecipeArtwork(
+                data: PlanLedger.shared.photo(for: entry.recordName),
+                title: entry.title, ratio: 1, radius: 26
+            )
+            .frame(width: 52, height: 52)
+            .plDishShadow()
+            // Title, then who cooks, then whose night it is: the order
+            // `RemotePlanRow` uses, because the row and this card are the
+            // same night on two screens.
+            VStack(alignment: .leading, spacing: 2) {
+                Text(entry.title)
+                    .plType(.body, .bold)
+                    .foregroundStyle(Color.ink)
+                if let cook = PlanLedger.shared.cookLine(for: entry) {
+                    Text(cook)
+                        .plType(.caption, .semibold)
+                        .foregroundStyle(Color.inkSecondary)
+                }
+                Text(remoteCaption(entry))
+                    .plType(.caption, .semibold)
+                    .foregroundStyle(Color.inkSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer()
+            Button {
+                // Asked, not done. This is the one control in the app that
+                // changes what several other people see, it cannot be undone
+                // by anything on this branch, and the sheet carrying its
+                // answer closes behind it. A stated reach under the card is
+                // not a gate.
+                //
+                // `warn`, not `plate`. plate is for something landing, and
+                // nothing has landed: this opens a question.
+                Haptic.warn()
+                confirmingRemoval = true
+            } label: {
+                // Working, in `TomatoPillButton`'s shape: the spinner takes
+                // the glyph's place inside the same 44pt target, so the card
+                // does not move while the zone answers and the trash cannot
+                // be pressed a second time on a night already going.
+                //
+                // Once the delete is queued the control is genuinely off,
+                // and an off control's icon is what `inkFaint` is for: the
+                // night is already coming off the plan and pressing this
+                // again would queue nothing new.
+                Group {
+                    if inFlight == .delete {
+                        ProgressView()
+                    } else {
+                        Image(systemName: "trash")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(entry.isGoing ? Color.inkFaint : Color.inkSecondary)
+                    }
+                }
+                .accessibilityLabel(deleteLabel(entry))
+                .frame(minWidth: 44, minHeight: 44)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.pressable)
+            .disabled(sending || entry.isGoing)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(Color.canvas, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: Radius.row, style: .continuous).strokeBorder(Color.navHairline))
+        .confirmationDialog(
+            "Take \(entry.title) off \(Stamp.nightPhrase(entry.date))?",
+            isPresented: $confirmingRemoval,
+            titleVisibility: .visible
+        ) {
+            // The verb names the outcome AND its reach, because the reach is
+            // the part that is not obvious: this is not "remove from my week".
+            Button("Take it off for everybody", role: .destructive) {
+                send(PlanShare.Edit(deleting: entry), closing: true)
+            }
+            Button("Keep it", role: .cancel) { }
+        } message: {
+            Text(removalWarning(entry))
+        }
+    }
+
+    /// Whose night it is, and whether the last change has reached the
+    /// household. A change that is still on this phone says so: the card
+    /// already shows the new dish, and this is what keeps that from being a
+    /// claim that everybody can see it.
+    /// Who this phone's own copy says is cooking, in the same terms the wire
+    /// uses. Both spellings, because a member joined through the household
+    /// share carries `participantID` and one this phone knows only through
+    /// the directory carries `userRecordName`, and the record's `cookID` may
+    /// be either.
+    static func cookID(of meal: PlannedMeal) -> String {
+        guard let cook = meal.cook else { return "" }
+        let participant = cook.participantID ?? ""
+        if !participant.isEmpty { return participant }
+        let record = cook.userRecordName ?? ""
+        if !record.isEmpty { return record }
+        // The rung `HouseholdEdits.adopt` already has and this was missing.
+        // A household that has never been shared stamps neither id on its
+        // own row, so the reader's own row answers "" while the record's
+        // cookID is their real identity: the two differ, and the sentence
+        // fires as though somebody had just put them down to cook a night
+        // they were already cooking. Which is the exact claim this operand
+        // was added to stop.
+        return cook.isMe ? TableIdentity.cached : ""
+    }
+
+    /// The household's version of this night, waiting to be answered.
+    private func householdChange(_ meal: PlannedMeal) -> HouseholdEdits.Change? {
+        // Read so the answer count is a dependency of this view. Without it
+        // nothing here is watching the book and the block outlives its own
+        // answer.
+        _ = answeredChange
+        guard let id = meal.shoppingID else { return nil }
+        return HouseholdEdits.pending(shoppingID: id)
+    }
+
+    /// What they made of it, what this phone still says, and the one control
+    /// that agrees to it.
+    ///
+    /// "Keep mine" only settles the record so the same change stops being
+    /// offered; it changes nothing about the night, which is why it is the
+    /// quiet half of the pair. Leaving the sheet without answering is also
+    /// an answer, and the change waits.
+    @ViewBuilder
+    private func householdChangeBlock(_ change: HouseholdEdits.Change, meal: PlannedMeal) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(HouseholdEdits.line(
+                for: change, me: TableIdentity.cached,
+                currentCookID: Self.cookID(of: meal),
+                currentTitle: meal.title
+            ))
+                .plType(.footnote, .semibold)
+                .foregroundStyle(Color.ink)
+                .fixedSize(horizontal: false, vertical: true)
+            if let contrast = HouseholdEdits.contrast(for: change, mineTitle: meal.title) {
+                Text(contrast)
+                    .plType(.footnote)
+                    .foregroundStyle(Color.inkSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            HStack(spacing: 10) {
+                Button(HouseholdEdits.adoptTitle) {
+                    Haptic.plate()
+                    HouseholdEdits.adopt(change, in: context)
+                    Persist.save(context)
+                    answer(change)
+                }
+                .plType(.footnote, .bold)
+                .plActionLabel()
+                .foregroundStyle(Color.canvas)
+                .padding(.horizontal, 16)
+                .frame(minHeight: 36)
+                .background(Color.ink, in: Capsule())
+                .frame(minHeight: 44)
+                .contentShape(Capsule())
+                .buttonStyle(.pressable)
+
+                Button(HouseholdEdits.keepTitle) {
+                    Haptic.tap()
+                    HouseholdEdits.settle(change.shoppingID)
+                    answer(change)
+                }
+                .plType(.footnote, .semibold)
+                .plActionLabel()
+                .foregroundStyle(Color.inkSecondary)
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
+                .buttonStyle(.pressable)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// One answer, either way, and the publisher is told about it.
+    ///
+    /// `settleContest` had no caller anywhere in the app, which made both
+    /// buttons worse than useless. The publisher stands down on this night
+    /// and that stand-down is stable, so:
+    ///
+    /// - "Use their version" wrote the household's values into the meal,
+    ///   which changed the fingerprint, which made `diff` want to publish,
+    ///   which hit the same contest guard and stood down again. The control
+    ///   added to END the disagreement was what made it permanent.
+    /// - "Keep mine" left the mark standing, so this phone's own version
+    ///   could never reach the household either.
+    ///
+    /// Settling takes the zone's current `modifiedAt` as this phone's new
+    /// baseline, so the next pass publishes normally whichever way the
+    /// person went. It also clears the stand-down snapshot that
+    /// `contestLine` reads, which otherwise outlived the answer and drew
+    /// "Your plan still says Tacos" under a card now reading Ragu.
+    private func answer(_ change: HouseholdEdits.Change) {
+        withAnimation(.plSnap) { answeredChange += 1 }
+        Task { await PlanShare.settleContest(change.recordName) }
+    }
+
+    /// What to say on a night this phone planned that the household has
+    /// since changed. Nil when nothing is contested, which is almost always.
+    ///
+    /// Two facts and no advice. "Riley changed this night on their phone"
+    /// is a recorded action by a named person, which is what the
+    /// notification law asks of every sentence about somebody else. "Your
+    /// plan still says Tacos" is what is under the reader's thumb. The app
+    /// does not say which should win, because it does not know.
+    ///
+    /// A record written before `editorID` names nobody, and this may not
+    /// invent a "Someone": the digest's own ladder refuses to name the
+    /// author for another person's edit and this makes the same call. It
+    /// loses the name and keeps both facts.
+    ///
+    /// The second clause is dropped rather than left dangling when this
+    /// phone's night has no title to quote.
+    private func contestLine(for meal: PlannedMeal) -> String? {
+        guard let id = meal.shoppingID,
+              let contest = PlanShare.contest(for: "plan-\(id)") else { return nil }
+        let who = contest.by.trimmingCharacters(in: .whitespaces)
+        let opening = who.isEmpty
+            ? "This night was changed on another phone."
+            : "\(PlanLedger.Entry.firstName(who)) changed this night on their phone."
+        let mine = contest.mineTitle.trimmingCharacters(in: .whitespaces)
+        guard !mine.isEmpty else { return opening }
+        return "\(opening) Your plan still says \(mine)."
+    }
+
+    private func remoteCaption(_ entry: PlanLedger.Entry) -> String {
+        // The row's own words, from the row: the card and the row are the
+        // same night on two screens, and a second copy of the sentence is a
+        // second sentence waiting to drift.
+        RemotePlanRow.caption(for: entry)
+    }
+
+    /// What the trash is doing, in the three states it can be in. A control
+    /// that is off has to say why it is off, or VoiceOver reads a button
+    /// that answers nothing.
+    private func deleteLabel(_ entry: PlanLedger.Entry) -> String {
+        Self.deleteLabel(going: entry.isGoing, deleting: inFlight == .delete)
+    }
+
+    static func deleteLabel(going: Bool, deleting: Bool) -> String {
+        if going { return "This night is coming off the plan" }
+        return deleting ? "Taking this night off the plan" : "Take this night off the plan"
+    }
+
+    /// Which answers close the page. Only the one that happened: a night
+    /// kept on this phone, a night somebody else changed first and a night
+    /// the zone refused all have something to say, and the page is the only
+    /// thing left to say it on once a delete has taken the row away.
+    static func closes(_ outcome: PlanShare.WriteOutcome) -> Bool {
+        if case .landed = outcome { return true }
+        return false
+    }
+
+    /// The cook as the menu shows it. By identity, never by name.
+    private func remoteCookName(_ entry: PlanLedger.Entry) -> String {
+        if PlanLedger.shared.isMine(cook: entry) { return "You" }
+        return entry.hasCook ? entry.cookName : "Unassigned"
+    }
+
     /// "Plan the night" is dinner's line and stays dinner's line; the other
     /// slots say what they are.
     private var planLabel: String {
@@ -255,7 +783,14 @@ struct PlanNightSheet: View {
     /// "Nate planned Tacos for this night." Dinner's line; another slot
     /// names itself, so breakfast never claims the night.
     private var remotePlanLine: String? {
-        guard let entry = PlanLedger.shared.plans(on: date, slot: slot).first else { return nil }
+        // Not when this page is changing that very night: the card below
+        // says whose it is, and the sentence would be about the thing the
+        // person is already looking at. Nor about a night that is going:
+        // "Nate planned Tacos for this night" would be warning somebody off
+        // a slot they have just taken off the plan themselves.
+        guard remote == nil,
+              let entry = PlanLedger.shared.plans(on: date, slot: slot).first(where: { !$0.isGoing })
+        else { return nil }
         let occasion = slot == .dinner ? "this night" : slot.title.lowercased()
         return "\(entry.authorFirstName) planned \(entry.title) for \(occasion)."
     }
@@ -298,18 +833,196 @@ struct PlanNightSheet: View {
         }
         let recipe = pick.recipe
         let minutes = recipe.totalMinutes
-        // The magic move earns the plate-weight thump, not a chrome tick.
-        Haptic.plate()
         // Say why — "Picked for you · grill weather" proves the engine
         // looked out the window.
         let why = pick.reason.components(separatedBy: ", ").first ?? ""
         let tagline = !why.isEmpty ? "Picked for you · \(why)"
             : (minutes > 0 ? "Picked for you · \(Recipe.durationText(minutes))" : "Picked for you")
         plate(recipe, tagline: tagline)
-        dismiss()
+    }
+
+    /// One edit on its way to the household, and the sentence it earns.
+    ///
+    /// Optimism belongs in the ledger, not in the copy: `PlanShare.write`
+    /// moves the row under the finger and marks it as not landed, and this
+    /// only says what the zone answered.
+    ///
+    /// `closing` is the actions that used to dismiss the sheet the instant
+    /// they sent: the dish, Eating out, and taking the night off. They now
+    /// close on `.landed` only. The other three answers keep the sheet up
+    /// and put the sentence in the row under the card, because a page that
+    /// is gone cannot tell anybody anything and a deleted night has no row
+    /// left to tell them with.
+    /// `haptic` is fired HERE and never by the caller, because it must not
+    /// fire for a write the guard below drops. Callers used to buzz first
+    /// and call second, so a second choice made while the first was on the
+    /// wire gave the person the thump that means a plate landed, changed
+    /// nothing, and left the menu reading what they had just replaced. A
+    /// confirmation for something that did not happen is the honesty rule,
+    /// and it was in three of the five call sites.
+    private func send(
+        _ edit: PlanShare.Edit, photo: Data? = nil, closing: Bool = false,
+        haptic: @escaping () -> Void = { Haptic.plate() }
+    ) {
+        // One write at a time on one night. Two in flight are two
+        // fetch-and-saves racing on one record, and the second would read a
+        // `seenAt` the first is about to move, so the person would be told
+        // somebody got there first about their own tap.
+        guard !sending else {
+            // A guard that fires and tells nobody is the shape this feature
+            // has been bitten by all day. Moving the haptic below this line
+            // stopped the app CONFIRMING a write it had dropped, which was
+            // the lie; it left the person tapping a control that answered
+            // with nothing at all, which is the silence. `OptionRow` draws
+            // no disabled state, so disabling these would be the same
+            // silence enforced a step earlier. So it says so.
+            notice = "Still sending the last change. Try that again in a moment."
+            Haptic.warn()
+            return
+        }
+        haptic()
+        notice = nil
+        inFlight = edit.kind
+        Task { @MainActor in
+            let outcome = await PlanShare.write(edit, photo: photo)
+            inFlight = nil
+            notice = Self.sentence(for: outcome)
+            // The bell row for a night that has just gone, taken down here
+            // rather than waiting for the next delivery. `PlanShare` cannot
+            // do it itself: `TableNews.retract` ends in a save, a save
+            // schedules a publisher pass, and that pass settles and retracts
+            // again, which spins. So the queue records what went and a caller
+            // with a context of its own redeems it. This is that caller, and
+            // it is outside every publisher pass.
+            //
+            // Without it a person takes a night off, the sheet closes, and
+            // the bell still says the night is planned until the zone answers.
+            // Offline that is until they are back.
+            let gone = PlanShare.takeRetractions()
+            if !gone.isEmpty {
+                TableNews.retract(plans: gone, context: context)
+            }
+            // A refusal and a version somebody else got in first are both
+            // the app saying no. Queued is not: the change is kept and it
+            // will go, so it earns a sentence and no buzz.
+            switch outcome {
+            case .landed, .queued: break
+            case .theirs, .refused: Haptic.warn()
+            }
+            if closing, Self.closes(outcome) { dismiss() }
+        }
+    }
+
+    /// What the person is agreeing to. Two facts: whose night it is, and
+    /// that it cannot be taken back. Both matter and neither is on screen.
+    static func removalWarning(_ entry: PlanLedger.Entry) -> String {
+        let who = entry.authorFirstName
+        let whose = who.isEmpty ? "This night" : "\(who)'s night"
+        return "\(whose) comes off the plan on every phone in your household. This cannot be undone."
+    }
+
+    private func removalWarning(_ entry: PlanLedger.Entry) -> String {
+        Self.removalWarning(entry)
+    }
+
+    /// What each answer says out loud, in one place so a test can read it.
+    /// Nil is the only answer that needs no sentence: the night is in the
+    /// zone, and the page that would have carried the words is closing.
+    static func sentence(for outcome: PlanShare.WriteOutcome) -> String? {
+        switch outcome {
+        case .landed: nil
+        // The queue's own words. "It goes out when this phone is back
+        // online" was being said about an account that is fine and a zone
+        // that would not read, so the write names its cause and this only
+        // repeats it.
+        case .queued(let why): why
+        case .theirs: "This night changed on another phone first. That version is showing."
+        case .refused(let why): why
+        }
+    }
+
+    /// The servings on a household night. The row moves now; the zone hears
+    /// the number they stopped on, because a stepper held down is one
+    /// intention and each write is a fetch and a save.
+    private func changeServings(_ count: Int, on entry: PlanLedger.Entry) {
+        var edit = PlanShare.Edit(changing: entry)
+        edit.servings = count
+        PlanLedger.shared.applyLocally(edit)
+        // Parked before the debounce, not after it. Everywhere else on this
+        // path the edit is on disk before the row moves, so a kill loses
+        // nothing; here the row moved and then waited 700ms, and a kill in
+        // that window left a ledger showing six servings, the stray sweep
+        // clearing the one mark that said so, and nothing anywhere ever
+        // sending it. `enqueue` folds, so a stepper held down is still one
+        // entry, and a pass that drains it early is a save of the number the
+        // person is looking at.
+        PlanShare.enqueue(edit)
+        servingsWrite?.cancel()
+        servingsWrite = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(700))
+            guard !Task.isCancelled else { return }
+            // Wait for whatever is already on the wire rather than being
+            // turned away by it. The row is showing this number and nothing
+            // else will ever send it: a dropped write here leaves a night
+            // saying six servings on this phone and four on every other,
+            // with the stray sweep quietly clearing the "Not sent yet" that
+            // was the only sign.
+            while sending {
+                try? await Task.sleep(for: .milliseconds(150))
+                guard !Task.isCancelled else { return }
+            }
+            guard let latest = PlanLedger.shared.entry(entry.recordName) else { return }
+            var settled = PlanShare.Edit(changing: latest)
+            settled.servings = latest.servings
+            send(settled)
+        }
+    }
+
+    /// Who cooks a household night. By identity, never by name: the wire
+    /// carries the cook's participant id, this phone's own id when the cook
+    /// is the person holding it, and "" so a reader never guesses. A seat
+    /// that was only invited travels without a name, because a name typed
+    /// five seconds ago is not a cook.
+    private func changeCook(_ member: HouseholdMember?, on entry: PlanLedger.Entry) {
+        var edit = PlanShare.Edit(changing: entry)
+        guard let member else {
+            edit.cookID = ""
+            edit.cookName = ""
+            edit.cookColorHex = ""
+            edit.cookSeat = ""
+            send(edit, haptic: { Haptic.select() })
+            return
+        }
+        var id = member.participantID ?? ""
+        if id.isEmpty, let record = member.userRecordName, !record.isEmpty { id = record }
+        if id.isEmpty, member.isMe { id = TableIdentity.cached }
+        edit.cookID = id
+        edit.cookName = member.seat == .invited ? "" : member.name
+        edit.cookColorHex = member.colorHex
+        edit.cookSeat = member.seat.rawValue
+        send(edit)
     }
 
     private func markEatingOut() {
+        if let remote {
+            var edit = PlanShare.Edit(changing: remote)
+            edit.title = "Eating out"
+            edit.tagline = "Night off the stove"
+            edit.cookID = ""
+            edit.cookName = ""
+            edit.cookColorHex = ""
+            edit.cookSeat = ""
+            edit.hasRecipe = false
+            edit.recipeMinutes = 0
+            edit.recipeOriginKey = ""
+            // A night nobody is cooking may not keep the last dish's
+            // photograph.
+            edit.photo = .clear
+            // The sheet closes when the zone says it took it, and stays to
+            // say so when it did not.
+            send(edit, closing: true)
+            return
+        }
         Haptic.plate()
         withAnimation(.plPop) {
             if let meal {
@@ -326,7 +1039,71 @@ struct PlanNightSheet: View {
         dismiss()
     }
 
+    /// Plan the night the household took off, again.
+    ///
+    /// A NEW `PlannedMeal` with a new `shoppingID`, deliberately, rather than
+    /// anything that reaches back for the one that went. Nothing contradicts
+    /// the record of the removal, the tombstone in the zone is never touched,
+    /// it behaves the same on a device that never saw the original, and the
+    /// household hears the ordinary "Nate planned Tacos for Thursday" rather
+    /// than a night reappearing with nobody's name on it.
+    ///
+    /// The recipe is looked up by title because that is all the record kept.
+    /// A dish that has since left the cookbook comes back as a named night
+    /// with no recipe behind it, which is what the person planned either way.
+    private func addBack(_ title: String) {
+        Haptic.plate()
+        withAnimation(.plPop) {
+            let meal = PlannedMeal(date: date, slot: slot)
+            // By origin key first, so a dish that has since been renamed
+            // comes back as itself and two recipes sharing a title cannot
+            // return the wrong one. The title is the fallback, and a
+            // home-written recipe with no key falls to it by design.
+            let origin = RemovedNights.addBackOrigin(on: date, slot: slot) ?? ""
+            let recipe = (origin.isEmpty ? nil : recipes.first { $0.originID == origin })
+                ?? recipes.first { $0.title == title }
+            if let recipe {
+                meal.recipe = recipe
+                meal.servings = recipe.servings
+            } else {
+                meal.customTitle = title
+            }
+            context.insert(meal)
+        }
+        // Cleared rather than left to age out. Every caption is gated on the
+        // night having no meal, so leaving it would be harmless today, and
+        // that is the point: the gate is a property of four call sites
+        // rather than of the data, and the fifth reader will not know to
+        // write it.
+        RemovedNights.forget(day: PlanDay.string(date), slot: slot)
+        dismiss()
+    }
+
     private func plate(_ recipe: Recipe, tagline: String) {
+        if let remote {
+            // The household night becomes this dish. The cook is left
+            // alone: changing what is for dinner is not a claim about who
+            // is at the stove, and the rota's answer is about this phone's
+            // own week.
+            var edit = PlanShare.Edit(changing: remote)
+            edit.title = recipe.title
+            edit.tagline = tagline
+            edit.servings = recipe.servings
+            edit.hasRecipe = true
+            edit.recipeMinutes = recipe.totalMinutes
+            edit.recipeOriginKey = recipe.originID
+            edit.photo = recipe.photoData == nil ? .clear : .send
+            // No bell row here. A local plate posts one about the night this
+            // phone planned; this is the reader's own action on somebody
+            // else's night, and a notice about your own action is the rule
+            // docs/notifications.md breaks for nothing.
+            //
+            // The dismissal belongs to the answer, not to the tap: every
+            // caller below reaches this through `plate`, so none of them
+            // closes the sheet on its own any more.
+            send(edit, photo: recipe.photoData, closing: true)
+            return
+        }
         Haptic.plate()
         let cook = CookRotation.cook(for: date, members: members, meals: meals)
         withAnimation(.plPop) {
@@ -343,7 +1120,7 @@ struct PlanNightSheet: View {
                 ))
             }
         }
-        let cookName = (cook?.isOwner ?? true) ? "you" : (cook?.name ?? "someone")
+        let cookName = (cook?.isMe ?? true) ? "you" : (cook?.name ?? "someone")
         Notifier.post(
             .mealPlanned, actor: cook?.name ?? "",
             body: "\(dayTitle): \(recipe.title). \(cookName.capitalized) cook\(cookName == "you" ? "" : "s").",
@@ -356,10 +1133,13 @@ struct PlanNightSheet: View {
         // has done anything worth being reminded about.
         Task {
             await NotificationScheduler.askOnce()
-            await NotificationScheduler.rebuild(
-                meals: meals, ownerName: members.first(where: \.isOwner)?.name ?? ""
-            )
+            await NotificationScheduler.rebuild(meals: meals)
         }
+        // This phone's own store answered before the line above ran, so the
+        // local night closes the sheet here rather than at each caller: one
+        // place decides, and a household night's dismissal can wait for the
+        // zone without every caller learning the difference.
+        dismiss()
     }
 }
 
@@ -411,7 +1191,7 @@ struct AskComposerSheet: View {
                                 Spacer()
                                 Button {
                                     Haptic.tap()
-                                    withAnimation(.plSnap) { options.remove(at: index) }
+                                    withAnimation(.plSnap) { _ = options.remove(at: index) }
                                 } label: {
                                     Image(systemName: "xmark")
                                         .accessibilityLabel("Remove option")
@@ -457,7 +1237,7 @@ struct AskComposerSheet: View {
                         VStack(alignment: .leading, spacing: 8) {
                             MicroLabel("Tag someone")
                             HStack(spacing: 8) {
-                                ForEach(members.filter { !$0.isOwner }, id: \.persistentModelID) { member in
+                                ForEach(members.filter { !$0.isMe }, id: \.persistentModelID) { member in
                                     let active = tagged.contains(member.name)
                                     Button {
                                         Haptic.tap()
@@ -530,7 +1310,7 @@ struct AskComposerSheet: View {
 
     private func post() {
         Haptic.plate()
-        let owner = members.first(where: \.isOwner)
+        let owner = members.me
         let post = TablePost(
             authorName: owner?.name ?? "Me",
             authorColorHex: owner?.colorHex ?? "FF5A3C",

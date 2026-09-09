@@ -1,12 +1,22 @@
 #!/bin/bash
 # Cut a TestFlight build: bump the build number, archive, export, upload.
 #
-# Two steps rather than one on purpose. `xcodebuild -exportArchive` switches
-# to cloud signing the moment an authentication key is passed, and a key with
-# the App Manager role is not permitted to touch signing certificates —
-# "Cloud signing permission error / No signing certificate iOS Distribution
-# found". So the export signs locally with the Apple Distribution certificate
-# in the keychain, and altool does the upload, which App Manager may do.
+# The key needs the ADMIN role, and that is the whole reason this script
+# works unattended. `xcodebuild -exportArchive` switches to cloud signing the
+# moment an authentication key is passed, and an App Manager key is not
+# permitted to touch signing certificates: "Cloud signing permission error".
+# This script used to sign the export locally to work around that, which was
+# fine until the App ID gained a capability. Enabling one invalidates every
+# provisioning profile that includes it, Xcode's automatic
+# "iOS Team Store Provisioning Profile" included, and regenerating that needs
+# an account: without one the export fails with "No Accounts" and a profile
+# that "doesn't include the Communication Notifications capability", on a
+# machine where nothing is wrong except that nobody is signed in.
+#
+# So the export takes the key too. An Admin key can cloud sign AND regenerate
+# the profile, which means a capability added to the App ID costs nothing
+# here: the next build picks it up. Two builds died on this before the key
+# was made.
 #
 # Upload is not distribution. The External group, the one behind the public
 # TestFlight link, only holds builds that were added to it, so after the
@@ -20,7 +30,9 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-ASC_KEY_ID="${ASC_KEY_ID:-PHQC2AV3TY}"
+# Admin, not App Manager. See the note above: an App Manager key cannot
+# cloud sign, so it cannot regenerate a profile the App ID has outgrown.
+ASC_KEY_ID="${ASC_KEY_ID:-Y82DF7WZU6}"
 ASC_ISSUER_ID="${ASC_ISSUER_ID:-dcfbb9f3-5699-4044-a26a-f3c7c98fbd29}"
 KEY_PATH="${ASC_KEY_PATH:-$HOME/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8}"
 
@@ -57,6 +69,16 @@ fi
   echo "✗ Design tokens have drifted. Run scripts/check-tokens." >&2; exit 1; }
 "$(dirname "${BASH_SOURCE[0]}")/check-design" >/dev/null || {
   echo "✗ A DESIGN.md rule is broken. Run scripts/check-design." >&2; exit 1; }
+# A TestFlight build talks to PRODUCTION CloudKit, which does not mint types
+# on demand the way Development does. A field the schema has never seen
+# fails its save with `.invalidArguments`, and every one of those failures
+# in this app is silent: the outbox drops the row after twenty tries with a
+# print, and the host of a household simply gets no invite link back. This
+# is the one gate whose failure is invisible on the phone, so it is checked
+# here rather than remembered. Not applied to `make phone`, which is a Debug
+# build against Development and mints as it goes.
+"$(dirname "${BASH_SOURCE[0]}")/check-schema" >/dev/null || {
+  echo "✗ CloudKit fields are not deployed to Production. Run scripts/check-schema." >&2; exit 1; }
 
 rm -rf "$ARCHIVE" "$EXPORT"
 echo "▸ archiving…"
@@ -69,12 +91,15 @@ xcodebuild archive \
   -allowProvisioningUpdates \
   -quiet
 
-echo "▸ exporting (signed locally, no auth key — see note at top)…"
+echo "▸ exporting (cloud signing with the Admin key — see note at top)…"
 xcodebuild -exportArchive \
   -archivePath "$ARCHIVE" \
   -exportOptionsPlist config/ExportOptions.plist \
   -exportPath "$EXPORT" \
-  -allowProvisioningUpdates
+  -allowProvisioningUpdates \
+  -authenticationKeyPath "$KEY_PATH" \
+  -authenticationKeyID "$ASC_KEY_ID" \
+  -authenticationKeyIssuerID "$ASC_ISSUER_ID"
 
 if [ "$UPLOAD" = 0 ]; then
   echo "▸ exported to $EXPORT/Plated.ipa (upload skipped)"

@@ -94,7 +94,6 @@ struct TableFeedView: View {
     /// and the photo is a door — so the menu carries the rest.
     @State private var pendingDelete: TablePost?
     @State private var editingPost: TablePost?
-    @AppStorage("pendingSeats") private var pendingSeatsRaw = ""
 
     /// Everything worth showing. A post with no author, no dish, no words
     /// and no photo is not a post — see `TablePost.isBlank`. Filtered here
@@ -103,18 +102,12 @@ struct TableFeedView: View {
     private var realPosts: [TablePost] { posts.filter(\.isUserContent) }
 
     private var seatCount: Int {
-        // "Sam Meadows" the author is "Sam" the household member — first
-        // names bridge the two worlds until real user IDs exist.
-        let knownNames = Set(members.map(\.name))
-        let guests = Set(
-            realPosts.filter { $0.kind == "dish" }
-                .map(\.authorName)
-                .filter { !knownNames.contains($0) && !knownNames.contains(String($0.split(separator: " ").first ?? "")) }
+        // Who can plate: head/joined seats plus Table guest authors —
+        // same denominator the Chef's kiss uses (TableKiss.seating).
+        TableKiss.seating(
+            members: members,
+            dishAuthors: realPosts.filter { $0.kind == "dish" }.map(\.authorName)
         )
-        // Members already include everyone invited or joined — the old sum
-        // double-counted pending ghosts while omitting people who had
-        // actually accepted.
-        return max(members.count + guests.count, 1)
     }
 
     /// Pull to refresh. `@Query` is live, so anything CloudKit has already
@@ -184,7 +177,7 @@ struct TableFeedView: View {
             return all.first { $0.shareRecordName == name }
         }
         await TableOutbox.shared.drain(
-            authorName: members.first(where: \.isOwner)?.name ?? ""
+            authorName: members.me?.name ?? ""
         )
         // Two different pipes, pulled together because the user pulled once.
         // The mirror carries this household's own devices; TableShare
@@ -295,58 +288,11 @@ struct TableFeedView: View {
         }
     }
 
-    /// The people you granted and invited when you set your table.
-    ///
-    /// An invite is not an account, so these people have no posts — which
-    /// meant "Everyone" quietly showed everyone who had *posted*, and the
-    /// contacts you had just handed over appeared nowhere. Same storage the
-    /// seats sheet reads, so cancelling an invite there empties it here.
-    private var invitedSeats: [String] {
-        pendingSeatsRaw.split(separator: "\n").map(String.init).filter { !$0.isEmpty }
-    }
-
     private func initials(for name: String) -> String {
         let parts = name.split(separator: " ")
             .filter { $0.first?.isLetter == true }
             .prefix(2)
         return parts.compactMap { $0.first }.map(String.init).joined().uppercased()
-    }
-
-    /// Faces before posts: who is at the table reads ahead of what they
-    /// cooked. Neutral tone, matching the seats sheet — an invited person
-    /// has not earned a color yet.
-    private var invitedStrip: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            MicroLabel("You invited")
-                .padding(.horizontal, 24)
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 16) {
-                    ForEach(invitedSeats, id: \.self) { name in
-                        Button {
-                            Haptic.tap()
-                            seatsPresented = true
-                        } label: {
-                            VStack(spacing: 6) {
-                                AvatarCircle(
-                                    initials: initials(for: name),
-                                    tone: .neutralPair, size: 48,
-                                    photo: members.photo(forAuthor: name)
-                                )
-                                Text(name.split(separator: " ").first.map(String.init) ?? name)
-                                    .plType(.micro, .semibold)
-                                    .foregroundStyle(Color.inkSecondary)
-                                    .lineLimit(1)
-                            }
-                            .frame(width: 62)
-                        }
-                        .buttonStyle(.pressable)
-                        .accessibilityLabel("\(name), invited")
-                    }
-                }
-                .padding(.horizontal, 24)
-            }
-        }
-        .padding(.vertical, 14)
     }
 
     /// True once "Everyone" and "Household" could return different lists —
@@ -406,9 +352,6 @@ struct TableFeedView: View {
 
                 ScrollView(showsIndicators: false) {
                     LazyVStack(spacing: 0) {
-                        if scope == .everyone, !invitedSeats.isEmpty {
-                            invitedStrip
-                        }
                         ForEach(Array(shownPosts.enumerated()),
                                 id: \.element.persistentModelID) { index, post in
                             // Before each card except the very first thing in
@@ -416,7 +359,7 @@ struct TableFeedView: View {
                             // the boundary BETWEEN two rows; trailing the final
                             // one, the feed ended on a hairline with nothing
                             // under it but the floating bar's inset.
-                            if index > 0 || (scope == .everyone && !invitedSeats.isEmpty) {
+                            if index > 0 {
                                 Divider().overlay(Color.hairlineSoft)
                             }
                             Group {
@@ -461,10 +404,14 @@ struct TableFeedView: View {
                     // Seed the ledger from the fields that used to hold
                     // this, once, before anything reads it.
                     TableReactions.backfill(posts, context: context)
-                    // Ask CloudKit who we are. A placeholder minted while
-                    // offline is re-attributed the moment a real id arrives,
-                    // so nothing tapped on a plane is orphaned.
-                    await TableIdentity.confirmAndReattribute()
+                    // Ask CloudKit who we are, through the one door: a
+                    // placeholder minted while offline is re-attributed the
+                    // moment a real id arrives, so nothing tapped on a plane
+                    // is orphaned, and a real id that became a different
+                    // real id is an account switch, not a rename. The copy
+                    // that used to live here moved the ledger and the outbox
+                    // and left the household rows behind.
+                    _ = await TableIdentity.confirmAndReattribute(in: context)
                     await refreshFeed()
                 }
                 // A seat accepted from Messages while the Table is already
@@ -477,9 +424,6 @@ struct TableFeedView: View {
                 )) { _ in
                     Task { await refreshFeed() }
                 }
-                .onReceive(NotificationCenter.default.publisher(for: ShareAcceptor.didAccept)) { _ in
-                    Task { await TablePull.pull(reason: "accept") }
-                }
                 // A notice about one dish opens that dish. The request is
                 // parked by the shell; the feed collects it here, or on
                 // appear if the Table was not on screen when it was tapped.
@@ -490,7 +434,6 @@ struct TableFeedView: View {
             .background(Color.canvas)
             .toolbar(.hidden, for: .navigationBar)
             .plSwipeBack()
-            .sheet(isPresented: $composerShown) { TableComposerSheet() }
             .navigationDestination(item: $threadPost) { post in
                 PostThreadView(post: post, startWriting: threadStartsWriting) { beginSave($0) }
                     .navigationTransition(.zoom(sourceID: post.persistentModelID, in: zoom))
@@ -509,8 +452,27 @@ struct TableFeedView: View {
                 }
             }
         }
-        .sheet(isPresented: $seatsPresented) {
-            TableSeatsSheet()
+        // Two `.sheet` modifiers on one view is undefined — see CLAUDE.md.
+        // Composer lived on the stack's content before; same sheet content,
+        // one presentation owner with seats / edit / save.
+        .sheet(item: feedSheet) { destination in
+            switch destination {
+            case .composer:
+                TableComposerSheet()
+            case .seats:
+                TableSeatsSheet()
+            case .editPost(let post):
+                PostEditSheet(post: post)
+            case .editSave(let post):
+                RecipeEditorView(prefill: (
+                    title: post.dishTitle.isEmpty ? "\(post.firstName)'s dish" : post.dishTitle,
+                    summary: post.caption,
+                    photo: post.photoData,
+                    originID: post.originKey
+                )) { _ in
+                    finishSave(post)
+                }
+            }
         }
         .confirmationDialog(
             pendingDelete.map { $0.dishTitle.isEmpty ? "Delete this post?" : "Delete \($0.dishTitle)?" }
@@ -535,23 +497,9 @@ struct TableFeedView: View {
             personShown = nil
             pushed = nil
         }
-        .sheet(item: $editingPost) { post in
-            PostEditSheet(post: post)
-        }
-        .sheet(item: $editingSave) { post in
-            RecipeEditorView(prefill: (
-                title: post.dishTitle.isEmpty ? "\(post.firstName)'s dish" : post.dishTitle,
-                summary: post.caption,
-                photo: post.photoData,
-                originID: post.originKey
-            )) { _ in
-                finishSave(post)
-            }
-        }
         .onAppear {
             // While the feed is in front, a banner about a new dish would
             // point at what is already on screen. See NotificationRouter.
-            Presence.shared.feedVisible = true
             openRequestedPost()
             #if DEBUG
             if LaunchFlags.consume("-plated-open-discover") {
@@ -565,7 +513,6 @@ struct TableFeedView: View {
             }
             #endif
         }
-        .onDisappear { Presence.shared.feedVisible = false }
         .overlay(alignment: .bottom) {
             if let toast = savedToast {
                 Text(toast)
@@ -582,6 +529,37 @@ struct TableFeedView: View {
                     .transition(.plRise)
             }
         }
+    }
+
+    private enum FeedSheet: Identifiable {
+        case composer, seats, editPost(TablePost), editSave(TablePost)
+        var id: String {
+            switch self {
+            case .composer: "composer"
+            case .seats: "seats"
+            case .editPost(let post): "edit-post-\(post.persistentModelID)"
+            case .editSave(let post): "edit-save-\(post.persistentModelID)"
+            }
+        }
+    }
+    private var feedSheet: Binding<FeedSheet?> {
+        Binding(
+            get: {
+                if composerShown { return .composer }
+                if seatsPresented { return .seats }
+                if let editingPost { return .editPost(editingPost) }
+                if let editingSave { return .editSave(editingSave) }
+                return nil
+            },
+            set: {
+                if $0 == nil {
+                    composerShown = false
+                    seatsPresented = false
+                    editingPost = nil
+                    editingSave = nil
+                }
+            }
+        )
     }
 
     // MARK: Header
@@ -628,10 +606,10 @@ struct TableFeedView: View {
 
     @ViewBuilder
     private var headerControls: some View {
-            // Discover lives with the other icon buttons rather than alone in
-            // a row of its own. It is chrome, not a filter, and it has
-            // nothing to do with the scope beside which it used to sit.
-            IconDiscButton(systemName: "magnifyingglass", label: "Discover", glyphSize: 15) {
+            // Sparkles, not a magnifying glass: Discover is finding dishes
+            // worth plating, not searching a catalogue, and a search glyph
+            // promised a filter that this button never opened.
+            IconDiscButton(systemName: "sparkles", label: "Discover", glyphSize: 15) {
                 pushed = .discover
             }
             ActivityBellButton {
@@ -649,7 +627,7 @@ struct TableFeedView: View {
                     // does not exist, on the first screen every new user
                     // sees. It is an overflow marker, so it appears only
                     // when something has actually overflowed.
-                    let others = Array(members.filter { !$0.isOwner }.prefix(2))
+                    let others = Array(members.filter { !$0.isMe }.prefix(2))
                     ForEach(others, id: \.persistentModelID) { member in
                         AvatarCircle(member: member, size: 34)
                             .overlay(Circle().strokeBorder(Color.canvas, lineWidth: 2))
@@ -686,9 +664,12 @@ struct TableFeedView: View {
             } label: {
                 VStack(spacing: 2) {
                     AvatarCircle(initials: hostInitial, tone: .neutralPair, size: 38,
-                                 photo: members.first(where: \.isOwner)?.photoData)
+                                 photo: members.me?.photoData)
                         .matchedTransitionSource(id: ZoomID.host, in: zoom)
-                    Text("HOST")
+                    // The label is a fact about the row, not the corner: on
+                    // a member's phone the face in this corner is theirs and
+                    // the host is somebody else.
+                    Text(members.me?.isOwner == false ? "YOU" : "HOST")
                         .plType(.micro)
                         .foregroundStyle(Color.inkSecondary)
                         // One line, always. This sits in a squeezed masthead
@@ -712,11 +693,11 @@ struct TableFeedView: View {
     }
 
     private var hostInitial: String {
-        String(members.first(where: \.isOwner)?.name.first ?? "Y").uppercased()
+        String(members.me?.name.first ?? "Y").uppercased()
     }
 
     private func openOwnProfile() {
-        let me = members.first(where: \.isOwner)
+        let me = members.me
         personDoor = .host
         personShown = PersonRef(name: me?.name ?? "You", colorHex: me?.colorHex ?? "", memberID: me?.persistentModelID)
     }
@@ -867,7 +848,7 @@ struct TableFeedView: View {
                         .allowsHitTesting(false)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
-                if post.hasChefsKiss(seats: members.count) {
+                if post.hasChefsKiss(seats: seatCount) {
                     chefsKissPill
                         .offset(x: 6, y: -10)
                         // Appears; does not launch. 0.01 threw it in from
@@ -1040,7 +1021,7 @@ struct TableFeedView: View {
         .padding(.horizontal, 24)
         .padding(.top, 16)
         .padding(.bottom, 18)
-        .animation(.plPop, value: post.hasChefsKiss(seats: members.count))
+        .animation(.plPop, value: post.hasChefsKiss(seats: seatCount))
         .contextMenu { postMenu(post, canSave: true) }
     }
 
@@ -1124,7 +1105,7 @@ struct TableFeedView: View {
         // always was. Two people called Sam broke this in about six places.
         if !post.authorID.isEmpty { return post.authorID == TableIdentity.cached }
         guard !post.isRemote else { return false }
-        guard let me = members.first(where: \.isOwner)?.name else { return false }
+        guard let me = members.me?.name else { return false }
         return post.authorName == me || post.firstName == me
     }
 
@@ -1344,7 +1325,7 @@ struct TableFeedView: View {
             turningOn = TableReactions.togglePlate(post)
         }
         if turningOn {
-            post.hasChefsKiss(seats: members.count) ? Haptic.kiss() : Haptic.plate()
+            post.hasChefsKiss(seats: seatCount) ? Haptic.kiss() : Haptic.plate()
             // NO notification here, deliberately.
             //
             // `Notifier.postOnce` writes into the LOCAL context, and plates
@@ -1560,7 +1541,10 @@ struct PlateReactionButton: View {
                 bounce = true
             }
             if turningOn {
-                post.hasChefsKiss(seats: members.count) ? Haptic.kiss() : Haptic.plate()
+                // Same seating rule as the feed — this button lives outside
+                // TableFeedView, so it cannot see seatCount.
+                let seats = TableKiss.seating(members: members, dishAuthors: [post.authorName])
+                post.hasChefsKiss(seats: seats) ? Haptic.kiss() : Haptic.plate()
                 // The second copy of the notification removed in
                 // togglePlate above, and the same reason: it was written
                 // into the local context, so it only ever reached the

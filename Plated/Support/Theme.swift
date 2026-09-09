@@ -118,9 +118,12 @@ struct PersonTone: Equatable {
 
     static func from(hex: String) -> PersonTone {
         switch hex.uppercased() {
-        case "FF5A3C": return .tomatoPair
+        case "FF5A3C", "C86629": return .tomatoPair
         case "3DA35D": return .basilPair
-        case "C88A00": return .amberPair
+        // C88A00 is the stored rotation key; BF8300 is amber's light value
+        // after the contrast darkening — both must resolve or a seat that
+        // somehow held the colour token would fall through to neutral.
+        case "C88A00", "BF8300": return .amberPair
         case "B95CF4": return .grapePair
         default:       return .neutralPair
         }

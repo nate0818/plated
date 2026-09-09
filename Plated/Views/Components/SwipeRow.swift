@@ -79,7 +79,7 @@ struct SwipeRow<Content: View>: View {
                             if actionLabel != nil {
                                 VStack(spacing: 4) {
                                     Image(systemName: action.symbol).font(.system(size: 16, weight: .semibold))
-                                    Text(action.label).plType(.micro, .semibold).lineLimit(2).multilineTextAlignment(.center)
+                                    Text(action.label).plType(.micro, .semibold).lineLimit(1).plActionLabel().multilineTextAlignment(.center)
                                 }
                                 .foregroundStyle(action.destructive ? Color.canvas : Color.ink)
                                 .frame(width: 64, height: 60)

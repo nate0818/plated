@@ -1,6 +1,5 @@
 import SwiftUI
 import MessageUI
-import ContactsUI
 
 /// The system message composer, addressed to one person, carrying the
 /// invitation.
@@ -9,6 +8,11 @@ import ContactsUI
 /// user's own Messages sheet, and the send button is theirs to press. That
 /// is both the only thing iOS allows and the right behaviour — an app that
 /// texts your contacts on your behalf is an app you uninstall.
+///
+/// Used for a resend, where the person is already a row. A fresh
+/// invitation goes through `InviteFlow`, which drives the picker and this
+/// same composer from UIKit; the SwiftUI `ContactPicker` that used to sit
+/// beside this was the two-sheet chain that lost every pick, and is gone.
 struct InviteComposer: UIViewControllerRepresentable {
     var recipients: [String]
     var body: String
@@ -19,7 +23,15 @@ struct InviteComposer: UIViewControllerRepresentable {
     static var isAvailable: Bool { MFMessageComposeViewController.canSendText() }
 
     func makeUIViewController(context: Context) -> MFMessageComposeViewController {
+        // Simulator and some locked-down iPhones cannot send texts. Presenting
+        // the composer anyway is how this used to blank or crash; the caller
+        // must gate on `isAvailable`, and this is the last line of defence.
         let controller = MFMessageComposeViewController()
+        guard Self.isAvailable else {
+            print("PLATED INVITE: InviteComposer presented without Messages; finishing as not sent")
+            DispatchQueue.main.async { onFinish(false) }
+            return controller
+        }
         controller.recipients = recipients
         controller.body = body
         controller.messageComposeDelegate = context.coordinator
@@ -43,53 +55,16 @@ struct InviteComposer: UIViewControllerRepresentable {
     }
 }
 
-/// Pick somebody out of Contacts to invite.
-///
-/// The system picker rather than our own list, deliberately: it searches
-/// every contact, it needs no permission prompt of its own (it runs out of
-/// process and hands back only what was chosen), and it is the sheet people
-/// already know. Onboarding's five-name shortlist is for the first run;
-/// this is for the other 300 people you know.
-struct ContactPicker: UIViewControllerRepresentable {
-    var onPick: (_ name: String, _ phone: String?) -> Void
-    var onCancel: () -> Void = {}
-
-    func makeUIViewController(context: Context) -> CNContactPickerViewController {
-        let picker = CNContactPickerViewController()
-        picker.delegate = context.coordinator
-        // Somebody with no number cannot be sent an invitation, so they are
-        // not offered as one.
-        picker.predicateForEnablingContact = NSPredicate(format: "phoneNumbers.@count > 0")
-        return picker
-    }
-
-    func updateUIViewController(_ picker: CNContactPickerViewController, context: Context) {}
-
-    func makeCoordinator() -> Coordinator { Coordinator(self) }
-
-    final class Coordinator: NSObject, CNContactPickerDelegate {
-        private let parent: ContactPicker
-        init(_ parent: ContactPicker) { self.parent = parent }
-
-        func contactPicker(_ picker: CNContactPickerViewController, didSelect contact: CNContact) {
-            let name = "\(contact.givenName) \(contact.familyName)"
-                .trimmingCharacters(in: .whitespaces)
-            parent.onPick(
-                name.isEmpty ? contact.nickname : name,
-                contact.phoneNumbers.first?.value.stringValue
-            )
-        }
-
-        func contactPickerDidCancel(_ picker: CNContactPickerViewController) {
-            parent.onCancel()
-        }
-    }
-}
-
 /// Who we are inviting and how to reach them, carried between the moment
 /// somebody is chosen and the moment the composer opens.
 struct InviteTarget: Identifiable {
-    var id: String { name + (phone ?? "") }
+    /// The seat's `shareRecordName`. Two invited seats called Sam are two
+    /// seats (the roster insists on it everywhere else), so a name and a
+    /// number cannot be the key: with it the composer's answer stamped
+    /// "Invited today" on whichever Sam came first in the roster, and the
+    /// one actually re-sent kept their old date.
+    var seat: String
+    var id: String { seat }
     var name: String
     var phone: String?
 }

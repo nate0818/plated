@@ -3,23 +3,42 @@ import SwiftUI
 /// A night somebody else planned, drawn beside this phone's own.
 ///
 /// A remote night is a `PlanLedger.Entry`, never a `PlannedMeal`, and the
-/// planner draws it as a read-only overlay (docs/plan-share.md, "Drawing a
-/// remote night"). The geometry is `WeekView.plannedRow`'s, because peers
-/// look like peers: canvas ground at `Radius.row`, the 0.5pt hairline
-/// underline, the 40pt date column, 60pt artwork at `Radius.small`, minHeight
-/// 76. What it may never carry: a swipe tray, a drag lift, an ellipsis, Edit,
-/// Move, Remove, Cooked, or a Let's cook it cannot honour. The zone permits
-/// the write, but the origin phone would have to merge it back into its own
-/// `PlannedMeal`, and a control that does nothing is the honesty rule broken.
+/// planner draws it beside this phone's own nights (docs/plan-share.md,
+/// "Drawing a remote night"). The geometry is `WeekView.plannedRow`'s,
+/// because peers look like peers: canvas ground at `Radius.row`, the 0.5pt
+/// hairline underline, the 40pt date column, 60pt artwork at `Radius.small`,
+/// minHeight 76.
+///
+/// It is editable now, through the same door the local row uses: a tap into
+/// the day, and on the day page a tap into `PlanNightSheet`, which changes
+/// the night by writing the household zone record. What it still may never
+/// carry is a drag lift or a Move: moving a night swaps two nights' dates,
+/// and the night on the other date is very often this phone's own
+/// `PlannedMeal`, so one gesture would be two writes in two authorities.
+/// Nor a Cooked toggle, nor a Let's cook it cannot honour.
 ///
 /// `onOpen` nil means the row is a fact, not a door: no tap, no button
-/// trait, no hint. The day page lists it that way, since it is already the
-/// day.
+/// trait, no hint. A night that is going is drawn that way: see `isGoing`.
 struct RemotePlanRow: View {
     let entry: PlanLedger.Entry
     let date: Date
     var members: [HouseholdMember] = []
     var onOpen: (() -> Void)? = nil
+    /// What the tap opens, said out loud. The week and the month open the
+    /// day; the day page opens the night itself, where it can be changed.
+    var openHint: String = "Opens the day"
+    /// Which list this row is standing in, which decides its geometry.
+    ///
+    /// DESIGN.md: one row, one geometry, and peers look like peers. In the
+    /// week and the month a remote night stands beside `plannedRow`, so it
+    /// wears the week list's clothes: a date column, because the list spans
+    /// days, and a hairline underline. On the day page it stands beside
+    /// `mealCard`, which is a bordered card on a page whose title is
+    /// already the date, so it wears that instead. Drawn in the week's
+    /// clothes there, it read as a different kind of thing from the meal
+    /// directly above it, and repeated a date the masthead had already said.
+    enum Place { case week, day }
+    var place: Place = .week
 
     private var ledger: PlanLedger { PlanLedger.shared }
     private var today: Bool { Calendar.current.isDateInToday(date) }
@@ -27,7 +46,7 @@ struct RemotePlanRow: View {
     var body: some View {
         let cookLine = ledger.cookLine(for: entry)
         HStack(spacing: 10) {
-            PlanDateColumn(date: date)
+            if place == .week { PlanDateColumn(date: date) }
 
             RecipeArtwork(data: ledger.photo(for: entry.recordName), title: entry.title, ratio: 1, radius: Radius.small)
                 .frame(width: 60)
@@ -66,12 +85,20 @@ struct RemotePlanRow: View {
             Spacer(minLength: 8)
         }
         .padding(.vertical, 12)
-        .padding(.leading, 8)
+        .padding(.leading, place == .week ? 8 : 14)
         .padding(.trailing, 14)
         .frame(minHeight: 76)
         .background(Color.canvas, in: Radius.shape(Radius.row))
         .overlay {
-            VStack { Spacer(); Rectangle().fill(Color.hairline).frame(height: 0.5) }
+            // The stroke is the geometry, not decoration: the day page's
+            // meal above this one is a bordered card, and a row that
+            // answered it with an underline read as a different species.
+            switch place {
+            case .week:
+                VStack { Spacer(); Rectangle().fill(Color.hairline).frame(height: 0.5) }
+            case .day:
+                Radius.shape(Radius.row).strokeBorder(Color.navHairline, lineWidth: 1.5)
+            }
         }
         .contentShape(Rectangle())
         .onTapGesture {
@@ -84,22 +111,51 @@ struct RemotePlanRow: View {
         .accessibilityElement(children: .combine)
         .accessibilityLabel(spokenLabel(cookLine: cookLine))
         .accessibilityAddTraits(onOpen == nil ? [] : .isButton)
-        .accessibilityHint(onOpen == nil ? "" : "Opens the day")
+        .accessibilityHint(onOpen == nil ? "" : openHint)
     }
 
     /// "Planned by Nate", joined to the night's own tag line the way the
-    /// local row joins its parts.
-    private var caption: String {
-        let planned = "Planned by \(entry.authorFirstName)"
-        return entry.tagline.isEmpty ? planned : "\(planned) · \(entry.tagline)"
+    /// local row joins its parts. A change this phone has made but not sent
+    /// says so here: the row already shows the new dish, and the sentence is
+    /// what keeps that from being a claim that the household has it.
+    ///
+    /// A night that is going replaces the author with what is happening to
+    /// it, in the same quiet caption. The row is still standing and its dish
+    /// is still drawn, so without this a delete that has not left the phone
+    /// looks exactly like a night nobody touched. Its own tag line goes too:
+    /// "Picked for you" under a night coming off the plan is a sentence
+    /// about a dinner that is no longer the point, and three clauses
+    /// truncate at the larger type sizes. `pendingLine` is the ledger's, so
+    /// the caption and the hero cannot drift into two vocabularies.
+    ///
+    /// Static so the sentence can be read in a test, and so the sheet's own
+    /// card says these words rather than keeping a second copy of them: two
+    /// hand-kept captions for one night is how two screens drift, which is
+    /// why `OptionRow` is in Theme.swift at all.
+    static func caption(for entry: PlanLedger.Entry) -> String {
+        var parts = entry.isGoing ? ["Coming off the plan"] : ["Planned by \(entry.authorFirstName)"]
+        if !entry.isGoing, !entry.tagline.isEmpty { parts.append(entry.tagline) }
+        if let pending = entry.pendingLine { parts.append(pending) }
+        return parts.joined(separator: " · ")
     }
 
+    private var caption: String { Self.caption(for: entry) }
+
     /// "Thursday, Tacos, Riley is cooking, planned by Nate".
-    private func spokenLabel(cookLine: String?) -> String {
-        var parts = [today ? "Tonight" : date.formatted(.dateTime.weekday(.wide)), entry.title]
+    static func spokenLabel(entry: PlanLedger.Entry, day: String, cookLine: String?) -> String {
+        var parts = [day, entry.title]
         if let cookLine { parts.append(cookLine) }
         parts.append("planned by \(entry.authorFirstName)")
+        if let pending = entry.pendingSpoken { parts.append(pending) }
         return parts.joined(separator: ", ")
+    }
+
+    private func spokenLabel(cookLine: String?) -> String {
+        Self.spokenLabel(
+            entry: entry,
+            day: today ? "Tonight" : date.formatted(.dateTime.weekday(.wide)),
+            cookLine: cookLine
+        )
     }
 }
 

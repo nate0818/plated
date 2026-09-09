@@ -28,6 +28,12 @@ enum PlatedStore {
     /// `cloudKitDatabase: .automatic` uses the iCloud container when the
     /// entitlement is present and quietly falls back to local-only storage
     /// when it is not, so the app runs without a signing team configured.
+    ///
+    /// The household save observer (`HouseholdSync.observe`) is NOT
+    /// installed here: this is a static initialiser and cannot reach the
+    /// main actor. `PlatedApp.init` and every App Intent's `perform` call
+    /// `HouseholdSync.ensureObserving()`, which are the two doors a save
+    /// can come through.
     static let shared: ModelContainer = {
         migrateLegacyStoreIfNeeded()
         // Purge mode runs without a mirror: deleting the server zone while

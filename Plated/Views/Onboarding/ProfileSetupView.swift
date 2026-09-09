@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 import PhotosUI
 
 /// "Put a face to your name" — the step between signing in and setting the
@@ -14,9 +15,14 @@ import PhotosUI
 /// One tap to the library, one to the camera, and a way past for anyone who
 /// does not want to. The name comes prefilled from Apple when Apple gave it,
 /// which is only ever on the very first authorization.
+///
+/// This step also lays the owner's place (docs/household.md §6): the host
+/// seat has to exist before the first invitation, and a person joining
+/// from a link never reaches the invite screen that used to lay it.
 struct ProfileSetupView: View {
     let onDone: () -> Void
 
+    @Environment(\.modelContext) private var context
     @AppStorage("userFirstName") private var userFirstName = ""
     @State private var name = ""
     @State private var photoData: Data?
@@ -111,6 +117,14 @@ struct ProfileSetupView: View {
                 // now" means later.
                 Button {
                     Haptic.tap()
+                    // "Not now" declines the PHOTO. A name that has been
+                    // typed is still their name, and leaving it here left
+                    // the row called Nate while `userFirstName` stayed
+                    // empty: every invitation then went out as "Join my
+                    // household on Plated", with no host in the link and no
+                    // host name on the household root.
+                    if !trimmedName.isEmpty { userFirstName = trimmedName }
+                    layOwnersPlace(photo: nil)
                     onDone()
                 } label: {
                     Text("Not now")
@@ -177,10 +191,47 @@ struct ProfileSetupView: View {
 
     private func finish() {
         if !trimmedName.isEmpty { userFirstName = trimmedName }
-        // Parked rather than written: the head of the table does not exist
-        // yet. See ProfilePhoto for why that ordering is deliberate.
+        // Parked as well as hung: on a simulator the head of the table is
+        // the sample seed's to lay, and the shell hangs the parked bytes on
+        // it the first time there is a row. See ProfilePhoto.
         ProfilePhoto.park(photoData)
+        layOwnersPlace(photo: photoData)
         onDone()
+    }
+
+    /// Every household has a head, and it is the person who just gave their
+    /// name. Laid here, on both ways out, so the seat exists before the
+    /// first invitation and before a link-joiner's claim moves it.
+    ///
+    /// Not on a simulator: the sample seed checks for an empty roster, and
+    /// a head laid here would defeat it (see `ContactsView.finish`, which
+    /// keeps the same guard as a safety net). A fetch FAILURE aborts rather
+    /// than inserting: only a confirmed zero earns a new row.
+    private func layOwnersPlace(photo: Data?) {
+        #if !targetEnvironment(simulator)
+        let owners = try? context.fetchCount(
+            FetchDescriptor<HouseholdMember>(predicate: #Predicate { $0.role == "owner" })
+        )
+        guard owners == 0 else { return }
+        let me = HouseholdMember(
+            name: trimmedName.isEmpty ? (userFirstName.isEmpty ? "Me" : userFirstName) : trimmedName,
+            colorHex: "FF5A3C", isPrimaryCook: true,
+            role: "owner", roleLine: "Head of table", cookWeekdays: [],
+            seat: .head
+        )
+        // Identity once CloudKit has confirmed one; a placeholder is never
+        // written onto a seat, because a seat's identity is set once and
+        // never replaced (docs/household.md §3.1).
+        if !TableIdentity.isPlaceholder { me.userRecordName = TableIdentity.cached }
+        me.authorID = TableIdentity.cached
+        if let photo {
+            me.photoData = photo
+            ProfilePhoto.clearParked()
+        }
+        context.insert(me)
+        Persist.save(context, "owner's place")
+        print("PLATED HOUSEHOLD: laid the owner's place for \(me.name)")
+        #endif
     }
 }
 

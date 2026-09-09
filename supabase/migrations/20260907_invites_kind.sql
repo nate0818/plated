@@ -1,0 +1,34 @@
+-- STEP 1 OF 3. Apply this one on its own, before the function is deployed.
+--
+-- The three steps, in this order, and not together:
+--   1. apply this migration (adds `kind`)
+--   2. supabase functions deploy invite --no-verify-jwt
+--   3. apply 20260908_invites_drop_share_url.sql (drops `share_url`, `seat`)
+--
+-- There is no safe order for an add and a drop in one file, which is what
+-- this migration used to be. The function live on the project writes
+-- `share_url` on every insert, so dropping that column first breaks it. The
+-- new function writes `kind`, so deploying it first breaks too, against a
+-- column that does not exist yet. Splitting the drop out is what makes each
+-- step safe on its own: this one is invisible to the old function, which
+-- never writes `kind` and never reads it.
+--
+-- `supabase db push` applies every pending migration at once, so do not run
+-- it while step 3 is sitting unapplied. Apply this file by name.
+--
+-- The insert's error is now checked in the function, so a wrong order is
+-- loud (a 503, and nothing sent) rather than silent. That check is what
+-- makes the mistake visible; it does not make the wrong order safe. The
+-- daily limits, twenty per host and two per pair, are counted by querying
+-- this table, so a silently failing insert would have stopped counting them
+-- while the pushes kept going out.
+
+-- An invitation is now to one of two rooms: a seat at the host's Table, or
+-- a place in the host's household (the plan, the grocery list and the
+-- cookbook). /invite composes a different banner for each, and the app opens
+-- a different sheet, so the row has to remember which it was. The default is
+-- 'table' because every row before this date was one, and because an older
+-- build that never sends `kind` is still inviting people to its Table.
+-- docs/household.md sections 6 and 7.
+alter table public.invites
+  add column if not exists kind text not null default 'table';

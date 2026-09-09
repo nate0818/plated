@@ -1,0 +1,108 @@
+#!/usr/bin/env bash
+# Refuse to ship a build whose CloudKit record fields are not the ones the
+# Production schema was last deployed with.
+#
+# A TestFlight or App Store build talks to the PRODUCTION CloudKit
+# environment, and Production does not mint types on demand the way
+# Development does. A field the code writes but the schema has never seen
+# fails the save with `.invalidArguments`, and every one of those failures
+# in this app is silent: `HouseholdOutbox` drops the row after twenty tries
+# with a print, `invitationURL` catches and returns nil so the host simply
+# gets no invite link, and the plan's queue keeps a change that will never
+# land. Nothing on any screen says why.
+#
+# So this is a lock, not a check. It reads the field names the code writes,
+# compares them against config/cloudkit-schema.txt, and fails on any
+# difference. When it fails the fix is NOT to edit the manifest: it is to
+# prime the schema on a phone (-plated-prime-household, then
+# -plated-prime-share), Deploy to Production in the CloudKit console, and
+# only then run this with --accept to record what is now deployed.
+#
+# Same shape as check-tokens, and for the same reason: a rule that a person
+# has to remember on the day they ship is a rule that gets forgotten.
+#
+# WHAT THIS CANNOT TELL YOU, stated so nobody mistakes a tick for a promise.
+# The manifest is built from the CODE, not from CloudKit, so it answers "have
+# the fields the code writes changed since somebody last deployed" and never
+# "is the Production schema actually correct". A field that no primer mints
+# is invisible to CloudKit and would still be recorded as deployed by
+# --accept. The primers are what make a field real; this only makes sure
+# nobody ships past them without noticing.
+
+set -o pipefail
+cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1
+
+MANIFEST="config/cloudkit-schema.txt"
+
+# Every literal record key the household and table writers use. Grepped from
+# the two files that own the wire, so a field added to a record shows up
+# here on the commit that adds it.
+# Each field is reported with the writer it lives in, not as a bare name.
+# A bare set cannot tell "a new field" from "a field this type has never had
+# before": `removed` is deployed on the night record, and adding `removed` to
+# the recipe record would have matched an entry already in the manifest and
+# shipped with a tick. The enclosing `func` is the cheapest stand-in for the
+# record type and it moves whenever the writer does.
+current() {
+  {
+    awk '/^ *(static )?func /{ fn=$0; sub(/^ *(static )?func /,"",fn); sub(/\(.*/,"",fn) }
+         match($0, /Wire\.set(List|Asset|Assets)?\(record, "[A-Za-z0-9_]+"/) {
+           k=substr($0,RSTART,RLENGTH); sub(/.*"/,"",k); sub(/"$/,"",k)
+           match($0, /"[A-Za-z0-9_]+"/); key=substr($0,RSTART+1,RLENGTH-2)
+           print fn "." key }' Plated/Services/HouseholdShare.swift 2>/dev/null
+    awk '/^ *(private )?(static )?func /{ fn=$0; sub(/^ *(private )?(static )?func /,"",fn); sub(/\(.*/,"",fn) }
+         match($0, /record\["[A-Za-z0-9_]+"\] *=/) {
+           s=substr($0,RSTART,RLENGTH); match(s, /"[A-Za-z0-9_]+"/)
+           print fn "." substr(s,RSTART+1,RLENGTH-2) }' \
+      Plated/Services/TableShare.swift Plated/Services/PlanShare.swift 2>/dev/null
+  } | sort -u
+}
+
+if [ "$1" = "--accept" ]; then
+  mkdir -p config
+  current > "$MANIFEST"
+  echo "Recorded $(wc -l < "$MANIFEST" | tr -d ' ') CloudKit fields as deployed to Production."
+  echo "Only correct if you have just deployed the schema in the CloudKit console."
+  exit 0
+fi
+
+# A grep that matches nothing must not read as "no fields to check". A
+# refactor that renames the writers, or moves them to another file, would
+# otherwise silence this gate at exactly the moment it matters most: the
+# code changed under it.
+COUNT=$(current | wc -l | tr -d ' ')
+if [ "$COUNT" -lt 100 ]; then
+  echo "✗ Only $COUNT CloudKit fields found in the source. The extraction has broken," >&2
+  echo "  which is not the same as there being nothing to check. Fix the greps in" >&2
+  echo "  this script before shipping." >&2
+  exit 1
+fi
+
+if [ ! -f "$MANIFEST" ]; then
+  echo "✗ No $MANIFEST. Deploy the CloudKit schema to Production, then run: scripts/check-schema --accept" >&2
+  exit 1
+fi
+
+ADDED=$(comm -23 <(current) <(sort -u "$MANIFEST"))
+REMOVED=$(comm -13 <(current) <(sort -u "$MANIFEST"))
+
+if [ -n "$ADDED" ]; then
+  echo "✗ These CloudKit fields are written by the code and are NOT recorded as deployed:" >&2
+  echo "$ADDED" | sed 's/^/    /' >&2
+  echo "" >&2
+  echo "  A Production save carrying one of these fails .invalidArguments, silently." >&2
+  echo "  On a phone signed into iCloud, with no household:" >&2
+  echo "    1. launch with -plated-prime-household   (mints the zone, the plan, and tears the zone down)" >&2
+  echo "    2. launch with -plated-prime-share" >&2
+  echo "    3. CloudKit console: Deploy Schema Changes to Production" >&2
+  echo "    4. scripts/check-schema --accept" >&2
+  exit 1
+fi
+
+if [ -n "$REMOVED" ]; then
+  echo "! Recorded as deployed but no longer written (harmless, tidy when convenient):" >&2
+  echo "$REMOVED" | sed 's/^/    /' >&2
+fi
+
+echo "$(current | wc -l | tr -d ' ') CloudKit fields, all recorded as deployed"
+echo "✓ schema matches what was deployed"

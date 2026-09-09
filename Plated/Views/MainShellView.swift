@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import CloudKit
 
 enum AppTab: String, CaseIterable {
     case week, cookbook, groceries, table, home
@@ -60,27 +61,64 @@ struct MainShellView: View {
 
     @State private var selection: AppTab = .week
     @State private var visitedTabs: Set<AppTab> = [.week]
-    /// A seat somebody saved, waiting for a yes. Set by an `invite` link,
-    /// which a push carries; a tap on a push must not seat anybody on its
-    /// own, or any push could put a person at a stranger's table.
-    @State private var pendingInvitation: (from: String, share: URL)?
+
+    /// A seat somebody kept at their Table, waiting for a yes. Every road
+    /// (a Universal Link, `plated://join`, the directory's push, a raw
+    /// iCloud link) ends in `ShareAcceptor.received`, which reads the share
+    /// and answers here; a tap must not seat anybody on its own, or any
+    /// push could put a person at a stranger's table.
+    struct TableInvitation {
+        var metadata: CKShare.Metadata
+        var host: String
+        var invite: String?
+    }
+    @State private var tableInvitation: TableInvitation?
+
+    /// Somebody's household, read and waiting for the join sheet — or the
+    /// reason it could not be read, which is the sheet's third state (§7)
+    /// and not a toast: "Sign in to iCloud on this iPhone to join, then
+    /// open the link again." is an instruction, and one that removes
+    /// itself after four seconds cannot be acted on or re-read.
+    struct HouseholdInvitation: Identifiable {
+        let id = UUID()
+        var metadata: CKShare.Metadata?
+        var root: HouseholdShare.RemoteRoot?
+        var seat: String?
+        var host: String
+        var failure: String?
+    }
+    @State private var householdInvitation: HouseholdInvitation?
+
+    /// One quiet line over the tab bar, for a sentence that has no screen
+    /// of its own: an invitation that could not be read, a household you
+    /// are already in. Replaced, never stacked.
+    @State private var toast: String?
+    @State private var toastToken = 0
 
     private var invitationTitle: String {
-        let who = pendingInvitation?.from.trimmingCharacters(in: .whitespaces) ?? ""
-        return who.isEmpty ? "Someone saved you a seat at their table" : "\(who) saved you a seat at their table"
+        let who = tableInvitation?.host.trimmingCharacters(in: .whitespaces) ?? ""
+        return who.isEmpty ? "Someone kept you a seat at their table" : "\(who) kept you a seat at their table"
     }
 
-    /// Every `plated://` link and every invitation, one door.
+    /// Every `plated://` link and every invitation, one door. Links arrive
+    /// through `LinkRelay`: `RootView` owns `onOpenURL`, so a link that
+    /// lands during onboarding is answered there and never twice.
     private func route(_ url: URL) {
         if url.scheme == "plated", url.host == "import-shared" {
             openSharedRecipeIfNeeded()
             return
         }
-        // An invitation arriving through plated.food is a Universal Link,
-        // so it lands here as an ordinary URL rather than at the
-        // CloudKit delegate. Same destination, different road.
-        if let share = ShareAcceptor.shareURL(from: url) {
-            Task { await ShareAcceptor.accept(shareURL: share) }
+        // An invitation, by whichever road. The share is read with its
+        // root, and which room it opens is decided by the zone it resolves
+        // to, never by what the link claimed (docs/household.md §7).
+        if let invitation = Invitation.parse(url) {
+            print("PLATED HOUSEHOLD: routing a \(invitation.kind.rawValue) invitation link")
+            Task {
+                await ShareAcceptor.received(
+                    shareURL: invitation.share, seat: invitation.seat,
+                    invite: invitation.invite, linkHost: invitation.host
+                )
+            }
             return
         }
         guard let destination = DeepLink.destination(for: url) else { return }
@@ -106,9 +144,9 @@ struct MainShellView: View {
                 selection = .home
                 LinkRelay.requestActivity()
             case .invite:
-                if let invitation = DeepLink.invitation(in: url) {
-                    pendingInvitation = invitation
-                }
+                // Read by `Invitation.parse` above; a `plated://invite` that
+                // gets this far carried no https share and is nothing.
+                break
             }
         }
     }
@@ -224,7 +262,7 @@ struct MainShellView: View {
                                 .foregroundStyle(Color.canvas)
                                 .frame(width: 30, height: 30)
                                 .background(Color.ink, in: Circle())
-                        }.foregroundStyle(Color.ink).padding(.horizontal, 16).frame(height: 54)
+                        }.foregroundStyle(Color.ink).padding(.horizontal, 16).frame(minHeight: 54)
                             .background(Color.canvas, in: Capsule()).overlay(Capsule().strokeBorder(Color.hairline))
                     }.buttonStyle(.pressable).accessibilityLabel("Resume cooking \(session.titleSnapshot ?? recipe.title)")
                 }
@@ -244,8 +282,10 @@ struct MainShellView: View {
         .environment(\.tabPop, tabPop)
         .environment(\.perchVisibility, perchVisibility)
         .animation(.plSnap, value: perchVisibility.isHidden)
+        .task { Presence.follow(selection) }
         .onChange(of: selection) { previous, current in
             visitedTabs.insert(current)
+            Presence.follow(current)
             guard !poppingTab else { poppingTab = false; return }
             tabHistory.append(previous)
             // A session's worth of tab hopping is not a browser history.
@@ -261,28 +301,37 @@ struct MainShellView: View {
             Haptic.select()
             withAnimation(.plSnap) { selection = previous }
         }
-        .sheet(isPresented: $createPresented, onDismiss: {
+        // Two `.sheet` modifiers on one view is undefined — see CLAUDE.md.
+        // One item binding, four destinations; flags stay so callers keep
+        // writing createPresented / askPresented / … without knowing.
+        .sheet(item: shellSheet, onDismiss: {
             createStart = nil
             sharedRecipeInput = ""
             sharedRecipeImages = []
-        }) {
-            CreateFlowSheet(
-                start: createStart,
-                initialRecipeInput: sharedRecipeInput,
-                initialRecipeImages: sharedRecipeImages
-            )
+        }) { destination in
+            switch destination {
+            case .create:
+                CreateFlowSheet(
+                    start: createStart,
+                    initialRecipeInput: sharedRecipeInput,
+                    initialRecipeImages: sharedRecipeImages
+                )
+            case .ask:
+                AskComposerSheet(date: Calendar.current.startOfDay(for: .now))
+            case .prongsby:
+                ProngsbyView(session: prongsbySession)
+            case .household(let invitation):
+                JoinHouseholdSheet(
+                    metadata: invitation.metadata, root: invitation.root,
+                    seat: invitation.seat, linkHost: invitation.host,
+                    failure: invitation.failure
+                )
+            }
         }
-        .sheet(isPresented: $askPresented) {
-            AskComposerSheet(date: Calendar.current.startOfDay(for: .now))
-        }
-        .sheet(isPresented: $prongsbyPresented) {
-            ProngsbyView(session: prongsbySession)
-        }
-        .onOpenURL { url in route(url) }
-        // A tapped notification comes in through LinkRelay rather than
-        // onOpenURL, which nothing outside SwiftUI can reach. Same road
-        // from here on. The onAppear collects a link parked before the
-        // shell existed, which is every cold start from a banner.
+        // Every link comes in through LinkRelay: a tapped notification
+        // parks one from UIKit, and RootView parks every `onOpenURL`. The
+        // onAppear collects a link parked before the shell existed, which
+        // is every cold start from a banner or an invitation.
         .onReceive(NotificationCenter.default.publisher(for: LinkRelay.opened)) { _ in
             if let url = LinkRelay.take() { route(url) }
         }
@@ -299,18 +348,98 @@ struct MainShellView: View {
         }
         .confirmationDialog(
             invitationTitle, isPresented: Binding(
-                get: { pendingInvitation != nil },
-                set: { if !$0 { pendingInvitation = nil } }
+                get: { tableInvitation != nil },
+                set: { if !$0 { tableInvitation = nil } }
             ), titleVisibility: .visible
         ) {
-            Button("Take the seat") {
-                guard let invitation = pendingInvitation else { return }
-                pendingInvitation = nil
-                Task { await ShareAcceptor.accept(shareURL: invitation.share) }
+            Button("Join the Table") {
+                guard let invitation = tableInvitation else { return }
+                tableInvitation = nil
+                Task {
+                    // The sentence is the outcome's, not this screen's:
+                    // two screens each kept their own copy and both said
+                    // "check your connection" for a revoked link, a
+                    // signed-out phone and a seat already taken.
+                    let outcome = await ShareAcceptor.acceptTable(
+                        invitation.metadata, invite: invitation.invite
+                    )
+                    if let line = outcome.line { showToast(line) }
+                }
             }
-            Button("Not now", role: .cancel) { pendingInvitation = nil }
+            Button("Not now", role: .cancel) { tableInvitation = nil }
         } message: {
             Text("Their dishes and asks join your Table, and they see what you post.")
+        }
+        // What the share turned out to be. The Table asks with a dialog on
+        // every road; the household opens its sheet; a share that could
+        // not be read says why, in one line, and nothing else changes.
+        .onReceive(NotificationCenter.default.publisher(for: ShareAcceptor.invitationReceived)) { note in
+            guard let received = note.userInfo?["received"] as? ShareAcceptor.Received else { return }
+            switch received {
+            case .table(let metadata, let host, let invite):
+                tableInvitation = TableInvitation(metadata: metadata, host: host, invite: invite)
+            case .household(let metadata, let root, let seat, let host):
+                // Already in this household: no sheet at all (§7). Computed
+                // here rather than inside the sheet, which had to present
+                // itself, draw a monogram and a spinner, and then close
+                // itself again — and left the person on whatever tab they
+                // were on instead of routing Home.
+                let read = HouseholdSync.preview(
+                    for: metadata, root: root, linkHost: host, context: context
+                )
+                // `.needsSeat` is deliberately not caught here: it opens
+                // the sheet, which goes straight to the picker.
+                if read.state == .alreadyHere {
+                    let name = read.hostName.trimmingCharacters(in: .whitespaces)
+                    withAnimation(.plSnap) { selection = .home }
+                    showToast("You're already in \(name.isEmpty ? "this" : "\(name)'s") household.")
+                    return
+                }
+                householdInvitation = HouseholdInvitation(metadata: metadata, root: root, seat: seat, host: host)
+            case .failed(let reason):
+                Haptic.warn()
+                householdInvitation = HouseholdInvitation(
+                    metadata: nil, root: nil, seat: nil, host: "", failure: reason
+                )
+            }
+        }
+        // Joined: the plan is the thing that just arrived, so the Plan tab
+        // is where the person lands (docs/household.md §7, step 6).
+        .onReceive(NotificationCenter.default.publisher(for: JoinHouseholdSheet.didJoin)) { _ in
+            householdInvitation = nil
+            withAnimation(.plSnap) { selection = .week }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: JoinHouseholdSheet.notice)) { note in
+            if let text = note.userInfo?["text"] as? String { showToast(text) }
+        }
+        // The household this phone was in is gone (§8, being removed). Every
+        // sheet closes and every tab returns to its root, because what they
+        // were showing was the household's.
+        .onReceive(NotificationCenter.default.publisher(for: HouseholdSync.householdRemoved)) { _ in
+            createPresented = false
+            askPresented = false
+            prongsbyPresented = false
+            householdInvitation = nil
+            tableInvitation = nil
+            resumedRecipe = nil
+            popEveryTab()
+        }
+        .overlay(alignment: .bottom) {
+            if let toast {
+                Text(toast)
+                    .plType(.footnote, .bold)
+                    .foregroundStyle(Color.canvas)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 10)
+                    .frame(minHeight: 40)
+                    .background(Color.ink, in: RoundedRectangle(cornerRadius: Radius.chip, style: .continuous))
+                    .padding(.horizontal, 32)
+                    .padding(.bottom, Layout.floatingChromeInset)
+                    .transition(.plRise)
+                    .accessibilityAddTraits(.isStaticText)
+            }
         }
         .task {
             openSharedRecipeIfNeeded()
@@ -332,77 +461,103 @@ struct MainShellView: View {
                     Persist.save(context)
                 }
             }
-            // The table's host, kept honest. The onboarding bootstrap and a
-            // first CloudKit import can race a duplicate owner row into
-            // being, and installs that onboarded before the bootstrap
-            // existed have none at all. Runs on every shell appear (a
-            // count is cheap; sync can deliver a dupe weeks later): extras
-            // collapse onto the oldest row, meals rehomed; a host-shaped
-            // hole gets the sign-in member promoted, or a fresh place
-            // laid. A failed fetch does nothing — only confirmed states
-            // are acted on.
-            if let owners = try? context.fetch(
-                FetchDescriptor<HouseholdMember>(
-                    predicate: #Predicate { $0.role == "owner" },
-                    sortBy: [SortDescriptor(\.createdAt)]
-                )
+            // The person holding this phone, kept honest (docs/household.md
+            // §5). Keyed on identity, never on role: on a member's phone the
+            // owner row is the host, and a repair that collapsed "owners"
+            // would have collapsed them. Rows carrying this device's
+            // identity fold onto one (the named one, else the oldest), meals
+            // rehomed; the parked onboarding photo and the typed name are
+            // hung on that row only; a row carrying anybody else's identity
+            // is never touched. A head is laid only while this phone hosts
+            // its own household. A failed fetch does nothing.
+            if let rows = try? context.fetch(
+                FetchDescriptor<HouseholdMember>(sortBy: [SortDescriptor(\.createdAt)])
             ) {
-                // The face chosen during onboarding, hung on the owner's row
-                // the first time there is a row to hang it on. Onboarding
-                // asks before the head of the table exists, so the bytes wait
-                // here rather than racing the sample seed. See ProfilePhoto.
-                if let owner = owners.first {
+                let identity = TableIdentity.cached
+                let membership = HouseholdShare.membership
+                let mine = rows.filter { row in
+                    if let id = row.userRecordName, !id.isEmpty {
+                        return !TableIdentity.isPlaceholder && id == identity
+                    }
+                    // No identity on the row yet. On this phone's own
+                    // household the head is the reader (§5); on a member's
+                    // phone an unstamped head is the host, and is left alone.
+                    return membership.owner == nil && row.isOwner
+                }
+                let kept = mine.first { !$0.shareRecordName.isEmpty } ?? mine.first
+                if let kept {
+                    if mine.count > 1 {
+                        let dupes = mine.filter { $0.persistentModelID != kept.persistentModelID }
+                        // A row sharing the kept row's record name is the
+                        // mirror's copy of ONE seat, not a second seat.
+                        // Deleted in the open, the save observer parks a
+                        // delete for that record name and the drain takes
+                        // this person's own seat out of the zone; the kept
+                        // row's next push then meets `.unknownItem` and
+                        // `.gone` deletes the row on every device.
+                        // `collapseDuplicates` folds these under suppression
+                        // for exactly this reason, two seconds later.
+                        let twins = dupes.filter {
+                            !$0.shareRecordName.isEmpty && $0.shareRecordName == kept.shareRecordName
+                        }
+                        if !twins.isEmpty {
+                            HouseholdSync.suppressed = true
+                            for twin in twins {
+                                for meal in twin.assignedMeals ?? [] { meal.cook = kept }
+                                context.delete(twin)
+                            }
+                            Persist.save(context, "owner repair, mirror twins")
+                            HouseholdSync.suppressed = false
+                        }
+                        let twinIDs = Set(twins.map(\.persistentModelID))
+                        for dupe in dupes where !twinIDs.contains(dupe.persistentModelID) {
+                            for meal in dupe.assignedMeals ?? [] { meal.cook = kept }
+                            context.delete(dupe)
+                        }
+                    }
+                    // The face chosen during onboarding, hung the first time
+                    // there is a row to hang it on. See ProfilePhoto.
                     if let parked = ProfilePhoto.parked {
-                        if owner.photoData == nil { owner.photoData = parked }
+                        if kept.photoData == nil { kept.photoData = parked }
                         ProfilePhoto.clearParked()
-                        Persist.save(context)
                     }
                     // And the name they gave, when the row is still wearing
-                    // the bootstrap placeholder.
-                    //
-                    // The owner row is written on the way OUT of the contacts
-                    // step, so a row that already existed when onboarding ran
-                    // (a reinstall pulling its household back from iCloud, or
-                    // the simulator's sample seed) never saw the name typed
-                    // two screens earlier. It kept answering to "Me" while
-                    // the app had been told otherwise, which is the exact
-                    // "TAP TO ADD YOUR NAME" prompt appearing to somebody who
-                    // just added their name.
-                    //
-                    // Only a placeholder is overwritten. A real name someone
-                    // chose is never quietly replaced, and the rename goes
-                    // through the one door so their posts and awards travel
-                    // with it.
+                    // the bootstrap placeholder. Only a placeholder is
+                    // overwritten: a real name someone chose is never quietly
+                    // replaced, and the rename goes through the one door so
+                    // their posts and awards travel with it.
                     let typed = (UserDefaults.standard.string(forKey: "userFirstName") ?? "")
                         .trimmingCharacters(in: .whitespaces)
-                    if HouseholdIdentity.isPlaceholder(owner.name), !typed.isEmpty {
-                        HouseholdIdentity.rename(owner, to: typed, in: context)
+                    if HouseholdIdentity.isPlaceholder(kept.name), !typed.isEmpty {
+                        HouseholdIdentity.rename(kept, to: typed, in: context)
                     }
-                }
-                // No owner yet means the block below is about to make one;
-                // the parked photo keeps waiting for the next appear.
-                if owners.count > 1, let kept = owners.first {
-                    for dupe in owners.dropFirst() {
-                        for meal in dupe.assignedMeals ?? [] { meal.cook = kept }
-                        context.delete(dupe)
-                    }
-                    Persist.save(context)
-                } else if owners.isEmpty {
+                    Persist.save(context, "owner repair")
+                } else if membership.owner == nil {
+                    // A host-shaped hole: the sign-in member promoted, or a
+                    // fresh place laid. Never on a member's phone, where the
+                    // seat this person is arrives by join.
                     let name = UserDefaults.standard.string(forKey: "userFirstName") ?? ""
-                    if let match = members.first(where: {
+                    let unclaimed = rows.filter { ($0.userRecordName ?? "").isEmpty }
+                    if let match = unclaimed.first(where: {
                         !name.isEmpty && $0.name.caseInsensitiveCompare(name) == .orderedSame
                     }) {
                         match.role = "owner"
                         match.seat = .head
                     } else {
-                        context.insert(HouseholdMember(
+                        let me = HouseholdMember(
                             name: name.isEmpty ? "Me" : name,
                             colorHex: "FF5A3C", role: "owner", cookWeekdays: [],
                             seat: .head
-                        ))
+                        )
+                        if !TableIdentity.isPlaceholder { me.userRecordName = identity }
+                        me.authorID = identity
+                        context.insert(me)
                     }
-                    Persist.save(context)
+                    Persist.save(context, "owner laid")
                 }
+                // The identity stamp itself, once CloudKit has confirmed one,
+                // for a household that has never been shared.
+                HouseholdSync.stampIdentityIfUnshared(in: context)
             }
 
             // Seats, once, before any people screen can render a stale one.
@@ -418,21 +573,23 @@ struct MainShellView: View {
                 UserDefaults.standard.set(true, forKey: "didMigrateSeats")
                 UserDefaults.standard.removeObject(forKey: pendingKey)
             }
+            // Rows seated from the Table before the household could be
+            // shared (docs/household.md §8, last paragraph). Its own
+            // one-shot, because the migration above ran long ago.
+            if Seats.migrateTableSeats(in: context) {
+                Persist.save(context, "table seats")
+            }
             // What CloudKit knows about who actually accepted.
             Task {
                 await Seats.reconcile(in: context)
                 Persist.save(context)
             }
-        }
-        // Somebody just tapped an invitation. This is the moment an invited
-        // row becomes a joined one, and the only thing that ever made
-        // accepting a share visible inside the household.
-        .onReceive(NotificationCenter.default.publisher(for: ShareAcceptor.didAccept)) { _ in
-            // The pull the feed starts on this same signal reconciles the
-            // seats when the share changed. A second reconcile from here
-            // raced it for the same rows.
+
             #if DEBUG
             // UI-test hook: `simctl launch … -plated-tab table` lands here.
+            // In the launch task, where it belongs: a Sept 2 edit stranded
+            // this block inside the share-accepted handler, so every
+            // screenshot flag waited for an invitation nobody was sending.
             //
             // Accepted names are the AppTab raw values — `week`, `table`,
             // `cookbook`, `home` — which are NOT the words on the tab bar
@@ -488,6 +645,63 @@ struct MainShellView: View {
                 prongsbyPresented = true
             }
             #endif
+        }
+    }
+
+    private enum ShellSheet: Identifiable {
+        case create, ask, prongsby, household(HouseholdInvitation)
+        var id: String {
+            switch self {
+            case .create: "create"
+            case .ask: "ask"
+            case .prongsby: "prongsby"
+            case .household(let invitation): "household-\(invitation.id)"
+            }
+        }
+    }
+    private var shellSheet: Binding<ShellSheet?> {
+        Binding(
+            get: {
+                if createPresented { return .create }
+                if askPresented { return .ask }
+                if prongsbyPresented { return .prongsby }
+                if let householdInvitation { return .household(householdInvitation) }
+                return nil
+            },
+            set: {
+                if $0 == nil {
+                    createPresented = false
+                    askPresented = false
+                    prongsbyPresented = false
+                    householdInvitation = nil
+                }
+            }
+        )
+    }
+
+    private func showToast(_ message: String) {
+        toastToken += 1
+        let token = toastToken
+        withAnimation(.plSnap) { toast = message }
+        Task {
+            try? await Task.sleep(for: .seconds(4))
+            if toastToken == token {
+                withAnimation(.plSnap) { toast = nil }
+            }
+        }
+    }
+
+    /// Every tab back to its root. `TabPopRequest` carries one tab, and
+    /// each root answers only its own, so the requests go out one at a
+    /// time with a beat between them rather than the last overwriting the
+    /// rest before anybody has read it.
+    private func popEveryTab() {
+        Task { @MainActor in
+            for tab in AppTab.allCases {
+                tabPop = TabPopRequest(tab: tab, count: tabPop.count + 1)
+                try? await Task.sleep(for: .milliseconds(60))
+            }
+            withAnimation(.plSnap) { selection = .week }
         }
     }
 

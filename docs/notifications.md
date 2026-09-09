@@ -1,15 +1,28 @@
 # Notifications
 
-How Plated reaches a person who is not holding it. Three pipes, one voice,
-and a set of rules that decide when to say nothing, which is most of the time.
+How Plated reaches a person who is not holding it. Three mechanisms, one
+voice, and a set of rules that decide when to say nothing, which is most of
+the time.
 
-## The three pipes
+## The pipes
 
 | Pipe | Carries | Where it is decided | Needs |
 |---|---|---|---|
 | Local schedule | Cook reminders, the Sunday ritual, the cook timer | `NotificationScheduler` | nothing |
-| CloudKit silent push, then a local banner | Everything at the Table: dishes, asks, comments, plates, votes, seats, and the nights other phones plan | `ShareAcceptor` fetches, `PlanLedger` folds the nights, `TableNews` decides | notification permission |
-| APNs through the directory | An invitation to somebody already on Plated | `supabase/functions/invite` | APNs key on the server |
+| CloudKit silent push, then a local banner | Everything at the Table: dishes, asks, comments, plates, votes, seats | `ShareAcceptor` fetches, `TableNews` decides | notification permission |
+| CloudKit silent push, then a local banner | Everything in the household: a seat joined or left, a night another phone planned, a recipe added, an edit that lost | `TablePull` drives it, `HouseholdShare` reads the zone, `ShareAcceptor.absorb` folds the nights into `PlanLedger` and hands the rest to `HouseholdSync`, `TableNews` decides | notification permission |
+| APNs through the directory | An invitation to somebody already on Plated, to their Table or their household | `supabase/functions/invite` | APNs key on the server |
+
+The middle two rows are one mechanism over two shared zones, and each zone
+has exactly one reader. The nights do **not** ride the Table zone: a Table
+guest must not be able to read the week. They are
+`PlatedHouseholdPlan` records in the household zone, and the one reader
+that walks that zone, `HouseholdShare.fetchChanges`, collects them along
+with the seats and hands them on as `TableShare.Changes.plans`. Two
+readers with two cursors over one zone is a delta each of them only half
+sees, so `TableShare.postChanges` walks `PlatedTable` zones and nothing
+else. `docs/plan-share.md` is the law for what happens to a night once
+the ledger has it.
 
 The Table pipe is the interesting one. CloudKit sends a silent push when a
 shared zone changes. The app fetches the delta in the delegate, folds it
@@ -41,6 +54,32 @@ for one change token or raise one banner twice.
   as the dishes and lands in `PlanLedger`, never in `PlannedMeal`;
   `docs/plan-share.md` is the law for it.
 
+And the household (docs/household.md section 10), through the same
+digest, the same keys, the same 36-hour window and the same four-banner
+cap, gated by the switch titled "Household and Table activity":
+
+| event | key | copy | delivery |
+|---|---|---|---|
+| a seat joined the household | `household:<userRecordName>` | "Riley joined your household" / "They can see the plan, the grocery list and the cookbook now." | active with sound by day, passive 22:00 to 08:00 |
+| a seat left | `household-left:<userRecordName>` | "Riley left your household" / "Their nights are open again." | passive |
+| somebody added a recipe | `recipe:<recipeRecordName>` | "Riley added Ragù" / "It's in the cookbook." | passive |
+| your edit lost to theirs | `conflict:<recordName>` | "Riley changed Ragù after you did" / "Their version is showing." | bell only, never a banner |
+
+A planned night is not on this table and never comes back to it. The
+household digest had a night row of its own, written when a household meal
+record merged into `PlannedMeal`; that merge is gone (docs/household.md
+§3.2) and the row went with it. The plan pipe's notice, "Riley planned
+Tacos for Thursday", is the one and only thing said about an evening.
+
+The person is `modifiedBy` on the record, named through their seat. A
+join to the household also joins the Table, so the Table's seat notice is
+suppressed for any participant whose identity holds a household seat. The
+join pull, and any household pull read from the beginning, raises nothing
+but the one row the join itself writes, "You joined Nate's household."
+Every household notice writes a bell row and stacks under "household";
+a recipe opens the cookbook, a seat Home. A plan notice opens the night
+it is about (`plated://plan?day=`), which is the plan pipe's own rule.
+
 And the rules that keep it quiet:
 
 - **Never about you.** Your own post arriving from your own iPad is not
@@ -54,7 +93,15 @@ And the rules that keep it quiet:
 - **History is not news.** A delta read from the beginning of a zone (fresh
   install, refused token) is windowed to 36 hours. An incremental delta is
   trusted whole: a dish written on a plane last week and uploaded today is
-  told once, now.
+  told once, now. The one exception is a household still being uploaded: a
+  joiner's pull is incremental from the moment they joined, so the host's
+  `publishAll` would otherwise arrive as one fresh recipe per record. While
+  the root carries no `publishedAt` (the Plan and the Cookbook are saying
+  "Still arriving from Nate's phone") the digest raises no recipes. Seats,
+  departures and conflicts still speak. The mirror image on the host's phone is the cookbook a joiner
+  brings: recipes whose `modifiedBy` is a seat arriving in the same
+  delivery are what they came with, and "Riley joined your household"
+  already says it.
 - **Few.** At most four banners per delivery. The rest fold into "3 more
   from Riley and Sam". Every one still lands in the bell.
 - **A plate or a vote is always delivered passively:** it is in the list
@@ -82,6 +129,9 @@ And the rules that keep it quiet:
 - **The lock screen names the person before the unlock.** Every category
   reveals its title and subtitle under Show Previews: When Unlocked, with
   a placeholder body ("Open to read it."). Never "Plated: Notification".
+  The placeholder names the door the tap opens, so it cannot be shared by
+  notices that open different doors: a household seat says "Open Home.", a
+  household recipe "Open the cookbook.", a planned night "Open the plan."
 - **Read on one device, quiet on the other.** On every return to the
   front, and whenever the bell is read, banners still sitting in
   Notification Centre about dishes whose rows are read are withdrawn.
@@ -117,13 +167,17 @@ Every switch decides whether a notice lights the screen. None decides
 whether the bell keeps the row: the list is the record, and off is quiet,
 not blind. The icon counts only rows the person still wants to hear.
 
-- **Cook reminders** and **Table activity** are the two coarse switches,
-  each honest about the iOS permission in three states.
-- Under Table activity, six finer ones, the categories that actually
-  exist in the pipe: Dishes and asks, Replies and mentions, Comments on
-  your dishes, Plates and votes on yours, New seats, Planning. A tag, a
-  reply and a mention are words to you and live under Replies whatever
-  record carried them. A plan notice answers to Planning before the
+- **Cook reminders** and **Household and Table activity** are the two
+  coarse switches, each honest about the iOS permission in three states.
+- Under Household and Table activity, six finer ones, the categories that
+  actually exist in the pipe: Dishes and asks, Replies and mentions,
+  Comments on your dishes, Plates and votes on yours, New seats, Planning.
+  The household's notices answer to the same six: a household seat and a
+  Table seat are both New seats, a recipe joining the cookbook is Dishes.
+  A night is the plan pipe's and is Planning. There is no seventh switch, because a
+  second kind of seat is not a second thing a person wants to decide.
+  A tag, a reply and a mention are words to you and live under Replies
+  whatever record carried them. A plan notice answers to Planning before the
   addressed question is asked, because it is never a word to you. There
   is still no grocery switch: groceries do not cross Apple IDs, and a
   switch for a notice that cannot fire is a lie.
@@ -215,10 +269,16 @@ the front.
 
 ## An invitation from a push
 
-`/invite` pushes a `plated://invite` link. The app never seats anybody on a
-tap: it shows "Riley saved you a seat at their table" with Take the seat
-and Not now, and accepts only on the first. A link that accepted on tap
-would let any push put a person at a stranger's table.
+`/invite` pushes a `plated://invite` link carrying the kind. The app never
+seats anybody on a tap: every road (the push, a plated.food Universal
+Link, a raw iCloud link through the CloudKit delegate) ends in
+`ShareAcceptor.received`, which reads the share's metadata with its root
+record, decides table or household by the zone the share sits on, and
+posts `invitationReceived` for the shell to present: the Table's
+"Nate kept you a seat at their table" dialog with Join the Table and Not
+now, or the household's join sheet. Nothing is accepted before the first
+button. A link that accepted on tap would let any push put a person at a
+stranger's table.
 
 ## The server pipe
 
@@ -263,7 +323,7 @@ logged.
 ## Rehearsing on a simulator
 
 Silent pushes need a real APNs token, so a simulator never receives one.
-Two debug flags stand in:
+Three debug flags stand in:
 
 - `-plated-ask-notifications` spends the permission prompt at launch.
 - `-plated-fake-table-news` writes a dish by "Riley" into the store and
@@ -277,6 +337,13 @@ Two debug flags stand in:
   `plated.turn.remote.` requests. A launch without the flag drops every
   `rehearsal-zone` entry, so a real table's nights are never mixed with
   Riley's.
+- `-plated-rehearse-household` seeds the sample household if the store is
+  empty, stamps its head with this identity, sets membership to a fake
+  host "Sam" and absorbs a household delta from him: two seats and two
+  recipes, so the household notices and the member's view can be
+  photographed without a second Apple ID. Sam's week is not in that delta:
+  a night is not a household record, and `-plated-fake-table-news`
+  rehearses remote nights through `PlanLedger`.
 
 Always `simctl terminate` before a flag-carrying launch; a running process
 keeps its original arguments.
@@ -293,9 +360,15 @@ and the console open, watching for `[Push] silent push from`.
 
 ## Tests
 
-`make test` runs `PlatedTests`. `TableNews.digest`, `select`, `content`,
-`thread`, `staleDelivered`, `list`, `AppBadge.count`, `Seats.match` and
-`NotificationRouter.presentation` are pure and hold the rules above: never
+`make test` runs `PlatedTests`. `TableNews.digest` (Table and household),
+`select`, `content`, `thread`, `staleDelivered`, `list`, `AppBadge.count`,
+`Seats.match` and `NotificationRouter.presentation` are pure and hold the
+rules above, and `HouseholdSyncTests` holds the household digest to its
+own-action guard (held one half at a time, with a seat for the reader in
+the fixture so that silence is the guard answering and not "named, or not
+sent"), its first-pull silence, the host's first publish, the cookbook a
+joiner brings, the seat that left, and a household delta never touching
+the local plan: never
 about you, named or not sent, once, the replay window, coalescing, the
 cap, the fold, passive plates outside the cap, the kiss, quiet hours with
 the direct exception, threads, retractions that are never re-dated, rows

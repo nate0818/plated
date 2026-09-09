@@ -33,8 +33,6 @@ struct TonightCard: View {
     /// runs to seven are two different dinners.
     var dayLoad: String? = nil
 
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
     var body: some View {
         switch state {
         case let .plated(meal), let .cooked(meal):
@@ -123,40 +121,27 @@ struct TonightCard: View {
         case let .plated(meal), let .cooked(meal):
             dish(for: meal)
         case .open:
-            // The same dashed invitation an open night wears in the list, at
-            // the card's scale. One dashed thing per state is enough to say
-            // "nothing here yet".
-            Circle()
-                .strokeBorder(Color.hairlineDashed, style: StrokeStyle(lineWidth: 2, dash: [7, 7]))
-                .frame(width: 140, height: 140)
-                .overlay {
-                    Image(systemName: "plus")
-                        .font(.system(size: 26, weight: .bold))
-                        // An icon on a control that is genuinely waiting.
-                        .foregroundStyle(Color.inkFaint)
-                }
-                .accessibilityHidden(true)
+            // Same recipe grammar as a plated night — continuous rounded
+            // rect, empty title — so the open card does not revive the
+            // retired circle invitation while peers already use RecipeArtwork.
+            RecipeArtwork(title: "Tonight", ratio: 1, radius: Radius.hero)
+                .frame(width: 140)
+                .plDishShadow()
         }
     }
 
     @ViewBuilder
     private func dish(for meal: PlannedMeal) -> some View {
-        Group {
-            if let data = meal.recipe?.photoData, let image = UIImage(data: data) {
-                Image(uiImage: image)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(width: 140, height: 140)
-                    .clipShape(Circle())
-            } else if let recipe = meal.recipe {
-                // The first plate in the shipping app drawn with its drift
-                // running. DishView has carried the animation since it was
-                // written and nothing has ever passed true.
-                DishView(recipe: recipe, diameter: 140, animated: !reduceMotion)
-            } else {
-                DishView(title: meal.title, diameter: 140)
-            }
-        }
+        // Rounded rect, not a circle: DESIGN.md retired circle-only recipe
+        // photography. Same 140pt budget the circle wore, square so the card
+        // does not grow taller than its peers.
+        RecipeArtwork(
+            data: meal.recipe?.photoData,
+            title: meal.title,
+            ratio: 1,
+            radius: Radius.hero
+        )
+        .frame(width: 140)
         .plDishShadow()
     }
 
@@ -193,7 +178,7 @@ struct TonightCard: View {
         case let .cooked(meal):
             // Past tense, because it happened. The cook still gets the credit.
             guard let cook = meal.cook else { return "Cooked" }
-            return cook.isOwner ? "You cooked it" : "\(cook.name) cooked it"
+            return cook.isMe ? "You cooked it" : "\(cook.name) cooked it"
         case .open: return dayLoad
         }
     }

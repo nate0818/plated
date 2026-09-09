@@ -126,7 +126,10 @@ struct GrocerySheet: View {
                             .plType(.body, .bold)
                             .foregroundStyle(Color.ink)
                         Text(byMeal && selectedMeals.isEmpty ? "Select one or more meals above to build your list." : hasPlannedNights
-                             ? "This week's dishes need nothing you don't have."
+                             // Rolling week, not calendar week: the list covers
+                             // tonight through six nights ahead, so "This week"
+                             // was wrong every Sunday evening and every Monday.
+                             ? "The rolling week's dishes need nothing you don't have."
                              : "Plan a few nights and the list builds itself.")
                             .plType(.footnote)
                             .foregroundStyle(Color.inkSecondary)
@@ -168,6 +171,11 @@ struct GrocerySheet: View {
                         Button("Undo last check") {
                             guard let (item, data, checked) = undoCheck else { return }
                             item.purchasesData = data; item.isChecked = checked
+                            // The undo is a newer fact than the check it
+                            // takes back, so it goes to the household too;
+                            // otherwise the mark would win it back on the
+                            // next rebuild.
+                            item.recordMark()
                             undoCheck = nil; Persist.save(context)
                         }.plType(.footnote, .bold).plTapTarget()
                     }
@@ -184,7 +192,7 @@ struct GrocerySheet: View {
                         orderWithInstacart()
                     }
                     Button(exporting ? "Sending…" : "Send to Reminders") { exportToReminders() }
-                        .plType(.footnote, .bold).foregroundStyle(Color.ink).plTapTarget()
+                        .plType(.footnote, .bold).plActionLabel().foregroundStyle(Color.ink).plTapTarget()
                         .disabled(exporting)
                     }
                     if let exportResult {
@@ -307,6 +315,9 @@ struct GrocerySheet: View {
                 context.delete(item)
             } else {
                 item.isDismissed = true
+                // The dismissal is the household's fact, not this phone's:
+                // the mark carries the window it lapses with.
+                item.recordMark()
             }
         }
     }

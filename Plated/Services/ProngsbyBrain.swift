@@ -9,7 +9,58 @@ import Foundation
 struct ProngsbyBrain {
     let recipes: [Recipe]
     let members: [HouseholdMember]
-    var meals: [PlannedMeal] = []
+    var nights: [Night] = []
+
+    /// One dinner, reduced to what an answer needs.
+    ///
+    /// A night somebody else in the household planned is a
+    /// `PlanLedger.Entry` and never a `PlannedMeal` (docs/household.md 3.2),
+    /// so a brain holding `[PlannedMeal]` could only ever answer for half
+    /// the plan: it told people "nothing's plated for Thursday" over a
+    /// dinner a housemate had planned, which is the empty state asserting
+    /// something untrue. Reducing both kinds to this at the call sites,
+    /// which are already on the main actor, also keeps the brain free of
+    /// SwiftData and of the ledger's isolation.
+    struct Night {
+        var date: Date
+        var title: String
+        var cookName: String?
+        var cookIsMe: Bool
+        var minutes: Int
+    }
+
+    /// The plan as the brain sees it: this phone's own dinners and the
+    /// household's, in one list.
+    ///
+    /// One place, because two hand-kept copies of this reduction at the two
+    /// call sites is exactly how the spoken answer and the typed answer come
+    /// to disagree about tonight. A day this phone has planned is answered
+    /// from this phone: the local row is the one the person can open and
+    /// change, so a remote night only fills a date the local plan left open,
+    /// which is the rule `WidgetBridge.publish` already follows.
+    @MainActor
+    static func nights(meals: [PlannedMeal], ledger: PlanLedger? = nil) -> [Night] {
+        // Not a default argument: a default is evaluated in the CALLER's
+        // isolation and `PlanLedger.shared` is main-actor state, which
+        // Swift 6 makes an error rather than a warning.
+        let ledger = ledger ?? PlanLedger.shared
+        let calendar = Calendar.current
+        var out = meals.filter { $0.slotValue == .dinner }.map {
+            Night(date: $0.date, title: $0.title, cookName: $0.cook?.name,
+                  cookIsMe: $0.cook?.isMe ?? false, minutes: $0.recipe?.totalMinutes ?? 0)
+        }
+        let taken = Set(out.map { calendar.startOfDay(for: $0.date) })
+        for entry in ledger.all where entry.slot == MealSlot.dinner.rawValue {
+            guard let date = PlanDay.date(entry.day),
+                  !taken.contains(calendar.startOfDay(for: date)) else { continue }
+            out.append(Night(
+                date: date, title: entry.title,
+                cookName: entry.hasCook ? entry.cookName : nil,
+                cookIsMe: ledger.isMine(cook: entry), minutes: entry.recipeMinutes
+            ))
+        }
+        return out
+    }
 
     // MARK: The voice
 
@@ -238,20 +289,19 @@ struct ProngsbyBrain {
             let formatter = DateFormatter(); formatter.dateFormat = "EEEE"
             return formatter.string(from: target)
         }()
-        guard let meal = meals.first(where: {
-            Calendar.current.isSameDay($0.date, target) && $0.slotValue == .dinner
+        guard let night = nights.first(where: {
+            Calendar.current.isSameDay($0.date, target)
         }) else {
             return "Nothing's plated for \(dayName) yet. Want ideas? Say \"what should we make?\""
         }
         if asksWho {
-            guard let cook = meal.cook else {
-                return "\(meal.title) is on for \(dayName), cook still to be decided. The pan waits for a hero."
+            guard let cook = night.cookName else {
+                return "\(night.title) is on for \(dayName), cook still to be decided. The pan waits for a hero."
             }
-            return "\(cook.isOwner ? "You're" : "\(cook.name) is") on \(dayName): \(meal.title). \(cook.isOwner ? "I believe in you." : "Send encouragement, or at least stay out of the kitchen.")"
+            return "\(night.cookIsMe ? "You're" : "\(cook) is") on \(dayName): \(night.title). \(night.cookIsMe ? "I believe in you." : "Send encouragement, or at least stay out of the kitchen.")"
         }
-        let minutes = meal.recipe?.totalMinutes ?? 0
-        let cookLine = meal.cook.map { $0.isOwner ? " You're cooking." : " \($0.name)'s cooking." } ?? ""
-        return "\(dayName.capitalized): \(meal.title)\(minutes > 0 ? ", about \(Recipe.spokenDuration(minutes))" : "").\(cookLine)"
+        let cookLine = night.cookName.map { night.cookIsMe ? " You're cooking." : " \($0)'s cooking." } ?? ""
+        return "\(dayName.capitalized): \(night.title)\(night.minutes > 0 ? ", about \(Recipe.spokenDuration(night.minutes))" : "").\(cookLine)"
     }
 
     /// "Plan a gathering for 10" — builds a menu from the cookbook and

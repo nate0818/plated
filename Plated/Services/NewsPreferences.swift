@@ -112,6 +112,18 @@ enum NewsPreferences {
         case .plates, .kiss, .votes: return .plates
         case .seat: return .seats
         case .plan: return .planning
+        // The household's own notices (docs/household.md section 10) answer
+        // to the same six switches: the coarse "Household and Table
+        // activity" already covers both rooms, and a seventh switch for a
+        // second kind of seat would be a switch nobody goes looking for.
+        case .householdSeat, .householdLeft: return .seats
+        // A recipe joining the cookbook is the nearest the household has to
+        // a dish being put out. There is no cookbook switch.
+        case .recipe: return .dishes
+        // Bell only, so `TableNews.select` drops it before the screen and
+        // this answer is never acted on. It rides with the night rather
+        // than claiming a switch of its own.
+        case .conflict: return .planning
         }
     }
 
@@ -125,6 +137,25 @@ enum NewsPreferences {
         case .plateReaction, .voteCast: return .plates
         case .seatJoined: return .seats
         case .planShared: return .planning
+        // The household's four, answering to the same switches their
+        // banners already answer to. Falling to `default: nil` here meant
+        // the banner was correctly suppressed and the red number on the
+        // icon still climbed for it, so turning a switch off made the app
+        // quieter and the Home Screen no less insistent. Kept in step with
+        // `category(for kind: TableNews.Notice.Kind, addressed:)` above:
+        // these two answer the same question about the same notice and
+        // drifting apart is exactly how this happened.
+        case .householdJoined, .householdLeft: return .seats
+        case .recipeAdded: return .dishes
+        // NOT `.editConflict`, deliberately, and it is the one of the four
+        // that must stay unmapped. A nil answer here counts unconditionally,
+        // and the bell is the only place a conflict exists at all: `select`
+        // drops it before the screen, so it never has a banner to suppress.
+        // Mapping it to Planning therefore did not bring the icon into line
+        // with a banner, it removed the notice entirely for anybody with
+        // that switch off. "Your change lost to somebody else's" is also not
+        // what that switch describes, which is somebody planning, moving or
+        // taking off a night.
         default: return nil
         }
     }

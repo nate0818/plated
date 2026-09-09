@@ -12,6 +12,16 @@ enum GroceryRegressionChecks {
         let config = ModelConfiguration(schema: PlatedStore.schema, isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         let container = try ModelContainer(for: PlatedStore.schema, configurations: [config])
         let context = container.mainContext
+        // The store is memory-only but the marks book is real app-group
+        // state, so a previous run's check-offs would fold into this run's
+        // rows and every mark recorded here would queue for the household.
+        // Cleared on both sides.
+        GroceryMarks.shared.clear()
+        HouseholdOutbox.shared.clear()
+        defer {
+            GroceryMarks.shared.clear()
+            HouseholdOutbox.shared.clear()
+        }
         let start = Date.now.startOfDay
         func day(_ offset: Int) -> Date { Calendar.current.date(byAdding: .day, value: offset, to: start)! }
         var count = 0
@@ -45,13 +55,24 @@ enum GroceryRegressionChecks {
         try expect(!row.isPurchased(for: firstScope) && abs(row.outstanding(for: firstScope) - ounce) < 0.000001, "Increasing servings exposes only the additional amount")
         let beforeCheck = row.purchasesData
         row.setPurchased(true)
+        // The sheet's undo path: restore, then record the restored value as
+        // the newest mark, or the check it took back wins on the next open.
         row.purchasesData = beforeCheck
         row.isChecked = row.isPurchased()
+        row.recordMark()
         try expect(abs(row.outstanding() - ounce * 3) < 0.000001, "Undo restores purchased quantities")
+        _ = try builder.rebuild(weekOf: start)
+        try expect(abs(row.outstanding() - ounce * 3) < 0.000001, "Reopening after an undo keeps the undone check undone")
+        try expect(GroceryMarks.shared.mark(for: row.lineKey)?.purchases == row.purchases, "A check-off is recorded as the line's mark")
+        row.isDismissed = true
+        row.recordMark()
+        _ = try builder.rebuild(weekOf: start)
+        try expect(row.isDismissed && GroceryMarks.shared.mark(for: row.lineKey)?.dismissedUntil == row.windowEnd, "A struck line stays struck when the list is rebuilt")
         row.setPurchased(true)
         first.date = day(8)
         let ahead = try builder.rebuild(weekOf: day(8)).first!
         try expect(ahead.isPurchased(for: firstScope) && ahead.sources.first?.date == day(8), "Moving a meal keeps its purchases and updates its date")
+        try expect(!ahead.isDismissed, "A dismissal lapses with the window it was made in")
         let current = try builder.rebuild(weekOf: start).first!
         try expect(current.isPurchased() && current.sources.count == 1, "Returning to the current window retains the remaining meal's purchases")
         let all = try context.fetch(FetchDescriptor<GroceryItem>())
@@ -73,6 +94,15 @@ enum GroceryRegressionChecks {
         try expect(!unmeasured.isPurchased(), "Unmeasured ingredients start unchecked")
         unmeasured.setPurchased(true)
         try expect(unmeasured.isPurchased(), "Unmeasured ingredients can be checked off")
+        // A solo phone has no household zone, so a queued mark would answer
+        // .retry forever and be paid for on every launch. The mark is still
+        // in the book; publishAll queues the book when sharing begins.
+        HouseholdOutbox.shared.clear()
+        row.setPurchased(true)
+        let queued = HouseholdOutbox.shared.hasPending(GroceryMarks.recordName(for: row.lineKey))
+        let shared = HouseholdShare.membership != .solo
+        try expect(queued == shared, "A check-off queues for the household only once there is one")
+        try expect(GroceryMarks.shared.mark(for: row.lineKey) != nil, "A check-off is written to the book either way")
         print("PLATED GROCERY CHECKS: \(count) passed")
     }
 }

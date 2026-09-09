@@ -37,8 +37,13 @@ enum SampleData {
         // People — Nate owns the account; Sam and Riley have standing nights.
         let nate = HouseholdMember(
             name: "Nate", colorHex: "FF5A3C", isPrimaryCook: true,
-            role: "owner", roleLine: "Head of table", cookWeekdays: [6, 4] // Fri, Wed
+            role: "owner", roleLine: "Head of table", cookWeekdays: [6, 4], // Fri, Wed
+            seat: .head
         )
+        // The seeded owner is the person holding the simulator, or every
+        // "You" in the app would fall back to role and the household
+        // rehearsal could not tell the reader from the arriving host.
+        nate.userRecordName = TableIdentity.cached
         let sam = HouseholdMember(
             name: "Sam", colorHex: "3DA35D",
             role: "partner", roleLine: "Partner · plans & cooks", cookWeekdays: [7, 1] // Sat, Sun

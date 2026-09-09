@@ -61,6 +61,24 @@ final class Recipe {
     /// Stored as `WeatherMood` raw values.
     var weatherMoods: [String] = []
 
+    // MARK: How this row travels (docs/household.md)
+
+    /// The CloudKit record name in the household zone, minted at birth.
+    /// "" only on rows that predate the field.
+    var shareRecordName: String = ""
+    /// `modifiedAt` of the version last exchanged with the zone; nil means
+    /// never synced.
+    var shareModifiedAt: Date?
+    /// Hash of the wire fields as last exchanged.
+    var shareFingerprint: String = ""
+    /// The identity that wrote this recipe. "" on rows that predate the
+    /// field, which count as this device's own. Leaving a household keeps
+    /// what is yours by this.
+    var authorID: String = ""
+    /// Hash of the photo bytes as last exchanged, so a title edit does not
+    /// re-upload the photographs.
+    var sharePhotoHash: String = ""
+
     @Relationship(deleteRule: .cascade, inverse: \Ingredient.recipe)
     var ingredients: [Ingredient]? = []
 
@@ -92,6 +110,7 @@ final class Recipe {
         self.tags = tags
         self.weatherMoods = weatherMoods.map(\.rawValue)
         self.createdAt = .now
+        self.shareRecordName = "recipe-\(UUID().uuidString)"
     }
 
     var totalMinutes: Int { prepMinutes + cookMinutes }

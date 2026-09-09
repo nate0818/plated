@@ -28,7 +28,7 @@ export default function Privacy() {
           <span aria-current="page">Privacy</span>
         </nav>
         <h1 className={styles.title}>What Plated keeps, and where.</h1>
-        <p className={`${styles.updated} secondary`}>Last updated 5 September 2026</p>
+        <p className={`${styles.updated} secondary`}>Last updated 7 September 2026</p>
 
         <p className={styles.lede}>
           Plated is a dinner planner for a household. Your recipes, plans,
@@ -41,9 +41,20 @@ export default function Privacy() {
           Recipes, meal plans, grocery lists, household members, gatherings,
           photographs, posts to your Table and cooking history are saved on your
           device and synced through your private iCloud database using
-          Apple&rsquo;s CloudKit. When you share a Table, CloudKit shares it with
-          the people you invited and nobody else. The developer cannot read any
-          of it.
+          Apple&rsquo;s CloudKit. The developer cannot read any of it.
+        </p>
+        <p>
+          If you join a household, the plan, the grocery list, the cookbook and
+          the people list are shared with the other members of that household
+          through iCloud, and each member&rsquo;s own iCloud keeps a copy.
+          Leaving takes your recipes with you and removes the rest from your
+          phone. The household keeps its copy of the recipes you shared with
+          it, including the ones you brought when you joined.
+        </p>
+        <p>
+          When you share a Table, CloudKit shares your posts with the people
+          you invited and nobody else. A Table guest never sees the plan, the
+          grocery list or the cookbook.
         </p>
 
         <h2>On Plated&rsquo;s server</h2>
@@ -74,10 +85,17 @@ export default function Privacy() {
           </li>
         </ul>
         <p>
-          When you look for contacts already on Plated, the phone numbers from
-          your address book are sent to the server over an encrypted connection,
-          hashed there, compared, and not stored. People who are not on Plated
-          are never kept. The server is hosted by Supabase in the United States.
+          The directory is used for two things. When you look for contacts
+          already on Plated, the phone numbers from your address book are sent
+          to the server over an encrypted connection, hashed there, compared,
+          and not stored. People who are not on Plated are never kept. When
+          somebody invites you and your number is in the directory, the server
+          sends a notice to your phone saying who it is from, which it can do
+          because it holds a push token for each phone you have signed in on.
+          The invitation link itself is never stored. What stays behind is a
+          record that the invitation happened: who sent it, the hashed number
+          and the time, so that no host can turn invitations into a mailing
+          list. The server is hosted by Supabase in the United States.
         </p>
 
         <h2>When somebody shares a seat</h2>

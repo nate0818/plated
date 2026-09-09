@@ -143,6 +143,21 @@ final class CookLedger {
     /// cooking, and the page's posture should not change for it.
     func isCooking(_ recipe: Recipe) -> Bool { session(for: recipe)?.step != nil }
 
+    /// Is any live session cooking this particular night?
+    ///
+    /// Sessions are keyed by RECIPE, and `mealID` is the night's
+    /// `shoppingID`, stamped once when the session began. Asked by the
+    /// household removal drain, which must not take a dinner off the plan
+    /// while somebody is standing at the hob with it: the night goes when
+    /// they are finished, not under their hands.
+    ///
+    /// An empty id is nobody's night, and answers false rather than
+    /// matching every session that never carried one.
+    func isCooking(mealID: String) -> Bool {
+        guard !mealID.isEmpty else { return false }
+        return book.sessions.values.contains { $0.mealID == mealID && $0.step != nil }
+    }
+
     func step(for recipe: Recipe) -> Int? { session(for: recipe)?.step }
 
     /// The end date and the step it belongs to, or nil.

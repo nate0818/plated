@@ -182,6 +182,16 @@ struct CookbookView: View {
 
     private enum Reach { case looking, reached, unreachable }
 
+    /// The host's first name while their household is still uploading
+    /// (docs/household.md §7, step 6): nil once the root's `publishedAt`
+    /// lands, "" when the name never arrived. Polled, not observed: the
+    /// app-group cache has no publisher.
+    @State private var arrivingHost: String?
+    /// A member's phone that cannot reach iCloud right now (§10). What is
+    /// on the shelf is what last arrived, and the line says so rather than
+    /// letting a full cookbook pass for a current one.
+    @State private var cloudUnreachable = false
+
     private var shown: [Recipe] {
         filter.apply(to: recipes).filter { recipe in
             switch collection {
@@ -228,6 +238,19 @@ struct CookbookView: View {
                     }.padding(.horizontal, 24)
                 }.padding(.top, 14).plChrome()
                 ScrollView(showsIndicators: false) {
+                    if let householdLine {
+                        // One quiet line above whatever has landed, and no
+                        // spinner: the shelf is real, it is just not all
+                        // here yet, or not current.
+                        Text(householdLine)
+                            .plType(.caption, .medium)
+                            .foregroundStyle(Color.inkSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 24)
+                            .padding(.top, 16)
+                            .transition(.plUnfold)
+                    }
                     // Two columns is about 170pt a tile, and at AX5 a
                     // dish name sets at 47pt: "Sheet-pan chicken with
                     // charred lemon" could not fit two lines of that in
@@ -282,7 +305,12 @@ struct CookbookView: View {
                         if recipes.isEmpty || (!filter.isFiltering && collection == "All recipes") {
                             switch reach {
                             case .looking: stillLooking
-                            case .reached: emptyCookbook
+                            case .reached:
+                                // "Nothing in the cookbook yet" is a claim,
+                                // and while the host's phone is still
+                                // uploading it is a false one. The line
+                                // above already says what is true.
+                                if arrivingHost == nil { emptyCookbook }
                             case .unreachable: cannotReach
                             }
                         } else {
@@ -293,6 +321,15 @@ struct CookbookView: View {
             }
             .background(Color.canvas)
             .task { await look() }
+            .task {
+                // The household's standing lives in the app group, which no
+                // SwiftUI body observes; the account check is a local
+                // daemon query. Read both while the shelf is on screen.
+                while !Task.isCancelled {
+                    await readHouseholdStanding()
+                    try? await Task.sleep(for: .seconds(3))
+                }
+            }
             // A recipe arriving mid-import settles the question on its own.
             .onChange(of: recipes.count) { _, count in
                 if count > 0 { reach = .reached }
@@ -307,9 +344,14 @@ struct CookbookView: View {
             .toolbar(.hidden, for: .navigationBar)
             .plSwipeBack()
         }
-        .sheet(isPresented: $importShown) { RecipeImportSheet() }
-        .sheet(isPresented: $filterSheetShown) {
-            RecipeFilterSheet(filter: $filter, recipes: recipes)
+        // Two `.sheet` modifiers on one view is undefined — see CLAUDE.md.
+        .sheet(item: shelfSheet) { destination in
+            switch destination {
+            case .importing: RecipeImportSheet()
+            case .filter: RecipeFilterSheet(filter: $filter, recipes: recipes)
+            case .plate(let recipe): PlateAssignSheet(recipe: recipe)
+            case .edit(let recipe): RecipeEditorView(editing: recipe)
+            }
         }
         // See TabPopRequest: tapping Recipes from inside a recipe returns
         // to the shelf.
@@ -317,12 +359,6 @@ struct CookbookView: View {
             guard request.tab == .cookbook else { return }
             selected = nil
             activityShown = false
-        }
-        .sheet(item: $plating) { recipe in
-            PlateAssignSheet(recipe: recipe)
-        }
-        .sheet(item: $editing) { recipe in
-            RecipeEditorView(editing: recipe)
         }
         .confirmationDialog(
             pendingDelete.map { "Delete \($0.title)?" } ?? "",
@@ -344,6 +380,37 @@ struct CookbookView: View {
             // implies the household had been reading your cookbook all along.
             Text("Nights it's planned on keep the name.")
         }
+    }
+
+    private enum ShelfSheet: Identifiable {
+        case importing, filter, plate(Recipe), edit(Recipe)
+        var id: String {
+            switch self {
+            case .importing: "import"
+            case .filter: "filter"
+            case .plate(let recipe): "plate-\(recipe.persistentModelID)"
+            case .edit(let recipe): "edit-\(recipe.persistentModelID)"
+            }
+        }
+    }
+    private var shelfSheet: Binding<ShelfSheet?> {
+        Binding(
+            get: {
+                if importShown { return .importing }
+                if filterSheetShown { return .filter }
+                if let plating { return .plate(plating) }
+                if let editing { return .edit(editing) }
+                return nil
+            },
+            set: {
+                if $0 == nil {
+                    importShown = false
+                    filterSheetShown = false
+                    plating = nil
+                    editing = nil
+                }
+            }
+        )
     }
 
     private var noMatches: some View {
@@ -417,6 +484,45 @@ struct CookbookView: View {
         .frame(maxWidth: .infinity)
         .padding(.top, 40)
         .padding(.horizontal, 24)
+    }
+
+    /// The one household line the shelf can carry (docs/household.md §7
+    /// step 6, §10). Arrival first: a cookbook still uploading is not yet
+    /// a cookbook that could be stale. The iCloud line needs something on
+    /// the shelf to be about; an empty one is the Reach machinery's.
+    private var householdLine: String? {
+        if let arrivingHost {
+            return arrivingHost.isEmpty
+                ? "Still arriving from the host's phone."
+                : "Still arriving from \(arrivingHost)'s phone."
+        }
+        if cloudUnreachable, !recipes.isEmpty {
+            return "Can't reach iCloud. The cookbook is what last arrived."
+        }
+        return nil
+    }
+
+    /// Where a member's phone stands, read from the app group and from
+    /// CloudKit's account status. Nothing here for a host or a solo
+    /// household: their cookbook is their own and the mirror answers for it.
+    private func readHouseholdStanding() async {
+        var arriving: String?
+        var unreachable = false
+        if case .member = HouseholdShare.membership {
+            if HouseholdShare.cachedPublishedAt == nil {
+                let host = HouseholdShare.cachedOwnerName.trimmingCharacters(in: .whitespaces)
+                arriving = host.split(separator: " ").first.map(String.init) ?? host
+            }
+            // `.notArmed` is a build without the entitlement, never a
+            // phone that lost iCloud; it is not a reason to say so.
+            let state = await TableSync.accountState()
+            unreachable = state != .available && state != .notArmed
+        }
+        guard arriving != arrivingHost || unreachable != cloudUnreachable else { return }
+        withAnimation(.plSnap) {
+            arrivingHost = arriving
+            cloudUnreachable = unreachable
+        }
     }
 
     /// One pass at the mirror, so the empty state knows which of the three it
@@ -1316,7 +1422,7 @@ struct RecipeDetailView: View {
         if let meal {
             parts.append(platedLine(meal))
             if let cook = meal.cook {
-                parts.append(cook.isOwner ? "You cook" : "\(cook.name) cooks")
+                parts.append(cook.isMe ? "You cook" : "\(cook.name) cooks")
             }
         } else if let next = nextPlannedNight {
             // Opened from the cookbook, so "Plan it" is still the right
@@ -1639,20 +1745,27 @@ struct RecipeDetailView: View {
         }
     }
 
-    // A recipe has never left this account, so this is a constant rather
-    // than a lookup. There is no code path that puts a Recipe in a shared
-    // zone, and the row used to say "Everyone on the Table can see this"
-    // about a record living in the private database — the honesty rule in
-    // DESIGN.md, and the most expensive kind of break because the reader has
-    // no way to notice.
+    // The row used to say "Everyone on the Table can see this" about a
+    // record living in the private database — the honesty rule in
+    // DESIGN.md, and the most expensive kind of break because the reader
+    // has no way to notice. A recipe now travels to the household and
+    // nowhere else (docs/household.md), so the sentence is keyed on the
+    // one fact that makes it true: a second seat that actually joined. A
+    // by-name kid or an unanswered invitation has no phone to see it on.
     //
     // The editor's Visibility picker wrote `visibility` and nothing read it;
     // it has been removed for the same reason. The property stays on the
     // model, written "private" on every save, because dropping a mirrored
     // property is not CloudKit-safe.
-    private var visibilityIcon: String { "lock" }
+    private var sharedWithHousehold: Bool {
+        members.contains { $0.seat == .joined && !$0.isMe }
+    }
 
-    private var visibilityLine: String { "Only you can see this" }
+    private var visibilityIcon: String { sharedWithHousehold ? "person.2" : "lock" }
+
+    private var visibilityLine: String {
+        sharedWithHousehold ? "Everyone in your household can see this" : "Only you can see this"
+    }
 
     private func quantityText(_ ingredient: Ingredient, quantity: Double) -> String {
         var parts: [String] = []
@@ -1715,8 +1828,15 @@ struct PlateAssignSheet: View {
                         MicroLabel("Which night")
                         DatePicker("Dinner date", selection: Binding(get: { chosenDate ?? .now.startOfDay }, set: { chosenDate = $0.startOfDay }), in: Date.now.startOfDay..., displayedComponents: .date)
                             .datePickerStyle(.graphical).tint(Color.accentText)
-                        if let date = chosenDate, let occupied = dinner(on: date) {
+                        if let date = chosenDate, let occupied = localDinner(on: date) {
                             Label("Replaces \(occupied.title)", systemImage: "arrow.triangle.2.circlepath")
+                                .plType(.footnote).foregroundStyle(Color.inkSecondary)
+                        } else if let date = chosenDate, let remote = remoteDinner(on: date) {
+                            // A housemate's night is not a PlannedMeal, so the
+                            // local replace path cannot own it. Naming it here
+                            // stops "Plan for Saturday" from stacking a second
+                            // dinner beside one the week already shows.
+                            Label("\(remote.authorFirstName) already planned \(remote.title)", systemImage: "person.2")
                                 .plType(.footnote).foregroundStyle(Color.inkSecondary)
                         }
                     }
@@ -1779,7 +1899,7 @@ struct PlateAssignSheet: View {
                     TomatoPillButton(title: plateLabel) {
                         plate()
                     }
-                    .disabled(chosenDate == nil)
+                    .disabled(chosenDate == nil || remoteBlocks)
                 }
             }
             .animation(.plSnap, value: confirmation)
@@ -1802,11 +1922,12 @@ struct PlateAssignSheet: View {
 
     private func suggestCook() {
         guard !cookPickedByHand, let date = chosenDate else { return }
-        chosenCook = dinner(on: date)?.cook ?? CookRotation.cook(for: date, members: members, meals: meals) ?? cookCandidates.first(where: \.isOwner) ?? cookCandidates.first
+        chosenCook = localDinner(on: date)?.cook ?? CookRotation.cook(for: date, members: members, meals: meals) ?? cookCandidates.me ?? cookCandidates.first
     }
 
     private func nightRow(_ date: Date) -> some View {
-        let occupied = dinner(on: date)
+        let occupied = localDinner(on: date)
+        let remote = remoteDinner(on: date)
         let active = chosenDate == date
         return Button {
             Haptic.tap()
@@ -1831,6 +1952,11 @@ struct PlateAssignSheet: View {
                 Spacer()
                 if let occupied {
                     Text("\(occupied.title) planned")
+                        .plType(.micro, .semibold)
+                        .foregroundStyle(active ? Color.canvas.opacity(0.8) : Color.inkSecondary)
+                        .lineLimit(1)
+                } else if let remote {
+                    Text("\(remote.title) planned")
                         .plType(.micro, .semibold)
                         .foregroundStyle(active ? Color.canvas.opacity(0.8) : Color.inkSecondary)
                         .lineLimit(1)
@@ -1865,14 +1991,14 @@ struct PlateAssignSheet: View {
             }
         } label: {
             VStack(spacing: 4) {
-                AvatarCircle(initials: member.firstInitial, tone: member.isOwner ? .neutralPair : member.tone, size: 44,
+                AvatarCircle(initials: member.firstInitial, tone: member.isMe ? .neutralPair : member.tone, size: 44,
                              photo: member.photoData)
                     .overlay {
                         if active {
                             Circle().strokeBorder(Color.ink, lineWidth: 2)
                         }
                     }
-                Text(member.isOwner ? "You" : member.name)
+                Text(member.isMe ? "You" : member.name)
                     .plType(.micro, active ? .extraBold : .semibold)
                     .foregroundStyle(active ? Color.ink : Color.inkSecondary)
             }
@@ -1888,12 +2014,23 @@ struct PlateAssignSheet: View {
     /// pressing it took that dinner away without ever having said so.
     private var plateLabel: String {
         guard let chosenDate else { return "Pick a night" }
-        if let taken = dinner(on: chosenDate) { return "Replace \(taken.title)" }
+        if let taken = localDinner(on: chosenDate) { return "Replace \(taken.title)" }
+        if remoteDinner(on: chosenDate) != nil { return "Night already planned" }
         return "Plan for \(nightLabel(chosenDate))"
     }
 
-    private func dinner(on date: Date) -> PlannedMeal? {
+    /// True when a housemate owns the night and this sheet cannot replace it.
+    private var remoteBlocks: Bool {
+        guard let chosenDate, localDinner(on: chosenDate) == nil else { return false }
+        return remoteDinner(on: chosenDate) != nil
+    }
+
+    private func localDinner(on date: Date) -> PlannedMeal? {
         meals.first { Calendar.current.isSameDay($0.date, date) && $0.slotValue == .dinner }
+    }
+
+    private func remoteDinner(on date: Date) -> PlanLedger.Entry? {
+        PlanLedger.shared.dinner(on: date).flatMap { $0.isGoing ? nil : $0 }
     }
 
     private func nightLabel(_ date: Date) -> String {
@@ -1905,10 +2042,10 @@ struct PlateAssignSheet: View {
     }
 
     private func plate() {
-        guard let date = chosenDate else { return }
+        guard let date = chosenDate, !remoteBlocks else { return }
         Haptic.plate()
-        let cook = chosenCook ?? cookCandidates.first(where: \.isOwner) ?? cookCandidates.first
-        if let existing = dinner(on: date) {
+        let cook = chosenCook ?? cookCandidates.me ?? cookCandidates.first
+        if let existing = localDinner(on: date) {
             // A gathering names the night and counts its guests; the recipe
             // is only what is being cooked at it. Blanking both turned
             // "Anna's birthday · Cooking for 12" into the dish's own title
@@ -1928,7 +2065,7 @@ struct PlateAssignSheet: View {
                 servings: servingCount, cook: cook
             ))
         }
-        let cookName = (cook?.isOwner ?? true) ? "you" : (cook?.name ?? "someone")
+        let cookName = (cook?.isMe ?? true) ? "you" : (cook?.name ?? "someone")
         Notifier.post(
             .mealPlanned, actor: cook?.name ?? "",
             body: "\(nightLabel(date)): \(recipe.title). \(cookName.capitalized) cook\(cookName == "you" ? "" : "s").",

@@ -47,7 +47,7 @@ enum TonightAnswer {
         var parts: [String] = []
 
         if let cook = meal.cook {
-            parts.append(cook.isOwner ? "You cook" : "\(cook.name) cooks")
+            parts.append(cook.isMe ? "You cook" : "\(cook.name) cooks")
         }
         let minutes = meal.recipe?.totalMinutes ?? 0
         if minutes > 0 {

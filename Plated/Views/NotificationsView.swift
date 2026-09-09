@@ -211,6 +211,7 @@ struct NotificationsView: View {
         case .post: return "Opens the dish"
         case .home: return "Opens Home"
         case .plan, .grocery: return "Opens the plan"
+        case .cookbook: return "Opens the cookbook"
         default: return "Opens the Table"
         }
     }

@@ -100,7 +100,7 @@ enum Notifier {
         else { return }
 
         UserDefaults.standard.set(today.timeIntervalSince1970, forKey: stampKey)
-        let name = cook.isOwner ? "your" : "\(cook.name)'s"
+        let name = cook.isMe ? "your" : "\(cook.name)'s"
         post(
             .turnReminder, actor: cook.name,
             body: "Tonight is \(name) night to cook. Nothing plated yet.",

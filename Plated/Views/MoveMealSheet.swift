@@ -3,6 +3,16 @@ import SwiftData
 
 /// Moving keeps the meal's shopping identity and swaps occupied slots, so
 /// changing nights can never silently replace another planned dinner.
+///
+/// **This phone's own nights only, and a household night is plainly not
+/// offered one.** A move is a swap: the meal takes a date and whatever was
+/// already there takes its old one. On a household night the swap partner is
+/// very often a local `PlannedMeal`, so one gesture would be two writes in
+/// two authorities, the zone and the store, with nothing to roll either back
+/// if the other refused. `PlanNightSheet` changes a household night in
+/// place, `RemotePlanRow` carries no drag lift and no Move, and this sheet
+/// takes a `PlannedMeal` because that is the only thing it can honour
+/// (docs/plan-share.md, "Changing a household night").
 struct MoveMealSheet: View {
     let meal: PlannedMeal
     var didMove: (Date) -> Void = { _ in }

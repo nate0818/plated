@@ -41,6 +41,14 @@ final class NotificationRouter: NSObject, UNUserNotificationCenterDelegate {
         static let turnMine = "plated.category.turn.mine"
         static let plan = "plated.category.plan"
         static let cook = "plated.category.cook"
+        /// A night planned, or an edit that lost: both open the plan.
+        static let household = "plated.category.household"
+        /// A seat joined or left. The placeholder has to name the same
+        /// door the tap opens, so these keep their own category rather
+        /// than borrowing the plan's sentence on a locked screen.
+        static let householdSeat = "plated.category.household.seat"
+        /// A recipe added, which opens the cookbook.
+        static let householdRecipe = "plated.category.household.recipe"
     }
 
     enum Action {
@@ -58,6 +66,9 @@ final class NotificationRouter: NSObject, UNUserNotificationCenterDelegate {
         // The same category the cook reminders wear: a tap lands on the
         // plan, and there is nothing to plate or answer about a night.
         case .plan: return Category.plan
+        case .householdSeat, .householdLeft: return Category.householdSeat
+        case .recipe: return Category.householdRecipe
+        case .conflict: return Category.household
         }
     }
 
@@ -97,7 +108,10 @@ final class NotificationRouter: NSObject, UNUserNotificationCenterDelegate {
             category(Category.plates, [], "Open the dish."),
             category(Category.turnMine, [grocery], "Open the plan."),
             category(Category.plan, [], "Open the plan."),
-            category(Category.cook, [], "Time to check the pan.")
+            category(Category.cook, [], "Time to check the pan."),
+            category(Category.household, [], "Open the plan."),
+            category(Category.householdSeat, [], "Open Home."),
+            category(Category.householdRecipe, [], "Open the cookbook.")
         ])
     }
 
@@ -112,13 +126,15 @@ final class NotificationRouter: NSObject, UNUserNotificationCenterDelegate {
         let kind = info[Key.kind] as? String ?? ""
         // Only ever called while the app is in front, so "are they looking
         // at it" is a question about which screen, never about app state.
-        let (openPost, feedVisible, activityVisible, planVisible) = await MainActor.run {
+        let (openPost, feedVisible, activityVisible, planVisible, householdVisible, cookbookVisible) = await MainActor.run {
             (Presence.shared.openPost, Presence.shared.feedVisible,
-             Presence.shared.activityVisible, Presence.shared.planVisible)
+             Presence.shared.activityVisible, Presence.shared.planVisible,
+             Presence.shared.householdVisible, Presence.shared.cookbookVisible)
         }
         let options = Self.presentation(
             post: post, kind: kind, openPost: openPost,
-            feedVisible: feedVisible, activityVisible: activityVisible, planVisible: planVisible
+            feedVisible: feedVisible, activityVisible: activityVisible, planVisible: planVisible,
+            householdVisible: householdVisible, cookbookVisible: cookbookVisible
         )
         if options == [.list] {
             print("[Notify] kept a banner about what is on screen to the list (\(kind))")
@@ -136,7 +152,8 @@ final class NotificationRouter: NSObject, UNUserNotificationCenterDelegate {
     /// never happened.
     static func presentation(
         post: String, kind: String, openPost: String?, feedVisible: Bool,
-        activityVisible: Bool = false, planVisible: Bool = false
+        activityVisible: Bool = false, planVisible: Bool = false,
+        householdVisible: Bool = false, cookbookVisible: Bool = false
     ) -> UNNotificationPresentationOptions {
         // The bell list is the one screen where every notice is already
         // in front of the person; a banner over it announced the row
@@ -145,6 +162,12 @@ final class NotificationRouter: NSObject, UNUserNotificationCenterDelegate {
             || (feedVisible && (kind == "dish" || kind == "ask" || kind == "more"))
             || (activityVisible && !kind.isEmpty)
             || (planVisible && kind == "plan")
+            // The household's own two, which were the only notices in the
+            // app whose destination nobody was watching: a join banner
+            // landed over the roster it had just been added to, and a recipe
+            // banner over the cookbook row underneath it.
+            || (householdVisible && (kind == "householdSeat" || kind == "householdLeft"))
+            || (cookbookVisible && kind == "recipe")
         return looking ? [.list] : [.banner, .list, .sound]
     }
 
@@ -261,4 +284,40 @@ final class Presence {
     /// The week itself. A banner about a night while the week is in front
     /// announces the row that just appeared on it.
     var planVisible = false
+    /// The household screen, which is where a seat joining or leaving opens
+    /// and where the roster it is about is already drawn.
+    var householdVisible = false
+    /// The cookbook, for the same reason: a recipe joining it lands over the
+    /// list that just gained the row.
+    var cookbookVisible = false
+
+    /// The shell says which tab is showing, and these two follow it.
+    ///
+    /// They were driven from `onAppear` and `onDisappear` on the tab roots,
+    /// which is wrong under this shell: it is a `switch` on a selection and
+    /// not a `TabView`, so a root that has been shown once is not torn down
+    /// when another tab is chosen and its `onDisappear` does not fire. The
+    /// flag latched true and every household banner for the rest of the
+    /// session arrived silently, which is a worse failure than the one the
+    /// flags were added to fix, because nothing on screen says it happened.
+    ///
+    /// The Table's feed and the week keep their own hooks: those are pushed
+    /// and popped rather than switched, and they answer a finer question
+    /// than which tab is showing.
+    /// All four, not the two that were added last. `planVisible` and
+    /// `feedVisible` were driven from `onAppear`/`onDisappear` on their own
+    /// tab roots and latch for exactly the same reason: this shell is a
+    /// switch on a selection, so a root shown once is never torn down. The
+    /// fix went to the two flags in front of me and was reported as a class,
+    /// which is the shape that has cost this branch more than any other.
+    ///
+    /// The screens keep their own hooks as well, and the two compose rather
+    /// than fight: a tab change is the coarse answer and runs here, while a
+    /// push inside a tab is the fine one and runs there.
+    static func follow(_ tab: AppTab) {
+        shared.householdVisible = tab == .home
+        shared.cookbookVisible = tab == .cookbook
+        shared.planVisible = tab == .week
+        shared.feedVisible = tab == .table
+    }
 }

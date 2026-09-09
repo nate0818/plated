@@ -25,6 +25,19 @@ final class GroceryItem {
     var sourcesData: Data?
     var purchasesData: Data?
 
+    // MARK: How this row travels (docs/household.md §3.5)
+    //
+    // Only a MANUAL line travels as a row; an auto line is regenerated from
+    // the shared plan on every phone and only its check-off travels, as a
+    // mark keyed by `GroceryMeasure.key`. So the record name is minted for
+    // manual rows and stays "" on auto rows, which is how the sync layer
+    // tells them apart without a second flag.
+
+    var shareRecordName: String = ""
+    var shareModifiedAt: Date?
+    var shareFingerprint: String = ""
+    var authorID: String = ""
+
     var sources: [GrocerySource] {
         get { sourcesData.flatMap { try? JSONDecoder().decode([GrocerySource].self, from: $0) } ?? [] }
         set { sourcesData = try? JSONEncoder().encode(newValue) }
@@ -43,6 +56,9 @@ final class GroceryItem {
         guard !relevant.isEmpty else { return isChecked }
         return relevant.allSatisfy { (purchases[$0.id] ?? -1) + 0.000001 >= $0.quantity }
     }
+    /// Main actor because the mark it records is; every caller is a view or
+    /// the regression checks, both of which already are.
+    @MainActor
     func setPurchased(_ checked: Bool, for selected: Set<String>? = nil) {
         var saved = purchases
         for source in sources where selected == nil || selected!.contains(source.id) {
@@ -50,6 +66,29 @@ final class GroceryItem {
         }
         purchases = saved
         isChecked = sources.isEmpty ? checked : isPurchased()
+        recordMark()
+    }
+
+    /// The key every phone derives for this line from the shared plan, and
+    /// the thing a mark travels under; the row itself never does.
+    var lineKey: String { GroceryMeasure.key(name, unit) }
+
+    /// The last day of this row's window, as the wire spells a day. A
+    /// dismissal recorded against it lapses with the first window that
+    /// starts after it.
+    var windowEnd: String {
+        HouseholdMember.day(Calendar.current.date(byAdding: .day, value: 6, to: weekStart) ?? weekStart)
+    }
+
+    /// Tell the household what just happened to this line. Only an auto
+    /// line has a mark: a manual line travels as a row, check included.
+    @MainActor
+    func recordMark() {
+        guard !isManual else { return }
+        GroceryMarks.shared.record(
+            lineKey: lineKey, purchases: purchases,
+            dismissedUntil: isDismissed ? windowEnd : nil
+        )
     }
 
     init(
@@ -69,6 +108,7 @@ final class GroceryItem {
         self.weekStart = Calendar.current.startOfDay(for: weekStart)
         self.isManual = isManual
         self.createdAt = .now
+        if isManual { self.shareRecordName = "line-\(UUID().uuidString)" }
     }
 
     var aisleValue: GroceryAisle {
