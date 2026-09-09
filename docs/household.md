@@ -773,12 +773,14 @@ household deltas inherit the Table's 36-hour window and the four-banner cap.
 Household rows are gated by the switch now titled "Household and Table
 activity".
 
-Subtitles, by seat and role: me, "You · Partner" or "You · Head of table";
-head, "Head of table"; joined partner, "Plans and cooks with you"; joined kid
-or member, "Sees the plan with you"; invited, "Invited Tuesday"; notOnPlated,
-"You cook for them". `PersonProfileView.roleLine` is the person's role, with
-"Head of table" only for the owner row. The me row takes the neutral tone; on
-a member's phone the host keeps their colour.
+Subtitles, by seat and role (PEOPLE-IDENTITY-COPY-LOCK-2026-09-09): own
+household-owner row, "You · Owner"; own member row, "You"; never Head of
+table, never Host on self. Account hero is the name only. Another host is
+"Host"; joined partner, "Plans and cooks with you"; joined kid or member,
+"Sees the plan with you"; invited, "Invited Tuesday"; notOnPlated, "You cook
+for them". An unnamed joiner prints "No name yet", never "New member" or the
+host's name. An invite with no typed name prints "Invited". The me row takes
+the neutral tone; on a member's phone the host keeps their colour.
 
 **Change role** is a menu on the member row for the host: Partner, Kid,
 Member, caption "Partners share cook nights." Demoting a partner who holds
@@ -787,8 +789,8 @@ cook nights says "Riley's cook nights are cleared." and clears them.
 **Settings, Household.** Host: the name field and "You host this household
 with Riley and Max." Member: the name read-only with "Nate can rename it",
 "Nate's household. You joined Tuesday.", and the Leave row. On a member's
-Home, when `TableSync.accountState` is not available: "Can't reach iCloud.
-Changes reach your household when it's back."
+Home, when `TableSync.accountState` is not available: "Couldn't reach iCloud."
+and "Try again".
 
 Copy that was false and is now true or rewritten:
 

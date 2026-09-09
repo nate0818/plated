@@ -503,18 +503,37 @@ struct HouseholdHomeView: View {
         }
     }
 
-    /// "Can't reach iCloud. Changes reach your household when it's back."
-    /// on a member's phone (docs/household.md §10), in the sharing line's
-    /// own dress: a fact under the masthead, never a banner.
+    /// Locked reach copy on a member's phone (docs/household.md §10), in
+    /// the sharing line's own dress: a fact under the masthead, never a
+    /// banner, with the one retry the copy lock names.
     @ViewBuilder
     private var iCloudLine: some View {
         if cloudUnreachable {
-            Text("Can't reach iCloud. Changes reach your household when it's back.")
-                .plType(.caption)
-                .foregroundStyle(Color.inkSecondary)
-                .fixedSize(horizontal: false, vertical: true)
-                .transition(.plUnfold)
+            VStack(alignment: .leading, spacing: 6) {
+                Text(HouseholdIdentity.PeopleCopy.reachFailure)
+                    .plType(.caption)
+                    .foregroundStyle(Color.inkSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Button(HouseholdIdentity.PeopleCopy.tryAgain) {
+                    Haptic.tap()
+                    Task { await recheckiCloud() }
+                }
+                .plType(.caption, .bold)
+                .plActionLabel()
+                .foregroundStyle(Color.accentText)
+                .buttonStyle(.pressable)
+            }
+            .transition(.plUnfold)
         }
+    }
+
+    private func recheckiCloud() async {
+        var unreachable = false
+        if case .member = HouseholdShare.membership {
+            let state = await TableSync.accountState()
+            unreachable = state != .available && state != .notArmed
+        }
+        withAnimation(.plSnap) { cloudUnreachable = unreachable }
     }
 
     /// Written by `HouseholdSync.publishAll`; read from the app group first
@@ -690,12 +709,7 @@ struct HouseholdHomeView: View {
             // seat is a message that went out and nothing that came back.
             // Naming either is the same claim as "You host this household
             // with Riley" over somebody who never opened the link.
-            Text(HouseholdIdentity.seatedLine(
-                names: roster.filter {
-                    $0.seat != .left && $0.seat != .invited
-                        && !HouseholdIdentity.isUnnamed($0.name)
-                }.map(\.name)
-            ))
+            Text(Seats.seatedCaption(among: roster, reader: roster.me))
                 .plType(.caption)
                 .foregroundStyle(Color.inkSecondary)
                 .padding(.horizontal, 2)
@@ -818,7 +832,9 @@ struct HouseholdHomeView: View {
                     Haptic.tap()
                     Task { await refreshPeopleFromiCloud() }
                 } label: {
-                    Text("Refresh people from iCloud")
+                    Text(peopleRefreshNote == HouseholdIdentity.PeopleCopy.reachFailure
+                        ? HouseholdIdentity.PeopleCopy.tryAgain
+                        : "Refresh people from iCloud")
                         .plType(.caption, .bold)
                         .plActionLabel()
                         .foregroundStyle(Color.accentText)
@@ -835,6 +851,13 @@ struct HouseholdHomeView: View {
     /// rebuild any accepted share participant who has no seat on this phone.
     private func refreshPeopleFromiCloud() async {
         withAnimation(.plSnap) { peopleRefreshNote = "Looking in iCloud…" }
+        let state = await TableSync.accountState()
+        if state != .available && state != .notArmed {
+            withAnimation(.plSnap) {
+                peopleRefreshNote = HouseholdIdentity.PeopleCopy.reachFailure
+            }
+            return
+        }
         // Reread the whole household zone so a seat that still exists there
         // is not skipped because our change token moved past it.
         TableShare.requestReplay(zoneOwner: "")
@@ -846,7 +869,7 @@ struct HouseholdHomeView: View {
         let missing = HouseholdInviteLog.unsettled(against: after)
         withAnimation(.plSnap) {
             if let someone = added.first {
-                let label = someone.name == "New member" || someone.name == "Someone"
+                let label = HouseholdIdentity.isUnnamed(someone.name)
                     ? "A household member"
                     : someone.firstName
                 peopleRefreshNote = added.count == 1
@@ -907,8 +930,8 @@ struct HouseholdHomeView: View {
                 // The seat, not a role line frozen at insert. "Partner ·
                 // plans & cooks" was printed under a name typed four
                 // seconds earlier about somebody with no account and
-                // nothing to plan with. Own row is "You"; another host is
-                // Host. Never Head of table on self (DESIGN.md).
+                // nothing to plan with. Own owner row is "You · Owner";
+                // a member's own row is "You". Never Head of table.
                 Text(subtitle)
                     .plType(.caption, .semibold)
                     .foregroundStyle(Color.inkSecondary)

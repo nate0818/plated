@@ -198,23 +198,7 @@ struct TableSeatsSheet: View {
         .presentationCornerRadius(Radius.sheet)
         .task {
             Seats.bindShareIdentity(in: context, standings: [])
-            // Everything CloudKit is asked at once; the roster is local and
-            // already on screen. `reach` lands with the answers rather than
-            // before them, because it is what says whether an empty list
-            // means nobody or means the share could not be read.
-            async let state = TableSync.accountState()
-            async let seats = TableShare.participants()
-            async let tables = TableShare.joinedTables()
-            // Membership-aware: on a member's phone this is the household's
-            // link off the root, and nothing is minted.
-            async let url = TableShare.invitationURL(hostName: userFirstName)
-            let (answered, found, joined, minted) = await (state, seats, tables, url)
-            withAnimation(.plSnap) {
-                reach = answered
-                participants = found
-                joinedTables = joined.map { JoinedTable(owner: $0.owner, title: $0.title) }
-                link = minted.map(LinkState.ready) ?? .missing
-            }
+            await refreshFromiCloud()
         }
         .confirmationDialog(
             dialogTitle,
@@ -235,11 +219,21 @@ struct TableSeatsSheet: View {
     @ViewBuilder
     private var reachLine: some View {
         if let reach, reach != .available, reach != .notArmed {
-            Text("Can't reach iCloud. The people below are what last arrived.")
-                .plType(.caption, .semibold)
-                .foregroundStyle(Color.inkSecondary)
-                .fixedSize(horizontal: false, vertical: true)
-                .transition(.opacity)
+            VStack(alignment: .leading, spacing: 6) {
+                Text(HouseholdIdentity.PeopleCopy.reachFailure)
+                    .plType(.caption, .semibold)
+                    .foregroundStyle(Color.inkSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Button(HouseholdIdentity.PeopleCopy.tryAgain) {
+                    Haptic.tap()
+                    Task { await refreshFromiCloud() }
+                }
+                .plType(.caption, .bold)
+                .plActionLabel()
+                .foregroundStyle(Color.accentText)
+                .buttonStyle(.pressable)
+            }
+            .transition(.opacity)
         }
     }
 
@@ -673,6 +667,26 @@ struct TableSeatsSheet: View {
             return "The Table's link is still arriving from \(host.isEmpty ? "the host's" : "\(host)'s") phone."
         }
         return "Couldn't reach iCloud, so there's no invite link right now."
+    }
+
+    /// Everything CloudKit is asked at once; the roster is local and
+    /// already on screen. `reach` lands with the answers rather than
+    /// before them, because it is what says whether an empty list means
+    /// nobody or means the share could not be read.
+    private func refreshFromiCloud() async {
+        async let state = TableSync.accountState()
+        async let seats = TableShare.participants()
+        async let tables = TableShare.joinedTables()
+        // Membership-aware: on a member's phone this is the household's
+        // link off the root, and nothing is minted.
+        async let url = TableShare.invitationURL(hostName: userFirstName)
+        let (answered, found, joined, minted) = await (state, seats, tables, url)
+        withAnimation(.plSnap) {
+            reach = answered
+            participants = found
+            joinedTables = joined.map { JoinedTable(owner: $0.owner, title: $0.title) }
+            link = minted.map(LinkState.ready) ?? .missing
+        }
     }
 
     private func initials(for name: String) -> String {

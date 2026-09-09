@@ -497,7 +497,7 @@ struct CookbookView: View {
                 : "Still arriving from \(arrivingHost)'s phone."
         }
         if cloudUnreachable, !recipes.isEmpty {
-            return "Can't reach iCloud. The cookbook is what last arrived."
+            return HouseholdIdentity.PeopleCopy.reachFailure
         }
         return nil
     }

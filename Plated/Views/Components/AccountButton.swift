@@ -76,7 +76,7 @@ struct AccountHomeView: View {
     private var me: HouseholdMember? { roster.me }
     private var ownerName: String {
         guard let name = me?.name, !HouseholdIdentity.isPlaceholder(name) else {
-            return "Add your name"
+            return HouseholdIdentity.PeopleCopy.missingSelfName
         }
         return name
     }
@@ -277,18 +277,20 @@ struct AccountHomeView: View {
 
             VStack(alignment: .leading, spacing: 16) {
                 VStack(alignment: .leading, spacing: 5) {
-                    if ownerName == "Add your name" {
+                    // Copy lock: Account hero is the name only. Owner /
+                    // You / Host live on the People row, never here.
+                    if ownerName == HouseholdIdentity.PeopleCopy.missingSelfName {
                         Button {
                             Haptic.tap()
                             sheet = .edit
                         } label: {
-                            Text("Add your name")
+                            Text(HouseholdIdentity.PeopleCopy.missingSelfName)
                                 .plType(.title, .semibold)
                                 .foregroundStyle(Color.ink)
                                 .contentShape(Rectangle())
                         }
                         .buttonStyle(.pressable)
-                        .accessibilityLabel("Add your name")
+                        .accessibilityLabel(HouseholdIdentity.PeopleCopy.missingSelfName)
                     } else {
                         Text(ownerName)
                             .plName()
