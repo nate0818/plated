@@ -837,13 +837,13 @@ struct HouseholdHomeView: View {
                     ? "A household member"
                     : someone.firstName
                 peopleRefreshNote = added.count == 1
-                    ? "\(label) is back — tap their row to open and rename if needed."
+                    ? "\(label) is back. Tap their row to open and rename if needed."
                     : "\(added.count) people restored."
             } else if let invite = missing.first {
-                peopleRefreshNote = "\(invite.name) isn’t on iCloud’s share anymore. Invite them again."
+                peopleRefreshNote = "\(invite.name) is not on iCloud's share anymore. Invite them again."
                 addPresented = true
             } else {
-                peopleRefreshNote = "They’re not on your household share in iCloud anymore. Invite them again."
+                peopleRefreshNote = "They are not on your household share in iCloud anymore. Invite them again."
                 addPresented = true
             }
         }
