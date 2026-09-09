@@ -65,3 +65,93 @@ final class SeatsNoLinkReasonTests: XCTestCase {
         )
     }
 }
+
+/// Settling a stuck Invited row once CloudKit says the person accepted.
+@MainActor
+final class SeatsInviteClaimTests: XCTestCase {
+
+    private func standing(
+        name: String = "",
+        phone: String? = nil,
+        email: String? = nil,
+        id: String = "ck-alessandra"
+    ) -> TableShare.Standing {
+        TableShare.Standing(
+            phone: phone, email: email, name: name,
+            accepted: true, participantID: id
+        )
+    }
+
+    func testSoleOpenInviteIsClaimedWhenTheyAccept() {
+        let invited = HouseholdMember(
+            name: "Alessandra", role: "partner", seat: .invited,
+            shareRecordName: "seat-invite"
+        )
+        let head = HouseholdMember(
+            name: "Nate", role: "owner", seat: .head, shareRecordName: "seat-nate"
+        )
+        head.userRecordName = "ck-nate"
+        let hit = Seats.inviteToClaim(for: standing(), among: [head, invited])
+        XCTAssertTrue(hit === invited)
+    }
+
+    func testPhoneMatchBeatsAmbiguousNames() {
+        let a = HouseholdMember(
+            name: "Sam", role: "partner", seat: .invited,
+            phoneE164: "+15551110001", shareRecordName: "seat-a"
+        )
+        let b = HouseholdMember(
+            name: "Sam", role: "partner", seat: .invited,
+            phoneE164: "+15551110002", shareRecordName: "seat-b"
+        )
+        let hit = Seats.inviteToClaim(
+            for: standing(name: "Sam", phone: "+15551110002"),
+            among: [a, b]
+        )
+        XCTAssertTrue(hit === b)
+    }
+
+    func testFirstNameMatchWhenTwoInvitesExist() {
+        let alessandra = HouseholdMember(
+            name: "Alessandra", role: "partner", seat: .invited,
+            shareRecordName: "seat-a"
+        )
+        let jo = HouseholdMember(
+            name: "Jo", role: "partner", seat: .invited,
+            shareRecordName: "seat-j"
+        )
+        let hit = Seats.inviteToClaim(
+            for: standing(name: "Alessandra Rossi"),
+            among: [alessandra, jo]
+        )
+        XCTAssertTrue(hit === alessandra)
+    }
+
+    func testAlreadySeatedIdentityIsNotClaimedAgain() {
+        let invited = HouseholdMember(
+            name: "Alessandra", role: "partner", seat: .invited,
+            shareRecordName: "seat-invite"
+        )
+        let joined = HouseholdMember(
+            name: "Alessandra Rossi", role: "partner", seat: .joined,
+            shareRecordName: "seat-fresh"
+        )
+        joined.userRecordName = "ck-alessandra"
+        XCTAssertNil(Seats.inviteToClaim(
+            for: standing(name: "Alessandra"),
+            among: [invited, joined]
+        ))
+    }
+
+    func testTwoOpenInvitesStayAmbiguousWithoutANameOrPhone() {
+        let a = HouseholdMember(
+            name: "Alessandra", role: "partner", seat: .invited,
+            shareRecordName: "seat-a"
+        )
+        let b = HouseholdMember(
+            name: "Jo", role: "partner", seat: .invited,
+            shareRecordName: "seat-b"
+        )
+        XCTAssertNil(Seats.inviteToClaim(for: standing(), among: [a, b]))
+    }
+}

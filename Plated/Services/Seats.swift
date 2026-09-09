@@ -358,6 +358,12 @@ enum Seats {
     /// seat whose identity is missing from a successfully read list has
     /// left. An empty list is not read as anybody leaving, because an empty
     /// answer and a failed one look the same from here.
+    ///
+    /// An Invited row whose person has accepted the share but whose claim
+    /// never landed (or landed under a fresh UUID the host never saw) is
+    /// promoted here when the match is unambiguous — phone, email, first
+    /// name, or the sole open invitation. Leaving Invited forever after a
+    /// real accept is the Alessandra bug.
     static func reconcile(in context: ModelContext) async {
         guard case .hosting = HouseholdShare.membership else { return }
         let standings = await HouseholdShare.standings()
@@ -370,19 +376,23 @@ enum Seats {
             switch match.seat {
             case .joined:
                 if match.participantID == nil { match.participantID = standing.participantID }
-            // An `.invited` or `.notOnPlated` row is NOT promoted here. The
-            // joiner claims their own seat record and pushes it (§7); this
-            // only corroborates. Promoting on a matching participant seated
-            // the same person twice: `migrateTableSeats` keeps `participantID`
-            // on the rows it downgrades, so the moment such a person accepted
-            // the share this flipped their old row to joined with nobody's
-            // identity on it, and their real claim then arrived as a second
-            // seat — the exact path the migration's bell row tells the host
-            // to take.
+            // An `.invited` or `.notOnPlated` row is NOT promoted from a
+            // standing that already matches by identity alone — see
+            // `migrateTableSeats`. Promotion of a still-empty Invited is
+            // `inviteToClaim` below.
             case .invited, .notOnPlated, .head, .left:
                 break
             }
         }
+
+        var claimed = false
+        for standing in accepted {
+            if let invite = inviteToClaim(for: standing, among: members) {
+                claimInvite(invite, with: standing, in: context)
+                claimed = true
+            }
+        }
+        if claimed { Persist.save(context, "invited seats claimed from share") }
 
         let present = Set(accepted.compactMap(\.participantID))
         for member in members where member.seat == .joined {
@@ -391,6 +401,77 @@ enum Seats {
             print("PLATED HOUSEHOLD: \(member.name) is no longer on the share, and their seat goes")
             retire(member, in: context)
         }
+    }
+
+    /// Which Invited row an accepted share participant should settle, if
+    /// any. Nil when the person is already seated, when nothing is waiting,
+    /// or when more than one invitation could be them.
+    static func inviteToClaim(
+        for standing: TableShare.Standing,
+        among members: [HouseholdMember]
+    ) -> HouseholdMember? {
+        guard standing.accepted else { return nil }
+        guard let id = standing.participantID, !id.isEmpty else { return nil }
+        if match(standing, in: members) != nil { return nil }
+
+        let open = members.filter {
+            $0.seat == .invited
+                && ($0.userRecordName ?? "").isEmpty
+                && ($0.participantID ?? "").isEmpty
+        }
+        guard !open.isEmpty else { return nil }
+
+        if let phone = standing.phone?.trimmingCharacters(in: .whitespaces), !phone.isEmpty {
+            let want = Directory.normalize(phone) ?? phone
+            let hits = open.filter {
+                let have = $0.phoneE164 ?? ""
+                guard !have.isEmpty else { return false }
+                return have == phone || have == want || (Directory.normalize(have) ?? have) == want
+            }
+            if hits.count == 1 { return hits[0] }
+        }
+        if let email = standing.email?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
+           !email.isEmpty {
+            let hits = open.filter {
+                ($0.inviteEmail ?? "").trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == email
+            }
+            if hits.count == 1 { return hits[0] }
+        }
+        let key = firstNameKey(standing.name)
+        if !key.isEmpty {
+            let hits = open.filter { firstNameKey($0.name) == key }
+            if hits.count == 1 { return hits[0] }
+        }
+        // Sole open invitation and an accepted person with no other seat:
+        // they are that invitation. Two open invitations stay ambiguous.
+        if open.count == 1 { return open[0] }
+        return nil
+    }
+
+    private static func firstNameKey(_ name: String) -> String {
+        name.trimmingCharacters(in: .whitespacesAndNewlines)
+            .split(separator: " ")
+            .first
+            .map { $0.lowercased() } ?? ""
+    }
+
+    private static func claimInvite(
+        _ invite: HouseholdMember,
+        with standing: TableShare.Standing,
+        in context: ModelContext
+    ) {
+        let id = standing.participantID ?? ""
+        invite.userRecordName = id
+        invite.participantID = id
+        if invite.seat != .joined { invite.seat = .joined }
+        if invite.joinedAt == nil { invite.joinedAt = .now }
+        if !standing.name.isEmpty, HouseholdIdentity.isPlaceholder(invite.name) {
+            invite.name = standing.name
+        }
+        if !invite.shareRecordName.isEmpty {
+            HouseholdOutbox.shared.enqueueUpsert(.seat, invite.shareRecordName)
+        }
+        print("PLATED HOUSEHOLD: Invited \(invite.name) settled from share accept (\(id.prefix(12)))")
     }
 
     /// A seat that left is deleted from the roster and its nights go back

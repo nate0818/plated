@@ -1517,10 +1517,6 @@ enum HouseholdSync {
         if !changes.isEmpty || changes.sharesChanged {
             let outcome = HouseholdShare.merge(changes, into: context)
             collapseDuplicates(in: context)
-            if changes.sharesChanged {
-                await Seats.reconcile(in: context)
-                Persist.save(context, "seats after household pull")
-            }
             // The digest names the person who left, so it is composed before
             // the seat is retired out from under it.
             await TableNews.deliver(household: changes, outcome: outcome, context: context)
@@ -1551,6 +1547,12 @@ enum HouseholdSync {
             // card. `absorb` has already returned unless the delta carried
             // something, so this is at most one publish per delta.
             WidgetBridge.publish(from: context)
+        }
+        // Host roster honesty runs every pull, not only when CloudKit says
+        // the share changed: Alessandra's Invited row is a local fact that
+        // must be settled against standings even on an empty delta.
+        if case .hosting = HouseholdShare.membership {
+            await Seats.reconcile(in: context)
         }
         // Runs even on an empty pull: Alessandra's stuck Invited is already
         // on the host's phone with her joined seat beside it, and waiting for
