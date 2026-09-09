@@ -464,6 +464,91 @@ final class HouseholdSyncTests: XCTestCase {
         XCTAssertEqual(Set(open.map(\.id)), ["seat-max", "seat-jo", "seat-dan"])
     }
 
+    /// A named invitation whose Invited row has not landed in the zone yet
+    /// must still claim THAT record name. A fresh UUID is what left the
+    /// host's Invited row standing forever (Alessandra stuck as Invited).
+    func testBindNamedSeatUsesTheLinkNameWhenTheRowIsMissing() throws {
+        UserDefaults.standard.set("Alessandra", forKey: "userFirstName")
+        defer { UserDefaults.standard.removeObject(forKey: "userFirstName") }
+
+        let bound = HouseholdSync.bindNamedSeat("seat-from-link", in: context)
+        XCTAssertEqual(bound?.shareRecordName, "seat-from-link")
+        XCTAssertEqual(bound?.userRecordName, me)
+        XCTAssertEqual(bound?.seat, .joined)
+        XCTAssertEqual(try context.fetch(FetchDescriptor<HouseholdMember>()).count, 1)
+    }
+
+    /// An existing Invited row with the link's name is the one that is claimed.
+    func testBindNamedSeatClaimsTheInvitedRow() throws {
+        let invited = HouseholdMember(
+            name: "Alessandra", role: "partner", seat: .invited,
+            shareRecordName: "seat-from-link"
+        )
+        context.insert(invited)
+        try context.save()
+
+        let bound = HouseholdSync.bindNamedSeat("seat-from-link", in: context)
+        XCTAssertTrue(bound === invited)
+        XCTAssertEqual(bound?.shareRecordName, "seat-from-link")
+    }
+
+    /// Somebody else's identity on the named seat forces a fresh path.
+    func testBindNamedSeatRefusesATakenSeat() throws {
+        let taken = HouseholdMember(
+            name: "Riley", role: "partner", seat: .joined,
+            shareRecordName: "seat-from-link"
+        )
+        taken.userRecordName = "riley-id"
+        context.insert(taken)
+        try context.save()
+
+        XCTAssertNil(HouseholdSync.bindNamedSeat("seat-from-link", in: context))
+    }
+
+    /// Host recovery: Invited + joined sharing one first name, one each.
+    func testOrphanInvitesFindsTheStuckInvitedRow() throws {
+        let invited = HouseholdMember(
+            name: "Alessandra", role: "partner", seat: .invited,
+            shareRecordName: "seat-invite"
+        )
+        let joined = HouseholdMember(
+            name: "Alessandra Rossi", role: "partner", seat: .joined,
+            shareRecordName: "seat-fresh"
+        )
+        joined.userRecordName = "alessandra-id"
+        let other = HouseholdMember(
+            name: "Jo", role: "partner", seat: .invited,
+            shareRecordName: "seat-jo"
+        )
+        for row in [invited, joined, other] { context.insert(row) }
+        try context.save()
+
+        let orphans = HouseholdSync.orphanInvites(
+            among: try context.fetch(FetchDescriptor<HouseholdMember>())
+        )
+        XCTAssertEqual(orphans.map(\.shareRecordName), ["seat-invite"])
+    }
+
+    /// Two joined people with the same first name must not collapse an Invited.
+    func testOrphanInvitesLeavesAmbiguousNamesAlone() throws {
+        let invited = HouseholdMember(
+            name: "Sam", role: "partner", seat: .invited,
+            shareRecordName: "seat-invite"
+        )
+        let a = HouseholdMember(name: "Sam A", role: "partner", seat: .joined, shareRecordName: "seat-a")
+        a.userRecordName = "a"
+        let b = HouseholdMember(name: "Sam B", role: "partner", seat: .joined, shareRecordName: "seat-b")
+        b.userRecordName = "b"
+        for row in [invited, a, b] { context.insert(row) }
+        try context.save()
+
+        XCTAssertTrue(
+            HouseholdSync.orphanInvites(
+                among: try context.fetch(FetchDescriptor<HouseholdMember>())
+            ).isEmpty
+        )
+    }
+
     // MARK: The books
 
     /// A fold moves purchases from a night that lost a merge onto the one

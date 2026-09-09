@@ -850,11 +850,22 @@ enum HouseholdSync {
         }) {
             claimed = mine
             print("PLATED HOUSEHOLD: a seat from the zone already carries this identity")
-        } else if let seat, let named = members.first(where: { $0.shareRecordName == seat }),
-                  named.seat == .invited, (named.userRecordName ?? "").isEmpty {
-            claimed = named
-            print("PLATED HOUSEHOLD: claiming the seat the link named")
-        } else if seat == nil {
+        } else if let seat {
+            // The link named a seat. Bind to THAT record name even when the
+            // first pull has not brought the host's Invited row yet: minting
+            // a fresh UUID here is what left Invited standing forever beside
+            // a second joined seat (§7 step 4).
+            if let named = bindNamedSeat(seat, in: context) {
+                claimed = named
+                print("PLATED HOUSEHOLD: claiming the seat the link named (\(seat))")
+            } else if let fresh = freshSeat(in: context) {
+                claimed = fresh
+                print("PLATED HOUSEHOLD: the named seat is taken, seating a fresh one")
+            } else {
+                isJoining = false
+                return .failed("Couldn't set up your seat. Open the link again.")
+            }
+        } else {
             let candidates = openSeats(in: members)
             pendingJoinHost = host
             // `join` ends here; `claimSeat` is its own span, so a sheet
@@ -862,19 +873,13 @@ enum HouseholdSync {
             isJoining = false
             print("PLATED HOUSEHOLD: seatless link, asking which of \(candidates.count) seats is theirs")
             return .needsSeat(candidates: candidates)
-        } else {
-            guard let fresh = freshSeat(in: context) else {
-                isJoining = false
-                return .failed("Couldn't set up your seat. Open the link again.")
-            }
-            claimed = fresh
-            print("PLATED HOUSEHOLD: the named seat is gone or taken, seating a fresh one")
         }
         return await finishJoin(claimed: claimed, host: host, context: context)
     }
 
     /// After `.needsSeat`. Nil means "none of these": a fresh seat from my
-    /// own owner row.
+    /// own owner row. A named pick still binds to that record name even when
+    /// the row is not in the store yet — same rule as `join`.
     static func claimSeat(named: String?, context: ModelContext) async -> JoinOutcome {
         isJoining = true
         // `pendingJoinHost` is process-local, and the seat question can
@@ -882,11 +887,9 @@ enum HouseholdSync {
         // the answer arrives on the next launch to an empty string. The
         // cache is the same name, written by the join a moment before.
         let host = pendingJoinHost.isEmpty ? HouseholdShare.cachedOwnerName : pendingJoinHost
-        let members = fetchAll(HouseholdMember.self, context)
         let claimed: HouseholdMember?
-        if let named, let row = members.first(where: { $0.shareRecordName == named }),
-           (row.userRecordName ?? "").isEmpty, row.seat != .head, row.seat != .left {
-            claimed = row
+        if let named {
+            claimed = bindNamedSeat(named, in: context) ?? freshSeat(in: context)
         } else {
             claimed = freshSeat(in: context)
         }
@@ -1024,6 +1027,117 @@ enum HouseholdSync {
         HouseholdShare.mySeat = fresh.shareRecordName
         HouseholdOutbox.shared.enqueueUpsert(.seat, fresh.shareRecordName, at: .now)
         print("PLATED HOUSEHOLD: seat \(taken.shareRecordName) was claimed by somebody else, took \(fresh.shareRecordName)")
+    }
+
+    /// Bind the join to the seat id the invitation named (§7).
+    ///
+    /// When the named row is already in the store and still claimable, use
+    /// it. When it is missing (host's Invited push has not landed yet), still
+    /// write THAT record name — never a fresh UUID. A fresh name is what
+    /// leaves the host's Invited row standing forever beside a second joined
+    /// seat. Returns nil only when the named seat already belongs to
+    /// somebody else.
+    static func bindNamedSeat(_ seat: String, in context: ModelContext) -> HouseholdMember? {
+        guard !seat.isEmpty else { return nil }
+        let me = TableIdentity.cached
+        let members = fetchAll(HouseholdMember.self, context)
+        if let existing = members.first(where: { $0.shareRecordName == seat }) {
+            let id = existing.userRecordName ?? ""
+            if !id.isEmpty, id != me {
+                print("PLATED HOUSEHOLD: named seat \(seat) already carries \(id.prefix(12))")
+                return nil
+            }
+            if existing.seat == .head || existing.seat == .left {
+                print("PLATED HOUSEHOLD: named seat \(seat) is \(existing.seat.rawValue), not claimable")
+                return nil
+            }
+            return existing
+        }
+        return adoptOwnerOntoNamedSeat(seat, in: context)
+    }
+
+    /// The named seat is not in the store yet. Reuse the local owner row
+    /// (or mint one) and give it the invitation's record name so the host's
+    /// Invited row and this claim are the same CloudKit fact.
+    private static func adoptOwnerOntoNamedSeat(_ seat: String, in context: ModelContext) -> HouseholdMember? {
+        suppressed = true
+        defer { suppressed = false }
+        let me = TableIdentity.cached
+        let members = fetchAll(HouseholdMember.self, context)
+        if let own = members.first(where: {
+            $0.role == "owner" && $0.shareModifiedAt == nil
+                && (($0.userRecordName ?? "").isEmpty || $0.userRecordName == me)
+        }) {
+            own.shareRecordName = seat
+            own.role = "partner"
+            own.seat = .joined
+            own.joinedAt = .now
+            own.userRecordName = me
+            own.authorID = me
+            Persist.save(context, "named seat adopted")
+            print("PLATED HOUSEHOLD: adopted owner row onto named seat \(seat)")
+            return own
+        }
+        let typed = (UserDefaults.standard.string(forKey: "userFirstName") ?? "")
+            .trimmingCharacters(in: .whitespaces)
+        guard !typed.isEmpty else {
+            print("PLATED HOUSEHOLD: no owner row and no typed name for named seat \(seat)")
+            return nil
+        }
+        let row = HouseholdMember(name: typed, role: "partner", seat: .joined, shareRecordName: seat)
+        row.joinedAt = .now
+        row.userRecordName = me
+        row.authorID = me
+        context.insert(row)
+        Persist.save(context, "named seat minted")
+        print("PLATED HOUSEHOLD: minted local seat under the link's name \(seat)")
+        return row
+    }
+
+    /// Host-side recovery for Invited rows whose joiner minted a fresh seat
+    /// instead of claiming the link's name. Same first name, exactly one
+    /// joined match, empty identity on the Invited side.
+    static func orphanInvites(among members: [HouseholdMember]) -> [HouseholdMember] {
+        let invited = members.filter {
+            $0.seat == .invited && ($0.userRecordName ?? "").isEmpty
+        }
+        let joined = members.filter {
+            ($0.seat == .joined || $0.seat == .head) && !($0.userRecordName ?? "").isEmpty
+        }
+        var orphans: [HouseholdMember] = []
+        for invite in invited {
+            let key = firstNameKey(invite.name)
+            guard !key.isEmpty else { continue }
+            let matches = joined.filter {
+                firstNameKey($0.name) == key && $0.shareRecordName != invite.shareRecordName
+            }
+            // Two joined people sharing a first name must not collapse an
+            // Invited by coin flip.
+            if matches.count == 1 { orphans.append(invite) }
+        }
+        return orphans
+    }
+
+    private static func firstNameKey(_ name: String) -> String {
+        name.trimmingCharacters(in: .whitespacesAndNewlines)
+            .split(separator: " ")
+            .first
+            .map { $0.lowercased() } ?? ""
+    }
+
+    /// Drop orphan Invited rows on the host after a pull (see `orphanInvites`).
+    private static func retireOrphanInvites(in context: ModelContext) {
+        guard case .hosting = HouseholdShare.membership else { return }
+        let orphans = orphanInvites(among: fetchAll(HouseholdMember.self, context))
+        guard !orphans.isEmpty else { return }
+        for row in orphans {
+            print("PLATED HOUSEHOLD: retiring orphan Invited \(row.shareRecordName) for \(row.name)")
+            if !row.shareRecordName.isEmpty {
+                HouseholdOutbox.shared.enqueueDelete(.seat, row.shareRecordName)
+            }
+            context.delete(row)
+        }
+        Persist.save(context, "orphan invites retired")
     }
 
     /// A seat made from my own owner row: the row stays, becomes a partner
@@ -1400,43 +1514,48 @@ enum HouseholdSync {
             handleRemoved(context: context)
             return
         }
-        guard !changes.isEmpty || changes.sharesChanged else { return }
-        let outcome = HouseholdShare.merge(changes, into: context)
-        collapseDuplicates(in: context)
-        if changes.sharesChanged {
-            await Seats.reconcile(in: context)
-            Persist.save(context, "seats after household pull")
-        }
-        // The digest names the person who left, so it is composed before
-        // the seat is retired out from under it.
-        await TableNews.deliver(household: changes, outcome: outcome, context: context)
-        if !outcome.leftSeats.isEmpty {
-            for row in outcome.leftSeats { retireLeftSeat(row, in: context) }
-            Persist.save(context, "seats that left")
-        }
-        // A `.left` row that is still in the host's roster is one an older
-        // build marked and kept, or one whose delete was refused. §8 says
-        // the host's roster does not hold them, and until it goes the name
-        // is still in the seated line and the Chef's kiss denominator.
-        if case .hosting = HouseholdShare.membership {
-            let lingering = fetchAll(HouseholdMember.self, context).filter { $0.seat == .left }
-            if !lingering.isEmpty {
-                for row in lingering { retireLeftSeat(row, in: context) }
-                Persist.save(context, "seats that had already left")
+        if !changes.isEmpty || changes.sharesChanged {
+            let outcome = HouseholdShare.merge(changes, into: context)
+            collapseDuplicates(in: context)
+            if changes.sharesChanged {
+                await Seats.reconcile(in: context)
+                Persist.save(context, "seats after household pull")
             }
+            // The digest names the person who left, so it is composed before
+            // the seat is retired out from under it.
+            await TableNews.deliver(household: changes, outcome: outcome, context: context)
+            if !outcome.leftSeats.isEmpty {
+                for row in outcome.leftSeats { retireLeftSeat(row, in: context) }
+                Persist.save(context, "seats that left")
+            }
+            // A `.left` row that is still in the host's roster is one an older
+            // build marked and kept, or one whose delete was refused. §8 says
+            // the host's roster does not hold them, and until it goes the name
+            // is still in the seated line and the Chef's kiss denominator.
+            if case .hosting = HouseholdShare.membership {
+                let lingering = fetchAll(HouseholdMember.self, context).filter { $0.seat == .left }
+                if !lingering.isEmpty {
+                    for row in lingering { retireLeftSeat(row, in: context) }
+                    Persist.save(context, "seats that had already left")
+                }
+            }
+            // A seat is the only thing in a household delta that can move a
+            // reminder: whose night it is. The week itself arrives through the
+            // plan pipe, and `NotificationScheduler.rebuild` reads `PlanLedger`
+            // on its own (docs/plan-share.md), so nothing here has to know that.
+            if !changes.seats.isEmpty {
+                await NotificationScheduler.rebuild(meals: fetchAll(PlannedMeal.self, context))
+            }
+            // Every household delta moves something the widget draws: a mark or
+            // a manual line moves the grocery count, a recipe moves the cookbook
+            // card. `absorb` has already returned unless the delta carried
+            // something, so this is at most one publish per delta.
+            WidgetBridge.publish(from: context)
         }
-        // A seat is the only thing in a household delta that can move a
-        // reminder: whose night it is. The week itself arrives through the
-        // plan pipe, and `NotificationScheduler.rebuild` reads `PlanLedger`
-        // on its own (docs/plan-share.md), so nothing here has to know that.
-        if !changes.seats.isEmpty {
-            await NotificationScheduler.rebuild(meals: fetchAll(PlannedMeal.self, context))
-        }
-        // Every household delta moves something the widget draws: a mark or
-        // a manual line moves the grocery count, a recipe moves the cookbook
-        // card. `absorb` has already returned unless the delta carried
-        // something, so this is at most one publish per delta.
-        WidgetBridge.publish(from: context)
+        // Runs even on an empty pull: Alessandra's stuck Invited is already
+        // on the host's phone with her joined seat beside it, and waiting for
+        // a new CloudKit delta would leave Invited forever.
+        retireOrphanInvites(in: context)
     }
 
     /// A seat arriving `left` (§8): its nights go back to unplanned, and on

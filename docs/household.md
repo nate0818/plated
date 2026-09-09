@@ -602,10 +602,14 @@ straight back to the picker instead of "You're already in Nate's household."
    `PlanLedger`, never in the store. This first pull raises no notices except one bell row, "You joined
    Nate's household."
 4. Claim the seat. If a seat record carries this identity, it is me. Else if
-   the link named a seat that exists, is still `.invited` and carries no
-   identity, write `userRecordName`, `seat = joined`, `joinedAt`, and my
-   name, bio and photo onto it and push. Else create a seat from my own owner
-   row (role partner, or the chosen seat's role) and push it. The local owner
+   the link named a seat, write `userRecordName`, `seat = joined`, `joinedAt`,
+   and my name, bio and photo onto **that record name** and push — even when
+   the host's Invited row has not arrived in the first pull yet. Minting a
+   fresh UUID here used to leave the host's Invited row standing forever
+   beside a second joined seat. Only when the named seat already carries
+   somebody else's identity does this phone take a fresh seat. Else (no seat
+   on the link) create a seat from my own owner row (role partner, or the
+   chosen seat's role) and push it. The local owner
    row minted at onboarding is retired: every meal in its `assignedMeals` is
    re-pointed to the claimed seat in the same save, its identity, name, bio
    and photo move to the claimed seat, the awards ledger key moves with the

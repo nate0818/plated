@@ -179,7 +179,13 @@ enum Seats {
             )
             member.authorID = TableIdentity.cached
             context.insert(member)
+            Persist.save(context, "seat invited")
+            // Push now, not after the 1.5s save debounce: the joiner can
+            // open the link in the next breath, and a named seat that is
+            // not in the zone yet used to make them mint a second one.
+            HouseholdOutbox.shared.enqueueUpsert(.seat, member.shareRecordName)
             print("PLATED HOUSEHOLD: seat \(member.shareRecordName) invited for \(name)")
+            Task { await HouseholdOutbox.shared.drain(context: context) }
 
         case .table:
             guard let id = prepared.invite else { return }
