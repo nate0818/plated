@@ -337,6 +337,76 @@ final class SeatsInviteClaimTests: XCTestCase {
         XCTAssertTrue(hit === invited)
     }
 
+    func testAttachableRowDoesNotClaimAKid() {
+        let kid = HouseholdMember(
+            name: "Max", role: "kid", seat: .notOnPlated,
+            shareRecordName: "seat-max"
+        )
+        let head = HouseholdMember(
+            name: "Nate", role: "owner", seat: .head, shareRecordName: "seat-nate"
+        )
+        head.userRecordName = "ck-nate"
+        XCTAssertNil(Seats.attachableRow(for: standing(name: ""), among: [head, kid]))
+    }
+
+    func testBindPrefersTheInviteLogOverADifferentInvitedRow() async throws {
+        let container = try ModelContainer(
+            for: PlatedStore.schema,
+            configurations: [ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)]
+        )
+        let context = container.mainContext
+        HouseholdInviteLog.record(
+            name: "Alessandra", phone: nil, email: nil, seat: "seat-ale"
+        )
+        let jo = HouseholdMember(
+            name: "Jo", role: "partner", seat: .invited,
+            shareRecordName: "seat-jo"
+        )
+        let unnamed = HouseholdMember(
+            name: "New member", role: "partner", seat: .joined,
+            shareRecordName: "seat-new"
+        )
+        unnamed.userRecordName = "ck-ale"
+        unnamed.participantID = "ck-ale"
+        context.insert(jo)
+        context.insert(unnamed)
+        try context.save()
+
+        _ = Seats.bindShareIdentity(in: context, standings: [])
+        XCTAssertEqual(unnamed.name, "Alessandra")
+        XCTAssertEqual(jo.name, "Jo")
+        XCTAssertEqual(jo.seat, .invited)
+    }
+
+    func testBindDoesNotCopyAKidsNameOntoNewMember() async throws {
+        let container = try ModelContainer(
+            for: PlatedStore.schema,
+            configurations: [ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)]
+        )
+        let context = container.mainContext
+        HouseholdInviteLog.record(
+            name: "Alessandra", phone: nil, email: nil, seat: "seat-invite"
+        )
+        let kid = HouseholdMember(
+            name: "Max", role: "kid", seat: .notOnPlated,
+            shareRecordName: "seat-max"
+        )
+        let unnamed = HouseholdMember(
+            name: "New member", role: "partner", seat: .joined,
+            shareRecordName: "seat-new"
+        )
+        unnamed.userRecordName = "ck-ale"
+        unnamed.participantID = "ck-ale"
+        context.insert(kid)
+        context.insert(unnamed)
+        try context.save()
+
+        _ = Seats.bindShareIdentity(in: context, standings: [])
+        XCTAssertEqual(unnamed.name, "Alessandra")
+        XCTAssertEqual(kid.name, "Max")
+        XCTAssertEqual(kid.seat, .notOnPlated)
+    }
+
     func testBindDoesNotRenameOwnerMeFromTheInviteLog() async throws {
         let container = try ModelContainer(
             for: PlatedStore.schema,

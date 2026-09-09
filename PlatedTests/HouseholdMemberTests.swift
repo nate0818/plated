@@ -155,20 +155,19 @@ final class HouseholdMemberHostingTests: XCTestCase {
         XCTAssertFalse(nate.subtitle.contains("Head of table"))
     }
 
-    func testOccupyingDropsNamedInviteBesideUnnamedJoin() {
+    func testOccupyingKeepsADifferentOutstandingInviteBesideNewMember() {
         let nate = seat("Nate Meadows", .head, role: "owner", user: "nate-id")
         nate.shareRecordName = "seat-nate"
         let unnamed = seat("New member", .joined, role: "partner", user: "ale-id")
         unnamed.shareRecordName = "seat-new"
-        let invited = seat("Alessandra", .invited, role: "partner")
-        invited.shareRecordName = "seat-invite"
-        let occupying = [HouseholdMember].occupying(from: [nate, unnamed, invited])
+        let jo = seat("Jo", .invited, role: "partner")
+        jo.shareRecordName = "seat-jo"
+        let occupying = [HouseholdMember].occupying(from: [nate, unnamed, jo])
         XCTAssertEqual(
             occupying.map(\.name),
-            ["Nate Meadows", "New member"],
-            "the Invited name is the same person as the restored join"
+            ["Nate Meadows", "New member", "Jo"],
+            "an outstanding invite is not a ghost of a restored New member"
         )
-        XCTAssertEqual([HouseholdMember].peopleEyebrow(occupying.count), "2 people")
     }
 
     func testActorLookupUsesUserRecordName() {

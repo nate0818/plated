@@ -451,8 +451,12 @@ enum Seats {
         guard standing.accepted else { return nil }
         if match(standing, in: members) != nil { return nil }
 
+        // Invited, or a joined seat that is still the restored
+        // placeholder. A notOnPlated kid is a full seat for someone
+        // who will never accept; claiming them as the joiner was #15.
         let unmatched = members.filter {
-            $0.seat != .left && $0.seat != .head
+            ($0.seat == .invited
+                || ($0.seat == .joined && HouseholdIdentity.isRestoredPlaceholder($0.name)))
                 && ($0.userRecordName ?? "").isEmpty
                 && ($0.participantID ?? "").isEmpty
                 && !$0.isMe
@@ -464,12 +468,14 @@ enum Seats {
             let hits = unmatched.filter { firstNameKey($0.name) == key }
             if hits.count == 1 { return hits[0] }
         }
-        let named = unmatched.filter { !HouseholdIdentity.isUnnamed($0.name) }
-        if named.count == 1 { return named[0] }
-        let unnamedJoined = unmatched.filter {
-            $0.seat == .joined && HouseholdIdentity.isUnnamed($0.name)
+        let namedInvites = unmatched.filter {
+            $0.seat == .invited && !HouseholdIdentity.isUnnamed($0.name)
         }
-        if unnamedJoined.count == 1, named.isEmpty { return unnamedJoined[0] }
+        if namedInvites.count == 1 { return namedInvites[0] }
+        let unnamedJoined = unmatched.filter {
+            $0.seat == .joined && HouseholdIdentity.isRestoredPlaceholder($0.name)
+        }
+        if unnamedJoined.count == 1, namedInvites.isEmpty { return unnamedJoined[0] }
         return nil
     }
 
@@ -525,15 +531,18 @@ enum Seats {
            }) {
             return named.name
         }
-        if let neighbor = namedUnidentifiedNeighbor(of: member, among: members) {
-            return neighbor.name
-        }
+        // Invite log before a neighboring seat: a kid or a different
+        // outstanding invite is not this joiner just because it is the
+        // only named row without a CloudKit id.
         if let remembered = HouseholdInviteLog.rememberedName(
             forPhone: member.phoneE164,
             email: member.inviteEmail,
             seat: member.shareRecordName.isEmpty ? nil : member.shareRecordName
         ) {
             return remembered
+        }
+        if let neighbor = namedUnidentifiedNeighbor(of: member, among: members) {
+            return neighbor.name
         }
         if let id = member.identityKey, let learned = TableNews.name(for: id),
            !HouseholdIdentity.isUnnamed(learned) {
@@ -556,9 +565,8 @@ enum Seats {
         return namedUnidentifiedNeighbor(of: member, among: members)?.photoData
     }
 
-    /// One named seat with no CloudKit id next to one unnamed identified
-    /// join is the same person: the host's Invited "Alessandra" and the
-    /// restored "New member" that actually accepted.
+    /// The host's one Invited row next to one unnamed identified join —
+    /// not a kid, not a second outstanding invite.
     private static func namedUnidentifiedNeighbor(
         of member: HouseholdMember,
         among members: [HouseholdMember]
@@ -568,7 +576,7 @@ enum Seats {
               HouseholdIdentity.isRestoredPlaceholder(member.name) else { return nil }
         let named = members.filter {
             $0 !== member
-                && $0.seat != .left && $0.seat != .head
+                && $0.seat == .invited
                 && !HouseholdIdentity.isUnnamed($0.name)
                 && $0.identityKey == nil
                 && !$0.isMe && !$0.isOwner
@@ -689,42 +697,19 @@ enum Seats {
     /// Alessandra when Invited was her only roster entry.
     private static func collapseOrphanInvites(in context: ModelContext) {
         let members = all(in: context)
-        var orphans = HouseholdSync.orphanInvites(among: members)
-        if orphans.isEmpty {
-            // First names do not match when the joined twin is still
-            // "New member". One named invite and one unnamed identified
-            // join are still the same person.
-            let open = members.filter {
-                $0.seat == .invited
-                    && ($0.userRecordName ?? "").isEmpty
-                    && !HouseholdIdentity.isUnnamed($0.name)
-            }
-            let unnamedJoined = members.filter {
-                $0.seat == .joined
-                    && $0.identityKey != nil
-                    && HouseholdIdentity.isRestoredPlaceholder($0.name)
-            }
-            if open.count == 1, unnamedJoined.count == 1 {
-                orphans = open
-            }
-        }
+        // First name only. Pairing "the one Invited" with "the one New
+        // member" deleted the real joiner when the outstanding invite
+        // was somebody else (#15).
+        let orphans = HouseholdSync.orphanInvites(among: members)
         guard !orphans.isEmpty else { return }
         for invite in orphans {
             let key = firstNameKey(invite.name)
-            let unnamedJoined = members.filter {
-                $0 !== invite
-                    && $0.seat == .joined
-                    && $0.identityKey != nil
-                    && HouseholdIdentity.isRestoredPlaceholder($0.name)
-                    && $0.shareRecordName != invite.shareRecordName
-            }
             guard let twin = members.first(where: {
                 $0 !== invite
+                    && firstNameKey($0.name) == key
                     && ($0.seat == .joined || $0.seat == .head)
                     && !($0.userRecordName ?? "").isEmpty
                     && $0.shareRecordName != invite.shareRecordName
-                    && (firstNameKey($0.name) == key
-                        || (HouseholdIdentity.isRestoredPlaceholder($0.name) && unnamedJoined.count == 1))
             }) else { continue }
             let id = twin.userRecordName ?? twin.participantID ?? ""
             invite.userRecordName = twin.userRecordName
