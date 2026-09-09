@@ -160,7 +160,9 @@ struct PersonProfileView: View {
                                 .plType(.display)
                                 .foregroundStyle(Color.ink)
                         }
-                        MicroLabel(roleLine)
+                        if let roleLine {
+                            MicroLabel(roleLine)
+                        }
                         if !bioLine.isEmpty {
                             Text(bioLine)
                                 .plType(.footnote)
@@ -347,6 +349,8 @@ struct PersonProfileView: View {
         .padding(.vertical, 2)
     }
 
+    private var hasCover: Bool { profiles.first?.bannerPhotoData != nil }
+
     private var banner: some View {
         ZStack(alignment: .bottomTrailing) {
             if let data = profiles.first?.bannerPhotoData, let image = UIImage(data: data), isMe {
@@ -363,7 +367,7 @@ struct PersonProfileView: View {
                     HStack(spacing: 5) {
                         Image(systemName: "camera")
                             .font(.system(size: 11, weight: .semibold))
-                        Text("Change")
+                        Text(hasCover ? "Change background" : "Choose background")
                             .plType(.micro)
                     }
                     .foregroundStyle(Color.ink)
@@ -373,6 +377,7 @@ struct PersonProfileView: View {
                     .padding(10)
                 }
                 .buttonStyle(.pressable)
+                .accessibilityLabel(hasCover ? "Change background" : "Choose background")
             }
         }
     }
@@ -434,10 +439,11 @@ struct PersonProfileView: View {
         return name
     }
 
-    /// The person's role, and "Head of table" only for the row that holds
-    /// it. This used to print "Head of table" for whoever was reading,
-    /// which on a member's phone is a partner reading their own page.
-    private var roleLine: String {
+    /// Own Account and own Table profile omit a role. Other household
+    /// hosts read as Host. Head of table is not a person-facing label here.
+    private var roleLine: String? {
+        if isMe { return nil }
+        if member?.isOwner == true { return "Host" }
         if let member { return member.roleTitle }
         return "At your table"
     }
@@ -463,7 +469,13 @@ struct PersonProfileView: View {
     }
 
     private func setBanner(_ raw: Data) {
-        let processed = Self.downscale(raw)
+        Self.writeCover(raw, into: profiles, context: context)
+    }
+
+    /// Account's hero, Edit profile, and this page write the same
+    /// `HouseholdProfile` row so a cover cannot drift between them.
+    static func writeCover(_ raw: Data, into profiles: [HouseholdProfile], context: ModelContext) {
+        let processed = downscale(raw)
         if let profile = profiles.first {
             profile.bannerPhotoData = processed
         } else {
@@ -487,6 +499,7 @@ struct EditProfileSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var context
     @Query(sort: \HouseholdMember.createdAt) private var members: [HouseholdMember]
+    @Query(sort: \HouseholdProfile.createdAt) private var profiles: [HouseholdProfile]
     @AppStorage("userBio") private var bio = ""
     @AppStorage("userFirstName") private var firstName = ""
     @State private var draftName = ""
@@ -497,6 +510,8 @@ struct EditProfileSheet: View {
     }
     @State private var photoData: Data?
     @State private var pickerItem: PhotosPickerItem?
+    @State private var coverItem: PhotosPickerItem?
+    private var hasCover: Bool { profiles.first?.bannerPhotoData != nil }
     /// Why the last Done didn't take. A refusal that only buzzes is a
     /// refusal the user can't act on.
     @State private var nameError: String?
@@ -520,6 +535,29 @@ struct EditProfileSheet: View {
             .frame(maxWidth: .infinity)
             .padding(.top, 10)
 
+            PhotosPicker(selection: $coverItem, matching: .images) {
+                VStack(spacing: 8) {
+                    if let data = profiles.first?.bannerPhotoData, let image = UIImage(data: data) {
+                        PhotoWell(image: image, height: 96, cornerRadius: Radius.chip)
+                    } else {
+                        RoundedRectangle(cornerRadius: Radius.chip, style: .continuous)
+                            .strokeBorder(Color.hairlineDashed, style: StrokeStyle(lineWidth: 2, dash: [7, 6]))
+                            .frame(height: 96)
+                            .overlay {
+                                Image(systemName: "photo")
+                                    .font(.system(size: 18, weight: .medium))
+                                    .foregroundStyle(Color.inkSecondary)
+                            }
+                    }
+                    Text(hasCover ? "Change background" : "Choose background")
+                        .plType(.caption, .bold)
+                        .foregroundStyle(Color.inkSecondary)
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.pressable)
+            .accessibilityLabel(hasCover ? "Change background" : "Choose background")
+
             PhotosPicker(selection: $pickerItem, matching: .images) {
                 VStack(spacing: 8) {
                     ProfilePhotoWell(photoData: $photoData, initials: draftInitials, diameter: 96)
@@ -531,28 +569,26 @@ struct EditProfileSheet: View {
             }
             .buttonStyle(.pressable)
 
-            Button {
+            Button("Use my contact photo") {
                 ContactPhotoPicker.choose { selected in
                     guard let selected else { return }
                     photoData = selected
                 }
-            } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: "person.crop.circle.badge.checkmark")
-                        .font(.system(size: 15, weight: .semibold))
-                    Text("Use my contact photo").plType(.footnote, .bold)
-                        .plActionLabel(0.72)
-                }
-                .foregroundStyle(Color.ink)
-                .padding(.horizontal, 16)
-                .frame(maxWidth: .infinity, minHeight: 48)
-                .overlay(Capsule().strokeBorder(Color.hairline))
-                .contentShape(Capsule())
             }
+            .plType(.footnote, .bold)
+            .foregroundStyle(Color.inkSecondary)
+            .frame(maxWidth: .infinity, minHeight: 44)
+            .contentShape(Rectangle())
             .buttonStyle(.pressable)
 
             VStack(alignment: .leading, spacing: 8) {
-                MicroLabel("Your name")
+                if draftName.trimmingCharacters(in: .whitespaces).isEmpty {
+                    Text("Add your name")
+                        .plType(.footnote, .semibold)
+                        .foregroundStyle(Color.ink)
+                } else {
+                    MicroLabel("Your name")
+                }
                 TextField("First name", text: $draftName)
                     .plType(.body)
                     .padding(.horizontal, 14)
@@ -572,7 +608,7 @@ struct EditProfileSheet: View {
 
             VStack(alignment: .leading, spacing: 8) {
                 MicroLabel("Bio")
-                TextField("What kind of cook are you?", text: $draftBio, axis: .vertical)
+                TextField("A short line about you", text: $draftBio, axis: .vertical)
                     .plType(.body, .medium)
                     .lineLimit(2...4)
                     .padding(14)
@@ -580,11 +616,11 @@ struct EditProfileSheet: View {
                     .plTappableField()
             }
 
-            Text("Your photo helps people at your Table recognize you. Apple does not provide your account photo to Plated.")
+            Text("Apple doesn't share your Apple ID photo with apps.")
                 .plType(.micro, .medium)
                 .foregroundStyle(Color.inkSecondary)
 
-            InkPillButton(title: "Save profile") {
+            InkPillButton(title: "Save") {
                 // Only leave if it took. Dismissing regardless is how a
                 // refusal became invisible.
                 if saveName() {
@@ -620,6 +656,16 @@ struct EditProfileSheet: View {
                     withAnimation(.plPop) { photoData = square }
                 }
                 pickerItem = nil
+            }
+        }
+        .onChange(of: coverItem) { _, item in
+            guard let item else { return }
+            Task {
+                if let raw = try? await item.loadTransferable(type: Data.self) {
+                    PersonProfileView.writeCover(raw, into: profiles, context: context)
+                    Haptic.plate()
+                }
+                coverItem = nil
             }
         }
         .onDisappear {
