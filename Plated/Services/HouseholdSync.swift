@@ -746,8 +746,14 @@ enum HouseholdSync {
         let accepted = await HouseholdShare.accept(metadata)
         guard accepted.seated else {
             isJoining = false
-            let reason = accepted.line
-                ?? await acceptFailure(metadata: metadata, host: host)
+            // `??` cannot await on its right-hand side (autoclosure), so the
+            // fallback is asked for only when the outcome has no line.
+            let reason: String
+            if let line = accepted.line {
+                reason = line
+            } else {
+                reason = await acceptFailure(metadata: metadata, host: host)
+            }
             print("PLATED HOUSEHOLD: join refused: \(reason)")
             return .failed(reason)
         }
