@@ -1,5 +1,5 @@
 import styles from "./page.module.css";
-import { APP_STORE_URL } from "../lib/store";
+import { INSTALL_URL, INSTALL_LABEL } from "../lib/store";
 import { COPY, type Kind } from "./copy";
 
 // What the server renders before the query string is known. Same shape, no
@@ -18,8 +18,8 @@ export default function Fallback({ kind }: { kind: Kind }) {
       </h1>
       <p className={`${styles.lede} secondary`}>{copy.lede("")}</p>
       <div className={styles.actions}>
-        <a className={styles.cta} href={APP_STORE_URL}>
-          Get Plated
+        <a className={styles.cta} href={INSTALL_URL}>
+          {INSTALL_LABEL}
         </a>
       </div>
     </>

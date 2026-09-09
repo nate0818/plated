@@ -3,7 +3,7 @@
 import { useSearchParams } from "next/navigation";
 import styles from "./page.module.css";
 
-import { APP_STORE_URL } from "../lib/store";
+import { INSTALL_URL, INSTALL_LABEL } from "../lib/store";
 import { COPY, appLink, recordName, type Kind } from "./copy";
 
 // ?h= is the host's first name, ?s= the share URL, ?seat= the household seat
@@ -43,8 +43,8 @@ export default function Invitation({ kind }: { kind: Kind }) {
       <p className={`${styles.lede} secondary`}>{copy.lede(host)}</p>
 
       <div className={styles.actions}>
-        <a className={styles.cta} href={APP_STORE_URL}>
-          Get Plated
+        <a className={styles.cta} href={INSTALL_URL}>
+          {INSTALL_LABEL}
         </a>
         {rawOK && (
           <a className={styles.quiet} href={appLink(kind, share, { seat, invite, host })}>
