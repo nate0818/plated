@@ -79,11 +79,6 @@
   justify-items: center;
 }
 
-.soon {
-  font-size: 0.9375rem;
-}
-
-
 /* One row, directly under the badge: four peers, one treatment. */
 .features {
   display: grid;

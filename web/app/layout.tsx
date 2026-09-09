@@ -24,7 +24,7 @@ const jakarta = Plus_Jakarta_Sans({
 // the card when the link is pasted into Messages. Every claim here is one
 // the homepage also makes, so the snippet never promises more than the site.
 const DESCRIPTION =
-  "Plated is a dinner planner for households and the people they cook for. Plan the week together, keep the recipes you love, and share what you made with the people you invite. Coming to iPhone and iPad.";
+  "Plated is dinner planning for your household. Plan the week together, cook with clear steps, shop from the plan, and share dinners on a private, invite-only Table.";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://plated.food"),
