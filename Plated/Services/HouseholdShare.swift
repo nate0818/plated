@@ -215,7 +215,7 @@ enum HouseholdShare {
         var name = ""
         var role = "member"
         var roleLine = ""
-        var colorHex = "C86629"
+        var colorHex = "FF5A3C"
         var dietaryNotes = ""
         var avoidedIngredients: [String] = []
         var cookWeekdays: [Int] = []
@@ -578,7 +578,7 @@ enum HouseholdShare {
         s.name = Wire.string(record, "name")
         s.role = record["role"] as? String ?? "member"
         s.roleLine = Wire.string(record, "roleLine")
-        s.colorHex = record["colorHex"] as? String ?? "C86629"
+        s.colorHex = record["colorHex"] as? String ?? "FF5A3C"
         s.dietaryNotes = Wire.string(record, "dietaryNotes")
         s.avoidedIngredients = record["avoidedIngredients"] as? [String] ?? []
         s.cookWeekdays = (record["cookWeekdays"] as? [NSNumber])?.map(\.intValue)

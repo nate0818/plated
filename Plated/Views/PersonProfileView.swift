@@ -100,7 +100,10 @@ struct PersonProfileView: View {
         allPosts.filter { $0.kind == "dish" && ($0.authorName == name || $0.firstName == firstName) }
     }
 
-    private var kissCount: Int { posts.filter { $0.hasChefsKiss(seats: members.count) }.count }
+    private var kissCount: Int {
+        let seats = TableKiss.seating(members: members, dishAuthors: posts.map(\.authorName))
+        return posts.filter { $0.hasChefsKiss(seats: seats) }.count
+    }
     private var plateCount: Int { posts.reduce(0) { $0 + $1.totalPlates } }
 
     var body: some View {
@@ -453,6 +456,7 @@ struct PersonProfileView: View {
             recipes: recipes,
             posts: allPosts,
             householdSize: members.count,
+            kissSeats: TableKiss.seating(members: members, dishAuthors: allPosts.map(\.authorName)),
             ownerFallback: isMe
         )
         awards = Awards.evaluate(metrics, for: name)

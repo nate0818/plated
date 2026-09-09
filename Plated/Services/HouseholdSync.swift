@@ -478,6 +478,7 @@ enum HouseholdSync {
     /// `createdAt`; relationships are rehomed onto the survivor and the
     /// rest are deleted. A `Gathering` has no `createdAt`, so the survivor
     /// there is the row that already holds meals, else the first found.
+    /// `TablePost` twins rehome comments the same way recipes rehome meals.
     ///
     /// No pass over `PlannedMeal`, and there must never be one again. A
     /// night is not a household record, so two rows can no longer describe
@@ -536,6 +537,19 @@ enum HouseholdSync {
         for group in groups(lines, by: \.shareRecordName) {
             let survivor = group.min { $0.createdAt < $1.createdAt }!
             for twin in group where twin !== survivor {
+                context.delete(twin); removed += 1
+            }
+        }
+
+        // Same mirror-collision shape as recipes: two TablePost rows for one
+        // shareRecordName. Comments must move to the survivor before the twin
+        // is deleted, or the cascade on the twin's relationship takes them.
+        let posts = fetchAll(TablePost.self, context)
+        for group in groups(posts, by: \.shareRecordName) {
+            let survivor = group.min { $0.createdAt < $1.createdAt }!
+            for twin in group where twin !== survivor {
+                for comment in twin.comments ?? [] { comment.post = survivor }
+                if survivor.photoData == nil { survivor.photoData = twin.photoData }
                 context.delete(twin); removed += 1
             }
         }

@@ -52,6 +52,10 @@ Caching it per zone in the ledger would fix all nine sites at once. Not done
 here because it changes what the feed, the profile and Home have said the
 kiss means since it shipped, and that is a product call.
 
+**Decided:** `TableKiss.seating` counts `.head`/`.joined` plus unique guest
+authors (first-name match). CloudKit participants cache still open if a
+sharper denominator is needed later.
+
 ## 1c. The reminder that says "Nothing for you to do"
 
 `NotificationScheduler.scheduleTurns` sends "Riley cooks tomorrow. Sheet-pan
@@ -68,6 +72,9 @@ another phone and read from the shared zone, already take the second
 answer: `NotificationScheduler` schedules only the cook's own reminder
 for them (`docs/plan-share.md`, "Reminders"); local nights keep the
 first until this is decided.
+
+**Decided:** cook-only — local `scheduleTurns` skips non-cook reminders;
+remote nights keep cook-only and now also say "Check the grocery list tonight."
 
 ## 1d. Opening the feed reads the dishes below the fold
 
@@ -108,6 +115,8 @@ On your own profile the number is structurally zero.
 Relabelling it to what it counts ("dishes you saved") makes it honest but
 turns a social signal into a personal one. Removing it is a product decision.
 Leaving it is the only option that is definitely wrong.
+
+**Decided:** relabelled to "Dishes you saved".
 
 ## 4. `safeAreaBar` and the scroll edge effect
 
@@ -319,6 +328,8 @@ guests. The second is what ships. A test that seeds two seats and one guest
 and asserts which plate count earns the kiss would make the choice visible
 either way.
 
+**Decided:** same as §1b — `TableKiss.seating` (head/joined + guest authors).
+
 ## 19. "Nothing for you to do" now reaches every member
 
 Entry 1c is about one reminder on one phone. The shared plan makes it
@@ -337,6 +348,8 @@ and let the widget carry the rest. What has changed is the cost of leaving
 it. It used to be a single reminder that arguably over-shared; it is now the
 one household notification that scales with the household. Nate's call,
 still, and this entry only records that the number went up.
+
+**Decided:** same as §1c — cook-only locally; no "Nothing for you to do."
 
 ## 20. A joiner's past cooked nights stay on their phone and never travel
 

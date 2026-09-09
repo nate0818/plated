@@ -222,7 +222,13 @@ final class PlanLedger {
     }
 
     private var book = Book()
-    private var photos: [String: Data] = [:]
+    /// Photo bytes off disk / from absorb. ObservationIgnored on purpose:
+    /// `photo(for:)` is read from SwiftUI bodies (`RemotePlanRow`), and
+    /// assigning into an observed dict — even filling a cache hit from
+    /// disk — invalidated the view mid-body and spun a render loop
+    /// (CLAUDE.md). Intentional clears still go through here; they do not
+    /// need to notify Observation because the entry book already did.
+    @ObservationIgnored private var photos: [String: Data] = [:]
     /// The night as it stood before an edit this phone has not landed yet,
     /// so a refusal can put it back. In memory on purpose: it is worth
     /// nothing after a relaunch, where the zone is the thing to be corrected
@@ -232,9 +238,9 @@ final class PlanLedger {
     /// The fetch/fold race it guards lives inside one run of the app, and a
     /// value that outlived the process would be compared against a clock
     /// nobody can vouch for any more.
-    private var lastLocalWrite: [String: Date] = [:]
+    @ObservationIgnored private var lastLocalWrite: [String: Date] = [:]
 
-    private var beforeEdit: [String: Entry] = [:]
+    @ObservationIgnored private var beforeEdit: [String: Entry] = [:]
 
     /// The photograph that was on the night before this phone's un-landed
     /// edit replaced it. `beforeEdit` restores the words on a refusal and
@@ -354,20 +360,18 @@ final class PlanLedger {
     /// than merely unlikely, whatever a future writer forgets.
     func photo(for recordName: String) -> Data? {
         guard let entry = book.entries[recordName], entry.hasPhoto else {
-            // Only when there is something to clear. `photos[x] = nil` is a
-            // mutation of an observed property even when the key is already
-            // absent, and this is read from `RemotePlanRow`'s body, so an
-            // unconditional write invalidated the view that had just read it
-            // and spun the render loop at 99% of a core until the test host
-            // was killed. Guarded, a night with no photograph is a pure
-            // read, and a stale entry is still cleared once and then
-            // converges.
+            // Only when there is something to clear. Even on an
+            // ObservationIgnored cache, dropping a stale key keeps absorb
+            // and a later miss from disagreeing about whether a night
+            // still has a photograph.
             if photos[recordName] != nil { photos[recordName] = nil }
             return nil
         }
         if let cached = photos[recordName] { return cached }
         guard let url = Self.photoDirectory?.appending(path: "\(recordName).jpg"),
               let data = try? Data(contentsOf: url) else { return nil }
+        // Cache fill is safe: photos is ObservationIgnored, so a body
+        // read does not invalidate itself by learning the bytes.
         photos[recordName] = data
         return data
     }

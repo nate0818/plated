@@ -42,7 +42,10 @@ final class HouseholdMember {
     /// Ingredient names to flag on sight — allergies, dislikes, hard no's.
     var avoidedIngredients: [String] = []
     /// Hex string (no leading `#`) used to tint this member across the app.
-    var colorHex: String = "C86629"
+    /// Tomato — first in `PersonTone.rotation` — so a new seat maps to a
+    /// known tone pair rather than the unmapped terracotta that used to
+    /// fall through to neutral.
+    var colorHex: String = "FF5A3C"
     var isPrimaryCook: Bool = false
     /// "owner" (head of table), "partner", "kid", or "member".
     var role: String = "member"
@@ -125,7 +128,7 @@ final class HouseholdMember {
         name: String = "",
         dietaryNotes: String = "",
         avoidedIngredients: [String] = [],
-        colorHex: String = "C86629",
+        colorHex: String = "FF5A3C",
         isPrimaryCook: Bool = false,
         role: String = "member",
         roleLine: String = "",

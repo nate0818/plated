@@ -126,7 +126,10 @@ struct GrocerySheet: View {
                             .plType(.body, .bold)
                             .foregroundStyle(Color.ink)
                         Text(byMeal && selectedMeals.isEmpty ? "Select one or more meals above to build your list." : hasPlannedNights
-                             ? "This week's dishes need nothing you don't have."
+                             // Rolling week, not calendar week: the list covers
+                             // tonight through six nights ahead, so "This week"
+                             // was wrong every Sunday evening and every Monday.
+                             ? "The rolling week's dishes need nothing you don't have."
                              : "Plan a few nights and the list builds itself.")
                             .plType(.footnote)
                             .foregroundStyle(Color.inkSecondary)
@@ -189,7 +192,7 @@ struct GrocerySheet: View {
                         orderWithInstacart()
                     }
                     Button(exporting ? "Sending…" : "Send to Reminders") { exportToReminders() }
-                        .plType(.footnote, .bold).foregroundStyle(Color.ink).plTapTarget()
+                        .plType(.footnote, .bold).plActionLabel().foregroundStyle(Color.ink).plTapTarget()
                         .disabled(exporting)
                     }
                     if let exportResult {

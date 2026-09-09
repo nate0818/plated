@@ -344,9 +344,14 @@ struct CookbookView: View {
             .toolbar(.hidden, for: .navigationBar)
             .plSwipeBack()
         }
-        .sheet(isPresented: $importShown) { RecipeImportSheet() }
-        .sheet(isPresented: $filterSheetShown) {
-            RecipeFilterSheet(filter: $filter, recipes: recipes)
+        // Two `.sheet` modifiers on one view is undefined — see CLAUDE.md.
+        .sheet(item: shelfSheet) { destination in
+            switch destination {
+            case .importing: RecipeImportSheet()
+            case .filter: RecipeFilterSheet(filter: $filter, recipes: recipes)
+            case .plate(let recipe): PlateAssignSheet(recipe: recipe)
+            case .edit(let recipe): RecipeEditorView(editing: recipe)
+            }
         }
         // See TabPopRequest: tapping Recipes from inside a recipe returns
         // to the shelf.
@@ -354,12 +359,6 @@ struct CookbookView: View {
             guard request.tab == .cookbook else { return }
             selected = nil
             activityShown = false
-        }
-        .sheet(item: $plating) { recipe in
-            PlateAssignSheet(recipe: recipe)
-        }
-        .sheet(item: $editing) { recipe in
-            RecipeEditorView(editing: recipe)
         }
         .confirmationDialog(
             pendingDelete.map { "Delete \($0.title)?" } ?? "",
@@ -381,6 +380,37 @@ struct CookbookView: View {
             // implies the household had been reading your cookbook all along.
             Text("Nights it's planned on keep the name.")
         }
+    }
+
+    private enum ShelfSheet: Identifiable {
+        case importing, filter, plate(Recipe), edit(Recipe)
+        var id: String {
+            switch self {
+            case .importing: "import"
+            case .filter: "filter"
+            case .plate(let recipe): "plate-\(recipe.persistentModelID)"
+            case .edit(let recipe): "edit-\(recipe.persistentModelID)"
+            }
+        }
+    }
+    private var shelfSheet: Binding<ShelfSheet?> {
+        Binding(
+            get: {
+                if importShown { return .importing }
+                if filterSheetShown { return .filter }
+                if let plating { return .plate(plating) }
+                if let editing { return .edit(editing) }
+                return nil
+            },
+            set: {
+                if $0 == nil {
+                    importShown = false
+                    filterSheetShown = false
+                    plating = nil
+                    editing = nil
+                }
+            }
+        )
     }
 
     private var noMatches: some View {
@@ -1798,8 +1828,15 @@ struct PlateAssignSheet: View {
                         MicroLabel("Which night")
                         DatePicker("Dinner date", selection: Binding(get: { chosenDate ?? .now.startOfDay }, set: { chosenDate = $0.startOfDay }), in: Date.now.startOfDay..., displayedComponents: .date)
                             .datePickerStyle(.graphical).tint(Color.accentText)
-                        if let date = chosenDate, let occupied = dinner(on: date) {
+                        if let date = chosenDate, let occupied = localDinner(on: date) {
                             Label("Replaces \(occupied.title)", systemImage: "arrow.triangle.2.circlepath")
+                                .plType(.footnote).foregroundStyle(Color.inkSecondary)
+                        } else if let date = chosenDate, let remote = remoteDinner(on: date) {
+                            // A housemate's night is not a PlannedMeal, so the
+                            // local replace path cannot own it. Naming it here
+                            // stops "Plan for Saturday" from stacking a second
+                            // dinner beside one the week already shows.
+                            Label("\(remote.authorFirstName) already planned \(remote.title)", systemImage: "person.2")
                                 .plType(.footnote).foregroundStyle(Color.inkSecondary)
                         }
                     }
@@ -1862,7 +1899,7 @@ struct PlateAssignSheet: View {
                     TomatoPillButton(title: plateLabel) {
                         plate()
                     }
-                    .disabled(chosenDate == nil)
+                    .disabled(chosenDate == nil || remoteBlocks)
                 }
             }
             .animation(.plSnap, value: confirmation)
@@ -1885,11 +1922,12 @@ struct PlateAssignSheet: View {
 
     private func suggestCook() {
         guard !cookPickedByHand, let date = chosenDate else { return }
-        chosenCook = dinner(on: date)?.cook ?? CookRotation.cook(for: date, members: members, meals: meals) ?? cookCandidates.me ?? cookCandidates.first
+        chosenCook = localDinner(on: date)?.cook ?? CookRotation.cook(for: date, members: members, meals: meals) ?? cookCandidates.me ?? cookCandidates.first
     }
 
     private func nightRow(_ date: Date) -> some View {
-        let occupied = dinner(on: date)
+        let occupied = localDinner(on: date)
+        let remote = remoteDinner(on: date)
         let active = chosenDate == date
         return Button {
             Haptic.tap()
@@ -1914,6 +1952,11 @@ struct PlateAssignSheet: View {
                 Spacer()
                 if let occupied {
                     Text("\(occupied.title) planned")
+                        .plType(.micro, .semibold)
+                        .foregroundStyle(active ? Color.canvas.opacity(0.8) : Color.inkSecondary)
+                        .lineLimit(1)
+                } else if let remote {
+                    Text("\(remote.title) planned")
                         .plType(.micro, .semibold)
                         .foregroundStyle(active ? Color.canvas.opacity(0.8) : Color.inkSecondary)
                         .lineLimit(1)
@@ -1971,12 +2014,23 @@ struct PlateAssignSheet: View {
     /// pressing it took that dinner away without ever having said so.
     private var plateLabel: String {
         guard let chosenDate else { return "Pick a night" }
-        if let taken = dinner(on: chosenDate) { return "Replace \(taken.title)" }
+        if let taken = localDinner(on: chosenDate) { return "Replace \(taken.title)" }
+        if remoteDinner(on: chosenDate) != nil { return "Night already planned" }
         return "Plan for \(nightLabel(chosenDate))"
     }
 
-    private func dinner(on date: Date) -> PlannedMeal? {
+    /// True when a housemate owns the night and this sheet cannot replace it.
+    private var remoteBlocks: Bool {
+        guard let chosenDate, localDinner(on: chosenDate) == nil else { return false }
+        return remoteDinner(on: chosenDate) != nil
+    }
+
+    private func localDinner(on date: Date) -> PlannedMeal? {
         meals.first { Calendar.current.isSameDay($0.date, date) && $0.slotValue == .dinner }
+    }
+
+    private func remoteDinner(on date: Date) -> PlanLedger.Entry? {
+        PlanLedger.shared.dinner(on: date).flatMap { $0.isGoing ? nil : $0 }
     }
 
     private func nightLabel(_ date: Date) -> String {
@@ -1988,10 +2042,10 @@ struct PlateAssignSheet: View {
     }
 
     private func plate() {
-        guard let date = chosenDate else { return }
+        guard let date = chosenDate, !remoteBlocks else { return }
         Haptic.plate()
         let cook = chosenCook ?? cookCandidates.me ?? cookCandidates.first
-        if let existing = dinner(on: date) {
+        if let existing = localDinner(on: date) {
             // A gathering names the night and counts its guests; the recipe
             // is only what is being cooked at it. Blanking both turned
             // "Anna's birthday · Cooking for 12" into the dish's own title

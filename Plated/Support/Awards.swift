@@ -182,6 +182,10 @@ enum Awards {
         recipes: [Recipe],
         posts: [TablePost],
         householdSize: Int,
+        /// Who can plate — head/joined plus Table guests. Defaults to
+        /// `householdSize` only so older call sites keep compiling; pass
+        /// `TableKiss.seating` so the kiss denominator matches the feed.
+        kissSeats: Int? = nil,
         ownerFallback: Bool = true
     ) -> AwardMetrics {
         let personName = person?.name ?? "Me"
@@ -227,6 +231,7 @@ enum Awards {
                 .lowercased()
         }.filter { !$0.isEmpty })
 
+        let seats = kissSeats ?? householdSize
         return AwardMetrics(
             cookedMeals: cooked.count,
             distinctDishesCooked: dishNames.count,
@@ -235,7 +240,7 @@ enum Awards {
             cookbookRecipes: recipes.filter { wrote($0.authorID) }.count,
             tablePosts: authored.count,
             happyPlates: authored.reduce(0) { $0 + $1.totalPlates },
-            chefsKisses: authored.filter { $0.hasChefsKiss(seats: householdSize) }.count,
+            chefsKisses: authored.filter { $0.hasChefsKiss(seats: seats) }.count,
             savesReceived: savesReceived(by: personName),
             householdPeople: householdSize
         )

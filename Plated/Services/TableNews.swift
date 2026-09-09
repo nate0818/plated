@@ -377,7 +377,9 @@ enum TableNews {
             // legacy table; the count on the dish still says it.
             guard !named.isEmpty else { continue }
             let dish = label(post)
-            let kiss = post.hasChefsKiss(seats: members.count)
+            let kiss = post.hasChefsKiss(
+                seats: TableKiss.seating(members: members, dishAuthors: posts.map(\.authorName))
+            )
             let title = kiss
                 ? "Everyone plated your \(dish)"
                 : "\(list(named, of: platers.count)) plated your \(dish)"

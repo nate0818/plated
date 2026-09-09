@@ -28,6 +28,13 @@ struct PlateTonightIntent: AppIntent {
         if let existing = tonightMeals.first(where: { $0.slotValue == .dinner }) {
             return .result(dialog: "Tonight is already plated: \(existing.title). Swap it in the app if you'd rather.")
         }
+        // A housemate's dinner lives in PlanLedger, not PlannedMeal. Without
+        // this check Siri stacked a second dinner on a night the planner
+        // already showed as taken — the same trap WhatsForDinnerIntent
+        // already closed.
+        if let remote = PlanLedger.shared.dinner(on: today), !remote.isGoing {
+            return .result(dialog: "Tonight is already plated: \(remote.title). Swap it in the app if you'd rather.")
+        }
 
         let recipes = try context.fetch(FetchDescriptor<Recipe>())
         let query = dish.lowercased()

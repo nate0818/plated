@@ -1568,7 +1568,10 @@ enum PlanShare {
         if let title = edit.title { record["title"] = title as CKRecordValue }
         if let servings = edit.servings {
             // Read before the overwrite: `record` IS `existing` here.
-            let was = record["servings"] as? Int
+            // CloudKit stores INT64; `as? Int` is a bridging coin flip and
+            // skips rescale when it misses, leaving grocery quantities at
+            // the old servings. Same bridge as every other Int on the wire.
+            let was = TableShare.int(record, "servings")
             record["servings"] = servings as CKRecordValue
             // The record's ingredients are scaled to the servings they were
             // published at, and this phone does not have the recipe behind
@@ -1578,7 +1581,7 @@ enum PlanShare {
             // Without it, doubling a night's servings left the household
             // shopping for the old quantities, which is the list quietly
             // lying about a change the person watched land.
-            if let was, was > 0, servings != was {
+            if was > 0, servings != was {
                 let factor = Double(servings) / Double(was)
                 let raw = record["lines"] as? String
                 let decoded = TableShare.decodeLines(raw)

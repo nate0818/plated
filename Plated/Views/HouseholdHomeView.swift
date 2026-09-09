@@ -91,7 +91,10 @@ struct HouseholdHomeView: View {
     }
 
     private var owner: HouseholdMember? { members.first(where: \.isOwner) }
-    private var kissCount: Int { posts.filter { $0.hasChefsKiss(seats: members.count) }.count }
+    private var kissCount: Int {
+        let seats = TableKiss.seating(members: members, dishAuthors: posts.map(\.authorName))
+        return posts.filter { $0.hasChefsKiss(seats: seats) }.count
+    }
     private var platesEarned: Int { posts.reduce(0) { $0 + $1.totalPlates } }
     /// Every dinner this household has ever put on the plan.
     private var nightsPlated: Int { meals.count }
@@ -184,36 +187,37 @@ struct HouseholdHomeView: View {
                     .ignoresSafeArea()
             }
         }
-        .sheet(isPresented: $addPresented) {
-            AddMemberSheet()
+        // Two `.sheet` modifiers on one view is undefined — see CLAUDE.md.
+        .sheet(item: homeSheet, onDismiss: { namingFromMasthead = false }) { destination in
+            switch destination {
+            case .add:
+                AddMemberSheet()
+            case .resend(let target):
+                InviteComposer(
+                    recipients: [target.phone].compactMap { $0 },
+                    body: resendBody
+                ) { sent in
+                    resendTarget = nil
+                    // The same seat, so nothing is laid; only the date moves,
+                    // and only when the message went. Matched on the seat
+                    // record, never the name: two invited Sams are two rows.
+                    guard sent, let member = members.first(where: {
+                        $0.shareRecordName == target.seat && $0.seat == .invited
+                    }) else { return }
+                    member.invitedAt = .now
+                }
+                .ignoresSafeArea()
+            case .paywall:
+                PaywallSheet()
+            case .settings:
+                SettingsSheet(focusHouseholdName: namingFromMasthead)
+            }
         }
         // See TabPopRequest: tapping Home from a pushed screen returns home.
         .onChange(of: tabPop) { _, request in
             guard request.tab == .home else { return }
             pushed = nil
             personShown = nil
-        }
-        .sheet(item: $resendTarget) { target in
-            InviteComposer(
-                recipients: [target.phone].compactMap { $0 },
-                body: resendBody
-            ) { sent in
-                resendTarget = nil
-                // The same seat, so nothing is laid; only the date moves,
-                // and only when the message went. Matched on the seat
-                // record, never the name: two invited Sams are two rows.
-                guard sent, let member = members.first(where: {
-                    $0.shareRecordName == target.seat && $0.seat == .invited
-                }) else { return }
-                member.invitedAt = .now
-            }
-            .ignoresSafeArea()
-        }
-        .sheet(isPresented: $paywallPresented) {
-            PaywallSheet()
-        }
-        .sheet(isPresented: $settingsPresented, onDismiss: { namingFromMasthead = false }) {
-            SettingsSheet(focusHouseholdName: namingFromMasthead)
         }
         .confirmationDialog(
             dialogTitle,
@@ -305,6 +309,36 @@ struct HouseholdHomeView: View {
                 setBanner(framed)
             }
         }
+    }
+
+    private enum HomeSheet: Identifiable {
+        case add, resend(InviteTarget), paywall, settings
+        var id: String {
+            switch self {
+            case .add: "add"
+            case .resend(let target): "resend-\(target.id)"
+            case .paywall: "paywall"
+            case .settings: "settings"
+            }
+        }
+    }
+    private var homeSheet: Binding<HomeSheet?> {
+        Binding(
+            get: {
+                if addPresented { return .add }
+                if let resendTarget { return .resend(resendTarget) }
+                if paywallPresented { return .paywall }
+                return settingsPresented ? .settings : nil
+            },
+            set: {
+                if $0 == nil {
+                    addPresented = false
+                    resendTarget = nil
+                    paywallPresented = false
+                    settingsPresented = false
+                }
+            }
+        )
     }
 
     // MARK: Masthead

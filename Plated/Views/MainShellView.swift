@@ -262,7 +262,7 @@ struct MainShellView: View {
                                 .foregroundStyle(Color.canvas)
                                 .frame(width: 30, height: 30)
                                 .background(Color.ink, in: Circle())
-                        }.foregroundStyle(Color.ink).padding(.horizontal, 16).frame(height: 54)
+                        }.foregroundStyle(Color.ink).padding(.horizontal, 16).frame(minHeight: 54)
                             .background(Color.canvas, in: Capsule()).overlay(Capsule().strokeBorder(Color.hairline))
                     }.buttonStyle(.pressable).accessibilityLabel("Resume cooking \(session.titleSnapshot ?? recipe.title)")
                 }
@@ -301,22 +301,32 @@ struct MainShellView: View {
             Haptic.select()
             withAnimation(.plSnap) { selection = previous }
         }
-        .sheet(isPresented: $createPresented, onDismiss: {
+        // Two `.sheet` modifiers on one view is undefined — see CLAUDE.md.
+        // One item binding, four destinations; flags stay so callers keep
+        // writing createPresented / askPresented / … without knowing.
+        .sheet(item: shellSheet, onDismiss: {
             createStart = nil
             sharedRecipeInput = ""
             sharedRecipeImages = []
-        }) {
-            CreateFlowSheet(
-                start: createStart,
-                initialRecipeInput: sharedRecipeInput,
-                initialRecipeImages: sharedRecipeImages
-            )
-        }
-        .sheet(isPresented: $askPresented) {
-            AskComposerSheet(date: Calendar.current.startOfDay(for: .now))
-        }
-        .sheet(isPresented: $prongsbyPresented) {
-            ProngsbyView(session: prongsbySession)
+        }) { destination in
+            switch destination {
+            case .create:
+                CreateFlowSheet(
+                    start: createStart,
+                    initialRecipeInput: sharedRecipeInput,
+                    initialRecipeImages: sharedRecipeImages
+                )
+            case .ask:
+                AskComposerSheet(date: Calendar.current.startOfDay(for: .now))
+            case .prongsby:
+                ProngsbyView(session: prongsbySession)
+            case .household(let invitation):
+                JoinHouseholdSheet(
+                    metadata: invitation.metadata, root: invitation.root,
+                    seat: invitation.seat, linkHost: invitation.host,
+                    failure: invitation.failure
+                )
+            }
         }
         // Every link comes in through LinkRelay: a tapped notification
         // parks one from UIKit, and RootView parks every `onOpenURL`. The
@@ -359,13 +369,6 @@ struct MainShellView: View {
             Button("Not now", role: .cancel) { tableInvitation = nil }
         } message: {
             Text("Their dishes and asks join your Table, and they see what you post.")
-        }
-        .sheet(item: $householdInvitation) { invitation in
-            JoinHouseholdSheet(
-                metadata: invitation.metadata, root: invitation.root,
-                seat: invitation.seat, linkHost: invitation.host,
-                failure: invitation.failure
-            )
         }
         // What the share turned out to be. The Table asks with a dialog on
         // every road; the household opens its sheet; a share that could
@@ -643,6 +646,37 @@ struct MainShellView: View {
             }
             #endif
         }
+    }
+
+    private enum ShellSheet: Identifiable {
+        case create, ask, prongsby, household(HouseholdInvitation)
+        var id: String {
+            switch self {
+            case .create: "create"
+            case .ask: "ask"
+            case .prongsby: "prongsby"
+            case .household(let invitation): "household-\(invitation.id)"
+            }
+        }
+    }
+    private var shellSheet: Binding<ShellSheet?> {
+        Binding(
+            get: {
+                if createPresented { return .create }
+                if askPresented { return .ask }
+                if prongsbyPresented { return .prongsby }
+                if let householdInvitation { return .household(householdInvitation) }
+                return nil
+            },
+            set: {
+                if $0 == nil {
+                    createPresented = false
+                    askPresented = false
+                    prongsbyPresented = false
+                    householdInvitation = nil
+                }
+            }
+        )
     }
 
     private func showToast(_ message: String) {
