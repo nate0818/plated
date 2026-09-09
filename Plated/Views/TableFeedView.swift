@@ -440,7 +440,6 @@ struct TableFeedView: View {
             .background(Color.canvas)
             .toolbar(.hidden, for: .navigationBar)
             .plSwipeBack()
-            .sheet(isPresented: $composerShown) { TableComposerSheet() }
             .navigationDestination(item: $threadPost) { post in
                 PostThreadView(post: post, startWriting: threadStartsWriting) { beginSave($0) }
                     .navigationTransition(.zoom(sourceID: post.persistentModelID, in: zoom))
@@ -459,8 +458,27 @@ struct TableFeedView: View {
                 }
             }
         }
-        .sheet(isPresented: $seatsPresented) {
-            TableSeatsSheet()
+        // Two `.sheet` modifiers on one view is undefined — see CLAUDE.md.
+        // Composer lived on the stack's content before; same sheet content,
+        // one presentation owner with seats / edit / save.
+        .sheet(item: feedSheet) { destination in
+            switch destination {
+            case .composer:
+                TableComposerSheet()
+            case .seats:
+                TableSeatsSheet()
+            case .editPost(let post):
+                PostEditSheet(post: post)
+            case .editSave(let post):
+                RecipeEditorView(prefill: (
+                    title: post.dishTitle.isEmpty ? "\(post.firstName)'s dish" : post.dishTitle,
+                    summary: post.caption,
+                    photo: post.photoData,
+                    originID: post.originKey
+                )) { _ in
+                    finishSave(post)
+                }
+            }
         }
         .confirmationDialog(
             pendingDelete.map { $0.dishTitle.isEmpty ? "Delete this post?" : "Delete \($0.dishTitle)?" }
@@ -484,19 +502,6 @@ struct TableFeedView: View {
             threadPost = nil
             personShown = nil
             pushed = nil
-        }
-        .sheet(item: $editingPost) { post in
-            PostEditSheet(post: post)
-        }
-        .sheet(item: $editingSave) { post in
-            RecipeEditorView(prefill: (
-                title: post.dishTitle.isEmpty ? "\(post.firstName)'s dish" : post.dishTitle,
-                summary: post.caption,
-                photo: post.photoData,
-                originID: post.originKey
-            )) { _ in
-                finishSave(post)
-            }
         }
         .onAppear {
             // While the feed is in front, a banner about a new dish would
@@ -530,6 +535,37 @@ struct TableFeedView: View {
                     .transition(.plRise)
             }
         }
+    }
+
+    private enum FeedSheet: Identifiable {
+        case composer, seats, editPost(TablePost), editSave(TablePost)
+        var id: String {
+            switch self {
+            case .composer: "composer"
+            case .seats: "seats"
+            case .editPost(let post): "edit-post-\(post.persistentModelID)"
+            case .editSave(let post): "edit-save-\(post.persistentModelID)"
+            }
+        }
+    }
+    private var feedSheet: Binding<FeedSheet?> {
+        Binding(
+            get: {
+                if composerShown { return .composer }
+                if seatsPresented { return .seats }
+                if let editingPost { return .editPost(editingPost) }
+                if let editingSave { return .editSave(editingSave) }
+                return nil
+            },
+            set: {
+                if $0 == nil {
+                    composerShown = false
+                    seatsPresented = false
+                    editingPost = nil
+                    editingSave = nil
+                }
+            }
+        )
     }
 
     // MARK: Header

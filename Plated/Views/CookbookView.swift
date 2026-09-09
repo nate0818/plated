@@ -344,9 +344,14 @@ struct CookbookView: View {
             .toolbar(.hidden, for: .navigationBar)
             .plSwipeBack()
         }
-        .sheet(isPresented: $importShown) { RecipeImportSheet() }
-        .sheet(isPresented: $filterSheetShown) {
-            RecipeFilterSheet(filter: $filter, recipes: recipes)
+        // Two `.sheet` modifiers on one view is undefined — see CLAUDE.md.
+        .sheet(item: shelfSheet) { destination in
+            switch destination {
+            case .importing: RecipeImportSheet()
+            case .filter: RecipeFilterSheet(filter: $filter, recipes: recipes)
+            case .plate(let recipe): PlateAssignSheet(recipe: recipe)
+            case .edit(let recipe): RecipeEditorView(editing: recipe)
+            }
         }
         // See TabPopRequest: tapping Recipes from inside a recipe returns
         // to the shelf.
@@ -354,12 +359,6 @@ struct CookbookView: View {
             guard request.tab == .cookbook else { return }
             selected = nil
             activityShown = false
-        }
-        .sheet(item: $plating) { recipe in
-            PlateAssignSheet(recipe: recipe)
-        }
-        .sheet(item: $editing) { recipe in
-            RecipeEditorView(editing: recipe)
         }
         .confirmationDialog(
             pendingDelete.map { "Delete \($0.title)?" } ?? "",
@@ -381,6 +380,37 @@ struct CookbookView: View {
             // implies the household had been reading your cookbook all along.
             Text("Nights it's planned on keep the name.")
         }
+    }
+
+    private enum ShelfSheet: Identifiable {
+        case importing, filter, plate(Recipe), edit(Recipe)
+        var id: String {
+            switch self {
+            case .importing: "import"
+            case .filter: "filter"
+            case .plate(let recipe): "plate-\(recipe.persistentModelID)"
+            case .edit(let recipe): "edit-\(recipe.persistentModelID)"
+            }
+        }
+    }
+    private var shelfSheet: Binding<ShelfSheet?> {
+        Binding(
+            get: {
+                if importShown { return .importing }
+                if filterSheetShown { return .filter }
+                if let plating { return .plate(plating) }
+                if let editing { return .edit(editing) }
+                return nil
+            },
+            set: {
+                if $0 == nil {
+                    importShown = false
+                    filterSheetShown = false
+                    plating = nil
+                    editing = nil
+                }
+            }
+        )
     }
 
     private var noMatches: some View {
