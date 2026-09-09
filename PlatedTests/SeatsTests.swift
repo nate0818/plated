@@ -181,4 +181,74 @@ final class SeatsInviteClaimTests: XCTestCase {
         )
         XCTAssertNil(Seats.inviteToClaim(for: standing(), among: [a, b]))
     }
+
+    func testDisplayNamePrefersTheShareThenTheInviteLog() {
+        XCTAssertEqual(
+            Seats.displayName(standingName: "Alessandra Rossi", remembered: "Alessandra"),
+            "Alessandra Rossi"
+        )
+        XCTAssertEqual(
+            Seats.displayName(standingName: "", remembered: "Alessandra"),
+            "Alessandra"
+        )
+        XCTAssertEqual(
+            Seats.displayName(standingName: "New member", remembered: "Alessandra"),
+            "Alessandra"
+        )
+        XCTAssertEqual(
+            Seats.displayName(standingName: "", remembered: nil),
+            "New member"
+        )
+    }
+
+    func testBindShareIdentityCopiesNameAndPhotoFromATwin() async throws {
+        let container = try ModelContainer(
+            for: PlatedStore.schema,
+            configurations: [ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)]
+        )
+        let context = container.mainContext
+        let unnamed = HouseholdMember(
+            name: "New member", role: "partner", seat: .joined,
+            shareRecordName: "seat-new"
+        )
+        unnamed.userRecordName = "ck-ale"
+        unnamed.participantID = "ck-ale"
+        let named = HouseholdMember(
+            name: "Alessandra", role: "partner", seat: .joined,
+            shareRecordName: "seat-ale"
+        )
+        named.userRecordName = "ck-ale"
+        named.photoData = Data([9, 8, 7])
+        context.insert(unnamed)
+        context.insert(named)
+        try context.save()
+
+        let changed = Seats.bindShareIdentity(in: context, standings: [])
+        XCTAssertGreaterThan(changed, 0)
+        XCTAssertEqual(unnamed.name, "Alessandra")
+        XCTAssertEqual(unnamed.photoData, named.photoData)
+    }
+
+    func testBindShareIdentityUsesTheShareParticipantName() async throws {
+        let container = try ModelContainer(
+            for: PlatedStore.schema,
+            configurations: [ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)]
+        )
+        let context = container.mainContext
+        let unnamed = HouseholdMember(
+            name: "New member", role: "partner", seat: .joined,
+            shareRecordName: "seat-new"
+        )
+        unnamed.userRecordName = "ck-ale"
+        unnamed.participantID = "ck-ale"
+        context.insert(unnamed)
+        try context.save()
+
+        let changed = Seats.bindShareIdentity(
+            in: context,
+            standings: [standing(name: "Alessandra Rossi", id: "ck-ale")]
+        )
+        XCTAssertGreaterThan(changed, 0)
+        XCTAssertEqual(unnamed.name, "Alessandra Rossi")
+    }
 }

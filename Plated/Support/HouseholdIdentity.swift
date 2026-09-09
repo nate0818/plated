@@ -30,6 +30,16 @@ enum HouseholdIdentity {
         return trimmed.isEmpty || trimmed == "me" || trimmed == "you"
     }
 
+    /// A seat that does not yet name a person. Distinct from `isPlaceholder`:
+    /// "Me" is the owner's bootstrap and a prompt to add a name. "New member"
+    /// is a restored share participant whose CloudKit identity had no name
+    /// yet — the share, the invite log, or a twin seat still has to bind one.
+    static func isUnnamed(_ name: String) -> Bool {
+        if isPlaceholder(name) { return true }
+        let trimmed = name.trimmingCharacters(in: .whitespaces).lowercased()
+        return trimmed == "new member" || trimmed == "someone" || trimmed == "someone new"
+    }
+
     /// What goes under the HOUSEHOLD label on Home — the name itself, and
     /// only the name. "Meadows' Household" beneath an eyebrow reading
     /// "HOUSEHOLD" says the word twice; a name a family would actually use
@@ -263,7 +273,10 @@ enum HouseholdIdentity {
     /// Who sits here, for the banner's caption: real names while the table
     /// is small enough to read, a count once it isn't.
     static func seatedLine(names: [String]) -> String {
-        let firsts = names.compactMap { $0.split(separator: " ").first.map(String.init) }
+        let firsts = names.compactMap { name -> String? in
+            guard !isUnnamed(name) else { return nil }
+            return name.split(separator: " ").first.map(String.init)
+        }
         switch firsts.count {
         case 0: return "Everyone in your household"
         case 1: return firsts[0]

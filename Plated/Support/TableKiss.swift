@@ -17,8 +17,9 @@ enum TableKiss {
     /// 1 so a solo table still has a denominator; `hasChefsKiss` still
     /// requires `seats >= 2`.
     static func seating(members: [HouseholdMember], dishAuthors: [String] = []) -> Int {
-        let canPlate = members.filter { $0.seat == .head || $0.seat == .joined }.count
-        let knownNames = Set(members.map(\.name))
+        let live = members.filter { !$0.isDeleted }
+        let canPlate = live.filter { $0.seat == .head || $0.seat == .joined }.count
+        let knownNames = Set(live.map(\.name))
         let guests = Set(
             dishAuthors.filter { author in
                 !knownNames.contains(author)

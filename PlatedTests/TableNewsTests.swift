@@ -107,6 +107,38 @@ final class TableNewsTests: XCTestCase {
         XCTAssertEqual(legacy.line(members: Seats.all(in: context)), "Riley plated Ragù.")
     }
 
+    func testARowFindsTheActorByUserRecordName() throws {
+        let riley = try XCTUnwrap(Seats.all(in: context).first { $0.name == "Riley Park" })
+        riley.userRecordName = "riley-user"
+        riley.participantID = nil
+        let row = PlatedNotification(
+            kind: .householdJoined, actorName: "Riley Park",
+            body: "Riley joined your household.",
+            template: "{actor} joined your household.", actorID: "riley-user"
+        )
+        XCTAssertEqual(row.line(members: Seats.all(in: context)), "Riley joined your household.")
+    }
+
+    func testAJoinRowPrefersTheNamedPersonOverTheHostId() throws {
+        let nate = try XCTUnwrap(Seats.all(in: context).first { $0.name == "Nate Meadows" })
+        nate.userRecordName = me
+        nate.participantID = me
+        let ale = HouseholdMember(name: "Alessandra", role: "partner", seat: .joined)
+        ale.userRecordName = "ck-ale"
+        context.insert(ale)
+        try context.save()
+        let row = PlatedNotification(
+            kind: .householdJoined, actorName: "Alessandra",
+            body: "Alessandra joined your household.",
+            template: "{actor} joined your household.", actorID: me
+        )
+        XCTAssertEqual(
+            row.line(members: Seats.all(in: context)),
+            "Alessandra joined your household.",
+            "a join notice must not wear the host's identity when it names the joiner"
+        )
+    }
+
     func testTheBellListKeepsBannersToTheList() {
         XCTAssertEqual(
             NotificationRouter.presentation(post: "post-1", kind: "comment", openPost: nil, feedVisible: false, activityVisible: true),

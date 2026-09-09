@@ -5,6 +5,12 @@ import CryptoKit
 /// this device's existing Apple-backed session before creating a shopping link.
 actor InstacartService {
     static let shared = InstacartService()
+
+    /// Whether Groceries may offer Instacart. The partner key lives only on
+    /// the edge function and is not in this binary; until that secret is
+    /// set the handler answers 503, so this stays false. Flipping it is
+    /// what turns the CTA on after checkout is actually configured.
+    nonisolated static var isOffered: Bool { false }
     struct Line: Codable, Sendable {
         var name: String
         var quantity: Double

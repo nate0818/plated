@@ -168,6 +168,21 @@ final class HouseholdMember {
     /// member's phone the head is somebody else. That is `isMe`.
     var isOwner: Bool { role == "owner" }
 
+    /// CloudKit identity, when this seat has one. Occupancy keys on it so
+    /// two rows for the same person do not count as two people.
+    var identityKey: String? {
+        if let userRecordName, !userRecordName.isEmpty { return userRecordName }
+        if let participantID, !participantID.isEmpty { return participantID }
+        return nil
+    }
+
+    /// Safe to read stored properties in a SwiftUI body. A `@Query` can
+    /// still hold a row whose backing data was deleted by a CloudKit import
+    /// or a roster sweep; touching any stored property then traps inside
+    /// SwiftData (`_assertionFailure`). `isDeleted` and `modelContext` are
+    /// the two asks that do not.
+    var isRenderable: Bool { !isDeleted && modelContext != nil }
+
     /// The person holding this phone. Identity, never role: on a member's
     /// phone the owner row is the host, and every screen that once asked
     /// `isOwner` to find "you" was about to call the host "you".
@@ -186,7 +201,8 @@ final class HouseholdMember {
         return Self.claimedSeatName == nil
     }
 
-    /// The role as a person would say it.
+    /// The role as a person would say it. Not drawn on the reader's own
+    /// row: that line is "You", and DESIGN.md forbids Head of table there.
     var roleTitle: String {
         switch role {
         case "owner": return "Head of table"
@@ -232,11 +248,12 @@ final class HouseholdMember {
     /// A joined seat genuinely shares the plan, the list and the cookbook
     /// now (docs/household.md), so the sentence says what they can do, by
     /// role: a partner cooks, a kid or member sees. The reader's own row is
-    /// addressed as "You", never with a sentence written for somebody else.
+    /// "You" and nothing else: a role on that line is DESIGN.md's copy lock
+    /// against Head of table on self. Another host is Host, not that title.
     var subtitle: String {
-        if isMe { return "You · \(roleTitle)" }
+        if isMe { return "You" }
         switch seat {
-        case .head: return "Head of table"
+        case .head: return "Host"
         case .joined:
             return role == "partner" || role == "owner"
                 ? "Plans and cooks with you" : "Sees the plan with you"
@@ -322,6 +339,115 @@ final class HouseholdMember {
 
 
 extension Array where Element == HouseholdMember {
+    /// Rows a SwiftUI body may touch. Prefer this over the raw `@Query`
+    /// before `ForEach`, `me`, awards, or a people count: one invalidated
+    /// seat in the snapshot takes the whole screen with it.
+    var readable: [HouseholdMember] { filter(\.isRenderable) }
+
+    /// Unique people still in this household. Left seats, Invited ghosts
+    /// beside an already-joined twin, and duplicate identities are not
+    /// extra people — `members.count` was, and Account said "7 people".
+    var occupying: [HouseholdMember] { Self.occupying(from: self) }
+
+    /// Occupying seats plus anyone who left, for a People list that must
+    /// still show a Left row while collapsing identity twins.
+    var listed: [HouseholdMember] {
+        occupying + filter { $0.seat == .left }
+    }
+
+    var peopleCount: Int { occupying.count }
+
+    static func peopleEyebrow(_ count: Int) -> String {
+        "\(count) \(count == 1 ? "person" : "people")"
+    }
+
+    /// Occupancy for a count a person can audit. Does not itself drop
+    /// deleted rows: callers that read from a live `@Query` pass `readable`
+    /// first. Tests pass in-memory seats that have no context.
+    static func occupying(from members: [HouseholdMember]) -> [HouseholdMember] {
+        let present = members.filter { $0.seat != .left }
+        let ghostIDs = Set(invitedGhosts(in: present).map { ObjectIdentifier($0) })
+        let live = present.filter { !ghostIDs.contains(ObjectIdentifier($0)) }
+        // Named and photographed first so a restored "New member" twin
+        // loses to the seat that already carries the person.
+        let ranked = live.sorted { occupancyRank($0) > occupancyRank($1) }
+        var seenIdentity = Set<String>()
+        var seenShare = Set<String>()
+        var keep = Set<ObjectIdentifier>()
+        keep.reserveCapacity(ranked.count)
+        for member in ranked {
+            if let id = member.identityKey {
+                if seenIdentity.contains(id) { continue }
+                seenIdentity.insert(id)
+            }
+            let share = member.shareRecordName
+            if !share.isEmpty {
+                if seenShare.contains(share) { continue }
+                seenShare.insert(share)
+            }
+            keep.insert(ObjectIdentifier(member))
+        }
+        return live.filter { keep.contains(ObjectIdentifier($0)) }
+    }
+
+    /// The person a notice names. Identity first: `userRecordName` and
+    /// `participantID` are the same CloudKit id, and a join notice used to
+    /// miss the joiner because the Activity row only compared participant.
+    /// When that id points at the host but the stored name is somebody else
+    /// already seated, the name wins — that is the "Alessandra joined" row
+    /// wearing Nate's face. A plan notice is the other way around: the id
+    /// is the author and the stored name may still be the host's.
+    func actor(id: String, name: String) -> HouseholdMember? {
+        let want = id.trimmingCharacters(in: .whitespacesAndNewlines)
+        let byID: HouseholdMember?
+        if want.isEmpty {
+            byID = nil
+        } else {
+            byID = first {
+                ($0.userRecordName ?? "") == want || ($0.participantID ?? "") == want
+            }
+        }
+        let named: HouseholdMember?
+        if name.isEmpty || HouseholdIdentity.isUnnamed(name) {
+            named = nil
+        } else {
+            named = first { $0.name == name }
+                ?? {
+                    let key = occupancyFirstNameKey(name)
+                    guard !key.isEmpty else { return nil }
+                    let hits = filter { occupancyFirstNameKey($0.name) == key }
+                    return hits.count == 1 ? hits[0] : nil
+                }()
+        }
+        if let byID {
+            if let named, named !== byID, byID.isMe || byID.isOwner {
+                return named
+            }
+            return byID
+        }
+        return named
+    }
+
+    /// Invited rows whose joiner already sits under the same first name —
+    /// the stuck-Invited twin, not a real outstanding invite.
+    private static func invitedGhosts(in members: [HouseholdMember]) -> [HouseholdMember] {
+        let invited = members.filter {
+            $0.seat == .invited && ($0.userRecordName ?? "").isEmpty
+        }
+        let joined = members.filter {
+            ($0.seat == .joined || $0.seat == .head) && !($0.userRecordName ?? "").isEmpty
+        }
+        return invited.filter { invite in
+            let key = occupancyFirstNameKey(invite.name)
+            guard !key.isEmpty else { return false }
+            let matches = joined.filter {
+                occupancyFirstNameKey($0.name) == key
+                    && $0.shareRecordName != invite.shareRecordName
+            }
+            return matches.count == 1
+        }
+    }
+
     /// The person holding this phone.
     ///
     /// Identity first. While no row carries one and this phone is not a
@@ -352,7 +478,10 @@ extension Array where Element == HouseholdMember {
     /// is the roster's "Invited Tuesday" to say and not this line's. A seat
     /// that left is not one anybody is hosting with.
     var hostedNames: [String] {
-        filter { !$0.isMe && ($0.seat == .joined || $0.seat == .notOnPlated) }.map(\.name)
+        occupying.filter {
+            !$0.isMe && ($0.seat == .joined || $0.seat == .notOnPlated)
+                && !HouseholdIdentity.isUnnamed($0.name)
+        }.map(\.name)
     }
 
     /// Who a night can be handed to. A seat that left is still on a
@@ -362,4 +491,21 @@ extension Array where Element == HouseholdMember {
     var assignableCooks: [HouseholdMember] {
         filter { $0.seat != .left }
     }
+}
+
+private func occupancyFirstNameKey(_ name: String) -> String {
+    name.trimmingCharacters(in: .whitespacesAndNewlines)
+        .split(separator: " ")
+        .first
+        .map { $0.lowercased() } ?? ""
+}
+
+/// A restored "New member" row loses to a seat that already has a name
+/// or a photograph, so People and the count name the person once.
+private func occupancyRank(_ member: HouseholdMember) -> Int {
+    var score = 0
+    if !HouseholdIdentity.isUnnamed(member.name) { score += 4 }
+    if member.photoData != nil { score += 2 }
+    if member.seat == .joined || member.seat == .head { score += 1 }
+    return score
 }

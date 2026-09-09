@@ -228,6 +228,20 @@ final class PlanNewsTests: XCTestCase {
         XCTAssertEqual(TableNews.intent(for: n)?.sender?.displayName, "Riley")
     }
 
+    func testANightStampedWithTheHostNameStillNamesTheAuthor() throws {
+        let ale = HouseholdMember(name: "Alessandra", role: "partner", seat: .joined)
+        ale.userRecordName = "ale"
+        context.insert(ale)
+        try context.save()
+        var p = remotePlan(by: "ale", id: "wrap", title: "Crunch Wrap Supreme")
+        p.authorName = "Nate Meadows"
+        p.authorID = "ale"
+        let n = try XCTUnwrap(digest(delivery([p])).first)
+        XCTAssertEqual(n.title, "Alessandra planned Crunch Wrap Supreme for tomorrow")
+        XCTAssertEqual(n.actor, "Alessandra")
+        XCTAssertEqual(n.actorID, "ale")
+    }
+
     func testANightWithNoRealCookNamesNobody() {
         let d = delivery([remotePlan(by: "riley", id: "1", cookID: "", cookName: "", cookSeat: "")])
         XCTAssertEqual(digest(d).first?.body, "")

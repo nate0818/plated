@@ -1107,6 +1107,7 @@ enum HouseholdShare {
             )
         }
 
+        Seats.bindShareIdentity(in: context, standings: [])
         Persist.save(context, "household merge")
         return outcome
     }
@@ -1166,11 +1167,15 @@ enum HouseholdShare {
 
         // Name, bio and photo belong to the person the seat is: the wire
         // never overwrites them on my own seat. phoneE164 and inviteEmail
-        // never travel and are never touched here.
+        // never travel and are never touched here. An unnamed wire name
+        // ("New member") must not replace a real one the invite already had,
+        // and a missing photograph must not clear one that already landed.
         if !isMine {
-            member.name = s.name
-            member.bio = s.bio
-            member.photoData = s.photo
+            if !HouseholdIdentity.isUnnamed(s.name) {
+                member.name = s.name
+            }
+            if !s.bio.isEmpty { member.bio = s.bio }
+            if let photo = s.photo { member.photoData = photo }
         }
         if member.authorID.isEmpty { member.authorID = s.authorID }
         member.shareModifiedAt = s.modifiedAt

@@ -9,6 +9,9 @@ import PhotosUI
 struct HouseholdHomeView: View {
     @Environment(\.modelContext) private var context
     @Query(sort: \HouseholdMember.createdAt) private var members: [HouseholdMember]
+    /// Seats a body may touch. The raw `@Query` can still hold a row whose
+    /// backing data was deleted mid-render; `memberRow` trapped there.
+    private var roster: [HouseholdMember] { members.readable }
     // An author is the one thing every real post has. The empty-name
     // rows are blanks the CloudKit mirror adopts (TablePost.isBlank),
     // and counting them puts a dish on the board nobody cooked.
@@ -91,9 +94,9 @@ struct HouseholdHomeView: View {
         var id: String { rawValue }
     }
 
-    private var owner: HouseholdMember? { members.first(where: \.isOwner) }
+    private var owner: HouseholdMember? { roster.first(where: \.isOwner) }
     private var kissCount: Int {
-        let seats = TableKiss.seating(members: members, dishAuthors: posts.map(\.authorName))
+        let seats = TableKiss.seating(members: roster, dishAuthors: posts.map(\.authorName))
         return posts.filter { $0.hasChefsKiss(seats: seats) }.count
     }
     private var platesEarned: Int { posts.reduce(0) { $0 + $1.totalPlates } }
@@ -447,7 +450,7 @@ struct HouseholdHomeView: View {
             } label: {
                 VStack(spacing: 2) {
                     AvatarCircle(initials: ownerInitial, tone: .neutralPair, size: 40,
-                                 photo: members.me?.photoData)
+                                 photo: roster.me?.photoData)
                     Text("You")
                         .plType(.micro)
                         .foregroundStyle(Color.inkSecondary)
@@ -470,7 +473,7 @@ struct HouseholdHomeView: View {
     // The corner says "You", so it has to be the reader's row and not the
     // head's: on a member's phone those are two different people.
     private var ownerInitial: String {
-        String(members.me?.name.first ?? "Y").uppercased()
+        String(roster.me?.name.first ?? "Y").uppercased()
     }
 
     /// "Sharing with your household, 40 of 360." while the host's first
@@ -620,7 +623,7 @@ struct HouseholdHomeView: View {
     }
 
     private func openOwnProfile() {
-        let me = members.me
+        let me = roster.me
         personDoor = .host
         personShown = PersonRef(
             name: me?.name ?? "You",
@@ -684,7 +687,10 @@ struct HouseholdHomeView: View {
             // Naming either is the same claim as "You host this household
             // with Riley" over somebody who never opened the link.
             Text(HouseholdIdentity.seatedLine(
-                names: members.filter { $0.seat != .left && $0.seat != .invited }.map(\.name)
+                names: roster.filter {
+                    $0.seat != .left && $0.seat != .invited
+                        && !HouseholdIdentity.isUnnamed($0.name)
+                }.map(\.name)
             ))
                 .plType(.caption)
                 .foregroundStyle(Color.inkSecondary)
@@ -770,11 +776,14 @@ struct HouseholdHomeView: View {
             MicroLabel("People")
 
             VStack(spacing: 0) {
-                ForEach(members, id: \.persistentModelID) { member in
-                    SwipeRow(isOpen: swipeBinding(member), actions: swipeActions(for: member)) {
-                        memberRow(member)
+                let people = roster.listed
+                let lastID = people.last?.persistentModelID
+                let readerIsHead = people.me?.isOwner == true
+                ForEach(people, id: \.persistentModelID) { member in
+                    SwipeRow(isOpen: swipeBinding(member), actions: swipeActions(for: member, readerIsHead: readerIsHead)) {
+                        memberRow(member, readerIsHead: readerIsHead)
                     }
-                    if member.persistentModelID != members.last?.persistentModelID {
+                    if member.persistentModelID != lastID {
                         Divider().overlay(Color.hairlineSoft)
                     }
                 }
@@ -784,7 +793,7 @@ struct HouseholdHomeView: View {
             .clipShape(RoundedRectangle(cornerRadius: Radius.hero, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: Radius.hero, style: .continuous).strokeBorder(Color.hairline))
             .plCardShadow()
-            .animation(.plSnap, value: members.count)
+            .animation(.plSnap, value: roster.count)
 
             if let problem {
                 ProblemRow(problem)
@@ -799,7 +808,7 @@ struct HouseholdHomeView: View {
             }
 
             addSomeoneButton
-            if members.me?.isOwner == true {
+            if roster.me?.isOwner == true {
                 Button {
                     Haptic.tap()
                     Task { await refreshPeopleFromiCloud() }
@@ -825,7 +834,7 @@ struct HouseholdHomeView: View {
         // is not skipped because our change token moved past it.
         TableShare.requestReplay(zoneOwner: "")
         await TablePull.pull(reason: "refresh-people")
-        let before = Set(members.map(\.persistentModelID))
+        let before = Set(roster.map(\.persistentModelID))
         await Seats.settleStuckInvites(in: context)
         let after = Seats.all(in: context)
         let added = after.filter { !before.contains($0.persistentModelID) && $0.seat == .joined }
@@ -849,46 +858,57 @@ struct HouseholdHomeView: View {
     }
 
     /// Every seat opens its person's profile — the head of table included.
-    private func memberRow(_ member: HouseholdMember) -> some View {
-        HStack(spacing: 12) {
+    ///
+    /// `readerIsHead` is computed once in `peopleSection` so this row never
+    /// walks the full `@Query` (and a deleted twin) via `members.me`.
+    private func memberRow(_ member: HouseholdMember, readerIsHead: Bool) -> some View {
+        let name = member.name
+        let memberID = member.persistentModelID
+        let isMe = member.isMe
+        let seat = member.seat
+        let cooks = member.cooks
+        let weekdays = member.cookWeekdays.filter { (1...7).contains($0) }
+        let tone = member.tone
+        let subtitle = member.subtitle
+        let photo = member.photoData
+        let firstInitial = member.firstInitial
+        let showsColor = member.showsColor
+        return HStack(spacing: 12) {
             AvatarCircle(
-                initials: member.firstInitial,
+                initials: firstInitial,
                 // Colour is earned by being here, so an invitation is grey
                 // until they arrive; and the reader's own row is the neutral
                 // one, which on a member's phone leaves the host in their
                 // colour (§10). Keyed on `isOwner` that second half was the
                 // wrong way round and disagreed with `TableSeatsSheet`,
                 // which draws the same person's row.
-                tone: (member.isMe || !member.showsColor) ? .neutralPair : member.tone,
+                tone: (isMe || !showsColor) ? .neutralPair : tone,
                 size: 46,
-                photo: member.photoData
+                photo: photo
             )
             VStack(alignment: .leading, spacing: 1) {
-                Text(member.name)
+                Text(name)
                     .plName()
                     .plType(.body, .bold)
                     .foregroundStyle(Color.ink)
-                if member.isOwner, HouseholdIdentity.isPlaceholder(member.name) {
-                    Text("Head of table")
-                        .plType(.caption, .bold)
-                        .foregroundStyle(Color.inkSecondary)
-                        .lineLimit(2)
-                } else {
-                    // The seat, not a role line frozen at insert. "Partner ·
-                    // plans & cooks" was printed under a name typed four
-                    // seconds earlier about somebody with no account and
-                    // nothing to plan with.
-                    Text(member.subtitle)
-                        .plType(.caption, .semibold)
-                        .foregroundStyle(Color.inkSecondary)
-                }
+                // The seat, not a role line frozen at insert. "Partner ·
+                // plans & cooks" was printed under a name typed four
+                // seconds earlier about somebody with no account and
+                // nothing to plan with. Own row is "You"; another host is
+                // Host. Never Head of table on self (DESIGN.md).
+                Text(subtitle)
+                    .plType(.caption, .semibold)
+                    .foregroundStyle(Color.inkSecondary)
             }
             Spacer(minLength: 6)
             // Stuck invitation: one tap marks them joined in place.
-            if member.seat == .invited, members.me?.isOwner == true {
+            if seat == .invited, readerIsHead {
                 Button {
                     Haptic.tap()
-                    Task { await Seats.markInviteArrived(member, in: context) }
+                    Task {
+                        guard let live = liveMember(memberID) else { return }
+                        await Seats.markInviteArrived(live, in: context)
+                    }
                 } label: {
                     Text("They're in")
                         .plType(.caption, .bold)
@@ -900,10 +920,10 @@ struct HouseholdHomeView: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityHint("Marks them as joined in your household.")
-            } else if !member.isMe, member.cooks, !member.cookWeekdays.isEmpty {
-                Text(dayChipLabel(member))
+            } else if !isMe, cooks, !weekdays.isEmpty {
+                Text(dayChipLabel(weekdays))
                     .plType(.caption, .bold)
-                    .foregroundStyle(member.tone.tone)
+                    .foregroundStyle(tone.tone)
                     // One line. A status chip squeezed between a name and a
                     // chevron has nowhere to reflow, and at accessibility
                     // sizes "Sun + Mon" came apart into "Sun / + / Mo / n".
@@ -913,29 +933,29 @@ struct HouseholdHomeView: View {
                     .plChrome()
                     .padding(.horizontal, 12)
                     .frame(minHeight: 30)
-                    .background(member.tone.tint, in: Capsule())
+                    .background(tone.tint, in: Capsule())
             }
         }
         .padding(.vertical, 12)
         .contentShape(Rectangle())
         .onTapGesture {
             Haptic.tap()
-            personDoor = .person(member.name)
-            personShown = PersonRef(name: member.name, colorHex: member.colorHex, memberID: member.persistentModelID)
+            personDoor = .person(name)
+            personShown = PersonRef(name: name, colorHex: colorHex, memberID: memberID)
         }
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isButton)
-        .accessibilityHint("Opens \(member.name)'s profile")
-        .matchedTransitionSource(id: ZoomID.person(member.name), in: zoom)
+        .accessibilityHint("Opens \(name)'s profile")
+        .matchedTransitionSource(id: ZoomID.person(name), in: zoom)
     }
 
     /// The head of table keeps their seat — you cannot swipe away the
     /// person who owns the account.
-    private func swipeActions(for member: HouseholdMember) -> [SwipeAction] {
+    private func swipeActions(for member: HouseholdMember, readerIsHead: Bool) -> [SwipeAction] {
+        let id = member.persistentModelID
         guard !member.isOwner else { return [] }
         // Only the host edits the roster (docs/household.md §8): a member's
         // phone can message or resend, but Remove is the head's alone.
-        let readerIsHead = members.me?.isOwner == true
         var actions: [SwipeAction] = []
         // An invitation nobody answered needs a way forward, not just a way
         // out. Same live link, sent again — and only when Messages can
@@ -943,7 +963,10 @@ struct HouseholdHomeView: View {
         if member.canResend, InviteComposer.isAvailable, readerIsHead {
             actions.append(SwipeAction(symbol: "paperplane", label: "Send again") {
                 swipedMember = nil
-                Task { await resend(member) }
+                Task {
+                    guard let live = liveMember(id) else { return }
+                    await resend(live)
+                }
             })
         }
         // Message only where a message can actually go. Everywhere else the
@@ -958,12 +981,20 @@ struct HouseholdHomeView: View {
             // What somebody is to the household, and only the host says.
             if member.seat != .left {
                 actions.append(SwipeAction(symbol: "person.text.rectangle", label: "Change role") {
-                    dialog = .role(member)
+                    guard let live = liveMember(id) else { return }
+                    dialog = .role(live)
                 })
             }
-            actions.append(.remove { dialog = .remove(member) })
+            actions.append(.remove {
+                guard let live = liveMember(id) else { return }
+                dialog = .remove(live)
+            })
         }
         return actions
+    }
+
+    private func liveMember(_ id: PersistentIdentifier) -> HouseholdMember? {
+        roster.first { $0.persistentModelID == id }
     }
 
     /// Reopen the composer with the link that already belongs to them: the
@@ -994,7 +1025,7 @@ struct HouseholdHomeView: View {
         Button {
             Haptic.tap()
             // One seat is free — the head of table. The rest is Plated+.
-            if !PlatedPlus.gatingEnabled || PlatedPlus.isActive || members.count <= 1 {
+            if !PlatedPlus.gatingEnabled || PlatedPlus.isActive || roster.count <= 1 {
                 addPresented = true
             } else {
                 paywallPresented = true
@@ -1108,7 +1139,7 @@ struct HouseholdHomeView: View {
     }
 
     private func cookCell(weekday: Int, isToday: Bool) -> some View {
-        let cook = members.first { $0.cookWeekdays.contains(weekday) }
+        let cook = roster.first { $0.cookWeekdays.contains(weekday) }
         let dayName = Calendar.current.weekdaySymbols[weekday - 1]
         return Button {
             cycleCook(weekday: weekday)
@@ -1198,15 +1229,16 @@ struct HouseholdHomeView: View {
         Calendar.current.veryShortWeekdaySymbols[weekday - 1]
     }
 
-    private func dayChipLabel(_ member: HouseholdMember) -> String {
-        if member.cookWeekdays.count == 1, let day = member.cookWeekdays.first {
+    private func dayChipLabel(_ weekdays: [Int]) -> String {
+        let days = weekdays.filter { (1...7).contains($0) }
+        if days.count == 1, let day = days.first {
             return "\(Calendar.current.weekdaySymbols[day - 1])s"
         }
         // Same order as the rota above it. Sorting these today-first while
         // the grid ran week-first would print "Sat + Wed" under a row that
         // shows Wednesday to the left of Saturday.
         let order = weekdaysInOrder
-        return member.cookWeekdays
+        return days
             // Three letters, not the grid's one. `shortDay` is a calendar
             // header, where an ordered row of seven makes "S" unambiguous;
             // this chip is a sentence about a person and reads "Sun + Mon".
@@ -1223,7 +1255,7 @@ struct HouseholdHomeView: View {
         // `createdAt`, and once seats arrive by merge that order differs per
         // phone, so the same tap would hand Tuesday to different people in
         // the same household.
-        let order = members.sorted { $0.shareRecordName < $1.shareRecordName }
+        let order = roster.sorted { $0.shareRecordName < $1.shareRecordName }
         let current = order.firstIndex { $0.cookWeekdays.contains(weekday) }
         withAnimation(.plPop) {
             if let current {

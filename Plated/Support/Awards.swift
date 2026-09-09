@@ -206,11 +206,15 @@ enum Awards {
         }
         let cooked = meals.filter { meal in
             guard meal.cookedAt != nil else { return false }
-            if let cook = meal.cook { return normalize(cook.name) == personKey }
+            if let cook = meal.cook, !cook.isDeleted {
+                return normalize(cook.name) == personKey
+            }
             return owns(unassigned: meal.authorID)
         }
         let planned = meals.filter { meal in
-            if let cook = meal.cook { return normalize(cook.name) == personKey }
+            if let cook = meal.cook, !cook.isDeleted {
+                return normalize(cook.name) == personKey
+            }
             return owns(unassigned: meal.authorID)
         }
         let authored = posts.filter {
