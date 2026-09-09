@@ -32,6 +32,48 @@ final class PeopleTrustTests: XCTestCase {
         XCTAssertFalse(HouseholdIdentity.isHostClone("New member", hosts: ["Nate"]))
     }
 
+    func testCopyLockStringsAreExact() {
+        XCTAssertEqual(HouseholdIdentity.PeopleCopy.ownOwnerSubtitle, "You · Owner")
+        XCTAssertEqual(HouseholdIdentity.PeopleCopy.ownMemberSubtitle, "You")
+        XCTAssertEqual(HouseholdIdentity.PeopleCopy.missingSelfName, "Add your name")
+        XCTAssertEqual(HouseholdIdentity.PeopleCopy.missingOtherName, "No name yet")
+        XCTAssertEqual(HouseholdIdentity.PeopleCopy.unnamedInvite, "Invited")
+        XCTAssertEqual(HouseholdIdentity.PeopleCopy.reachFailure, "Couldn't reach iCloud.")
+        XCTAssertEqual(HouseholdIdentity.PeopleCopy.tryAgain, "Try again")
+        XCTAssertFalse(HouseholdIdentity.PeopleCopy.ownOwnerSubtitle.contains("Head of table"))
+        XCTAssertFalse(HouseholdIdentity.PeopleCopy.ownOwnerSubtitle.contains("Host"))
+    }
+
+    func testDisplayFallbacksNeverPrintNewMember() {
+        XCTAssertNotEqual(
+            Seats.displayName(standingName: "", remembered: nil),
+            "New member"
+        )
+        XCTAssertEqual(
+            Seats.displayName(standingName: "", remembered: nil),
+            "No name yet"
+        )
+        XCTAssertEqual(
+            Seats.displayName(standingName: "New member", remembered: nil),
+            "No name yet"
+        )
+        XCTAssertEqual(
+            Seats.displayName(standingName: "New member", remembered: "Jordan Lee"),
+            "Jordan Lee"
+        )
+        let unnamed = HouseholdMember(
+            name: "New member", role: "partner", seat: .joined, shareRecordName: "seat-new"
+        )
+        let host = HouseholdMember(
+            name: "Sam Chen", role: "owner", seat: .head, shareRecordName: "seat-sam"
+        )
+        host.userRecordName = TableIdentity.cached
+        let drawn = Seats.resolvedDisplay(for: unnamed, among: [host, unnamed], reader: host)
+        XCTAssertNotEqual(drawn.name, "New member")
+        XCTAssertNotEqual(drawn.name, "Someone")
+        XCTAssertEqual(drawn.name, "No name yet")
+    }
+
     func testKilledLabelsAreUnnamedAndNeverPrint() {
         XCTAssertTrue(HouseholdIdentity.isUnnamed("New member"))
         XCTAssertTrue(HouseholdIdentity.isUnnamed("Someone"))

@@ -291,7 +291,8 @@ screens rather than one place.
   name). On People, the household owner's own row is "You · Owner"; a
   member's own row is "You"; another household host reads as Host; never
   Head of table. An unnamed joiner is "No name yet", never "New member"
-  or the host's name.
+  or the host's name. Household reach failure is "Couldn't reach iCloud."
+  plus "Try again".
 - **Settings groups controls by outcome.** No marketing opener. Appearance is a
   visual three-state choice. Planning holds reminders and Calendar. Household
   naming, iCloud, permissions, privacy and account actions each have a named

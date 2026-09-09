@@ -29,6 +29,8 @@ enum HouseholdIdentity {
         static let missingSelfName = "Add your name"
         static let missingOtherName = "No name yet"
         static let unnamedInvite = "Invited"
+        static let reachFailure = "Couldn't reach iCloud."
+        static let tryAgain = "Try again"
 
         static func selfSubtitle(isHouseholdOwner: Bool) -> String {
             isHouseholdOwner ? ownOwnerSubtitle : ownMemberSubtitle
