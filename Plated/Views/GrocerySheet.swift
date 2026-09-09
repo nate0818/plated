@@ -379,7 +379,10 @@ struct GrocerySheet: View {
     }
 
     private func orderWithInstacart() {
-        guard !openingInstacart, !unchecked.isEmpty else { return }
+        // Dead "Review products and checkout in Instacart." is worse than
+        // no button: the partner path is not configured, so this must not
+        // run even if a future caller shows the pill.
+        guard InstacartService.isOffered, !openingInstacart, !unchecked.isEmpty else { return }
         let lines = unchecked.map { InstacartService.Line(name: $0.name, quantity: needed($0), unit: $0.unit) }
         openingInstacart = true
         exportResult = nil

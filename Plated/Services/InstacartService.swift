@@ -6,9 +6,10 @@ import CryptoKit
 actor InstacartService {
     static let shared = InstacartService()
 
-    /// Partner checkout has not been verified (no production API key on
-    /// the edge function). The grocery sheet hides the Instacart CTA until
-    /// that is true; Reminders stays the way to send the list.
+    /// Whether Groceries may offer Instacart. The partner key lives only on
+    /// the edge function and is not in this binary; until that secret is
+    /// set the handler answers 503, so this stays false. Flipping it is
+    /// what turns the CTA on after checkout is actually configured.
     nonisolated static var isOffered: Bool { false }
     struct Line: Codable, Sendable {
         var name: String
