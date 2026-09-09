@@ -346,9 +346,14 @@ struct MainShellView: View {
                 guard let invitation = tableInvitation else { return }
                 tableInvitation = nil
                 Task {
-                    if !(await ShareAcceptor.acceptTable(invitation.metadata, invite: invitation.invite)) {
-                        showToast("Couldn't join the Table. Check your connection and open the link again.")
-                    }
+                    // The sentence is the outcome's, not this screen's:
+                    // two screens each kept their own copy and both said
+                    // "check your connection" for a revoked link, a
+                    // signed-out phone and a seat already taken.
+                    let outcome = await ShareAcceptor.acceptTable(
+                        invitation.metadata, invite: invitation.invite
+                    )
+                    if let line = outcome.line { showToast(line) }
                 }
             }
             Button("Not now", role: .cancel) { tableInvitation = nil }

@@ -444,9 +444,12 @@ struct JoinFromLinkStep: View {
                                 // A refused accept was a warn haptic and
                                 // then the Tour, with the seat not taken and
                                 // nothing said. The shell's copy of this
-                                // dialog says so; both roads say it now.
-                                guard await ShareAcceptor.acceptTable(metadata, invite: invite) else {
-                                    received = .failed(reason: "Couldn't join the Table. Check your connection and open the link again.")
+                                // dialog says so; both roads say it now,
+                                // and both take the sentence off the
+                                // outcome rather than keeping one.
+                                let outcome = await ShareAcceptor.acceptTable(metadata, invite: invite)
+                                if let line = outcome.line {
+                                    received = .failed(reason: line)
                                     return
                                 }
                                 onDone()

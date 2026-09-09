@@ -589,10 +589,12 @@ straight back to the picker instead of "You're already in Nate's household."
 **On Join,** `HouseholdSync.join(metadata, seat:)`:
 
 1. Accept the household share. Then fetch the Table share's metadata from the
-   root's `tableShareURL` and accept it only when `participantStatus` is not
-   already `.accepted`. Join succeeds on the household accept alone; the
-   Table accept is also a standing step of every household pull, so a
-   failure here is retried, not fatal.
+   root's `tableShareURL` and accept it. `TableShare.accept` owns the
+   already-a-participant check for every road into a Table: `CKContainer`
+   throws on a second accept, so an identity already on the share is
+   `.alreadyJoined`, which is a seat and not a refusal. Join succeeds on the
+   household accept alone; the Table accept is also a standing step of every
+   household pull, so a failure here is retried, not fatal.
 2. Record membership as `.member(owner:)` in the app group, with the zone
    epoch and, once claimed, `plated.household.mySeat`.
 3. Pull the zone whole. Merge the roster, recipes, gatherings, lines and
@@ -714,6 +716,16 @@ source per group:
 - **Tables you've joined**: Table zones in the shared database that are not
   this household's, "Dan's table", Leave. Leaving the household's own Table
   is Leave household, in Settings.
+
+**A refused Table accept says which refusal it was.** `TableShare.Accepted`
+carries the outcome and the one sentence a person is shown, and both roads
+that ask (the shell's dialog and `JoinFromLinkStep`) take the sentence off
+it rather than keeping a copy. Three outcomes are a seat: `.joined`,
+`.alreadyJoined` and `.ownTable`, and a seat says nothing. Every other
+outcome has a line, and only `.unreachable` may blame the network: by the
+time the dialog is on screen the share has already been read off iCloud
+once, so a revoked link, a signed-out phone and a participant-only share
+were all being told to check a connection that was working.
 
 **Invite to the Table** runs `InviteFlow` with `kind: .table` and never
 creates a `HouseholdMember`. Caption: "They see what everyone here cooks.
@@ -876,7 +888,7 @@ enum HouseholdShare {
     static func standings() async -> [TableShare.Standing]      // host reads own share; member reads shared DB
     static func removeParticipant(userRecordName: String) async -> Bool
     static func leave() async -> Bool                            // shared-DB zone delete, own tokens only
-    static func accept(_ metadata: CKShare.Metadata) async -> Bool
+    static func accept(_ metadata: CKShare.Metadata) async -> TableShare.Accepted
 
     struct RemoteRoot { name, hostName, hostPhoto: Data?, banner: Data?, tableShareURL: URL?, autoRotate: Bool, publishedAt: Date?, removedIDs: [String], modifiedAt }
     struct RemoteSeat, RemoteRecipe, RemoteGathering, RemoteLine, RemoteMark
