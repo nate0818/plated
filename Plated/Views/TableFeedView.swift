@@ -1541,7 +1541,10 @@ struct PlateReactionButton: View {
                 bounce = true
             }
             if turningOn {
-                post.hasChefsKiss(seats: seatCount) ? Haptic.kiss() : Haptic.plate()
+                // Same seating rule as the feed — this button lives outside
+                // TableFeedView, so it cannot see seatCount.
+                let seats = TableKiss.seating(members: members, dishAuthors: [post.authorName])
+                post.hasChefsKiss(seats: seats) ? Haptic.kiss() : Haptic.plate()
                 // The second copy of the notification removed in
                 // togglePlate above, and the same reason: it was written
                 // into the local context, so it only ever reached the
