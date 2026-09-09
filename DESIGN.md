@@ -287,7 +287,11 @@ screens rather than one place.
   beneath it; Awards stay quieter, last. Do not return to four equal
   administrative rows, and do not dress the hub in metaphor (Your Plated,
   Your place at the table, Your spaces, Preferences). Role is omitted on the
-  person's own Account; other household hosts read as Host, never Head of table.
+  person's own Account hero (name only: no You, Owner, or Host under the
+  name). On People, the household owner's own row is "You · Owner"; a
+  member's own row is "You"; another household host reads as Host; never
+  Head of table. An unnamed joiner is "No name yet", never "New member"
+  or the host's name.
 - **Settings groups controls by outcome.** No marketing opener. Appearance is a
   visual three-state choice. Planning holds reminders and Calendar. Household
   naming, iCloud, permissions, privacy and account actions each have a named

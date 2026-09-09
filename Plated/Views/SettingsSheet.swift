@@ -54,7 +54,7 @@ struct SettingsSheet: View {
     }
     private var displayName: String {
         guard let name = me?.name, !HouseholdIdentity.isPlaceholder(name) else {
-            return "Add your name"
+            return HouseholdIdentity.PeopleCopy.missingSelfName
         }
         return name
     }

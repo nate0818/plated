@@ -690,12 +690,7 @@ struct HouseholdHomeView: View {
             // seat is a message that went out and nothing that came back.
             // Naming either is the same claim as "You host this household
             // with Riley" over somebody who never opened the link.
-            Text(HouseholdIdentity.seatedLine(
-                names: roster.filter {
-                    $0.seat != .left && $0.seat != .invited
-                        && !HouseholdIdentity.isUnnamed($0.name)
-                }.map(\.name)
-            ))
+            Text(Seats.seatedCaption(among: roster, reader: roster.me))
                 .plType(.caption)
                 .foregroundStyle(Color.inkSecondary)
                 .padding(.horizontal, 2)
@@ -846,7 +841,7 @@ struct HouseholdHomeView: View {
         let missing = HouseholdInviteLog.unsettled(against: after)
         withAnimation(.plSnap) {
             if let someone = added.first {
-                let label = someone.name == "New member" || someone.name == "Someone"
+                let label = HouseholdIdentity.isUnnamed(someone.name)
                     ? "A household member"
                     : someone.firstName
                 peopleRefreshNote = added.count == 1
@@ -907,8 +902,8 @@ struct HouseholdHomeView: View {
                 // The seat, not a role line frozen at insert. "Partner ·
                 // plans & cooks" was printed under a name typed four
                 // seconds earlier about somebody with no account and
-                // nothing to plan with. Own row is "You"; another host is
-                // Host. Never Head of table on self (DESIGN.md).
+                // nothing to plan with. Own owner row is "You · Owner";
+                // a member's own row is "You". Never Head of table.
                 Text(subtitle)
                     .plType(.caption, .semibold)
                     .foregroundStyle(Color.inkSecondary)

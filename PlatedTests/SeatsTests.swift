@@ -197,7 +197,7 @@ final class SeatsInviteClaimTests: XCTestCase {
     func testDisplayNamePrefersTheShareThenTheInviteLog() {
         XCTAssertEqual(
             Seats.displayName(standingName: "Alessandra Rossi", remembered: "Alessandra"),
-            "Alessandra Rossi"
+            "Alessandra"
         )
         XCTAssertEqual(
             Seats.displayName(standingName: "", remembered: "Alessandra"),
@@ -208,8 +208,16 @@ final class SeatsInviteClaimTests: XCTestCase {
             "Alessandra"
         )
         XCTAssertEqual(
+            Seats.displayName(standingName: "Nate", remembered: "Alessandra", hostNames: ["Nate Meadows"]),
+            "Alessandra"
+        )
+        XCTAssertEqual(
+            Seats.displayName(standingName: "Nate", remembered: nil, hostNames: ["Nate"]),
+            "No name yet"
+        )
+        XCTAssertEqual(
             Seats.displayName(standingName: "", remembered: nil),
-            "New member"
+            "No name yet"
         )
     }
 
@@ -375,8 +383,10 @@ final class SeatsInviteClaimTests: XCTestCase {
         let ale = Seats.resolvedDisplay(for: unnamed, among: people, reader: nate)
         XCTAssertEqual(ale.name, "Alessandra")
         XCTAssertNotEqual(ale.subtitle, "You")
+        XCTAssertNotEqual(ale.subtitle, "You · Owner")
         let selfRow = Seats.resolvedDisplay(for: nate, among: people, reader: nate)
-        XCTAssertEqual(selfRow.subtitle, "You")
+        XCTAssertEqual(selfRow.subtitle, "You · Owner")
         XCTAssertFalse(selfRow.subtitle.contains("Head of table"))
+        XCTAssertFalse(selfRow.subtitle.contains("Host"))
     }
 }

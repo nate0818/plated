@@ -116,11 +116,13 @@ final class HouseholdMemberHostingTests: XCTestCase {
 
     func testOwnRowOmitsRole() {
         let nate = seat("Nate Meadows", .head, role: "owner", user: TableIdentity.cached)
-        XCTAssertEqual(nate.subtitle, "You")
+        XCTAssertEqual(nate.subtitle, "You · Owner")
         XCTAssertFalse(nate.subtitle.contains("Head of table"))
+        XCTAssertFalse(nate.subtitle.contains("Host"))
         let partner = seat("Alessandra", .joined, role: "partner", user: TableIdentity.cached)
         XCTAssertEqual(partner.subtitle, "You")
         XCTAssertFalse(partner.subtitle.contains("Head of table"))
+        XCTAssertFalse(partner.subtitle.contains("Owner"))
     }
 
     /// TF26: the owner row already carried a real CloudKit id while this
@@ -134,7 +136,7 @@ final class HouseholdMemberHostingTests: XCTestCase {
         let nate = seat("Nate Meadows", .head, role: "owner", user: "ck-nate-real")
         nate.shareRecordName = "seat-nate"
         XCTAssertTrue(nate.isMe)
-        XCTAssertEqual(nate.subtitle, "You")
+        XCTAssertEqual(nate.subtitle, "You · Owner")
         XCTAssertFalse(nate.subtitle.contains("Head of table"))
     }
 

@@ -208,7 +208,8 @@ final class HouseholdMember {
     }
 
     /// The role as a person would say it. Not drawn on the reader's own
-    /// row: that line is "You", and DESIGN.md forbids Head of table there.
+    /// row: that line is locked copy ("You · Owner" / "You"), and
+    /// DESIGN.md forbids Head of table there.
     var roleTitle: String {
         switch role {
         case "owner": return "Head of table"
@@ -253,13 +254,13 @@ final class HouseholdMember {
     ///
     /// A joined seat genuinely shares the plan, the list and the cookbook
     /// now (docs/household.md), so the sentence says what they can do, by
-    /// role: a partner cooks, a kid or member sees. The reader's own row is
-    /// "You" and nothing else: a role on that line is DESIGN.md's copy lock
-    /// against Head of table on self. Another host is Host, not that title.
+    /// role: a partner cooks, a kid or member sees. The reader's own row
+    /// is locked copy: household owner is "You · Owner", any other self
+    /// is "You". Head of table never prints here. Another host is Host.
     var subtitle: String {
         let line: String
         if isMe {
-            line = "You"
+            line = HouseholdIdentity.PeopleCopy.selfSubtitle(isHouseholdOwner: isOwner)
         } else {
             switch seat {
             case .head: line = "Host"
@@ -276,11 +277,14 @@ final class HouseholdMember {
             case .left: line = "Left"
             }
         }
-        // DESIGN.md: own row is You only; another host is Host. The stored
-        // `roleLine` is still "Head of table" for the owner wire field —
-        // this is the one string a People list may print, so the title
-        // cannot leak here even if `isMe` is late.
-        if line.contains("Head of table") { return isMe ? "You" : "Host" }
+        // Stored `roleLine` is still "Head of table" for the owner wire
+        // field. This is the one string a People list may print, so that
+        // title cannot leak here even if `isMe` is late.
+        if line.contains("Head of table") {
+            return isMe
+                ? HouseholdIdentity.PeopleCopy.selfSubtitle(isHouseholdOwner: isOwner)
+                : "Host"
+        }
         return line
     }
 

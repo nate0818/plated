@@ -21,6 +21,20 @@ enum HouseholdIdentity {
         return ""
     }
 
+    /// Locked People / Household copy (PEOPLE-IDENTITY-COPY-LOCK-2026-09-09).
+    /// Do not invent alternatives. Account hero stays name-only.
+    enum PeopleCopy {
+        static let ownOwnerSubtitle = "You · Owner"
+        static let ownMemberSubtitle = "You"
+        static let missingSelfName = "Add your name"
+        static let missingOtherName = "No name yet"
+        static let unnamedInvite = "Invited"
+
+        static func selfSubtitle(isHouseholdOwner: Bool) -> String {
+            isHouseholdOwner ? ownOwnerSubtitle : ownMemberSubtitle
+        }
+    }
+
     /// The bootstrap names an owner "Me" when Apple gave us nothing.
     /// Apple hands a name over on the FIRST authorization only and never
     /// again, so a placeholder can never be repaired by asking again —
@@ -31,20 +45,71 @@ enum HouseholdIdentity {
     }
 
     /// A seat that does not yet name a person. Distinct from `isPlaceholder`:
-    /// "Me" is the owner's bootstrap and a prompt to add a name. "New member"
-    /// is a restored share participant whose CloudKit identity had no name
-    /// yet — the share, the invite log, or a twin seat still has to bind one.
+    /// "Me" is the owner's bootstrap and a prompt to add a name. Killed
+    /// restored labels ("New member", "Someone") and the copy-lock
+    /// fallbacks are the same class: they must never print as a person
+    /// and they must never be treated as an invitee identity.
     static func isUnnamed(_ name: String) -> Bool {
         if isPlaceholder(name) { return true }
-        return isRestoredPlaceholder(name)
+        if isRestoredPlaceholder(name) { return true }
+        let trimmed = name.trimmingCharacters(in: .whitespaces).lowercased()
+        return trimmed == PeopleCopy.unnamedInvite.lowercased()
+            || trimmed == PeopleCopy.missingSelfName.lowercased()
     }
 
-    /// The restored-accept labels only. Not "Me": that is the owner's
-    /// bootstrap, and the invite log must never overwrite it with the
-    /// joiner's name.
+    /// Labels that mean "this join has no name yet". Not "Me": that is
+    /// the owner's bootstrap, and the invite log must never overwrite it
+    /// with the joiner's name.
     static func isRestoredPlaceholder(_ name: String) -> Bool {
         let trimmed = name.trimmingCharacters(in: .whitespaces).lowercased()
-        return trimmed == "new member" || trimmed == "someone" || trimmed == "someone new"
+        return trimmed == "new member"
+            || trimmed == "someone"
+            || trimmed == "someone new"
+            || trimmed == PeopleCopy.missingOtherName.lowercased()
+    }
+
+    /// The host's printed name (or just their first name) on a joiner
+    /// seat. "Nate" next to "Nate Meadows" is the TF27 failure; "Nate
+    /// Smith" next to "Nate Meadows" is two people and is not a clone.
+    static func isHostClone(_ name: String, hosts: [String]) -> Bool {
+        let candidate = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !candidate.isEmpty, !isUnnamed(candidate) else { return false }
+        let candKey = candidate.lowercased()
+        let candFirst = firstToken(candidate)
+        for host in hosts {
+            let h = host.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !h.isEmpty, !isUnnamed(h) else { continue }
+            if h.lowercased() == candKey { return true }
+            let hostFirst = firstToken(h)
+            guard !candFirst.isEmpty, candFirst == hostFirst else { continue }
+            let candParts = candidate.split(separator: " ").count
+            let hostParts = h.split(separator: " ").count
+            if candParts == 1 || hostParts == 1 { return true }
+        }
+        return false
+    }
+
+    static func firstToken(_ name: String) -> String {
+        name.trimmingCharacters(in: .whitespacesAndNewlines)
+            .split(separator: " ")
+            .first
+            .map { $0.lowercased() } ?? ""
+    }
+
+    /// What a People row may print as the name. Killed labels never
+    /// leave this function: self is "Add your name", an unnamed invite
+    /// is "Invited", anybody else is "No name yet".
+    static func printedName(
+        stored: String,
+        resolved: String?,
+        isSelf: Bool,
+        seat: HouseholdMember.Seat
+    ) -> String {
+        let candidate = (resolved ?? stored).trimmingCharacters(in: .whitespacesAndNewlines)
+        if !isUnnamed(candidate) { return candidate }
+        if isSelf { return PeopleCopy.missingSelfName }
+        if seat == .invited { return PeopleCopy.unnamedInvite }
+        return PeopleCopy.missingOtherName
     }
 
     /// What goes under the HOUSEHOLD label on Home — the name itself, and

@@ -84,18 +84,35 @@ enum HouseholdInviteLog {
     /// joined seat for this person", not "forget who they are". TF26 left
     /// Alessandra as "New member" after the log was marked settled and the
     /// drawn seat had no name.
-    static func rememberedName(forPhone phone: String?, email: String?, seat: String? = nil) -> String? {
-        let rows = all().filter { !HouseholdIdentity.isUnnamed($0.name) }
+    ///
+    /// `excluding` is the host / owner display names. A sole-entry or
+    /// unique-name fallback that can only answer with the host is how
+    /// TF27 printed "Nate and Nate". Phone / email / seat hits are
+    /// refused for the same reason: the log must never name a joiner
+    /// after the person who sent the invite.
+    static func rememberedName(
+        forPhone phone: String?,
+        email: String?,
+        seat: String? = nil,
+        excluding hostNames: [String] = []
+    ) -> String? {
+        let rows = all().filter {
+            !HouseholdIdentity.isUnnamed($0.name)
+                && !HouseholdIdentity.isHostClone($0.name, hosts: hostNames)
+        }
+        func usable(_ name: String) -> String? {
+            HouseholdIdentity.isHostClone(name, hosts: hostNames) ? nil : name
+        }
         if let seat, !seat.isEmpty,
            let hit = rows.first(where: { $0.seat == seat }) {
-            return hit.name
+            return usable(hit.name)
         }
         let unsettled = rows.filter { !$0.settled }
-        if let name = match(phone: phone, email: email, in: unsettled) { return name }
-        if unsettled.count == 1 { return unsettled[0].name }
-        if let name = match(phone: phone, email: email, in: rows) { return name }
+        if let name = match(phone: phone, email: email, in: unsettled) { return usable(name) }
+        if unsettled.count == 1 { return usable(unsettled[0].name) }
+        if let name = match(phone: phone, email: email, in: rows) { return usable(name) }
         let unique = Set(rows.map { $0.name.lowercased() })
-        if unique.count == 1 { return rows[0].name }
+        if unique.count == 1 { return usable(rows[0].name) }
         return nil
     }
 
