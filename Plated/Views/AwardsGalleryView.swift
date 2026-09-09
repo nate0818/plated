@@ -259,36 +259,39 @@ struct AwardsPreviewCard: View {
     private var featured: [PlatedAward] {
         let earned = awards.filter(\.isEarned).sorted { ($0.earnedAt ?? .distantPast) > ($1.earnedAt ?? .distantPast) }
         let count = typeSize >= .accessibility1 ? 2 : 3
-        if !earned.isEmpty { return Array(earned.prefix(count)) }
-        return Array(awards.filter { !$0.isEarned }.sorted { $0.progress > $1.progress }.prefix(count))
+        return Array(earned.prefix(count))
     }
 
     var body: some View {
         Button {
             Haptic.select()
             action()
-        } label: {
+        }         label: {
             VStack(alignment: .leading, spacing: 16) {
-                HStack {
-                    VStack(alignment: .leading, spacing: 3) {
-                        MicroLabel("Kitchen level")
-                        Text(standing.title)
-                            .plName()
-                            .plType(.title, .semibold)
+                if featured.isEmpty {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("No awards yet")
+                            .plType(.heading, .semibold)
                             .foregroundStyle(Color.ink)
-                        Text("\(standing.score) points · \(awards.filter(\.isEarned).count) earned")
+                        Text("Cook, plan, and share. Awards show up here.")
                             .plType(.caption)
                             .foregroundStyle(Color.inkSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
-                    Spacer()
-                }
-
-                if featured.isEmpty {
-                    Text("Plan, cook and share to earn your first badge.")
-                        .plType(.footnote)
-                        .foregroundStyle(Color.inkSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
                 } else {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(standing.title)
+                                .plName()
+                                .plType(.title, .semibold)
+                                .foregroundStyle(Color.ink)
+                            Text("\(standing.score) points · \(awards.filter(\.isEarned).count) earned")
+                                .plType(.caption)
+                                .foregroundStyle(Color.inkSecondary)
+                        }
+                        Spacer()
+                    }
+
                     HStack(spacing: 12) {
                         ForEach(featured) { award in
                             VStack(spacing: 6) {
@@ -305,19 +308,16 @@ struct AwardsPreviewCard: View {
             }
             .padding(18)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                LinearGradient(
-                    colors: [Color.mangoTint.opacity(0.80), Color.raisedFill],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                ),
-                in: Radius.shape(Radius.card)
-            )
-            .overlay(Radius.shape(Radius.card).strokeBorder(Color.amber.opacity(0.16)))
+            .background(Color.raisedFill, in: Radius.shape(Radius.card))
+            .overlay(Radius.shape(Radius.card).strokeBorder(Color.hairline))
             .contentShape(Radius.shape(Radius.card))
         }
         .buttonStyle(.pressable)
-        .accessibilityLabel("Awards. \(standing.title), \(standing.score) points")
+        .accessibilityLabel(
+            featured.isEmpty
+                ? "No awards yet. Cook, plan, and share. Awards show up here."
+                : "Awards. \(standing.title), \(standing.score) points"
+        )
         .accessibilityHint("Shows every earned award and progress toward the next ones.")
     }
 }

@@ -154,6 +154,7 @@ enum PlatedNotificationKind: String, Codable, CaseIterable {
 
 /// The household's own face — banner photo and anything else that makes
 /// Home feel like *their* kitchen instead of a template. One row, ever.
+/// Account's hero and the owner's Table profile read this same object.
 @Model
 final class HouseholdProfile {
     @Attribute(.externalStorage) var bannerPhotoData: Data?
