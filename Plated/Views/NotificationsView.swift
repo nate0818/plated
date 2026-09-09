@@ -240,13 +240,12 @@ struct NotificationsView: View {
         }
     }
 
-    /// Identity first, the stored name only for a seat with no identity
-    /// yet. Same rule as `PlatedNotification.line`.
+    /// Identity first (`userRecordName` or `participantID`), then the
+    /// stored name. Same rule as `PlatedNotification.line`. Matching only
+    /// on participant left join notices wearing the host's face: the
+    /// joiner's id lives on `userRecordName` until the share corroborates.
     private func member(for note: PlatedNotification) -> HouseholdMember? {
-        if !note.actorID.isEmpty, let byID = members.first(where: { $0.participantID == note.actorID }) {
-            return byID
-        }
-        return members.first { $0.participantID == nil && $0.name == note.actorName }
+        members.actor(id: note.actorID, name: note.actorName)
     }
 
     private func initials(of name: String) -> String {

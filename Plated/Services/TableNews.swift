@@ -471,6 +471,7 @@ enum TableNews {
         // `PlanDay` strings compare as dates because the format sorts, which
         // is why the ledger's own prune compares them this way too.
         let today = PlanDay.string(now)
+        let members = Seats.all(in: context)
 
         /// The body under the title: whose night it is, when that is
         /// worth saying. "You cook." is the one line that changes what the
@@ -480,6 +481,24 @@ enum TableNews {
             if PlanLedger.shared.isMine(cook: e) { return "You cook." }
             if e.hasCook { return "\(e.cookFirstName) is cooking." }
             return ""
+        }
+
+        /// Roster first: a night this phone publishes used to stamp the
+        /// household owner's name on `authorName` while `authorID` was the
+        /// publisher, so Activity said "Nate planned…" about Alessandra's
+        /// night. Identity is the author; the stored name is a fallback.
+        func planner(_ e: PlanLedger.Entry) -> (id: String, name: String)? {
+            let id = e.authorID
+            guard !id.isEmpty else { return nil }
+            if let member = members.actor(id: id, name: e.authorName),
+               !HouseholdIdentity.isUnnamed(member.name) {
+                return (member.identityKey ?? id, member.name)
+            }
+            if !HouseholdIdentity.isUnnamed(e.authorName) { return (id, e.authorName) }
+            if let learned = name(for: id), !HouseholdIdentity.isUnnamed(learned) {
+                return (id, learned)
+            }
+            return nil
         }
 
         /// The actor is passed in, never read off the night, because the
@@ -519,11 +538,15 @@ enum TableNews {
         func changer(_ e: PlanLedger.Entry) -> (id: String, name: String)? {
             let editor = e.editorID ?? ""
             guard !editor.isEmpty, editor != e.authorID else {
-                return e.authorID.isEmpty ? nil : (e.authorID, e.authorName)
+                return planner(e)
+            }
+            if let member = members.actor(id: editor, name: e.editorName ?? ""),
+               !HouseholdIdentity.isUnnamed(member.name) {
+                return (member.identityKey ?? editor, member.name)
             }
             let known = e.editorName ?? ""
             let named = known.isEmpty ? (name(for: editor) ?? "") : known
-            return named.isEmpty ? nil : (editor, named)
+            return named.isEmpty || HouseholdIdentity.isUnnamed(named) ? nil : (editor, named)
         }
 
         // One sitting, one interruption. See `plannedSpokeKey`.
@@ -538,12 +561,13 @@ enum TableNews {
         for e in plans.added where !e.authorID.isEmpty && e.authorID != me && e.changedAt > cutoff {
             let key = "plan:\(e.recordName):\(planHash(e))"
             guard !seen.contains(key) else { continue }
-            let who = firstName(e.authorName)
+            guard let by = planner(e), by.id != me else { continue }
+            let who = firstName(by.name)
             guard who != "Someone", !e.title.isEmpty else { continue }
             let night = Stamp.nightPhrase(e.date)
             let body = cookLine(e)
             notices.append(notice(
-                e, key: key, actor: e.authorName, actorID: e.authorID,
+                e, key: key, actor: by.name, actorID: by.id,
                 title: "\(who) planned \(e.title) for \(night)", body: body,
                 template: "{actor} planned {object} for \(night).",
                 deed: "Planned \(e.title) for \(night)." + (body.isEmpty ? "" : " \(body)"),
@@ -752,13 +776,7 @@ enum TableNews {
     /// so the banner shows the neutral monogram, never a stand-in face.
     private static func dress(_ n: Notice, members: [HouseholdMember]) -> Notice {
         guard !n.actor.isEmpty else { return n }
-        let member = members.first {
-            !n.actorID.isEmpty && ($0.participantID == n.actorID || $0.userRecordName == n.actorID)
-        }
-            ?? members.first {
-                $0.name == n.actor && $0.participantID == nil
-                    && ($0.seat == .joined || $0.seat == .invited)
-            }
+        let member = members.actor(id: n.actorID, name: n.actor)
         guard let member else { return n }
         var dressed = n
         dressed.face = member.photoData
@@ -1321,24 +1339,24 @@ enum TableNews {
     /// turns "three ids" into "Riley, Sam and Jo".
     static func learnNames(from changes: TableShare.Changes) {
         var learned: [String: String] = [:]
-        for p in changes.posts where !p.authorID.isEmpty && !p.authorName.isEmpty {
+        for p in changes.posts where !p.authorID.isEmpty && !HouseholdIdentity.isUnnamed(p.authorName) {
             learned[p.authorID] = p.authorName
         }
-        for n in changes.notes where !n.authorID.isEmpty && !n.authorName.isEmpty {
+        for n in changes.notes where !n.authorID.isEmpty && !HouseholdIdentity.isUnnamed(n.authorName) {
             learned[n.authorID] = n.authorName
         }
-        for r in changes.reactions where !r.author.isEmpty && !r.authorName.isEmpty {
+        for r in changes.reactions where !r.author.isEmpty && !HouseholdIdentity.isUnnamed(r.authorName) {
             learned[r.author] = r.authorName
         }
         // A night carries three people once a member can edit one: the
         // phone that planned it, whoever last changed it, and the cook it
         // names. The editor is the one the digest's sentence about a change
         // is about, so a name for that id is the difference between saying
-        // it and saying nothing.
+        // it and saying nothing. Do not learn an unnamed placeholder.
         for p in changes.plans {
-            if !p.authorID.isEmpty, !p.authorName.isEmpty { learned[p.authorID] = p.authorName }
-            if !p.editorID.isEmpty, !p.editorName.isEmpty { learned[p.editorID] = p.editorName }
-            if !p.cookID.isEmpty, !p.cookName.isEmpty { learned[p.cookID] = p.cookName }
+            if !p.authorID.isEmpty, !HouseholdIdentity.isUnnamed(p.authorName) { learned[p.authorID] = p.authorName }
+            if !p.editorID.isEmpty, !HouseholdIdentity.isUnnamed(p.editorName) { learned[p.editorID] = p.editorName }
+            if !p.cookID.isEmpty, !HouseholdIdentity.isUnnamed(p.cookName) { learned[p.cookID] = p.cookName }
         }
         guard !learned.isEmpty else { return }
         var names = store.dictionary(forKey: namesKey) as? [String: String] ?? [:]
@@ -1351,7 +1369,9 @@ enum TableNews {
     static func learnNames(fromSeats seats: [HouseholdShare.RemoteSeat]) {
         var learned: [String: String] = [:]
         for s in seats {
-            if let id = s.userRecordName, !id.isEmpty, !s.name.isEmpty { learned[id] = s.name }
+            if let id = s.userRecordName, !id.isEmpty, !HouseholdIdentity.isUnnamed(s.name) {
+                learned[id] = s.name
+            }
         }
         guard !learned.isEmpty else { return }
         var names = store.dictionary(forKey: namesKey) as? [String: String] ?? [:]
@@ -1455,7 +1475,7 @@ enum TableNews {
             guard by != me, member.userRecordName != me else { continue }
             let id = member.userRecordName ?? member.shareRecordName
             let key = "household:\(id)"
-            guard !seen.contains(key), !HouseholdIdentity.isPlaceholder(member.name) else { continue }
+            guard !seen.contains(key), !HouseholdIdentity.isUnnamed(member.name) else { continue }
             let who = firstName(member.name)
             guard who != "Someone" else { continue }
             notices.append(Notice(
@@ -1466,7 +1486,7 @@ enum TableNews {
                 link: DeepLink.url(.home), post: "",
                 direct: true, photo: nil, feedKind: .householdJoined,
                 actor: member.name, at: modifiedAt[member.shareRecordName] ?? .now, rowKey: key,
-                relevance: 0.8, actorID: member.userRecordName ?? "",
+                relevance: 0.8, actorID: member.identityKey ?? "",
                 deed: "Joined your household.", group: "Home",
                 quietAtNight: true
             ))
@@ -1477,7 +1497,7 @@ enum TableNews {
             guard by != me, member.userRecordName != me else { continue }
             let id = member.userRecordName ?? member.shareRecordName
             let key = "household-left:\(id)"
-            guard !seen.contains(key), !HouseholdIdentity.isPlaceholder(member.name) else { continue }
+            guard !seen.contains(key), !HouseholdIdentity.isUnnamed(member.name) else { continue }
             let who = firstName(member.name)
             guard who != "Someone" else { continue }
             notices.append(Notice(
@@ -1488,7 +1508,7 @@ enum TableNews {
                 link: DeepLink.url(.home), post: "",
                 direct: false, photo: nil, feedKind: .householdLeft,
                 actor: member.name, at: modifiedAt[member.shareRecordName] ?? .now, rowKey: key,
-                passive: true, relevance: 0.4, actorID: member.userRecordName ?? "",
+                passive: true, relevance: 0.4, actorID: member.identityKey ?? "",
                 deed: "Left your household.", group: "Home"
             ))
         }

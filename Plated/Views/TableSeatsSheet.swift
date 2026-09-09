@@ -145,7 +145,7 @@ struct TableSeatsSheet: View {
                     // so the two screens cannot disagree about what somebody
                     // is.
                     seatGroup("Household", problem: .household) {
-                        ForEach(members.readable, id: \.persistentModelID) { member in
+                        ForEach(members.readable.listed, id: \.persistentModelID) { member in
                             memberRow(member)
                         }
                     }

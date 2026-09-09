@@ -576,10 +576,10 @@ enum PlanShare {
         }
         if backfilled > 0 { Persist.save(context, "plan share backfill") }
 
-        let owner = Seats.all(in: context).first(where: \.isOwner)
+        let publisher = Seats.all(in: context).me
         let plans = meals.map {
-            plan(for: $0, me: me, authorName: owner?.name ?? "",
-                 authorColorHex: owner?.colorHex ?? "FF5A3C")
+            plan(for: $0, me: me, authorName: publisher?.name ?? "",
+                 authorColorHex: publisher?.colorHex ?? "FF5A3C")
         }
         var book = loadBook()
         var work = diff(book: book, meals: plans, target: target, now: now)

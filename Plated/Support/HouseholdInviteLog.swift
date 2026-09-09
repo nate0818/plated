@@ -60,13 +60,14 @@ enum HouseholdInviteLog {
     static func unsettled(against members: [HouseholdMember]) -> [Entry] {
         let taken = Set(members.compactMap { member -> String? in
             guard member.seat == .joined || member.seat == .head else { return nil }
-            let n = member.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-            return n.isEmpty || n == "someone" ? nil : n
+            let n = member.name.trimmingCharacters(in: .whitespacesAndNewlines)
+            return HouseholdIdentity.isUnnamed(n) ? nil : n.lowercased()
         })
         return all().filter { !$0.settled && !taken.contains($0.name.lowercased()) }
     }
 
     static func markSettled(name: String) {
+        if HouseholdIdentity.isUnnamed(name) { return }
         var rows = all()
         let key = name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard !key.isEmpty else { return }

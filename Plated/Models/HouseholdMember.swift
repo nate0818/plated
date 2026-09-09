@@ -201,7 +201,8 @@ final class HouseholdMember {
         return Self.claimedSeatName == nil
     }
 
-    /// The role as a person would say it.
+    /// The role as a person would say it. Not drawn on the reader's own
+    /// row: that line is "You", and DESIGN.md forbids Head of table there.
     var roleTitle: String {
         switch role {
         case "owner": return "Head of table"
@@ -247,11 +248,12 @@ final class HouseholdMember {
     /// A joined seat genuinely shares the plan, the list and the cookbook
     /// now (docs/household.md), so the sentence says what they can do, by
     /// role: a partner cooks, a kid or member sees. The reader's own row is
-    /// addressed as "You", never with a sentence written for somebody else.
+    /// "You" and nothing else: a role on that line is DESIGN.md's copy lock
+    /// against Head of table on self. Another host is Host, not that title.
     var subtitle: String {
-        if isMe { return "You · \(roleTitle)" }
+        if isMe { return "You" }
         switch seat {
-        case .head: return "Head of table"
+        case .head: return "Host"
         case .joined:
             return role == "partner" || role == "owner"
                 ? "Plans and cooks with you" : "Sees the plan with you"
@@ -347,6 +349,12 @@ extension Array where Element == HouseholdMember {
     /// extra people — `members.count` was, and Account said "7 people".
     var occupying: [HouseholdMember] { Self.occupying(from: self) }
 
+    /// Occupying seats plus anyone who left, for a People list that must
+    /// still show a Left row while collapsing identity twins.
+    var listed: [HouseholdMember] {
+        occupying + filter { $0.seat == .left }
+    }
+
     var peopleCount: Int { occupying.count }
 
     static func peopleEyebrow(_ count: Int) -> String {
@@ -359,12 +367,15 @@ extension Array where Element == HouseholdMember {
     static func occupying(from members: [HouseholdMember]) -> [HouseholdMember] {
         let present = members.filter { $0.seat != .left }
         let ghostIDs = Set(invitedGhosts(in: present).map { ObjectIdentifier($0) })
+        let live = present.filter { !ghostIDs.contains(ObjectIdentifier($0)) }
+        // Named and photographed first so a restored "New member" twin
+        // loses to the seat that already carries the person.
+        let ranked = live.sorted { occupancyRank($0) > occupancyRank($1) }
         var seenIdentity = Set<String>()
         var seenShare = Set<String>()
-        var result: [HouseholdMember] = []
-        result.reserveCapacity(present.count)
-        for member in present {
-            if ghostIDs.contains(ObjectIdentifier(member)) { continue }
+        var keep = Set<ObjectIdentifier>()
+        keep.reserveCapacity(ranked.count)
+        for member in ranked {
             if let id = member.identityKey {
                 if seenIdentity.contains(id) { continue }
                 seenIdentity.insert(id)
@@ -374,9 +385,47 @@ extension Array where Element == HouseholdMember {
                 if seenShare.contains(share) { continue }
                 seenShare.insert(share)
             }
-            result.append(member)
+            keep.insert(ObjectIdentifier(member))
         }
-        return result
+        return live.filter { keep.contains(ObjectIdentifier($0)) }
+    }
+
+    /// The person a notice names. Identity first: `userRecordName` and
+    /// `participantID` are the same CloudKit id, and a join notice used to
+    /// miss the joiner because the Activity row only compared participant.
+    /// When that id points at the host but the stored name is somebody else
+    /// already seated, the name wins — that is the "Alessandra joined" row
+    /// wearing Nate's face. A plan notice is the other way around: the id
+    /// is the author and the stored name may still be the host's.
+    func actor(id: String, name: String) -> HouseholdMember? {
+        let want = id.trimmingCharacters(in: .whitespacesAndNewlines)
+        let byID: HouseholdMember?
+        if want.isEmpty {
+            byID = nil
+        } else {
+            byID = first {
+                ($0.userRecordName ?? "") == want || ($0.participantID ?? "") == want
+            }
+        }
+        let named: HouseholdMember?
+        if name.isEmpty || HouseholdIdentity.isUnnamed(name) {
+            named = nil
+        } else {
+            named = first { $0.name == name }
+                ?? {
+                    let key = occupancyFirstNameKey(name)
+                    guard !key.isEmpty else { return nil }
+                    let hits = filter { occupancyFirstNameKey($0.name) == key }
+                    return hits.count == 1 ? hits[0] : nil
+                }()
+        }
+        if let byID {
+            if let named, named !== byID, byID.isMe || byID.isOwner {
+                return named
+            }
+            return byID
+        }
+        return named
     }
 
     /// Invited rows whose joiner already sits under the same first name —
@@ -429,7 +478,10 @@ extension Array where Element == HouseholdMember {
     /// is the roster's "Invited Tuesday" to say and not this line's. A seat
     /// that left is not one anybody is hosting with.
     var hostedNames: [String] {
-        filter { !$0.isMe && ($0.seat == .joined || $0.seat == .notOnPlated) }.map(\.name)
+        occupying.filter {
+            !$0.isMe && ($0.seat == .joined || $0.seat == .notOnPlated)
+                && !HouseholdIdentity.isUnnamed($0.name)
+        }.map(\.name)
     }
 
     /// Who a night can be handed to. A seat that left is still on a
@@ -446,4 +498,14 @@ private func occupancyFirstNameKey(_ name: String) -> String {
         .split(separator: " ")
         .first
         .map { $0.lowercased() } ?? ""
+}
+
+/// A restored "New member" row loses to a seat that already has a name
+/// or a photograph, so People and the count name the person once.
+private func occupancyRank(_ member: HouseholdMember) -> Int {
+    var score = 0
+    if !HouseholdIdentity.isUnnamed(member.name) { score += 4 }
+    if member.photoData != nil { score += 2 }
+    if member.seat == .joined || member.seat == .head { score += 1 }
+    return score
 }

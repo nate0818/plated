@@ -687,7 +687,10 @@ struct HouseholdHomeView: View {
             // Naming either is the same claim as "You host this household
             // with Riley" over somebody who never opened the link.
             Text(HouseholdIdentity.seatedLine(
-                names: roster.filter { $0.seat != .left && $0.seat != .invited }.map(\.name)
+                names: roster.filter {
+                    $0.seat != .left && $0.seat != .invited
+                        && !HouseholdIdentity.isUnnamed($0.name)
+                }.map(\.name)
             ))
                 .plType(.caption)
                 .foregroundStyle(Color.inkSecondary)
@@ -773,7 +776,7 @@ struct HouseholdHomeView: View {
             MicroLabel("People")
 
             VStack(spacing: 0) {
-                let people = roster
+                let people = roster.listed
                 let lastID = people.last?.persistentModelID
                 let readerIsHead = people.me?.isOwner == true
                 ForEach(people, id: \.persistentModelID) { member in
@@ -860,10 +863,8 @@ struct HouseholdHomeView: View {
     /// walks the full `@Query` (and a deleted twin) via `members.me`.
     private func memberRow(_ member: HouseholdMember, readerIsHead: Bool) -> some View {
         let name = member.name
-        let colorHex = member.colorHex
         let memberID = member.persistentModelID
         let isMe = member.isMe
-        let isOwner = member.isOwner
         let seat = member.seat
         let cooks = member.cooks
         let weekdays = member.cookWeekdays.filter { (1...7).contains($0) }
@@ -890,20 +891,14 @@ struct HouseholdHomeView: View {
                     .plName()
                     .plType(.body, .bold)
                     .foregroundStyle(Color.ink)
-                if isOwner, HouseholdIdentity.isPlaceholder(name) {
-                    Text("Head of table")
-                        .plType(.caption, .bold)
-                        .foregroundStyle(Color.inkSecondary)
-                        .lineLimit(2)
-                } else {
-                    // The seat, not a role line frozen at insert. "Partner ·
-                    // plans & cooks" was printed under a name typed four
-                    // seconds earlier about somebody with no account and
-                    // nothing to plan with.
-                    Text(subtitle)
-                        .plType(.caption, .semibold)
-                        .foregroundStyle(Color.inkSecondary)
-                }
+                // The seat, not a role line frozen at insert. "Partner ·
+                // plans & cooks" was printed under a name typed four
+                // seconds earlier about somebody with no account and
+                // nothing to plan with. Own row is "You"; another host is
+                // Host. Never Head of table on self (DESIGN.md).
+                Text(subtitle)
+                    .plType(.caption, .semibold)
+                    .foregroundStyle(Color.inkSecondary)
             }
             Spacer(minLength: 6)
             // Stuck invitation: one tap marks them joined in place.

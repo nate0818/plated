@@ -99,4 +99,66 @@ final class HouseholdMemberHostingTests: XCTestCase {
         XCTAssertEqual([HouseholdMember].peopleEyebrow(0), "0 people")
         XCTAssertEqual([HouseholdMember].peopleEyebrow(7), "7 people")
     }
+
+    func testOccupyingPrefersANamedTwinOverNewMember() {
+        let nate = seat("Nate Meadows", .head, role: "owner", user: "nate-id")
+        nate.shareRecordName = "seat-nate"
+        let unnamed = seat("New member", .joined, role: "partner", user: "ale-id")
+        unnamed.shareRecordName = "seat-new"
+        let named = seat("Alessandra", .joined, role: "partner", user: "ale-id")
+        named.shareRecordName = "seat-ale"
+        named.photoData = Data([1, 2, 3])
+        XCTAssertEqual(
+            [HouseholdMember].occupying(from: [nate, unnamed, named]).map(\.name),
+            ["Nate Meadows", "Alessandra"]
+        )
+    }
+
+    func testOwnRowOmitsRole() {
+        let nate = seat("Nate Meadows", .head, role: "owner", user: TableIdentity.cached)
+        XCTAssertEqual(nate.subtitle, "You")
+        let partner = seat("Alessandra", .joined, role: "partner", user: TableIdentity.cached)
+        XCTAssertEqual(partner.subtitle, "You")
+    }
+
+    func testAnotherHostReadsAsHost() {
+        HouseholdShare.setMembership(.member(owner: "owner-1"))
+        defer { HouseholdShare.setMembership(.solo) }
+        let nate = seat("Nate Meadows", .head, role: "owner", user: "nate-id")
+        XCTAssertEqual(nate.subtitle, "Host")
+        XCTAssertNotEqual(nate.subtitle, "You · Head of table")
+    }
+
+    func testActorLookupUsesUserRecordName() {
+        let nate = seat("Nate Meadows", .head, role: "owner", user: TableIdentity.cached)
+        nate.participantID = TableIdentity.cached
+        let ale = seat("Alessandra", .joined, role: "partner", user: "ck-ale")
+        ale.participantID = nil
+        let members = [nate, ale]
+        XCTAssertEqual(members.actor(id: "ck-ale", name: "Alessandra")?.name, "Alessandra")
+        XCTAssertEqual(
+            members.actor(id: TableIdentity.cached, name: "Alessandra")?.name,
+            "Alessandra",
+            "a join notice stamped with the host still resolves to the named joiner"
+        )
+        XCTAssertEqual(
+            members.actor(id: "ck-ale", name: "Nate Meadows")?.name,
+            "Alessandra",
+            "a plan notice stamped with the host's name still resolves to the author id"
+        )
+    }
+
+    func testSeatedLineDropsUnnamedPlaceholders() {
+        XCTAssertTrue(HouseholdIdentity.isUnnamed("New member"))
+        XCTAssertTrue(HouseholdIdentity.isUnnamed("Someone"))
+        XCTAssertFalse(HouseholdIdentity.isUnnamed("Alessandra"))
+        XCTAssertEqual(
+            HouseholdIdentity.seatedLine(names: ["Nate Meadows", "New member"]),
+            "Nate"
+        )
+        XCTAssertEqual(
+            HouseholdIdentity.seatedLine(names: ["Nate Meadows", "Alessandra"]),
+            "Nate and Alessandra"
+        )
+    }
 }

@@ -5,6 +5,11 @@ import CryptoKit
 /// this device's existing Apple-backed session before creating a shopping link.
 actor InstacartService {
     static let shared = InstacartService()
+
+    /// Partner checkout has not been verified (no production API key on
+    /// the edge function). The grocery sheet hides the Instacart CTA until
+    /// that is true; Reminders stays the way to send the list.
+    nonisolated static var isOffered: Bool { false }
     struct Line: Codable, Sendable {
         var name: String
         var quantity: Double
