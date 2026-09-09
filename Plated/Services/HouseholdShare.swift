@@ -1504,9 +1504,15 @@ enum HouseholdShare {
     /// Everyone on the household share. Link joiners are public
     /// participants with no phone or email; identity is the only key.
     static func standings() async -> [TableShare.Standing] {
-        guard await TableSync.accountAvailable() else { return [] }
-        guard let (_, share) = await currentShare() else { return [] }
-        return share.participants.compactMap { p in
+        guard await TableSync.accountAvailable() else {
+            print("PLATED HOUSEHOLD: standings skipped, iCloud not available")
+            return []
+        }
+        guard let (_, share) = await currentShare() else {
+            print("PLATED HOUSEHOLD: standings skipped, could not read the household share")
+            return []
+        }
+        let rows: [TableShare.Standing] = share.participants.compactMap { p in
             guard p.role != .owner else { return nil }
             let name = [p.userIdentity.nameComponents?.givenName,
                         p.userIdentity.nameComponents?.familyName]
@@ -1519,6 +1525,8 @@ enum HouseholdShare {
                 participantID: p.userIdentity.userRecordID?.recordName
             )
         }
+        print("PLATED HOUSEHOLD: standings \(rows.count) participant(s), \(rows.filter(\.accepted).count) accepted")
+        return rows
     }
 
     /// Take one person off the household share, matched by identity. False

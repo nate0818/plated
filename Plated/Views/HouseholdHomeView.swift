@@ -271,6 +271,12 @@ struct HouseholdHomeView: View {
         }
         .onAppear {
             if LinkRelay.takeActivity() { pushed = .activity }
+            // Stuck Invited labels (Alessandra) settle when Home is opened,
+            // not only when CloudKit happens to send a share delta.
+            Task {
+                await TablePull.pull(reason: "home")
+                await Seats.settleStuckInvites(in: context)
+            }
             #if DEBUG
             // UI-test hook, one-shot: `simctl launch … -plated-open-stats`.
             // Works standalone — MainShellView routes to this tab first (see
@@ -821,9 +827,25 @@ struct HouseholdHomeView: View {
                 }
             }
             Spacer(minLength: 6)
-            // Everyone's nights but your own: the cook grid above already
-            // shows yours, and on a member's phone the head's chip is news.
-            if !member.isMe, member.cooks, !member.cookWeekdays.isEmpty {
+            // Stuck invitation: one tap clears the waiting label. Swipe-
+            // to-remove was easy to miss, and reconcile alone did not
+            // always see her accept.
+            if member.seat == .invited, members.me?.isOwner == true {
+                Button {
+                    Haptic.tap()
+                    Task { await Seats.markInviteArrived(member, in: context) }
+                } label: {
+                    Text("They're in")
+                        .plType(.caption, .bold)
+                        .plActionLabel()
+                        .foregroundStyle(Color.accentText)
+                        .padding(.horizontal, 12)
+                        .frame(minHeight: 30)
+                        .background(Color.tomato.opacity(0.09), in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint("Clears the invitation. Keeps them in the household if they already joined.")
+            } else if !member.isMe, member.cooks, !member.cookWeekdays.isEmpty {
                 Text(dayChipLabel(member))
                     .plType(.caption, .bold)
                     .foregroundStyle(member.tone.tone)

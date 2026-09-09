@@ -80,6 +80,9 @@ enum TablePull {
 
                 let household = await HouseholdShare.fetchChanges()
                 await HouseholdSync.absorb(household, context: context)
+                if case .hosting = HouseholdShare.membership {
+                    await Seats.settleStuckInvites(in: context)
+                }
                 // The nights the same walk collected, handed to the pipe
                 // that owns them. After the household merge, so the news
                 // and the reminders read a roster and a week that have

@@ -474,6 +474,89 @@ enum Seats {
         print("PLATED HOUSEHOLD: Invited \(invite.name) settled from share accept (\(id.prefix(12)))")
     }
 
+    /// Host pull / Home open: settle every Invited row that is no longer
+    /// waiting on a real person.
+    ///
+    /// 1. Claim from share standings (phone / email / name / sole invite).
+    /// 2. Drop Invited rows when every accepted participant already has a
+    ///    joined seat — the classic stuck label beside a fresh-UUID join.
+    /// 3. Log loudly when standings cannot be read, so a silent empty list
+    ///    is not mistaken for "nobody accepted".
+    static func settleStuckInvites(in context: ModelContext) async {
+        guard case .hosting = HouseholdShare.membership else { return }
+        await reconcile(in: context)
+
+        let leftover = all(in: context).filter {
+            $0.seat == .invited
+                && ($0.userRecordName ?? "").isEmpty
+                && ($0.participantID ?? "").isEmpty
+        }
+        guard !leftover.isEmpty else { return }
+
+        let standings = await HouseholdShare.standings()
+        if standings.isEmpty {
+            print("PLATED HOUSEHOLD: settleStuckInvites found \(leftover.count) Invited row(s) but standings are empty")
+        }
+        let acceptedIDs = Set(standings.filter(\.accepted).compactMap(\.participantID).filter { !$0.isEmpty })
+        let seatedIDs = Set(all(in: context).compactMap { member -> String? in
+            guard member.seat == .joined || member.seat == .head else { return nil }
+            let id = member.userRecordName ?? member.participantID ?? ""
+            return id.isEmpty ? nil : id
+        })
+
+        // Every accept already has a seat → leftover Invited labels are
+        // ghosts from a join that minted a second record name.
+        if !acceptedIDs.isEmpty, acceptedIDs.isSubset(of: seatedIDs) {
+            for row in leftover {
+                print("PLATED HOUSEHOLD: clearing ghost Invited \(row.name) (\(row.shareRecordName)) — accepts are already seated")
+                if !row.shareRecordName.isEmpty {
+                    HouseholdOutbox.shared.enqueueDelete(.seat, row.shareRecordName)
+                }
+                context.delete(row)
+            }
+            Persist.save(context, "ghost invites cleared")
+            return
+        }
+
+        // Name-based orphan: Invited + joined sharing a first name.
+        let orphans = HouseholdSync.orphanInvites(among: all(in: context))
+        if !orphans.isEmpty {
+            for row in orphans {
+                print("PLATED HOUSEHOLD: clearing name-matched orphan Invited \(row.name)")
+                if !row.shareRecordName.isEmpty {
+                    HouseholdOutbox.shared.enqueueDelete(.seat, row.shareRecordName)
+                }
+                context.delete(row)
+            }
+            Persist.save(context, "name orphan invites cleared")
+        }
+    }
+
+    /// Host tapped "They're in" on an Invited row. Prefer settling from the
+    /// share; if that cannot, clear the waiting label. Removing an Invited
+    /// seat does not kick them off the household — the link and any joined
+    /// seat they already claimed stay.
+    static func markInviteArrived(_ member: HouseholdMember, in context: ModelContext) async {
+        guard member.seat == .invited else { return }
+        guard case .hosting = HouseholdShare.membership else { return }
+        let name = member.name
+        let id = member.persistentModelID
+        await settleStuckInvites(in: context)
+        guard let still = all(in: context).first(where: { $0.persistentModelID == id }),
+              still.seat == .invited else {
+            print("PLATED HOUSEHOLD: \(name) settled as joined from share")
+            Haptic.kiss()
+            return
+        }
+        print("PLATED HOUSEHOLD: host cleared stuck Invited for \(name)")
+        if !still.shareRecordName.isEmpty {
+            HouseholdOutbox.shared.enqueueDelete(.seat, still.shareRecordName)
+        }
+        context.delete(still)
+        Persist.save(context, "host cleared invited")
+        Haptic.plate()
+    }
+
     /// A seat that left is deleted from the roster and its nights go back
     /// to unplanned (§8). Marking it `.left` and keeping it was the notice
     /// "Their nights are open again." over a week that still said Riley
