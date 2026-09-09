@@ -253,7 +253,7 @@ struct TableSeatsSheet: View {
         let drawn = Seats.resolvedDisplay(for: member, among: people, reader: reader)
         let isMe = member.isMe
             || (reader != nil && reader!.persistentModelID == member.persistentModelID)
-        seatRow(
+        return seatRow(
             name: drawn.name,
             subtitle: drawn.subtitle,
             // Colour is earned by being here. An invitation is the one
