@@ -739,11 +739,21 @@ enum HouseholdSync {
         }
 
         // 1. The household share. The Table follows and is retried on every
-        // pull, so only this accept decides the outcome.
+        // pull, so only this accept decides the outcome. Already-a-participant
+        // is a seat (same rule as TableShare.accept): a second open of the
+        // link must not fail a join that already landed.
         print("PLATED HOUSEHOLD: joining \(host.isEmpty ? "a household" : host + "'s household") as \(me.prefix(12))")
-        guard await HouseholdShare.accept(metadata) else {
+        let accepted = await HouseholdShare.accept(metadata)
+        guard accepted.seated else {
             isJoining = false
-            let reason = await acceptFailure(metadata: metadata, host: host)
+            // `??` cannot await on its right-hand side (autoclosure), so the
+            // fallback is asked for only when the outcome has no line.
+            let reason: String
+            if let line = accepted.line {
+                reason = line
+            } else {
+                reason = await acceptFailure(metadata: metadata, host: host)
+            }
             print("PLATED HOUSEHOLD: join refused: \(reason)")
             return .failed(reason)
         }
@@ -1064,9 +1074,10 @@ enum HouseholdSync {
         print("PLATED HOUSEHOLD: dropped \(dropped) local plan and grocery row(s) before the first pull")
     }
 
-    /// Why the accept was refused, in the join sheet's sentences (§7). The
-    /// wire answers a Bool, so the reason is asked for separately, on the
-    /// failure path only.
+    /// Why the accept was refused, in the join sheet's sentences (§7).
+    /// Prefer `TableShare.Accepted.line` when the accept returned one; this
+    /// is the fallback for the rare path that still only has a Bool-shaped
+    /// refusal, and for re-reading a share after a transient miss.
     private static func acceptFailure(metadata: CKShare.Metadata, host: String) async -> String {
         switch await TableSync.accountState() {
         case .noAccount:
@@ -1082,6 +1093,9 @@ enum HouseholdSync {
             } catch let error as CKError where error.code == .unknownItem {
                 let who = host.isEmpty ? "the person who sent it" : host
                 return "This link doesn't work anymore. Ask \(who) for a new one."
+            } catch let error as CKError {
+                let outcome = TableShare.accepted(from: error.code, account: await TableSync.accountState())
+                if let line = outcome.line { return line }
             } catch {}
         }
         return "Couldn't reach iCloud. Check your connection and open the link again."
@@ -1121,12 +1135,11 @@ enum HouseholdSync {
         }
         do {
             let table = try await TableShare.shareMetadata(for: url)
-            guard table.participantStatus != .accepted else {
-                print("PLATED HOUSEHOLD: already at the household's table")
-                return
-            }
-            let ok = await TableShare.accept(table)
-            print("PLATED HOUSEHOLD: table accept \(ok ? "ok" : "refused, will retry on the next pull")")
+            // The already-a-participant check lives in `TableShare.accept`
+            // now, so both roads into a Table get it from one place.
+            let outcome = await TableShare.accept(table)
+            print("PLATED HOUSEHOLD: table accept \(outcome)"
+                  + (outcome.seated ? "" : ", will retry on the next pull"))
         } catch {
             print("PLATED HOUSEHOLD: could not read the table share: \(error.localizedDescription)")
         }

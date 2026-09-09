@@ -29,8 +29,10 @@ enum InviteFlow {
     enum Result {
         /// They picked somebody and the message actually sent.
         case sent(name: String, phone: String?, prepared: Seats.Prepared)
-        /// Picked somebody, but nothing was sent — cancelled, or failed.
-        case notSent(name: String, phone: String?, prepared: Seats.Prepared)
+        /// Picked somebody, then the composer failed to send.
+        case failed(name: String, phone: String?, prepared: Seats.Prepared)
+        /// Picked somebody, then cancelled the composer — nothing to record.
+        case declined(name: String, phone: String?, prepared: Seats.Prepared)
         /// Never got as far as a person.
         case cancelled
         /// A person, but no link to give them, so nothing was offered.
@@ -75,6 +77,7 @@ enum InviteFlow {
             return
         }
         guard let top = topViewController() else {
+            print("PLATED INVITE: no presenter for the contact picker")
             inFlight[ObjectIdentifier(delegate)] = nil
             completion(.cancelled)
             return
@@ -178,22 +181,18 @@ enum InviteFlow {
 
             let prepared = await prepare()
             guard case .ready(let url) = prepared.outcome else {
-                let reason: String
-                if case .noAccount = prepared.outcome {
-                    reason = "That number has no iCloud account, so the link won't reach them. Try another number, or add them by name."
-                } else {
-                    // Not always "sign in to iCloud": a member never mints a
-                    // household link, and a slow network is not a signed-out
-                    // account. Seats owns the one sentence for all of them.
-                    reason = Seats.noLinkReason(prepared)
-                }
+                // `.noAccount` used to mean "that phone number has no iCloud"
+                // from a participant lookup that no longer runs on public
+                // shares. Seats owns every refusal sentence now.
+                let reason = Seats.noLinkReason(prepared)
                 print("PLATED INVITE: no link — \(reason)")
                 finish(.noLink(name: name, reason: reason))
                 return
             }
 
             guard let top = topViewController() else {
-                finish(.notSent(name: name, phone: phone, prepared: prepared))
+                print("PLATED INVITE: no presenter for the message composer")
+                finish(.failed(name: name, phone: phone, prepared: prepared))
                 return
             }
 
@@ -213,12 +212,21 @@ enum InviteFlow {
             _ controller: MFMessageComposeViewController,
             didFinishWith result: MessageComposeResult
         ) {
-            let sent = result == .sent
-            print("PLATED INVITE: composer finished, sent = \(sent)")
+            print("PLATED INVITE: composer finished, result = \(result.rawValue)")
             controller.dismiss(animated: true) { [weak self] in
                 guard let self else { return }
-                self.finish(sent ? .sent(name: self.name, phone: self.phone, prepared: self.pending)
-                                 : .notSent(name: self.name, phone: self.phone, prepared: self.pending))
+                let answer: InviteFlow.Result
+                switch result {
+                case .sent:
+                    answer = .sent(name: self.name, phone: self.phone, prepared: self.pending)
+                case .cancelled:
+                    answer = .declined(name: self.name, phone: self.phone, prepared: self.pending)
+                case .failed:
+                    answer = .failed(name: self.name, phone: self.phone, prepared: self.pending)
+                @unknown default:
+                    answer = .failed(name: self.name, phone: self.phone, prepared: self.pending)
+                }
+                self.finish(answer)
             }
         }
 

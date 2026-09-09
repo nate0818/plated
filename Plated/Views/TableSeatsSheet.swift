@@ -302,8 +302,11 @@ struct TableSeatsSheet: View {
         ) {
             // Send again IS the message to them, so no separate Message
             // disc: three controls on one row left no room for a name.
-            discButton("paperplane", label: "Send \(entry.name) the link again") {
-                sendAgain(entry)
+            // Without Messages the control would open a blank composer.
+            if InviteComposer.isAvailable {
+                discButton("paperplane", label: "Send \(entry.name) the link again") {
+                    sendAgain(entry)
+                }
             }
             discButton("minus", label: "Cancel \(entry.name)'s invitation") {
                 withAnimation(.plSnap) { invites.cancel(entry.id) }
@@ -534,8 +537,14 @@ struct TableSeatsSheet: View {
                     kind: .table, prepared: prepared, name: name, phone: phone,
                     email: entry.email, role: "member", in: context
                 )
-            case .notSent(_, _, let prepared):
+            case .failed(_, _, let prepared), .declined(_, _, let prepared):
                 Seats.abandon(kind: .table, prepared: prepared)
+                if case .failed = result {
+                    Haptic.warn()
+                    withAnimation(.plSnap) {
+                        problem = Problem(group: .invited, text: "The message didn't send. Try again.")
+                    }
+                }
             case .noLink(_, let reason):
                 Haptic.warn()
                 withAnimation(.plSnap) { problem = Problem(group: .invited, text: reason) }
@@ -567,8 +576,14 @@ struct TableSeatsSheet: View {
                     kind: .table, prepared: prepared, name: name, phone: phone,
                     email: nil, role: "member", in: context
                 )
-            case .notSent(_, _, let prepared):
+            case .failed(_, _, let prepared), .declined(_, _, let prepared):
                 Seats.abandon(kind: .table, prepared: prepared)
+                if case .failed = result {
+                    Haptic.warn()
+                    withAnimation(.plSnap) {
+                        problem = Problem(group: group, text: "The message didn't send. Try again.")
+                    }
+                }
             case .noLink(_, let reason):
                 Haptic.warn()
                 withAnimation(.plSnap) { problem = Problem(group: group, text: reason) }
@@ -622,21 +637,23 @@ struct TableSeatsSheet: View {
                             .foregroundStyle(Color.ink)
                             .lineLimit(1)
                         Spacer()
-                        Button {
-                            startInvite(to: InviteFlow.Recipient(name: match.name, phone: match.phone))
-                        } label: {
-                            Text("Invite")
-                                .plType(.footnote, .bold)
-                                .plActionLabel()
-                                .foregroundStyle(Color.canvas)
-                                .padding(.horizontal, 18)
-                                .frame(minHeight: 36)
-                                .background(Color.ink, in: Capsule())
-                                .frame(minHeight: 44)
-                                .contentShape(Capsule())
+                        if InviteComposer.isAvailable {
+                            Button {
+                                startInvite(to: InviteFlow.Recipient(name: match.name, phone: match.phone))
+                            } label: {
+                                Text("Invite")
+                                    .plType(.footnote, .bold)
+                                    .plActionLabel()
+                                    .foregroundStyle(Color.canvas)
+                                    .padding(.horizontal, 18)
+                                    .frame(minHeight: 36)
+                                    .background(Color.ink, in: Capsule())
+                                    .frame(minHeight: 44)
+                                    .contentShape(Capsule())
+                            }
+                            .buttonStyle(.pressable)
+                            .accessibilityLabel("Invite \(match.name) to the Table")
                         }
-                        .buttonStyle(.pressable)
-                        .accessibilityLabel("Invite \(match.name) to the Table")
                     }
                     // 10, the rhythm seatRow uses in the groups above.
                     .padding(.vertical, 10)
@@ -705,7 +722,7 @@ struct TableSeatsSheet: View {
 
             // Only when there is a real link. A seatless Table link names no
             // invitation entry, so the sheet never claims a person it
-            // cannot name.
+            // cannot name — they join as a guest under "At your table".
             if case .ready(let url) = link {
                 ShareLink(
                     item: Invitation.wrapped(url, hostName: userFirstName, kind: .table, seat: nil, invite: nil),
@@ -714,7 +731,7 @@ struct TableSeatsSheet: View {
                     HStack(spacing: 6) {
                         Image(systemName: "square.and.arrow.up")
                             .font(.system(size: 13, weight: .semibold))
-                        Text("Share link")
+                        Text(InviteComposer.isAvailable ? "Share link" : "Share or copy link")
                             .plType(.body, .bold)
                             .plActionLabel()
                     }
@@ -733,8 +750,14 @@ struct TableSeatsSheet: View {
 
             // Said plainly, because the alternative is someone wondering
             // why their sister never turned up at the table. What a seat
-            // here is, and is not (§9): the Table, never the plan.
-            Text(link == .missing ? noLinkLine : "They see what everyone here cooks. They don't see the plan.")
+            // here is, and is not (§9): the Table, never the plan. Share
+            // link is seatless on purpose — Invited rows only track a
+            // Messages invite with an `i=` id.
+            Text(link == .missing
+                  ? noLinkLine
+                  : (InviteComposer.isAvailable
+                     ? "They see what everyone here cooks. They don't see the plan."
+                     : "Share the link however you like. They see what everyone here cooks, not the plan."))
                 .plType(.micro, .medium)
                 .foregroundStyle(Color.inkSecondary)
                 .multilineTextAlignment(.center)

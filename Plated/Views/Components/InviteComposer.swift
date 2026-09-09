@@ -23,7 +23,15 @@ struct InviteComposer: UIViewControllerRepresentable {
     static var isAvailable: Bool { MFMessageComposeViewController.canSendText() }
 
     func makeUIViewController(context: Context) -> MFMessageComposeViewController {
+        // Simulator and some locked-down iPhones cannot send texts. Presenting
+        // the composer anyway is how this used to blank or crash; the caller
+        // must gate on `isAvailable`, and this is the last line of defence.
         let controller = MFMessageComposeViewController()
+        guard Self.isAvailable else {
+            print("PLATED INVITE: InviteComposer presented without Messages; finishing as not sent")
+            DispatchQueue.main.async { onFinish(false) }
+            return controller
+        }
         controller.recipients = recipients
         controller.body = body
         controller.messageComposeDelegate = context.coordinator
