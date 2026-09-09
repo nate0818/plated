@@ -1,6 +1,5 @@
 import SwiftUI
 import SwiftData
-import Contacts
 
 /// Everyone with a seat at your table, opened from the avatar cluster in
 /// the Table header. One source per group (docs/household.md §9): the
@@ -48,7 +47,7 @@ struct TableSeatsSheet: View {
 
     /// Which group a refusal belongs under, so the sentence sits beside
     /// the row it is about rather than at the foot of a long sheet.
-    enum Group: Equatable { case household, table, invited, joined, directory, invite }
+    enum Group: Equatable { case household, table, invited, joined, invite }
     struct Problem: Equatable {
         var group: Group
         var text: String
@@ -78,11 +77,6 @@ struct TableSeatsSheet: View {
     @State private var invites = TableInvites.shared
     @State private var dialog: Dialog?
     @State private var problem: Problem?
-    /// Contacts who already have Plated. Empty until the directory answers,
-    /// and empty forever if it never does: the invite paths below work
-    /// regardless, so this section is a shortcut, never a dependency.
-    @State private var onPlated: [Directory.Match] = []
-    @State private var searchingContacts = false
 
     /// Only the host edits seats (docs/household.md §8, §9). On a member's
     /// phone `me` is the claimed seat, never the head, so this is false
@@ -186,9 +180,6 @@ struct TableSeatsSheet: View {
                         }
                     }
 
-                    if link != .missing {
-                        alreadyHere
-                    }
                     inviteRow
                 }
                 .padding(.horizontal, 24)
@@ -221,7 +212,6 @@ struct TableSeatsSheet: View {
                 joinedTables = joined.map { JoinedTable(owner: $0.owner, title: $0.title) }
                 link = minted.map(LinkState.ready) ?? .missing
             }
-            await findPeople()
         }
         .confirmationDialog(
             dialogTitle,
@@ -557,16 +547,11 @@ struct TableSeatsSheet: View {
     /// Invite somebody to the Table (§9): the picker, the link, the
     /// composer, from UIKit. Never a `HouseholdMember`; the entry is
     /// recorded only when the composer says the message went.
-    private func startInvite(to recipient: InviteFlow.Recipient? = nil) {
+    private func startInvite() {
         withAnimation(.plSnap) { problem = nil }
-        // A refusal sits beside the control that was tapped: under the
-        // directory's row for a named person, under the pill otherwise.
-        // One shared group drew the same sentence in both places at once.
-        let group: Group = recipient == nil ? .invite : .directory
         InviteFlow.run(
             kind: .table,
             hostName: userFirstName,
-            to: recipient,
             prepare: { await Seats.prepareInvite(kind: .table, hostName: userFirstName) }
         ) { result in
             switch result {
@@ -581,119 +566,15 @@ struct TableSeatsSheet: View {
                 if case .failed = result {
                     Haptic.warn()
                     withAnimation(.plSnap) {
-                        problem = Problem(group: group, text: "The message didn't send. Try again.")
+                        problem = Problem(group: .invite, text: "The message didn't send. Try again.")
                     }
                 }
             case .noLink(_, let reason):
                 Haptic.warn()
-                withAnimation(.plSnap) { problem = Problem(group: group, text: reason) }
+                withAnimation(.plSnap) { problem = Problem(group: .invite, text: reason) }
             case .cancelled:
                 break
             }
-        }
-    }
-
-    // MARK: Already on Plated
-
-    /// The people in your phone who are already here. No invitation
-    /// needed to find them, but one still has to be sent: a seat is never
-    /// asserted, so the row leaves the list only when the message went.
-    ///
-    /// This is the half of "add to household" that iOS cannot answer on
-    /// its own: Apple deprecated every local way to discover which of your
-    /// contacts use an app, so the names below come from Plated's
-    /// directory, matched on salted phone hashes. See `Directory`.
-    @ViewBuilder
-    private var alreadyHere: some View {
-        if searchingContacts {
-            HStack(spacing: 8) {
-                ProgressView().controlSize(.small)
-                Text("Looking for people you know…")
-                    .plType(.footnote, .semibold)
-                    .foregroundStyle(Color.inkSecondary)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.top, 6)
-        } else if !onPlated.isEmpty {
-            // Through seatGroup, like the sheet's other groups. Built by
-            // hand, this one had no bordered container and no 14pt inner
-            // inset, so within one scroll its avatar column sat 14pt left
-            // of every other avatar and its rows floated where the others
-            // were carded.
-            seatGroup("Already on Plated", problem: .directory) {
-                ForEach(onPlated) { match in
-                    HStack(spacing: 12) {
-                        // Neutral, not basil. `3DA35D` is a tone this sheet
-                        // gives a real seat, so every suggestion was wearing
-                        // the colour that means "already at your table" for
-                        // somebody who has never been asked.
-                        AvatarCircle(
-                            initials: initials(for: match.name),
-                            tone: .neutralPair,
-                            size: 40
-                        )
-                        Text(match.name)
-                            .plType(.body, .bold)
-                            .foregroundStyle(Color.ink)
-                            .lineLimit(1)
-                        Spacer()
-                        if InviteComposer.isAvailable {
-                            Button {
-                                startInvite(to: InviteFlow.Recipient(name: match.name, phone: match.phone))
-                            } label: {
-                                Text("Invite")
-                                    .plType(.footnote, .bold)
-                                    .plActionLabel()
-                                    .foregroundStyle(Color.canvas)
-                                    .padding(.horizontal, 18)
-                                    .frame(minHeight: 36)
-                                    .background(Color.ink, in: Capsule())
-                                    .frame(minHeight: 44)
-                                    .contentShape(Capsule())
-                            }
-                            .buttonStyle(.pressable)
-                            .accessibilityLabel("Invite \(match.name) to the Table")
-                        }
-                    }
-                    // 10, the rhythm seatRow uses in the groups above.
-                    .padding(.vertical, 10)
-                }
-            }
-            .padding(.top, 6)
-        }
-    }
-
-    /// Ask the directory who we know. Contacts are read here rather than
-    /// handed to the server: only numbers that match come back, and only
-    /// the ones we could normalise are ever sent.
-    private func findPeople() async {
-        guard Directory.isRegistered else { return }
-        let store = CNContactStore()
-        guard (try? await store.requestAccess(for: .contacts)) == true else { return }
-
-        searchingContacts = true
-        defer { searchingContacts = false }
-
-        let keys = [
-            CNContactGivenNameKey, CNContactFamilyNameKey,
-            CNContactNicknameKey, CNContactPhoneNumbersKey
-        ] as [CNKeyDescriptor]
-        var contacts: [CNContact] = []
-        // Off the main thread: a large address book takes real time to walk.
-        await Task.detached(priority: .utility) {
-            let request = CNContactFetchRequest(keysToFetch: keys)
-            try? store.enumerateContacts(with: request) { contact, _ in
-                contacts.append(contact)
-            }
-        }.value
-
-        let seated = Set(members.map(\.name)).union(guests.map(\.name))
-        let asked = Set(invites.pending.map(\.name))
-        let found = await Directory.onPlated(contacts: contacts)
-        withAnimation(.plSnap) {
-            // Somebody already at the table, or already asked, is not a
-            // suggestion.
-            onPlated = found.filter { !seated.contains($0.name) && !asked.contains($0.name) }
         }
     }
 
@@ -756,7 +637,7 @@ struct TableSeatsSheet: View {
             Text(link == .missing
                   ? noLinkLine
                   : (InviteComposer.isAvailable
-                     ? "They see what everyone here cooks. They don't see the plan."
+                     ? "They get a text with a link. They see what everyone here cooks. They don't see the plan."
                      : "Share the link however you like. They see what everyone here cooks, not the plan."))
                 .plType(.micro, .medium)
                 .foregroundStyle(Color.inkSecondary)

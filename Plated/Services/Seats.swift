@@ -161,8 +161,7 @@ enum Seats {
             let clean = raw.trimmingCharacters(in: .whitespaces)
             return clean.isEmpty ? nil : (Directory.normalize(clean) ?? clean)
         }
-        let host = all(in: context).me?.name ?? ""
-        guard case .ready(let link) = prepared.outcome else { return }
+        guard case .ready = prepared.outcome else { return }
 
         switch kind {
         case .household:
@@ -196,21 +195,8 @@ enum Seats {
                 TableInvites.Entry(id: id, name: name, phone: number, email: email, sentAt: .now)
             )
         }
-
-        // The message has gone. If they already have Plated, their phone
-        // can also say who it was from, right now, through the directory.
-        // Best effort and silent: the row above is the record, this is a
-        // courtesy, and the app never learns whether it landed.
-        if let number {
-            let seat = prepared.seat
-            let invite = prepared.invite
-            Task {
-                await Directory.notifyInvite(
-                    phone: number, hostName: host, shareURL: link, kind: kind,
-                    seat: seat, invite: invite
-                )
-            }
-        }
+        // Invite APNs is not live. Calling the directory here would fire a
+        // banner the UI no longer offers, so the text is the only notice.
     }
 
     /// The composer was cancelled. Nothing to take back (§6): no row was

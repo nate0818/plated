@@ -51,8 +51,11 @@ struct AccountHomeView: View {
     @AppStorage("appearance") private var appearanceRaw = Appearance.system.rawValue
     @AppStorage("remindersOn") private var remindersOn = true
     @AppStorage("householdName") private var householdName = ""
+    @AppStorage("userFirstName") private var userFirstName = ""
+    @AppStorage("userFamilyName") private var userFamilyName = ""
     /// Set when Sign in with Apple failed non-cancel; cleared once an
-    /// identity is saved. The sign-in screen dismisses before it can say so.
+    /// identity is saved. The door's fail-open sheet already said so;
+    /// this banner is for anyone who continued.
     @AppStorage("appleIdentityMissing") private var appleIdentityMissing = false
 
     @State private var sheet: AccountSheet?
@@ -94,10 +97,22 @@ struct AccountHomeView: View {
                 .padding(.top, 8)
 
                 if showAppleIdentityNotice {
-                    Text("Apple Sign In didn’t finish, so sharing seats may be limited until you sign in again from Settings.")
-                        .plType(.footnote)
-                        .foregroundStyle(Color.inkSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Signed in without Apple. Sharing and invites are off.")
+                            .plType(.footnote)
+                            .foregroundStyle(Color.inkSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Button("Try again") {
+                            Haptic.tap()
+                            Task { await retryAppleSignIn() }
+                        }
+                        .plType(.footnote, .bold)
+                        .plActionLabel()
+                        .foregroundStyle(Color.accentText)
+                        .frame(minHeight: 44)
+                        .contentShape(Rectangle())
+                        .buttonStyle(.pressable)
+                    }
                 }
 
                 identityHero
@@ -221,6 +236,23 @@ struct AccountHomeView: View {
         .padding(.horizontal, 18)
         .padding(.vertical, 7)
         .background(.ultraThinMaterial)
+    }
+
+    /// Locked banner copy. Try again asks Apple here; Settings has no SIWA
+    /// control, so this must not send anyone there.
+    private func retryAppleSignIn() async {
+        switch await AppleIdentity.request() {
+        case .success(let credential):
+            userFirstName = credential.fullName?.givenName ?? userFirstName
+            userFamilyName = credential.fullName?.familyName ?? userFamilyName
+            let name = credential.fullName?.givenName ?? userFirstName
+            if AppleIdentity.accept(credential, displayName: name) {
+                appleIdentityMissing = false
+                Haptic.tap()
+            }
+        case .failure:
+            break
+        }
     }
 
     private var identityHero: some View {
