@@ -844,7 +844,7 @@ struct HouseholdHomeView: View {
                         .background(Color.tomato.opacity(0.09), in: Capsule())
                 }
                 .buttonStyle(.plain)
-                .accessibilityHint("Clears the invitation. Keeps them in the household if they already joined.")
+                .accessibilityHint("Marks them as joined in your household.")
             } else if !member.isMe, member.cooks, !member.cookWeekdays.isEmpty {
                 Text(dayChipLabel(member))
                     .plType(.caption, .bold)

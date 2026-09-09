@@ -95,6 +95,33 @@ final class SeatsInviteClaimTests: XCTestCase {
         XCTAssertTrue(hit === invited)
     }
 
+    /// "They're in" must flip Invited → joined on the same row, never
+    /// delete. Deleting erased Alessandra when Invited was her only seat.
+    func testMarkInviteArrivedPromotesInPlace() async throws {
+        let container = try ModelContainer(
+            for: PlatedStore.schema,
+            configurations: [ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)]
+        )
+        let context = container.mainContext
+        HouseholdShare.setMembership(.hosting)
+        defer { HouseholdShare.setMembership(.solo) }
+
+        let invited = HouseholdMember(
+            name: "Alessandra", role: "partner", seat: .invited,
+            shareRecordName: "seat-invite"
+        )
+        context.insert(invited)
+        try context.save()
+
+        await Seats.markInviteArrived(invited, in: context)
+
+        let rows = try context.fetch(FetchDescriptor<HouseholdMember>())
+        XCTAssertEqual(rows.count, 1, "They're in must not delete the only seat")
+        XCTAssertEqual(rows[0].seat, .joined)
+        XCTAssertEqual(rows[0].shareRecordName, "seat-invite")
+        XCTAssertNotNil(rows[0].joinedAt)
+    }
+
     func testPhoneMatchBeatsAmbiguousNames() {
         let a = HouseholdMember(
             name: "Sam", role: "partner", seat: .invited,

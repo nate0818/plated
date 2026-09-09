@@ -474,87 +474,120 @@ enum Seats {
         print("PLATED HOUSEHOLD: Invited \(invite.name) settled from share accept (\(id.prefix(12)))")
     }
 
-    /// Host pull / Home open: settle every Invited row that is no longer
-    /// waiting on a real person.
-    ///
-    /// 1. Claim from share standings (phone / email / name / sole invite).
-    /// 2. Drop Invited rows when every accepted participant already has a
-    ///    joined seat — the classic stuck label beside a fresh-UUID join.
-    /// 3. Log loudly when standings cannot be read, so a silent empty list
-    ///    is not mistaken for "nobody accepted".
+    /// Host pull / Home open: settle Invited rows and restore anyone who
+    /// accepted the share but has no seat on this phone.
     static func settleStuckInvites(in context: ModelContext) async {
         guard case .hosting = HouseholdShare.membership else { return }
         await reconcile(in: context)
+        await restoreUnmatchedAccepts(in: context)
 
-        let leftover = all(in: context).filter {
-            $0.seat == .invited
-                && ($0.userRecordName ?? "").isEmpty
-                && ($0.participantID ?? "").isEmpty
-        }
-        guard !leftover.isEmpty else { return }
-
-        let standings = await HouseholdShare.standings()
-        if standings.isEmpty {
-            print("PLATED HOUSEHOLD: settleStuckInvites found \(leftover.count) Invited row(s) but standings are empty")
-        }
-        let acceptedIDs = Set(standings.filter(\.accepted).compactMap(\.participantID).filter { !$0.isEmpty })
-        let seatedIDs = Set(all(in: context).compactMap { member -> String? in
-            guard member.seat == .joined || member.seat == .head else { return nil }
-            let id = member.userRecordName ?? member.participantID ?? ""
-            return id.isEmpty ? nil : id
-        })
-
-        // Every accept already has a seat → leftover Invited labels are
-        // ghosts from a join that minted a second record name.
-        if !acceptedIDs.isEmpty, acceptedIDs.isSubset(of: seatedIDs) {
-            for row in leftover {
-                print("PLATED HOUSEHOLD: clearing ghost Invited \(row.name) (\(row.shareRecordName)) — accepts are already seated")
-                if !row.shareRecordName.isEmpty {
-                    HouseholdOutbox.shared.enqueueDelete(.seat, row.shareRecordName)
-                }
-                context.delete(row)
-            }
-            Persist.save(context, "ghost invites cleared")
-            return
-        }
-
-        // Name-based orphan: Invited + joined sharing a first name.
+        // Only drop an Invited row when a joined twin with the same first
+        // name is already on the roster. Never delete the only row that
+        // represented somebody — that is how "They're in" erased Alessandra.
         let orphans = HouseholdSync.orphanInvites(among: all(in: context))
-        if !orphans.isEmpty {
-            for row in orphans {
-                print("PLATED HOUSEHOLD: clearing name-matched orphan Invited \(row.name)")
-                if !row.shareRecordName.isEmpty {
-                    HouseholdOutbox.shared.enqueueDelete(.seat, row.shareRecordName)
-                }
-                context.delete(row)
+        guard !orphans.isEmpty else { return }
+        for row in orphans {
+            print("PLATED HOUSEHOLD: clearing name-matched orphan Invited \(row.name)")
+            if !row.shareRecordName.isEmpty {
+                HouseholdOutbox.shared.enqueueDelete(.seat, row.shareRecordName)
             }
-            Persist.save(context, "name orphan invites cleared")
+            context.delete(row)
+        }
+        Persist.save(context, "name orphan invites cleared")
+    }
+
+    /// An accepted share participant with no roster row at all — for example
+    /// after a bad clear of their Invited seat — gets a joined seat back.
+    static func restoreUnmatchedAccepts(in context: ModelContext) async {
+        let standings = await HouseholdShare.standings()
+        let accepted = standings.filter(\.accepted)
+        guard !accepted.isEmpty else { return }
+        var members = all(in: context)
+        var restored = 0
+        for standing in accepted {
+            guard let id = standing.participantID, !id.isEmpty else { continue }
+            if match(standing, in: members) != nil { continue }
+            if let invite = inviteToClaim(for: standing, among: members) {
+                claimInvite(invite, with: standing, in: context)
+                members = all(in: context)
+                restored += 1
+                continue
+            }
+            let name = standing.name.trimmingCharacters(in: .whitespacesAndNewlines)
+            let row = HouseholdMember(
+                name: name.isEmpty ? "Someone" : name,
+                colorHex: nextTone(in: context),
+                role: "partner",
+                roleLine: roleLine(for: "partner"),
+                seat: .joined,
+                phoneE164: standing.phone,
+                inviteEmail: standing.email,
+                invitedAt: nil,
+                shareRecordName: HouseholdShare.mintSeatName()
+            )
+            row.userRecordName = id
+            row.participantID = id
+            row.joinedAt = .now
+            row.authorID = TableIdentity.cached
+            context.insert(row)
+            HouseholdOutbox.shared.enqueueUpsert(.seat, row.shareRecordName)
+            print("PLATED HOUSEHOLD: restored joined seat for accepted \(row.name) (\(id.prefix(12)))")
+            members = all(in: context)
+            restored += 1
+        }
+        if restored > 0 {
+            Persist.save(context, "restored accepted seats")
+            Haptic.kiss()
         }
     }
 
-    /// Host tapped "They're in" on an Invited row. Prefer settling from the
-    /// share; if that cannot, clear the waiting label. Removing an Invited
-    /// seat does not kick them off the household — the link and any joined
-    /// seat they already claimed stay.
+    /// Host tapped "They're in" on an Invited row. Promotes that seat to
+    /// joined in place — never deletes. Deleting was wrong: when the Invited
+    /// row was their only roster entry, they vanished from the household.
     static func markInviteArrived(_ member: HouseholdMember, in context: ModelContext) async {
         guard member.seat == .invited else { return }
         guard case .hosting = HouseholdShare.membership else { return }
         let name = member.name
         let id = member.persistentModelID
-        await settleStuckInvites(in: context)
-        guard let still = all(in: context).first(where: { $0.persistentModelID == id }),
-              still.seat == .invited else {
+
+        await reconcile(in: context)
+        if let still = all(in: context).first(where: { $0.persistentModelID == id }),
+           still.seat == .joined {
             print("PLATED HOUSEHOLD: \(name) settled as joined from share")
             Haptic.kiss()
             return
         }
-        print("PLATED HOUSEHOLD: host cleared stuck Invited for \(name)")
-        if !still.shareRecordName.isEmpty {
-            HouseholdOutbox.shared.enqueueDelete(.seat, still.shareRecordName)
+
+        guard let still = all(in: context).first(where: { $0.persistentModelID == id }),
+              still.seat == .invited else {
+            // Row was merged away; make sure any accept without a seat is back.
+            await restoreUnmatchedAccepts(in: context)
+            return
         }
-        context.delete(still)
-        Persist.save(context, "host cleared invited")
-        Haptic.plate()
+
+        let standings = await HouseholdShare.standings()
+        let accepted = standings.filter(\.accepted)
+        let seated = Set(all(in: context).compactMap { row -> String? in
+            let id = row.userRecordName ?? row.participantID ?? ""
+            return id.isEmpty ? nil : id
+        })
+        if let standing = accepted.first(where: { inviteToClaim(for: $0, among: [still]) != nil })
+            ?? accepted.first(where: {
+                guard let pid = $0.participantID, !pid.isEmpty else { return false }
+                return !seated.contains(pid)
+            }) {
+            claimInvite(still, with: standing, in: context)
+        } else {
+            still.seat = .joined
+            if still.joinedAt == nil { still.joinedAt = .now }
+            if !still.shareRecordName.isEmpty {
+                HouseholdOutbox.shared.enqueueUpsert(.seat, still.shareRecordName)
+            }
+            print("PLATED HOUSEHOLD: host marked \(name) joined in place")
+        }
+        Persist.save(context, "host marked invite arrived")
+        await restoreUnmatchedAccepts(in: context)
+        Haptic.kiss()
     }
 
     /// A seat that left is deleted from the roster and its nights go back
