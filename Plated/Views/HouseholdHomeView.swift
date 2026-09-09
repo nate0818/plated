@@ -830,7 +830,7 @@ struct HouseholdHomeView: View {
                     ? "\(someone.firstName) is back."
                     : "\(added.count) people restored."
             } else {
-                peopleRefreshNote = "Nobody new on the share. Invite them again from Add someone."
+                peopleRefreshNote = "If they’re still missing, use Add someone and invite them again."
             }
         }
     }

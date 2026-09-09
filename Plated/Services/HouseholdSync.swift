@@ -1125,21 +1125,6 @@ enum HouseholdSync {
             .map { $0.lowercased() } ?? ""
     }
 
-    /// Drop orphan Invited rows on the host after a pull (see `orphanInvites`).
-    private static func retireOrphanInvites(in context: ModelContext) {
-        guard case .hosting = HouseholdShare.membership else { return }
-        let orphans = orphanInvites(among: fetchAll(HouseholdMember.self, context))
-        guard !orphans.isEmpty else { return }
-        for row in orphans {
-            print("PLATED HOUSEHOLD: retiring orphan Invited \(row.shareRecordName) for \(row.name)")
-            if !row.shareRecordName.isEmpty {
-                HouseholdOutbox.shared.enqueueDelete(.seat, row.shareRecordName)
-            }
-            context.delete(row)
-        }
-        Persist.save(context, "orphan invites retired")
-    }
-
     /// A seat made from my own owner row: the row stays, becomes a partner
     /// and takes this identity. When there is no owner row (a fresh install
     /// that skipped profile setup) one is minted from the typed name.
@@ -1548,16 +1533,12 @@ enum HouseholdSync {
             // something, so this is at most one publish per delta.
             WidgetBridge.publish(from: context)
         }
-        // Host roster honesty runs every pull, not only when CloudKit says
-        // the share changed: Alessandra's Invited row is a local fact that
-        // must be settled against standings even on an empty delta.
+        // Host roster honesty: claim Invited from the share, restore anyone
+        // accepted with no seat, fold duplicate twins. Never auto-delete a
+        // person from standings alone — that path erased household members.
         if case .hosting = HouseholdShare.membership {
-            await Seats.reconcile(in: context)
+            await Seats.settleStuckInvites(in: context)
         }
-        // Runs even on an empty pull: Alessandra's stuck Invited is already
-        // on the host's phone with her joined seat beside it, and waiting for
-        // a new CloudKit delta would leave Invited forever.
-        retireOrphanInvites(in: context)
     }
 
     /// A seat arriving `left` (§8): its nights go back to unplanned, and on
