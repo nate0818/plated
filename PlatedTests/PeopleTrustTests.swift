@@ -9,16 +9,27 @@ import SwiftData
 @MainActor
 final class PeopleTrustTests: XCTestCase {
 
+    /// Held for the life of the test so SwiftData does not `reset` a
+    /// container that already went out of scope while bind still holds
+    /// its models. Releasing it in the helper was the TF28 crash.
+    private var container: ModelContainer?
+
     override func setUp() async throws {
         HouseholdInviteLog.reset()
         HouseholdShare.setMembership(.solo)
         HouseholdShare.mySeat = nil
+        HouseholdOutbox.shared.clear()
+        container = nil
     }
 
     override func tearDown() async throws {
         HouseholdInviteLog.reset()
         HouseholdShare.setMembership(.solo)
         HouseholdShare.mySeat = nil
+        HouseholdOutbox.shared.clear()
+        // Do not call `context.reset()`: that is the crash. Dropping the
+        // container after the test's models are gone is enough.
+        container = nil
     }
 
     // MARK: Host-clone predicate
@@ -272,11 +283,7 @@ final class PeopleTrustTests: XCTestCase {
     }
 
     func testStrangerInvitedTwinSuppliesNameAndPhoto() async throws {
-        let container = try ModelContainer(
-            for: PlatedStore.schema,
-            configurations: [ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)]
-        )
-        let context = container.mainContext
+        let context = try freshStore()
         let host = HouseholdMember(
             name: "Sam Chen", role: "owner", seat: .head, shareRecordName: "seat-sam"
         )
@@ -449,6 +456,23 @@ final class PeopleTrustTests: XCTestCase {
         )
     }
 
+    /// A new in-memory store for this test only. The container is retained
+    /// on `self` so bind/repair can finish; a local container deinits at
+    /// the helper's return and SwiftData then crashes in `reset`.
+    private func freshStore() throws -> ModelContext {
+        let isolated = try ModelContainer(
+            for: PlatedStore.schema,
+            configurations: [ModelConfiguration(
+                "people-trust-\(UUID().uuidString)",
+                schema: PlatedStore.schema,
+                isStoredInMemoryOnly: true,
+                cloudKitDatabase: .none
+            )]
+        )
+        container = isolated
+        return isolated.mainContext
+    }
+
     private func household(
         host: String,
         joinerStored: String,
@@ -456,11 +480,7 @@ final class PeopleTrustTests: XCTestCase {
         invitePhoto: Data? = nil,
         joinerID: String = "ck-joiner"
     ) throws -> (ModelContext, HouseholdMember, HouseholdMember) {
-        let container = try ModelContainer(
-            for: PlatedStore.schema,
-            configurations: [ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)]
-        )
-        let context = container.mainContext
+        let context = try freshStore()
         let head = HouseholdMember(
             name: host, role: "owner", seat: .head, shareRecordName: "seat-host"
         )

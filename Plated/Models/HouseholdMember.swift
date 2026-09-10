@@ -35,6 +35,14 @@ final class HouseholdMember {
         /// keeping a row that cooks Thursday for somebody who is gone. Seats
         /// only move forward, and this is the last stop.
         case left
+
+        /// A dish, a comment or a plate can only come from a phone that
+        /// has taken a seat. A laid place, an invite and a seat that left
+        /// cannot, so a shared name must never dress their face onto a
+        /// stranger.
+        var canPost: Bool {
+            self == .head || self == .joined
+        }
     }
 
     var name: String = ""
@@ -420,6 +428,12 @@ extension Array where Element == HouseholdMember {
     /// already seated, the name wins — that is the "Alessandra joined" row
     /// wearing Nate's face. A plan notice is the other way around: the id
     /// is the author and the stored name may still be the host's.
+    ///
+    /// A name with no matching id is trusted only for a row that could be
+    /// this person: no identity recorded yet, and a seat that can post.
+    /// A laid place cannot post, and a row identified as somebody else is
+    /// somebody else — otherwise a kid named Jo dresses a stranger's
+    /// banner and Activity row.
     func actor(id: String, name: String) -> HouseholdMember? {
         let want = id.trimmingCharacters(in: .whitespacesAndNewlines)
         let byID: HouseholdMember?
@@ -430,25 +444,30 @@ extension Array where Element == HouseholdMember {
                 ($0.userRecordName ?? "") == want || ($0.participantID ?? "") == want
             }
         }
-        let named: HouseholdMember?
-        if name.isEmpty || HouseholdIdentity.isUnnamed(name) {
-            named = nil
-        } else {
-            named = first { $0.name == name }
-                ?? {
-                    let key = occupancyFirstNameKey(name)
-                    guard !key.isEmpty else { return nil }
-                    let hits = filter { occupancyFirstNameKey($0.name) == key }
-                    return hits.count == 1 ? hits[0] : nil
-                }()
-        }
         if let byID {
-            if let named, named !== byID, byID.isMe || byID.isOwner {
+            if let named = namedActor(name, postingOnly: false),
+               named !== byID, byID.isMe || byID.isOwner {
                 return named
             }
             return byID
         }
+        guard let named = namedActor(name, postingOnly: true) else { return nil }
+        guard named.identityKey == nil else { return nil }
         return named
+    }
+
+    /// Laid places, invites and seats that left cannot author a Table
+    /// notice, so a shared name must not pick them when the id missed.
+    private func namedActor(_ name: String, postingOnly: Bool) -> HouseholdMember? {
+        if name.isEmpty || HouseholdIdentity.isUnnamed(name) { return nil }
+        let pool: [HouseholdMember] = postingOnly
+            ? filter { $0.seat.canPost }
+            : Array(self)
+        if let exact = pool.first(where: { $0.name == name }) { return exact }
+        let key = occupancyFirstNameKey(name)
+        guard !key.isEmpty else { return nil }
+        let hits = pool.filter { occupancyFirstNameKey($0.name) == key }
+        return hits.count == 1 ? hits[0] : nil
     }
 
     /// Invited rows whose joiner already sits under the same first name —
