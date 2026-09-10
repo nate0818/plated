@@ -766,16 +766,30 @@ final class TableNewsTests: XCTestCase {
     func testANamesakeLaidPlaceNeverDressesAStranger() throws {
         let namesake = HouseholdMember(name: "Jo Alvarez", role: "kid", seat: .notOnPlated)
         namesake.photoData = Data([0x00, 0x01])
+        namesake.phoneE164 = "+15550009999"
         context.insert(namesake)
         try context.save()
         var changes = TableShare.Changes()
         var dish = remoteDish(by: "jo", id: "stranger")
         dish.authorName = "Jo Alvarez"
         changes.posts = [dish]
+        let members = Seats.all(in: context)
+        XCTAssertNil(
+            members.actor(id: "jo", name: "Jo Alvarez"),
+            "a laid place cannot post, so a shared name is not an identity"
+        )
         let notice = TableNews.digest(changes, newSeats: [], context: context).first!
-        XCTAssertNil(notice.face)
+        XCTAssertNil(notice.face, "the kid's two-byte photo must not dress the stranger")
+        XCTAssertNotEqual(notice.face, namesake.photoData)
         XCTAssertNil(notice.handle)
+        XCTAssertNotEqual(notice.handle, namesake.phoneE164)
         XCTAssertEqual(TableNews.intent(for: notice)?.sender?.personHandle?.type, .unknown)
+        let row = PlatedNotification(
+            kind: .dishPosted, actorName: "Jo Alvarez", body: "Jo plated soup.",
+            template: "{actor} plated {object}.", actorID: "jo", objectTitle: "soup"
+        )
+        XCTAssertEqual(row.line(members: members), "Jo plated soup.")
+        XCTAssertNil(members.actor(id: row.actorID, name: row.actorName))
     }
 
     func testTwoPlatersKeepTheLastFaceOnTheRowButDoNotSpeakAsOne() {

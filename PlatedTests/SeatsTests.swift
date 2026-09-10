@@ -1,4 +1,5 @@
 import XCTest
+import SwiftData
 @testable import Plated
 
 /// The sentence a person gets when there is no link to hand over.

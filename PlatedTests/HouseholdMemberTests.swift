@@ -192,6 +192,24 @@ final class HouseholdMemberHostingTests: XCTestCase {
         )
     }
 
+    func testActorNeverDressesAStrangerWithANamesakeLaidPlace() {
+        let nate = seat("Nate Meadows", .head, role: "owner", user: "nate-id")
+        let kid = seat("Jo Alvarez", .notOnPlated)
+        kid.photoData = Data([0x00, 0x01])
+        let members = [nate, kid]
+        XCTAssertNil(members.actor(id: "jo", name: "Jo Alvarez"))
+        XCTAssertNil(members.actor(id: "jo", name: "Jo"))
+    }
+
+    func testActorNeverDressesAStrangerWithAnIdentifiedNamesake() {
+        let riley = seat("Riley Park", .joined, role: "partner", user: "riley")
+        riley.participantID = "riley"
+        riley.photoData = Data([0x89])
+        let members = [riley]
+        XCTAssertNil(members.actor(id: "stranger", name: "Riley Park"))
+        XCTAssertEqual(members.actor(id: "riley", name: "Riley Park")?.name, "Riley Park")
+    }
+
     func testSeatedLineDropsUnnamedPlaceholders() {
         XCTAssertTrue(HouseholdIdentity.isUnnamed("New member"))
         XCTAssertTrue(HouseholdIdentity.isRestoredPlaceholder("New member"))
