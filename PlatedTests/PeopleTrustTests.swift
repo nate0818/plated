@@ -274,6 +274,11 @@ final class PeopleTrustTests: XCTestCase {
         XCTAssertEqual(drawn.subtitle, "Plans and cooks with you")
         XCTAssertNotEqual(drawn.subtitle, "You")
         XCTAssertEqual(Seats.seatedCaption(among: people, reader: sam), "Sam and Jordan")
+        XCTAssertEqual(
+            Seats.seatedCaption(among: Array(people.reversed()), reader: sam),
+            "Sam and Jordan",
+            "the banner names who sits here in created-at order, not fetch order"
+        )
         XCTAssertNotEqual(Seats.seatedCaption(among: people, reader: sam), "Sam and Sam")
 
         let owner = Seats.resolvedDisplay(for: sam, among: people, reader: sam)
@@ -431,6 +436,32 @@ final class PeopleTrustTests: XCTestCase {
         XCTAssertEqual(drawn.first { $0.name == "Sam Chen" }?.subtitle, "You · Owner")
         XCTAssertEqual(drawn.first { $0.name == "Jordan Lee" }?.subtitle, "Plans and cooks with you")
         XCTAssertEqual(Seats.seatedCaption(among: occupying, reader: reader), "Sam and Jordan")
+        XCTAssertEqual(
+            Seats.seatedCaption(among: Array(occupying.reversed()), reader: reader),
+            "Sam and Jordan"
+        )
+    }
+
+    /// Oldest seat first, even when the caller (or the reader) is the
+    /// joiner. An alphabetical or reader-first join would still pass a
+    /// "either order" assertion and miss the Home / bind flicker.
+    func testSeatedCaptionOrderIgnoresCallerArrayOrder() {
+        let later = Date(timeIntervalSince1970: 2)
+        let earlier = Date(timeIntervalSince1970: 1)
+        let jordan = HouseholdMember(
+            name: "Jordan Lee", role: "partner", seat: .joined, shareRecordName: "seat-j"
+        )
+        jordan.userRecordName = "ck-jordan"
+        jordan.createdAt = later
+        let sam = HouseholdMember(
+            name: "Sam Chen", role: "owner", seat: .head, shareRecordName: "seat-sam"
+        )
+        sam.userRecordName = TableIdentity.cached
+        sam.createdAt = earlier
+        XCTAssertEqual(Seats.seatedCaption(among: [jordan, sam], reader: sam), "Sam and Jordan")
+        XCTAssertEqual(Seats.seatedCaption(among: [sam, jordan], reader: sam), "Sam and Jordan")
+        XCTAssertEqual(Seats.seatedCaption(among: [jordan, sam], reader: jordan), "Sam and Jordan")
+        XCTAssertNotEqual(Seats.seatedCaption(among: [jordan, sam], reader: sam), "Jordan and Sam")
     }
 
     func testOwnerNameIsNeverWrittenOntoJoinerFromBind() async throws {
