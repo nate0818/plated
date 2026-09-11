@@ -161,8 +161,7 @@ enum Seats {
             let clean = raw.trimmingCharacters(in: .whitespaces)
             return clean.isEmpty ? nil : (Directory.normalize(clean) ?? clean)
         }
-        let host = all(in: context).me?.name ?? ""
-        guard case .ready(let link) = prepared.outcome else { return }
+        guard case .ready = prepared.outcome else { return }
 
         switch kind {
         case .household:
@@ -184,6 +183,9 @@ enum Seats {
             // open the link in the next breath, and a named seat that is
             // not in the zone yet used to make them mint a second one.
             HouseholdOutbox.shared.enqueueUpsert(.seat, member.shareRecordName)
+            HouseholdInviteLog.record(
+                name: name, phone: number, email: email, seat: prepared.seat
+            )
             print("PLATED HOUSEHOLD: seat \(member.shareRecordName) invited for \(name)")
             Task { await HouseholdOutbox.shared.drain(context: context) }
 
@@ -193,21 +195,8 @@ enum Seats {
                 TableInvites.Entry(id: id, name: name, phone: number, email: email, sentAt: .now)
             )
         }
-
-        // The message has gone. If they already have Plated, their phone
-        // can also say who it was from, right now, through the directory.
-        // Best effort and silent: the row above is the record, this is a
-        // courtesy, and the app never learns whether it landed.
-        if let number {
-            let seat = prepared.seat
-            let invite = prepared.invite
-            Task {
-                await Directory.notifyInvite(
-                    phone: number, hostName: host, shareURL: link, kind: kind,
-                    seat: seat, invite: invite
-                )
-            }
-        }
+        // Invite APNs is not live. Calling the directory here would fire a
+        // banner the UI no longer offers, so the text is the only notice.
     }
 
     /// The composer was cancelled. Nothing to take back (§6): no row was
@@ -393,6 +382,9 @@ enum Seats {
             }
         }
         if claimed { Persist.save(context, "invited seats claimed from share") }
+        for member in all(in: context) where member.seat == .joined {
+            HouseholdInviteLog.markSettled(name: member.name)
+        }
 
         // Do NOT retire joined seats when they are missing from standings.
         // A partial or identity-less participant list used to delete real
@@ -447,11 +439,344 @@ enum Seats {
         return nil
     }
 
+    /// A standing that `inviteToClaim` cannot take — the Invited row was
+    /// already promoted, or never existed — still has a local seat that
+    /// is this person. Minting another row is how "New member" outlived
+    /// Alessandra on the host's phone.
+    static func attachableRow(
+        for standing: TableShare.Standing,
+        among members: [HouseholdMember]
+    ) -> HouseholdMember? {
+        if let invite = inviteToClaim(for: standing, among: members) { return invite }
+        guard standing.accepted else { return nil }
+        if match(standing, in: members) != nil { return nil }
+
+        let unmatched = members.filter {
+            $0.seat != .left && $0.seat != .head
+                && ($0.userRecordName ?? "").isEmpty
+                && ($0.participantID ?? "").isEmpty
+                && !$0.isMe
+        }
+        guard !unmatched.isEmpty else { return nil }
+
+        let key = firstNameKey(standing.name)
+        if !key.isEmpty {
+            let hits = unmatched.filter { firstNameKey($0.name) == key }
+            if hits.count == 1 { return hits[0] }
+        }
+        let named = unmatched.filter { !HouseholdIdentity.isUnnamed($0.name) }
+        if named.count == 1 { return named[0] }
+        let unnamedJoined = unmatched.filter {
+            $0.seat == .joined && HouseholdIdentity.isUnnamed($0.name)
+        }
+        if unnamedJoined.count == 1, named.isEmpty { return unnamedJoined[0] }
+        return nil
+    }
+
     private static func firstNameKey(_ name: String) -> String {
         name.trimmingCharacters(in: .whitespacesAndNewlines)
             .split(separator: " ")
             .first
             .map { $0.lowercased() } ?? ""
+    }
+
+    /// A name the People list can print. Invite-log first, then a CloudKit
+    /// standing that is not the host, then the copy-lock fallback — never
+    /// a host clone and never "New member".
+    static func displayName(
+        standingName: String,
+        remembered: String?,
+        hostNames: [String] = []
+    ) -> String {
+        if let remembered,
+           !HouseholdIdentity.isUnnamed(remembered),
+           !HouseholdIdentity.isHostClone(remembered, hosts: hostNames) {
+            return remembered
+        }
+        let ck = standingName.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !HouseholdIdentity.isUnnamed(ck),
+           !HouseholdIdentity.isHostClone(ck, hosts: hostNames) {
+            return ck
+        }
+        return HouseholdIdentity.PeopleCopy.missingOtherName
+    }
+
+    /// Who sits here, using the same names People draws. Raw stored
+    /// names printed "Nate and Nate" after bind cloned the host.
+    ///
+    /// The join used to follow the array it was handed. People's
+    /// `@Query` sorts by `createdAt`; `Seats.all` did not, so the same
+    /// household read as "Sam and Jordan" on Home and "Jordan and Sam"
+    /// after a bind-and-refetch. Sort here so every caller matches People.
+    static func seatedCaption(
+        among members: [HouseholdMember],
+        reader: HouseholdMember? = nil
+    ) -> String {
+        let sitting = members
+            .filter { $0.seat != .left && $0.seat != .invited }
+            .sorted(by: displayOrder)
+        return HouseholdIdentity.seatedLine(names: sitting.map { member in
+            resolvedDisplay(for: member, among: members, reader: reader).name
+        })
+    }
+
+    private static func displayOrder(_ a: HouseholdMember, _ b: HouseholdMember) -> Bool {
+        if a.createdAt != b.createdAt { return a.createdAt < b.createdAt }
+        return a.shareRecordName < b.shareRecordName
+    }
+
+    /// Display names on the owner / head seats. Bind and the invite log
+    /// refuse these for any other person.
+    static func hostDisplayNames(among members: [HouseholdMember]) -> [String] {
+        members.compactMap { member -> String? in
+            guard member.isOwner || member.seat == .head else { return nil }
+            let n = member.name.trimmingCharacters(in: .whitespacesAndNewlines)
+            return HouseholdIdentity.isUnnamed(n) ? nil : n
+        }
+    }
+
+    private static func isJoinerSeat(_ member: HouseholdMember) -> Bool {
+        !member.isMe && !member.isOwner && member.seat != .head
+    }
+
+    private static func isUsableInviteeName(
+        _ name: String,
+        hosts: [String]
+    ) -> Bool {
+        !HouseholdIdentity.isUnnamed(name)
+            && !HouseholdIdentity.isHostClone(name, hosts: hosts)
+    }
+
+    /// What a People row should draw right now. Bind writes this onto the
+    /// seat; the list still asks here so a known invite/share name cannot
+    /// stay unnamed for one more frame, a host clone cannot stay drawn,
+    /// and the reader's own subtitle is locked copy even if `isMe` is late.
+    static func resolvedDisplay(
+        for member: HouseholdMember,
+        among members: [HouseholdMember],
+        reader: HouseholdMember? = nil
+    ) -> (name: String, subtitle: String, photo: Data?) {
+        let mine = member.isMe
+            || (reader != nil && reader!.persistentModelID == member.persistentModelID)
+        let hosts = hostDisplayNames(among: members)
+        var name = member.name
+        if mine {
+            name = HouseholdIdentity.printedName(
+                stored: member.name, resolved: nil, isSelf: true, seat: member.seat
+            )
+        } else {
+            let resolved = resolvedName(for: member, among: members)
+            if let resolved, isUsableInviteeName(resolved, hosts: hosts) {
+                name = resolved
+            } else if HouseholdIdentity.isHostClone(name, hosts: hosts)
+                        || HouseholdIdentity.isUnnamed(name) {
+                name = HouseholdIdentity.printedName(
+                    stored: member.name, resolved: nil, isSelf: false, seat: member.seat
+                )
+            }
+        }
+        var photo = member.photoData
+        if !mine, let hostPhoto = hostPhoto(among: members), photo == hostPhoto {
+            photo = nil
+        }
+        if photo == nil {
+            photo = resolvedPhoto(for: member, among: members)
+        }
+        if !mine, let hostPhoto = hostPhoto(among: members), photo == hostPhoto {
+            photo = nil
+        }
+        let subtitle = mine
+            ? HouseholdIdentity.PeopleCopy.selfSubtitle(isHouseholdOwner: member.isOwner)
+            : member.subtitle
+        return (name, subtitle, photo)
+    }
+
+    static func resolvedName(
+        for member: HouseholdMember,
+        among members: [HouseholdMember],
+        standingName: String? = nil
+    ) -> String? {
+        let hosts = hostDisplayNames(among: members)
+        if !isJoinerSeat(member) {
+            return HouseholdIdentity.isUnnamed(member.name) ? nil : member.name
+        }
+        let current = member.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        if isUsableInviteeName(current, hosts: hosts) { return current }
+
+        // Invite-log first: that is who this phone invited, and it is
+        // the one source that cannot be the host if `excluding` holds.
+        if let remembered = rememberedInviteeName(for: member, among: members, hosts: hosts) {
+            return remembered
+        }
+        if let neighbor = namedUnidentifiedNeighbor(of: member, among: members) {
+            return neighbor.name
+        }
+        if let id = member.identityKey,
+           let named = members.first(where: {
+               $0 !== member
+                   && $0.identityKey == id
+                   && isJoinerSeat($0)
+                   && isUsableInviteeName($0.name, hosts: hosts)
+           }) {
+            return named.name
+        }
+        if let standingName, isUsableInviteeName(standingName, hosts: hosts) {
+            return standingName
+        }
+        if let id = member.identityKey, let learned = TableNews.name(for: id),
+           isUsableInviteeName(learned, hosts: hosts) {
+            return learned
+        }
+        return nil
+    }
+
+    private static func rememberedInviteeName(
+        for member: HouseholdMember,
+        among members: [HouseholdMember],
+        hosts: [String],
+        phone: String? = nil,
+        email: String? = nil
+    ) -> String? {
+        HouseholdInviteLog.rememberedName(
+            forPhone: phone ?? member.phoneE164,
+            email: email ?? member.inviteEmail,
+            seat: member.shareRecordName.isEmpty ? nil : member.shareRecordName,
+            excluding: hosts
+        )
+    }
+
+    private static func hostPhoto(among members: [HouseholdMember]) -> Data? {
+        members.first { $0.isOwner || $0.seat == .head }?.photoData
+    }
+
+    private static func resolvedPhoto(
+        for member: HouseholdMember,
+        among members: [HouseholdMember]
+    ) -> Data? {
+        if let photo = member.photoData {
+            if isJoinerSeat(member), let host = hostPhoto(among: members), photo == host {
+                // Fall through: a cloned host face is not this person.
+            } else {
+                return photo
+            }
+        }
+        if !isJoinerSeat(member) { return member.photoData }
+        if let id = member.identityKey,
+           let pictured = members.first(where: {
+               $0 !== member
+                   && $0.identityKey == id
+                   && isJoinerSeat($0)
+                   && $0.photoData != nil
+           }) {
+            return pictured.photoData
+        }
+        // Name bind often runs first, so the joiner may already be named.
+        // A sole invited / unidentified twin still holds their photograph.
+        let pictured = members.filter {
+            $0 !== member
+                && $0.seat != .left && $0.seat != .head
+                && isJoinerSeat($0)
+                && $0.identityKey == nil
+                && $0.photoData != nil
+        }
+        return pictured.count == 1 ? pictured[0].photoData : nil
+    }
+
+    /// One named seat with no CloudKit id next to one unnamed identified
+    /// join is the same person: the host's Invited row and the restored
+    /// join that actually accepted. Never the host seat.
+    private static func namedUnidentifiedNeighbor(
+        of member: HouseholdMember,
+        among members: [HouseholdMember]
+    ) -> HouseholdMember? {
+        let hosts = hostDisplayNames(among: members)
+        guard member.seat == .joined,
+              member.identityKey != nil,
+              isJoinerSeat(member),
+              !isUsableInviteeName(member.name, hosts: hosts) else { return nil }
+        let named = members.filter {
+            $0 !== member
+                && $0.seat != .left && $0.seat != .head
+                && isJoinerSeat($0)
+                && isUsableInviteeName($0.name, hosts: hosts)
+                && $0.identityKey == nil
+        }
+        return named.count == 1 ? named[0] : nil
+    }
+
+    private static func bindName(
+        from standing: TableShare.Standing,
+        onto member: HouseholdMember,
+        among members: [HouseholdMember]
+    ) {
+        let incoming = standing.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let hosts = hostDisplayNames(among: members)
+        guard isUsableInviteeName(incoming, hosts: hosts) else { return }
+        if !isUsableInviteeName(member.name, hosts: hosts), isJoinerSeat(member) {
+            member.name = incoming
+        }
+    }
+
+    /// After a join, a restored accept, or a zone merge: if the share or a
+    /// twin seat already names this person, write that name and photograph
+    /// onto the row People draws. "New member" with a green N is what
+    /// happens when the host mints a seat before the joiner's push lands.
+    @discardableResult
+    static func bindShareIdentity(
+        in context: ModelContext,
+        standings: [TableShare.Standing]
+    ) -> Int {
+        let members = all(in: context)
+        let hosts = hostDisplayNames(among: members)
+        var changed = 0
+        for row in members where row.seat == .joined || row.seat == .head {
+            let beforeName = row.name
+            let beforePhoto = row.photoData
+            let standing = standings.first { match($0, in: [row]) != nil }
+            if isJoinerSeat(row) {
+                if let standing {
+                    bindName(from: standing, onto: row, among: members)
+                }
+                let standingName = standing?.name
+                if !isUsableInviteeName(row.name, hosts: hosts) {
+                    if let resolved = resolvedName(
+                        for: row, among: members, standingName: standingName
+                    ) {
+                        row.name = resolved
+                    } else if let remembered = rememberedInviteeName(
+                        for: row,
+                        among: members,
+                        hosts: hosts,
+                        phone: row.phoneE164 ?? standing?.phone,
+                        email: row.inviteEmail ?? standing?.email
+                    ) {
+                        row.name = remembered
+                    } else if HouseholdIdentity.isHostClone(row.name, hosts: hosts)
+                                || HouseholdIdentity.isRestoredPlaceholder(row.name) {
+                        // A cloned host name is worse than an honest gap.
+                        row.name = HouseholdIdentity.PeopleCopy.missingOtherName
+                    }
+                }
+                if let photo = resolvedPhoto(for: row, among: members) {
+                    row.photoData = photo
+                } else if let hostPhoto = hostPhoto(among: members),
+                          row.photoData == hostPhoto {
+                    row.photoData = nil
+                }
+            }
+            if row.name != beforeName || row.photoData != beforePhoto {
+                changed += 1
+                if !HouseholdIdentity.isUnnamed(row.name) {
+                    HouseholdInviteLog.markSettled(name: row.name)
+                }
+                if !row.shareRecordName.isEmpty {
+                    HouseholdOutbox.shared.enqueueUpsert(.seat, row.shareRecordName)
+                }
+                print("PLATED HOUSEHOLD: bound share identity onto \(row.name)")
+            }
+        }
+        if changed > 0 { Persist.save(context, "bound share identity") }
+        return changed
     }
 
     private static func claimInvite(
@@ -464,9 +789,7 @@ enum Seats {
         invite.participantID = id
         if invite.seat != .joined { invite.seat = .joined }
         if invite.joinedAt == nil { invite.joinedAt = .now }
-        if !standing.name.isEmpty, HouseholdIdentity.isPlaceholder(invite.name) {
-            invite.name = standing.name
-        }
+        bindName(from: standing, onto: invite, among: all(in: context))
         if !invite.shareRecordName.isEmpty {
             HouseholdOutbox.shared.enqueueUpsert(.seat, invite.shareRecordName)
         }
@@ -476,6 +799,9 @@ enum Seats {
     /// Host pull / Home open: settle Invited rows and restore anyone who
     /// accepted the share but has no seat on this phone.
     static func settleStuckInvites(in context: ModelContext) async {
+        // Local names first. Waiting on CloudKit is how TF26 kept drawing
+        // "New member" over an invite log that already knew Alessandra.
+        bindShareIdentity(in: context, standings: [])
         _ = await HouseholdShare.refreshMembership()
         print("PLATED HOUSEHOLD: settleStuckInvites membership=\(String(describing: HouseholdShare.membership))")
         guard case .hosting = HouseholdShare.membership else {
@@ -485,6 +811,8 @@ enum Seats {
         await reconcile(in: context)
         await restoreUnmatchedAccepts(in: context)
         collapseOrphanInvites(in: context)
+        let standings = await HouseholdShare.standings()
+        bindShareIdentity(in: context, standings: standings)
     }
 
     /// Invited + joined twin with the same first name: fold the twin's
@@ -493,25 +821,53 @@ enum Seats {
     /// Alessandra when Invited was her only roster entry.
     private static func collapseOrphanInvites(in context: ModelContext) {
         let members = all(in: context)
-        let orphans = HouseholdSync.orphanInvites(among: members)
+        var orphans = HouseholdSync.orphanInvites(among: members)
+        if orphans.isEmpty {
+            // First names do not match when the joined twin is still
+            // "New member". One named invite and one unnamed identified
+            // join are still the same person.
+            let open = members.filter {
+                $0.seat == .invited
+                    && ($0.userRecordName ?? "").isEmpty
+                    && !HouseholdIdentity.isUnnamed($0.name)
+            }
+            let unnamedJoined = members.filter {
+                $0.seat == .joined
+                    && $0.identityKey != nil
+                    && HouseholdIdentity.isRestoredPlaceholder($0.name)
+            }
+            if open.count == 1, unnamedJoined.count == 1 {
+                orphans = open
+            }
+        }
         guard !orphans.isEmpty else { return }
         for invite in orphans {
             let key = firstNameKey(invite.name)
+            let unnamedJoined = members.filter {
+                $0 !== invite
+                    && $0.seat == .joined
+                    && $0.identityKey != nil
+                    && HouseholdIdentity.isRestoredPlaceholder($0.name)
+                    && $0.shareRecordName != invite.shareRecordName
+            }
             guard let twin = members.first(where: {
                 $0 !== invite
-                    && firstNameKey($0.name) == key
-                    && ($0.seat == .joined || $0.seat == .head)
+                    && $0.seat == .joined
+                    && !$0.isOwner && !$0.isMe && $0.seat != .head
                     && !($0.userRecordName ?? "").isEmpty
                     && $0.shareRecordName != invite.shareRecordName
+                    && (firstNameKey($0.name) == key
+                        || (HouseholdIdentity.isRestoredPlaceholder($0.name) && unnamedJoined.count == 1))
             }) else { continue }
             let id = twin.userRecordName ?? twin.participantID ?? ""
             invite.userRecordName = twin.userRecordName
             invite.participantID = twin.participantID ?? twin.userRecordName
             if invite.seat != .joined { invite.seat = .joined }
             if invite.joinedAt == nil { invite.joinedAt = twin.joinedAt ?? .now }
-            if invite.name.isEmpty || HouseholdIdentity.isPlaceholder(invite.name) {
+            if invite.name.isEmpty || HouseholdIdentity.isUnnamed(invite.name) {
                 invite.name = twin.name
             }
+            if invite.photoData == nil { invite.photoData = twin.photoData }
             for meal in twin.assignedMeals ?? [] { meal.cook = invite }
             if !invite.shareRecordName.isEmpty {
                 HouseholdOutbox.shared.enqueueUpsert(.seat, invite.shareRecordName)
@@ -549,20 +905,30 @@ enum Seats {
                     continue
                 }
             }
-            if let invite = inviteToClaim(for: standing, among: members) {
-                claimInvite(invite, with: standing, in: context)
+            // Prefer an existing named Invited / unnamed join over minting
+            // a fresh "New member" twin that then wins occupying.
+            if let existing = attachableRow(for: standing, among: members) {
+                claimInvite(existing, with: standing, in: context)
                 members = all(in: context)
                 restored += 1
                 continue
             }
-            let name = standing.name.trimmingCharacters(in: .whitespacesAndNewlines)
+            let ckName = standing.name.trimmingCharacters(in: .whitespacesAndNewlines)
+            let hosts = hostDisplayNames(among: members)
+            let remembered = HouseholdInviteLog.rememberedName(
+                forPhone: standing.phone, email: standing.email, seat: nil,
+                excluding: hosts
+            )
+            let name = displayName(standingName: ckName, remembered: remembered, hostNames: hosts)
+            let phone = standing.phone ?? HouseholdInviteLog.unsettled(against: members)
+                .first { !$0.name.isEmpty && $0.name.caseInsensitiveCompare(name) == .orderedSame }?.phone
             let row = HouseholdMember(
-                name: name.isEmpty ? "Someone" : name,
+                name: name,
                 colorHex: nextTone(in: context),
                 role: "partner",
                 roleLine: roleLine(for: "partner"),
                 seat: .joined,
-                phoneE164: standing.phone,
+                phoneE164: phone,
                 inviteEmail: standing.email,
                 invitedAt: nil,
                 shareRecordName: HouseholdShare.mintSeatName()
@@ -575,9 +941,31 @@ enum Seats {
             row.authorID = TableIdentity.cached
             context.insert(row)
             HouseholdOutbox.shared.enqueueUpsert(.seat, row.shareRecordName)
+            if !row.name.isEmpty { HouseholdInviteLog.markSettled(name: row.name) }
             print("PLATED HOUSEHOLD: restored joined seat for \(row.name) id=\(id.isEmpty ? "nil" : String(id.prefix(12)))")
             members = all(in: context)
             restored += 1
+        }
+        bindShareIdentity(in: context, standings: standings)
+        // Rename any blank "New member" / "Someone" using the invite log.
+        // Not the owner's "Me": that is a prompt, not a restored accept.
+        for row in all(in: context)
+        where row.seat == .joined
+            && !row.isMe && !row.isOwner
+            && HouseholdIdentity.isRestoredPlaceholder(row.name) {
+            if let remembered = HouseholdInviteLog.rememberedName(
+                forPhone: row.phoneE164,
+                email: row.inviteEmail,
+                seat: row.shareRecordName.isEmpty ? nil : row.shareRecordName,
+                excluding: hostDisplayNames(among: all(in: context))
+            ) {
+                row.name = remembered
+                HouseholdInviteLog.markSettled(name: remembered)
+                if !row.shareRecordName.isEmpty {
+                    HouseholdOutbox.shared.enqueueUpsert(.seat, row.shareRecordName)
+                }
+                print("PLATED HOUSEHOLD: renamed restored seat to \(remembered)")
+            }
         }
         if restored > 0 {
             Persist.save(context, "restored accepted seats")
@@ -714,8 +1102,14 @@ enum Seats {
         all(in: context).me
     }
 
+    /// Sorted the same way People's `@Query` is. An unsorted fetch is
+    /// why bind-then-list tests saw "Jordan and Sam" for the same
+    /// seats Home already drew as "Sam and Jordan".
     static func all(in context: ModelContext) -> [HouseholdMember] {
-        (try? context.fetch(FetchDescriptor<HouseholdMember>())) ?? []
+        (try? context.fetch(FetchDescriptor<HouseholdMember>(sortBy: [
+            SortDescriptor(\.createdAt),
+            SortDescriptor(\.shareRecordName)
+        ]))) ?? []
     }
 
     /// A colour nobody at this table is already wearing. The old rule was

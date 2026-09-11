@@ -984,6 +984,12 @@ enum HouseholdShare {
         // the roster the merge is about to write.
         let removed = Set(cachedRemovedIDs)
         let hosting: Bool = { if case .hosting = membership { return true }; return false }()
+        let hostNames = members.compactMap { member -> String? in
+            guard member.isOwner || member.seat == .head else { return nil }
+            let n = member.name.trimmingCharacters(in: .whitespacesAndNewlines)
+            return HouseholdIdentity.isUnnamed(n) ? nil : n
+        }
+        let hostPhoto = members.first { $0.isOwner || $0.seat == .head }?.photoData
         for s in changes.seats where !s.recordName.isEmpty {
             guard !pending(s.recordName) else { continue }
             // A removed identity is never seated again (§8). Their share
@@ -1007,7 +1013,7 @@ enum HouseholdShare {
                 guard member.shareModifiedAt != s.modifiedAt else { continue }
                 let was = member.seat
                 applySeat(s, onto: member, isNew: false, me: me, claimedSeat: claimedSeat,
-                          ownerRecordName: ownerRecordName)
+                          ownerRecordName: ownerRecordName, hostNames: hostNames, hostPhoto: hostPhoto)
                 member.shareFingerprint = stamp(member)
                 let isMine = member.isMe || member.shareRecordName == claimedSeat
                 if member.seat == .joined, was != .joined, !isMine { outcome.newSeats.append(member) }
@@ -1024,7 +1030,7 @@ enum HouseholdShare {
                 let member = HouseholdMember(shareRecordName: s.recordName)
                 context.insert(member)
                 applySeat(s, onto: member, isNew: true, me: me, claimedSeat: claimedSeat,
-                          ownerRecordName: ownerRecordName)
+                          ownerRecordName: ownerRecordName, hostNames: hostNames, hostPhoto: hostPhoto)
                 member.shareFingerprint = stamp(member)
                 members.append(member)
                 let isMine = member.isMe || member.shareRecordName == claimedSeat
@@ -1107,6 +1113,7 @@ enum HouseholdShare {
             )
         }
 
+        Seats.bindShareIdentity(in: context, standings: [])
         Persist.save(context, "household merge")
         return outcome
     }
@@ -1125,7 +1132,8 @@ enum HouseholdShare {
     @MainActor
     private static func applySeat(
         _ s: RemoteSeat, onto member: HouseholdMember, isNew: Bool,
-        me: String, claimedSeat: String?, ownerRecordName: String
+        me: String, claimedSeat: String?, ownerRecordName: String,
+        hostNames: [String] = [], hostPhoto: Data? = nil
     ) {
         // Identity is set once. A seat already carrying somebody else's
         // identity keeps it, whatever the wire says.
@@ -1166,11 +1174,19 @@ enum HouseholdShare {
 
         // Name, bio and photo belong to the person the seat is: the wire
         // never overwrites them on my own seat. phoneE164 and inviteEmail
-        // never travel and are never touched here.
+        // never travel and are never touched here. An unnamed wire name
+        // must not replace a real one the invite already had, a host
+        // display name must not land on a joiner, and a missing or host
+        // photograph must not clear or clone one that already landed.
         if !isMine {
-            member.name = s.name
-            member.bio = s.bio
-            member.photoData = s.photo
+            if !HouseholdIdentity.isUnnamed(s.name),
+               !HouseholdIdentity.isHostClone(s.name, hosts: hostNames) {
+                member.name = s.name
+            }
+            if !s.bio.isEmpty { member.bio = s.bio }
+            if let photo = s.photo, photo != hostPhoto {
+                member.photoData = photo
+            }
         }
         if member.authorID.isEmpty { member.authorID = s.authorID }
         member.shareModifiedAt = s.modifiedAt

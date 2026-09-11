@@ -54,7 +54,7 @@ struct SettingsSheet: View {
     }
     private var displayName: String {
         guard let name = me?.name, !HouseholdIdentity.isPlaceholder(name) else {
-            return "Complete your profile"
+            return HouseholdIdentity.PeopleCopy.missingSelfName
         }
         return name
     }
@@ -62,25 +62,14 @@ struct SettingsSheet: View {
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 28) {
-                VStack(alignment: .leading, spacing: 7) {
-                    MicroLabel("Personalize Plated")
-                    Text("Make Plated yours.")
-                        .plType(.title, .semibold)
-                        .foregroundStyle(Color.ink)
-                        .fixedSize(horizontal: false, vertical: true)
-                    Text("Control how Plated looks, plans, reminds and syncs.")
-                        .plType(.footnote)
-                        .foregroundStyle(Color.inkSecondary)
-                }
-                .padding(.top, 10)
-
                 identityCard
+                    .padding(.top, 10)
 
-                SettingsSection(title: "Appearance", caption: "Choose how your kitchen looks.") {
+                SettingsSection(title: "Appearance", caption: "Light, Dark, or match the system.") {
                     appearanceChooser
                 }
 
-                SettingsSection(title: "Planning", caption: "Bring the week together without extra noise.") {
+                SettingsSection(title: "Planning", caption: "Reminders and Calendar on the week.") {
                     SettingsGroup {
                         planningReminderRow
                         SettingsDivider()
@@ -103,7 +92,7 @@ struct SettingsSheet: View {
                     }
                 }
 
-                SettingsSection(title: "Household", caption: "The name everyone sees at home, and where your week goes.") {
+                SettingsSection(title: "Household", caption: "Name at the top of Home, and who hosts.") {
                     // The host names the household; a member reads the name
                     // the host set and keeps the way out.
                     switch membership {
@@ -115,32 +104,16 @@ struct SettingsSheet: View {
                     }
                 }
 
-                SettingsSection(title: "iCloud & privacy", caption: "Know where your information lives.") {
+                SettingsSection(title: "iCloud & privacy", caption: "Where your information lives.") {
                     SettingsGroup {
                         syncRow
-                        SettingsDivider()
-                        Button {
-                            Haptic.tap()
-                            openSystemSettings()
-                        } label: {
-                            SettingsValueRow(
-                                symbol: "hand.raised.fill",
-                                title: "iOS permissions",
-                                detail: "Calendar, contacts, photos and notifications",
-                                tint: .grapeTint,
-                                tone: .grape,
-                                value: "Manage"
-                            )
-                        }
-                        .buttonStyle(.pressable)
-                        .accessibilityHint("Opens the Plated page in iOS Settings.")
                     }
 
                     privacyNote
                         .padding(.top, 10)
                 }
 
-                SettingsSection(title: "Help & account", caption: "Learn the app or manage your sign-in.") {
+                SettingsSection(title: "Help & account", caption: "Tour, permissions, and sign-out.") {
                     SettingsGroup {
                         Button {
                             Haptic.tap()
@@ -156,6 +129,24 @@ struct SettingsSheet: View {
                             )
                         }
                         .buttonStyle(.pressable)
+
+                        SettingsDivider()
+
+                        Button {
+                            Haptic.tap()
+                            openSystemSettings()
+                        } label: {
+                            SettingsValueRow(
+                                symbol: "hand.raised.fill",
+                                title: "iOS permissions",
+                                detail: "Calendar, contacts, photos and notifications",
+                                tint: .grapeTint,
+                                tone: .grape,
+                                value: "Manage"
+                            )
+                        }
+                        .buttonStyle(.pressable)
+                        .accessibilityHint("Opens the Plated page in iOS Settings.")
 
                         SettingsDivider()
 

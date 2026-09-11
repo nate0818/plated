@@ -107,6 +107,38 @@ final class TableNewsTests: XCTestCase {
         XCTAssertEqual(legacy.line(members: Seats.all(in: context)), "Riley plated Ragù.")
     }
 
+    func testARowFindsTheActorByUserRecordName() throws {
+        let riley = try XCTUnwrap(Seats.all(in: context).first { $0.name == "Riley Park" })
+        riley.userRecordName = "riley-user"
+        riley.participantID = nil
+        let row = PlatedNotification(
+            kind: .householdJoined, actorName: "Riley Park",
+            body: "Riley joined your household.",
+            template: "{actor} joined your household.", actorID: "riley-user"
+        )
+        XCTAssertEqual(row.line(members: Seats.all(in: context)), "Riley joined your household.")
+    }
+
+    func testAJoinRowPrefersTheNamedPersonOverTheHostId() throws {
+        let nate = try XCTUnwrap(Seats.all(in: context).first { $0.name == "Nate Meadows" })
+        nate.userRecordName = me
+        nate.participantID = me
+        let ale = HouseholdMember(name: "Alessandra", role: "partner", seat: .joined)
+        ale.userRecordName = "ck-ale"
+        context.insert(ale)
+        try context.save()
+        let row = PlatedNotification(
+            kind: .householdJoined, actorName: "Alessandra",
+            body: "Alessandra joined your household.",
+            template: "{actor} joined your household.", actorID: me
+        )
+        XCTAssertEqual(
+            row.line(members: Seats.all(in: context)),
+            "Alessandra joined your household.",
+            "a join notice must not wear the host's identity when it names the joiner"
+        )
+    }
+
     func testTheBellListKeepsBannersToTheList() {
         XCTAssertEqual(
             NotificationRouter.presentation(post: "post-1", kind: "comment", openPost: nil, feedVisible: false, activityVisible: true),
@@ -734,16 +766,30 @@ final class TableNewsTests: XCTestCase {
     func testANamesakeLaidPlaceNeverDressesAStranger() throws {
         let namesake = HouseholdMember(name: "Jo Alvarez", role: "kid", seat: .notOnPlated)
         namesake.photoData = Data([0x00, 0x01])
+        namesake.phoneE164 = "+15550009999"
         context.insert(namesake)
         try context.save()
         var changes = TableShare.Changes()
         var dish = remoteDish(by: "jo", id: "stranger")
         dish.authorName = "Jo Alvarez"
         changes.posts = [dish]
+        let members = Seats.all(in: context)
+        XCTAssertNil(
+            members.actor(id: "jo", name: "Jo Alvarez"),
+            "a laid place cannot post, so a shared name is not an identity"
+        )
         let notice = TableNews.digest(changes, newSeats: [], context: context).first!
-        XCTAssertNil(notice.face)
+        XCTAssertNil(notice.face, "the kid's two-byte photo must not dress the stranger")
+        XCTAssertNotEqual(notice.face, namesake.photoData)
         XCTAssertNil(notice.handle)
+        XCTAssertNotEqual(notice.handle, namesake.phoneE164)
         XCTAssertEqual(TableNews.intent(for: notice)?.sender?.personHandle?.type, .unknown)
+        let row = PlatedNotification(
+            kind: .dishPosted, actorName: "Jo Alvarez", body: "Jo plated soup.",
+            template: "{actor} plated {object}.", actorID: "jo", objectTitle: "soup"
+        )
+        XCTAssertEqual(row.line(members: members), "Jo plated soup.")
+        XCTAssertNil(members.actor(id: row.actorID, name: row.actorName))
     }
 
     func testTwoPlatersKeepTheLastFaceOnTheRowButDoNotSpeakAsOne() {

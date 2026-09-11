@@ -1,6 +1,5 @@
 import SwiftUI
 import SwiftData
-import Contacts
 import PhotosUI
 
 /// Home — the household itself. Who sits here, what they have earned
@@ -10,6 +9,9 @@ import PhotosUI
 struct HouseholdHomeView: View {
     @Environment(\.modelContext) private var context
     @Query(sort: \HouseholdMember.createdAt) private var members: [HouseholdMember]
+    /// Seats a body may touch. The raw `@Query` can still hold a row whose
+    /// backing data was deleted mid-render; `memberRow` trapped there.
+    private var roster: [HouseholdMember] { members.readable }
     // An author is the one thing every real post has. The empty-name
     // rows are blanks the CloudKit mirror adopts (TablePost.isBlank),
     // and counting them puts a dish on the board nobody cooked.
@@ -92,9 +94,9 @@ struct HouseholdHomeView: View {
         var id: String { rawValue }
     }
 
-    private var owner: HouseholdMember? { members.first(where: \.isOwner) }
+    private var owner: HouseholdMember? { roster.first(where: \.isOwner) }
     private var kissCount: Int {
-        let seats = TableKiss.seating(members: members, dishAuthors: posts.map(\.authorName))
+        let seats = TableKiss.seating(members: roster, dishAuthors: posts.map(\.authorName))
         return posts.filter { $0.hasChefsKiss(seats: seats) }.count
     }
     private var platesEarned: Int { posts.reduce(0) { $0 + $1.totalPlates } }
@@ -273,9 +275,16 @@ struct HouseholdHomeView: View {
         }
         .onAppear {
             if LinkRelay.takeActivity() { pushed = .activity }
-            // Stuck Invited labels (Alessandra) settle when Home is opened,
-            // not only when CloudKit happens to send a share delta.
+            // Names already on this phone (invite log, twin seats) bind
+            // before any CloudKit wait. TF26 left Alessandra as New member
+            // until a pull that never had to run for the name to be known.
+            Seats.bindShareIdentity(in: context, standings: [])
+            // Stuck Invited labels settle when Home is opened, not only
+            // when CloudKit happens to send a share delta. Replay the zone
+            // so a seat we deleted locally but that still exists in iCloud
+            // is not skipped by a stale change token.
             Task {
+                TableShare.requestReplay(zoneOwner: "")
                 await TablePull.pull(reason: "home")
                 await Seats.settleStuckInvites(in: context)
             }
@@ -445,7 +454,7 @@ struct HouseholdHomeView: View {
             } label: {
                 VStack(spacing: 2) {
                     AvatarCircle(initials: ownerInitial, tone: .neutralPair, size: 40,
-                                 photo: members.me?.photoData)
+                                 photo: roster.me?.photoData)
                     Text("You")
                         .plType(.micro)
                         .foregroundStyle(Color.inkSecondary)
@@ -468,7 +477,7 @@ struct HouseholdHomeView: View {
     // The corner says "You", so it has to be the reader's row and not the
     // head's: on a member's phone those are two different people.
     private var ownerInitial: String {
-        String(members.me?.name.first ?? "Y").uppercased()
+        String(roster.me?.name.first ?? "Y").uppercased()
     }
 
     /// "Sharing with your household, 40 of 360." while the host's first
@@ -494,18 +503,37 @@ struct HouseholdHomeView: View {
         }
     }
 
-    /// "Can't reach iCloud. Changes reach your household when it's back."
-    /// on a member's phone (docs/household.md §10), in the sharing line's
-    /// own dress: a fact under the masthead, never a banner.
+    /// Locked reach copy on a member's phone (docs/household.md §10), in
+    /// the sharing line's own dress: a fact under the masthead, never a
+    /// banner, with the one retry the copy lock names.
     @ViewBuilder
     private var iCloudLine: some View {
         if cloudUnreachable {
-            Text("Can't reach iCloud. Changes reach your household when it's back.")
-                .plType(.caption)
-                .foregroundStyle(Color.inkSecondary)
-                .fixedSize(horizontal: false, vertical: true)
-                .transition(.plUnfold)
+            VStack(alignment: .leading, spacing: 6) {
+                Text(HouseholdIdentity.PeopleCopy.reachFailure)
+                    .plType(.caption)
+                    .foregroundStyle(Color.inkSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Button(HouseholdIdentity.PeopleCopy.tryAgain) {
+                    Haptic.tap()
+                    Task { await recheckiCloud() }
+                }
+                .plType(.caption, .bold)
+                .plActionLabel()
+                .foregroundStyle(Color.accentText)
+                .buttonStyle(.pressable)
+            }
+            .transition(.plUnfold)
         }
+    }
+
+    private func recheckiCloud() async {
+        var unreachable = false
+        if case .member = HouseholdShare.membership {
+            let state = await TableSync.accountState()
+            unreachable = state != .available && state != .notArmed
+        }
+        withAnimation(.plSnap) { cloudUnreachable = unreachable }
     }
 
     /// Written by `HouseholdSync.publishAll`; read from the app group first
@@ -618,7 +646,7 @@ struct HouseholdHomeView: View {
     }
 
     private func openOwnProfile() {
-        let me = members.me
+        let me = roster.me
         personDoor = .host
         personShown = PersonRef(
             name: me?.name ?? "You",
@@ -681,9 +709,7 @@ struct HouseholdHomeView: View {
             // seat is a message that went out and nothing that came back.
             // Naming either is the same claim as "You host this household
             // with Riley" over somebody who never opened the link.
-            Text(HouseholdIdentity.seatedLine(
-                names: members.filter { $0.seat != .left && $0.seat != .invited }.map(\.name)
-            ))
+            Text(Seats.seatedCaption(among: roster, reader: roster.me))
                 .plType(.caption)
                 .foregroundStyle(Color.inkSecondary)
                 .padding(.horizontal, 2)
@@ -768,11 +794,15 @@ struct HouseholdHomeView: View {
             MicroLabel("People")
 
             VStack(spacing: 0) {
-                ForEach(members, id: \.persistentModelID) { member in
-                    SwipeRow(isOpen: swipeBinding(member), actions: swipeActions(for: member)) {
-                        memberRow(member)
+                let people = roster.listed
+                let lastID = people.last?.persistentModelID
+                let reader = people.me
+                let readerIsHead = reader?.isOwner == true
+                ForEach(people, id: \.persistentModelID) { member in
+                    SwipeRow(isOpen: swipeBinding(member), actions: swipeActions(for: member, readerIsHead: readerIsHead)) {
+                        memberRow(member, readerIsHead: readerIsHead, reader: reader, among: people)
                     }
-                    if member.persistentModelID != members.last?.persistentModelID {
+                    if member.persistentModelID != lastID {
                         Divider().overlay(Color.hairlineSoft)
                     }
                 }
@@ -782,7 +812,7 @@ struct HouseholdHomeView: View {
             .clipShape(RoundedRectangle(cornerRadius: Radius.hero, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: Radius.hero, style: .continuous).strokeBorder(Color.hairline))
             .plCardShadow()
-            .animation(.plSnap, value: members.count)
+            .animation(.plSnap, value: roster.count)
 
             if let problem {
                 ProblemRow(problem)
@@ -797,12 +827,14 @@ struct HouseholdHomeView: View {
             }
 
             addSomeoneButton
-            if members.me?.isOwner == true {
+            if roster.me?.isOwner == true {
                 Button {
                     Haptic.tap()
                     Task { await refreshPeopleFromiCloud() }
                 } label: {
-                    Text("Refresh people from iCloud")
+                    Text(peopleRefreshNote == HouseholdIdentity.PeopleCopy.reachFailure
+                        ? HouseholdIdentity.PeopleCopy.tryAgain
+                        : "Refresh people from iCloud")
                         .plType(.caption, .bold)
                         .plActionLabel()
                         .foregroundStyle(Color.accentText)
@@ -815,67 +847,104 @@ struct HouseholdHomeView: View {
         }
     }
 
-    /// Host recovery after a stuck Invited clear: pull, then rebuild any
-    /// accepted share participant who has no seat on this phone.
+    /// Host recovery after a stuck Invited clear: full zone reread, then
+    /// rebuild any accepted share participant who has no seat on this phone.
     private func refreshPeopleFromiCloud() async {
         withAnimation(.plSnap) { peopleRefreshNote = "Looking in iCloud…" }
+        let state = await TableSync.accountState()
+        if state != .available && state != .notArmed {
+            withAnimation(.plSnap) {
+                peopleRefreshNote = HouseholdIdentity.PeopleCopy.reachFailure
+            }
+            return
+        }
+        // Reread the whole household zone so a seat that still exists there
+        // is not skipped because our change token moved past it.
+        TableShare.requestReplay(zoneOwner: "")
         await TablePull.pull(reason: "refresh-people")
-        let before = Set(members.map(\.persistentModelID))
+        let before = Set(roster.map(\.persistentModelID))
         await Seats.settleStuckInvites(in: context)
         let after = Seats.all(in: context)
         let added = after.filter { !before.contains($0.persistentModelID) && $0.seat == .joined }
+        let missing = HouseholdInviteLog.unsettled(against: after)
         withAnimation(.plSnap) {
             if let someone = added.first {
+                let label = HouseholdIdentity.isUnnamed(someone.name)
+                    ? "A household member"
+                    : someone.firstName
                 peopleRefreshNote = added.count == 1
-                    ? "\(someone.firstName) is back."
+                    ? "\(label) is back. Tap their row to open and rename if needed."
                     : "\(added.count) people restored."
+            } else if let invite = missing.first {
+                peopleRefreshNote = "\(invite.name) is not on iCloud's share anymore. Invite them again."
+                addPresented = true
             } else {
-                peopleRefreshNote = "If they’re still missing, use Add someone and invite them again."
+                peopleRefreshNote = "They are not on your household share in iCloud anymore. Invite them again."
+                addPresented = true
             }
         }
     }
 
     /// Every seat opens its person's profile — the head of table included.
-    private func memberRow(_ member: HouseholdMember) -> some View {
-        HStack(spacing: 12) {
+    ///
+    /// `readerIsHead` is computed once in `peopleSection` so this row never
+    /// walks the full `@Query` (and a deleted twin) via `members.me`.
+    private func memberRow(
+        _ member: HouseholdMember,
+        readerIsHead: Bool,
+        reader: HouseholdMember?,
+        among people: [HouseholdMember]
+    ) -> some View {
+        let drawn = Seats.resolvedDisplay(for: member, among: people, reader: reader)
+        let name = drawn.name
+        let colorHex = member.colorHex
+        let memberID = member.persistentModelID
+        let isMe = member.isMe
+            || (reader != nil && reader!.persistentModelID == member.persistentModelID)
+        let seat = member.seat
+        let cooks = member.cooks
+        let weekdays = member.cookWeekdays.filter { (1...7).contains($0) }
+        let tone = member.tone
+        let subtitle = drawn.subtitle
+        let photo = drawn.photo
+        let firstInitial = name.first.map(String.init)?.uppercased() ?? member.firstInitial
+        let showsColor = member.showsColor
+        return HStack(spacing: 12) {
             AvatarCircle(
-                initials: member.firstInitial,
+                initials: firstInitial,
                 // Colour is earned by being here, so an invitation is grey
                 // until they arrive; and the reader's own row is the neutral
                 // one, which on a member's phone leaves the host in their
                 // colour (§10). Keyed on `isOwner` that second half was the
                 // wrong way round and disagreed with `TableSeatsSheet`,
                 // which draws the same person's row.
-                tone: (member.isMe || !member.showsColor) ? .neutralPair : member.tone,
+                tone: (isMe || !showsColor) ? .neutralPair : tone,
                 size: 46,
-                photo: member.photoData
+                photo: photo
             )
             VStack(alignment: .leading, spacing: 1) {
-                Text(member.name)
+                Text(name)
                     .plName()
                     .plType(.body, .bold)
                     .foregroundStyle(Color.ink)
-                if member.isOwner, HouseholdIdentity.isPlaceholder(member.name) {
-                    Text("Head of table")
-                        .plType(.caption, .bold)
-                        .foregroundStyle(Color.inkSecondary)
-                        .lineLimit(2)
-                } else {
-                    // The seat, not a role line frozen at insert. "Partner ·
-                    // plans & cooks" was printed under a name typed four
-                    // seconds earlier about somebody with no account and
-                    // nothing to plan with.
-                    Text(member.subtitle)
-                        .plType(.caption, .semibold)
-                        .foregroundStyle(Color.inkSecondary)
-                }
+                // The seat, not a role line frozen at insert. "Partner ·
+                // plans & cooks" was printed under a name typed four
+                // seconds earlier about somebody with no account and
+                // nothing to plan with. Own owner row is "You · Owner";
+                // a member's own row is "You". Never Head of table.
+                Text(subtitle)
+                    .plType(.caption, .semibold)
+                    .foregroundStyle(Color.inkSecondary)
             }
             Spacer(minLength: 6)
             // Stuck invitation: one tap marks them joined in place.
-            if member.seat == .invited, members.me?.isOwner == true {
+            if seat == .invited, readerIsHead {
                 Button {
                     Haptic.tap()
-                    Task { await Seats.markInviteArrived(member, in: context) }
+                    Task {
+                        guard let live = liveMember(memberID) else { return }
+                        await Seats.markInviteArrived(live, in: context)
+                    }
                 } label: {
                     Text("They're in")
                         .plType(.caption, .bold)
@@ -887,10 +956,10 @@ struct HouseholdHomeView: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityHint("Marks them as joined in your household.")
-            } else if !member.isMe, member.cooks, !member.cookWeekdays.isEmpty {
-                Text(dayChipLabel(member))
+            } else if !isMe, cooks, !weekdays.isEmpty {
+                Text(dayChipLabel(weekdays))
                     .plType(.caption, .bold)
-                    .foregroundStyle(member.tone.tone)
+                    .foregroundStyle(tone.tone)
                     // One line. A status chip squeezed between a name and a
                     // chevron has nowhere to reflow, and at accessibility
                     // sizes "Sun + Mon" came apart into "Sun / + / Mo / n".
@@ -900,29 +969,29 @@ struct HouseholdHomeView: View {
                     .plChrome()
                     .padding(.horizontal, 12)
                     .frame(minHeight: 30)
-                    .background(member.tone.tint, in: Capsule())
+                    .background(tone.tint, in: Capsule())
             }
         }
         .padding(.vertical, 12)
         .contentShape(Rectangle())
         .onTapGesture {
             Haptic.tap()
-            personDoor = .person(member.name)
-            personShown = PersonRef(name: member.name, colorHex: member.colorHex, memberID: member.persistentModelID)
+            personDoor = .person(name)
+            personShown = PersonRef(name: name, colorHex: colorHex, memberID: memberID)
         }
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isButton)
-        .accessibilityHint("Opens \(member.name)'s profile")
-        .matchedTransitionSource(id: ZoomID.person(member.name), in: zoom)
+        .accessibilityHint("Opens \(name)'s profile")
+        .matchedTransitionSource(id: ZoomID.person(name), in: zoom)
     }
 
     /// The head of table keeps their seat — you cannot swipe away the
     /// person who owns the account.
-    private func swipeActions(for member: HouseholdMember) -> [SwipeAction] {
+    private func swipeActions(for member: HouseholdMember, readerIsHead: Bool) -> [SwipeAction] {
+        let id = member.persistentModelID
         guard !member.isOwner else { return [] }
         // Only the host edits the roster (docs/household.md §8): a member's
         // phone can message or resend, but Remove is the head's alone.
-        let readerIsHead = members.me?.isOwner == true
         var actions: [SwipeAction] = []
         // An invitation nobody answered needs a way forward, not just a way
         // out. Same live link, sent again — and only when Messages can
@@ -930,7 +999,10 @@ struct HouseholdHomeView: View {
         if member.canResend, InviteComposer.isAvailable, readerIsHead {
             actions.append(SwipeAction(symbol: "paperplane", label: "Send again") {
                 swipedMember = nil
-                Task { await resend(member) }
+                Task {
+                    guard let live = liveMember(id) else { return }
+                    await resend(live)
+                }
             })
         }
         // Message only where a message can actually go. Everywhere else the
@@ -945,12 +1017,20 @@ struct HouseholdHomeView: View {
             // What somebody is to the household, and only the host says.
             if member.seat != .left {
                 actions.append(SwipeAction(symbol: "person.text.rectangle", label: "Change role") {
-                    dialog = .role(member)
+                    guard let live = liveMember(id) else { return }
+                    dialog = .role(live)
                 })
             }
-            actions.append(.remove { dialog = .remove(member) })
+            actions.append(.remove {
+                guard let live = liveMember(id) else { return }
+                dialog = .remove(live)
+            })
         }
         return actions
+    }
+
+    private func liveMember(_ id: PersistentIdentifier) -> HouseholdMember? {
+        roster.first { $0.persistentModelID == id }
     }
 
     /// Reopen the composer with the link that already belongs to them: the
@@ -981,7 +1061,7 @@ struct HouseholdHomeView: View {
         Button {
             Haptic.tap()
             // One seat is free — the head of table. The rest is Plated+.
-            if !PlatedPlus.gatingEnabled || PlatedPlus.isActive || members.count <= 1 {
+            if !PlatedPlus.gatingEnabled || PlatedPlus.isActive || roster.count <= 1 {
                 addPresented = true
             } else {
                 paywallPresented = true
@@ -1095,7 +1175,7 @@ struct HouseholdHomeView: View {
     }
 
     private func cookCell(weekday: Int, isToday: Bool) -> some View {
-        let cook = members.first { $0.cookWeekdays.contains(weekday) }
+        let cook = roster.first { $0.cookWeekdays.contains(weekday) }
         let dayName = Calendar.current.weekdaySymbols[weekday - 1]
         return Button {
             cycleCook(weekday: weekday)
@@ -1185,15 +1265,16 @@ struct HouseholdHomeView: View {
         Calendar.current.veryShortWeekdaySymbols[weekday - 1]
     }
 
-    private func dayChipLabel(_ member: HouseholdMember) -> String {
-        if member.cookWeekdays.count == 1, let day = member.cookWeekdays.first {
+    private func dayChipLabel(_ weekdays: [Int]) -> String {
+        let days = weekdays.filter { (1...7).contains($0) }
+        if days.count == 1, let day = days.first {
             return "\(Calendar.current.weekdaySymbols[day - 1])s"
         }
         // Same order as the rota above it. Sorting these today-first while
         // the grid ran week-first would print "Sat + Wed" under a row that
         // shows Wednesday to the left of Saturday.
         let order = weekdaysInOrder
-        return member.cookWeekdays
+        return days
             // Three letters, not the grid's one. `shortDay` is a calendar
             // header, where an ordered row of seven makes "S" unambiguous;
             // this chip is a sentence about a person and reads "Sun + Mon".
@@ -1210,7 +1291,7 @@ struct HouseholdHomeView: View {
         // `createdAt`, and once seats arrive by merge that order differs per
         // phone, so the same tap would hand Tuesday to different people in
         // the same household.
-        let order = members.sorted { $0.shareRecordName < $1.shareRecordName }
+        let order = roster.sorted { $0.shareRecordName < $1.shareRecordName }
         let current = order.firstIndex { $0.cookWeekdays.contains(weekday) }
         withAnimation(.plPop) {
             if let current {
@@ -1227,36 +1308,12 @@ struct HouseholdHomeView: View {
     }
 }
 
-/// New seat at the household table — name, role, and the next color around
-/// the rotation.
-/// Adding someone to the household, with the three doors that actually
-/// exist rather than the one that didn't.
-///
-/// **What was wrong.** This sheet asked for a name, offered three role
-/// chips, and inserted a local row. Nobody was contacted. The person
-/// appeared at the table having never been told they were invited to
-/// anything, and there was no way from here to reach them — the real
-/// invite lived on a different screen, behind the Table's avatar cluster,
-/// which is not where anybody looks for "add someone to the household".
-///
-/// **The three doors.** Someone already on Plated is one tap, no
-/// invitation needed. Someone in your contacts who isn't gets a real text
-/// with a real link. And a name typed by hand still works, because a
-/// six-year-old has no phone and still eats dinner — it is just no longer
-/// the only thing on offer, and it says what it is.
 /// Adding somebody, with the invitation as the thing the sheet is for.
 ///
-/// **What was wrong.** The tomato pill — the app's one always-tomato
-/// element, its strongest possible affordance — sat on a text field that
-/// inserted a local row and contacted nobody. Setting a role there did
-/// nothing twice over: the chip wrote a display string that was never read
-/// again, and the person it described had no account to hold a role in.
-///
-/// **Now.** The primary door binds them to the table's CloudKit share and
-/// opens a message carrying a link that actually opens it — and the seat
-/// exists only if that message reports itself sent. The by-name door stays,
-/// because a six-year-old has no phone and still eats dinner, but it says
-/// what it is and takes the quieter pill.
+/// The host's door is a text with a link. The by-name door stays for a
+/// kid or a grandparent who will never have the app. The directory
+/// shortcut is hidden until invite APNs is live: an "Already on Plated"
+/// row would promise a nudge the server cannot send.
 struct AddMemberSheet: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
@@ -1271,16 +1328,6 @@ struct AddMemberSheet: View {
     @State private var copying = false
     @State private var copied = false
     @State private var problem: String?
-    /// People in this phone's contacts who already have Plated.
-    ///
-    /// The Table's own invite sheet has offered this since it shipped and
-    /// the household's did not, so the more intimate room was the one that
-    /// texted a signup link to somebody already holding the app. Empty
-    /// until the directory answers and empty forever if it never does: the
-    /// two doors below work regardless, so this is a shortcut and never a
-    /// dependency.
-    @State private var onPlated: [Directory.Match] = []
-    @State private var searchingContacts = false
 
     var body: some View {
         ScrollView(showsIndicators: false) {
@@ -1293,12 +1340,6 @@ struct AddMemberSheet: View {
                     .padding(.top, 22)
 
                 roleChips
-
-                // Before the text door, because somebody already on Plated
-                // is the likeliest person being added and asking them by
-                // name costs one tap instead of a contact picker and a
-                // message they do not need.
-                if isHost { alreadyOnPlated }
 
                 inviteDoor
 
@@ -1331,39 +1372,6 @@ struct AddMemberSheet: View {
         .presentationDragIndicator(.visible)
         .presentationBackground(Color.canvas)
         .presentationCornerRadius(Radius.sheet)
-        .task { await findPeople() }
-    }
-
-    /// Ask the directory which of this phone's contacts already have the
-    /// app. Nothing here is required for either invite door to work, so a
-    /// refused permission, an unregistered phone or a directory that never
-    /// answers all end the same way: the section is simply not drawn.
-    private func findPeople() async {
-        guard isHost, Directory.isRegistered else { return }
-        let store = CNContactStore()
-        guard (try? await store.requestAccess(for: .contacts)) == true else { return }
-
-        searchingContacts = true
-        defer { searchingContacts = false }
-
-        let keys = [
-            CNContactGivenNameKey, CNContactFamilyNameKey,
-            CNContactNicknameKey, CNContactPhoneNumbersKey
-        ] as [CNKeyDescriptor]
-        var contacts: [CNContact] = []
-        // Off the main thread: a large address book takes real time to walk.
-        await Task.detached(priority: .utility) {
-            let request = CNContactFetchRequest(keysToFetch: keys)
-            try? store.enumerateContacts(with: request) { contact, _ in
-                contacts.append(contact)
-            }
-        }.value
-
-        let found = await Directory.onPlated(contacts: contacts)
-        withAnimation(.plSnap) {
-            // Somebody already in the household is not a suggestion.
-            onPlated = found.filter { !Seats.isTaken($0.name, in: context) }
-        }
     }
 
     /// The role, above both doors, because it is true of both: an invited
@@ -1439,76 +1447,6 @@ struct AddMemberSheet: View {
         }
     }
 
-    /// The door for somebody who will never have the app.
-    /// The people this phone knows who already have Plated, each a single
-    /// tap away from an invitation.
-    ///
-    /// Hidden entirely when the directory finds nobody, which is the common
-    /// case early on: an empty "Already on Plated" heading is a verdict on
-    /// the person's friends rather than a state of the app. The spinner
-    /// says nothing while it looks, for the same reason.
-    @ViewBuilder
-    private var alreadyOnPlated: some View {
-        if searchingContacts {
-            HStack(spacing: 8) {
-                ProgressView().controlSize(.small)
-                Text("Looking for people you know")
-                    .plType(.footnote, .semibold)
-                    .foregroundStyle(Color.inkSecondary)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        } else if !onPlated.isEmpty {
-            VStack(alignment: .leading, spacing: 10) {
-                MicroLabel("Already on Plated")
-                ForEach(onPlated) { match in
-                    HStack(spacing: 12) {
-                        // Neutral, not the tone a real seat wears: nobody
-                        // here has been asked yet.
-                        AvatarCircle(
-                            initials: initials(for: match.name),
-                            tone: .neutralPair,
-                            size: 40
-                        )
-                        Text(match.name)
-                            .plType(.body, .bold)
-                            .foregroundStyle(Color.ink)
-                            .lineLimit(1)
-                        Spacer()
-                        if InviteComposer.isAvailable {
-                            Button {
-                                withAnimation(.plSnap) { problem = nil }
-                                startInvite(to: InviteFlow.Recipient(name: match.name, phone: match.phone))
-                            } label: {
-                                Text("Invite")
-                                    .plType(.footnote, .bold)
-                                    .plActionLabel()
-                                    .foregroundStyle(Color.canvas)
-                                    .padding(.horizontal, 18)
-                                    .frame(minHeight: 36)
-                                    .background(Color.ink, in: Capsule())
-                                    .frame(minHeight: 44)
-                                    .contentShape(Capsule())
-                            }
-                            .buttonStyle(.pressable)
-                            .accessibilityLabel("Invite \(match.name) to your household")
-                        }
-                    }
-                    .frame(minHeight: 44)
-                }
-            }
-        }
-    }
-
-    /// Two letters for the avatar. A fifth private copy of this in the app,
-    /// which is the OptionRow story starting again; it belongs on
-    /// AvatarCircle and moving all five is its own change.
-    private func initials(for name: String) -> String {
-        let parts = name.split(separator: " ")
-            .filter { $0.first?.isLetter == true }
-            .prefix(2)
-        return parts.compactMap { $0.first }.map(String.init).joined().uppercased()
-    }
-
     private var byNameDoor: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Add by name")
@@ -1546,11 +1484,10 @@ struct AddMemberSheet: View {
     /// before it is genuinely gone. See `InviteFlow`. Nothing is created
     /// here: the seat is laid only when the composer reports the message
     /// sent, and a link that cannot be minted says so and lays nothing.
-    private func startInvite(to recipient: InviteFlow.Recipient? = nil) {
+    private func startInvite() {
         InviteFlow.run(
             kind: .household,
             hostName: userFirstName,
-            to: recipient,
             prepare: {
                 // CloudKit can sit forever on a bad network. A spinner that
                 // never resolves is the same experience as a button that

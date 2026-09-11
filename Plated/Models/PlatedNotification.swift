@@ -76,10 +76,7 @@ final class PlatedNotification {
     /// identity yet. Rows written before the parts existed draw `body`.
     func line(members: [HouseholdMember]) -> String {
         guard !template.isEmpty else { return body }
-        let member = members.first { m in
-            if let id = m.participantID, !id.isEmpty, !actorID.isEmpty { return id == actorID }
-            return m.participantID == nil && !actorName.isEmpty && m.name == actorName
-        }
+        let member = members.actor(id: actorID, name: actorName)
         let actor = member?.firstName ?? Self.firstName(actorName)
         return template
             .replacingOccurrences(of: "{actor}", with: actor)
@@ -154,6 +151,7 @@ enum PlatedNotificationKind: String, Codable, CaseIterable {
 
 /// The household's own face — banner photo and anything else that makes
 /// Home feel like *their* kitchen instead of a template. One row, ever.
+/// Account's hero and the owner's Table profile read this same object.
 @Model
 final class HouseholdProfile {
     @Attribute(.externalStorage) var bannerPhotoData: Data?

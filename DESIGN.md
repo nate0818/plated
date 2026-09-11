@@ -284,15 +284,25 @@ screens rather than one place.
   administration in unlabeled toolbar icons. Settings opens at full height;
   editing sheets name both the way out and the action that saves.
 - **Account begins with the person, then the places they manage.** The profile
-  hero owns View profile and Edit. Household and Settings are the two large
-  destinations beneath it. Live iCloud, reminder and appearance states form
-  one compact summary; do not return to four equal administrative rows.
-- **Settings groups controls by outcome.** Appearance is a visual three-state
-  choice. Planning holds reminders and Calendar. Household naming, iCloud,
-  permissions, privacy and account actions each have a named section. A system
-  permission is never a disabled switch with an explanation beside it: show
-  Turn on before the prompt, the live control after approval, and Open Settings
-  after refusal.
+  hero owns View profile and Edit profile, and its cover is the same banner
+  as the Table profile (`HouseholdProfile.bannerPhotoData`). Fail-open copy,
+  if needed, sits under the hero. Status is the compact iCloud, reminder and
+  appearance summary; Household and Settings are the two large destinations
+  beneath it; Awards stay quieter, last. Do not return to four equal
+  administrative rows, and do not dress the hub in metaphor (Your Plated,
+  Your place at the table, Your spaces, Preferences). Role is omitted on the
+  person's own Account hero (name only: no You, Owner, or Host under the
+  name). On People, the household owner's own row is "You · Owner"; a
+  member's own row is "You"; another household host reads as Host; never
+  Head of table. An unnamed joiner is "No name yet", never "New member"
+  or the host's name. Household reach failure is "Couldn't reach iCloud."
+  plus "Try again".
+- **Settings groups controls by outcome.** No marketing opener. Appearance is a
+  visual three-state choice. Planning holds reminders and Calendar. Household
+  naming, iCloud, permissions, privacy and account actions each have a named
+  section. A system permission is never a disabled switch with an explanation
+  beside it: show Turn on before the prompt, the live control after approval,
+  and Open Settings after refusal.
 
 ## Copy
 

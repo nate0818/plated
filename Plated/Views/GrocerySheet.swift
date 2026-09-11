@@ -188,12 +188,23 @@ struct GrocerySheet: View {
                             .frame(maxWidth: .infinity)
                             .frame(minHeight: 50)
                     } else {
-                    TomatoPillButton(title: "Shop with Instacart", systemImage: "cart", busy: openingInstacart) {
-                        orderWithInstacart()
-                    }
-                    Button(exporting ? "Sending…" : "Send to Reminders") { exportToReminders() }
-                        .plType(.footnote, .bold).plActionLabel().foregroundStyle(Color.ink).plTapTarget()
+                    if InstacartService.isOffered {
+                        TomatoPillButton(title: "Shop with Instacart", systemImage: "cart", busy: openingInstacart) {
+                            orderWithInstacart()
+                        }
+                        Button(exporting ? "Sending…" : "Send to Reminders") { exportToReminders() }
+                            .plType(.footnote, .bold).plActionLabel().foregroundStyle(Color.ink).plTapTarget()
+                            .disabled(exporting)
+                    } else {
+                        TomatoPillButton(
+                            title: exporting ? "Sending…" : "Send to Reminders",
+                            systemImage: "checklist",
+                            busy: exporting
+                        ) {
+                            exportToReminders()
+                        }
                         .disabled(exporting)
+                    }
                     }
                     if let exportResult {
                         Text(exportResult)
@@ -368,7 +379,10 @@ struct GrocerySheet: View {
     }
 
     private func orderWithInstacart() {
-        guard !openingInstacart, !unchecked.isEmpty else { return }
+        // Dead "Review products and checkout in Instacart." is worse than
+        // no button: the partner path is not configured, so this must not
+        // run even if a future caller shows the pill.
+        guard InstacartService.isOffered, !openingInstacart, !unchecked.isEmpty else { return }
         let lines = unchecked.map { InstacartService.Line(name: $0.name, quantity: needed($0), unit: $0.unit) }
         openingInstacart = true
         exportResult = nil

@@ -2,18 +2,17 @@ import SwiftUI
 import SwiftData
 import PhotosUI
 
-/// "Put a face to your name" — the step between signing in and setting the
-/// table.
+/// Photo and name, between signing in and setting the table.
 ///
 /// Apple does not give an app the Apple ID photo (see `ProfilePhoto` for
 /// exactly why, with the API list), so the choice is not between a real
 /// photo and a monogram. It is between asking for a photo at the one moment
 /// somebody is already introducing themselves, or letting them find a letter
-/// in a circle three days later on a screen labelled "head of table" and
-/// wonder why the app never asked.
+/// in a circle later and wonder why the app never asked. The copy says that
+/// plainly rather than implying Apple already handed a picture over.
 ///
-/// One tap to the library, one to the camera, and a way past for anyone who
-/// does not want to. The name comes prefilled from Apple when Apple gave it,
+/// Choose a photo and Take a photo are the primaries. Use my contact photo
+/// is secondary. The name comes prefilled from Apple when Apple gave it,
 /// which is only ever on the very first authorization.
 ///
 /// This step also lays the owner's place (docs/household.md §6): the host
@@ -38,12 +37,12 @@ struct ProfileSetupView: View {
     var body: some View {
         VStack(spacing: 0) {
             VStack(spacing: 10) {
-                Text("Put a face to your name")
+                Text("Your photo")
                     .plType(.hero)
                     .foregroundStyle(Color.ink)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
-                Text("This is how your household sees you everywhere in Plated.")
+                Text("Apple doesn't share your Apple ID photo with apps. Add one so your household recognizes you.")
                     .plType(.body, .medium)
                     .foregroundStyle(Color.inkSecondary)
                     .multilineTextAlignment(.center)
@@ -85,11 +84,19 @@ struct ProfileSetupView: View {
                     withAnimation(.plSnap) { photoData = selected }
                 }
             }
-            .plType(.footnote, .bold).foregroundStyle(Color.ink).plTapTarget()
+            .plType(.footnote, .bold)
+            .foregroundStyle(Color.inkSecondary)
+            .plTapTarget()
             .padding(.top, 8)
 
             VStack(alignment: .leading, spacing: 8) {
-                MicroLabel("Your name")
+                if trimmedName.isEmpty {
+                    Text("Add your name")
+                        .plType(.footnote, .semibold)
+                        .foregroundStyle(Color.ink)
+                } else {
+                    MicroLabel("Your name")
+                }
                 TextField("First name", text: $name)
                     .plType(.body)
                     .foregroundStyle(Color.ink)
