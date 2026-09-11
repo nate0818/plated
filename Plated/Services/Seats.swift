@@ -503,14 +503,26 @@ enum Seats {
 
     /// Who sits here, using the same names People draws. Raw stored
     /// names printed "Nate and Nate" after bind cloned the host.
+    ///
+    /// The join used to follow the array it was handed. People's
+    /// `@Query` sorts by `createdAt`; `Seats.all` did not, so the same
+    /// household read as "Sam and Jordan" on Home and "Jordan and Sam"
+    /// after a bind-and-refetch. Sort here so every caller matches People.
     static func seatedCaption(
         among members: [HouseholdMember],
         reader: HouseholdMember? = nil
     ) -> String {
-        HouseholdIdentity.seatedLine(names: members.compactMap { member in
-            guard member.seat != .left, member.seat != .invited else { return nil }
-            return resolvedDisplay(for: member, among: members, reader: reader).name
+        let sitting = members
+            .filter { $0.seat != .left && $0.seat != .invited }
+            .sorted(by: displayOrder)
+        return HouseholdIdentity.seatedLine(names: sitting.map { member in
+            resolvedDisplay(for: member, among: members, reader: reader).name
         })
+    }
+
+    private static func displayOrder(_ a: HouseholdMember, _ b: HouseholdMember) -> Bool {
+        if a.createdAt != b.createdAt { return a.createdAt < b.createdAt }
+        return a.shareRecordName < b.shareRecordName
     }
 
     /// Display names on the owner / head seats. Bind and the invite log
@@ -1090,8 +1102,14 @@ enum Seats {
         all(in: context).me
     }
 
+    /// Sorted the same way People's `@Query` is. An unsorted fetch is
+    /// why bind-then-list tests saw "Jordan and Sam" for the same
+    /// seats Home already drew as "Sam and Jordan".
     static func all(in context: ModelContext) -> [HouseholdMember] {
-        (try? context.fetch(FetchDescriptor<HouseholdMember>())) ?? []
+        (try? context.fetch(FetchDescriptor<HouseholdMember>(sortBy: [
+            SortDescriptor(\.createdAt),
+            SortDescriptor(\.shareRecordName)
+        ]))) ?? []
     }
 
     /// A colour nobody at this table is already wearing. The old rule was
