@@ -792,6 +792,25 @@ final class TableNewsTests: XCTestCase {
         XCTAssertNil(members.actor(id: row.actorID, name: row.actorName))
     }
 
+    func testALaidPlaceJoDoesNotMakeAnotherJoTheUniqueFace() throws {
+        let poster = HouseholdMember(name: "Jo Park", role: "partner", seat: .joined)
+        poster.photoData = Data([0x02, 0x03])
+        poster.phoneE164 = "+15550008888"
+        context.insert(poster)
+        let kid = HouseholdMember(name: "Jo Alvarez", role: "kid", seat: .notOnPlated)
+        kid.photoData = Data([0x00, 0x01])
+        context.insert(kid)
+        try context.save()
+        var changes = TableShare.Changes()
+        var dish = remoteDish(by: "stranger", id: "guest-jo")
+        dish.authorName = "Jo Guest"
+        changes.posts = [dish]
+        let notice = TableNews.digest(changes, newSeats: [], context: context).first!
+        XCTAssertNil(notice.face, "two Jos at the table keep first-name uniqueness honest")
+        XCTAssertNotEqual(notice.face, poster.photoData)
+        XCTAssertNil(notice.handle)
+    }
+
     func testTwoPlatersKeepTheLastFaceOnTheRowButDoNotSpeakAsOne() {
         let post = myPost()
         var changes = TableShare.Changes()
