@@ -312,12 +312,28 @@ struct DayDetailView: View {
     /// happened doesn't get invited to plan.
     @ViewBuilder
     private var addMeal: some View {
-        if isPast {
+                if isPast {
+            // Slice 3: retroactive past — same verbs as future empties.
             if shownSlots.isEmpty {
-                Text(PlanEmptyCopy.pastRowTitle)
-                    .plType(.body)
-                    .foregroundStyle(Color.inkSecondary)
-                    .padding(.top, 8)
+                VStack(alignment: .leading, spacing: 12) {
+                    Text(PlanEmptyCopy.pastRowTitle)
+                        .plType(.title, .semibold)
+                        .foregroundStyle(Color.ink)
+                    Text(PlanEmptyCopy.detailBody)
+                        .plType(.body)
+                        .foregroundStyle(Color.inkSecondary)
+                    TomatoPillButton(title: PlanEmptyCopy.planNight, systemImage: "plus") {
+                        planning = SlotPlan(date: date, slot: .dinner)
+                    }
+                    Button(PlanEmptyCopy.eatOutAction) {
+                        // Reuse week path via planning sheet eat-out when available;
+                        // otherwise open dinner plan for the past night.
+                        planning = SlotPlan(date: date, slot: .dinner)
+                    }
+                    .plType(.body, .semibold)
+                    .foregroundStyle(Color.tomato)
+                }
+                .padding(.top, 8)
             }
         } else if !openSlots.isEmpty {
             Menu {

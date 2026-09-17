@@ -42,4 +42,13 @@ final class PlanEmptyCopyTests: XCTestCase {
             }
         }
     }
+
+    func testSlice3ContinuumAndLongPressVerbs() {
+        XCTAssertEqual(PlanEmptyCopy.nextWeekEyebrow, "Next week")
+        XCTAssertEqual(PlanEmptyCopy.planMealAction, "Plan a meal")
+        XCTAssertEqual(PlanEmptyCopy.assignSomeoneAction, "Assign someone")
+        XCTAssertEqual(PlanEmptyCopy.illCookAction, "I'll cook")
+        XCTAssertEqual(PlanEmptyCopy.clearNightAction, "Clear night")
+        XCTAssertEqual(PlanEmptyCopy.eatOutAction, "Eat out")
+    }
 }
