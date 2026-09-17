@@ -6,8 +6,8 @@ import SwiftUI
 /// planner draws it beside this phone's own nights (docs/plan-share.md,
 /// "Drawing a remote night"). The geometry is `WeekView.plannedRow`'s,
 /// because peers look like peers: canvas ground at `Radius.row`, the 0.5pt
-/// hairline underline, the 40pt date column, 60pt artwork at `Radius.small`,
-/// minHeight 76.
+/// hairline underline, the 40pt date column, and the same dish square that
+/// spans title top → who-line avatar bottom.
 ///
 /// It is editable now, through the same door the local row uses: a tap into
 /// the day, and on the day page a tap into `PlanNightSheet`, which changes
@@ -43,46 +43,32 @@ struct RemotePlanRow: View {
     private var ledger: PlanLedger { PlanLedger.shared }
     private var today: Bool { Calendar.current.isDateInToday(date) }
 
+    /// A night that is going, or a change this phone has not sent, has one
+    /// honesty line instead of the who-line. Stacking both would truncate,
+    /// and "You're cooking" under a night coming off the plan is the wrong
+    /// question.
+    private var honestyLine: String? {
+        entry.isGoing || entry.pendingLine != nil ? caption : nil
+    }
+
     var body: some View {
-        let cookLine = ledger.cookLine(for: entry)
+        let who = ledger.whoLine(for: entry)
+        let line = honestyLine ?? who
+        let eatingOut = PlanRowVoice.isEatingOut(title: entry.title, hasRecipe: entry.hasRecipe)
         HStack(spacing: 10) {
             if place == .week { PlanDateColumn(date: date) }
 
-            RecipeArtwork(data: ledger.photo(for: entry.recordName), title: entry.title, ratio: 1, radius: Radius.small)
-                .frame(width: 60)
-                .overlay(alignment: .bottomTrailing) {
-                    // The cook belongs to the dish, the same corner the local
-                    // row uses. Not when the cook is me: "You're cooking" is
-                    // already on the line beside it, and my own face on my
-                    // own dish is decoration, the rule plannedRow follows.
-                    if cookLine != nil, !ledger.isMine(cook: entry) {
-                        RemoteCookFace(entry: entry, members: members, size: 22)
-                            // A face on a photograph needs its own edge or
-                            // it reads as part of the dish.
-                            .overlay { Circle().strokeBorder(Color.cardFill, lineWidth: 2) }
-                            .offset(x: 3, y: 3)
-                    }
+            PlanFilledMealStack(
+                photo: ledger.photo(for: entry.recordName),
+                title: entry.title,
+                eatingOut: eatingOut,
+                whoLine: line,
+                today: today
+            ) {
+                if honestyLine == nil {
+                    RemoteWhoFace(entry: entry, members: members, size: 22)
                 }
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(entry.title)
-                    .plType(.callout, .semibold)
-                    .foregroundStyle(Color.ink)
-                    .lineLimit(2)
-                if let cookLine {
-                    Text(cookLine)
-                        .plType(.caption, .semibold)
-                        .foregroundStyle(today ? Color.ink : Color.inkSecondary)
-                        .lineLimit(1)
-                }
-                // `.plType(.micro)` and not `MicroLabel`, which uppercases:
-                // this is a sentence about a person, not an eyebrow.
-                Text(caption)
-                    .plType(.micro)
-                    .foregroundStyle(Color.inkSecondary)
-                    .lineLimit(2)
             }
-            Spacer(minLength: 8)
         }
         .padding(.vertical, 12)
         .padding(.leading, place == .week ? 8 : 14)
@@ -109,7 +95,7 @@ struct RemotePlanRow: View {
         // A gesture announces nothing on its own; the combined row reads as
         // one sentence and, when it opens the day, says it is a button.
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(spokenLabel(cookLine: cookLine))
+        .accessibilityLabel(spokenLabel(cookLine: who))
         .accessibilityAddTraits(onOpen == nil ? [] : .isButton)
         .accessibilityHint(onOpen == nil ? "" : openHint)
     }
@@ -159,6 +145,36 @@ struct RemotePlanRow: View {
     }
 }
 
+/// The who-line's face for a remote night: cook when the line is cooking
+/// (or eat-out with a cook), otherwise the planner. Identity, never name.
+struct RemoteWhoFace: View {
+    let entry: PlanLedger.Entry
+    var members: [HouseholdMember] = []
+    var size: CGFloat = 22
+
+    var body: some View {
+        let eatingOut = PlanRowVoice.isEatingOut(title: entry.title, hasRecipe: entry.hasRecipe)
+        let id = PlanRowVoice.speakerID(
+            eatingOut: eatingOut, hasCook: entry.hasCook,
+            cookID: entry.cookID, authorID: entry.authorID
+        )
+        if let member = PlanRowVoice.member(id: id, in: members) {
+            AvatarCircle(member: member, size: size)
+        } else {
+            AvatarCircle(
+                initials: PlanRowVoice.initials(
+                    PlanRowVoice.speakerName(
+                        eatingOut: eatingOut, hasCook: entry.hasCook,
+                        cookName: entry.cookName, authorName: entry.authorName
+                    )
+                ),
+                tone: .neutralPair,
+                size: size
+            )
+        }
+    }
+}
+
 /// The cook's face for a remote night, by identity and never by name.
 ///
 /// The `HouseholdMember` whose `participantID` is the entry's `cookID`
@@ -186,9 +202,7 @@ struct RemoteCookFace: View {
 
     /// Same shape as `HouseholdMember.initials`, for a name with no row.
     static func initials(_ name: String) -> String {
-        let parts = name.split(separator: " ").prefix(2)
-        let joined = parts.compactMap { $0.first }.map(String.init).joined().uppercased()
-        return joined.isEmpty ? "?" : joined
+        PlanRowVoice.initials(name)
     }
 }
 

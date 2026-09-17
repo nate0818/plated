@@ -29,7 +29,6 @@ struct WeekView: View {
     @State private var groceryPresented = false
     @State private var planDay: Date?
     @State private var mealToMove: PlannedMeal?
-    @State private var featuredRecipe: Recipe?
     @State private var calendarShown = false
     /// The day whose detail page is pushed. Tapping a day used to raise a
     /// change/remove dialog; those two are swipe actions inside the day now.
@@ -174,9 +173,6 @@ struct WeekView: View {
                 case .activity: NotificationsView()
                 }
             }
-            .navigationDestination(item: $featuredRecipe) { recipe in
-                RecipeDetailView(recipe: recipe, meal: dinner(on: weekAnchor))
-            }
             .navigationDestination(item: $dayShown) { day in
                 DayDetailView(date: day, askTheTable: askTheTable)
                     .navigationTransition(.zoom(sourceID: day, in: zoom))
@@ -316,36 +312,12 @@ struct WeekView: View {
             }
             if let meal = dinner(on: weekAnchor) {
                 Button { Haptic.tap(); dayShown = weekAnchor } label: {
-                    VStack(alignment: .leading, spacing: 16) {
-                        RecipeArtwork(data: meal.recipe?.photoData, title: meal.title, ratio: 1.95)
-                        Text(meal.title).plType(.display, .semibold).foregroundStyle(Color.ink)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    .contentShape(Rectangle())
+                    filledMealCard(meal, featured: true)
+                        .contentShape(Rectangle())
                 }.buttonStyle(.pressable)
                     .modifier(PlannerMealDrag(meal: meal))
                     .accessibilityIdentifier("featured-dinner-card")
                     .accessibilityHint("Tap to open the day. Hold and drag to another date to move dinner.")
-                HStack(spacing: 8) {
-                    if let cook = meal.cook { AvatarCircle(member: cook, size: 26) }
-                    Text(meal.cook.map { $0.isMe ? "You're cooking" : "\($0.firstName) is cooking" } ?? "Cook unassigned")
-                        .plType(.footnote).foregroundStyle(Color.inkSecondary)
-                    Spacer()
-                    Button { planDay = weekAnchor } label: {
-                        Label("Serves \(meal.servings)", systemImage: "person.2")
-                            .plType(.footnote)
-                            .plActionLabel()
-                            .foregroundStyle(Color.ink).padding(.horizontal, 12).frame(minHeight: 44)
-                            .background(Color.fill, in: Capsule())
-                    }.buttonStyle(.pressable).accessibilityLabel("Change servings and cook")
-                }
-                if meal.recipe != nil {
-                    TomatoPillButton(title: meal.isCooked ? "View recipe" : "Let's cook", systemImage: "fork.knife") {
-                        featuredRecipe = meal.recipe
-                    }
-                } else {
-                    Button("Edit dinner") { planDay = weekAnchor }.plType(.body, .semibold).foregroundStyle(Color.accentText).plTapTarget()
-                }
             } else if let remote = PlanLedger.shared.dinner(on: weekAnchor) {
                 remoteFeatured(remote)
             } else {
@@ -388,40 +360,35 @@ struct WeekView: View {
     }
 
     /// The hero's third state: nobody planned tonight on this phone, but
-    /// somebody else did. Same card as the local hero, photo from the
-    /// ledger, and the cook line the ledger writes. Let's cook only when a
-    /// recipe in this cookbook carries the same non-empty `originID`; there
-    /// is no title fallback, because this phone's own "Tacos" is not the
-    /// night Nate planned. Where the button would be, the caption says whose
-    /// night it is and, when there is a recipe somewhere, that it is not
-    /// here. The header's ellipsis keeps its empty-night items, which are
-    /// honest on a night this phone has not planned.
+    /// somebody else did. Same filled stack as the local hero: dish square
+    /// spanning title → who-line, cover-crop. Let's cook only lived on a
+    /// local night; a remote recipe this cookbook does not hold is not a
+    /// cook session this phone can start.
     @ViewBuilder
     private func remoteFeatured(_ entry: PlanLedger.Entry) -> some View {
         let ledger = PlanLedger.shared
-        let cookLine = ledger.cookLine(for: entry)
+        let honesty = entry.isGoing || entry.pendingLine != nil
         Button { Haptic.tap(); dayShown = weekAnchor } label: {
-            VStack(alignment: .leading, spacing: 16) {
-                RecipeArtwork(data: ledger.photo(for: entry.recordName), title: entry.title, ratio: 1.95)
-                Text(entry.title).plType(.display, .semibold).foregroundStyle(Color.ink)
-                    .fixedSize(horizontal: false, vertical: true)
+            PlanFilledMealStack(
+                photo: ledger.photo(for: entry.recordName),
+                title: entry.title,
+                eatingOut: PlanRowVoice.isEatingOut(title: entry.title, hasRecipe: entry.hasRecipe),
+                whoLine: honesty ? RemotePlanRow.caption(for: entry) : ledger.whoLine(for: entry),
+                onFill: true,
+                featured: true,
+                today: Calendar.current.isDateInToday(weekAnchor)
+            ) {
+                if !honesty {
+                    RemoteWhoFace(entry: entry, members: members, size: 26)
+                }
             }
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.fill, in: Radius.shape(Radius.hero))
             .contentShape(Rectangle())
         }.buttonStyle(.pressable)
             .accessibilityIdentifier("featured-remote-dinner-card")
             .accessibilityHint("Opens the day")
-        // No line when the ledger has none. "Cook unassigned" is true of a
-        // local night; here it would be a claim about what Nate did, and
-        // Nate may well have put an invited Riley down, whose name the
-        // writer blanks on purpose. `RemotePlanRow` omits it the same way.
-        if let cookLine {
-            HStack(spacing: 8) {
-                RemoteCookFace(entry: entry, members: members, size: 26)
-                Text(cookLine)
-                    .plType(.footnote).foregroundStyle(Color.inkSecondary)
-                Spacer()
-            }
-        }
         // A change made on this phone that the household has not got yet.
         // The card above already shows it, so this sentence is what keeps
         // the card from being a claim that everybody can see it. A night on
@@ -435,31 +402,6 @@ struct WeekView: View {
                 .plType(.footnote).foregroundStyle(Color.inkSecondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        // No Let's cook on a night that is going. The pill is an invitation
-        // to start a cook session on a dinner this phone has just taken off
-        // the plan for everybody.
-        if let recipe = cookbookRecipe(for: entry), !entry.isGoing {
-            TomatoPillButton(title: entry.cooked ? "View recipe" : "Let's cook", systemImage: "fork.knife") {
-                featuredRecipe = recipe
-            }
-        } else {
-            // "Not in your cookbook" is a fact about this cookbook, and on a
-            // night that is going the pill is missing for a different reason
-            // entirely. Saying it there would be false whenever the recipe
-            // IS here, which is exactly when the pill would have shown.
-            Text(entry.hasRecipe && !entry.isGoing
-                 ? "Planned by \(entry.authorFirstName). Not in your cookbook."
-                 : "Planned by \(entry.authorFirstName).")
-                .plType(.footnote).foregroundStyle(Color.inkSecondary)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-    }
-
-    /// The recipe this cookbook holds for a remote night, by origin only.
-    /// An empty key never matches: every home-written recipe has one.
-    private func cookbookRecipe(for entry: PlanLedger.Entry) -> Recipe? {
-        guard !entry.recipeOriginKey.isEmpty else { return nil }
-        return recipes.first { $0.originID == entry.recipeOriginKey }
     }
 
     private var plannerControls: some View {
@@ -571,49 +513,16 @@ struct WeekView: View {
 
     private func plannedRow(_ meal: PlannedMeal, date: Date) -> some View {
         let today = Calendar.current.isDateInToday(date)
-        let eatingOut = meal.recipe == nil && meal.customTitle.localizedCaseInsensitiveContains("eating out")
         return SwipeRow(isOpen: swipeBinding(date), actions: planActions(for: meal), actionLabel: "Actions for \(meal.title)") {
             HStack(spacing: 10) {
                 dateColumn(date)
-
-                RecipeArtwork(data: meal.recipe?.photoData, title: meal.title, ratio: 1, radius: Radius.small).frame(width: 60)
-                    // The cook belongs to the dish, not to the far edge of
-                    // the row. Moving them here also hands the title back the
-                    // 38pt that an edge avatar was costing it, which is the
-                    // difference between "Creamy Tuscan Chicken" and
-                    // "Creamy Tuscan Chick…".
-                    .overlay(alignment: .bottomTrailing) {
-                        // Not the owner: the tagline already refuses to say
-                        // "Nate cooks" to Nate, and your own face on your own
-                        // dish every night is decoration, not information.
-                        if let cook = meal.cook, !cook.isMe, !eatingOut {
-                            AvatarCircle(member: cook, size: 22)
-                                // A face on a photograph needs its own edge
-                                // or it reads as part of the dish.
-                                .overlay { Circle().strokeBorder(Color.cardFill, lineWidth: 2) }
-                                .offset(x: 3, y: 3)
-                        }
-                    }
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(meal.title)
-                        .plType(.callout, .semibold)
-                        .foregroundStyle(Color.ink)
-                        .lineLimit(2)
-                    Text(tagLine(for: meal, today: today, date: date))
-                        .plType(.caption, .semibold)
-                        .foregroundStyle(today ? Color.ink : Color.inkSecondary)
-                        .lineLimit(1)
-                }
-                Spacer(minLength: 8)
+                filledMealCard(meal, featured: false, today: today)
             }
             .padding(.vertical, 12)
             .padding(.leading, 8)
             .padding(.trailing, 14)
-            // 72 was tight enough that "Creamy Tuscan Chicken" and
-            // "Alessandra Fitzgerald cooks" both ended in an ellipsis on the
-            // one screen the app is mostly looked at. The height and the
-            // reclaimed 18pt of width are what let the row say the thing.
+            // Floor, not a target: the dish square grows with the title +
+            // who-line stack so a wrapped line never letterboxes the photo.
             .frame(minHeight: 76)
             .background(dropHoverDay == date ? Color.tomatoTint : Color.canvas, in: Radius.shape(Radius.row))
             .overlay {
@@ -946,6 +855,56 @@ struct WeekView: View {
         PlanDateColumn(date: date)
     }
 
+    /// Dish square spanning title top → who-line avatar bottom. Featured
+    /// Tonight sits on fill; list rows sit on canvas with the date column.
+    @ViewBuilder
+    private func filledMealCard(_ meal: PlannedMeal, featured: Bool, today: Bool = false) -> some View {
+        let who = whoCaption(for: meal)
+        let eatingOut = PlanRowVoice.isEatingOut(title: meal.title, hasRecipe: meal.recipe != nil)
+        let stack = PlanFilledMealStack(
+            photo: meal.recipe?.photoData,
+            title: meal.title,
+            eatingOut: eatingOut,
+            whoLine: who.line,
+            onFill: featured,
+            featured: featured,
+            today: today
+        ) {
+            if let member = who.member {
+                AvatarCircle(member: member, size: featured ? 26 : 22)
+            }
+        }
+        if featured {
+            stack
+                .padding(16)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.fill, in: Radius.shape(Radius.hero))
+        } else {
+            stack
+        }
+    }
+
+    /// Honesty lines take the caption when the household has moved on;
+    /// otherwise the stamp who-line. One line, never two.
+    private func whoCaption(for meal: PlannedMeal) -> (line: String, member: HouseholdMember?) {
+        if let held = RemovedNights.heldRowLine(shoppingID: meal.shoppingID ?? "") {
+            return (held, nil)
+        }
+        if let id = meal.shoppingID, let change = HouseholdEdits.pending(shoppingID: id) {
+            return (
+                HouseholdEdits.rowLine(
+                    for: change, me: TableIdentity.cached,
+                    currentCookID: PlanNightSheet.cookID(of: meal)
+                ),
+                nil
+            )
+        }
+        return (
+            PlanRowVoice.whoLine(for: meal, members: members),
+            PlanRowVoice.faceMember(for: meal, members: members)
+        )
+    }
+
     private func dishCircle(for meal: PlannedMeal, diameter: CGFloat = 52, simmering: Bool = false) -> some View {
         Group {
             if let data = meal.recipe?.photoData, let image = UIImage(data: data) {
@@ -1046,60 +1005,6 @@ struct WeekView: View {
         meals.first {
             Calendar.current.isSameDay($0.date, date) && $0.slotValue == .dinner
         }
-    }
-
-    private func tagLine(for meal: PlannedMeal, today: Bool, date: Date) -> String {
-        // A night the household took off that is still standing here, which
-        // is the two hold-backs: it was cooked, or it is being cooked now.
-        // This takes the whole caption rather than being appended to it,
-        // because "Tonight · you cook" beside a dinner the rest of the
-        // household has already dropped is the row answering a question
-        // nobody is asking. The cook and the timing are still on the day
-        // page; what is not anywhere else is that the household let it go.
-        // The row's short form. The sentence version belongs on a page with
-        // room; this line clips at one.
-        if let held = RemovedNights.heldRowLine(shoppingID: meal.shoppingID ?? "") {
-            return held
-        }
-        // The household changed this night and nobody has answered yet.
-        // Takes the caption for the same reason the hold-back does: the cook
-        // and the timing on this row are this phone's answer to a question
-        // the rest of the house has already moved on from, and being put
-        // down to cook is the one fact here with a consequence attached.
-        // The decision itself lives on the page this row opens.
-        if let id = meal.shoppingID, let change = HouseholdEdits.pending(shoppingID: id) {
-            return HouseholdEdits.rowLine(
-                for: change, me: TableIdentity.cached,
-                currentCookID: PlanNightSheet.cookID(of: meal)
-            )
-        }
-        let base: String
-        if today {
-            // Tonight names its cook like every other night does. This
-            // branch returned before it could reach the cook clause four
-            // lines below, so the one night the answer matters most was the
-            // only night the app would not give it — while the Home Screen
-            // widget beside it drew the cook's face the whole time.
-            var parts: [String] = ["Tonight"]
-            if let cook = meal.cook {
-                parts.append(cook.isMe ? "you cook" : "\(cook.name) cooks")
-            }
-            let minutes = meal.recipe?.totalMinutes ?? 0
-            if minutes > 0 { parts.append(Recipe.durationText(minutes)) }
-            base = parts.joined(separator: " · ")
-        } else if !meal.tagline.isEmpty {
-            base = meal.tagline
-        } else if let cook = meal.cook, !cook.isMe {
-            base = "\(cook.name) cooks"
-        } else {
-            let minutes = meal.recipe?.totalMinutes ?? 0
-            base = minutes > 0 ? Recipe.durationText(minutes) : "Planned"
-        }
-        // The week row shows dinner; a day can now hold breakfast, lunch,
-        // dessert and a snack too, and hiding them here would make the day
-        // page a surprise.
-        let others = otherSlots(on: date).count
-        return others > 0 ? "\(base) · +\(others) more" : base
     }
 
     /// Everything planned on a day that isn't its dinner, earliest first.

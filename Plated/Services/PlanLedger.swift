@@ -345,12 +345,32 @@ final class PlanLedger {
         !entry.cookID.isEmpty && entry.cookID == TableIdentity.cached
     }
 
-    /// The hero's own strings, so a night says the same thing on every
-    /// surface. Nil when there is no cook worth naming.
+    /// Cooking sentence only. Nil when there is no cook worth naming.
+    /// Filled Plan rows use `whoLine(for:)`, which also covers planned-this-night
+    /// and eat-out; this stays the cook-only line the digest and reminders
+    /// already call.
     func cookLine(for entry: Entry) -> String? {
-        if isMine(cook: entry) { return "You're cooking" }
+        if isMine(cook: entry) {
+            return PlanRowVoice.cooking(isYou: true, firstName: entry.cookFirstName)
+        }
         guard entry.hasCook else { return nil }
-        return "\(entry.cookFirstName) is cooking"
+        return PlanRowVoice.cooking(isYou: false, firstName: entry.cookFirstName)
+    }
+
+    /// The filled-row who-line: cooking, planned-this-night, or eat-out.
+    func whoLine(for entry: Entry) -> String {
+        PlanRowVoice.whoLine(
+            eatingOut: PlanRowVoice.isEatingOut(title: entry.title, hasRecipe: entry.hasRecipe),
+            hasCook: entry.hasCook,
+            cookIsYou: isMine(cook: entry),
+            cookFirstName: entry.cookFirstName,
+            plannerIsYou: isMine(author: entry),
+            plannerFirstName: entry.authorFirstName
+        )
+    }
+
+    func isMine(author entry: Entry) -> Bool {
+        !entry.authorID.isEmpty && entry.authorID == TableIdentity.cached
     }
 
     /// The entry decides, then the cache. The other way round, a writer that
