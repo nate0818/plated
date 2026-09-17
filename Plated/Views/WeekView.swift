@@ -345,13 +345,15 @@ struct WeekView: View {
                              : "Nothing is planned for this night.")
                             .plType(.body).foregroundStyle(Color.inkSecondary)
                     } else {
-                        Text(isPast(weekAnchor) ? "A night off the menu" : "Something good starts here.")
+                        // Slice 2 hard empties — EDIT-PROFILE-AND-PLAN-EMPTY copy stamp.
+                        // Kill soft ambient posters; dense title + useful subcopy.
+                        Text(PlanEmptyCopy.heroTitle(past: isPast(weekAnchor)))
                             .plType(.display, .medium).foregroundStyle(Color.ink)
-                        Text(isPast(weekAnchor) ? "No dinner was planned for this date." : "Choose a favorite, try a new recipe, or take the night off.")
+                        Text(isPast(weekAnchor) ? PlanEmptyCopy.detailBody : PlanEmptyCopy.heroSubcopy)
                             .plType(.body).foregroundStyle(Color.inkSecondary)
                     }
                     if !isPast(weekAnchor) {
-                        TomatoPillButton(title: "Plan this night", systemImage: "plus") { planDay = weekAnchor }
+                        TomatoPillButton(title: PlanEmptyCopy.planNight, systemImage: "plus") { planDay = weekAnchor }
                     }
                 }.padding(22).frame(maxWidth: .infinity, alignment: .leading)
                     .background(Color.fill, in: Radius.shape(Radius.hero))
@@ -585,16 +587,23 @@ struct WeekView: View {
             // because it needs an already-read bell row and the author never
             // has one for a night they planned themselves. So this line and
             // the hero are the only way the person learns their dinner went.
-            Text(RemovedNights.removedLine(on: date) ?? "Plan dinner")
-                .plType(.body)
-                .foregroundStyle(Color.inkSecondary)
-                // No limit, the way the past row's own "Nothing plated"
-                // already has none. This is the app's copy, not a dish
-                // somebody named, and at AX5 one line turned "Nothing plated
-                // yet" into "Nothing...", which is the whole sentence gone.
-                // The row's 76pt is a floor, so it grows to hold it.
-                .fixedSize(horizontal: false, vertical: true)
-            Spacer()
+            VStack(alignment: .leading, spacing: 2) {
+                // Slice 2: title is the empty fact; Plan is the verb (stamp §B).
+                Text(RemovedNights.removedLine(on: date) ?? PlanEmptyCopy.rowTitle(past: isPast(date)))
+                    .plType(.body, .semibold)
+                    .foregroundStyle(Color.ink)
+                    .fixedSize(horizontal: false, vertical: true)
+                if RemovedNights.removedLine(on: date) == nil {
+                    Text(PlanEmptyCopy.noOneAssigned)
+                        .plType(.caption)
+                        .foregroundStyle(Color.inkSecondary)
+                }
+            }
+            Spacer(minLength: 8)
+            Text(PlanEmptyCopy.rowAction)
+                .plType(.caption, .semibold)
+                .foregroundStyle(Color.tomato)
+                .accessibilityHidden(true)
         }
         .padding(.vertical, 12)
         .padding(.leading, 8)
@@ -618,7 +627,7 @@ struct WeekView: View {
         .accessibilityElement(children: .ignore)
         .accessibilityAddTraits(.isButton)
         .accessibilityLabel("\(dayName(date).capitalized), \(openLine(date))")
-        .accessibilityHint("Plans dinner")
+        .accessibilityHint(PlanEmptyCopy.planNightA11y)
         .accessibilityAction(named: "Open day") { dayShown = date }
         .accessibilityAction(named: "Eating out") { markEatingOut(on: date) }
         .contextMenu {
@@ -736,7 +745,7 @@ struct WeekView: View {
             Haptic.tap()
             planDay = date
         } label: {
-            Label(planned == nil ? "Plan this night" : "Change the dish",
+            Label(planned == nil ? PlanEmptyCopy.planNight : "Change the dish",
                   systemImage: planned == nil ? "plus.circle" : "arrow.2.squarepath")
         }
         if planned != nil {
@@ -1031,7 +1040,7 @@ struct WeekView: View {
             let joined = ListFormatter.localizedString(byJoining: others.map { $0.title.lowercased() })
             return "\(removed). \(joined.prefix(1).uppercased() + joined.dropFirst()) planned"
         }
-        guard !others.isEmpty else { return "Nothing plated yet" }
+        guard !others.isEmpty else { return PlanEmptyCopy.rowTitle }
         let joined = ListFormatter.localizedString(byJoining: others.map { $0.title.lowercased() })
         return joined.prefix(1).uppercased() + joined.dropFirst() + " planned"
     }

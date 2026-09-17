@@ -314,7 +314,7 @@ struct DayDetailView: View {
     private var addMeal: some View {
         if isPast {
             if shownSlots.isEmpty {
-                Text("Nothing plated")
+                Text(PlanEmptyCopy.pastRowTitle)
                     .plType(.body)
                     .foregroundStyle(Color.inkSecondary)
                     .padding(.top, 8)

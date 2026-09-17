@@ -96,7 +96,7 @@ struct TonightCard: View {
             }
 
             if case .open = state {
-                TomatoPillButton(title: "Plan tonight", haptic: Haptic.plate) {
+                TomatoPillButton(title: PlanEmptyCopy.planNight, haptic: Haptic.plate) {
                     onPlanTonight()
                 }
                 .padding(.top, 2)
@@ -155,7 +155,7 @@ struct TonightCard: View {
     private var headline: String {
         switch state {
         case let .plated(meal), let .cooked(meal): return meal.title
-        case .open: return "Nothing plated for tonight"
+        case .open: return PlanEmptyCopy.rowTitle
         }
     }
 
