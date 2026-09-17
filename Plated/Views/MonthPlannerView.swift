@@ -152,7 +152,7 @@ struct MonthPlannerView: View {
                             SwipeAction(symbol: "fork.knife", label: "Eat out") { planEatingOut() }
                         ], actionLabel: "Actions for this day") {
                             Button { planSlot = .dinner; planDay = anchor } label: {
-                                Label("Plan dinner", systemImage: "plus")
+                                Label(PlanEmptyCopy.planNight, systemImage: "plus")
                                     .plType(.body)
                                     .plActionLabel()
                                     .frame(maxWidth: .infinity, minHeight: 72, alignment: .leading)
@@ -160,7 +160,7 @@ struct MonthPlannerView: View {
                             }.buttonStyle(.plain)
                         }
                     } else {
-                        Text("Nothing planned for this day.").plType(.body).foregroundStyle(Color.inkSecondary).padding(.vertical, 12)
+                        Text(PlanEmptyCopy.rowTitle).plType(.body).foregroundStyle(Color.inkSecondary).padding(.vertical, 12)
                     }
                 } else {
                     ForEach(selectedMeals) { meal in
