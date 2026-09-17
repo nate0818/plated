@@ -44,4 +44,22 @@ enum PlanEmptyCopy {
     static func heroTitle(past: Bool) -> String {
         past ? pastRowTitle : rowTitle
     }
+
+    // MARK: Slice 3 — long-press (past + future), continuum
+
+    /// Long-press / detail: plan a meal.
+    static let planMealAction = "Plan a meal"
+
+    /// Long-press / detail: assign another cook.
+    static let assignSomeoneAction = "Assign someone"
+
+    /// Long-press / detail: self as cook.
+    static let illCookAction = "I'll cook"
+
+    /// Long-press clear.
+    static let clearNightAction = "Clear night"
+
+    /// Continuum eyebrow after this week.
+    static let nextWeekEyebrow = "Next week"
+
 }

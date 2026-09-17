@@ -290,6 +290,15 @@ struct WeekView: View {
                 VStack(spacing: 0) {
                     ForEach(weekDates, id: \.self) { date in dayRow(date) }
                 }
+                // Slice 3 continuum — no Saturday cliff; Next week Mon keeps Plan CTA.
+                ForEach(Array(futureWeeks.enumerated()), id: \.offset) { index, week in
+                    Text(index == 0 ? PlanEmptyCopy.nextWeekEyebrow : weekSectionLabel(week, index: index))
+                        .plType(.title, .semibold)
+                        .padding(.top, 18)
+                    VStack(spacing: 0) {
+                        ForEach(week, id: \.self) { date in dayRow(date) }
+                    }
+                }
                 cooksFooter
             }
             .padding(.horizontal, 24)
@@ -352,9 +361,7 @@ struct WeekView: View {
                         Text(isPast(weekAnchor) ? PlanEmptyCopy.detailBody : PlanEmptyCopy.heroSubcopy)
                             .plType(.body).foregroundStyle(Color.inkSecondary)
                     }
-                    if !isPast(weekAnchor) {
                         TomatoPillButton(title: PlanEmptyCopy.planNight, systemImage: "plus") { planDay = weekAnchor }
-                    }
                 }.padding(22).frame(maxWidth: .infinity, alignment: .leading)
                     .background(Color.fill, in: Radius.shape(Radius.hero))
             }
@@ -456,8 +463,10 @@ struct WeekView: View {
     private func dayRow(_ date: Date) -> some View {
         let remote = PlanLedger.shared.plans(on: date)
         let local = dinner(on: date)
-        if isPast(date) {
-            if local != nil || remote.isEmpty { pastRow(date) }
+        // Slice 3: empty past is retroactively plannable (same empty row +
+        // long-press verbs as future). Filled past stays history.
+        if isPast(date), local != nil {
+            pastRow(date)
         } else if let meal = local {
             plannedRow(meal, date: date)
         } else if remote.isEmpty {
@@ -731,7 +740,7 @@ struct WeekView: View {
             Button {
                 markEatingOut(on: date)
             } label: {
-                Label("Eating out", systemImage: "fork.knife")
+                Label(PlanEmptyCopy.eatOutAction, systemImage: "fork.knife")
             }
         }
         if !recipes.isEmpty {
@@ -745,9 +754,18 @@ struct WeekView: View {
             Haptic.tap()
             planDay = date
         } label: {
-            Label(planned == nil ? PlanEmptyCopy.planNight : "Change the dish",
+            Label(planned == nil ? PlanEmptyCopy.planMealAction : "Change the dish",
                   systemImage: planned == nil ? "plus.circle" : "arrow.2.squarepath")
         }
+        if planned == nil, let me = members.me {
+            Button {
+                Haptic.tap()
+                markIllCook(on: date, cook: me)
+            } label: {
+                Label(PlanEmptyCopy.illCookAction, systemImage: "person.fill")
+            }
+        }
+
         if planned != nil {
             if let meal = planned {
                 Menu {
@@ -755,7 +773,7 @@ struct WeekView: View {
                     ForEach(members.assignableCooks) { member in
                         Button(member.isMe ? "You" : member.name) { meal.cook = member; Persist.save(context) }
                     }
-                } label: { Label("Who's cooking", systemImage: "person.crop.circle") }
+                } label: { Label(PlanEmptyCopy.assignSomeoneAction, systemImage: "person.crop.circle") }
             }
             // Dragging a plate from one night to another was the only way to
             // move a dinner. That is a gesture nobody is told about and a
@@ -777,7 +795,7 @@ struct WeekView: View {
             Button(role: .destructive) {
                 remove(on: date)
             } label: {
-                Label("Clear the night", systemImage: "trash")
+                Label(PlanEmptyCopy.clearNightAction, systemImage: "trash")
             }
         }
     }
@@ -803,6 +821,22 @@ struct WeekView: View {
     }
 
     /// A night off the stove still counts as a plan for the week.
+    /// Slice 3: past + future long-press "I'll cook" — plan the night with me assigned.
+    private func markIllCook(on date: Date, cook: HouseholdMember) {
+        Haptic.plate()
+        withAnimation(.plPop) {
+            if let meal = dinner(on: date) {
+                meal.cook = cook
+            } else {
+                let meal = PlannedMeal(date: date, slot: .dinner, customTitle: "")
+                meal.cook = cook
+                context.insert(meal)
+            }
+            bounceDay = date
+        }
+        Persist.save(context)
+    }
+
     private func markEatingOut(on date: Date) {
         Haptic.plate()
         withAnimation(.plPop) {
