@@ -88,10 +88,13 @@ private struct PlanDishSquare: View {
 
 /// Two children: the dish (0) and the text stack (1). The dish is a square
 /// whose side equals the stack's height, top-aligned with the title.
-struct PlanPhotoStackLayout: Layout {
+///
+/// `SwiftUI.Layout`, not `Layout`: Theme.swift already owns that name for
+/// chrome insets, and CookbookView's `FlowLayout` is the same qualification.
+struct PlanPhotoStackLayout: SwiftUI.Layout {
     var spacing: CGFloat = 10
 
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+    func sizeThatFits(proposal: ProposedViewSize, subviews: LayoutSubviews, cache: inout ()) -> CGSize {
         guard subviews.count == 2 else { return .zero }
         let stack = subviews[1]
         let proposedWidth = proposal.width
@@ -122,7 +125,7 @@ struct PlanPhotoStackLayout: Layout {
     }
 
     func placeSubviews(
-        in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()
+        in bounds: CGRect, proposal: ProposedViewSize, subviews: LayoutSubviews, cache: inout ()
     ) {
         guard subviews.count == 2 else { return }
         let photo = bounds.height
