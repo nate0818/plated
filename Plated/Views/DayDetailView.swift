@@ -410,9 +410,10 @@ struct DayDetailView: View {
                 }
             }
             Spacer(minLength: 8)
-            // Not you. The meta line already says "You cook"; your own face
-            // beside it is the same fact twice. Same rule as the week's
-            // rows — see WeekView.plannedRow.
+            // Not you. The who-line already says "You're cooking"; your own
+            // face beside it is the same fact twice on this day card. The
+            // week list now puts every actor's face on the who-line; this
+            // page still uses the trailing face for other people only.
             if let cook = meal.cook, !cook.isMe {
                 AvatarCircle(member: cook, size: 30)
             }
@@ -530,13 +531,10 @@ struct DayDetailView: View {
         if let minutes = meal.recipe?.totalMinutes, minutes > 0 {
             parts.append(Recipe.durationText(minutes))
         }
-        if let cook = meal.cook {
-            parts.append(cook.isMe ? "You cook" : "\(cook.name) cooks")
-        }
+        parts.append(PlanRowVoice.whoLine(for: meal, members: members))
         if meal.gathering != nil { parts.append("Gathering") }
         if meal.isCooked { parts.append("Cooked") }
-        if parts.isEmpty, !meal.tagline.isEmpty { return meal.tagline }
-        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+        return parts.joined(separator: " · ")
     }
 
     private var dayTitle: String {

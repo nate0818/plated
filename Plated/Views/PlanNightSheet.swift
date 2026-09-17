@@ -471,11 +471,9 @@ struct PlanNightSheet: View {
                 Text(meal.title)
                     .plType(.body, .bold)
                     .foregroundStyle(Color.ink)
-                if let cook = meal.cook {
-                    Text(cook.isMe ? "You cook" : "\(cook.name) cooks")
-                        .plType(.caption, .semibold)
-                        .foregroundStyle(Color.inkSecondary)
-                }
+                Text(PlanRowVoice.whoLine(for: meal, members: members))
+                    .plType(.caption, .semibold)
+                    .foregroundStyle(Color.inkSecondary)
             }
             Spacer()
             Button {
@@ -521,11 +519,9 @@ struct PlanNightSheet: View {
                 Text(entry.title)
                     .plType(.body, .bold)
                     .foregroundStyle(Color.ink)
-                if let cook = PlanLedger.shared.cookLine(for: entry) {
-                    Text(cook)
-                        .plType(.caption, .semibold)
-                        .foregroundStyle(Color.inkSecondary)
-                }
+                Text(PlanLedger.shared.whoLine(for: entry))
+                    .plType(.caption, .semibold)
+                    .foregroundStyle(Color.inkSecondary)
                 Text(remoteCaption(entry))
                     .plType(.caption, .semibold)
                     .foregroundStyle(Color.inkSecondary)

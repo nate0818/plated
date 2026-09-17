@@ -38,9 +38,24 @@ struct MealInsights {
             counts[title] = entry
         }
 
-        let result = counts
-            .map { RecipeFrequency(title: $0.key, count: $0.value.count, lastCooked: $0.value.last, recipe: $0.value.recipe) }
-            .sorted { $0.count == $1.count ? $0.title < $1.title : $0.count > $1.count }
+        // Split the map/sort so Xcode 27 can type-check in reasonable time
+        // (same expression previously failed on main). Behavior unchanged.
+        var result: [RecipeFrequency] = []
+        result.reserveCapacity(counts.count)
+        for (title, entry) in counts {
+            result.append(
+                RecipeFrequency(
+                    title: title,
+                    count: entry.count,
+                    lastCooked: entry.last,
+                    recipe: entry.recipe
+                )
+            )
+        }
+        result.sort { lhs, rhs in
+            if lhs.count == rhs.count { return lhs.title < rhs.title }
+            return lhs.count > rhs.count
+        }
 
         guard let limit else { return result }
         return Array(result.prefix(limit))

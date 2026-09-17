@@ -622,6 +622,27 @@ final class PlanNewsTests: XCTestCase {
                        "by identity, and only in the household's zone")
         XCTAssertEqual(PlanLedger.shared.cookLine(for: PlanLedger.shared.entry("plan-mine")!), "You're cooking")
         XCTAssertEqual(PlanLedger.shared.cookLine(for: PlanLedger.shared.entry("plan-theirs")!), "Riley is cooking")
+        XCTAssertEqual(PlanLedger.shared.whoLine(for: PlanLedger.shared.entry("plan-mine")!), "You're cooking")
+        XCTAssertEqual(PlanLedger.shared.whoLine(for: PlanLedger.shared.entry("plan-theirs")!), "Riley is cooking")
+    }
+
+    /// Filled-row voice on a household night: eat-out is quote-style, a
+    /// planned night with no cook is attribution, never `{Name} cooks`.
+    func testRemoteWhoLineUsesStampVoiceForEatOutAndPlanned() {
+        _ = delivery([
+            remotePlan(by: "riley", id: "eat", title: "Eating out", cookID: "", cookName: ""),
+            remotePlan(by: "riley", id: "planned", title: "Tacos", cookID: "", cookName: ""),
+        ])
+        XCTAssertEqual(
+            PlanLedger.shared.whoLine(for: PlanLedger.shared.entry("plan-eat")!),
+            "Riley: we're eating out"
+        )
+        XCTAssertEqual(
+            PlanLedger.shared.whoLine(for: PlanLedger.shared.entry("plan-planned")!),
+            "Riley planned this night"
+        )
+        XCTAssertNil(PlanLedger.shared.cookLine(for: PlanLedger.shared.entry("plan-eat")!))
+        XCTAssertNil(PlanLedger.shared.cookLine(for: PlanLedger.shared.entry("plan-planned")!))
     }
 
     // MARK: A change this phone made
