@@ -458,6 +458,9 @@ extension Array where Element == HouseholdMember {
 
     /// Laid places, invites and seats that left cannot author a Table
     /// notice, so a shared name must not pick them when the id missed.
+    /// First-name uniqueness is counted on the whole roster: dropping a
+    /// laid-place Jo used to make a different posting Jo look unique, and
+    /// that person's face then dressed the stranger.
     private func namedActor(_ name: String, postingOnly: Bool) -> HouseholdMember? {
         if name.isEmpty || HouseholdIdentity.isUnnamed(name) { return nil }
         let pool: [HouseholdMember] = postingOnly
@@ -466,8 +469,11 @@ extension Array where Element == HouseholdMember {
         if let exact = pool.first(where: { $0.name == name }) { return exact }
         let key = occupancyFirstNameKey(name)
         guard !key.isEmpty else { return nil }
-        let hits = pool.filter { occupancyFirstNameKey($0.name) == key }
-        return hits.count == 1 ? hits[0] : nil
+        let hits = filter { occupancyFirstNameKey($0.name) == key }
+        guard hits.count == 1 else { return nil }
+        let hit = hits[0]
+        if postingOnly, !hit.seat.canPost { return nil }
+        return hit
     }
 
     /// Invited rows whose joiner already sits under the same first name —

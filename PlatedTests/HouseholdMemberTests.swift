@@ -201,6 +201,20 @@ final class HouseholdMemberHostingTests: XCTestCase {
         XCTAssertNil(members.actor(id: "jo", name: "Jo"))
     }
 
+    /// A laid-place Jo must keep first-name uniqueness honest. Filtering
+    /// the kid out of the pool used to make posting Jo the unique hit, and
+    /// their face then dressed a stranger named Jo.
+    func testActorFirstNameDoesNotIgnoreALaidPlaceNamesake() {
+        let poster = seat("Jo Park", .joined, role: "partner")
+        poster.photoData = Data([0x02, 0x03])
+        let kid = seat("Jo Alvarez", .notOnPlated)
+        kid.photoData = Data([0x00, 0x01])
+        let members = [poster, kid]
+        XCTAssertNil(members.actor(id: "stranger", name: "Jo Guest"))
+        XCTAssertNil(members.actor(id: "stranger", name: "Jo Alvarez"))
+        XCTAssertEqual(members.actor(id: "", name: "Jo Park")?.name, "Jo Park")
+    }
+
     func testActorNeverDressesAStrangerWithAnIdentifiedNamesake() {
         let riley = seat("Riley Park", .joined, role: "partner", user: "riley")
         riley.participantID = "riley"
