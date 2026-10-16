@@ -4,11 +4,9 @@ import Foundation
 ///
 /// Plated exists to answer one question, and until now the app was the only
 /// surface that would not answer it. The Home Screen widget draws tonight's
-/// dish, its cook and its minutes; Siri says the whole sentence out loud. The
-/// app's own week list said "Tonight · 25 min" and named nobody, because
-/// `WeekView.tagLine` returns inside its `if today` branch and never reaches
-/// the cook branch four lines below it. Every other night of the week names
-/// the cook. The one night it matters did not.
+/// dish, its cook and its minutes; Siri says the whole sentence out loud.
+/// Filled Plan rows now name the cook through `PlanRowVoice` (`You're cooking`
+/// / `{Name} is cooking`); this type remains the widget and Siri answer.
 ///
 /// Everything here is read off recorded state. Nothing is inferred, nothing
 /// is rounded up into a claim: if there is no cook, the line does not mention

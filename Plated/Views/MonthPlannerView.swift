@@ -146,11 +146,11 @@ struct MonthPlannerView: View {
                 // night, and "Nothing planned" would be untrue.
                 if selectedMeals.isEmpty, selectedRemote.isEmpty {
                     SwipeRow(isOpen: $emptyActionsOpen, actions: [
-                        SwipeAction(symbol: "plus", label: anchor < Date.now.startOfDay ? "Remember dinner" : "Plan") { planSlot = .dinner; planDay = anchor },
+                        SwipeAction(symbol: "plus", label: PlanEmptyCopy.planNight) { planSlot = .dinner; planDay = anchor },
                         SwipeAction(symbol: "fork.knife", label: "Eat out") { planEatingOut() }
                     ], actionLabel: "Actions for this day") {
                         Button { planSlot = .dinner; planDay = anchor } label: {
-                            Label(anchor < Date.now.startOfDay ? "Remember what you had" : "Plan dinner", systemImage: "plus")
+                            Label(PlanEmptyCopy.planNight, systemImage: "plus")
                                 .plType(.body)
                                 .plActionLabel()
                                 .frame(maxWidth: .infinity, minHeight: 72, alignment: .leading)
@@ -165,7 +165,10 @@ struct MonthPlannerView: View {
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text(meal.slotValue.rawValue.capitalized).plType(.caption, .semibold).foregroundStyle(Color.inkSecondary)
                                     Text(meal.title).plType(.body, .bold)
-                                    Text("\(meal.servings) servings" + (meal.cook.map { " · \($0.isMe ? "You cook" : $0.name + " cooks")" } ?? ""))
+                                    Text(
+                                        "\(meal.servings) servings · "
+                                        + PlanRowVoice.whoLine(for: meal, members: members)
+                                    )
                                         .plType(.caption).foregroundStyle(Color.inkSecondary)
                                 }
                                 Spacer()

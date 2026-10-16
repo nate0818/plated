@@ -449,6 +449,7 @@ struct WeekView: View {
                 }.accessibilityLabel("Dinner options")
             }
             if let meal = dinner(on: weekAnchor) {
+                let who = whoCaption(for: meal)
                 Button { Haptic.tap(); pushed = .day(weekAnchor) } label: {
                     VStack(alignment: .leading, spacing: 16) {
                         RecipeArtwork(data: meal.recipe?.photoData, title: meal.title, ratio: 1.55)
@@ -461,8 +462,8 @@ struct WeekView: View {
                     .accessibilityIdentifier("featured-dinner-card")
                     .accessibilityHint("Tap to open the day. Hold and drag to another date to move dinner.")
                 HStack(spacing: 8) {
-                    if let cook = meal.cook { AvatarCircle(member: cook, size: 26) }
-                    Text(meal.cook.map { $0.isMe ? "You're cooking" : "\($0.firstName) is cooking" } ?? "Cook unassigned")
+                    if let member = who.member { AvatarCircle(member: member, size: 26) }
+                    Text(who.line)
                         .plType(.footnote).foregroundStyle(Color.inkSecondary)
                     Spacer()
                     Button { planDay = weekAnchor } label: {
@@ -507,55 +508,47 @@ struct WeekView: View {
                              : "Nothing is planned for this night.")
                             .plType(.body).foregroundStyle(Color.inkSecondary)
                     } else {
-                        Text(emptyHeroTitle(for: weekAnchor))
-                            .plType(.title, .semibold).foregroundStyle(Color.ink)
-                        Text(isPast(weekAnchor)
-                             ? "Add what you ate, cooked, or picked up."
-                             : "Choose a favorite, try a new recipe, or take the night off.")
+                        // Slice 2 hard empties — EDIT-PROFILE-AND-PLAN-EMPTY copy stamp.
+                        // Kill soft ambient posters; dense title + useful subcopy.
+                        Text(PlanEmptyCopy.heroTitle(past: isPast(weekAnchor)))
+                            .plType(.display, .medium).foregroundStyle(Color.ink)
+                        Text(isPast(weekAnchor) ? PlanEmptyCopy.detailBody : PlanEmptyCopy.heroSubcopy)
                             .plType(.body).foregroundStyle(Color.inkSecondary)
                     }
-                    PrimaryActionButton(title: "Plan the night", systemImage: "plus") { planDay = weekAnchor }
+                    PrimaryActionButton(title: PlanEmptyCopy.planNight, systemImage: "plus") { planDay = weekAnchor }
                 }.padding(16).frame(maxWidth: .infinity, alignment: .leading)
                     .background(Color.fill, in: Radius.shape(Radius.hero))
             }
         }
     }
 
-    /// The hero's third state: nobody planned tonight on this phone, but
-    /// somebody else did. Same card as the local hero, photo from the
-    /// ledger, and the cook line the ledger writes. Let's cook only when a
-    /// recipe in this cookbook carries the same non-empty `originID`; there
-    /// is no title fallback, because this phone's own "Tacos" is not the
-    /// night Nate planned. Where the button would be, the caption says whose
-    /// night it is and, when there is a recipe somewhere, that it is not
-    /// here. The header's ellipsis keeps its empty-night items, which are
-    /// honest on a night this phone has not planned.
+    /// A shared night keeps the same editorial hierarchy as a local one.
+    /// Cooking requires the recipe to exist in this phone's cookbook.
     @ViewBuilder
     private func remoteFeatured(_ entry: PlanLedger.Entry) -> some View {
         let ledger = PlanLedger.shared
-        let cookLine = ledger.cookLine(for: entry)
+        let honesty = entry.isGoing || entry.pendingLine != nil
         Button { Haptic.tap(); pushed = .day(weekAnchor) } label: {
             VStack(alignment: .leading, spacing: 16) {
                 RecipeArtwork(data: ledger.photo(for: entry.recordName), title: entry.title, ratio: 1.55)
                 Text(entry.title).plType(.display, .semibold).foregroundStyle(Color.ink)
                     .fixedSize(horizontal: false, vertical: true)
+                HStack(spacing: 8) {
+                    if !honesty {
+                        RemoteWhoFace(entry: entry, members: members, size: 26)
+                    }
+                    Text(honesty ? RemotePlanRow.caption(for: entry) : ledger.whoLine(for: entry))
+                        .plType(.footnote).foregroundStyle(Color.inkSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.fill, in: Radius.shape(Radius.hero))
             .contentShape(Rectangle())
         }.buttonStyle(.pressable)
             .accessibilityIdentifier("featured-remote-dinner-card")
             .accessibilityHint("Opens the day")
-        // No line when the ledger has none. "Cook unassigned" is true of a
-        // local night; here it would be a claim about what Nate did, and
-        // Nate may well have put an invited Riley down, whose name the
-        // writer blanks on purpose. `RemotePlanRow` omits it the same way.
-        if let cookLine {
-            HStack(spacing: 8) {
-                RemoteCookFace(entry: entry, members: members, size: 26)
-                Text(cookLine)
-                    .plType(.footnote).foregroundStyle(Color.inkSecondary)
-                Spacer()
-            }
-        }
         // A change made on this phone that the household has not got yet.
         // The card above already shows it, so this sentence is what keeps
         // the card from being a claim that everybody can see it. A night on
@@ -650,8 +643,10 @@ struct WeekView: View {
     private func dayRow(_ date: Date) -> some View {
         let remote = PlanLedger.shared.plans(on: date)
         let local = dinner(on: date)
-        if isPast(date) {
-            if local != nil || remote.isEmpty { pastRow(date) }
+        // Slice 3: empty past is retroactively plannable (same empty row +
+        // long-press verbs as future). Filled past stays history.
+        if isPast(date), local != nil {
+            pastRow(date)
         } else if let meal = local {
             plannedRow(meal, date: date)
         } else if remote.isEmpty {
@@ -709,49 +704,16 @@ struct WeekView: View {
 
     private func plannedRow(_ meal: PlannedMeal, date: Date) -> some View {
         let today = Calendar.current.isDateInToday(date)
-        let eatingOut = meal.recipe == nil && meal.customTitle.localizedCaseInsensitiveContains("eating out")
         return SwipeRow(isOpen: swipeBinding(date), actions: planActions(for: meal), actionLabel: "Actions for \(meal.title)") {
             HStack(spacing: 10) {
                 dateColumn(date)
-
-                RecipeArtwork(data: meal.recipe?.photoData, title: meal.title, ratio: 1, radius: Radius.small).frame(width: 60)
-                    // The cook belongs to the dish, not to the far edge of
-                    // the row. Moving them here also hands the title back the
-                    // 38pt that an edge avatar was costing it, which is the
-                    // difference between "Creamy Tuscan Chicken" and
-                    // "Creamy Tuscan Chick…".
-                    .overlay(alignment: .bottomTrailing) {
-                        // Not the owner: the tagline already refuses to say
-                        // "Nate cooks" to Nate, and your own face on your own
-                        // dish every night is decoration, not information.
-                        if let cook = meal.cook, !cook.isMe, !eatingOut {
-                            AvatarCircle(member: cook, size: 22)
-                                // A face on a photograph needs its own edge
-                                // or it reads as part of the dish.
-                                .overlay { Circle().strokeBorder(Color.cardFill, lineWidth: 2) }
-                                .offset(x: 3, y: 3)
-                        }
-                    }
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(meal.title)
-                        .plType(.callout, .semibold)
-                        .foregroundStyle(Color.ink)
-                        .lineLimit(2)
-                    Text(tagLine(for: meal, today: today, date: date))
-                        .plType(.caption, .semibold)
-                        .foregroundStyle(today ? Color.ink : Color.inkSecondary)
-                        .lineLimit(2)
-                }
-                Spacer(minLength: 8)
+                filledMealCard(meal, featured: false, today: today)
             }
             .padding(.vertical, 12)
             .padding(.leading, 8)
             .padding(.trailing, 14)
-            // 72 was tight enough that "Creamy Tuscan Chicken" and
-            // "Alessandra Fitzgerald cooks" both ended in an ellipsis on the
-            // one screen the app is mostly looked at. The height and the
-            // reclaimed 18pt of width are what let the row say the thing.
+            // Floor, not a target: the dish square grows with the title +
+            // who-line stack so a wrapped line never letterboxes the photo.
             .frame(minHeight: 76)
             .background(dropHoverDay == date ? Color.oliveTint : Color.canvas, in: Radius.shape(Radius.row))
             .overlay {
@@ -793,9 +755,8 @@ struct WeekView: View {
         .matchedTransitionSource(id: date, in: zoom)
     }
 
-    /// The whole empty row plans dinner. Swipe, the context menu and
-    /// accessibility actions keep the alternatives without drawing a plus,
-    /// a sentence and an ellipsis that all mean the same thing.
+    /// The whole empty row plans dinner; its other actions stay available
+    /// through swipe, the context menu and accessibility actions.
     private func emptyRow(date: Date) -> some View {
         SwipeRow(isOpen: swipeBinding(date), actions: [
             SwipeAction(symbol: "plus", label: "Plan the night") { planDay = date },
@@ -803,19 +764,34 @@ struct WeekView: View {
         ]) {
         HStack(spacing: 10) {
             dateColumn(date)
-            VStack(alignment: .leading, spacing: 3) {
-                // A removed night names what happened; an ordinary open night
-                // says what is missing rather than repeating its button.
-                Text(RemovedNights.removedLine(on: date) ?? emptyMealLine(for: date))
+            Image(systemName: "plus")
+                .font(.system(size: 16, weight: .regular))
+                .foregroundStyle(Color.inkSecondary)
+                .frame(width: 48, height: 48)
+                .accessibilityHidden(true)
+            // An empty night that knows why it is empty. The household took
+            // this dinner off, the meal was deleted here, and nothing else on
+            // this phone remembers it existed: the digest cannot speak,
+            // because it needs an already-read bell row and the author never
+            // has one for a night they planned themselves. So this line and
+            // the hero are the only way the person learns their dinner went.
+            VStack(alignment: .leading, spacing: 2) {
+                // Slice 2: title is the empty fact; Plan is the verb (stamp §B).
+                Text(RemovedNights.removedLine(on: date) ?? PlanEmptyCopy.rowTitle(past: isPast(date)))
                     .plType(.body, .semibold)
                     .foregroundStyle(Color.ink)
                     .fixedSize(horizontal: false, vertical: true)
-                Text(assignmentLine(for: date))
-                    .plType(.caption, .semibold)
-                    .foregroundStyle(Color.inkSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                if RemovedNights.removedLine(on: date) == nil {
+                    Text(PlanEmptyCopy.noOneAssigned)
+                        .plType(.caption)
+                        .foregroundStyle(Color.inkSecondary)
+                }
             }
-            Spacer()
+            Spacer(minLength: 8)
+            Text(PlanEmptyCopy.rowAction)
+                .plType(.caption, .semibold)
+                .foregroundStyle(Color.accentText)
+                .accessibilityHidden(true)
         }
         .padding(.vertical, 12)
         .padding(.leading, 8)
@@ -838,9 +814,10 @@ struct WeekView: View {
         }
         .accessibilityElement(children: .ignore)
         .accessibilityAddTraits(.isButton)
-        .accessibilityLabel("\(dayName(date).capitalized), \(openLine(date)). \(assignmentLine(for: date))")
-        .accessibilityHint("Plans dinner")
+        .accessibilityLabel("\(dayName(date).capitalized), \(openLine(date))")
+        .accessibilityHint(PlanEmptyCopy.planNightA11y)
         .accessibilityAction(named: "Open day") { pushed = .day(date) }
+        .accessibilityAction(named: "Eating out") { markEatingOut(on: date) }
         .contextMenu {
             Button {
                 Haptic.tap()
@@ -954,7 +931,7 @@ struct WeekView: View {
             Button {
                 markEatingOut(on: date)
             } label: {
-                Label("Eating out", systemImage: "fork.knife")
+                Label(PlanEmptyCopy.eatOutAction, systemImage: "fork.knife")
             }
         }
         if !recipes.isEmpty {
@@ -968,9 +945,18 @@ struct WeekView: View {
             Haptic.tap()
             planDay = date
         } label: {
-            Label(planned == nil ? "Plan the night" : "Change the dish",
+            Label(planned == nil ? PlanEmptyCopy.planMealAction : "Change the dish",
                   systemImage: planned == nil ? "plus.circle" : "arrow.2.squarepath")
         }
+        if planned == nil, let me = members.me {
+            Button {
+                Haptic.tap()
+                markIllCook(on: date, cook: me)
+            } label: {
+                Label(PlanEmptyCopy.illCookAction, systemImage: "person.fill")
+            }
+        }
+
         if planned != nil {
             if let meal = planned {
                 Menu {
@@ -978,7 +964,7 @@ struct WeekView: View {
                     ForEach(members.assignableCooks) { member in
                         Button(member.isMe ? "You" : member.name) { meal.cook = member; Persist.save(context) }
                     }
-                } label: { Label("Who's cooking", systemImage: "person.crop.circle") }
+                } label: { Label(PlanEmptyCopy.assignSomeoneAction, systemImage: "person.crop.circle") }
             }
             // Dragging a plate from one night to another was the only way to
             // move a dinner. That is a gesture nobody is told about and a
@@ -1000,7 +986,7 @@ struct WeekView: View {
             Button(role: .destructive) {
                 remove(on: date)
             } label: {
-                Label("Clear the night", systemImage: "trash")
+                Label(PlanEmptyCopy.clearNightAction, systemImage: "trash")
             }
         }
     }
@@ -1053,6 +1039,22 @@ struct WeekView: View {
     }
 
     /// A night off the stove still counts as a plan for the week.
+    /// Slice 3: past + future long-press "I'll cook" — plan the night with me assigned.
+    private func markIllCook(on date: Date, cook: HouseholdMember) {
+        Haptic.plate()
+        withAnimation(.plPop) {
+            if let meal = dinner(on: date) {
+                meal.cook = cook
+            } else {
+                let meal = PlannedMeal(date: date, slot: .dinner, customTitle: "")
+                meal.cook = cook
+                context.insert(meal)
+            }
+            bounceDay = date
+        }
+        Persist.save(context)
+    }
+
     private func markEatingOut(on date: Date) {
         Haptic.plate()
         withAnimation(.plPop) {
@@ -1114,6 +1116,56 @@ struct WeekView: View {
     /// remote night's column can never be a point off a local one's.
     private func dateColumn(_ date: Date) -> some View {
         PlanDateColumn(date: date)
+    }
+
+    /// Dish square spanning title top → who-line avatar bottom. Featured
+    /// Tonight sits on fill; list rows sit on canvas with the date column.
+    @ViewBuilder
+    private func filledMealCard(_ meal: PlannedMeal, featured: Bool, today: Bool = false) -> some View {
+        let who = whoCaption(for: meal)
+        let eatingOut = PlanRowVoice.isEatingOut(title: meal.title, hasRecipe: meal.recipe != nil)
+        let stack = PlanFilledMealStack(
+            photo: meal.recipe?.photoData,
+            title: meal.title,
+            eatingOut: eatingOut,
+            whoLine: who.line,
+            onFill: featured,
+            featured: featured,
+            today: today
+        ) {
+            if let member = who.member {
+                AvatarCircle(member: member, size: featured ? 26 : 22)
+            }
+        }
+        if featured {
+            stack
+                .padding(16)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.fill, in: Radius.shape(Radius.hero))
+        } else {
+            stack
+        }
+    }
+
+    /// Honesty lines take the caption when the household has moved on;
+    /// otherwise the stamp who-line. One line, never two.
+    private func whoCaption(for meal: PlannedMeal) -> (line: String, member: HouseholdMember?) {
+        if let held = RemovedNights.heldRowLine(shoppingID: meal.shoppingID ?? "") {
+            return (held, nil)
+        }
+        if let id = meal.shoppingID, let change = HouseholdEdits.pending(shoppingID: id) {
+            return (
+                HouseholdEdits.rowLine(
+                    for: change, me: TableIdentity.cached,
+                    currentCookID: PlanNightSheet.cookID(of: meal)
+                ),
+                nil
+            )
+        }
+        return (
+            PlanRowVoice.whoLine(for: meal, members: members),
+            PlanRowVoice.faceMember(for: meal, members: members)
+        )
     }
 
     private func dishCircle(for meal: PlannedMeal, diameter: CGFloat = 52, simmering: Bool = false) -> some View {
@@ -1233,64 +1285,6 @@ struct WeekView: View {
         }
     }
 
-    private func tagLine(for meal: PlannedMeal, today: Bool, date: Date) -> String {
-        // A night the household took off that is still standing here, which
-        // is the two hold-backs: it was cooked, or it is being cooked now.
-        // This takes the whole caption rather than being appended to it,
-        // because "Tonight · you cook" beside a dinner the rest of the
-        // household has already dropped is the row answering a question
-        // nobody is asking. The cook and the timing are still on the day
-        // page; what is not anywhere else is that the household let it go.
-        // The row's short form. The sentence version belongs on a page with
-        // room; this line clips at one.
-        if let held = RemovedNights.heldRowLine(shoppingID: meal.shoppingID ?? "") {
-            return held
-        }
-        // The household changed this night and nobody has answered yet.
-        // Takes the caption for the same reason the hold-back does: the cook
-        // and the timing on this row are this phone's answer to a question
-        // the rest of the house has already moved on from, and being put
-        // down to cook is the one fact here with a consequence attached.
-        // The decision itself lives on the page this row opens.
-        if let id = meal.shoppingID, let change = HouseholdEdits.pending(shoppingID: id) {
-            return HouseholdEdits.rowLine(
-                for: change, me: TableIdentity.cached,
-                currentCookID: PlanNightSheet.cookID(of: meal)
-            )
-        }
-        let base: String
-        if today {
-            // Tonight names its cook like every other night does. This
-            // branch returned before it could reach the cook clause four
-            // lines below, so the one night the answer matters most was the
-            // only night the app would not give it — while the Home Screen
-            // widget beside it drew the cook's face the whole time.
-            var parts: [String] = ["Tonight"]
-            if let cook = meal.cook {
-                parts.append(cook.isMe ? "you cook" : "\(cook.name) cooks")
-            }
-            let minutes = meal.recipe?.totalMinutes ?? 0
-            if minutes > 0 { parts.append(Recipe.durationText(minutes)) }
-            base = parts.joined(separator: " · ")
-        } else if !meal.tagline.isEmpty {
-            base = meal.tagline
-        } else if let cook = meal.cook, !cook.isMe {
-            base = "\(cook.name) cooks"
-        } else {
-            let minutes = meal.recipe?.totalMinutes ?? 0
-            base = minutes > 0 ? Recipe.durationText(minutes) : "Planned"
-        }
-        let servings = meal.recipe == nil ? nil : "Serves \(max(1, meal.servings))"
-        let details = [base, servings].compactMap { $0 }.filter { !$0.isEmpty }
-        let detailLine = details.joined(separator: " · ")
-        // The week row shows dinner; a day can now hold breakfast, lunch,
-        // dessert and a snack too, and hiding them here would make the day
-        // page a surprise.
-        let others = otherSlots(on: date).count
-        let withOthers = others > 0 ? "\(detailLine) · +\(others) more" : detailLine
-        return withOthers
-    }
-
     /// Everything planned on a day that isn't its dinner, earliest first.
     private func otherSlots(on date: Date) -> [MealSlot] {
         meals
@@ -1315,7 +1309,7 @@ struct WeekView: View {
             let joined = ListFormatter.localizedString(byJoining: others.map { $0.title.lowercased() })
             return "\(removed). \(joined.prefix(1).uppercased() + joined.dropFirst()) planned"
         }
-        guard !others.isEmpty else { return "No meal planned yet" }
+        guard !others.isEmpty else { return PlanEmptyCopy.rowTitle(past: isPast(date)) }
         let joined = ListFormatter.localizedString(byJoining: others.map { $0.title.lowercased() })
         return joined.prefix(1).uppercased() + joined.dropFirst() + " planned"
     }
