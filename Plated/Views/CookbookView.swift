@@ -212,6 +212,11 @@ func RecipeTileTitle(_ title: String, size: TypeScale, typeSize: DynamicTypeSize
 /// table. The "All dishes" chip is the whole control surface: tap it for
 /// search, filters, and sort in one sheet.
 struct CookbookView: View {
+    var onPlanNight: () -> Void = {}
+    @State private var invitationShown = false
+    @State private var pendingInvitation: URL?
+    @State private var savedRecipe: Recipe?
+    @State private var justSavedID: PersistentIdentifier?
     @Environment(\.modelContext) private var context
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.activeAppTab) private var activeAppTab
@@ -261,6 +266,16 @@ struct CookbookView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
+                if recipes.isEmpty {
+                    HStack {
+                        PlatedWordmark(size: 28)
+                        Spacer()
+                        AccountButton()
+                    }
+                    .padding(.horizontal, Spacing.page)
+                    .padding(.vertical, Spacing.compact)
+                    .plChrome()
+                } else {
                 PlatedMasthead(title: "The recipe book") {
                     HStack(spacing: 8) {
                         ActivityBellButton(size: 44) { activityShown = true }
@@ -283,6 +298,7 @@ struct CookbookView: View {
                 .padding(.leading, 16).padding(.trailing, 5).frame(minHeight: 52)
                 .background(Color.fill, in: Radius.shape(Radius.chip))
                 .padding(.horizontal, 24).padding(.top, 16)
+                }
                 ScrollView(showsIndicators: false) {
                     if let householdLine {
                         // One quiet line above whatever has landed, and no
@@ -333,7 +349,7 @@ struct CookbookView: View {
                     ))
                     .padding(.horizontal, 24)
                     .padding(.top, 20)
-                    .padding(.bottom, Layout.floatingChromeInset)
+                    .padding(.bottom, shown.isEmpty ? 0 : Layout.floatingChromeInset)
 
                     if shown.isEmpty {
                         // Two different nothings. A filter that matched
@@ -381,7 +397,7 @@ struct CookbookView: View {
                 if count > 0 { reach = .reached }
             }
             .navigationDestination(item: $selected) { recipe in
-                RecipeDetailView(recipe: recipe)
+                RecipeDetailView(recipe: recipe, justSaved: justSavedID == recipe.persistentModelID)
                     .navigationTransition(.zoom(sourceID: recipe.persistentModelID, in: zoom))
             }
             .navigationDestination(isPresented: $activityShown) {
@@ -391,9 +407,20 @@ struct CookbookView: View {
             .plSwipeBack()
         }
         // Two `.sheet` modifiers on one view is undefined — see CLAUDE.md.
-        .sheet(item: shelfSheet) { destination in
+        .sheet(item: shelfSheet, onDismiss: {
+            if let pendingInvitation {
+                self.pendingInvitation = nil
+                LinkRelay.open(pendingInvitation)
+            }
+            if let savedRecipe {
+                justSavedID = savedRecipe.persistentModelID
+                selected = savedRecipe
+                self.savedRecipe = nil
+            }
+        }) { destination in
             switch destination {
-            case .importing: RecipeImportSheet()
+            case .importing: RecipeImportSheet { savedRecipe = $0 }
+            case .invitation: HouseholdInvitationEntryView { pendingInvitation = $0 }
             case .filter: RecipeFilterSheet(filter: $filter, recipes: recipes)
             case .plate(let recipe): PlateAssignSheet(recipe: recipe)
             case .edit(let recipe): RecipeEditorView(editing: recipe)
@@ -406,7 +433,11 @@ struct CookbookView: View {
             selected = nil
             activityShown = false
         }
+        .onReceive(NotificationCenter.default.publisher(for: LinkRelay.recipeRequested)) { _ in
+            openSavedRecipe()
+        }
         .onAppear {
+            openSavedRecipe()
             updateCookbookPresence()
             #if DEBUG
             if (LaunchFlags.consume("-plated-open-recipe-detail")
@@ -439,16 +470,23 @@ struct CookbookView: View {
         }
     }
 
+    private func openSavedRecipe() {
+        guard let recipe = LinkRelay.takeRecipe() else { return }
+        justSavedID = recipe.persistentModelID
+        selected = recipe
+    }
+
     private func updateCookbookPresence() {
         Presence.shared.cookbookVisible = activeAppTab == .cookbook
             && selected == nil && !activityShown
     }
 
     private enum ShelfSheet: Identifiable {
-        case importing, filter, plate(Recipe), edit(Recipe)
+        case importing, invitation, filter, plate(Recipe), edit(Recipe)
         var id: String {
             switch self {
             case .importing: "import"
+            case .invitation: "invitation"
             case .filter: "filter"
             case .plate(let recipe): "plate-\(recipe.persistentModelID)"
             case .edit(let recipe): "edit-\(recipe.persistentModelID)"
@@ -459,6 +497,7 @@ struct CookbookView: View {
         Binding(
             get: {
                 if importShown { return .importing }
+                if invitationShown { return .invitation }
                 if filterSheetShown { return .filter }
                 if let plating { return .plate(plating) }
                 if let editing { return .edit(editing) }
@@ -467,6 +506,7 @@ struct CookbookView: View {
             set: {
                 if $0 == nil {
                     importShown = false
+                    invitationShown = false
                     filterSheetShown = false
                     plating = nil
                     editing = nil
@@ -542,6 +582,8 @@ struct CookbookView: View {
                     .plTapTarget()
             }
             .buttonStyle(.pressable)
+            PrimaryActionButton(title: "Add a recipe") { importShown = true }
+            SecondaryActionButton(title: "Plan a night", action: onPlanNight)
         }
         .frame(maxWidth: .infinity)
         .padding(.top, 40)
@@ -568,6 +610,7 @@ struct CookbookView: View {
     /// CloudKit's account status. Nothing here for a host or a solo
     /// household: their cookbook is their own and the mirror answers for it.
     private func readHouseholdStanding() async {
+        guard !PlatedApp.usesPreviewContainer else { return }
         var arriving: String?
         var unreachable = false
         if case .member = HouseholdShare.membership {
@@ -591,6 +634,7 @@ struct CookbookView: View {
     /// is. Recipes already on this phone are drawn immediately; this only
     /// decides what to say when there are none.
     private func look() async {
+        if PlatedApp.usesPreviewContainer { reach = .reached; return }
         guard recipes.isEmpty else { reach = .reached; return }
         switch await CloudSync.waitForImport() {
         case .arrived, .quiet: reach = .reached
@@ -599,31 +643,46 @@ struct CookbookView: View {
     }
 
     private var emptyCookbook: some View {
-        VStack(spacing: 12) {
+        VStack(alignment: .leading, spacing: Spacing.section) {
+            VStack(alignment: .leading, spacing: Spacing.compact) {
+                Text("Keep something worth cooking.")
+                    .plType(.hero)
+                    .foregroundStyle(Color.ink)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text("Start with a recipe you love.")
+                    .plType(.body)
+                    .foregroundStyle(Color.inkSecondary)
+            }
             Image(systemName: "book.closed")
-                .font(.system(size: 26, weight: .medium))
-                .foregroundStyle(Color.inkFaint)
-            Text("Nothing in the cookbook yet")
-                // .body/.bold, like the other six empty headlines in the
-                // app, including the identical sentence one sheet away in
-                // RecipePickerSheet. This was the only one set a step up.
-                .plType(.body, .bold)
-                .foregroundStyle(Color.ink)
-                .multilineTextAlignment(.center)
-            Text("Start with the one your household asks for most.")
-                .plType(.footnote)
+                .font(.system(size: 36, weight: .regular))
                 .foregroundStyle(Color.inkSecondary)
-                .multilineTextAlignment(.center)
-            // Every entry point opens the same smart creation flow. The old
-            // split sent the masthead + and the primary empty-state button
-            // straight to the legacy form, hiding paste, URL import and scan
-            // from anyone who already owned a recipe. Manual entry remains
-            // inside this sheet as "Write it out".
-            PrimaryActionButton(title: "Add a recipe") { importShown = true }
-            .padding(.top, 8)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, Spacing.section)
+                .accessibilityHidden(true)
+            VStack(spacing: Spacing.compact) {
+                PrimaryActionButton(title: "Add your first recipe") { importShown = true }
+                    .accessibilityIdentifier("first-recipe-add")
+                SecondaryActionButton(title: "Plan a night", action: onPlanNight)
+                    .accessibilityIdentifier("first-recipe-plan")
+            }
+            Rectangle().fill(Color.hairline).frame(height: 1)
+            Button {
+                invitationShown = true
+            } label: {
+                HStack {
+                    Text("Have a household invitation?").plType(.footnote)
+                    Spacer()
+                    Image(systemName: "envelope.open")
+                }
+                .foregroundStyle(Color.inkSecondary)
+                .frame(minHeight: ControlMetrics.minimumTarget)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.pressable)
+            .accessibilityIdentifier("first-recipe-invitation")
         }
-        .padding(.horizontal, 34)
-        .padding(.top, 44)
+        .padding(.horizontal, Spacing.page)
+        .padding(.bottom, Layout.floatingChromeInset)
     }
 
     /// Empty when there is nothing to count.
@@ -998,6 +1057,7 @@ struct RecipeDetailView: View {
     /// the page scales ingredients to that night's servings and the docked
     /// CTA becomes the one thing left to say: it got cooked.
     var meal: PlannedMeal? = nil
+    var justSaved = false
 
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
@@ -1088,6 +1148,26 @@ struct RecipeDetailView: View {
                     )
                 }
 
+                if justSaved {
+                    VStack(alignment: .leading, spacing: Spacing.compact) {
+                        Label("Saved to Recipes", systemImage: "checkmark")
+                            .plType(.footnote)
+                            .foregroundStyle(Color.inkSecondary)
+                            .accessibilityIdentifier("recipe-saved")
+                        if !ingredientRows.isEmpty {
+                            SecondaryActionButton(title: "Add to Groceries", systemImage: "basket") {
+                                addIngredientsToGroceries()
+                            }
+                            .accessibilityIdentifier("recipe-groceries")
+                            if let groceriesNotice {
+                                Text(groceriesNotice)
+                                    .plType(.footnote)
+                                    .foregroundStyle(Color.inkSecondary)
+                            }
+                        }
+                    }
+                }
+
                 if !recipe.summary.isEmpty {
                     Text(recipe.summary)
                         .plType(.footnote)
@@ -1133,6 +1213,7 @@ struct RecipeDetailView: View {
                         ForEach(ingredientRows, id: \.ingredient.persistentModelID) { row in
                             ingredientRow(row.ingredient, quantity: row.quantity)
                         }
+                        if !justSaved {
                         Button(action: addIngredientsToGroceries) {
                             Label("Add to groceries", systemImage: "basket")
                                 .plType(.footnote, .bold)
@@ -1151,6 +1232,7 @@ struct RecipeDetailView: View {
                                 .foregroundStyle(groceriesNotice.hasPrefix("Couldn't") ? Color.dangerText : Color.completion)
                                 .frame(maxWidth: .infinity, alignment: .center)
                                 .transition(.plUnfold)
+                        }
                         }
                     }
                     .padding(.top, 4)
@@ -1402,7 +1484,7 @@ struct RecipeDetailView: View {
                 )
             }
         } else {
-            PrimaryActionButton(title: "Plan this dish", systemImage: "calendar.badge.plus") {
+            PrimaryActionButton(title: "Plan a night", systemImage: "calendar.badge.plus") {
                 assignShown = true
             }
             .accessibilityIdentifier("recipe-plan")

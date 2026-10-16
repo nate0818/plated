@@ -247,6 +247,19 @@ final class NotificationRouter: NSObject, UNUserNotificationCenterDelegate {
 /// already on screen, on its own `onAppear` if it is not.
 @MainActor
 enum LinkRelay {
+    static let recipeRequested = Notification.Name("plated.link.recipe")
+    private static var pendingRecipe: Recipe?
+
+    static func request(recipe: Recipe) {
+        pendingRecipe = recipe
+        NotificationCenter.default.post(name: recipeRequested, object: nil)
+    }
+
+    static func takeRecipe() -> Recipe? {
+        defer { pendingRecipe = nil }
+        return pendingRecipe
+    }
+
     static let opened = Notification.Name("plated.link.opened")
     private static var pending: URL?
 

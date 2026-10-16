@@ -20,6 +20,21 @@ A root reselect returns to that destination's root. Add is a header action,
 not a tab. Tasks use sheets and preserve valuable drafts. Cooking uses a focused
 full-screen session with explicit Minimize and End actions.
 
+## First arrival
+
+The app icon uses the custom cream P with its open, curved bowl on deep green.
+Default and Dark share the same artwork; Tinted uses the monochrome version.
+The system owns the corner mask. No gradient wordmark or trailing dot.
+
+Launch is a readiness-driven canvas, with no timed logo interstitial. Welcome
+uses a believable weeknight photograph, the editorial wordmark, and a short
+product promise. Apple sign-in and local use remain available. New users enter
+the real Recipes empty state, with Add your first recipe, Plan a night, and an
+invitation route. Incoming invitations retain their destination through welcome.
+Profile photos, contacts and the feature tour are not mandatory setup. Ask for a
+missing name when joining a household. Saving opens the actual recipe detail;
+there is no celebration interstitial, and failed saves retain the draft.
+
 ## Source of truth
 
 - `Plated/Support/Theme.swift`: semantic colors, shape, spacing, control metrics,

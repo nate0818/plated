@@ -15,13 +15,15 @@ import PhotosUI
 /// avoid.
 struct RecipeImportSheet: View {
     private let initialImages: [Data]
+    private let onSaved: (Recipe) -> Void
 
     private enum IntakeRoute {
         case choices
         case paste
     }
 
-    init(initialInput: String = "", initialImages: [Data] = []) {
+    init(initialInput: String = "", initialImages: [Data] = [], onSaved: @escaping (Recipe) -> Void = { _ in }) {
+        self.onSaved = onSaved
         self.initialImages = initialImages
         _raw = State(initialValue: initialInput)
         _intakeRoute = State(
@@ -71,7 +73,10 @@ struct RecipeImportSheet: View {
     @State private var editorShown = false
     /// Set by the editor before it closes, so the import sheet can leave
     /// with it instead of reappearing behind a finished recipe.
-    @State private var savedInEditor = false
+    @State private var savedInEditor: Recipe?
+    @State private var saveFailed = false
+    @State private var pendingSaveRecipe: Recipe?
+    @State private var pendingIsNew = false
     @State private var photoItem: PhotosPickerItem?
     @State private var duplicateToResolve: Recipe?
     @State private var pendingDuplicateDraft: ImportedRecipe?
@@ -87,6 +92,98 @@ struct RecipeImportSheet: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            if draft != nil {
+                importHeader
+                if saveFailed {
+                    Text("Couldn't save the recipe. Your changes are still here. Try again.")
+                        .plType(.footnote)
+                        .foregroundStyle(Color.dangerText)
+                        .padding(.horizontal, Spacing.page)
+                        .accessibilityIdentifier("recipe-save-failed")
+                }
+                review
+            } else {
+                ScrollView(showsIndicators: false) {
+                    importHeader
+                    intakeContent.disabled(reading)
+                }
+                .scrollDismissesKeyboard(.interactively)
+                .scrollBounceBehavior(.basedOnSize)
+            }
+        }
+        .background(Color.canvas)
+        .presentationDetents([.large])
+        .presentationDragIndicator(.visible)
+        .presentationBackground(Color.canvas)
+        .presentationCornerRadius(Radius.sheet)
+        .interactiveDismissDisabled(hasWork)
+        .confirmationDialog("Discard this import?", isPresented: $discardAsked, titleVisibility: .visible) {
+            Button("Discard", role: .destructive) {
+                if pendingIsNew, let pendingSaveRecipe { context.delete(pendingSaveRecipe) }
+                dismiss()
+            }
+            Button("Keep it", role: .cancel) {}
+        }
+        .confirmationDialog(
+            "This recipe may already be in your cookbook.",
+            isPresented: Binding(
+                get: { duplicateToResolve != nil },
+                set: { if !$0 { duplicateToResolve = nil; pendingDuplicateDraft = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            if let duplicate = duplicateToResolve, let pending = pendingDuplicateDraft {
+                Button("Update \(duplicate.title)") { update(duplicate, with: pending) }
+                Button("Keep both") { saveNew(pending) }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Update the existing copy and keep its cooking history, or save another copy.")
+        }
+        .fullScreenCover(isPresented: $scannerShown) {
+            DocumentScanner(
+                onScan: { pages in
+                    scannerShown = false
+                    scan(pages)
+                },
+                onCancel: { scannerShown = false }
+            )
+            .ignoresSafeArea()
+        }
+        .sheet(isPresented: $editorShown, onDismiss: {
+            if let savedInEditor { onSaved(savedInEditor); dismiss() }
+        }) {
+            RecipeEditorView { savedInEditor = $0 }
+        }
+        .onChange(of: photoItem) { _, item in
+            guard let item else { return }
+            Task {
+                if let data = try? await item.loadTransferable(type: Data.self),
+                   let image = UIImage(data: data) {
+                    scan([image])
+                } else {
+                    Haptic.warn()
+                    withAnimation(.plSnap) { failure = .unreadablePhoto }
+                    AccessibilityNotification.Announcement(
+                        "That photo could not be read. Choose another photo and try again."
+                    ).post()
+                }
+                photoItem = nil
+            }
+        }
+        .task {
+            guard !initialImportStarted else { return }
+            initialImportStarted = true
+            let images = initialImages.compactMap(UIImage.init(data:))
+            if !raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                read(raw)
+            } else if !images.isEmpty {
+                scan(images)
+            }
+        }
+    }
+
+    private var importHeader: some View {
             VStack(spacing: 2) {
                 // Its own row, not overlaid on the title. "Does this look
                 // right?" takes the full width at xxLarge, so a leading
@@ -132,102 +229,20 @@ struct RecipeImportSheet: View {
             .padding(.top, 8)
             .padding(.bottom, 14)
 
-            if draft != nil {
-                review
-            } else {
-                intake
-            }
-        }
-        .background(Color.canvas)
-        .presentationDetents([.large])
-        .presentationDragIndicator(.visible)
-        .presentationBackground(Color.canvas)
-        .presentationCornerRadius(Radius.sheet)
-        .interactiveDismissDisabled(hasWork)
-        .confirmationDialog("Discard this import?", isPresented: $discardAsked, titleVisibility: .visible) {
-            Button("Discard", role: .destructive) { dismiss() }
-            Button("Keep it", role: .cancel) {}
-        }
-        .confirmationDialog(
-            "This recipe may already be in your cookbook.",
-            isPresented: Binding(
-                get: { duplicateToResolve != nil },
-                set: { if !$0 { duplicateToResolve = nil; pendingDuplicateDraft = nil } }
-            ),
-            titleVisibility: .visible
-        ) {
-            if let duplicate = duplicateToResolve, let pending = pendingDuplicateDraft {
-                Button("Update \(duplicate.title)") { update(duplicate, with: pending) }
-                Button("Keep both") { saveNew(pending) }
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("Update the existing copy and keep its cooking history, or save another copy.")
-        }
-        .fullScreenCover(isPresented: $scannerShown) {
-            DocumentScanner(
-                onScan: { pages in
-                    scannerShown = false
-                    scan(pages)
-                },
-                onCancel: { scannerShown = false }
-            )
-            .ignoresSafeArea()
-        }
-        .sheet(isPresented: $editorShown, onDismiss: {
-            if savedInEditor { dismiss() }
-        }) {
-            RecipeEditorView { _ in savedInEditor = true }
-        }
-        .onChange(of: photoItem) { _, item in
-            guard let item else { return }
-            Task {
-                if let data = try? await item.loadTransferable(type: Data.self),
-                   let image = UIImage(data: data) {
-                    scan([image])
-                } else {
-                    Haptic.warn()
-                    withAnimation(.plSnap) { failure = .unreadablePhoto }
-                    AccessibilityNotification.Announcement(
-                        "That photo could not be read. Choose another photo and try again."
-                    ).post()
-                }
-                photoItem = nil
-            }
-        }
-        .task {
-            guard !initialImportStarted else { return }
-            initialImportStarted = true
-            let images = initialImages.compactMap(UIImage.init(data:))
-            if !raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                read(raw)
-            } else if !images.isEmpty {
-                scan(images)
-            }
-        }
     }
 
     // MARK: Bring it in
 
     private var headerTitle: String {
         if draft != nil { return "Recipe preview" }
-        return intakeRoute == .choices ? "Add a recipe" : "Paste a recipe"
+        return intakeRoute == .choices ? "A good recipe starts anywhere." : "Paste a recipe"
     }
 
     private var headerDetail: String {
         if draft != nil { return "Tweak anything before it joins your cookbook." }
         return intakeRoute == .choices
-            ? "Bring it in however you have it."
+            ? "Review the details before saving."
             : "A link, a copied recipe, or both work here."
-    }
-
-    @ViewBuilder
-    private var intake: some View {
-        ScrollView(showsIndicators: false) {
-            intakeContent
-        }
-        .scrollDismissesKeyboard(.interactively)
-        .scrollBounceBehavior(.basedOnSize)
     }
 
     private var intakeContent: some View {
@@ -244,9 +259,24 @@ struct RecipeImportSheet: View {
     }
 
     private var routeChoices: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 16) {
+            VStack(alignment: .leading, spacing: 8) {
+                MicroLabel("Recipe link")
+                TextField("Paste a recipe link", text: $raw)
+                    .plType(.body)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .keyboardType(.URL)
+                    .padding(14)
+                    .overlay(Radius.shape(Radius.chip).strokeBorder(Color.hairline))
+                    .accessibilityIdentifier("recipe-link")
+                PrimaryActionButton(title: "Import recipe", busy: reading) { read(raw) }
+                    .disabled(raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || reading)
+            }
+            if let failure { ProblemRow(failure.line) }
+            Rectangle().fill(Color.hairline).frame(height: 1)
             importRoute(
-                title: raw.isEmpty ? "Paste a link or recipe" : "Continue pasted recipe",
+                title: "Paste recipe text",
                 detail: raw.isEmpty
                     ? "From Safari, Notes, Messages, or anywhere else"
                     : "Your text is still here",
@@ -274,7 +304,7 @@ struct RecipeImportSheet: View {
             .buttonStyle(.pressable)
 
             importRoute(
-                title: "Write it yourself",
+                title: "Write your own",
                 detail: "Build the recipe in your own words",
                 icon: "square.and.pencil"
             ) { editorShown = true }
@@ -407,8 +437,8 @@ struct RecipeImportSheet: View {
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.fill, in: Radius.shape(Radius.card))
-        .contentShape(Radius.shape(Radius.card))
+        .overlay(alignment: .bottom) { Rectangle().fill(Color.hairline).frame(height: 1) }
+        .contentShape(Rectangle())
     }
 
     // MARK: Review — editable, because the parse is a first draft
@@ -479,6 +509,7 @@ struct RecipeImportSheet: View {
                             .contentShape(Radius.shape(Radius.chip))
                     }
                     .buttonStyle(.pressable)
+                    .disabled(pendingSaveRecipe != nil)
 
                     PrimaryActionButton(title: unnamed ? "Name it to save" : "Save recipe",
                                      haptic: Haptic.kiss) {
@@ -787,6 +818,11 @@ struct RecipeImportSheet: View {
     }
 
     private func requestSave(_ r: ImportedRecipe) {
+        // Reuse the same model after a failed save, so retry cannot insert duplicates.
+        if let pendingSaveRecipe {
+            update(pendingSaveRecipe, with: r)
+            return
+        }
         if let duplicate = duplicate(for: r) {
             duplicateToResolve = duplicate
             pendingDuplicateDraft = r
@@ -819,8 +855,8 @@ struct RecipeImportSheet: View {
             row.recipe = recipe
             context.insert(row)
         }
-        Persist.save(context)
-        dismiss()
+        pendingIsNew = true
+        finishSaving(recipe)
     }
 
     private func update(_ recipe: Recipe, with imported: ImportedRecipe) {
@@ -848,7 +884,19 @@ struct RecipeImportSheet: View {
             row.recipe = recipe
             context.insert(row)
         }
-        Persist.save(context)
+        finishSaving(recipe)
+    }
+
+    private func finishSaving(_ recipe: Recipe) {
+        pendingSaveRecipe = recipe
+        guard Persist.save(context, "import recipe") else {
+            saveFailed = true
+            AccessibilityNotification.Announcement("Couldn't save the recipe. Try again.").post()
+            return
+        }
+        saveFailed = false
+        pendingSaveRecipe = nil
+        onSaved(recipe)
         dismiss()
     }
 

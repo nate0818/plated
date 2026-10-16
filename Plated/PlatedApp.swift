@@ -116,6 +116,12 @@ struct PlatedApp: App {
         let arguments = ProcessInfo.processInfo.arguments
         if usesPreviewContainer {
             let preview = SampleData.previewContainer
+            if arguments.contains("-plated-review-onboarding") {
+                // A fresh, memory-only cookbook makes the complete first-use path testable.
+                try? preview.mainContext.delete(model: PlannedMeal.self)
+                try? preview.mainContext.delete(model: Recipe.self)
+                try? preview.mainContext.save()
+            }
             if arguments.contains("-plated-design-review") && arguments.contains("-plated-review-drag") {
                 PlannerDragChecks.prepareReview(in: preview.mainContext)
             }

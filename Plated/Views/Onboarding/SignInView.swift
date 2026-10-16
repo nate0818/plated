@@ -5,6 +5,7 @@ import AuthenticationServices
 /// planner. Someone can set up their week first and add identity when they
 /// invite, join, or publish.
 struct SignInView: View {
+    var reviewOnly = false
     let onSignedIn: () -> Void
 
     @Environment(\.colorScheme) private var colorScheme
@@ -23,38 +24,47 @@ struct SignInView: View {
     @State private var appleFailed = false
 
     var body: some View {
-        VStack(spacing: 0) {
-            Image("EditorialWelcome")
-                .resizable()
-                .aspectRatio(contentMode: .fill)
-                .frame(height: 220)
-                .clipped()
+        VStack(alignment: .leading, spacing: 0) {
+            PlatedWordmark(size: 28)
+                .padding(.horizontal, Spacing.page)
+                .padding(.top, Spacing.content)
+                .padding(.bottom, Spacing.content)
+
+            Color.clear
+                .frame(height: 240)
+                .overlay {
+                    GeometryReader { geometry in
+                        Image("EditorialWelcome")
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: geometry.size.width, height: geometry.size.height)
+                            .clipped()
+                    }
+                }
                 .clipShape(Radius.shape(Radius.hero))
                 .padding(.horizontal, 24)
-                .padding(.top, 24)
                 .padding(.bottom, 28)
                 .accessibilityHidden(true)
 
-            VStack(spacing: 14) {
-                PlatedWordmark(size: 26)
+            VStack(alignment: .leading, spacing: 12) {
                 Text("Good food.\nA little more together.")
                     .plType(.hero, .regular)
                     .foregroundStyle(Color.ink)
-                    .multilineTextAlignment(.center)
+                    .multilineTextAlignment(.leading)
                     .fixedSize(horizontal: false, vertical: true)
-                Text("Plan dinner together, keep every recipe worth repeating, and share what you cooked with the people at your table.")
+                Text("Your recipes, dinner plans, and shopping list. Together.")
                     .plType(.body, .medium)
                     .foregroundStyle(Color.inkSecondary)
-                    .multilineTextAlignment(.center)
+                    .multilineTextAlignment(.leading)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            .padding(.horizontal, 32)
+            .padding(.horizontal, Spacing.page)
             .opacity(arrived ? 1 : 0)
 
-            Spacer()
+            Spacer(minLength: 28)
 
             VStack(spacing: 14) {
-                SignInWithAppleButton(.signIn) { request in
+                SignInWithAppleButton(.continue) { request in
                     request.requestedScopes = [.fullName]
                 } onCompletion: { result in
                     switch result {
@@ -67,29 +77,20 @@ struct SignInView: View {
                 .signInWithAppleButtonStyle(colorScheme == .dark ? .white : .black)
                 .frame(height: 56)
                 .clipShape(Radius.shape(Radius.chip))
+                .id(colorScheme)
 
-                Button {
-                    appleIdentityMissing = true
-                    Haptic.tap()
+                SecondaryActionButton(title: "Continue on this device") {
+                    if !reviewOnly { appleIdentityMissing = true }
                     onSignedIn()
-                } label: {
-                    Text("Continue on this iPhone")
-                        .plType(.footnote, .bold)
-                        .plActionLabel()
-                        .foregroundStyle(Color.ink)
-                        .frame(maxWidth: .infinity)
-                        .frame(minHeight: 48)
-                        .overlay(Radius.shape(Radius.chip).strokeBorder(Color.hairline, lineWidth: 1.5))
-                        .contentShape(Radius.shape(Radius.chip))
                 }
-                .buttonStyle(.pressable)
-                .accessibilityHint("Plan locally now. Sharing and invites can be turned on later with Apple.")
+                .accessibilityIdentifier("welcome-local")
+                .accessibilityHint("Plan locally now. Sign in later to share or join a household.")
 
                 HStack(spacing: 6) {
                     Image(systemName: "lock")
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(Color.inkSecondary)
-                    Text("Private by default, invite only, and no password for us to store.")
+                    Text("Sign in to share with your household.")
                         .plType(.caption)
                         .foregroundStyle(Color.inkSecondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -99,7 +100,10 @@ struct SignInView: View {
             .padding(.bottom, 32)
             .opacity(arrived ? 1 : 0)
         }
+        .frame(maxWidth: 520)
+        .frame(maxWidth: .infinity)
         .plFitsOrScrolls()
+        .frame(maxWidth: .infinity)
         .background { OnboardingAtmosphere().ignoresSafeArea() }
         .onAppear { arrived = true }
         .sheet(isPresented: $appleFailed) {
@@ -133,6 +137,7 @@ struct SignInView: View {
     }
 
     private func applyApple(_ auth: ASAuthorization) {
+        guard !reviewOnly else { onSignedIn(); return }
         guard let credential = auth.credential as? ASAuthorizationAppleIDCredential else {
             presentFailOpen()
             return

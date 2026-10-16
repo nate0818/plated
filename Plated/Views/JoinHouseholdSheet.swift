@@ -41,6 +41,15 @@ struct JoinHouseholdSheet: View {
 
     @State private var preview: HouseholdSync.JoinPreview?
     @State private var joining = false
+    @AppStorage("userFirstName") private var userFirstName = ""
+    @Query private var members: [HouseholdMember]
+    @State private var joinName = ""
+
+    private var needsName: Bool {
+        userFirstName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && (members.me.map { HouseholdIdentity.isPlaceholder($0.name) } ?? true)
+    }
+
     /// Set by `.needsSeat`: the roster's open seats to pick from.
     @State private var candidates: [HouseholdSync.SeatCandidate]?
     @State private var problem: String?
@@ -137,6 +146,17 @@ struct JoinHouseholdSheet: View {
             .padding(.horizontal, 24)
 
             if let preview {
+                if needsName {
+                    VStack(alignment: .leading, spacing: Spacing.compact) {
+                        Text("What should your household call you?").plType(.body)
+                        TextField("Your name", text: $joinName)
+                            .plType(.body)
+                            .textContentType(.givenName)
+                            .padding(14)
+                            .overlay(Radius.shape(Radius.chip).strokeBorder(Color.hairline))
+                    }
+                    .padding(.horizontal, Spacing.page)
+                }
                 stateBody(preview)
                     .transition(.plUnfold)
             }
@@ -445,8 +465,26 @@ struct JoinHouseholdSheet: View {
         withAnimation(.plSnap) { preview = read }
     }
 
+    private func prepareName() -> Bool {
+        guard needsName else { return true }
+        let name = joinName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else {
+            problem = "Add your name so your household can recognize you."
+            return false
+        }
+        if let me = members.me {
+            HouseholdIdentity.rename(me, to: name, in: context)
+            guard Persist.save(context, "name before joining") else {
+                problem = "Couldn't save your name. Try again."
+                return false
+            }
+        }
+        userFirstName = name
+        return true
+    }
+
     private func join() {
-        guard !joining, let metadata else { return }
+        guard !joining, let metadata, prepareName() else { return }
         withAnimation(.plSnap) {
             joining = true
             problem = nil
@@ -458,7 +496,7 @@ struct JoinHouseholdSheet: View {
     }
 
     private func claim(_ seatName: String?) {
-        guard !joining else { return }
+        guard !joining, prepareName() else { return }
         withAnimation(.plSnap) {
             joining = true
             problem = nil
@@ -489,8 +527,7 @@ struct JoinHouseholdSheet: View {
     }
 }
 
-/// A person who installed from a household link (§7): SignIn, ProfileSetup,
-/// then this, full screen, then the Tour. It fetches the share the link
+/// A household link keeps its destination through welcome. It fetches the share the link
 /// names and shows what came back, so the invite-your-people screen is
 /// never shown to somebody about to give their own plan up.
 struct JoinFromLinkStep: View {

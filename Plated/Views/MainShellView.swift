@@ -110,6 +110,12 @@ enum CreateKind: String, Identifiable {
 /// is the only chrome that floats — Prongsby's perch floated beside it
 /// until he was parked (see ProngsbyFeature), and returns with him.
 struct MainShellView: View {
+    // The first-run destination seeds state only once; subsequent renders preserve navigation.
+    init(initialTab: AppTab = .week) {
+        _selection = State(initialValue: initialTab)
+        _visitedTabs = State(initialValue: [initialTab])
+    }
+
     @Environment(\.modelContext) private var context
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Query private var members: [HouseholdMember]
@@ -275,6 +281,7 @@ struct MainShellView: View {
         ("-plated-review-move-meal", .week)
     ]
     #endif
+    @State private var createdRecipe: Recipe?
     @State private var createPresented = false
     /// Screenshot flags open a composer without passing through the menu;
     /// the flow starts there instead of at the rows. Nil for a real tap.
@@ -315,7 +322,7 @@ struct MainShellView: View {
                         switch tab {
                         case .week: WeekView(askTheTable: { selection = .table }, openGrocery: $groceryRequested)
                         case .table: TableFeedView()
-                        case .cookbook: CookbookView()
+                        case .cookbook: CookbookView(onPlanNight: { selection = .week })
                         case .groceries: NavigationStack { GrocerySheet(embedded: true) }
                         }
                     }
@@ -413,6 +420,11 @@ struct MainShellView: View {
                 sharedRecipeImages = []
                 sharedRecipeReceipt = nil
             }
+            if let createdRecipe {
+                selection = .cookbook
+                LinkRelay.request(recipe: createdRecipe)
+                self.createdRecipe = nil
+            }
             resumePendingCookIfPossible()
         }) { destination in
             Group {
@@ -421,7 +433,8 @@ struct MainShellView: View {
                     CreateFlowSheet(
                         start: createStart,
                         initialRecipeInput: sharedRecipeInput,
-                        initialRecipeImages: sharedRecipeImages
+                        initialRecipeImages: sharedRecipeImages,
+                        onRecipeSaved: { createdRecipe = $0 }
                     )
                 case .ask:
                     AskComposerSheet(date: Calendar.current.startOfDay(for: .now))
@@ -1027,8 +1040,10 @@ struct CreateFlowSheet: View {
     init(
         start: CreateKind? = nil,
         initialRecipeInput: String = "",
-        initialRecipeImages: [Data] = []
+        initialRecipeImages: [Data] = [],
+        onRecipeSaved: @escaping (Recipe) -> Void = { _ in }
     ) {
+        self.onRecipeSaved = onRecipeSaved
         _kind = State(initialValue: start)
         self.initialRecipeInput = initialRecipeInput
         self.initialRecipeImages = initialRecipeImages
@@ -1037,6 +1052,7 @@ struct CreateFlowSheet: View {
     @State private var kind: CreateKind?
     private let initialRecipeInput: String
     private let initialRecipeImages: [Data]
+    private let onRecipeSaved: (Recipe) -> Void
 
     var body: some View {
         if let kind {
@@ -1046,7 +1062,8 @@ struct CreateFlowSheet: View {
             case .recipe:
                 RecipeImportSheet(
                     initialInput: initialRecipeInput,
-                    initialImages: initialRecipeImages
+                    initialImages: initialRecipeImages,
+                    onSaved: onRecipeSaved
                 )
             case .ask:
                 AskComposerSheet(date: Calendar.current.startOfDay(for: .now))

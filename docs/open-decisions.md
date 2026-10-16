@@ -138,10 +138,10 @@ someone watching the screen while it lands.
 `.icon` document. On iOS 26 that means no layered lighting and no artwork at
 all for the Clear appearance.
 
-The mark is already two layers by construction — persimmon ground, white
-wordmark with its dot — so this is a rebuild in Icon Composer rather than a
-redesign, and DESIGN.md's ban on inventing a logo badge is not in the way.
-It cannot be authored headlessly.
+The October 16 identity update replaces the old orange wordmark with the
+approved custom P, supplied as default, dark and tinted 1024px PNGs. A layered
+Icon Composer document remains a separate, unverified enhancement; the new
+artwork does not claim layered or Clear-appearance validation.
 
 ## 6. Calendar rotation still needs a physical-device pass
 
