@@ -23,12 +23,12 @@ const sans = localFont({
 // the card when the link is pasted into Messages. Every claim here is one
 // the homepage also makes, so the snippet never promises more than the site.
 const DESCRIPTION =
-  "Plated is dinner planning for your household. Plan the week together, cook with clear steps, shop from the plan, and share dinners on a private, invite-only Table.";
+  "A shared meal plan, recipe book, and grocery list for your household. Decide what to cook, share the shopping, and see who’s cooking tonight. For iPhone and iPad.";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://plated.food"),
   title: {
-    default: "Plated: your week, well fed",
+    default: "Plated: dinner plans, made together",
     template: "%s · Plated",
   },
   description: DESCRIPTION,
@@ -53,12 +53,12 @@ export const metadata: Metadata = {
     type: "website",
     locale: "en_US",
     url: "https://plated.food",
-    title: "Plated: your week, well fed",
+    title: "Plated: dinner plans, made together",
     description: DESCRIPTION,
   },
   twitter: {
     card: "summary_large_image",
-    title: "Plated: your week, well fed",
+    title: "Plated: dinner plans, made together",
     description: DESCRIPTION,
   },
   robots: {

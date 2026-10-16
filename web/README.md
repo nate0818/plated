@@ -53,12 +53,21 @@ minutes.
 
 Colour tokens in `app/globals.css` mirror the Editorial system in
 `Plated/Support/Theme.swift`: deep green by default across public pages, the private console, and error
-pages. The optional paper palette is retained for explicit future use. Change a native
+pages. The optional paper palette remains available for explicit light surfaces. Change a native
 token there, change its web counterpart here; `make tokens` verifies both palettes. The homepage uses Newsreader
 titles, DM Sans reading text, fine rules, flat surfaces, small rectangular
-controls, and orange primary actions. The homepage pairs shared-table brand
-photography with actual app captures. The app preview uses a native dialog,
-named screen buttons, arrow-key navigation, and Escape to close.
+controls, and orange primary actions. The homepage uses actual app captures
+and existing sample-recipe photography. The homepage opens with one large recipe-book
+capture, followed immediately by a four-recipe gallery. On smaller screens the
+gallery scrolls horizontally. A manual three-step tour pairs Recipes, Plan, and
+Groceries with their real app screens; a separate Table scene explains intentional
+sharing. Each app preview opens a native dialog with all four screens, arrow-key
+navigation, and Escape to close. The tour uses named tabs with arrow keys and
+Home/End support. Navigation uses immediate anchor scrolling.
+
+The homepage critique, Laws of UX decisions, and browser verification are in
+`docs/website-whipp-reference-2026-10-16/README.md`. Launch-email signup is an
+optional native disclosure below the main TestFlight action.
 
 Fonts in `app/fonts` are the same variable TTFs shipped with the native app,
 self-hosted through `next/font/local`. Homepage imagery and its source captures
@@ -66,7 +75,7 @@ are documented in `public/app/README.md` and `public/editorial/README.md`.
 
 Regenerate browser icons and the social card after a brand or screenshot change
 with `node scripts/generate-editorial-artwork.cjs`. It uses the bundled fonts,
-current CSS palette, and the actual Editorial Plan capture. Font licenses are
+current CSS palette, and the actual Editorial Recipes capture. Font licenses are
 stored beside the binaries.
 
 ```
