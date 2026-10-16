@@ -7,7 +7,7 @@ import SwiftUI
 /// The system counts down on its own from `endsAt`; the app sends nothing
 /// while it runs. Past the finish the content is stale and the view says
 /// so, until Cook Mode is opened again and takes it down. Quiet chrome:
-/// canvas, ink, one tomato glyph. The dish is the content.
+/// canvas, ink, one olive glyph. The dish is the content.
 struct CookTimerLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: CookTimerAttributes.self) { context in
@@ -20,9 +20,9 @@ struct CookTimerLiveActivity: Widget {
                     HStack(spacing: 8) {
                         Image(systemName: "timer")
                             .font(.system(size: 15, weight: .semibold))
-                            .foregroundStyle(Plate.tomato)
+                            .foregroundStyle(Plate.olive)
                         Text(context.attributes.dish)
-                            .font(.jakarta(15, "Bold"))
+                            .font(.sans(15, "Bold"))
                             .foregroundStyle(Plate.ink)
                             .lineLimit(1)
                     }
@@ -34,21 +34,21 @@ struct CookTimerLiveActivity: Widget {
                 }
                 DynamicIslandExpandedRegion(.bottom) {
                     Text(stepLine(context.attributes.step, stale: context.isStale))
-                        .font(.jakarta(13, "SemiBold"))
+                        .font(.sans(13, "SemiBold"))
                         .foregroundStyle(Plate.inkSecondary)
                         .padding(.horizontal, 4)
                 }
             } compactLeading: {
                 Image(systemName: "timer")
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(Plate.tomato)
+                    .foregroundStyle(Plate.olive)
             } compactTrailing: {
                 TimerText(endsAt: context.state.endsAt, stale: context.isStale, size: 14)
                     .frame(maxWidth: 52)
             } minimal: {
                 Image(systemName: "timer")
                     .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(Plate.tomato)
+                    .foregroundStyle(Plate.olive)
             }
         }
     }
@@ -70,11 +70,11 @@ private struct TimerText: View {
     var body: some View {
         if stale || endsAt <= .now {
             Text("Done")
-                .font(.jakarta(size, "Bold"))
-                .foregroundStyle(Plate.tomato)
+                .font(.sans(size, "Bold"))
+                .foregroundStyle(Plate.olive)
         } else {
             Text(timerInterval: Date.now...endsAt, countsDown: true)
-                .font(.jakarta(size, "Bold"))
+                .font(.sans(size, "Bold"))
                 .monospacedDigit()
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
@@ -93,17 +93,17 @@ private struct LockScreenTimer: View {
                 Circle().fill(Plate.fill).frame(width: 44, height: 44)
                 Image(systemName: "timer")
                     .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(Plate.tomato)
+                    .foregroundStyle(Plate.olive)
             }
             VStack(alignment: .leading, spacing: 3) {
                 // The dish is content, so it wraps rather than truncates.
                 Text(context.attributes.dish)
-                    .font(.jakarta(17, "Bold"))
+                    .font(.sans(17, "Bold"))
                     .foregroundStyle(Plate.ink)
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
                 Text(stepLine(context.attributes.step, stale: context.isStale))
-                    .font(.jakarta(13, "SemiBold"))
+                    .font(.sans(13, "SemiBold"))
                     .foregroundStyle(Plate.inkSecondary)
                     .lineLimit(2)
             }

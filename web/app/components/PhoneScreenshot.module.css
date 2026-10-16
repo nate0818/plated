@@ -1,0 +1,4 @@
+/* The frame bounds a real full-screen capture; it is not a content card. */
+.phone { padding: 6px; border: 1px solid var(--hairline); border-radius: 20px; background: var(--canvas); overflow: hidden; }
+.screen { width: 100%; height: auto; border-radius: 14px; background: var(--canvas); }
+@media (max-width: 480px) { .phone { padding: 4px; border-radius: 14px; } .screen { border-radius: 10px; } }

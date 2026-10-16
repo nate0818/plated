@@ -30,6 +30,7 @@ final class NotificationRouter: NSObject, UNUserNotificationCenterDelegate {
         /// The person the notice is about, full name, so a reply from the
         /// banner is addressed to them and not to whoever owns the dish.
         static let actor = "actor"
+        static let actorID = "actorID"
     }
 
     enum Category {
@@ -124,6 +125,16 @@ final class NotificationRouter: NSObject, UNUserNotificationCenterDelegate {
         let info = notification.request.content.userInfo
         let post = info[Key.post] as? String ?? ""
         let kind = info[Key.kind] as? String ?? ""
+        let actor = info[Key.actor] as? String ?? ""
+        let actorID = info[Key.actorID] as? String ?? ""
+        let blocked = await MainActor.run {
+            ContentSafety.shared.hidesTableNotice(
+                kind: kind,
+                authorID: actorID,
+                authorName: actor
+            )
+        }
+        if blocked { return [] }
         // Only ever called while the app is in front, so "are they looking
         // at it" is a question about which screen, never about app state.
         let (openPost, feedVisible, activityVisible, planVisible, householdVisible, cookbookVisible) = await MainActor.run {
@@ -179,15 +190,24 @@ final class NotificationRouter: NSObject, UNUserNotificationCenterDelegate {
     ) async {
         let info = response.notification.request.content.userInfo
         let post = info[Key.post] as? String ?? ""
+        let kind = info[Key.kind] as? String ?? ""
+        let actor = info[Key.actor] as? String ?? ""
+        let actorID = info[Key.actorID] as? String ?? ""
+        let blocked = await MainActor.run {
+            ContentSafety.shared.hidesTableNotice(
+                kind: kind,
+                authorID: actorID,
+                authorName: actor
+            )
+        }
+        if blocked { return }
         print("[Notify] response \(response.actionIdentifier) post=\(post)")
         switch response.actionIdentifier {
         case Action.plate:
-            await MainActor.run { Haptic.plate() }
-            await TableNews.plate(post: post, context: PlatedStore.shared.mainContext)
+            await plateNotificationPost(post)
         case Action.reply:
             let text = (response as? UNTextInputNotificationResponse)?.userText ?? ""
-            let actor = info[Key.actor] as? String ?? ""
-            await TableNews.reply(post: post, to: actor, text: text, context: PlatedStore.shared.mainContext)
+            await replyToNotificationPost(post, actor: actor, text: text)
         case Action.grocery:
             await MainActor.run { LinkRelay.open(DeepLink.url(.grocery)) }
         default:
@@ -198,6 +218,23 @@ final class NotificationRouter: NSObject, UNUserNotificationCenterDelegate {
             else { return }
             await MainActor.run { LinkRelay.open(url) }
         }
+    }
+
+    /// SwiftData's main context never leaves the main actor. Notification
+    /// delegate callbacks are nonisolated, so the whole action — not just
+    /// the haptic — crosses onto the actor before the context is touched.
+    @MainActor
+    private func plateNotificationPost(_ post: String) async {
+        Haptic.plate()
+        await TableNews.plate(post: post, context: PlatedStore.shared.mainContext)
+    }
+
+    @MainActor
+    private func replyToNotificationPost(_ post: String, actor: String, text: String) async {
+        await TableNews.reply(
+            post: post, to: actor, text: text,
+            context: PlatedStore.shared.mainContext
+        )
     }
 }
 
@@ -266,6 +303,22 @@ enum LinkRelay {
         defer { pendingActivity = false }
         return pendingActivity
     }
+
+    static let householdRequested = Notification.Name("plated.link.household")
+    private static var pendingHousehold = false
+
+    /// The household is a secondary destination inside Plan's navigation
+    /// stack, not a hidden fifth tab. Deep links park this second leg until
+    /// the Plan root is ready to push it.
+    static func requestHousehold() {
+        pendingHousehold = true
+        NotificationCenter.default.post(name: householdRequested, object: nil)
+    }
+
+    static func takeHousehold() -> Bool {
+        defer { pendingHousehold = false }
+        return pendingHousehold
+    }
 }
 
 /// What is on screen right now, for the one decision that needs it.
@@ -315,7 +368,9 @@ final class Presence {
     /// than fight: a tab change is the coarse answer and runs here, while a
     /// push inside a tab is the fine one and runs there.
     static func follow(_ tab: AppTab) {
-        shared.householdVisible = tab == .home
+        // Household is a pushed screen. It derives visibility from both its
+        // own navigation lifecycle and the shell's active-tab environment;
+        // resetting it here races that more precise answer on a tab return.
         shared.cookbookVisible = tab == .cookbook
         shared.planVisible = tab == .week
         shared.feedVisible = tab == .table

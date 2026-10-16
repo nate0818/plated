@@ -1,0 +1,374 @@
+[
+  {
+    "id": 0,
+    "title": "Week plan",
+    "sheet": false,
+    "file": "screens/01-week-plan.png"
+  },
+  {
+    "id": 1,
+    "title": "Month plan",
+    "sheet": false,
+    "file": "screens/02-month-plan.png"
+  },
+  {
+    "id": 2,
+    "title": "Day details",
+    "sheet": false,
+    "file": "qa-captures/A03-day-detail-live.png"
+  },
+  {
+    "id": 3,
+    "title": "Plan a night",
+    "sheet": true,
+    "file": "screens/04-plan-a-night.png"
+  },
+  {
+    "id": 4,
+    "title": "Move a meal",
+    "sheet": true,
+    "file": "screens/05-move-a-meal.png"
+  },
+  {
+    "id": 5,
+    "title": "Recipes",
+    "sheet": false,
+    "file": "screens/06-recipes.png"
+  },
+  {
+    "id": 6,
+    "title": "Recipe filters",
+    "sheet": true,
+    "file": "screens/07-recipe-filters.png"
+  },
+  {
+    "id": 7,
+    "title": "Recipe details",
+    "sheet": false,
+    "file": "screens/08-recipe-details.png"
+  },
+  {
+    "id": 8,
+    "title": "Planned recipe",
+    "sheet": false,
+    "file": "screens/09-planned-recipe.png"
+  },
+  {
+    "id": 9,
+    "title": "New recipe",
+    "sheet": true,
+    "file": "screens/10-new-recipe.png"
+  },
+  {
+    "id": 10,
+    "title": "Edit recipe",
+    "sheet": true,
+    "file": "screens/11-edit-recipe.png"
+  },
+  {
+    "id": 11,
+    "title": "Import recipe",
+    "sheet": true,
+    "file": "screens/12-import-recipe.png"
+  },
+  {
+    "id": 12,
+    "title": "Assign recipe to a night",
+    "sheet": true,
+    "file": "screens/13-assign-recipe-to-a-night.png"
+  },
+  {
+    "id": 13,
+    "title": "Recipe picker",
+    "sheet": true,
+    "file": "screens/14-recipe-picker.png"
+  },
+  {
+    "id": 14,
+    "title": "Share recipe",
+    "sheet": true,
+    "file": "screens/15-share-recipe.png"
+  },
+  {
+    "id": 15,
+    "title": "Cooking without written steps",
+    "sheet": false,
+    "file": "screens/16-cooking.png"
+  },
+  {
+    "id": 16,
+    "title": "Groceries",
+    "sheet": false,
+    "file": "screens/17-groceries.png"
+  },
+  {
+    "id": 17,
+    "title": "Table feed",
+    "sheet": false,
+    "file": "screens/18-table-feed.png"
+  },
+  {
+    "id": 18,
+    "title": "Discover",
+    "sheet": false,
+    "file": "screens/19-discover.png"
+  },
+  {
+    "id": 19,
+    "title": "Post thread",
+    "sheet": false,
+    "file": "screens/20-post-thread.png"
+  },
+  {
+    "id": 20,
+    "title": "Create a post",
+    "sheet": true,
+    "file": "screens/21-create-a-post.png"
+  },
+  {
+    "id": 21,
+    "title": "Edit post",
+    "sheet": true,
+    "file": "screens/22-edit-post.png"
+  },
+  {
+    "id": 22,
+    "title": "Ask the Table",
+    "sheet": true,
+    "file": "screens/23-ask-the-table.png"
+  },
+  {
+    "id": 23,
+    "title": "Table seats",
+    "sheet": true,
+    "file": "screens/24-table-seats.png"
+  },
+  {
+    "id": 24,
+    "title": "Activity",
+    "sheet": false,
+    "file": "screens/25-activity.png"
+  },
+  {
+    "id": 25,
+    "title": "My profile",
+    "sheet": false,
+    "file": "screens/26-my-profile.png"
+  },
+  {
+    "id": 26,
+    "title": "Other person profile",
+    "sheet": false,
+    "file": "screens/27-other-person-profile.png"
+  },
+  {
+    "id": 27,
+    "title": "Edit profile",
+    "sheet": true,
+    "file": "screens/28-edit-profile.png"
+  },
+  {
+    "id": 28,
+    "title": "Household",
+    "sheet": false,
+    "file": "screens/29-household.png"
+  },
+  {
+    "id": 29,
+    "title": "Add household member",
+    "sheet": true,
+    "file": "screens/30-add-household-member.png"
+  },
+  {
+    "id": 30,
+    "title": "Household statistics",
+    "sheet": false,
+    "file": "screens/31-household-statistics.png"
+  },
+  {
+    "id": 31,
+    "title": "Awards",
+    "sheet": false,
+    "file": "screens/32-awards.png"
+  },
+  {
+    "id": 32,
+    "title": "Settings",
+    "sheet": false,
+    "file": "screens/33-settings.png"
+  },
+  {
+    "id": 33,
+    "title": "Gathering",
+    "sheet": true,
+    "file": "screens/34-gathering.png"
+  },
+  {
+    "id": 34,
+    "title": "Join household failure",
+    "sheet": true,
+    "file": "screens/35-join-household-failure.png"
+  },
+  {
+    "id": 35,
+    "title": "Create menu",
+    "sheet": true,
+    "file": "screens/36-create-menu.png"
+  },
+  {
+    "id": 36,
+    "title": "Sign in",
+    "sheet": false,
+    "file": "screens/37-sign-in.png"
+  },
+  {
+    "id": 37,
+    "title": "Profile setup",
+    "sheet": false,
+    "file": "screens/38-profile-setup.png"
+  },
+  {
+    "id": 38,
+    "title": "Contacts onboarding",
+    "sheet": false,
+    "file": "screens/39-contacts-onboarding.png"
+  },
+  {
+    "id": 39,
+    "title": "Tour tonight",
+    "sheet": false,
+    "file": "screens/40-tour-tonight.png"
+  },
+  {
+    "id": 40,
+    "title": "Tour plan ahead",
+    "sheet": false,
+    "file": "screens/41-tour-plan-ahead.png"
+  },
+  {
+    "id": 41,
+    "title": "Tour recipes",
+    "sheet": false,
+    "file": "screens/42-tour-recipes.png"
+  },
+  {
+    "id": 42,
+    "title": "Tour Table",
+    "sheet": false,
+    "file": "screens/43-tour-table.png"
+  },
+  {
+    "id": 43,
+    "title": "Launch opener",
+    "sheet": false,
+    "file": "screens/44-launch-opener.png"
+  },
+  {
+    "id": 44,
+    "title": "Cooking ingredients",
+    "sheet": false,
+    "file": "screens/45-cooking-ingredients.png"
+  },
+  {
+    "id": 45,
+    "title": "Cooking complete",
+    "sheet": false,
+    "file": "screens/46-cooking-complete.png"
+  },
+  {
+    "id": 46,
+    "title": "Groceries by meal",
+    "sheet": false,
+    "file": "screens/47-groceries-by-meal.png"
+  },
+  {
+    "id": 47,
+    "title": "Grocery meal picker",
+    "sheet": false,
+    "file": "screens/48-grocery-meal-picker.png"
+  },
+  {
+    "id": 48,
+    "title": "Grocery shopping options",
+    "sheet": false,
+    "file": "screens/49-grocery-shopping-options.png"
+  },
+  {
+    "id": 49,
+    "title": "Post a question",
+    "sheet": true,
+    "file": "screens/50-post-a-question.png"
+  },
+  {
+    "id": 50,
+    "title": "Award detail",
+    "sheet": true,
+    "file": "screens/51-award-detail.png"
+  },
+  {
+    "id": 51,
+    "title": "Apple sign in fallback",
+    "sheet": true,
+    "file": "screens/52-apple-sign-in-fallback.png"
+  },
+  {
+    "id": 52,
+    "title": "Plated Plus",
+    "sheet": true,
+    "file": "screens/53-plated-plus.png"
+  },
+  {
+    "id": 53,
+    "title": "Prongsby",
+    "sheet": true,
+    "file": "screens/54-prongsby.png"
+  },
+  {
+    "id": 54,
+    "title": "Cooking with written steps",
+    "sheet": false,
+    "file": "screens/55-cooking-with-written-steps.png"
+  },
+  {
+    "id": 55,
+    "title": "Cooking with active timer",
+    "sheet": false,
+    "file": "screens/56-cooking-with-active-timer.png"
+  },
+  {
+    "id": 56,
+    "title": "Household settings",
+    "sheet": false,
+    "file": "screens/57-household-settings.png"
+  },
+  {
+    "id": 57,
+    "title": "Plan calendar picker",
+    "sheet": false,
+    "file": "screens/58-plan-calendar-picker.png"
+  },
+  {
+    "id": 58,
+    "title": "Recipe ingredient sheet",
+    "sheet": false,
+    "file": "screens/59-recipe-ingredient-sheet.png"
+  },
+  {
+    "id": 59,
+    "title": "Household badge detail",
+    "sheet": false,
+    "file": "screens/60-household-badge-detail.png"
+  },
+  {
+    "id": 60,
+    "title": "Grocery shopping date",
+    "sheet": false,
+    "file": "screens/61-grocery-shopping-date.png"
+  },
+  {
+    "id": 61,
+    "title": "Activity with updates",
+    "sheet": false,
+    "file": "screens/62-activity-with-updates.png"
+  }
+]

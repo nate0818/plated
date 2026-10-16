@@ -36,6 +36,19 @@ enum BannerFocus {
         return render(UIImage(cgImage: cropped), maxWidth: maxWidth)
     }
 
+    /// Apply a person's final adjustment to the automatic crop. The focus
+    /// point is normalized in the automatically framed image so the editor
+    /// can stay independent of the source photo's pixel dimensions.
+    static func adjusted(_ raw: Data, center: CGPoint, zoom: CGFloat, aspect: CGFloat = BannerFocus.aspect) -> Data? {
+        guard let source = UIImage(data: raw) else { return nil }
+        let image = source.uprighted()
+        guard let cgImage = image.cgImage else { return nil }
+        let size = CGSize(width: cgImage.width, height: cgImage.height)
+        let crop = adjustedCropRect(center: center, zoom: zoom, in: size, aspect: aspect)
+        guard let cropped = cgImage.cropping(to: crop) else { return nil }
+        return render(UIImage(cgImage: cropped), maxWidth: 1400)
+    }
+
     // MARK: Where to aim
 
     /// Faces first — the whole point. Salient region second. Nil when the
@@ -89,6 +102,17 @@ enum BannerFocus {
 
         let x = min(max(centre.x - width / 2, 0), size.width - width)
         let y = min(max(centre.y - height / 2, 0), size.height - height)
+        return CGRect(x: x, y: y, width: width, height: height).integral
+    }
+
+    private static func adjustedCropRect(center: CGPoint, zoom: CGFloat, in size: CGSize, aspect: CGFloat) -> CGRect {
+        let scale = min(max(zoom, 1), 2.6)
+        let width = min(size.width, size.height * aspect) / scale
+        let height = width / aspect
+        let xCenter = min(max(center.x, 0), 1) * size.width
+        let yCenter = min(max(center.y, 0), 1) * size.height
+        let x = min(max(xCenter - width / 2, 0), size.width - width)
+        let y = min(max(yCenter - height / 2, 0), size.height - height)
         return CGRect(x: x, y: y, width: width, height: height).integral
     }
 

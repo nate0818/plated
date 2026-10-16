@@ -13,10 +13,10 @@
 # that "doesn't include the Communication Notifications capability", on a
 # machine where nothing is wrong except that nobody is signed in.
 #
-# So the export takes the key too. An Admin key can cloud sign AND regenerate
-# the profile, which means a capability added to the App ID costs nothing
-# here: the next build picks it up. Two builds died on this before the key
-# was made.
+# So the archive and export both take the key. An Admin key can cloud sign AND
+# regenerate the profile, which means a capability added to the App ID costs
+# nothing here: the next build picks it up. Two builds died on this before the
+# key was made.
 #
 # Upload is not distribution. The External group, the one behind the public
 # TestFlight link, only holds builds that were added to it, so after the
@@ -52,18 +52,6 @@ PROJECT=Plated.xcodeproj
 ARCHIVE=build/Plated.xcarchive
 EXPORT=build/export
 
-# The app and its widget extension must carry the same build number — App
-# Store Connect rejects a mismatch — so every config gets bumped together.
-current=$(grep -m1 -o 'CURRENT_PROJECT_VERSION = [0-9]*' "$PROJECT/project.pbxproj" | grep -o '[0-9]*')
-if [ "$BUMP" = 1 ]; then
-  next=$((current + 1))
-  sed -i '' "s/CURRENT_PROJECT_VERSION = $current;/CURRENT_PROJECT_VERSION = $next;/g" "$PROJECT/project.pbxproj"
-  echo "▸ build ${current} → ${next}"
-else
-  next=$current
-  echo "▸ build ${next} (unchanged)"
-fi
-
 # Same gate as scripts/phone: the widget's copied palette must match.
 "$(dirname "${BASH_SOURCE[0]}")/check-tokens" >/dev/null || {
   echo "✗ Design tokens have drifted. Run scripts/check-tokens." >&2; exit 1; }
@@ -80,6 +68,42 @@ fi
 "$(dirname "${BASH_SOURCE[0]}")/check-schema" >/dev/null || {
   echo "✗ CloudKit fields are not deployed to Production. Run scripts/check-schema." >&2; exit 1; }
 
+if [ ! -f "$KEY_PATH" ]; then
+  echo "No API key at $KEY_PATH." >&2
+  echo "Download it from App Store Connect › Users and Access › Integrations." >&2
+  exit 1
+fi
+
+# The app and its widget extension must carry the same build number — App
+# Store Connect rejects a mismatch — so every config gets bumped together.
+# The project file can lag builds uploaded from another checkout, so choose a
+# number above both the local value and the latest build already in ASC.
+current=$(grep -m1 -o 'CURRENT_PROJECT_VERSION = [0-9]*' "$PROJECT/project.pbxproj" | grep -o '[0-9]*')
+if [ "$BUMP" = 1 ]; then
+  remote=$(ASC_KEY_ID="$ASC_KEY_ID" ASC_ISSUER_ID="$ASC_ISSUER_ID" ASC_KEY_PATH="$KEY_PATH" \
+    "$(dirname "${BASH_SOURCE[0]}")/asc" latest)
+  if ! [[ "$remote" =~ ^[0-9]+$ ]]; then
+    echo "✗ Could not determine the latest App Store Connect build number." >&2
+    exit 1
+  fi
+  base=$current
+  if [ "$remote" -gt "$base" ]; then base=$remote; fi
+  next=$((base + 1))
+  sed -i '' "s/CURRENT_PROJECT_VERSION = $current;/CURRENT_PROJECT_VERSION = $next;/g" "$PROJECT/project.pbxproj"
+  echo "▸ build ${current} → ${next} (latest uploaded: ${remote})"
+else
+  next=$current
+  if [ "$UPLOAD" = 1 ]; then
+    remote=$(ASC_KEY_ID="$ASC_KEY_ID" ASC_ISSUER_ID="$ASC_ISSUER_ID" ASC_KEY_PATH="$KEY_PATH" \
+      "$(dirname "${BASH_SOURCE[0]}")/asc" latest)
+    if [[ "$remote" =~ ^[0-9]+$ ]] && [ "$next" -le "$remote" ]; then
+      echo "✗ build ${next} is not newer than uploaded build ${remote}. Remove --no-bump." >&2
+      exit 1
+    fi
+  fi
+  echo "▸ build ${next} (unchanged)"
+fi
+
 rm -rf "$ARCHIVE" "$EXPORT"
 echo "▸ archiving…"
 xcodebuild archive \
@@ -89,6 +113,9 @@ xcodebuild archive \
   -destination 'generic/platform=iOS' \
   -archivePath "$ARCHIVE" \
   -allowProvisioningUpdates \
+  -authenticationKeyPath "$KEY_PATH" \
+  -authenticationKeyID "$ASC_KEY_ID" \
+  -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
   -quiet
 
 echo "▸ exporting (cloud signing with the Admin key — see note at top)…"
@@ -104,13 +131,6 @@ xcodebuild -exportArchive \
 if [ "$UPLOAD" = 0 ]; then
   echo "▸ exported to $EXPORT/Plated.ipa (upload skipped)"
   exit 0
-fi
-
-if [ ! -f "$KEY_PATH" ]; then
-  echo "▸ exported to $EXPORT/Plated.ipa" >&2
-  echo "No API key at $KEY_PATH — upload skipped." >&2
-  echo "Download it from App Store Connect › Users and Access › Integrations." >&2
-  exit 1
 fi
 
 echo "▸ uploading build ${next}…"

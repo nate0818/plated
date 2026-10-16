@@ -19,6 +19,10 @@ final class GroceryItem {
     var isDismissed: Bool = false
     /// Title of the recipe this line came from, for the origin suffix.
     var originTitle: String = ""
+    /// Recipe additions need identity as well as display copy. A title can be
+    /// shared by two recipes and can change after ingredients are added, so
+    /// `originTitle` cannot make the action safely repeatable on its own.
+    var recipeOriginsData: Data?
     /// Reminders identifier once exported, to avoid duplicate reminders.
     var reminderID: String?
     var createdAt: Date = Date.now
@@ -41,6 +45,10 @@ final class GroceryItem {
     var sources: [GrocerySource] {
         get { sourcesData.flatMap { try? JSONDecoder().decode([GrocerySource].self, from: $0) } ?? [] }
         set { sourcesData = try? JSONEncoder().encode(newValue) }
+    }
+    var recipeOrigins: [RecipeGroceryOrigin] {
+        get { recipeOriginsData.flatMap { try? JSONDecoder().decode([RecipeGroceryOrigin].self, from: $0) } ?? [] }
+        set { recipeOriginsData = try? JSONEncoder().encode(newValue) }
     }
     var purchases: [String: Double] {
         get { purchasesData.flatMap { try? JSONDecoder().decode([String: Double].self, from: $0) } ?? [:] }
@@ -119,4 +127,12 @@ final class GroceryItem {
     var displayText: String {
         [GroceryMeasure.shopping(quantity, unit).text, name].filter { !$0.isEmpty }.joined(separator: " ")
     }
+}
+
+/// Stable provenance for a manual grocery line populated from a recipe.
+/// Kept separate from `GrocerySource`: those IDs are planned-night IDs and
+/// drive the grocery sheet's meal filter and per-meal purchase accounting.
+struct RecipeGroceryOrigin: Codable, Identifiable, Equatable {
+    var id: String
+    var title: String
 }

@@ -145,7 +145,7 @@ for path in files:
                        "a colour spelled out in place: add it to Theme.swift, or use Color(rgb:) inside a named local palette")
             elif re.search(r'\bColor\.(white|black)\b|\.foregroundStyle\(\.(white|black)\)', code):
                 report("literal-colour", rel, i, line,
-                       "a literal white or black: onTomato and the ink tokens carry both rooms")
+                       "a literal white or black: onPrimary, onOlive and the ink tokens carry both appearances")
 
     # --- a compact capsule action is one line ---------------------------
     # Match actual Button label closures rather than searching nearby
@@ -164,7 +164,7 @@ for path in files:
         if closing is None:
             continue
         label = source[opening + 1:closing]
-        if ("Capsule()" not in label
+        if (not any(shape in label for shape in ("Capsule()", "Radius.shape(Radius.chip)"))
                 or not re.search(r'\b(?:Text|Label)\s*\(', label)
                 or "design-ok(action-wrap)" in label):
             continue

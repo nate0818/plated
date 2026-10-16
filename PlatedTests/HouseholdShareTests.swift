@@ -365,6 +365,7 @@ final class HouseholdShareTests: XCTestCase {
         l.quantity = 1.5
         l.unit = "bottle"
         l.day = HouseholdShare.Wire.day(tonight)
+        l.recipeOrigins = [.init(id: "recipe-a", title: "Lemon chicken")]
         l.isChecked = true
         let lrec = record(HouseholdShare.lineType, l.recordName)
         HouseholdShare.write(l, onto: lrec)

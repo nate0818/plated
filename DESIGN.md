@@ -1,468 +1,155 @@
-# DESIGN.md
+# Plated: Editorial
 
-## Approved native redesign — September 4, 2026
+Approved direction: Editorial, October 16, 2026. The default appearance is the deep green Editorial room (`#191C17`), with
+cream serif titles and sage supporting accents. Light is an optional setting,
+not the initial design presentation. Primary CTAs retain the original
+Plated orange at the user's request. This replaces the previous rounded,
+Gabarito/Jakarta, floating-tray system.
 
-The user-approved direction supersedes the earlier circle-only recipe grammar
-and central-create navigation. The shipping app uses Plan, Recipes, Groceries,
-and Table as four destinations, with a profile entry on each main screen.
-Recipe photography uses continuous rounded rectangles. Circles remain for
-people and compact icon controls. Keep the original tomato orange for primary
-actions and selected calendar dates; selected text uses the darker accentText
-for contrast. The navigation bar uses system glass with readable labels. Its
-selected icon uses an ink capsule with canvas-colored strokes and an ink label.
-The four tray icons are custom kitchen objects with contextual tap animations.
-The Table keeps Notifications, Create, and Profile in its top bar. Its bell
-shows unread updates with a count and returns to an outline when caught up.
+## The experience
 
-Planning puts the selected dinner first, with a weekly agenda and a month
-calendar. Recipe search is visible. Groceries can cover a week or selected meals,
-and each generated line carries its recipe provenance. Cooking has an explicit
-Start/Resume action; session steps, ingredients, yield, and notes survive
-minimizing. Recipe edits do not change the instructions in an active session.
+Plated helps a household capture a recipe, plan a night, shop, cook, then
+remember or intentionally share the meal. Food, people and useful context lead.
+The interface feels like a well-set recipe journal: deep green, fine rules, generous
+photography, serif titles and simple controls.
 
-Native screenshots and native interaction tests are the release evidence.
-The HTML preview is a design reference and is not bundled into the iOS app.
+Four stable destinations remain **Plan, Recipes, Groceries and Table**. Profile
+opens from the consistent account control. Household is a pushed shared workspace;
+Settings is a pushed personal control center. Back pops within a destination.
+A root reselect returns to that destination's root. Add is a header action,
+not a tab. Tasks use sheets and preserve valuable drafts. Cooking uses a focused
+full-screen session with explicit Minimize and End actions.
 
-Visible action copy is indivisible: a CTA, tab, chip, or segmented-control
-label never wraps. Use the shortest clear visible verb, keep fuller context in
-its accessibility label, and apply `plActionLabel()`. Reflow peer controls
-before type becomes cramped; do not accept a broken two-line button as a valid
-`ViewThatFits` result. At constrained widths, stack actions or collapse grids
-before shrinking below the modifier's legibility floor.
+## Source of truth
 
+- `Plated/Support/Theme.swift`: semantic colors, shape, spacing, control metrics,
+  materials and shared controls.
+- `Plated/Support/BrandFonts.swift`: bundled Newsreader and DM Sans, scaled type
+  and optical matching.
+- `Plated/Views/Components/DesignComponents.swift`: artwork, mastheads, chips,
+  header Add, icon actions and the local preview gallery.
+- [Design-system reference](design/design-system.md): component roles, tokens
+  and verification requirements.
+- Widget palette and font registration live in `PlatedWidgets.swift`; `make tokens`
+  must pass. Old HTML explorations and historical review screenshots are not
+  instructions for the current design.
 
-How Plated looks, moves, and speaks. `Plated/Support/Theme.swift` is the
-implementation; this is the reasoning, so a change can be judged rather than
-just compiled.
+## Editorial foundations
 
-**Before adding any UI: reuse before you invent.** Almost everything below
-already exists as a token, a component, or a modifier. Every design mistake
-worth naming in this file came from building a thing that was already there.
+**Typography.** Newsreader Roman sets page, section and recipe titles with
+regular or medium strokes. DM Sans sets body, metadata, controls and navigation.
+Use `.plType`, `.editorial` and `.sans`. Hierarchy comes from size, space and
+position before weight. Text scales with Dynamic Type. Reflow and scroll before
+shrinking meaningful content. Fixed artwork and bounded chrome are exceptions,
+not a way to cap an entire page.
 
----
+**Color.** The default `canvas` is deep green and `ink` is cream. The optional
+Light appearance uses paper and green-black ink. Readable supporting text is
+`inkSecondary`. `inkFaint` is decoration only. Selected date and choice controls
+use `selectionFill` (`ink`) with `onSelection` (`canvas`) text: cream with dark text in Editorial. Keep panels
+close to the canvas with fine borders; avoid broad pale green fills. Olive is
+reserved for small supporting accents. Original orange `primaryAction` is for committing CTAs,
+with dark `onPrimary` text in both appearances. Never reuse orange as an ambient
+background or selection indicator. Errors use `dangerText`, not olive or orange.
+Person colors remain identity metadata; stored hex keys are not migration targets.
+Photos use `scrim` and `onScrim` where an overlay is needed.
 
-## The register
+**Shape.** Photos have near-square continuous corners. Buttons and chips use a
+small continuous rectangle. People remain circles. Do not reintroduce capsule
+CTAs, illustrated tab icons, iridescent selection glows, or the central Add disc.
+Segmented controls use a continuous capsule rail and selection; they reflow
+vertically at accessibility sizes. Sheets keep native dismissal and a restrained corner radius.
 
-**Quiet chrome, earned colour.** Chrome is calm and near-monochrome so that a
-family's own photographs are the only loud thing on screen. Colour appears when
-something good happens, never as decoration.
+**Surface.** Pages, controls and the bottom navigation use the opaque canvas: deep green
+by default, paper only when Light is deliberately chosen. Fine
+rules and spacing establish groups. Shadows are removed from the shared
+surface styles. Use system presentation materials where a platform component
+owns them; do not add custom glass to ordinary content or navigation.
 
-- The `+` button is the single always-tomato element in chrome.
-- A plate reaction filling, the Chef's kiss, a seat turning real: these earn colour.
-- Never reintroduce ambient accent colour into chrome. Two standing exceptions,
-  both asked for explicitly: today's tinted date card in the Plan list, and the
-  admin console's sign-in field on the web (Sept 8), a slow drift of tomato,
-  mango and grape held under 30% alpha and blurred past recognition. That one is
-  a door, not a room: every console screen behind it stays near-monochrome, and
-  the drift stops under Reduce Motion.
+**Layout.** Use 24-point phone gutters, 28-point section spacing and 12–16-point
+component spacing. Photos keep their own geometry. Page-level titles are allowed
+to wrap. Compact tabs, chips and segments keep concise single-line labels.
+Primary/secondary action labels may wrap at accessibility sizes and grow vertically.
+Interactive targets are at least 44 by 44 points and have matching hit shapes.
+Plan keeps its date wheel and week/month controls visible at the top, with tonight below. Recipes keeps
+search visible. Grocery rows preserve meal provenance. Table shows audience
+compactly before posts.
 
-Fun lives in **motion, haptics and voice** — never in loud paint.
+## Interaction and accessibility
 
-## Colour
+Choose the standard SwiftUI profile: familiar semantics, responsive controls,
+short causal feedback. Use native Button, Menu, Toggle and navigation semantics.
+Use stable model identity and a single owner for presentation state. Do not
+coordinate UI presentation or animation with arbitrary delays.
 
-Use the token, never a literal. Every token carries its own dark value.
+Honor Reduce Motion locally for geometry, rotation and timelines. Shared motion
+removes spring bounce; large arrivals have fade alternatives. Editorial surfaces
+are already opaque. Increase Contrast strengthens useful boundaries. Selected
+controls expose `.isSelected`; color is never their only state cue. Icon actions
+have useful accessible names. Root tabs provide large-content viewing.
 
-| Token | Light | Use |
-|---|---|---|
-| `canvas` | `#FFFEFC` | page and card ground |
-| `ink` | `#221B14` | primary text |
-| `inkSecondary` | `#675D50` | every supporting sentence |
-| `inkFaint` | `#B5AC9E` | decoration only, never a word |
-| `hairline` | `#F0EBE4` | card borders |
-| `hairlineSoft` | `#F7F3EE` | row separators |
-| `hairlineDashed` | `#EFE7DD` | empty-state dashes |
-| `navHairline` | `#EFECE7` | floating bar edge |
-| `fill` / `chipFill` | `#F4F1EC` / `#F7F5F1` | wells, chips |
-| `tomato` | `#FF5A3C` | the one accent |
-| `onTomato` | `#221B14` | text on tomato, both rooms — never a literal white |
-| `basil` | `#3DA35D` | progress, cooked, seated |
-| `mango` | `#FFB020` | the Chef's kiss, nothing else |
-| `grape` | `#B95CF4` | calendar events |
+A busy primary action keeps its orange paint and spinner, exposes progress and
+blocks repeat activation. Disabled controls keep readable labels and an explicit
+disabled appearance. Never fade text and its background until they blend together.
+Meaningful progress, failure and recovery must be available to VoiceOver.
 
-Tints (`tomatoTint`, `basilTint`, …) are for surfaces, not text.
+## Product trust and state completeness
 
-`ink` and `inkSecondary` carry ordinary text. `accentText` carries selected
-labels and `completion` carries success indicators. `onTomato` labels orange
-actions. These semantic colors are distinct from pale decorative tints. `inkFaint` measures 2.24:1 on canvas and 3.08:1 after
-dark: it cannot legibly carry a glyph-shaped letter at any size, so it paints
-strokes, dashed outlines, and the icon on a control that is genuinely off, and
-nothing else. That includes the cases every design system loses first —
-placeholders, timestamps, counts, eyebrow labels, disabled-looking-but-tappable
-buttons, and inactive tab titles. All of those are things a person reads.
+Household is the private co-editing workspace for Plan, Recipes and Groceries.
+Table is the explicit invite-only publishing audience. Saving, cooking or checking
+an item never posts on someone's behalf. Before posting, show the destination and
+who can see it. People is the authority for membership. Preserve authorship,
+audience, time, source and pending/delivery state. Own-post and other-post menus
+have different permissions. Published deletion means deletion for the audience,
+not just removing a local row. Reporting and reversible blocking stay available.
 
-The third level of hierarchy is size and weight, which is what the type scale
-is for. It is not a third grey. Sixty-one call sites were painting sentences in
-`inkFaint` when this was written, and `MicroLabel` — the eyebrow above almost
-every title in the app — defaulted to it, which is most of why the app read as
-washed out rather than quiet.
+Invited means sent, accepted means accepted. Opening a composer proves neither.
+Show organizer roles, live sync truth and pending local edits honestly. Joining,
+leaving and removal name what becomes shared, what is retained, and what is lost.
+Never infer authorization from a display name. No public discovery is implied.
 
-`inkSecondary` was `#8A8074` and measured 3.87:1, under the 4.5:1 floor for
-text at these sizes. `#7F7364` is the same hue and saturation at 4.63:1. If a
-token has to be lightened for a design to work, the design is wrong.
+Every networked surface distinguishes initial/loading, ready, empty, failed,
+offline/stale and pending states. Retry preserves work and avoids duplicates.
+An empty state must know why it is empty. Do not show a false success or absence.
+Counts appear when useful and true. No fabricated urgency, streak punishment or
+social ranking. Awards are keepsakes; unfinished progress is private.
 
-## Type
-
-- **Gabarito** carries display: titles, date numerals, the wordmark. Weight
-  ceiling 700; lighter is allowed and often better at large sizes.
-- **Plus Jakarta Sans** carries everything else.
-- Both ship as variable TTFs and are registered at launch. On the web they come
-  from Google Fonts, which keeps plated.food identical to the app.
-
-**The wordmark is `PlatedWordmark`** in Theme.swift: lowercase Gabarito medium
-"plated", tracking −0.022em, tomato dot at 0.27em seated 0.34em down. Plated has
-no logo badge. Do not invent one; a "P" in a rounded square is not this product.
-
-## Shape and elevation
-
-Recipe and meal photographs use rounded rectangles; people and compact
-controls use circles. Use the shared RecipeArtwork component for consistent
-image geometry, including recipes without a photo.
-
-**No generic chevrons.** A content card or setting row communicates that it is
-interactive through the whole surface: clear hierarchy, a pressed state,
-contextual copy, and a meaningful state or object icon where one helps. A
-right-facing chevron is decoration, not an explanation. Back remains an
-explicit control with a directional arrow. The week's date strip has no
-arrows, at Nate's request (Sept 7): the strip itself swipes, its edges carry
-a quiet mark that says so, and Previous week and Next week stay reachable as
-accessibility actions on each day of the strip. The month planner follows
-(Sept 8): the grid gives 14pt to a sideways drag and then turns, the same
-`PlanEdgeMark` stands in the gutter at each end, and Previous month and Next
-month are actions on each day. Neither is the only door. The planner
-controls sit above the week and month branch, so Choose a date and Today are
-on screen in both, which is what lets the swipe be an accelerator rather
-than a gesture somebody has to discover.
-
-Radii live in `Radius` (`chip` 16, `row` 18, `card` 20, `hero` 24, `sheet` 28).
-Shadows live in four steps — `plCardShadow`, `plFloatShadow`, `plDishShadow`,
-`plTileShadow`. Add a fifth only if none of them fits, and put it in Theme.swift
-rather than inline.
-
-**One row, one geometry.** Rows stacked in a list must share a corner radius and
-a stroke weight. Mixing an 18pt/1pt row with a 20pt/2pt row reads as crooked
-even when nobody can say why.
-
-Stronger, and the version that was actually broken: **peers look like peers.**
-A set of choices gets one treatment. Emphasis inside a set is position and
-copy, never paint — a filled ground is this app's SELECTION idiom and putting
-it on a row nobody selected is a lie about state. Where two screens draw the
-same kind of row, they use the same component: `OptionRow` exists because two
-hand-kept copies of it drifted apart, and both grew the same `weighted` flag.
-
-**A stroke has to be visible against the ground behind it.** The border is
-part of the geometry, so a border that does not render is a row with different
-geometry from the row beside it, whatever the code says. Ratios on canvas:
-
-| stroke | on canvas | on chipFill | on fill |
-|---|---|---|---|
-| `hairline` | 1.19 | 1.09 | **1.05 — gone** |
-| `hairlineSoft` | 1.11 | **1.02 — gone** | **1.02 — gone** |
-| `hairlineDashed` | 1.23 | 1.13 | 1.09 |
-| `navHairline` | 1.18 | 1.08 | **1.05 — gone** |
-
-Under about 1.08:1 there is no line on the screen. `hairline` over `fill` was
-drawn in three places and seen in none of them. A filled well does not need a
-border: the fill already draws the shape.
-
-**Chrome caps its Dynamic Type; content does not.** A tab bar, a masthead's
-icon cluster, a badge, a date chip: fixed-size furniture with nowhere to
-reflow. At AX5 the five tab labels ran into each other, the bell's 16pt badge
-held 32pt digits, and the Plan list's 66pt date chip set "MON" as "M" over "O"
-over "N". The dish name beside that chip has a whole row to grow into and
-should keep going. `.plChrome()` in Theme.swift holds furniture at xxLarge;
-everything a person is reading runs to AX5. It changes what is drawn, never
-what VoiceOver reads. A title is content, so it wraps to a second line rather
-than truncating to "Your...".
-
-**A detent is a measurement, not a guess.** `.presentationDetents([.height(575)])`
-was a number typed for six rows in a sheet where two of them are conditional,
-so on a phone without Messages it opened with two hundred points of nothing
-under the last option. Measure the content with `onGeometryChange` and feed
-that; Dynamic Type moves these numbers too. Measure the SCROLL CONTENT, not a
-view in the same stack as the scroll view: a `ScrollView` takes whatever
-height the detent gives it, so measuring its sibling measures the detent's own
-answer coming back around, and the sheet walks itself taller every pass.
-
-**The floating sheet is the OS, not us.** On iOS 26 a detented sheet sits 8pt
-off the screen's sides, rounds all four corners, and stops short of the bottom
-edge, so the dimmed app shows behind its lower corners. That happens with
-`presentationBackground` and `presentationCornerRadius` removed entirely: it
-was measured that way. Do not chase it with negative padding.
-
-**A disabled control changes colour; it does not fade.** `.opacity()` on a
-whole button fades its label and its ground by the same amount, so the two
-collapse toward each other. White on tomato is 3.10:1 awake and 1.80:1 at
-half opacity, and in the light room the label composites to exactly the
-canvas colour: 1.00:1 against the page. It is not dim, it is gone, and the
-first screen after sign-in opens with its primary button in that state.
-`TomatoPillButton` reads `\.isEnabled` and dresses its own off state —
-`inkSecondary` on `fill`, 4.11:1 and 5.83:1 — so a call site writes
-`.disabled(x)` and nothing else.
-
-## Motion
-
-- Springs are `plPop`, `plSnap`, `plSettle` for ordinary controls. The tray's
-  articulated illustrations use a bounded 0.92-second keyframe sequence.
-- **Tray feedback is contextual and user-triggered.** The user-requested
-  exception to the quiet-icon rule is Plan's turning calendar page, Recipes'
-  closed book opening on selection and turning a leaf on re-tap, Groceries'
-  empty basket catching a loaf and apple in two staggered drops, and Table's
-  gathering place setting. Play on the first tap and on
-  subsequent taps, never on launch or while idle. Keep labels still, return
-  every part to rest, and remove the choreography under Reduce Motion.
-  Recipes stays open while selected and closes when another destination is chosen.
-  Groceries stays filled while selected, gently jostles on re-tap, and returns
-  to an empty handled basket when another destination is chosen. Reduce Motion
-  shows the correct empty/filled or closed/open state immediately.
-- **An icon may morph into its own opposite. It may never perform about a tap.**
-  Magic Replace is allowed exactly where a symbol swaps for its matched pair and
-  the swap *is* the state: `bookmark` to `bookmark.fill` on Save, `circle` to
-  `checkmark.circle.fill` on a vote, `heart` to `heart.fill` on a favourite.
-  Outside the tray exception above: no spinning `+`, no thump on a
-  plate tap. The test is whether the symbol is showing you what changed or
-  celebrating that you touched it. Colour still carries the meaning and the
-  haptic still carries the feedback.
-- A toggle must be **one view in both states**. An `if/else` around the two
-  symbols swaps SwiftUI's identity, the view is torn down and rebuilt, and no
-  transition can survive it — the animation silently does nothing and the code
-  looks correct.
-- Every animation respects Reduce Motion.
-- **Theatre is owed once.** The full launch opener runs 4.3 seconds and is
-  right exactly once, on a person's first launch; after that it is a 0.65s
-  fade of the settled wordmark off the persimmon plate. Anything that plays
-  on every launch has to earn its length every launch.
-- Haptics have meaning: `tap` for chrome, `select` for position changes, `plate`
-  for something landing, `kiss` for the good thing, `warn` for a refusal.
-- A planned meal lifts as the meal itself: dish, slot and name in a compact
-  material card. As it travels, only the day beneath it takes the persimmon
-  target tint and slight scale; the plate haptic belongs to lift and landing.
-  Let the system drag session track the finger and edge-scroll the planner.
-  Do not replace that continuous motion with a menu masquerading as drag.
-
-## Notifications
-
-A push is the app speaking when nobody asked it to, so it holds to a higher
-bar than any screen. The law lives in `docs/notifications.md`; the register
-is here.
-
-- **It names a person and says what happened.** "Riley plated Sheet-pan
-  chicken", "Sam replied to you". Never "New activity", never "Something
-  changed at your table". If the sentence cannot name the person, nothing
-  is sent. When one person is speaking, the banner is theirs the way a
-  message is: their face, their name as the title, "The Table" or "Your
-  ragù" under it, and the deed as the body.
-- **Never about your own action**, on any of your devices. A like never
-  appears in the liker's activity.
-- **Silence is the default.** A notice has to be about you, or be the first
-  word of something new. The ordinary is folded, capped, and quiet at
-  night. What buys the right to speak is not speaking.
-- **The thing you tapped is the thing that opens.** A banner about a dish
-  opens that dish. A banner that opens the app is a doorbell.
-- **A count is the ledger's.** "Sam and 2 others plated your ragù" is
-  counted, never incremented, and one line that updates rather than three.
-
-## Continuity
-
-**The thing you tapped is the thing that opens.** Every push into a detail
-view carries a `matchedTransitionSource` on the tile, row or face you touched
-and a `.navigationTransition(.zoom(sourceID:in:))` on the destination. A
-recipe page that slides in from the right with no relationship to the plate
-under your finger is the loudest single reason an app reads as a stack of
-screens rather than one place.
-
-- Model-backed sources key on `persistentModelID`. Anything else uses
-  `ZoomID` in Theme.swift, so ids stay a shared vocabulary rather than a
-  literal per file.
-- Two sources may not share one id in one namespace. Where a screen offers
-  two doors to the same destination (the owner is both the masthead face and
-  a row in People), the tap records which door it came through.
-- A source that has scrolled away falls back to a plain push on its own.
-  Nothing needs guarding.
-- **The avatar opens Account everywhere it appears.** Account is the named
-  hub for Edit profile, Settings, Household and the user's Table profile.
-  Do not send the avatar straight into the social profile and hide app
-  administration in unlabeled toolbar icons. Settings opens at full height;
-  editing sheets name both the way out and the action that saves.
-- **Account begins with the person, then the places they manage.** The profile
-  hero owns View profile and Edit profile, and its cover is the same banner
-  as the Table profile (`HouseholdProfile.bannerPhotoData`). Fail-open copy,
-  if needed, sits under the hero. Status is the compact iCloud, reminder and
-  appearance summary; Household and Settings are the two large destinations
-  beneath it; Awards stay quieter, last. Do not return to four equal
-  administrative rows, and do not dress the hub in metaphor (Your Plated,
-  Your place at the table, Your spaces, Preferences). Role is omitted on the
-  person's own Account hero (name only: no You, Owner, or Host under the
-  name). On People, the household owner's own row is "You · Owner"; a
-  member's own row is "You"; another household host reads as Host; never
-  Head of table. An unnamed joiner is "No name yet", never "New member"
-  or the host's name. Household reach failure is "Couldn't reach iCloud."
-  plus "Try again".
-- **Settings groups controls by outcome.** No marketing opener. Appearance is a
-  visual three-state choice. Planning holds reminders and Calendar. Household
-  naming, iCloud, permissions, privacy and account actions each have a named
-  section. A system permission is never a disabled switch with an explanation
-  beside it: show Turn on before the prompt, the live control after approval,
-  and Open Settings after refusal.
+Cooking preserves its frozen recipe, yield, step, note draft and timer across
+Minimize. End asks once and clears the session, leaving the planned meal intact.
+Recipe edits must not mutate the active cooking instructions.
 
 ## Copy
 
-**A button is a verb that names the outcome. A title is a noun. A caption is a
-fact.** If a reader must decode a metaphor to know what a control does, the copy
-has failed. "Post", not "Set it on the Table". "Add", not "Lay their place".
+Titles are nouns, buttons name outcomes, captions state facts. Use Plan a night,
+Add a recipe, Add to Groceries, Start/Resume cooking, Mark cooked, Post to Table,
+and Assign a cook. Household, Table, Profile and Settings are distinct concepts.
+Use Organizer for the household role. No em dashes in user-facing copy; do not
+apply this rule to imported recipe separators. Avoid metaphor in functional chrome.
 
-- **No em dashes anywhere a person can read them** — buttons, labels, captions,
-  empty states, errors, notification bodies, web copy. Use a colon, a comma, or
-  a full stop. This does not apply to code comments or `print()` output, and must
-  never be applied to `RecipeImporter`'s separator character sets.
-- No dashboard voice where a person is being spoken to, and no whimsy in
-  functional chrome. Metaphor is allowed only in ambient copy where it is
-  unambiguous: "Nothing plated yet" survives because it is instantly clear.
-- Say the specific true thing over the clever thing. Specificity is the warmth.
-- Never describe what another person did or feels. "Waiting on them" was a claim
-  about somebody who had never been contacted.
+## Verification
 
-## Honesty
+Run `make design tokens`, build Plated and its widgets, and run the existing tests.
+Inspect real screenshots, not just mockups. Verify smallest/typical/iPad windows,
+light/dark, AX5, long and missing content, VoiceOver, keyboard access, increased
+contrast, reduced effects, repeated taps, interrupted navigation and backgrounding.
+Photos must not intercept hits outside their visible crop. Gesture actions need
+accessible alternatives. Device-only integrations require physical-device evidence.
+Record what was tested and what remains unverified. A green build or suite alone
+is not approval of every layout or interaction.
 
-The rule this codebase has broken most often, and the most expensive to fix.
 
-**The interface may never claim something happened that did not.** A seat that
-says "Invited" must correspond to a message that actually sent. A push saying
-"Riley cooks tomorrow" must be about a person who exists to the app. A count must
-count the real thing. If the app cannot do something, it says so plainly rather
-than showing a control that quietly does nothing.
+## Date wheel contract
 
-Corollary: **an empty screen must know why it is empty.** "Nothing here"
-is a claim, and it is only true when the app actually asked and got an
-answer. Three states, never one: *still asking* (a spinner, no words),
-*asked and there is nothing* (the invitation), *could not ask* (say so, and
-offer the retry). A screen that cannot reach iCloud may not say "Nothing
-plated yet", and a search over a corpus that was never populated may not
-tell the reader to try a different word. See `TableFeedView.Reach`.
+Use native scroll physics and aligned targets. The centered day previews locally
+while scrubbing; commit the dinner plan once scrolling rests. Selection feedback
+occurs at crossed dates and deliberate date taps, never on initial layout or a
+programmatic reset. Coalesce ticks during fast flings. Today and direct date
+navigation interrupt previous motion; stale deceleration cannot change that date.
+Use the native centered anchor on iOS 26 and a bounded native fallback on iOS 18.
+Reduce Motion removes programmatic travel. Selected dates expose an adjustable
+VoiceOver action; named day/week/Today actions and arrow keys remain available.
+Physical Taptic Engine feel requires an iPhone check.
 
-Corollary: **state is recorded, never asserted.** `HouseholdMember.Seat` is set
-from a composer reporting `.sent` or CloudKit reporting `.accepted` — never from
-optimism. See `Plated/Services/Seats.swift`.
-
-## The Table
-
-The social surface, and the one place the app invites comparison with
-products built by much larger teams. Take their craft; refuse their scale.
-
-**The Table is eight people, not eight thousand.** Invite-only, a household
-plus the seats it gave away. So the Instagram patterns that exist to manage
-scale do not transfer and must not be copied: follower counts, algorithmic
-ranking, Explore, story rings as a growth device, likes as social proof. The
-patterns that exist for craft do transfer and are the whole point: post card
-anatomy, the overflow menu, comment threading, double-tap to react, the
-composer flow, edit versus delete, relative timestamps, optimistic posting.
-A feed of eight people posting dinner is closer to a family group chat with
-photographs than to Instagram, so where the two disagree, study Messages.
-
-**A count is evidence, never furniture.** No numeral until there is something
-to count. Instagram draws no like row at zero, Slack no pill, Messages no
-chip. In a room this small a mounted zero is not neutral: it is a verdict on
-a dinner nobody has got to yet. The same rule retires "0 plates" and
-"COMMENTS · 0".
-
-**A reaction notice goes to the author or it goes nowhere.** A like never
-appears in the liker's own activity, because you already know what you did.
-
-**A relative timestamp runs only while it is unambiguous.** Weekday for six
-days, then a date, then a date with a year. "Thursday" on a three-week-old
-post asserts a week that is not the week it means.
-
-**Your own post's menu is not everyone else's menu.** One menu with items
-conditionally hidden is how a product ends up offering Nate a link to Nate's
-profile. Own-post actions get their own section, destructive last.
-
-**The photograph is the content, so it keeps its own shape**, clamped to 4:5
-and 1.91:1 so one tall picture cannot take the whole screen. A fixed band is
-for photographs that are furniture: a banner, a hero, a preview.
-
-**Delete means everyone.** See the Honesty section: a local delete of a
-published post is not a delete, it is a post that comes back.
-
-## Checked, not remembered
-
-Three of the rules above are greppable, and each was broken at scale before
-anybody noticed: sentences painted in `inkFaint`, em dashes through the
-notification bodies, colours spelled out where a token belonged.
-`scripts/check-design` enforces those three on every build that reaches a
-phone or TestFlight. A rule a hundred call sites have to remember is a rule
-that gets forgotten at the hundred and first.
-
-A deviation is still allowed. It just has to be visible:
-
-    Circle().strokeBorder(Color.white.opacity(0.06))  // design-ok(literal-colour): a rim highlight is light, not a palette colour
-
-The rest of this file is not checkable and never will be. Voice, register and
-continuity need somebody to look.
-
-## Components to reuse
-
-`AvatarCircle` · `DishView` · `SwipeRow` · `MicroLabel` · `OptionRow` ·
-`TomatoPillButton` · `InkPillButton` · `CountBlock` · `PhotoWell` ·
-`PlatedWordmark` · `.pressable` · `plTappableField` · the `plShadow` family
-
-A `.padding` on a `TextField` makes the pill bigger but **not** tappable — add
-`.contentShape` plus a tap that focuses it, or the keyboard never appears. Same
-class of bug: `.frame(minWidth: 44)` alone is not hit-testable.
-
-## Accessibility
-
-- 44pt minimum touch target, enforced with `.frame(minWidth:minHeight:)` **and**
-  `.contentShape`.
-- A row that combines its children needs `.accessibilityElement(children:)` and a
-  label that reads as a sentence. A bare "72°" is a stray number; say the
-  condition the way Weather does.
-- Any gesture-only affordance (long press, swipe, drag) needs an equivalent
-  that is not a gesture. `SwipeRow` vends its actions through
-  `.accessibilityActions`; a context menu is bridged by SwiftUI on its own.
-  Dragging a plate between nights had no equivalent at all, so the night menu
-  carries "Move to another night" — a gesture nobody is told about is not a
-  feature most people have.
-- **A cropped image's touch area ends at its visible bounds.** `clipShape`
-  clips pixels, not hit testing. Pair it with `contentShape` on recipe artwork;
-  otherwise a tall image can intercept taps and drops on the calendar above it.
-- Recipe steps lift through native drag-and-drop from the grip or unfocused
-  text. Focused text keeps native selection, and the grip remains available.
-  Dropping changes the draft; Save commits it. Meal cards use the same native
-  item-provider lift across Week, Month and day detail, with persimmon date
-  targets and an explicit Move action. The newer `draggable` modifier lost
-  physical-device holds when nested in a `Button` or `SwipeRow`, despite
-  passing simulator automation; keep planner cards on `onDrag` unless that
-  device-level conflict is proven fixed. Do not attach a competing long-press
-  context menu to a drag surface; keep its actions in the visible menu and
-  accessibility actions.
-- Cook Mode has two plainly different exits. Minimize preserves the step,
-  note draft and timer so the global resume bar can return to them. End asks
-  once, clears that session and its notification, and leaves the planned meal
-  on its date. Neither action may be hidden in account settings or a menu.
-- **A control with a chosen state says so.** `.accessibilityAddTraits(active
-  ? .isSelected : [])` on every segment, chip and tab. Colour and a raised
-  pill are not audible; without the trait VoiceOver reads eight identical
-  buttons and never says which one is on.
-- **Reduce Motion is answered in Theme.swift, not at the call site.**
-  `plPop`, `plSnap` and `plSettle` flatten to a cross-fade on their own, and
-  `plArrive` / `plRise` / `plUnfold` drop their travel. A rule that has to be
-  remembered at a hundred and eighteen `withAnimation` calls is a rule that
-  gets forgotten at the hundred and nineteenth.
-- Dynamic Type must not break layout. Fixed heights that exactly fit their
-  content will overflow on a real device: pad and floor instead.
-
-## Awards
-
-Awards mark meaningful kitchen moments people already create: planning a
-week, finishing a dish, building a cookbook and bringing others to the Table.
-They are permanent keepsakes. Plated does not punish a missed day, erase a
-streak or manufacture urgency to inflate engagement.
-
-The owner can see every award and concrete progress toward the next ones.
-Other people see earned awards only, because an unfinished goal is private.
-Kitchen levels summarize the collection without ranking people against one
-another. Points unlock a level and never buy reach or status at the Table.
-
-Every badge needs a plain-language name, a short story and a direct answer to
-"How do I earn this?" The card is one large target that opens those details.
-Color, a progress ring and motion reveal earned state; the text must carry the
-same meaning for VoiceOver, Reduce Motion and monochrome viewing.
+`make tokens` checks both widget parity and 31 website palette roles in both
+appearances. All website routes use Editorial by default, including authentication
+and error pages. Public screenshots must come from the current native build.

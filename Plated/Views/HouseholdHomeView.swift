@@ -7,7 +7,32 @@ import PhotosUI
 /// deeper numbers live one tap in, and the people come before the
 /// paperwork: this page is about a family, not a dashboard.
 struct HouseholdHomeView: View {
+    var embedded = false
+
+    var body: some View {
+        HouseholdDestination(embedded: embedded).equatable()
+    }
+}
+
+/// Like ProfileDestination, keep newly initialized Query wrappers out of
+/// navigation's destination comparison without suppressing live data updates.
+private struct HouseholdDestination: View, Equatable {
+    var embedded: Bool
+
+    var body: some View {
+        HouseholdHomeContent(embedded: embedded)
+    }
+}
+
+private struct HouseholdHomeContent: View {
+    /// Root when opened from the app's Household destination; pushed when
+    /// opened from a person's profile. The pushed form borrows the parent
+    /// navigation stack and draws a real back affordance.
+    var embedded = false
+
+    @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var context
+    @Environment(\.activeAppTab) private var activeAppTab
     @Query(sort: \HouseholdMember.createdAt) private var members: [HouseholdMember]
     /// Seats a body may touch. The raw `@Query` can still hold a row whose
     /// backing data was deleted mid-render; `memberRow` trapped there.
@@ -17,6 +42,7 @@ struct HouseholdHomeView: View {
     // and counting them puts a dish on the board nobody cooked.
     @Query(filter: #Predicate<TablePost> { !$0.isDiscover && !$0.authorName.isEmpty }) private var storedPosts: [TablePost]
     private var posts: [TablePost] { storedPosts.filter(\.isUserContent) }
+    private var dishPosts: [TablePost] { posts.filter { $0.kind == "dish" } }
     @Query private var meals: [PlannedMeal]
     // Oldest first — see PersonProfileView: the oldest row is the
     // household's one true profile when a sync race left more than one.
@@ -33,14 +59,12 @@ struct HouseholdHomeView: View {
     @AppStorage("userFirstName") private var userFirstName = ""
     @Environment(\.openURL) private var openURL
     @State private var paywallPresented = false
-    @State private var settingsPresented = false
     @State private var namingFromMasthead = false
     @State private var turnsTipShown = false
     @State private var bannerItem: PhotosPickerItem?
     /// Item-based, not two `isPresented` booleans: a binding set
     /// asynchronously (the launch harness does exactly that) pops an
     /// isPresented destination straight back off.
-    @Environment(\.tabPop) private var tabPop
     @State private var pushed: HomeDestination?
     /// The face you tapped is the face that opens. See CookbookView.
     @Namespace private var zoom
@@ -90,18 +114,21 @@ struct HouseholdHomeView: View {
     #endif
 
     enum HomeDestination: String, Identifiable {
-        case activity, stats
+        case activity, stats, settings
         var id: String { rawValue }
     }
 
     private var owner: HouseholdMember? { roster.first(where: \.isOwner) }
     private var kissCount: Int {
-        let seats = TableKiss.seating(members: roster, dishAuthors: posts.map(\.authorName))
-        return posts.filter { $0.hasChefsKiss(seats: seats) }.count
+        let seats = TableKiss.seating(members: roster, dishAuthors: dishPosts.map(\.authorName))
+        return dishPosts.filter { $0.hasChefsKiss(seats: seats) }.count
     }
-    private var platesEarned: Int { posts.reduce(0) { $0 + $1.totalPlates } }
-    /// Every dinner this household has ever put on the plan.
-    private var nightsPlated: Int { meals.count }
+    private var platesEarned: Int { dishPosts.reduce(0) { $0 + $1.totalPlates } }
+    /// Every dinner this household has put on the plan. Breakfast and a
+    /// deleted night are not dinners simply because they share a model.
+    private var nightsPlated: Int {
+        meals.filter { !$0.isDeleted && $0.slotValue == .dinner }.count
+    }
 
     /// Whether the house has a name at all, or is still "Your Household"
     /// with the pencil beside it. A member always has one and cannot rename
@@ -140,25 +167,39 @@ struct HouseholdHomeView: View {
         if !cached.isEmpty { return cached }
         let host = HouseholdShare.cachedOwnerName.trimmingCharacters(in: .whitespaces)
         let first = host.split(separator: " ").first.map(String.init) ?? host
-        return "\(first.isEmpty ? "The host" : first)'s household"
+        return first.isEmpty ? "Organizer's household" : "\(first)'s household"
     }
 
+    @ViewBuilder
     var body: some View {
-        NavigationStack {
-            page
-                .navigationDestination(item: $pushed) { destination in
-                    switch destination {
-                    case .activity: NotificationsView()
-                    case .stats: HouseholdStatsView()
-                    }
-                }
-                .navigationDestination(item: $personShown) { person in
-                    PersonProfileView(personName: person.name, colorHex: person.colorHex, memberID: person.memberID)
-                        .navigationTransition(.zoom(sourceID: personDoor, in: zoom))
-                }
-                .toolbar(.hidden, for: .navigationBar)
-                .plSwipeBack()
+        if embedded {
+            navigablePage
+        } else {
+            NavigationStack { navigablePage }
         }
+    }
+
+    private var navigablePage: some View {
+        page
+            .navigationDestination(item: $pushed) { destination in
+                switch destination {
+                case .activity: NotificationsView()
+                case .stats: HouseholdStatsView()
+                case .settings:
+                    SettingsSheet(
+                        focusHouseholdName: namingFromMasthead,
+                        isPushed: true,
+                        scope: .household
+                    )
+                }
+            }
+            .navigationDestination(item: $personShown) { person in
+                PersonProfileView(personName: person.name, colorHex: person.colorHex, memberID: person.memberID)
+                    .navigationTransition(.zoom(sourceID: personDoor, in: zoom))
+            }
+            .toolbar(.hidden, for: .navigationBar)
+            .plSwipeBack()
+            .hidesFloatingChrome()
     }
 
     private var page: some View {
@@ -168,13 +209,13 @@ struct HouseholdHomeView: View {
                 sharingLine
                 iCloudLine
                 banner
-                statsStrip
                 peopleSection
                 cooksSection
+                statsStrip
             }
             .padding(.horizontal, 24)
             .padding(.top, 6)
-            .padding(.bottom, Layout.floatingChromeInset)
+            .padding(.bottom, Layout.focusedPageBottom)
         }
         // Scrolling puts an open row away, the way a list does.
         .onScrollPhaseChange { _, phase in
@@ -213,15 +254,7 @@ struct HouseholdHomeView: View {
                 .ignoresSafeArea()
             case .paywall:
                 PaywallSheet()
-            case .settings:
-                SettingsSheet(focusHouseholdName: namingFromMasthead)
             }
-        }
-        // See TabPopRequest: tapping Home from a pushed screen returns home.
-        .onChange(of: tabPop) { _, request in
-            guard request.tab == .home else { return }
-            pushed = nil
-            personShown = nil
         }
         .confirmationDialog(
             dialogTitle,
@@ -268,13 +301,13 @@ struct HouseholdHomeView: View {
         .task {
             await reframeStoredBannerIfNeeded()
         }
-        // A tapped notice about the bell lands on the bell. Parked if Home
-        // was not on screen yet; collected the moment it is.
-        .onReceive(NotificationCenter.default.publisher(for: LinkRelay.activityRequested)) { _ in
-            if LinkRelay.takeActivity() { pushed = .activity }
-        }
         .onAppear {
-            if LinkRelay.takeActivity() { pushed = .activity }
+            Presence.shared.householdVisible = activeAppTab == .week
+            #if DEBUG
+            if LaunchFlags.consume("-plated-review-add-household-member") {
+                addPresented = true
+            }
+            #endif
             // Names already on this phone (invite log, twin seats) bind
             // before any CloudKit wait. TF26 left Alessandra as New member
             // until a pull that never had to run for the name to be known.
@@ -283,10 +316,12 @@ struct HouseholdHomeView: View {
             // when CloudKit happens to send a share delta. Replay the zone
             // so a seat we deleted locally but that still exists in iCloud
             // is not skipped by a stale change token.
-            Task {
-                TableShare.requestReplay(zoneOwner: "")
-                await TablePull.pull(reason: "home")
-                await Seats.settleStuckInvites(in: context)
+            if !PlatedApp.usesPreviewContainer {
+                Task {
+                    TableShare.requestReplay(zoneOwner: "")
+                    await TablePull.pull(reason: "home")
+                    await Seats.settleStuckInvites(in: context)
+                }
             }
             #if DEBUG
             // UI-test hook, one-shot: `simctl launch … -plated-open-stats`.
@@ -315,13 +350,19 @@ struct HouseholdHomeView: View {
             }
             #endif
         }
+        .onChange(of: activeAppTab) { _, tab in
+            // The shell preserves every visited tab under opacity, so this
+            // screen may stay mounted while another tab is visible.
+            Presence.shared.householdVisible = tab == .week
+        }
+        .onDisappear { Presence.shared.householdVisible = false }
         .onChange(of: bannerItem) { _, item in
             guard let item else { return }
             Task {
                 guard let raw = try? await item.loadTransferable(type: Data.self) else { return }
                 // Vision on a full-size photo is not main-thread work.
                 let framed = await Task.detached(priority: .userInitiated) {
-                    BannerFocus.framed(raw) ?? PersonProfileView.downscale(raw)
+                    BannerFocus.framed(raw) ?? ProfilePhoto.downscale(raw)
                 }.value
                 setBanner(framed)
             }
@@ -329,13 +370,12 @@ struct HouseholdHomeView: View {
     }
 
     private enum HomeSheet: Identifiable {
-        case add, resend(InviteTarget), paywall, settings
+        case add, resend(InviteTarget), paywall
         var id: String {
             switch self {
             case .add: "add"
             case .resend(let target): "resend-\(target.id)"
             case .paywall: "paywall"
-            case .settings: "settings"
             }
         }
     }
@@ -345,14 +385,13 @@ struct HouseholdHomeView: View {
                 if addPresented { return .add }
                 if let resendTarget { return .resend(resendTarget) }
                 if paywallPresented { return .paywall }
-                return settingsPresented ? .settings : nil
+                return nil
             },
             set: {
                 if $0 == nil {
                     addPresented = false
                     resendTarget = nil
                     paywallPresented = false
-                    settingsPresented = false
                 }
             }
         )
@@ -368,7 +407,10 @@ struct HouseholdHomeView: View {
     private var masthead: some View {
         if hugeType {
             VStack(alignment: .leading, spacing: 12) {
-                mastheadTitle
+                HStack(alignment: .top, spacing: 10) {
+                    if embedded { backButton }
+                    mastheadTitle
+                }
                 HStack(spacing: 10) {
                     Spacer(minLength: 0)
                     mastheadControls
@@ -376,6 +418,7 @@ struct HouseholdHomeView: View {
             }
         } else {
             HStack(alignment: .discCentre, spacing: 10) {
+                if embedded { backButton }
                 mastheadTitle
                 Spacer(minLength: 6)
                 mastheadControls
@@ -389,18 +432,18 @@ struct HouseholdHomeView: View {
             Button {
                 Haptic.tap()
                 namingFromMasthead = true
-                settingsPresented = true
+                pushed = .settings
             } label: {
                 VStack(alignment: .leading, spacing: 2) {
                     MicroLabel("Household")
                     HStack(spacing: 5) {
                         Text(householdDisplayName)
-                            .plType(.display)
+                            .plType(hugeType ? .heading : .display)
                             .foregroundStyle(Color.ink)
                             // One line at ordinary sizes — it wrapped
                             // "Your / Household" the moment two were
                             // allowed. Only huge type gets to wrap.
-                            .lineLimit(hugeType ? 3 : 1)
+                            .lineLimit(hugeType ? 2 : 1)
                             // Shrinking is what stops a mid-word break, so
                             // it has to apply at huge type too. It used to
                             // be 1 there, which is the one setting under
@@ -408,18 +451,35 @@ struct HouseholdHomeView: View {
                             .minimumScaleFactor(hugeType ? 0.7 : 0.6)
                             .allowsTightening(true)
                             .fixedSize(horizontal: false, vertical: hugeType)
-                        if !isNamed {
-                            Image(systemName: "pencil")
-                                .font(.system(size: 12, weight: .semibold))
-                                .foregroundStyle(Color.inkFaint)
-                        }
+                        Image(systemName: isNamed ? "slider.horizontal.3" : "pencil")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(Color.inkSecondary)
                     }
                 }
                 .contentShape(Rectangle())
             }
             .buttonStyle(.pressable)
-            .accessibilityLabel(isNamed ? householdDisplayName : "Name your household")
+            .accessibilityLabel(isNamed ? "\(householdDisplayName), household settings" : "Name your household")
+            .accessibilityHint("Shows household name, sharing and membership settings.")
             .layoutPriority(1)
+    }
+
+    private var backButton: some View {
+        Button {
+            Haptic.tap()
+            dismiss()
+        } label: {
+            Image(systemName: "arrow.left")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(Color.ink)
+                .frame(width: 38, height: 38)
+                .background(Color.canvas.opacity(0.9), in: Circle())
+                .overlay(Circle().strokeBorder(Color.hairline, lineWidth: 1.5))
+                .frame(minWidth: 44, minHeight: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.pressable)
+        .accessibilityLabel("Back")
     }
 
     @ViewBuilder
@@ -428,50 +488,32 @@ struct HouseholdHomeView: View {
                 pushed = .activity
             }
 
-            Button {
-                Haptic.tap()
-                settingsPresented = true
-            } label: {
-                Circle()
-                    .strokeBorder(Color.hairline, lineWidth: 1.5)
-                    .frame(width: 36, height: 36)
-                    .overlay {
-                        Image(systemName: "gearshape")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(Color.ink)
+            if !embedded {
+                // The root Household page keeps the same profile door as the
+                // rest of the app. The pushed page omits it because its back
+                // button already returns to that exact profile.
+                Button {
+                    Haptic.tap()
+                    openOwnProfile()
+                } label: {
+                    VStack(spacing: 2) {
+                        AvatarCircle(initials: ownerInitial, tone: .neutralPair, size: 40,
+                                     photo: roster.me?.photoData)
+                        Text("You")
+                            .plType(.micro)
+                            .foregroundStyle(Color.inkSecondary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
                     }
                     .frame(minWidth: 44, minHeight: 44)
                     .contentShape(Rectangle())
-            }
-            .buttonStyle(.pressable)
-            .accessibilityLabel("Settings")
-
-            // The host sits in the corner of every room — the same door
-            // to your own profile that the plan already offers.
-            Button {
-                Haptic.tap()
-                openOwnProfile()
-            } label: {
-                VStack(spacing: 2) {
-                    AvatarCircle(initials: ownerInitial, tone: .neutralPair, size: 40,
-                                 photo: roster.me?.photoData)
-                    Text("You")
-                        .plType(.micro)
-                        .foregroundStyle(Color.inkSecondary)
-                        // One line, always. This sits in a squeezed masthead
-                        // HStack, so at XXXL it wrapped and broke the word
-                        // across two lines: "HO" over "ST".
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.7)
                 }
-                .frame(minWidth: 44, minHeight: 44)
-                .contentShape(Rectangle())
+                .buttonStyle(.pressable)
+                .accessibilityLabel("Your profile")
+                .matchedTransitionSource(id: ZoomID.host, in: zoom)
+                .plDiscAligned(40)
+                .plChrome()
             }
-            .buttonStyle(.pressable)
-            .accessibilityLabel("Your profile")
-            .matchedTransitionSource(id: ZoomID.host, in: zoom)
-            .plDiscAligned(40)
-            .plChrome()
     }
 
     // The corner says "You", so it has to be the reader's row and not the
@@ -684,21 +726,33 @@ struct HouseholdHomeView: View {
                         .foregroundStyle(Color.ink)
                         .padding(.horizontal, 12)
                         .frame(height: 30)
-                        .background(.ultraThinMaterial, in: Capsule())
+                        .background(.ultraThinMaterial, in: Radius.shape(Radius.chip))
                         .padding(10)
                     } else {
-                        RoundedRectangle(cornerRadius: Radius.hero, style: .continuous)
-                            .strokeBorder(Color.hairlineDashed, style: StrokeStyle(lineWidth: 2, dash: [8, 7]))
-                            .aspectRatio(BannerFocus.aspect, contentMode: .fit)
-                            .overlay {
-                                VStack(spacing: 6) {
-                                    Image(systemName: "photo")
-                                        .font(.system(size: 18, weight: .medium))
-                                    Text("Add a photo")
-                                        .plType(.footnote, .bold)
-                                }
-                                .foregroundStyle(Color.inkSecondary)
+                        HStack(spacing: 12) {
+                            Image(systemName: "photo")
+                                .font(.system(size: 16, weight: .semibold))
+                                .frame(width: 38, height: 38)
+                                .background(Color.fill, in: Circle())
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Add a household photo")
+                                    .plType(.footnote, .bold)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                Text("Shared with everyone in your household")
+                                    .plType(.caption)
+                                    .fixedSize(horizontal: false, vertical: true)
                             }
+                            .layoutPriority(1)
+                            Spacer(minLength: 0)
+                        }
+                        .foregroundStyle(Color.inkSecondary)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 14)
+                        .frame(maxWidth: .infinity, minHeight: 76, alignment: .leading)
+                        .overlay {
+                            RoundedRectangle(cornerRadius: Radius.hero, style: .continuous)
+                                .strokeBorder(Color.hairlineDashed, style: StrokeStyle(lineWidth: 2, dash: [8, 7]))
+                        }
                     }
                 }
             }
@@ -740,6 +794,7 @@ struct HouseholdHomeView: View {
         } else {
             context.insert(HouseholdProfile(bannerPhotoData: framed))
         }
+        WidgetBridge.publish(from: context)
         Haptic.plate()
     }
 
@@ -777,7 +832,7 @@ struct HouseholdHomeView: View {
                 .foregroundStyle(Color.accentText)
                 .padding(.horizontal, 12)
                 .frame(minHeight: 30)
-                .background(Color.tomato.opacity(0.09), in: Capsule())
+                .background(Color.olive.opacity(0.09), in: Radius.shape(Radius.chip))
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 4)
@@ -791,7 +846,29 @@ struct HouseholdHomeView: View {
 
     private var peopleSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            MicroLabel("People")
+            HStack(spacing: 8) {
+                MicroLabel("People")
+                Spacer()
+                if roster.me?.isOwner == true {
+                    Menu {
+                        Button {
+                            Haptic.tap()
+                            Task { await refreshPeopleFromiCloud() }
+                        } label: {
+                            Label("Refresh from iCloud", systemImage: "arrow.clockwise")
+                        }
+                        .disabled(peopleRefreshNote == "Looking in iCloud…")
+                    } label: {
+                        Image(systemName: "ellipsis")
+                            .font(.system(size: 15, weight: .bold))
+                            .foregroundStyle(Color.inkSecondary)
+                            .frame(width: 44, height: 44)
+                            .contentShape(Rectangle())
+                    }
+                    .accessibilityLabel("People options")
+                    .accessibilityHint("Includes iCloud recovery for a missing household member.")
+                }
+            }
 
             VStack(spacing: 0) {
                 let people = roster.listed
@@ -819,31 +896,36 @@ struct HouseholdHomeView: View {
                     .transition(.opacity)
             }
             if let peopleRefreshNote {
-                Text(peopleRefreshNote)
-                    .plType(.caption, .semibold)
-                    .foregroundStyle(Color.inkSecondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .transition(.opacity)
-            }
-
-            addSomeoneButton
-            if roster.me?.isOwner == true {
-                Button {
-                    Haptic.tap()
-                    Task { await refreshPeopleFromiCloud() }
-                } label: {
-                    Text(peopleRefreshNote == HouseholdIdentity.PeopleCopy.reachFailure
-                        ? HouseholdIdentity.PeopleCopy.tryAgain
-                        : "Refresh people from iCloud")
+                HStack(alignment: .firstTextBaseline, spacing: 10) {
+                    Image(systemName: peopleRefreshNote == HouseholdIdentity.PeopleCopy.reachFailure
+                          ? "icloud.slash"
+                          : peopleRefreshNote == "Looking in iCloud…" ? "icloud" : "checkmark.circle.fill")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(peopleRefreshNote == HouseholdIdentity.PeopleCopy.reachFailure
+                                         ? Color.accentText : Color.completion)
+                    Text(peopleRefreshNote)
+                        .plType(.caption, .semibold)
+                        .foregroundStyle(Color.inkSecondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    if peopleRefreshNote == HouseholdIdentity.PeopleCopy.reachFailure {
+                        Button(HouseholdIdentity.PeopleCopy.tryAgain) {
+                            Haptic.tap()
+                            Task { await refreshPeopleFromiCloud() }
+                        }
                         .plType(.caption, .bold)
                         .plActionLabel()
                         .foregroundStyle(Color.accentText)
-                        .frame(maxWidth: .infinity)
-                        .frame(minHeight: 44)
+                        .buttonStyle(.pressable)
+                    }
                 }
-                .buttonStyle(.pressable)
-                .accessibilityHint("Looks for household members who are on your share but missing from this list.")
+                .padding(.horizontal, 14)
+                .frame(minHeight: 44)
+                .background(Color.raisedFill, in: Radius.shape(Radius.card))
+                .overlay(Radius.shape(Radius.card).strokeBorder(Color.hairline))
+                .transition(.plUnfold)
             }
+
+            addSomeoneButton
         }
     }
 
@@ -909,34 +991,39 @@ struct HouseholdHomeView: View {
         let photo = drawn.photo
         let firstInitial = name.first.map(String.init)?.uppercased() ?? member.firstInitial
         let showsColor = member.showsColor
-        return HStack(spacing: 12) {
-            AvatarCircle(
-                initials: firstInitial,
-                // Colour is earned by being here, so an invitation is grey
-                // until they arrive; and the reader's own row is the neutral
-                // one, which on a member's phone leaves the host in their
-                // colour (§10). Keyed on `isOwner` that second half was the
-                // wrong way round and disagreed with `TableSeatsSheet`,
-                // which draws the same person's row.
-                tone: (isMe || !showsColor) ? .neutralPair : tone,
-                size: 46,
-                photo: photo
-            )
-            VStack(alignment: .leading, spacing: 1) {
-                Text(name)
-                    .plName()
-                    .plType(.body, .bold)
-                    .foregroundStyle(Color.ink)
-                // The seat, not a role line frozen at insert. "Partner ·
-                // plans & cooks" was printed under a name typed four
-                // seconds earlier about somebody with no account and
-                // nothing to plan with. Own owner row is "You · Owner";
-                // a member's own row is "You". Never Head of table.
-                Text(subtitle)
-                    .plType(.caption, .semibold)
-                    .foregroundStyle(Color.inkSecondary)
+        return HStack(spacing: 8) {
+            Button {
+                Haptic.tap()
+                personDoor = .person(name)
+                personShown = PersonRef(name: name, colorHex: colorHex, memberID: memberID)
+            } label: {
+                HStack(spacing: 12) {
+                    AvatarCircle(
+                        initials: firstInitial,
+                        tone: (isMe || !showsColor) ? .neutralPair : tone,
+                        size: 46,
+                        photo: photo
+                    )
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(name)
+                            .plName()
+                            .plType(.body, .bold)
+                            .foregroundStyle(Color.ink)
+                        Text(subtitle)
+                            .plType(.caption, .semibold)
+                            .foregroundStyle(Color.inkSecondary)
+                    }
+                    Spacer(minLength: 4)
+                }
+                .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
+                .contentShape(Rectangle())
             }
-            Spacer(minLength: 6)
+            .buttonStyle(.pressable)
+            .accessibilityLabel(name)
+            .accessibilityValue(subtitle)
+            .accessibilityHint("Opens profile")
+            .matchedTransitionSource(id: ZoomID.person(name), in: zoom)
+
             // Stuck invitation: one tap marks them joined in place.
             if seat == .invited, readerIsHead {
                 Button {
@@ -952,14 +1039,18 @@ struct HouseholdHomeView: View {
                         .foregroundStyle(Color.accentText)
                         .padding(.horizontal, 12)
                         .frame(minHeight: 30)
-                        .background(Color.tomato.opacity(0.09), in: Capsule())
+                        .background(Color.olive.opacity(0.09), in: Radius.shape(Radius.chip))
+                        // Keep the compact status-pill treatment while the
+                        // button itself still meets the 44-point tap target.
+                        .frame(minHeight: 44)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityHint("Marks them as joined in your household.")
             } else if !isMe, cooks, !weekdays.isEmpty {
                 Text(dayChipLabel(weekdays))
                     .plType(.caption, .bold)
-                    .foregroundStyle(tone.tone)
+                    .foregroundStyle(Color.ink)
                     // One line. A status chip squeezed between a name and a
                     // chevron has nowhere to reflow, and at accessibility
                     // sizes "Sun + Mon" came apart into "Sun / + / Mo / n".
@@ -969,20 +1060,52 @@ struct HouseholdHomeView: View {
                     .plChrome()
                     .padding(.horizontal, 12)
                     .frame(minHeight: 30)
-                    .background(tone.tint, in: Capsule())
+                    .background(tone.tint, in: Radius.shape(Radius.chip))
+            }
+
+            if !member.isOwner {
+                memberActionsMenu(member, readerIsHead: readerIsHead)
             }
         }
         .padding(.vertical, 12)
-        .contentShape(Rectangle())
-        .onTapGesture {
-            Haptic.tap()
-            personDoor = .person(name)
-            personShown = PersonRef(name: name, colorHex: colorHex, memberID: memberID)
+    }
+
+    private func memberActionsMenu(_ member: HouseholdMember, readerIsHead: Bool) -> some View {
+        let id = member.persistentModelID
+        return Menu {
+            if member.canResend, InviteComposer.isAvailable, readerIsHead {
+                Button("Send invitation again", systemImage: "paperplane") {
+                    Task {
+                        guard let live = liveMember(id) else { return }
+                        await resend(live)
+                    }
+                }
+            }
+            if let url = member.messageURL {
+                Button("Message", systemImage: "bubble.right") { openURL(url) }
+            }
+            if readerIsHead, member.seat != .left {
+                Button("Change role", systemImage: "person.text.rectangle") {
+                    guard let live = liveMember(id) else { return }
+                    dialog = .role(live)
+                }
+            }
+            if readerIsHead {
+                Button("Remove from household", systemImage: "person.badge.minus", role: .destructive) {
+                    guard let live = liveMember(id) else { return }
+                    dialog = .remove(live)
+                }
+            }
+        } label: {
+            Image(systemName: "ellipsis")
+                .font(.system(size: 14, weight: .bold))
+                .foregroundStyle(Color.ink)
+                .frame(width: 38, height: 38)
+                .background(Color.fill, in: Circle())
+                .frame(minWidth: 44, minHeight: 44)
+                .contentShape(Rectangle())
         }
-        .accessibilityElement(children: .combine)
-        .accessibilityAddTraits(.isButton)
-        .accessibilityHint("Opens \(name)'s profile")
-        .matchedTransitionSource(id: ZoomID.person(name), in: zoom)
+        .accessibilityLabel("More options for \(member.name)")
     }
 
     /// The head of table keeps their seat — you cannot swipe away the
@@ -1067,22 +1190,37 @@ struct HouseholdHomeView: View {
                 paywallPresented = true
             }
         } label: {
-            HStack(spacing: 8) {
-                Image(systemName: "plus")
-                    .font(.system(size: 14, weight: .bold))
-                Text("Add someone")
-                    .plType(.body, .bold)
-                    .lineLimit(1)
+            HStack(spacing: 13) {
+                Image(systemName: "person.badge.plus")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(Color.completion)
+                    .frame(width: 40, height: 40)
+                    .background(Color.basilTint, in: Circle())
+                    .plChrome()
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(roster.me?.isOwner == true ? "Invite someone" : "Add someone by name")
+                        .plType(.body, .bold)
+                        .foregroundStyle(Color.ink)
+                    Text(roster.me?.isOwner == true
+                         ? "Share the plan, groceries and cookbook"
+                         : "Keep a place for someone without the app")
+                        .plType(.caption)
+                        .foregroundStyle(Color.inkSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: 6)
             }
-            .foregroundStyle(Color.inkSecondary)
-            .frame(maxWidth: .infinity)
-            .frame(minHeight: 54)
-            .overlay {
-                Capsule().strokeBorder(Color.hairlineDashed, style: StrokeStyle(lineWidth: 2, dash: [7, 6]))
-            }
-            .contentShape(Capsule())
+            .padding(.horizontal, 15)
+            .padding(.vertical, 12)
+            .frame(maxWidth: .infinity, minHeight: 68, alignment: .leading)
+            .background(Color.raisedFill, in: Radius.shape(Radius.card))
+            .overlay(Radius.shape(Radius.card).strokeBorder(Color.hairline))
+            .contentShape(Radius.shape(Radius.card))
         }
         .buttonStyle(.pressable)
+        .accessibilityHint("Opens household invitation options.")
     }
 
     // MARK: Whose night it is
@@ -1098,7 +1236,7 @@ struct HouseholdHomeView: View {
                 } label: {
                     Image(systemName: "info.circle")
                         .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(Color.inkFaint)
+                        .foregroundStyle(Color.inkSecondary)
                         .frame(minWidth: 44, minHeight: 44)
                         .contentShape(Rectangle())
                 }
@@ -1183,7 +1321,7 @@ struct HouseholdHomeView: View {
             VStack(spacing: 6) {
                 Text(shortDay(weekday).uppercased())
                     .plType(.micro, .extraBold)
-                    .foregroundStyle(isToday ? Color.tomato : Color.inkSecondary)
+                    .foregroundStyle(isToday ? Color.accentText : Color.inkSecondary)
                     // One line, always. Seven cells share the page width, so
                     // a cell is about 44pt wide on a 393pt phone and 32 of
                     // that is content. "MON" and "WED" are the two widest
@@ -1220,7 +1358,7 @@ struct HouseholdHomeView: View {
             .clipShape(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: Radius.chip, style: .continuous)
-                    .strokeBorder(isToday ? Color.tomato : Color.hairline, lineWidth: isToday ? 2 : 1)
+                    .strokeBorder(isToday ? Color.olive : Color.hairline, lineWidth: isToday ? 2 : 1)
             }
         }
         .buttonStyle(.pressable)
@@ -1332,7 +1470,7 @@ struct AddMemberSheet: View {
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 18) {
-                Text("Add someone")
+                Text("Add to your household")
                     // .title at 22, the app's sheet masthead.
                     .plType(.title)
                     .foregroundStyle(Color.ink)
@@ -1349,13 +1487,12 @@ struct AddMemberSheet: View {
                         .transition(.opacity)
                 }
 
-                // "No phone?" is the second half of a choice. On a member's
-                // phone there is no first half, so there is nothing to
-                // divide and Add by name is simply the door.
+                // The second door is a local place card, not a lesser kind
+                // of invitation. Name it for the situation it serves.
                 if isHost {
                     HStack(spacing: 10) {
                         Rectangle().fill(Color.hairline).frame(height: 1)
-                        Text("No phone?")
+                        Text("WITHOUT THE APP")
                             .plType(.caption, .bold)
                             .foregroundStyle(Color.inkSecondary)
                         Rectangle().fill(Color.hairline).frame(height: 1)
@@ -1383,7 +1520,9 @@ struct AddMemberSheet: View {
                 roleChip("kid", "Kid")
                 roleChip("member", "Member")
             }
-            Text("Partners share cook nights.")
+            Text(role == "partner"
+                 ? "Partners can have standing cook nights."
+                 : "You can still assign them a meal whenever you need to.")
                 .plType(.micro, .medium)
                 .foregroundStyle(Color.inkSecondary)
         }
@@ -1402,7 +1541,9 @@ struct AddMemberSheet: View {
     @ViewBuilder
     private var inviteDoor: some View {
         if !isHost {
-            Text("Only \(hostFirstName) can invite people to this household.")
+            Text(hostFirstName == "the organizer"
+                 ? "Only the organizer can invite people to this household."
+                 : "Only \(hostFirstName), the organizer, can invite people to this household.")
                 .plType(.caption)
                 .foregroundStyle(Color.inkSecondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -1415,13 +1556,13 @@ struct AddMemberSheet: View {
     private var hostFirstName: String {
         let host = HouseholdShare.cachedOwnerName.trimmingCharacters(in: .whitespaces)
         let first = host.split(separator: " ").first.map(String.init) ?? host
-        return first.isEmpty ? "the host" : first
+        return first.isEmpty ? "the organizer" : first
     }
 
     private var hostInviteDoor: some View {
         VStack(alignment: .leading, spacing: 10) {
             if InviteComposer.isAvailable {
-                TomatoPillButton(title: "Invite someone", systemImage: "person.badge.plus") {
+                PrimaryActionButton(title: "Invite someone", systemImage: "person.badge.plus") {
                     withAnimation(.plSnap) { problem = nil }
                     startInvite()
                 }
@@ -1432,7 +1573,7 @@ struct AddMemberSheet: View {
             } else {
                 // No Messages on this iPhone. The link still exists, and a
                 // seatless one lets whoever joins pick their seat (§7).
-                InkPillButton(
+                SecondaryActionButton(
                     title: copied ? "Copied" : (copying ? "Preparing the link" : "Copy link"),
                     systemImage: copied ? "checkmark" : "link"
                 ) {
@@ -1463,7 +1604,7 @@ struct AddMemberSheet: View {
                 .overlay(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous).strokeBorder(Color.hairline))
                 .plTappableField()
 
-            InkPillButton(title: "Add") {
+            SecondaryActionButton(title: "Add") {
                 let clean = name.trimmingCharacters(in: .whitespaces)
                 guard !Seats.isTaken(clean, in: context) else {
                     Haptic.warn()
@@ -1591,7 +1732,7 @@ struct AddMemberSheet: View {
                     if active {
                         Capsule().fill(Color.ink)
                     } else {
-                        Capsule().strokeBorder(Color.hairline)
+                        Radius.shape(Radius.chip).strokeBorder(Color.hairline)
                     }
                 }
                 // Only the SELECTED chip was tappable. A filled capsule hit
@@ -1599,7 +1740,7 @@ struct AddMemberSheet: View {
                 // so the two chips a person actually needs to reach were the
                 // two that ignored them.
                 .frame(minHeight: 44)
-                .contentShape(Capsule())
+                .contentShape(Radius.shape(Radius.chip))
         }
         .buttonStyle(.pressable)
         .accessibilityAddTraits(active ? .isSelected : [])

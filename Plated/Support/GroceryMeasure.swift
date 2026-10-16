@@ -52,4 +52,5 @@ struct GrocerySource: Codable, Identifiable, Equatable {
     var title: String
     var date: Date
     var quantity: Double
+    var package: IngredientPackage? = nil
 }

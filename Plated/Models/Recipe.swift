@@ -61,6 +61,18 @@ final class Recipe {
     /// Stored as `WeatherMood` raw values.
     var weatherMoods: [String] = []
 
+    /// Structured facts used to compare recipes before opening them. They
+    /// remain blank unless a cook or source supplied them; Plated never
+    /// guesses nutrition or appliance requirements from prose.
+    var equipment: [String] = []
+    var dietaryLabels: [String] = []
+    var knownAllergens: [String] = []
+    var caloriesPerServing: Int = 0
+    var proteinGramsPerServing: Double = 0
+    var carbohydrateGramsPerServing: Double = 0
+    var fatGramsPerServing: Double = 0
+    var nutritionSource: String = ""
+
     // MARK: How this row travels (docs/household.md)
 
     /// The CloudKit record name in the household zone, minted at birth.
@@ -168,8 +180,19 @@ final class Recipe {
         set { mealType = newValue.rawValue }
     }
 
-    /// True when this came from someone else's table rather than this kitchen.
-    var isImported: Bool { !originID.isEmpty }
+    /// True when this recipe entered through any save/import path.
+    ///
+    /// `originID` only identifies Table and Discover saves. Website, paste,
+    /// scan, and photo imports instead carry the source fields below, so
+    /// treating the origin key as the whole truth made those recipes vanish
+    /// from the cookbook's Saved filter.
+    var isImported: Bool {
+        !originID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || importedAt != nil
+            || !importMethod.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || !sourceURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || !sourceText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
 
     var sortedExtraPhotos: [RecipePhoto] {
         (extraPhotos ?? []).sorted { $0.sortIndex < $1.sortIndex }
@@ -197,11 +220,142 @@ final class Recipe {
 
     /// Names a given member should be warned about before this lands on the plan.
     func conflicts(for member: HouseholdMember) -> [String] {
-        let avoided = member.avoidedIngredients.map { $0.lowercased() }
+        let avoided = member.avoidedIngredients
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+            .filter { !$0.isEmpty }
         guard !avoided.isEmpty else { return [] }
-        return sortedIngredients
+        let ingredientMatches = sortedIngredients
             .filter { ingredient in avoided.contains { ingredient.normalizedName.contains($0) } }
             .map(\.name)
+        let allergenMatches = knownAllergens.filter { allergen in
+            avoided.contains { allergen.localizedCaseInsensitiveContains($0) }
+        }
+        return Array(Set(ingredientMatches + allergenMatches)).sorted()
+    }
+}
+
+/// Ingredient purchasing metadata is deliberately optional. A cost estimate
+/// is only useful when a specific package and a recent source are known.
+struct IngredientPackage: Codable, Equatable, Sendable {
+    var size: Double?
+    var unit = ""
+    var price: Double?
+    var store = ""
+    var source = ""
+    var updatedAt: Date?
+
+    private enum CodingKeys: String, CodingKey { case size, unit, price, store, source, updatedAt }
+
+    init() {}
+
+    init(size: Double?, unit: String, price: Double?, store: String, source: String, updatedAt: Date?) {
+        self.size = size
+        self.unit = unit
+        self.price = price
+        self.store = store
+        self.source = source
+        self.updatedAt = updatedAt
+    }
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        size = try values.decodeIfPresent(Double.self, forKey: .size)
+        unit = try values.decodeIfPresent(String.self, forKey: .unit) ?? ""
+        price = try values.decodeIfPresent(Double.self, forKey: .price)
+        store = try values.decodeIfPresent(String.self, forKey: .store) ?? ""
+        source = try values.decodeIfPresent(String.self, forKey: .source) ?? ""
+        updatedAt = try values.decodeIfPresent(Date.self, forKey: .updatedAt)
+    }
+
+    var isUsable: Bool {
+        guard let size, size > 0, let price, price >= 0 else { return false }
+        return !unit.isEmpty && !store.isEmpty && !source.isEmpty && updatedAt != nil
+    }
+
+    var fingerprintKey: String {
+        [
+            size.map { String($0.bitPattern) } ?? "",
+            unit.lowercased(),
+            price.map { String($0.bitPattern) } ?? "",
+            store.lowercased(),
+            source,
+            updatedAt.map { String(Int64(($0.timeIntervalSince1970 * 1000).rounded())) } ?? ""
+        ].joined(separator: "\u{1F}")
+    }
+}
+
+/// Explicit metadata for meal comparison, shared with the household as a
+/// single backwards-compatible JSON field on the recipe record.
+struct RecipePlanningMetadata: Codable, Equatable {
+    var equipment: [String] = []
+    var dietaryLabels: [String] = []
+    var knownAllergens: [String] = []
+    var caloriesPerServing = 0
+    var proteinGramsPerServing = 0.0
+    var carbohydrateGramsPerServing = 0.0
+    var fatGramsPerServing = 0.0
+    var nutritionSource = ""
+
+    static let empty = RecipePlanningMetadata()
+
+    private enum CodingKeys: String, CodingKey {
+        case equipment, dietaryLabels, knownAllergens, caloriesPerServing
+        case proteinGramsPerServing, carbohydrateGramsPerServing, fatGramsPerServing
+        case nutritionSource
+    }
+
+    @MainActor
+    init(recipe: Recipe) {
+        equipment = recipe.equipment
+        dietaryLabels = recipe.dietaryLabels
+        knownAllergens = recipe.knownAllergens
+        caloriesPerServing = recipe.caloriesPerServing
+        proteinGramsPerServing = recipe.proteinGramsPerServing
+        carbohydrateGramsPerServing = recipe.carbohydrateGramsPerServing
+        fatGramsPerServing = recipe.fatGramsPerServing
+        nutritionSource = recipe.nutritionSource
+    }
+
+    init() {}
+
+    init(
+        equipment: [String], dietaryLabels: [String], knownAllergens: [String],
+        caloriesPerServing: Int, proteinGramsPerServing: Double,
+        carbohydrateGramsPerServing: Double, fatGramsPerServing: Double,
+        nutritionSource: String
+    ) {
+        self.equipment = equipment
+        self.dietaryLabels = dietaryLabels
+        self.knownAllergens = knownAllergens
+        self.caloriesPerServing = caloriesPerServing
+        self.proteinGramsPerServing = proteinGramsPerServing
+        self.carbohydrateGramsPerServing = carbohydrateGramsPerServing
+        self.fatGramsPerServing = fatGramsPerServing
+        self.nutritionSource = nutritionSource
+    }
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        equipment = try values.decodeIfPresent([String].self, forKey: .equipment) ?? []
+        dietaryLabels = try values.decodeIfPresent([String].self, forKey: .dietaryLabels) ?? []
+        knownAllergens = try values.decodeIfPresent([String].self, forKey: .knownAllergens) ?? []
+        caloriesPerServing = try values.decodeIfPresent(Int.self, forKey: .caloriesPerServing) ?? 0
+        proteinGramsPerServing = try values.decodeIfPresent(Double.self, forKey: .proteinGramsPerServing) ?? 0
+        carbohydrateGramsPerServing = try values.decodeIfPresent(Double.self, forKey: .carbohydrateGramsPerServing) ?? 0
+        fatGramsPerServing = try values.decodeIfPresent(Double.self, forKey: .fatGramsPerServing) ?? 0
+        nutritionSource = try values.decodeIfPresent(String.self, forKey: .nutritionSource) ?? ""
+    }
+
+    @MainActor
+    func apply(to recipe: Recipe) {
+        recipe.equipment = equipment
+        recipe.dietaryLabels = dietaryLabels
+        recipe.knownAllergens = knownAllergens
+        recipe.caloriesPerServing = max(0, caloriesPerServing)
+        recipe.proteinGramsPerServing = max(0, proteinGramsPerServing)
+        recipe.carbohydrateGramsPerServing = max(0, carbohydrateGramsPerServing)
+        recipe.fatGramsPerServing = max(0, fatGramsPerServing)
+        recipe.nutritionSource = nutritionSource
     }
 }
 

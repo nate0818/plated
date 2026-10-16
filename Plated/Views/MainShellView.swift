@@ -2,8 +2,71 @@ import SwiftUI
 import SwiftData
 import CloudKit
 
+extension Notification.Name {
+    static let platedCreateRequested = Notification.Name("plated.create.requested")
+}
+
 enum AppTab: String, CaseIterable {
-    case week, cookbook, groceries, table, home
+    case week, cookbook, groceries, table
+}
+
+/// The durable part of a timer deep link's presentation handshake.
+///
+/// Assigning an item to `fullScreenCover` is only a request: UIKit can reject
+/// it while a tab-owned sheet is still dismissing. The request is complete
+/// only when the cover says it appeared. Keeping that distinction in a small
+/// value also prevents the retry loop from issuing two presentations at once.
+struct CookResumeIntent {
+    private(set) var isPending = false
+    private(set) var isCoverVisible = false
+    private(set) var isPresentationInFlight = false
+
+    var needsPresentation: Bool { isPending && !isCoverVisible }
+
+    mutating func request() {
+        // A timer tap while the cook screen is already visible is already
+        // fulfilled; otherwise preserve any attempt currently in flight.
+        isPending = !isCoverVisible
+    }
+
+    mutating func beginPresentation() -> Bool {
+        guard needsPresentation, !isPresentationInFlight else { return false }
+        isPresentationInFlight = true
+        return true
+    }
+
+    mutating func presentationDidNotAppear() {
+        guard !isCoverVisible else { return }
+        isPresentationInFlight = false
+    }
+
+    mutating func coverAppeared() {
+        isCoverVisible = true
+        isPresentationInFlight = false
+        isPending = false
+    }
+
+    mutating func coverDisappeared() {
+        isCoverVisible = false
+        isPresentationInFlight = false
+    }
+
+    mutating func expireWithoutSession() {
+        guard !isCoverVisible else { return }
+        isPresentationInFlight = false
+        isPending = false
+    }
+}
+
+private struct ActiveAppTabKey: EnvironmentKey {
+    static let defaultValue: AppTab = .week
+}
+
+extension EnvironmentValues {
+    var activeAppTab: AppTab {
+        get { self[ActiveAppTabKey.self] }
+        set { self[ActiveAppTabKey.self] = newValue }
+    }
 }
 
 /// A request to send a tab back to its own first screen.
@@ -43,16 +106,18 @@ enum CreateKind: String, Identifiable {
     var id: String { rawValue }
 }
 
-/// The shell: four quiet destinations either side of one tomato +. The bar
+/// The shell: four quiet destinations either side of one olive +. The bar
 /// is the only chrome that floats — Prongsby's perch floated beside it
 /// until he was parked (see ProngsbyFeature), and returns with him.
 struct MainShellView: View {
     @Environment(\.modelContext) private var context
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Query private var members: [HouseholdMember]
     @Query private var recipes: [Recipe]
     @Query private var meals: [PlannedMeal]
     @State private var ledger = CookLedger.shared
     @State private var resumedRecipe: Recipe?
+    @State private var cookResumeIntent = CookResumeIntent()
     private var activeRecipe: Recipe? {
         recipes.filter { ledger.isCooking($0) }.max {
             (ledger.session(for: $0)?.lastTouched ?? .distantPast) < (ledger.session(for: $1)?.lastTouched ?? .distantPast)
@@ -125,24 +190,46 @@ struct MainShellView: View {
         withAnimation(.plSnap) {
             switch destination {
             case .plan:
-                selection = .week
+                resetTab(.week)
                 // The night the notice was about, not just the tab.
-                if let day = DeepLink.planDay(in: url) { LinkRelay.request(day: day) }
-            case .table: selection = .table
-            case .cookbook: selection = .cookbook
-            // Prongsby left the bar in the elevation pass — he's a sheet
-            // off the perch now, not a destination to select.
-            case .prongsby: prongsbyPresented = true
-            case .home: selection = .home
+                if let day = DeepLink.planDay(in: url) {
+                    Task { @MainActor in
+                        await Task.yield()
+                        LinkRelay.request(day: day)
+                    }
+                }
+            case .table: resetTab(.table)
+            case .cookbook: resetTab(.cookbook)
+            case .cook:
+                // A timer may arrive while a retained recipe detail or the
+                // Activity list covers Recipes. Clear that route first; if
+                // there is no live session the shelf is the honest fallback.
+                resetTab(.cookbook)
+                cookResumeIntent.request()
+                resumePendingCookIfPossible()
+            case .home:
+                resetTab(.week)
+                Task { @MainActor in
+                    await Task.yield()
+                    LinkRelay.requestHousehold()
+                }
             case .grocery: selection = .groceries
             // The thing the notice was about, not the tab it lives on.
             // The feed does the second leg once it is on screen.
             case .post:
-                selection = .table
-                if let id = DeepLink.postID(in: url) { LinkRelay.request(post: id) }
+                resetTab(.table)
+                if let id = DeepLink.postID(in: url) {
+                    Task { @MainActor in
+                        await Task.yield()
+                        LinkRelay.request(post: id)
+                    }
+                }
             case .activity:
-                selection = .home
-                LinkRelay.requestActivity()
+                resetTab(.week)
+                Task { @MainActor in
+                    await Task.yield()
+                    LinkRelay.requestActivity()
+                }
             case .invite:
                 // Read by `Invitation.parse` above; a `plated://invite` that
                 // gets this far carried no https share and is nothing.
@@ -151,21 +238,20 @@ struct MainShellView: View {
         }
     }
 
+    /// External links are stronger than retained tab history. Selecting a
+    /// tab without clearing its pushed profile/thread/detail left the old
+    /// screen covering the destination the notification named.
+    private func resetTab(_ tab: AppTab) {
+        tabPop = TabPopRequest(tab: tab, count: tabPop.count + 1)
+        selection = tab
+    }
+
     /// Raised when the bar is tapped on the tab already showing. See
     /// `TabPopRequest`.
     @State private var tabPop = TabPopRequest()
-    /// The tabs you came through, so a left-edge swipe has somewhere to go
-    /// back to. The tab bar is a `switch`, so without this there is no
-    /// history at all and the gesture would have nothing to pop.
-    @State private var tabHistory: [AppTab] = []
-    /// Set while the edge gesture is doing the popping, so the history
-    /// watcher does not record the pop as another forward step and trap the
-    /// user bouncing between two tabs.
-    @State private var poppingTab = false
     /// Prongsby's draft and in-flight reply outlive the sheet he lives in.
-    @State private var prongsbySession = ProngsbySession()
-    @State private var prongsbyPresented = false
     @State private var perchVisibility = PerchVisibility()
+    @State private var floatingChromeVisibility = FloatingChromeVisibility()
 
     #if DEBUG
     /// Which tab has to be on screen for a launch flag to be consumed.
@@ -173,14 +259,20 @@ struct MainShellView: View {
     /// a tab body — a flag missing here is a flag that silently does
     /// nothing, which is worse than one that errors.
     private static let flagHomes: [(String, AppTab)] = [
-        ("-plated-open-stats", .home),
-        ("-plated-open-discover", .table),
+        ("-plated-open-stats", .week),
         ("-plated-open-seats", .table),
         ("-plated-open-thread", .table),
         ("-plated-open-grocery", .week),
         ("-plated-open-profile", .week),
+        ("-plated-open-edit-profile", .week),
+        ("-plated-open-recipe-detail", .cookbook),
+        ("-plated-review-recipe-share", .cookbook),
+        ("-plated-open-recipe-ingredients", .cookbook),
+        ("-plated-review-cooking-timer", .cookbook),
         ("-plated-open-activity", .week),
-        ("-plated-open-plan-day", .week)
+        ("-plated-open-plan-day", .week),
+        ("-plated-review-plan-night", .week),
+        ("-plated-review-move-meal", .week)
     ]
     #endif
     @State private var createPresented = false
@@ -191,6 +283,12 @@ struct MainShellView: View {
     /// sheet. It enters the same review flow as paste and scan.
     @State private var sharedRecipeInput = ""
     @State private var sharedRecipeImages: [Data] = []
+    @State private var sharedRecipeReceipt: RecipeShareInbox.Import?
+    @State private var sharedRecipeNeedsAcknowledgement = false
+    /// The item binding may queue another destination while one sheet is
+    /// visible. Remember what is actually on screen so dismissing it clears
+    /// only its own state.
+    @State private var activeShellSheetID: String?
     /// Asking left the + for the plan, where the question has a night. The
     /// screenshot flag still needs a way in, so it opens the composer
     /// straight off the shell rather than restoring the row.
@@ -218,7 +316,6 @@ struct MainShellView: View {
                         case .week: WeekView(askTheTable: { selection = .table }, openGrocery: $groceryRequested)
                         case .table: TableFeedView()
                         case .cookbook: CookbookView()
-                        case .home: HouseholdHomeView()
                         case .groceries: NavigationStack { GrocerySheet(embedded: true) }
                         }
                     }
@@ -227,105 +324,125 @@ struct MainShellView: View {
                     .accessibilityHidden(selection != tab)
                 }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .frame(
+                maxWidth: horizontalSizeClass == .regular ? Layout.readableMaxWidth : .infinity,
+                maxHeight: .infinity
+            )
             .padding(.bottom, activeRecipe == nil ? 0 : 60)
 
-            if ProngsbyFeature.isEnabled, !perchVisibility.isHidden {
-                ProngsbyPerch(session: prongsbySession) {
-                    // SwiftUI stands up one sheet at a time. The create
-                    // flow is a single presentation now, so this is just
-                    // "is a sheet already up".
-                    guard !createPresented, !askPresented else { return }
-                    prongsbyPresented = true
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
-                // Flush with the bar's own chrome inset (20) and 12pt above
-                // it (4 bottom pad + 68 bar height), so the two float as one
-                // cluster instead of two loose objects.
-                .padding(.trailing, 20)
-                .padding(.bottom, Layout.perchBottom)
-                .transition(.plArrive)
-            }
 
-            VStack(spacing: 8) {
-                if let recipe = activeRecipe, let session = ledger.session(for: recipe) {
-                    Button { resumedRecipe = recipe } label: {
-                        HStack(spacing: 12) {
-                            Image(systemName: "fork.knife.circle.fill").font(.system(size: 28)).foregroundStyle(Color.accentText)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Resume cooking").plType(.footnote, .semibold)
-                                Text(session.titleSnapshot ?? recipe.title).plType(.caption).lineLimit(1)
-                            }.frame(maxWidth: .infinity, alignment: .leading)
-                            Text("\((session.step ?? 0) + 1) / \(max(1, session.stepsSnapshot?.count ?? session.stepCount))").plType(.caption).monospacedDigit()
-                            Image(systemName: "play.fill")
-                                .font(.system(size: 11, weight: .bold))
-                                .foregroundStyle(Color.canvas)
-                                .frame(width: 30, height: 30)
-                                .background(Color.ink, in: Circle())
-                        }.foregroundStyle(Color.ink).padding(.horizontal, 16).frame(minHeight: 54)
-                            .background(Color.canvas, in: Capsule()).overlay(Capsule().strokeBorder(Color.hairline))
-                    }.buttonStyle(.pressable).accessibilityLabel("Resume cooking \(session.titleSnapshot ?? recipe.title)")
+            if !floatingChromeVisibility.isHidden {
+                VStack(spacing: 8) {
+                    if let recipe = activeRecipe, let session = ledger.session(for: recipe) {
+                        Button { resumedRecipe = recipe } label: {
+                            HStack(spacing: 12) {
+                                Image(systemName: "fork.knife.circle.fill").font(.system(size: 28)).foregroundStyle(Color.accentText)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Resume cooking").plType(.footnote, .semibold)
+                                    Text(session.titleSnapshot ?? recipe.title).plType(.caption).lineLimit(1)
+                                }.frame(maxWidth: .infinity, alignment: .leading)
+                                Text("\((session.step ?? 0) + 1) / \(max(1, session.stepsSnapshot?.count ?? session.stepCount))").plType(.caption).monospacedDigit()
+                                Image(systemName: "play.fill")
+                                    .font(.system(size: 11, weight: .bold))
+                                    .foregroundStyle(Color.canvas)
+                                    .frame(width: 30, height: 30)
+                                    .background(Color.ink, in: Circle())
+                            }.foregroundStyle(Color.ink).padding(.horizontal, 16).frame(minHeight: 54)
+                                .background(Color.canvas, in: Radius.shape(Radius.chip)).overlay(Radius.shape(Radius.chip).strokeBorder(Color.hairline))
+                        }.buttonStyle(.pressable).accessibilityLabel("Resume cooking \(session.titleSnapshot ?? recipe.title)")
+                    }
+                    PlateTabBar(selection: $selection, onReselect: { tab in
+                        tabPop = TabPopRequest(tab: tab, count: tabPop.count + 1)
+                    })
                 }
-            PlateTabBar(selection: $selection, onReselect: { tab in
-                tabPop = TabPopRequest(tab: tab, count: tabPop.count + 1)
-            }) {
-                createPresented = true
+                .padding(.bottom, 0)
+                .frame(
+                    maxWidth: .infinity
+                )
+                .transition(.plRise)
             }
-            }
-            .padding(.horizontal, 20)
-            .padding(.bottom, 4)
         }
-        .fullScreenCover(item: $resumedRecipe) { recipe in
+        .fullScreenCover(item: $resumedRecipe, onDismiss: {
+            cookResumeIntent.coverDisappeared()
+            resumePendingCookIfPossible()
+        }) { recipe in
             let session = ledger.session(for: recipe)
             CookingFocusView(recipe: recipe, meal: meals.first { session?.mealID != nil && $0.shoppingID == session?.mealID }, servings: session?.servings ?? recipe.servings)
+                .onAppear { cookResumeIntent.coverAppeared() }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .platedCreateRequested)) { _ in
+            guard !createPresented, !askPresented, householdInvitation == nil, activeShellSheetID == nil else { return }
+            createStart = nil
+            createPresented = true
+        }
+        .environment(\.activeAppTab, selection)
         .environment(\.tabPop, tabPop)
         .environment(\.perchVisibility, perchVisibility)
+        .environment(\.floatingChromeVisibility, floatingChromeVisibility)
         .animation(.plSnap, value: perchVisibility.isHidden)
+        .animation(.plSnap, value: floatingChromeVisibility.isHidden)
         .task { Presence.follow(selection) }
-        .onChange(of: selection) { previous, current in
+        .onChange(of: selection) { _, current in
             visitedTabs.insert(current)
             Presence.follow(current)
-            guard !poppingTab else { poppingTab = false; return }
-            tabHistory.append(previous)
-            // A session's worth of tab hopping is not a browser history.
-            // Ten steps is more than anyone walks back; beyond that the
-            // oldest is dropped rather than grown forever.
-            if tabHistory.count > 10 { tabHistory.removeFirst() }
         }
-        .plEdgeBack {
-            guard let previous = tabHistory.popLast() else { return }
-            poppingTab = true
-            // Moving between tabs is a change of position, not an action.
-            // The tab bar itself uses select() for the same change.
-            Haptic.select()
-            withAnimation(.plSnap) { selection = previous }
+        .onChange(of: recipes.count) { _, _ in
+            resumePendingCookIfPossible()
+        }
+        .task(id: cookResumeIntent.isPending) {
+            guard cookResumeIntent.isPending else { return }
+            await retryPendingCookResume()
         }
         // Two `.sheet` modifiers on one view is undefined — see CLAUDE.md.
         // One item binding, four destinations; flags stay so callers keep
         // writing createPresented / askPresented / … without knowing.
         .sheet(item: shellSheet, onDismiss: {
-            createStart = nil
-            sharedRecipeInput = ""
-            sharedRecipeImages = []
+            let dismissedID = activeShellSheetID
+            activeShellSheetID = nil
+            if sharedRecipeNeedsAcknowledgement {
+                // The share arrived behind another sheet (or behind an
+                // already-open Add flow). Keep it queued and give it the
+                // next presentation instead of replacing work in progress.
+                Task { @MainActor in
+                    await Task.yield()
+                    openSharedRecipeIfNeeded()
+                }
+            } else if dismissedID == "create" {
+                createStart = nil
+                sharedRecipeInput = ""
+                sharedRecipeImages = []
+                sharedRecipeReceipt = nil
+            }
+            resumePendingCookIfPossible()
         }) { destination in
-            switch destination {
-            case .create:
-                CreateFlowSheet(
-                    start: createStart,
-                    initialRecipeInput: sharedRecipeInput,
-                    initialRecipeImages: sharedRecipeImages
-                )
-            case .ask:
-                AskComposerSheet(date: Calendar.current.startOfDay(for: .now))
-            case .prongsby:
-                ProngsbyView(session: prongsbySession)
-            case .household(let invitation):
-                JoinHouseholdSheet(
-                    metadata: invitation.metadata, root: invitation.root,
-                    seat: invitation.seat, linkHost: invitation.host,
-                    failure: invitation.failure
-                )
+            Group {
+                switch destination {
+                case .create:
+                    CreateFlowSheet(
+                        start: createStart,
+                        initialRecipeInput: sharedRecipeInput,
+                        initialRecipeImages: sharedRecipeImages
+                    )
+                case .ask:
+                    AskComposerSheet(date: Calendar.current.startOfDay(for: .now))
+                case .household(let invitation):
+                    JoinHouseholdSheet(
+                        metadata: invitation.metadata, root: invitation.root,
+                        seat: invitation.seat, linkHost: invitation.host,
+                        failure: invitation.failure
+                    )
+                }
+            }
+            .onAppear {
+                activeShellSheetID = destination.id
+                if destination.id == "create", let receipt = sharedRecipeReceipt {
+                    let removed = RecipeShareInbox.acknowledge(receipt)
+                    sharedRecipeReceipt = nil
+                    // If another share replaced this exact parcel before the
+                    // importer appeared, it remains in the inbox and gets the
+                    // next sheet. Never acknowledge B while displaying A.
+                    sharedRecipeNeedsAcknowledgement = !removed
+                }
             }
         }
         // Every link comes in through LinkRelay: a tapped notification
@@ -391,7 +508,8 @@ struct MainShellView: View {
                 // the sheet, which goes straight to the picker.
                 if read.state == .alreadyHere {
                     let name = read.hostName.trimmingCharacters(in: .whitespaces)
-                    withAnimation(.plSnap) { selection = .home }
+                    withAnimation(.plSnap) { selection = .week }
+                    LinkRelay.requestHousehold()
                     showToast("You're already in \(name.isEmpty ? "this" : "\(name)'s") household.")
                     return
                 }
@@ -418,7 +536,6 @@ struct MainShellView: View {
         .onReceive(NotificationCenter.default.publisher(for: HouseholdSync.householdRemoved)) { _ in
             createPresented = false
             askPresented = false
-            prongsbyPresented = false
             householdInvitation = nil
             tableInvitation = nil
             resumedRecipe = nil
@@ -442,6 +559,14 @@ struct MainShellView: View {
             }
         }
         .task {
+            #if DEBUG
+            handleDebugLaunchFlags()
+            #endif
+            // Preview-backed shells already have a complete in-memory table.
+            // Running live-store repair here mixes app-group membership and
+            // CloudKit identity into that fixture and can manufacture people
+            // who do not exist. Nothing below is presentation-only.
+            guard !PlatedApp.usesPreviewContainer else { return }
             openSharedRecipeIfNeeded()
             if !didRepairLegacyDiscover {
                 // Stores seeded before Discover posts were stamped left those
@@ -588,76 +713,60 @@ struct MainShellView: View {
                 Persist.save(context)
             }
 
-            #if DEBUG
-            // UI-test hook: `simctl launch … -plated-tab table` lands here.
-            // In the launch task, where it belongs: a Sept 2 edit stranded
-            // this block inside the share-accepted handler, so every
-            // screenshot flag waited for an invitation nobody was sending.
-            //
-            // Accepted names are the AppTab raw values — `week`, `table`,
-            // `cookbook`, `home` — which are NOT the words on the tab bar
-            // ("Plan", "Recipes"). An unknown name is ignored silently, so
-            // `-plated-tab plan` looks exactly like a plain launch.
-            let args = ProcessInfo.processInfo.arguments
-            if let flag = args.firstIndex(of: "-plated-tab"), args.indices.contains(flag + 1) {
-                let name = args[flag + 1]
-                if let tab = AppTab(rawValue: name) {
-                    selection = tab
-                } else if name == "prongsby" {
-                    // He is no longer a tab; the harness keeps its old word.
-                    prongsbyPresented = true
-                } else {
-                    print("PLATED FLAG: unknown -plated-tab '\(name)' — expected one of \(AppTab.allCases.map(\.rawValue).joined(separator: ", ")) or prongsby")
-                }
-            }
-
-            // Flags whose `consume()` lives inside a tab body only fire once
-            // that tab is on screen, so standalone they silently no-op and
-            // the screenshot is indistinguishable from a plain launch. Rather
-            // than make every caller remember to compose `-plated-tab` first
-            // — the old comment on `-plated-open-stats` actually prescribed
-            // the form that fails — the shell sends you to the owning tab.
-            for (flag, tab) in Self.flagHomes where args.contains(flag) {
-                selection = tab
-            }
-            if LaunchFlags.consume("-plated-open-create") {
-                createPresented = true
-            }
-            if LaunchFlags.consume("-plated-open-table-post") {
-                createStart = .tablePost
-                createPresented = true
-            }
-            if LaunchFlags.consume("-plated-open-recipe") {
-                createStart = .recipe
-                createPresented = true
-            }
-            if LaunchFlags.consume("-plated-open-ask") {
-                askPresented = true
-            }
-            // Prongsby has been a pushed page and a tab; he is a sheet off
-            // the perch now. The flag keeps its name and still opens him.
-            if LaunchFlags.consume("-plated-open-prongsby"), ProngsbyFeature.isEnabled {
-                prongsbyPresented = true
-            }
-            // `-plated-prongsby-demo` consumes itself inside ProngsbyView,
-            // which is a SHEET rather than a tab — so `flagHomes` above
-            // structurally cannot reach it, and it was the one of the five
-            // that stayed a silent no-op standalone. Open him; the sheet
-            // then consumes its own flag.
-            if ProcessInfo.processInfo.arguments.contains("-plated-prongsby-demo") {
-                prongsbyPresented = true
-            }
-            #endif
         }
     }
 
+    #if DEBUG
+    /// Presentation-only launch routing stays available to previews even
+    /// though their production repair and sync work is intentionally inert.
+    private func handleDebugLaunchFlags() {
+        // UI-test hook: `simctl launch … -plated-tab table` lands here.
+        // Accepted names are AppTab raw values, not always the visible labels.
+        let args = ProcessInfo.processInfo.arguments
+        if let flag = args.firstIndex(of: "-plated-tab"), args.indices.contains(flag + 1) {
+            let name = args[flag + 1]
+            if let tab = AppTab(rawValue: name) {
+                selection = tab
+            } else if name == "home" {
+                // Compatibility for the old hidden fifth-tab harness:
+                // Household is now a pushed destination from Plan.
+                selection = .week
+                Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(1200))
+                    LinkRelay.requestHousehold()
+                }
+            } else {
+                print("PLATED FLAG: unknown -plated-tab '\(name)' — expected one of \(AppTab.allCases.map(\.rawValue).joined(separator: ", "))")
+            }
+        }
+
+        // Standalone destination flags route to the tab that owns them.
+        for (flag, tab) in Self.flagHomes where args.contains(flag) {
+            selection = tab
+        }
+        if LaunchFlags.consume("-plated-open-create") {
+            createPresented = true
+        }
+        if LaunchFlags.consume("-plated-open-table-post") {
+            createStart = .tablePost
+            createPresented = true
+        }
+        if LaunchFlags.consume("-plated-open-recipe") {
+            createStart = .recipe
+            createPresented = true
+        }
+        if LaunchFlags.consume("-plated-open-ask") {
+            askPresented = true
+        }
+    }
+    #endif
+
     private enum ShellSheet: Identifiable {
-        case create, ask, prongsby, household(HouseholdInvitation)
+        case create, ask, household(HouseholdInvitation)
         var id: String {
             switch self {
             case .create: "create"
             case .ask: "ask"
-            case .prongsby: "prongsby"
             case .household(let invitation): "household-\(invitation.id)"
             }
         }
@@ -667,16 +776,24 @@ struct MainShellView: View {
             get: {
                 if createPresented { return .create }
                 if askPresented { return .ask }
-                if prongsbyPresented { return .prongsby }
                 if let householdInvitation { return .household(householdInvitation) }
                 return nil
             },
             set: {
                 if $0 == nil {
-                    createPresented = false
-                    askPresented = false
-                    prongsbyPresented = false
-                    householdInvitation = nil
+                    switch activeShellSheetID {
+                    case "create": createPresented = false
+                    case "ask": askPresented = false
+                    case let id? where id.hasPrefix("household-"):
+                        householdInvitation = nil
+                    default:
+                        // Presentation can be dismissed before its content's
+                        // onAppear on a very fast swipe. Fall back to the same
+                        // priority the getter used, still clearing one item.
+                        if createPresented { createPresented = false }
+                        else if askPresented { askPresented = false }
+                        else { householdInvitation = nil }
+                    }
                 }
             }
         )
@@ -686,6 +803,7 @@ struct MainShellView: View {
         toastToken += 1
         let token = toastToken
         withAnimation(.plSnap) { toast = message }
+        AccessibilityNotification.Announcement(message).post()
         Task {
             try? await Task.sleep(for: .seconds(4))
             if toastToken == token {
@@ -709,100 +827,115 @@ struct MainShellView: View {
     }
 
     private func openSharedRecipeIfNeeded() {
-        guard let shared = RecipeShareInbox.consume() else { return }
+        guard let shared = RecipeShareInbox.peek() else {
+            sharedRecipeNeedsAcknowledgement = false
+            sharedRecipeReceipt = nil
+            return
+        }
+        let presentationBusy = createPresented || askPresented
+            || householdInvitation != nil || activeShellSheetID != nil
+        guard !presentationBusy else {
+            // Do not replace inputs already owned by a visible sheet. The
+            // app-group inbox remains the durable queue for the next one.
+            sharedRecipeNeedsAcknowledgement = true
+            return
+        }
         sharedRecipeInput = shared.text
         sharedRecipeImages = shared.images
+        sharedRecipeReceipt = shared
+        sharedRecipeNeedsAcknowledgement = true
         createStart = .recipe
         createPresented = true
     }
+
+    private func resumePendingCookIfPossible() {
+        guard cookResumeIntent.needsPresentation,
+              !sharedRecipeNeedsAcknowledgement,
+              !createPresented, !askPresented,
+              householdInvitation == nil, activeShellSheetID == nil,
+              resumedRecipe == nil,
+              let activeRecipe,
+              cookResumeIntent.beginPresentation()
+        else { return }
+        resumedRecipe = activeRecipe
+    }
+
+    /// Keep the timer intent alive until the cover itself confirms it is on
+    /// screen. A tab-owned sheet is invisible to the shell; if UIKit declines
+    /// the first request, cycle the item back through nil and try again after
+    /// that sheet has had a chance to leave. Only one attempt may be in flight.
+    @MainActor
+    private func retryPendingCookResume() async {
+        var missingRecipeChecks = 0
+
+        while cookResumeIntent.needsPresentation, !Task.isCancelled {
+            if activeRecipe == nil {
+                missingRecipeChecks += 1
+                if missingRecipeChecks >= 6 {
+                    resumedRecipe = nil
+                    cookResumeIntent.expireWithoutSession()
+                    return
+                }
+                try? await Task.sleep(for: .milliseconds(200))
+                continue
+            }
+
+            missingRecipeChecks = 0
+            resumePendingCookIfPossible()
+
+            // Normal presentation calls `coverAppeared` well before this.
+            // If it did not, release the stale item so the next loop creates a
+            // fresh nil -> recipe transition after any local sheet dismissal.
+            try? await Task.sleep(for: .milliseconds(900))
+            guard cookResumeIntent.needsPresentation, !Task.isCancelled else { return }
+            if cookResumeIntent.isPresentationInFlight {
+                resumedRecipe = nil
+                cookResumeIntent.presentationDidNotAppear()
+                try? await Task.sleep(for: .milliseconds(150))
+            }
+        }
+    }
 }
 
-/// Four miniature kitchen objects. Only a deliberate tap plays their motion.
+/// A fixed, quiet baseline keeps navigation separate from creation.
 struct PlateTabBar: View {
     @Binding var selection: AppTab
-    /// Tapping the tab already showing. Selection does not change, so
-    /// `onChange(of: selection)` never fires and the tap was going nowhere.
     var onReselect: (AppTab) -> Void = { _ in }
-    let onCreate: () -> Void
-
-    /// Separate triggers preserve the animator's identity on the first tap.
-    @State private var responseCounts: [AppTab: Int] = [:]
 
     var body: some View {
         HStack(spacing: 0) {
-            tabItem(.week, label: "Plan")
-            tabItem(.cookbook, label: "Recipes")
-            tabItem(.groceries, label: "Groceries")
-            tabItem(.table, label: "Table")
+            tabItem(.week, label: "Plan", symbol: "calendar")
+            tabItem(.cookbook, label: "Recipes", symbol: "book")
+            tabItem(.groceries, label: "Groceries", symbol: "basket")
+            tabItem(.table, label: "Table", symbol: "person.2")
         }
-        .padding(.horizontal, 8)
-        .frame(height: 68)
+        .padding(.horizontal, 16)
+        .frame(height: 62)
         .plChrome()
-        .background { barSurface }
-        .plFloatShadow()
+        .background(Color.canvas.ignoresSafeArea(edges: .bottom))
+        .overlay(alignment: .top) { Rectangle().fill(Color.navHairline).frame(height: 1) }
     }
 
-    /// Liquid Glass where the OS has it, the hand-rolled twin where it
-    /// doesn't. The deployment target is iOS 18, so the material below is
-    /// not dead code — it is what most of the fleet actually renders.
-    ///
-    /// Glass is left un-tinted on purpose. The system material already
-    /// samples and bends what scrolls beneath it; painting canvas over the
-    /// top is what made the old bar read as a flat capsule with a blur
-    /// behind it rather than as a layer of the OS.
-    @ViewBuilder
-    private var barSurface: some View {
-        if #available(iOS 26.0, *) {
-            Capsule()
-                .fill(.clear)
-                .glassEffect(.regular, in: .capsule)
-        } else {
-            Capsule()
-                .fill(Color.canvas.opacity(0.94))
-                .background(.ultraThinMaterial, in: Capsule())
-                .overlay(Capsule().strokeBorder(Color.navHairline))
-        }
-    }
-
-    private func tabItem(_ tab: AppTab, label: String) -> some View {
+    private func tabItem(_ tab: AppTab, label: String, symbol: String) -> some View {
         let active = selection == tab
         return Button {
-            // Selection is the state change; the tick that marks position
-            // is `select`, not the `tap` that marks an action. Going back to
-            // the top of a tab is a change of position too.
             Haptic.select()
-            responseCounts[tab, default: 0] += 1
-            if active {
-                onReselect(tab)
-            } else {
-                selection = tab
-            }
+            if active { onReselect(tab) } else { selection = tab }
         } label: {
-            VStack(spacing: 1) {
-                TrayNavigationIcon(tab: tab, active: active, trigger: responseCounts[tab] ?? 0)
-                    .frame(width: 60, height: 37)
-                    .background {
-                        if active {
-                            Capsule().fill(Color.ink)
-                        }
-                    }
-                Text(label)
-                    .plType(.micro, active ? TypeWeight.extraBold : .bold)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.75)
+            VStack(spacing: 5) {
+                Image(systemName: symbol)
+                    .font(.system(size: 20, weight: active ? .medium : .regular))
+                Text(label).plType(.micro, active ? .semibold : .regular).lineLimit(1)
             }
-            .foregroundStyle(active ? Color.ink : Color.inkSecondary)
-            .frame(maxWidth: .infinity, minHeight: 66)
-            // The most-touched control in the product, and only the glyphs
-            // were tappable: `.pressable` draws no surface, so a 66pt column
-            // was hit-testable across roughly 26x38pt of icon and label,
-            // with 14pt of dead strip along the top and bottom of the bar.
-            // That strip is where a thumb lands first.
+            .foregroundStyle(active ? Color.accentText : Color.inkSecondary)
+            .frame(maxWidth: .infinity, minHeight: 54)
             .contentShape(Rectangle())
         }
         .buttonStyle(.pressable)
         .accessibilityLabel(label)
         .accessibilityIdentifier("tray-\(tab.rawValue)")
+        .accessibilityHint(active ? "Return to the top of \(label)" : "Open \(label)")
+        .accessibilityShowsLargeContentViewer { Label(label, systemImage: symbol) }
         .accessibilityAddTraits(active ? .isSelected : [])
     }
 }

@@ -31,18 +31,82 @@ enum NotificationScheduler {
     static let remoteTurnPrefix = turnPrefix + "remote."
     private static let askedKey = "plated.notifications.asked"
     /// The cook timer's namespace, declared here so the next person can see
-    /// it. `rebuild` and `cancelAll` below remove only `ritualID` and things
+    /// it. The plan rebuild removes only `ritualID` and things
     /// prefixed `turnPrefix`, so a timer somebody started thirty seconds ago
     /// survives a plan rebuild — which is the whole reason the timer is cheap.
     static let cookPrefix = "plated.cook."
     static let cookTimerID = cookPrefix + "timer"
+
+    /// Plan edits arrive in bursts (changing a dish can also change its cook,
+    /// servings and groceries). Coalesce those saves into one schedule
+    /// rebuild so every mutation path stays correct without hammering the
+    /// notification centre for each field.
+    private static var planRebuildTask: Task<Void, Never>?
+    private static var planRebuildVersion = 0
+
+    /// All notification-centre rebuilds pass through one worker. Removing
+    /// and re-adding requests is a transaction from the person's point of
+    /// view; two overlapping transactions can otherwise leave the older
+    /// plan scheduled last.
+    /// SwiftData models must not cross the awaits below. A delivery or a
+    /// plan edit can delete one while Notification Center is answering,
+    /// invalidating its backing storage. Capture every value the scheduler
+    /// needs while the caller is still on the main actor instead.
+    private struct MealSnapshot {
+        let date: Date
+        let dish: String
+        let cookSeat: HouseholdMember.Seat?
+        let cookIsMe: Bool
+        let identifier: String
+    }
+
+    private struct RebuildSnapshot {
+        let meals: [MealSnapshot]
+        let remoteNights: [PlanLedger.Entry]
+        let myRemoteNights: [PlanLedger.Entry]
+    }
+
+    /// The newest plan captured during the debounce window. This is values
+    /// only: keeping a ModelContext here outlives short-lived contexts (tests,
+    /// intents and previews) and makes the delayed fetch trap after their
+    /// ModelContainer has gone away.
+    private static var pendingPlanRebuild: RebuildSnapshot?
+    private static var queuedRebuild: RebuildSnapshot?
+    private static var rebuildWorker: Task<Void, Never>?
+
+    static func planDidChange(in context: ModelContext) {
+        let meals = (try? context.fetch(FetchDescriptor<PlannedMeal>())) ?? []
+        pendingPlanRebuild = makeSnapshot(meals: meals)
+        planRebuildVersion &+= 1
+        guard planRebuildTask == nil else { return }
+        planRebuildTask = Task { @MainActor in
+            defer { planRebuildTask = nil }
+            while !Task.isCancelled {
+                let targetVersion = planRebuildVersion
+                do {
+                    try await Task.sleep(for: .milliseconds(250))
+                } catch {
+                    return
+                }
+                // More edits landed during the debounce window. Start the
+                // quiet window again without ever starting a second worker.
+                guard targetVersion == planRebuildVersion else { continue }
+                guard let snapshot = pendingPlanRebuild else { return }
+                pendingPlanRebuild = nil
+                await rebuild(snapshot)
+                // An edit may have arrived while Notification Center was
+                // answering. Loop once more with the newer captured values.
+                if targetVersion == planRebuildVersion { return }
+            }
+        }
+    }
 
     /// One alarm for the one running cook timer.
     ///
     /// Replaces rather than stacks: one timer at a time is a deliberate
     /// limit, and re-adding the same identifier is how UNUserNotificationCenter
     /// spells "replace".
-    static func scheduleCookTimer(in seconds: TimeInterval, title: String, body: String) async {
+    static func scheduleCookTimer(in seconds: TimeInterval, title: String, body: String, soundEnabled: Bool = true) async {
         guard seconds > 0, await authorized() else {
             print("[CookTimer] not scheduling: seconds=\(seconds) authorized=\(await authorized())")
             return
@@ -50,9 +114,12 @@ enum NotificationScheduler {
         let content = UNMutableNotificationContent()
         content.title = title
         content.body = body
-        content.sound = .default
+        content.sound = soundEnabled ? .default : nil
         // Its own category, so a locked screen still says what rang.
         content.categoryIdentifier = NotificationRouter.Category.cook
+        content.userInfo = [
+            NotificationRouter.Key.link: DeepLink.url(.cook).absoluteString
+        ]
         // A pan on the stove is the one thing in this app that cannot wait
         // for a Focus to end. Needs the Time Sensitive capability on the
         // App ID; without it iOS delivers this as active, which is what it
@@ -173,6 +240,52 @@ enum NotificationScheduler {
     /// called Sam, and an owner who renamed themselves, both broke the
     /// name compare this parameter used to feed.
     static func rebuild(meals: [PlannedMeal]) async {
+        await rebuild(makeSnapshot(meals: meals))
+    }
+
+    private static func makeSnapshot(meals: [PlannedMeal]) -> RebuildSnapshot {
+        // Keep only the newest snapshot, but let the current transaction
+        // finish before applying it. No SwiftData-backed object leaves this
+        // synchronous main-actor pass.
+        let local = meals.compactMap { meal -> MealSnapshot? in
+            guard !meal.isDeleted else { return nil }
+            let cook = meal.cook
+            let readableCook = cook.flatMap { $0.isDeleted ? nil : $0 }
+            return MealSnapshot(
+                date: meal.date,
+                dish: meal.recipe?.title ?? meal.customTitle,
+                cookSeat: readableCook?.seat,
+                cookIsMe: readableCook?.isMe ?? false,
+                identifier: meal.persistentModelID.hashValue.description
+            )
+        }
+        return RebuildSnapshot(
+            meals: local,
+            remoteNights: PlanLedger.shared.all,
+            myRemoteNights: PlanLedger.shared.myNights()
+        )
+    }
+
+    private static func rebuild(_ snapshot: RebuildSnapshot) async {
+        // Keep only the newest snapshot, but let the current transaction
+        // finish before applying it. Every caller awaits the same worker.
+        queuedRebuild = snapshot
+        if let rebuildWorker {
+            await rebuildWorker.value
+            return
+        }
+        let worker = Task { @MainActor in
+            defer { rebuildWorker = nil }
+            while let requested = queuedRebuild {
+                queuedRebuild = nil
+                await performRebuild(requested)
+            }
+        }
+        rebuildWorker = worker
+        await worker.value
+    }
+
+    private static func performRebuild(_ snapshot: RebuildSnapshot) async {
         // The user's switch, checked here rather than at each call site.
         // Without it the Plan tab's own rebuild would quietly re-add every
         // reminder the moment after somebody turned them off in Settings,
@@ -183,10 +296,8 @@ enum NotificationScheduler {
         let wanted = defaults.object(forKey: "remindersOn") as? Bool ?? true
         let center = UNUserNotificationCenter.current()
         // Still clear ours when the switch is off: without it a stale turn
-        // from before the toggle stayed pending forever, because cancelAll
-        // only runs from the Settings onChange and any other caller of
-        // rebuild (Plan tab, night sheet, push) would have returned here
-        // without touching the centre.
+        // from before the toggle stayed pending forever. Every caller enters
+        // this same serialized rebuild, including the Settings switch.
         if !wanted {
             let pending = await center.pendingNotificationRequests()
             center.removePendingNotificationRequests(
@@ -201,9 +312,17 @@ enum NotificationScheduler {
             withIdentifiers: pending.map(\.identifier)
                 .filter { $0 == ritualID || $0.hasPrefix(turnPrefix) }
         )
-        await scheduleTurns(meals: meals, center: center)
-        await scheduleRemoteTurns(meals: meals, center: center)
-        await scheduleRitual(meals: meals, center: center)
+        await scheduleTurns(meals: snapshot.meals, center: center)
+        await scheduleRemoteTurns(
+            meals: snapshot.meals,
+            nights: snapshot.myRemoteNights,
+            center: center
+        )
+        await scheduleRitual(
+            meals: snapshot.meals,
+            remoteNights: snapshot.remoteNights,
+            center: center
+        )
     }
 
     /// The same door for a caller with a context and no meals in hand:
@@ -212,7 +331,7 @@ enum NotificationScheduler {
     @MainActor
     static func rebuild(from context: ModelContext) async {
         let meals = (try? context.fetch(FetchDescriptor<PlannedMeal>())) ?? []
-        await rebuild(meals: meals)
+        await rebuild(makeSnapshot(meals: meals))
     }
 
     /// The night before a night somebody else planned with you cooking.
@@ -226,14 +345,16 @@ enum NotificationScheduler {
     /// per day, ever: a day this phone's own plan says anything about is
     /// that plan's to remind.
     private static func scheduleRemoteTurns(
-        meals: [PlannedMeal], center: UNUserNotificationCenter
+        meals: [MealSnapshot],
+        nights: [PlanLedger.Entry],
+        center: UNUserNotificationCenter
     ) async {
         let cal = Calendar.current
         let today = cal.startOfDay(for: .now)
         let horizon = cal.date(byAdding: .day, value: 7, to: today) ?? today
         let localDays = Set(meals.map { PlanDay.string($0.date) })
 
-        for night in remoteTurns(PlanLedger.shared.myNights(), localDays: localDays) {
+        for night in remoteTurns(nights, localDays: localDays) {
             let date = night.date
             guard date > today, date <= horizon, !night.title.isEmpty else { continue }
             guard let dayBefore = cal.date(byAdding: .day, value: -1, to: date) else { continue }
@@ -284,14 +405,14 @@ enum NotificationScheduler {
     /// look up. Your own night is phrased as yours, because the obligation
     /// lands differently when it's the one you took.
     private static func scheduleTurns(
-        meals: [PlannedMeal], center: UNUserNotificationCenter
+        meals: [MealSnapshot], center: UNUserNotificationCenter
     ) async {
         let cal = Calendar.current
         let today = cal.startOfDay(for: .now)
         let horizon = cal.date(byAdding: .day, value: 7, to: today) ?? today
 
         for meal in meals where meal.date > today && meal.date <= horizon {
-            guard let cook = meal.cook else { continue }
+            guard let cookSeat = meal.cookSeat else { continue }
             // Never an obligation about somebody who is not there: a name
             // typed five seconds ago, to somebody who has never heard of
             // Plated, or a seat that has left the household. A left seat's
@@ -299,8 +420,8 @@ enum NotificationScheduler {
             // (docs/household.md section 8) and today no road but Remove
             // does it, so the reminder refuses the name rather than
             // trusting the plan to have been cleared.
-            guard cook.seat != .invited, cook.seat != .left else { continue }
-            let dish = meal.recipe?.title ?? meal.customTitle
+            guard cookSeat != .invited, cookSeat != .left else { continue }
+            let dish = meal.dish
             guard !dish.isEmpty else { continue }
 
             // 7pm the evening before: late enough that the day is done,
@@ -317,7 +438,7 @@ enum NotificationScheduler {
             // rather than role: on a member's phone the head of table is
             // somebody else, and "Your night tomorrow" about their night
             // would be the wrong person's obligation.
-            let mine = cook.isMe
+            let mine = meal.cookIsMe
             // Cook only (docs/open-decisions.md §1c / §19): never light a
             // screen to say there is nothing to do. The widget and the plan
             // already carry other people's nights.
@@ -332,7 +453,7 @@ enum NotificationScheduler {
             content.userInfo = [NotificationRouter.Key.link: DeepLink.url(.plan).absoluteString]
 
             let request = UNNotificationRequest(
-                identifier: turnPrefix + meal.persistentModelID.hashValue.description,
+                identifier: turnPrefix + meal.identifier,
                 content: content,
                 trigger: UNCalendarNotificationTrigger(
                     dateMatching: cal.dateComponents([.year, .month, .day, .hour], from: fire),
@@ -351,7 +472,9 @@ enum NotificationScheduler {
     /// matter too. Silence when the week is handled is what buys the right
     /// to speak when it isn't.
     private static func scheduleRitual(
-        meals: [PlannedMeal], center: UNUserNotificationCenter
+        meals: [MealSnapshot],
+        remoteNights: [PlanLedger.Entry],
+        center: UNUserNotificationCenter
     ) async {
         let cal = Calendar.current
         let today = cal.startOfDay(for: .now)
@@ -361,7 +484,7 @@ enum NotificationScheduler {
         // over a week the planner already shows three of Riley's dinners
         // on would be a claim the screen contradicts.
         let localDays = Set(ahead.map { PlanDay.string($0.date) })
-        let remoteDays = Set(PlanLedger.shared.all
+        let remoteDays = Set(remoteNights
             .filter { $0.date > today && $0.date < weekEnd }
             .map(\.day)).subtracting(localDays)
         let plannedAhead = ahead.count + remoteDays.count
@@ -388,15 +511,4 @@ enum NotificationScheduler {
         try? await center.add(request)
     }
 
-    /// Everything ours, gone — for the Settings toggle. Only ours: another
-    /// part of the app may schedule its own one day, and a blanket
-    /// `removeAllPendingNotificationRequests` would take those with it.
-    static func cancelAll() async {
-        let center = UNUserNotificationCenter.current()
-        let pending = await center.pendingNotificationRequests()
-        center.removePendingNotificationRequests(
-            withIdentifiers: pending.map(\.identifier)
-                .filter { $0 == ritualID || $0.hasPrefix(turnPrefix) }
-        )
-    }
 }

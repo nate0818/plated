@@ -2,6 +2,20 @@ import SwiftUI
 import SwiftData
 import PhotosUI
 
+/// Recipe permissions are author-based, with one compatibility exception:
+/// rows created before authorship was recorded belong to this device. Recipes
+/// are household records, but their creator can still choose whether another
+/// household member may change them. Deletion remains creator-only.
+extension Recipe {
+    var isAuthoredByCurrentDevice: Bool {
+        authorID.isEmpty || authorID == TableIdentity.cached
+    }
+
+    var isEditableByCurrentDevice: Bool {
+        isAuthoredByCurrentDevice || householdCanEdit
+    }
+}
+
 private struct RecipeStepFrameKey: PreferenceKey {
     static let defaultValue: [UUID: CGRect] = [:]
 
@@ -11,7 +25,7 @@ private struct RecipeStepFrameKey: PreferenceKey {
 }
 
 /// The recipe editor — one surface for three doors: the + button (blank),
-/// "edit" on a dish you own, and "save" on a table post (prefilled, tweak
+/// "edit" on a dish you can change, and "save" on a table post (prefilled, tweak
 /// before it joins your cookbook). Photo, facts, filing, ingredients, and
 /// real steps — the NYT-cooking shape without the paywall.
 struct RecipeEditorView: View {
@@ -53,6 +67,14 @@ struct RecipeEditorView: View {
     /// What this kitchen learned cooking it. Captured at the receipt on the
     /// recipe page; changed here.
     @State private var cookNotes = ""
+    @State private var equipmentText = ""
+    @State private var dietaryLabelsText = ""
+    @State private var allergenText = ""
+    @State private var caloriesText = ""
+    @State private var proteinText = ""
+    @State private var carbohydrateText = ""
+    @State private var fatText = ""
+    @State private var nutritionSource = ""
     /// Which field the keyboard is in. `AnyHashable` because the rows are
     /// addressed by their own ids and the fixed fields by name.
     @FocusState private var focused: AnyHashable?
@@ -60,6 +82,16 @@ struct RecipeEditorView: View {
     @State private var stepDragOffset: CGSize = .zero
     @State private var stepDropTarget: UUID?
     @State private var stepFrames: [UUID: CGRect] = [:]
+    /// Filing and extra photography should never stand between a cook and
+    /// the actual recipe. They stay available in one quiet disclosure after
+    /// the ingredients and method instead of becoming four required-looking
+    /// decisions before the first ingredient can be typed.
+    @State private var detailsExpanded = false
+    /// A failed disk write keeps the exact prepared graph for a clean retry.
+    /// Re-running the form-to-model conversion would insert a second meal,
+    /// notification, and set of grocery lines.
+    @State private var pendingSaveRecipe: Recipe?
+    @State private var saveProblem: String?
 
     /// The row the keyboard is currently in, if it is one that can move.
     private var movableRow: (list: RowList, index: Int)? {
@@ -146,7 +178,7 @@ struct RecipeEditorView: View {
     ///
     /// It replaces the Save bar rather than joining it: with the keyboard up,
     /// the Save button was pushed straight onto the row being typed in, so
-    /// the sentence you were editing was behind a tomato pill.
+    /// the sentence you were editing was behind a olive pill.
     ///
     /// `ToolbarItemGroup(placement: .keyboard)` would be the idiomatic home
     /// for this, and it draws nothing here — the editor is a sheet with its
@@ -263,6 +295,7 @@ struct RecipeEditorView: View {
         /// reproduce.
         var aisle: GroceryAisle?
         var isPantryStaple = false
+        var package = IngredientPackage()
 
         /// The line as somebody would write it down: "2 cups flour".
         var text: String {
@@ -278,18 +311,19 @@ struct RecipeEditorView: View {
         /// What to save: the typed line read once, or the untouched parts.
         var resolved: (
             name: String, quantity: Double, unit: String,
-            aisle: GroceryAisle, isPantryStaple: Bool
+            aisle: GroceryAisle, isPantryStaple: Bool, package: IngredientPackage
         ) {
             guard let edited else {
                 return (name, quantity, unit,
-                        aisle ?? RecipeImporter.aisle(for: name), isPantryStaple)
+                        aisle ?? RecipeImporter.aisle(for: name), isPantryStaple, package)
             }
             let parsed = RecipeImporter
                 .parseIngredientLine(edited.trimmingCharacters(in: .whitespacesAndNewlines))
             // A retyped row is a different food, so it is re-guessed rather
             // than carrying the previous row's section.
             return (parsed.name, parsed.quantity, parsed.unit,
-                    RecipeImporter.aisle(for: parsed.name), isPantryStaple)
+                    RecipeImporter.aisle(for: parsed.name), isPantryStaple,
+                    parsed.name.caseInsensitiveCompare(name) == .orderedSame ? package : IngredientPackage())
         }
     }
 
@@ -312,12 +346,11 @@ struct RecipeEditorView: View {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 16) {
                     photoWell
-                    extraPhotoStrip
 
                     TextField("Name the dish", text: $title)
                         .plType(.display)
                         .foregroundStyle(Color.ink)
-                        .tint(Color.tomato)
+                        .tint(Color.olive)
                         .padding(.bottom, 8)
                         .overlay(alignment: .bottom) {
                             Rectangle().fill(Color.hairline).frame(height: 2)
@@ -362,50 +395,6 @@ struct RecipeEditorView: View {
                         .accessibilityLabel("Serves \(serves)")
                     }
 
-                    VStack(alignment: .leading, spacing: 8) {
-                        MicroLabel("Meal")
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 8) {
-                                ForEach(RecipeMealType.allCases) { option in
-                                    selectChip(option.rawValue, icon: option.symbolName, active: mealType == option) {
-                                        mealType = option
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    VStack(alignment: .leading, spacing: 8) {
-                        MicroLabel("Effort")
-                        // Effort is a judgement, not a fact with a number
-                        // behind it, so its peers are these chips and not the
-                        // durations above. Unselected until somebody says —
-                        // it used to display a level derived from the minutes
-                        // as though a person had chosen it, which on a slow
-                        // cooker entered as "25 min" read "Easy".
-                        FlowChips(items: RecipeDifficulty.allCases.map(\.rawValue)) { label in
-                            let level = RecipeDifficulty.allCases.first { $0.rawValue == label } ?? .easy
-                            return SelectChip(active: difficultyOverride == level) {
-                                difficultyOverride = difficultyOverride == level ? nil : level
-                            } label: {
-                                Text(label).plType(.footnote, .bold)
-                            }
-                        }
-                    }
-
-                    VStack(alignment: .leading, spacing: 8) {
-                        MicroLabel("Kind of dish")
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 8) {
-                                ForEach(RecipeCategory.allCases) { option in
-                                    selectChip(option.rawValue, icon: option.symbolName, active: category == option) {
-                                        category = category == option ? nil : option
-                                    }
-                                }
-                            }
-                        }
-                    }
-
                     ingredientsSection
                     stepsSection
 
@@ -416,6 +405,8 @@ struct RecipeEditorView: View {
                             placeholder: "Anything worth remembering next time."
                         )
                     }
+
+                    moreDetailsSection
                 }
                 .padding(.horizontal, 24)
                 .padding(.top, 16)
@@ -429,19 +420,29 @@ struct RecipeEditorView: View {
             // Freezing the containing scroll view prevents its interactive
             // keyboard pan from cancelling the reorder on the first move.
             .scrollDisabled(draggingStep != nil)
+            .disabled(pendingSaveRecipe != nil)
 
             if focused != nil {
                 editingBar
             } else {
             VStack(spacing: 10) {
-                TomatoPillButton(
-                    title: isEditing ? "Save changes" : "Save to cookbook",
+                if let saveProblem {
+                    Text(saveProblem)
+                        .plType(.caption, .semibold)
+                        .foregroundStyle(Color.dangerText)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                PrimaryActionButton(
+                    title: pendingSaveRecipe != nil
+                        ? "Try saving again"
+                        : (isEditing ? "Save changes" : "Save to cookbook"),
                     systemImage: "circle.circle"
                 ) {
                     save(plating: nil)
                 }
                 .disabled(!canSave)
-                if !isEditing, !hidePlateShortcut, let night = nextOpenNight {
+                if pendingSaveRecipe == nil, !isEditing, !hidePlateShortcut, let night = nextOpenNight {
                     Button {
                         save(plating: night)
                     } label: {
@@ -533,11 +534,20 @@ struct RecipeEditorView: View {
             if !recipe.difficulty.isEmpty { difficultyOverride = recipe.difficultyValue }
             draftSteps = recipe.steps.map { DraftStep(text: $0) }
             cookNotes = recipe.cookNotes
+            equipmentText = recipe.equipment.joined(separator: ", ")
+            dietaryLabelsText = recipe.dietaryLabels.joined(separator: ", ")
+            allergenText = recipe.knownAllergens.joined(separator: ", ")
+            caloriesText = recipe.caloriesPerServing > 0 ? String(recipe.caloriesPerServing) : ""
+            proteinText = recipe.proteinGramsPerServing > 0 ? String(recipe.proteinGramsPerServing) : ""
+            carbohydrateText = recipe.carbohydrateGramsPerServing > 0 ? String(recipe.carbohydrateGramsPerServing) : ""
+            fatText = recipe.fatGramsPerServing > 0 ? String(recipe.fatGramsPerServing) : ""
+            nutritionSource = recipe.nutritionSource
             extraPhotoData = recipe.sortedExtraPhotos.compactMap(\.photoData)
             draftIngredients = recipe.sortedIngredients.map {
                 DraftIngredient(
                     name: $0.name, quantity: $0.quantity, unit: $0.unit,
-                    aisle: $0.aisleValue, isPantryStaple: $0.isPantryStaple
+                    aisle: $0.aisleValue, isPantryStaple: $0.isPantryStaple,
+                    package: $0.package
                 )
             }
             addToGroceries = false
@@ -624,6 +634,152 @@ struct RecipeEditorView: View {
         }
     }
 
+    private var detailsSummary: String {
+        var parts = [mealType.rawValue]
+        if let difficultyOverride { parts.append(difficultyOverride.rawValue) }
+        if let category { parts.append(category.rawValue) }
+        if !extraPhotoData.isEmpty { parts.append(extraPhotoData.count.things("extra photo")) }
+        return parts.joined(separator: " · ")
+    }
+
+    private var moreDetailsSection: some View {
+        DisclosureGroup(isExpanded: $detailsExpanded) {
+            VStack(alignment: .leading, spacing: 18) {
+                VStack(alignment: .leading, spacing: 8) {
+                    MicroLabel("Meal")
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(RecipeMealType.allCases) { option in
+                                selectChip(
+                                    option.rawValue,
+                                    icon: option.symbolName,
+                                    active: mealType == option
+                                ) {
+                                    mealType = option
+                                }
+                            }
+                        }
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 8) {
+                    MicroLabel("Effort")
+                    // Effort is a judgement, not a fact with a number behind
+                    // it. Leaving it blank is more honest than deriving a
+                    // verdict from the clock.
+                    FlowChips(items: RecipeDifficulty.allCases.map(\.rawValue)) { label in
+                        let level = RecipeDifficulty.allCases.first { $0.rawValue == label } ?? .easy
+                        return SelectChip(active: difficultyOverride == level) {
+                            difficultyOverride = difficultyOverride == level ? nil : level
+                        } label: {
+                            Text(label).plType(.footnote, .bold)
+                        }
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 8) {
+                    MicroLabel("Kind of dish")
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(RecipeCategory.allCases) { option in
+                                selectChip(
+                                    option.rawValue,
+                                    icon: option.symbolName,
+                                    active: category == option
+                                ) {
+                                    category = category == option ? nil : option
+                                }
+                            }
+                        }
+                    }
+                }
+
+                planningMetadataFields
+
+                VStack(alignment: .leading, spacing: 8) {
+                    MicroLabel("More photos")
+                    Text("Keep the process, the finished plate, or what you’d change next time.")
+                        .plType(.caption)
+                        .foregroundStyle(Color.inkSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    extraPhotoStrip
+                }
+            }
+            .padding(.top, 16)
+        } label: {
+            VStack(alignment: .leading, spacing: 3) {
+                Text("More details")
+                    .plType(.body, .bold)
+                    .foregroundStyle(Color.ink)
+                Text(detailsSummary)
+                    .plType(.caption)
+                    .foregroundStyle(Color.inkSecondary)
+                    .lineLimit(2)
+            }
+        }
+        .tint(Color.inkSecondary)
+        .padding(16)
+        .background(Color.fill, in: Radius.shape(Radius.card))
+    }
+
+    private var planningMetadataFields: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            metadataTextField("Equipment", placeholder: "Oven, stovetop, air fryer…", text: $equipmentText)
+            metadataTextField("Dietary labels", placeholder: "Vegetarian, vegan, gluten-free…", text: $dietaryLabelsText)
+            Text("Separate labels with commas. Add them only when the recipe supports the claim.")
+                .plType(.caption).foregroundStyle(Color.inkSecondary)
+
+            metadataTextField("Known allergens", placeholder: "Peanuts, milk, sesame…", text: $allergenText)
+            Text("This is recipe information, not an allergy-safety guarantee. Check the original ingredients and packaging.")
+                .plType(.caption).foregroundStyle(Color.inkSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            VStack(alignment: .leading, spacing: 8) {
+                MicroLabel("Nutrition per serving")
+                HStack(spacing: 8) {
+                    nutritionField("Calories", value: $caloriesText, unit: "kcal")
+                    nutritionField("Protein", value: $proteinText, unit: "g")
+                }
+                HStack(spacing: 8) {
+                    nutritionField("Carbs", value: $carbohydrateText, unit: "g")
+                    nutritionField("Fat", value: $fatText, unit: "g")
+                }
+                metadataTextField("Nutrition source", placeholder: "Recipe label or data source", text: $nutritionSource)
+                Text("Leave values blank when you do not have reliable nutrition data.")
+                    .plType(.caption).foregroundStyle(Color.inkSecondary)
+            }
+        }
+    }
+
+    private func metadataTextField(_ label: String, placeholder: String, text: Binding<String>) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            MicroLabel(label)
+            TextField(placeholder, text: text, axis: .vertical)
+                .plType(.body)
+                .lineLimit(1...2)
+                .textInputAutocapitalization(.sentences)
+                .padding(12)
+                .overlay(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous).strokeBorder(Color.hairline))
+                .plTappableField()
+        }
+    }
+
+    private func nutritionField(_ label: String, value: Binding<String>, unit: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(label).plType(.caption, .semibold).foregroundStyle(Color.inkSecondary)
+            HStack(spacing: 6) {
+                TextField("Optional", text: value)
+                    .keyboardType(.decimalPad)
+                    .plType(.body)
+                    .accessibilityLabel("\(label) per serving")
+                Text(unit).plType(.caption).foregroundStyle(Color.inkSecondary)
+            }
+            .padding(10)
+            .overlay(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous).strokeBorder(Color.hairline))
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
     /// Quick ingredient capture — "2 lb chicken thighs" in one line, parsed
     /// on the way in, so the grocery list has something real to build from.
     private var ingredientsSection: some View {
@@ -650,7 +806,7 @@ struct RecipeEditorView: View {
             }
 
             if !isEditing && !draftIngredients.isEmpty {
-                HStack {
+                Toggle(isOn: $addToGroceries) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Add to this week's grocery list")
                             .plType(.body, .bold)
@@ -659,12 +815,11 @@ struct RecipeEditorView: View {
                             .plType(.caption)
                             .foregroundStyle(Color.inkSecondary)
                     }
-                    Spacer()
-                    Toggle("", isOn: $addToGroceries)
-                        .labelsHidden()
-                        .sensoryFeedback(.selection, trigger: addToGroceries)
-                        .tint(Color.basil)
                 }
+                .toggleStyle(.switch)
+                .accessibilityLabel("Add ingredients to this week's grocery list")
+                .sensoryFeedback(.selection, trigger: addToGroceries)
+                .tint(Color.basil)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)
                 .overlay(RoundedRectangle(cornerRadius: Radius.card, style: .continuous).strokeBorder(Color.hairline))
@@ -681,6 +836,10 @@ struct RecipeEditorView: View {
                 Spacer()
                 Text("Hold to reorder").plType(.caption).foregroundStyle(Color.inkSecondary)
             }
+            Text("Write what to add, the heat to use, how it should look, and how long it takes. Those details become the cook’s guide and timer shortcuts.")
+                .plType(.caption)
+                .foregroundStyle(Color.inkSecondary)
+                .fixedSize(horizontal: false, vertical: true)
             ForEach($draftSteps) { $step in
                 let index = stepNumber(step) - 1
                 HStack(alignment: .top, spacing: 10) {
@@ -719,7 +878,7 @@ struct RecipeEditorView: View {
                         )
                     }
                 }
-                .background(stepDropTarget == step.id && draggingStep != step.id ? Color.tomatoTint : Color.clear, in: Radius.shape(Radius.chip))
+                .background(stepDropTarget == step.id && draggingStep != step.id ? Color.oliveTint : Color.clear, in: Radius.shape(Radius.chip))
                 .scaleEffect(draggingStep == step.id ? 1.015 : 1)
                 .offset(y: draggingStep == step.id ? stepDragOffset.height : 0)
                 .shadow(color: draggingStep == step.id ? Color.shadowInk.opacity(0.16) : .clear, radius: 14, y: 7)
@@ -727,7 +886,7 @@ struct RecipeEditorView: View {
                 .id(step.id)
             }
             HStack(spacing: 8) {
-                TextField(draftSteps.isEmpty ? "Step 1. What happens first?" : "Step \(draftSteps.count + 1)…", text: $stepEntry, axis: .vertical)
+                TextField(draftSteps.isEmpty ? "Heat the oil over medium for 2 minutes…" : "What happens next?", text: $stepEntry, axis: .vertical)
                     .plType(.body, .medium).lineLimit(1...3)
                     .padding(.horizontal, 14).padding(.vertical, 11)
                     .overlay(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous).strokeBorder(Color.hairline))
@@ -772,7 +931,7 @@ struct RecipeEditorView: View {
                     .foregroundStyle(Color.ink)
                     .padding(.horizontal, 14)
                     .frame(height: 36)
-                    .background(.ultraThinMaterial, in: Capsule())
+                    .background(.ultraThinMaterial, in: Radius.shape(Radius.chip))
                     .padding(12)
                 } else {
                     RoundedRectangle(cornerRadius: Radius.hero, style: .continuous)
@@ -812,7 +971,7 @@ struct RecipeEditorView: View {
                             .overlay(alignment: .topTrailing) {
                                 Button {
                                     Haptic.tap()
-                                    withAnimation(.plSnap) {
+                                    _ = withAnimation(.plSnap) {
                                         extraPhotoData.remove(at: index)
                                     }
                                 } label: {
@@ -880,7 +1039,10 @@ struct RecipeEditorView: View {
     /// Saving waits for the photo to finish processing so a picked photo is
     /// never silently dropped.
     private var canSave: Bool {
-        !title.trimmingCharacters(in: .whitespaces).isEmpty && !photoLoading
+        if pendingSaveRecipe != nil { return true }
+        return !title.trimmingCharacters(in: .whitespaces).isEmpty
+            && !photoLoading
+            && (editing?.isEditableByCurrentDevice != false)
     }
 
     private var nextOpenNight: Date? {
@@ -899,9 +1061,36 @@ struct RecipeEditorView: View {
         return formatter.string(from: date)
     }
 
+    private static func commaSeparated(_ text: String) -> [String] {
+        var seen = Set<String>()
+        return text
+            .split(whereSeparator: { $0 == "," || $0 == "\n" })
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty && seen.insert($0.lowercased()).inserted }
+    }
+
     // MARK: Save
 
     private func save(plating night: Date?) {
+        // The buttons that open this editor enforce the same rule. Keep the
+        // write guarded too in case permission changes while the sheet is
+        // open, or a future route presents the editor directly.
+        guard editing?.isEditableByCurrentDevice != false else { return }
+
+        if let pendingSaveRecipe {
+            if Persist.save(context, "retry recipe save") {
+                saveProblem = nil
+                onSaved(pendingSaveRecipe)
+                dismiss()
+            } else {
+                Haptic.warn()
+                AccessibilityNotification.Announcement(
+                    "The recipe still could not be saved. Your work is still here."
+                ).post()
+            }
+            return
+        }
+
         // Text still sitting in the step field is work the user typed and
         // believes is in — "type the last step, hit Save" used to drop it,
         // and the loss surfaced days later at the stove.
@@ -920,22 +1109,12 @@ struct RecipeEditorView: View {
         // Prongsby read those invented halves out loud.
         recipe.prepMinutes = prepMinutes
         recipe.cookMinutes = cookMinutes
-        // The editor used to offer "Only me / Household / The Table" and a
-        // "Household can edit" toggle. Nothing in the app could honour any of
-        // it: a Recipe lives in the private database and no code path puts one
-        // in a shared zone, so `visibility` and `householdCanEdit` were written
-        // here and read nowhere. Posting to the Table copies the dish into an
-        // independent TablePost; it does not share the recipe. So a cook chose
-        // "The Table", saved, opened the dish, and was told "Only you can see
-        // this" — DESIGN.md's "a control that quietly does nothing", about the
-        // one subject a person cannot check from inside the app.
-        //
-        // The properties stay on the model because dropping a mirrored
-        // property is not CloudKit-safe. Writing the honest value on every
-        // save also clears the stale "table"/"household" left on recipes saved
-        // before this, which nothing else in the app can now reach.
-        recipe.visibility = "private"
-        recipe.householdCanEdit = false
+        // Recipes are mirrored through the household zone. Keep the stored
+        // visibility aligned with where the record actually travels. A new
+        // household recipe is collaborative by default; editing an existing
+        // one preserves the creator's collaboration choice.
+        recipe.visibility = "household"
+        if editing == nil { recipe.householdCanEdit = true }
         recipe.photoData = photoData
         recipe.categoryValue = category
         recipe.mealTypeValue = mealType
@@ -946,6 +1125,17 @@ struct RecipeEditorView: View {
             .map { $0.text.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
         recipe.cookNotes = cookNotes.trimmingCharacters(in: .whitespacesAndNewlines)
+        let nutritionAttribution = nutritionSource.trimmingCharacters(in: .whitespacesAndNewlines)
+        RecipePlanningMetadata(
+            equipment: Self.commaSeparated(equipmentText),
+            dietaryLabels: Self.commaSeparated(dietaryLabelsText),
+            knownAllergens: Self.commaSeparated(allergenText),
+            caloriesPerServing: nutritionAttribution.isEmpty ? 0 : (Int(caloriesText) ?? 0),
+            proteinGramsPerServing: nutritionAttribution.isEmpty ? 0 : (Double(proteinText) ?? 0),
+            carbohydrateGramsPerServing: nutritionAttribution.isEmpty ? 0 : (Double(carbohydrateText) ?? 0),
+            fatGramsPerServing: nutritionAttribution.isEmpty ? 0 : (Double(fatText) ?? 0),
+            nutritionSource: nutritionAttribution
+        ).apply(to: recipe)
         if let difficultyOverride {
             recipe.difficultyValue = difficultyOverride
         }
@@ -960,11 +1150,13 @@ struct RecipeEditorView: View {
             .map(\.resolved)
             .filter { !$0.name.isEmpty }
             .enumerated().map { index, item in
-                Ingredient(
+                let ingredient = Ingredient(
                     name: item.name, quantity: item.quantity, unit: item.unit,
                     aisle: item.aisle, isPantryStaple: item.isPantryStaple,
                     sortIndex: index
                 )
+                ingredient.package = item.package
+                return ingredient
             }
         (recipe.extraPhotos ?? []).forEach(context.delete)
         recipe.extraPhotos = extraPhotoData.enumerated().map { index, data in
@@ -990,23 +1182,20 @@ struct RecipeEditorView: View {
         // this week's basket when the cook says so. Manual lines survive the
         // auto-rebuild by design.
         if !isEditing && addToGroceries && night == nil && !hidePlateShortcut {
-            let weekStart = Calendar.current.startOfDay(for: .now)
-            for line in draftIngredients.map(\.resolved) where !line.name.isEmpty {
-                let item = GroceryItem(
-                    name: line.name, quantity: line.quantity, unit: line.unit,
-                    aisle: line.aisle,
-                    weekStart: weekStart, isManual: true
-                )
-                item.originTitle = recipe.title
-                context.insert(item)
-            }
-            if !draftIngredients.isEmpty {
-                let owner = members.me?.name ?? "Someone"
-                Notifier.post(
-                    .groceriesAdded, actor: owner,
-                    body: "\(draftIngredients.count.things("ingredient")) from \(recipe.title) added to the grocery list.",
-                    into: context
-                )
+            do {
+                let result = try RecipeGroceryWriter.add(recipe: recipe, in: context)
+                if result.added > 0 {
+                    let owner = members.me?.name ?? "Someone"
+                    Notifier.post(
+                        .groceriesAdded, actor: owner,
+                        body: "\(result.added.things("ingredient")) from \(recipe.title) added to the grocery list.",
+                        into: context
+                    )
+                }
+            } catch {
+                // The recipe is still worth keeping. Groceries can be retried
+                // from its detail page without duplicating lines that landed.
+                print("PLATED RECIPE: couldn't add ingredients to groceries — \(error)")
             }
         }
 
@@ -1017,6 +1206,14 @@ struct RecipeEditorView: View {
                 date: night, slot: .dinner, recipe: recipe,
                 servings: serves, cook: cook
             ))
+        }
+        guard Persist.save(context, "save recipe") else {
+            pendingSaveRecipe = recipe
+            let message = "Couldn't save the recipe yet. Your work is still here."
+            saveProblem = message
+            Haptic.warn()
+            AccessibilityNotification.Announcement(message).post()
+            return
         }
         onSaved(recipe)
         dismiss()
@@ -1074,18 +1271,107 @@ private struct IngredientRow: View {
     @Binding var draft: RecipeEditorView.DraftIngredient
     var focus: FocusState<AnyHashable?>.Binding
     var onRemove: () -> Void
+    @State private var packageExpanded = false
 
     var body: some View {
-        HStack(spacing: 10) {
-            EditableLine(text: Binding(
-                get: { draft.text },
-                set: { draft.edited = $0 }
-            ), placeholder: "Ingredient", focus: focus, focusID: draft.id)
-            RemoveLineButton(
-                label: "Remove \(draft.resolved.name.isEmpty ? "ingredient" : draft.resolved.name)",
-                action: onRemove
-            )
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 10) {
+                EditableLine(text: Binding(
+                    get: { draft.text },
+                    set: { draft.edited = $0 }
+                ), placeholder: "Ingredient", focus: focus, focusID: draft.id)
+                RemoveLineButton(
+                    label: "Remove \(draft.resolved.name.isEmpty ? "ingredient" : draft.resolved.name)",
+                    action: onRemove
+                )
+            }
+            DisclosureGroup(isExpanded: $packageExpanded) {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 8) {
+                        numericField("Package size", text: packageSize)
+                        TextField("Unit (g, ml, each)", text: packageUnit)
+                            .plType(.body)
+                            .textInputAutocapitalization(.never)
+                            .padding(10)
+                            .overlay(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous).strokeBorder(Color.hairline))
+                    }
+                    HStack(spacing: 8) {
+                        numericField("Price", text: packagePrice)
+                        TextField("Store", text: packageStore)
+                            .plType(.body)
+                            .padding(10)
+                            .overlay(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous).strokeBorder(Color.hairline))
+                    }
+                    TextField("Price source (label, receipt, catalog)", text: packageSource)
+                        .plType(.body)
+                        .padding(10)
+                        .overlay(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous).strokeBorder(Color.hairline))
+                    HStack {
+                        Text(draft.package.updatedAt.map { "Price checked \($0.formatted(date: .abbreviated, time: .omitted))" } ?? "No current price date")
+                            .plType(.caption)
+                            .foregroundStyle(Color.inkSecondary)
+                        Spacer()
+                        Button("Mark current") {
+                            draft.package.updatedAt = .now
+                        }
+                        .plType(.caption, .bold)
+                        .foregroundStyle(Color.accentText)
+                        .disabled(!packageFieldsAreComplete)
+                    }
+                    Text("Optional package data enables a store-specific estimate. Plated will not infer a price from recipe quantities.")
+                        .plType(.caption)
+                        .foregroundStyle(Color.inkSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.top, 8)
+            } label: {
+                Text("Package and price info")
+                    .plType(.caption, .semibold)
+                    .foregroundStyle(Color.inkSecondary)
+            }
+            .tint(Color.inkSecondary)
         }
         .padding(.horizontal, 4)
+    }
+
+    private var packageSize: Binding<String> {
+        Binding(
+            get: { draft.package.size.map { String($0) } ?? "" },
+            set: { draft.package.size = Double($0) }
+        )
+    }
+
+    private var packagePrice: Binding<String> {
+        Binding(
+            get: { draft.package.price.map { String($0) } ?? "" },
+            set: { draft.package.price = Double($0) }
+        )
+    }
+
+    private var packageUnit: Binding<String> {
+        Binding(get: { draft.package.unit }, set: { draft.package.unit = $0 })
+    }
+
+    private var packageStore: Binding<String> {
+        Binding(get: { draft.package.store }, set: { draft.package.store = $0 })
+    }
+
+    private var packageSource: Binding<String> {
+        Binding(get: { draft.package.source }, set: { draft.package.source = $0 })
+    }
+
+    private var packageFieldsAreComplete: Bool {
+        guard let size = draft.package.size, size > 0,
+              let price = draft.package.price, price >= 0 else { return false }
+        return !draft.package.unit.isEmpty && !draft.package.store.isEmpty && !draft.package.source.isEmpty
+    }
+
+    private func numericField(_ placeholder: String, text: Binding<String>) -> some View {
+        TextField(placeholder, text: text)
+            .keyboardType(.decimalPad)
+            .plType(.body)
+            .padding(10)
+            .overlay(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous).strokeBorder(Color.hairline))
+            .frame(maxWidth: .infinity)
     }
 }

@@ -11,15 +11,25 @@ import PhotosUI
 /// in a circle later and wonder why the app never asked. The copy says that
 /// plainly rather than implying Apple already handed a picture over.
 ///
-/// Choose a photo and Take a photo are the primaries. Use my contact photo
-/// is secondary. The name comes prefilled from Apple when Apple gave it,
-/// which is only ever on the very first authorization.
+/// The photo control offers the camera/library picker, with a separate
+/// single-contact picker for somebody who keeps their own portrait there.
+/// The name is prefilled from Apple when Apple gave it, which is only ever
+/// on the very first authorization, and remains editable as a household
+/// display name or nickname.
 ///
 /// This step also lays the owner's place (docs/household.md §6): the host
 /// seat has to exist before the first invitation, and a person joining
 /// from a link never reaches the invite screen that used to lay it.
 struct ProfileSetupView: View {
+    /// A screenshot/review surface. It looks and responds like onboarding,
+    /// but never opens a picker or writes identity, profile or household data.
+    let reviewOnly: Bool
     let onDone: () -> Void
+
+    init(reviewOnly: Bool = false, onDone: @escaping () -> Void) {
+        self.reviewOnly = reviewOnly
+        self.onDone = onDone
+    }
 
     @Environment(\.modelContext) private var context
     @AppStorage("userFirstName") private var userFirstName = ""
@@ -27,7 +37,12 @@ struct ProfileSetupView: View {
     @State private var photoData: Data?
     @State private var pickerItem: PhotosPickerItem?
     @State private var cameraShown = false
+    @State private var sourceAsked = false
+    @State private var libraryShown = false
     @State private var arrived = false
+    @State private var appleNameWasAvailable = false
+    @State private var editingName = false
+    @State private var reviewPhotoSelected = false
     @FocusState private var namingSelf: Bool
 
     private var trimmedName: String {
@@ -37,12 +52,12 @@ struct ProfileSetupView: View {
     var body: some View {
         VStack(spacing: 0) {
             VStack(spacing: 10) {
-                Text("Your photo")
+                Text("Make yourself at home")
                     .plType(.hero)
                     .foregroundStyle(Color.ink)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
-                Text("Apple doesn't share your Apple ID photo with apps. Add one so your household recognizes you.")
+                Text("Add a photo so people recognize you at your table.")
                     .plType(.body, .medium)
                     .foregroundStyle(Color.inkSecondary)
                     .multilineTextAlignment(.center)
@@ -54,59 +69,106 @@ struct ProfileSetupView: View {
 
             Spacer(minLength: 20)
 
-            ProfilePhotoWell(photoData: $photoData, initials: initials, diameter: 168)
-                .scaleEffect(arrived ? 1 : 0.9)
-                .opacity(arrived ? 1 : 0)
-
-            HStack(spacing: 10) {
-                PhotosPicker(selection: $pickerItem, matching: .images) {
-                    photoOption("Choose a photo", icon: "photo.on.rectangle")
+            Button {
+                Haptic.tap()
+                if reviewOnly {
+                    withAnimation(.plPop) { reviewPhotoSelected.toggle() }
+                    return
                 }
-                .buttonStyle(.pressable)
-
                 if UIImagePickerController.isSourceTypeAvailable(.camera) {
-                    Button {
-                        Haptic.tap()
-                        cameraShown = true
-                    } label: {
-                        photoOption("Take a photo", icon: "camera")
+                    sourceAsked = true
+                } else {
+                    libraryShown = true
+                }
+            } label: {
+                Group {
+                    if reviewOnly, reviewPhotoSelected {
+                        AvatarCircle(initials: initials, tone: .tomatoPair, size: 168)
+                            .plCardShadow()
+                    } else {
+                        ProfilePhotoWell(
+                            photoData: $photoData,
+                            initials: initials,
+                            diameter: 168,
+                            showsRemoveControl: false
+                        )
                     }
-                    .buttonStyle(.pressable)
+                }
+                .overlay(alignment: .bottomTrailing) {
+                    Label(hasVisiblePhoto ? "Change" : "Add photo", systemImage: "camera")
+                        .plType(.micro, .bold)
+                        .plActionLabel()
+                        .foregroundStyle(Color.ink)
+                        .padding(.horizontal, 11)
+                        .frame(minHeight: 32)
+                        .background(.regularMaterial, in: Radius.shape(Radius.chip))
+                        .overlay(Radius.shape(Radius.chip).strokeBorder(Color.hairline))
                 }
             }
-            .padding(.horizontal, 24)
-            .padding(.top, 20)
+            .buttonStyle(.pressable)
+            .accessibilityLabel(hasVisiblePhoto ? "Change profile photo" : "Add a profile photo")
+            .scaleEffect(arrived ? 1 : 0.9)
             .opacity(arrived ? 1 : 0)
 
-            Button("Use my contact photo") {
-                ContactPhotoPicker.choose { selected in
-                    guard let selected else { return }
-                    withAnimation(.plSnap) { photoData = selected }
+            if !reviewOnly {
+                Button {
+                    ContactPhotoPicker.choose { selectedPhoto in
+                        guard let selectedPhoto else { return }
+                        Haptic.plate()
+                        withAnimation(.plPop) { photoData = selectedPhoto }
+                    }
+                } label: {
+                    Label("Choose from a contact", systemImage: "person.crop.circle")
+                        .plType(.footnote, .semibold)
+                        .foregroundStyle(Color.inkSecondary)
+                        .frame(minHeight: 44)
+                        .contentShape(Rectangle())
                 }
+                .buttonStyle(.pressable)
+                .accessibilityHint("Choose a photo from one contact. Plated receives only the photo you select.")
+                .opacity(arrived ? 1 : 0)
             }
-            .plType(.footnote, .bold)
-            .foregroundStyle(Color.inkSecondary)
-            .plTapTarget()
-            .padding(.top, 8)
 
             VStack(alignment: .leading, spacing: 8) {
-                if trimmedName.isEmpty {
-                    Text("Add your name")
-                        .plType(.footnote, .semibold)
-                        .foregroundStyle(Color.ink)
-                } else {
-                    MicroLabel("Your name")
-                }
-                TextField("First name", text: $name)
-                    .plType(.body)
-                    .foregroundStyle(Color.ink)
+                if appleNameWasAvailable, !editingName {
+                    MicroLabel("You’ll appear as")
+                    HStack(spacing: 12) {
+                        Text(trimmedName)
+                            .plType(.heading, .semibold)
+                            .foregroundStyle(Color.ink)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        Button("Change") {
+                            Haptic.tap()
+                            editingName = true
+                            namingSelf = true
+                        }
+                        .plType(.footnote, .bold)
+                        .plActionLabel()
+                        .foregroundStyle(Color.accentText)
+                        .frame(minHeight: 44)
+                    }
                     .padding(.horizontal, 16)
-                    .frame(minHeight: 52)
-                    .overlay(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous).strokeBorder(Color.hairline))
-                    .contentShape(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous))
-                    .onTapGesture { namingSelf = true }
-                    .focused($namingSelf)
-                    .submitLabel(.done)
+                    .frame(minHeight: 58)
+                    .background(Color.fill, in: Radius.shape(Radius.chip))
+                } else {
+                    MicroLabel("What should we call you?")
+                    TextField("Name or nickname", text: $name)
+                        .plType(.body)
+                        .foregroundStyle(Color.ink)
+                        .padding(.horizontal, 16)
+                        .frame(minHeight: 52)
+                        .overlay(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous).strokeBorder(Color.hairline))
+                        .contentShape(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous))
+                        .onTapGesture { namingSelf = true }
+                        .focused($namingSelf)
+                        .submitLabel(.done)
+                    Text(appleNameWasAvailable
+                         ? "Use the name or nickname your household knows."
+                         : "This is the name your household will see.")
+                        .plType(.caption)
+                        .foregroundStyle(Color.inkSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
             .padding(.horizontal, 24)
             .padding(.top, 24)
@@ -115,44 +177,27 @@ struct ProfileSetupView: View {
             Spacer(minLength: 16)
 
             VStack(spacing: 12) {
-                TomatoPillButton(title: "Continue") { finish() }
+                PrimaryActionButton(title: "Continue") { finish() }
                     .disabled(trimmedName.isEmpty)
-
-                // Was `finish()`, the same call Continue makes: it saved the
-                // name and parked the photo, so the two buttons did exactly
-                // the same thing while promising opposite outcomes. "Not
-                // now" means later.
-                Button {
-                    Haptic.tap()
-                    // "Not now" declines the PHOTO. A name that has been
-                    // typed is still their name, and leaving it here left
-                    // the row called Nate while `userFirstName` stayed
-                    // empty: every invitation then went out as "Join my
-                    // household on Plated", with no host in the link and no
-                    // host name on the household root.
-                    if !trimmedName.isEmpty { userFirstName = trimmedName }
-                    layOwnersPlace(photo: nil)
-                    onDone()
-                } label: {
-                    Text("Not now")
-                        .plType(.body)
-                        .plActionLabel()
-                        .foregroundStyle(Color.inkSecondary)
-                        .plTapTarget()
-                }
-                .buttonStyle(.pressable)
             }
             .padding(.horizontal, 24)
             .padding(.bottom, 28)
         }
         .plFitsOrScrolls()
-        .background(Color.canvas.ignoresSafeArea())
+        .background { OnboardingAtmosphere().ignoresSafeArea() }
         .onAppear {
+            if reviewOnly {
+                name = "Alex"
+                appleNameWasAvailable = true
+                withAnimation(.plSettle.delay(0.1)) { arrived = true }
+                return
+            }
+            appleNameWasAvailable = !userFirstName.trimmingCharacters(in: .whitespaces).isEmpty
             name = userFirstName
             withAnimation(.plSettle.delay(0.1)) { arrived = true }
         }
         .onChange(of: pickerItem) { _, item in
-            guard let item else { return }
+            guard !reviewOnly, let item else { return }
             Task {
                 if let raw = try? await item.loadTransferable(type: Data.self),
                    let square = ProfilePhoto.square(raw) {
@@ -172,6 +217,12 @@ struct ProfileSetupView: View {
             }
             .ignoresSafeArea()
         }
+        .confirmationDialog("Add a profile photo", isPresented: $sourceAsked, titleVisibility: .visible) {
+            Button("Take a photo") { cameraShown = true }
+            Button("Choose from library") { libraryShown = true }
+            Button("Cancel", role: .cancel) {}
+        }
+        .photosPicker(isPresented: $libraryShown, selection: $pickerItem, matching: .images)
     }
 
     private var initials: String {
@@ -180,23 +231,15 @@ struct ProfileSetupView: View {
         return letters.isEmpty ? "?" : letters
     }
 
-    private func photoOption(_ title: String, icon: String) -> some View {
-        HStack(spacing: 6) {
-            Image(systemName: icon)
-                .font(.system(size: 13, weight: .semibold))
-            Text(title)
-                .plType(.footnote, .bold)
-        }
-        .foregroundStyle(Color.ink)
-        .frame(maxWidth: .infinity)
-        .frame(minHeight: 46)
-        .overlay(Capsule().strokeBorder(Color.hairline, lineWidth: 1.5))
-        // A stroked capsule is a ring: without this the 46pt pill was
-        // tappable only across its letters. One line, both pills.
-        .contentShape(Capsule())
+    private var hasVisiblePhoto: Bool {
+        photoData != nil || (reviewOnly && reviewPhotoSelected)
     }
 
     private func finish() {
+        guard !reviewOnly else {
+            onDone()
+            return
+        }
         if !trimmedName.isEmpty { userFirstName = trimmedName }
         // Parked as well as hung: on a simulator the head of the table is
         // the sample seed's to lay, and the shell hangs the parked bytes on
@@ -223,7 +266,7 @@ struct ProfileSetupView: View {
         let me = HouseholdMember(
             name: trimmedName.isEmpty ? (userFirstName.isEmpty ? "Me" : userFirstName) : trimmedName,
             colorHex: "FF5A3C", isPrimaryCook: true,
-            role: "owner", roleLine: "Head of table", cookWeekdays: [],
+            role: "owner", roleLine: "Organizer", cookWeekdays: [],
             seat: .head
         )
         // Identity once CloudKit has confirmed one; a placeholder is never
@@ -248,6 +291,7 @@ struct ProfilePhotoWell: View {
     @Binding var photoData: Data?
     var initials: String
     var diameter: CGFloat = 120
+    var showsRemoveControl = true
 
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
@@ -264,7 +308,7 @@ struct ProfilePhotoWell: View {
                         .frame(width: diameter, height: diameter)
                         .overlay {
                             Text(initials)
-                                .font(.gabarito(diameter * 0.32, .semibold))
+                                .font(.editorial(diameter * 0.32, .semibold))
                                 .foregroundStyle(Color.inkSecondary)
                         }
                         .overlay(
@@ -277,7 +321,7 @@ struct ProfilePhotoWell: View {
             }
             .plCardShadow()
 
-            if photoData != nil {
+            if photoData != nil, showsRemoveControl {
                 Button {
                     Haptic.tap()
                     withAnimation(.plSnap) { photoData = nil }

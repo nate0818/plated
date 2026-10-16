@@ -7,16 +7,18 @@ import SwiftData
 /// into profiles, and saving a dish lets you make it yours first.
 struct TableFeedView: View {
     @Environment(\.modelContext) private var context
+    @Environment(\.activeAppTab) private var activeAppTab
+    @Environment(\.dynamicTypeSize) private var typeSize
+    @Environment(\.openURL) private var openURL
     @Query(
         filter: #Predicate<TablePost> { !$0.isDiscover },
         sort: \TablePost.createdAt, order: .reverse
     ) private var posts: [TablePost]
     @Query(sort: \HouseholdMember.createdAt) private var members: [HouseholdMember]
     @Query private var recipes: [Recipe]
-    @Environment(\.dynamicTypeSize) private var typeSize
 
     enum FeedScope: String, CaseIterable {
-        case everyone = "My Table"
+        case everyone = "Your Table"
         case household = "Household"
     }
 
@@ -75,18 +77,24 @@ struct TableFeedView: View {
 
     private enum Reach { case looking, reached, unreachable }
     @State private var toastToken = 0
-    /// One destination, not two flags.
-    ///
-    /// These were two `navigationDestination(isPresented:)` modifiers on one
-    /// NavigationStack, which is the same undefined behaviour as two `.sheet`
-    /// modifiers on one view — the trap CLAUDE.md already records. SwiftUI
-    /// honoured the first and silently dropped the second, so the search
-    /// button on the Table opened nothing and Discover was unreachable from
-    /// the app: a control sitting in the masthead doing precisely nothing,
-    /// which is the honesty rule broken by the navigation layer rather than
-    /// by the copy. Same shape as WeekView.PlanDestination.
+
+    /// Screenshot-only states over the in-memory design-review store. They
+    /// never touch or clear real posts, and the extra flag is ignored unless
+    /// the app is already on its explicit `-plated-design-review` route.
+    private enum ReviewState { case standard, empty, loading, error }
+    private var reviewState: ReviewState {
+        #if DEBUG
+        let arguments = ProcessInfo.processInfo.arguments
+        guard arguments.contains("-plated-design-review") else { return .standard }
+        if arguments.contains("-plated-review-table-empty") { return .empty }
+        if arguments.contains("-plated-review-table-loading") { return .loading }
+        if arguments.contains("-plated-review-table-error") { return .error }
+        #endif
+        return .standard
+    }
+    /// A single typed destination keeps the bell's push state explicit.
     enum TableDestination: String, Identifiable {
-        case activity, discover
+        case activity
         var id: String { rawValue }
     }
     @State private var pushed: TableDestination?
@@ -94,12 +102,28 @@ struct TableFeedView: View {
     /// and the photo is a door — so the menu carries the rest.
     @State private var pendingDelete: TablePost?
     @State private var editingPost: TablePost?
+    @State private var contentSafety = ContentSafety.shared
+    @State private var safetyDialog: SafetyDialog?
+
+    private enum SafetyDialog {
+        case report(ContentSafety.ReportTarget)
+        case block(ContentSafety.Author)
+    }
 
     /// Everything worth showing. A post with no author, no dish, no words
     /// and no photo is not a post — see `TablePost.isBlank`. Filtered here
     /// rather than in the `@Query` so the rule is stated once and every
     /// reader of the feed gets it, counts included.
     private var realPosts: [TablePost] { posts.filter(\.isUserContent) }
+
+    /// Blocking is a private lens over the feed, never a mutation of the
+    /// shared CloudKit record. Keep `realPosts` as the complete local mirror
+    /// for publishing and reconciliation; only this display list is filtered.
+    private var visiblePosts: [TablePost] {
+        realPosts.filter {
+            !contentSafety.isBlocked(authorID: $0.authorID, authorName: $0.authorName)
+        }
+    }
 
     private var seatCount: Int {
         // Who can plate: head/joined seats plus Table guest authors —
@@ -127,11 +151,9 @@ struct TableFeedView: View {
     ///
     /// `publish` is fire-and-forget from the composer, deliberately, so a
     /// post written with no signal, no iCloud account or a dropped
-    /// connection keeps an empty `shareRecordName` forever. The comment at
-    /// that call site says a failure "leaves shareRecordName empty, which is
-    /// exactly the state the next publish attempt looks for" — and there was
-    /// no next publish attempt anywhere in the app. The post sat on one
-    /// phone, looking exactly like a post that had gone out, for good.
+    /// connection leaves `isPublished` false. The record name is minted at
+    /// birth so reactions have a stable key; publication therefore needs its
+    /// own truth rather than treating an identifier as delivery evidence.
     ///
     /// This is that attempt. It runs on every pull and on the feed's first
     /// appearance, and it is idempotent: `publish` reuses a name it is
@@ -144,18 +166,19 @@ struct TableFeedView: View {
     /// Silence here would be the app claiming a post happened.
     private func stranded(_ post: TablePost) -> Bool {
         !post.isRemote
-            && post.shareRecordName.isEmpty
+            && !post.isPublished
             && Date.now.timeIntervalSince(post.createdAt) > 60
     }
 
     private func publishBacklog() async {
-        let stranded = realPosts.filter { !$0.isRemote && $0.shareRecordName.isEmpty }
+        let stranded = realPosts.filter { !$0.isRemote && !$0.isPublished }
         guard !stranded.isEmpty else { return }
         let hostName = members.first(where: \.isOwner)?.name ?? ""
         var sent = false
         for post in stranded {
             if let name = await TableShare.publish(post, hostName: hostName) {
                 post.shareRecordName = name
+                post.isPublished = true
                 sent = true
             }
         }
@@ -210,10 +233,16 @@ struct TableFeedView: View {
     /// Still asking. Only ever seen on a cold launch with nothing cached,
     /// and only for as long as the ask takes.
     private var lookingForPosts: some View {
-        ProgressView()
-            .controlSize(.regular)
-            .tint(Color.inkFaint)
-            .accessibilityLabel("Looking for new posts")
+        VStack(spacing: 10) {
+            ProgressView()
+                .controlSize(.regular)
+                .tint(Color.inkFaint)
+            Text("Checking the Table…")
+                .plType(.footnote, .semibold)
+                .foregroundStyle(Color.inkSecondary)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Checking the Table for new posts")
     }
 
     /// Asked, and got an answer: nobody has posted. This is the only one of
@@ -221,10 +250,13 @@ struct TableFeedView: View {
     private var nothingPlatedYet: some View {
         VStack(spacing: 10) {
             PlateReactionGlyph(filled: false)
-            Text(scope == .household ? "Your household hasn't posted yet" : "Nothing plated yet")
+                .accessibilityHidden(true)
+            Text(scope == .household ? "No household posts yet" : "Your Table is ready")
                 .plType(.body, .bold)
                 .foregroundStyle(Color.ink)
-            Text("Only the people you invite can see it.")
+            Text(scope == .household
+                 ? "Share a dish or ask a question to get the conversation going."
+                 : "Share what you cooked, ask what sounds good, or invite someone you trust.")
                 .plType(.footnote)
                 .foregroundStyle(Color.inkSecondary)
                 .multilineTextAlignment(.center)
@@ -234,16 +266,33 @@ struct TableFeedView: View {
                 Haptic.tap()
                 composerShown = true
             } label: {
-                Text("Post a dish")
+                Text("Share something")
                     .plType(.body, .bold)
                     .plActionLabel()
-                    .foregroundStyle(Color.onTomato)
+                    .foregroundStyle(Color.onPrimary)
                     .padding(.horizontal, 24)
                     .frame(minHeight: 44)
-                    .background(Color.tomato, in: Capsule())
+                    .background(Color.primaryAction, in: Radius.shape(Radius.chip))
             }
             .buttonStyle(.pressable)
             .padding(.top, 4)
+
+            if scope == .everyone && seatCount <= 1 {
+                Button("Invite someone") {
+                    Haptic.tap()
+                    seatsPresented = true
+                }
+                .plType(.footnote, .bold)
+                .plActionLabel()
+                .foregroundStyle(Color.ink)
+                .plTapTarget()
+                .buttonStyle(.pressable)
+            }
+
+            Label("Invite only · never public", systemImage: "lock.fill")
+                .plType(.micro, .semibold)
+                .foregroundStyle(Color.inkSecondary)
+                .padding(.top, 2)
         }
     }
 
@@ -256,10 +305,11 @@ struct TableFeedView: View {
             Image(systemName: "icloud.slash")
                 .font(.system(size: 26, weight: .medium))
                 .foregroundStyle(Color.inkFaint)
-            Text("Couldn't check for new dishes")
+                .accessibilityHidden(true)
+            Text("Couldn't refresh the Table")
                 .plType(.body, .bold)
                 .foregroundStyle(Color.ink)
-            Text("What's here is what's on this phone.")
+            Text("Your posts are still safe on this iPhone. Check your connection and try again.")
                 .plType(.footnote)
                 .foregroundStyle(Color.inkSecondary)
                 .multilineTextAlignment(.center)
@@ -280,8 +330,8 @@ struct TableFeedView: View {
                     .foregroundStyle(Color.ink)
                     .padding(.horizontal, 24)
                     .frame(minHeight: 44)
-                    .overlay(Capsule().strokeBorder(Color.hairline, lineWidth: 1.5))
-                    .contentShape(Capsule())
+                    .overlay(Radius.shape(Radius.chip).strokeBorder(Color.hairline, lineWidth: 1.5))
+                    .contentShape(Radius.shape(Radius.chip))
             }
             .buttonStyle(.pressable)
             .padding(.top, 4)
@@ -295,30 +345,76 @@ struct TableFeedView: View {
         return parts.compactMap { $0.first }.map(String.init).joined().uppercased()
     }
 
+    /// The avatar is decorative inside this profile door. Give VoiceOver the
+    /// same byline and delivery context a sighted reader gets, without making
+    /// it spell the monogram before the person's name.
+    private func authorAccessibilityLabel(_ post: TablePost) -> String {
+        var parts = [post.authorName, postWhen(post.createdAt)]
+        if post.isRemote { parts.append("from another table") }
+        if NewsPreferences.isMuted(post: post.shareRecordName) { parts.append("muted") }
+        if stranded(post) { parts.append("not sent yet") }
+        return parts.joined(separator: ", ")
+    }
+
+    private func postAccessibilityName(_ post: TablePost) -> String {
+        if !post.dishTitle.isEmpty { return post.dishTitle }
+        return post.kind == "ask" ? "question by \(post.authorName)" : "post by \(post.authorName)"
+    }
+
     /// True once "Everyone" and "Household" could return different lists —
     /// that is, once the table holds a post by somebody who is not in the
     /// house. Derived rather than remembered, so it goes away again if that
     /// post does.
     private var scopeIsMeaningful: Bool {
-        let names = Set(members.map(\.name))
-        return realPosts.contains { !names.contains($0.firstName) && !names.contains($0.authorName) }
+        if reviewState != .standard { return false }
+        return visiblePosts.contains { !belongsToHousehold($0) }
+    }
+
+    @ViewBuilder
+    private var currentEmptyState: some View {
+        switch reach {
+        case .looking: lookingForPosts
+        case .unreachable: cannotReachTable
+        case .reached: nothingPlatedYet
+        }
     }
 
     private var shownPosts: [TablePost] {
-        guard scope == .household else { return realPosts }
-        let participantIDs = Set(members.compactMap(\.participantID))
-        let names = Set(members.map { $0.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() })
-        return realPosts.filter { post in
-            // Accepted CloudKit identity is authoritative. A display-name
-            // match must never override a known person's different identity.
-            if !post.authorID.isEmpty && !post.authorID.hasPrefix("local-") {
-                return post.authorID == TableIdentity.cached || participantIDs.contains(post.authorID)
-            }
-            // Older local posts predate author IDs. Retain the original
-            // short-name matching until those records acquire an identity.
-            let fullName = post.authorName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-            return names.contains(fullName) || names.contains(post.firstName.lowercased())
+        if reviewState != .standard { return [] }
+        guard scope == .household else { return visiblePosts }
+        return visiblePosts.filter(belongsToHousehold)
+    }
+
+    /// Household identity has two valid roads: the participant id learned
+    /// from the share and the user record name stored on the household row.
+    /// The organizer is intentionally absent from `share.participants`, so
+    /// using participant ids alone filtered the host out of their own home.
+    private var householdIdentityIDs: Set<String> {
+        var ids = Set(members.flatMap { member in
+            [member.participantID, member.userRecordName]
+                .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+        })
+        if case .member(let owner) = HouseholdShare.membership, !owner.isEmpty {
+            ids.insert(owner)
         }
+        let me = TableIdentity.cached
+        if !me.isEmpty && !me.hasPrefix("local-") { ids.insert(me) }
+        return ids
+    }
+
+    private func belongsToHousehold(_ post: TablePost) -> Bool {
+        let ids = householdIdentityIDs
+        let names = Set(members.map { $0.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() })
+        // Accepted CloudKit identity is authoritative. A display-name
+        // match must never override a known person's different identity.
+        if !post.authorID.isEmpty && !post.authorID.hasPrefix("local-") {
+            return ids.contains(post.authorID)
+        }
+        // Older local posts predate author IDs. Retain the original
+        // short-name matching until those records acquire an identity.
+        let fullName = post.authorName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return names.contains(fullName) || names.contains(post.firstName.lowercased())
     }
 
     var body: some View {
@@ -329,26 +425,23 @@ struct TableFeedView: View {
                     .padding(.top, 6)
                     .padding(.bottom, 10)
 
-                // Search sits beside the scope, the way it does on Recipes:
-                // scoping the feed and searching it are the same kind of act,
-                // and the header has a host to seat instead.
-                // The scope's own row, and it exists only when the scope
-                // does. "Everyone" and "Household" are the same set until
-                // somebody outside the house has posted, so on a new table
-                // this was a segmented control whose two halves returned an
-                // identical empty list — a decision offered before there was
-                // anything to decide, above a row of chrome that existed to
-                // hold it. A control appears when it can do something.
-                scopePicker
+                tableContextBar
                     .padding(.horizontal, 24)
-                    .padding(.bottom, 12)
-                HStack(spacing: 6) {
-                    Image(systemName: "person.2").font(.system(size: 12))
-                    Text(scope == .household ? "Dishes and conversations from your household" : "Food brings your people together")
-                        .plType(.caption)
-                    Spacer()
-                    Button("People") { seatsPresented = true }.plType(.caption, .semibold).plTapTarget()
-                }.foregroundStyle(Color.inkSecondary).padding(.horizontal, 24).padding(.bottom, 8)
+                    .padding(.bottom, scopeIsMeaningful ? 10 : 12)
+
+                if scopeIsMeaningful {
+                    scopePicker
+                        .padding(.horizontal, 24)
+                        .padding(.bottom, 12)
+                        .transition(.plUnfold)
+                }
+
+                if reach == .unreachable, !shownPosts.isEmpty {
+                    refreshProblemBar
+                        .padding(.horizontal, 24)
+                        .padding(.bottom, 10)
+                        .transition(.plUnfold)
+                }
 
                 ScrollView(showsIndicators: false) {
                     LazyVStack(spacing: 0) {
@@ -374,22 +467,28 @@ struct TableFeedView: View {
                             .matchedTransitionSource(id: post.persistentModelID, in: zoom)
                         }
                         if shownPosts.isEmpty {
-                            Group {
-                                switch reach {
-                                case .looking: lookingForPosts
-                                case .unreachable: cannotReachTable
-                                case .reached: nothingPlatedYet
-                                }
-                            }
-                            .frame(maxWidth: .infinity)
-                            // Centred in what a person can actually see,
-                            // rather than nudged down the page by a typed
-                            // 60. The three of these sat in the top third
-                            // with the rest of the screen empty under them;
-                            // the height is the scroll view's own, less the
-                            // clearance the floating bar takes out of it.
-                            .containerRelativeFrame(.vertical, alignment: .center) { height, _ in
-                                height - Layout.tabBarInset
+                            if typeSize.isAccessibilitySize {
+                                // AX copy can be taller than the remaining
+                                // viewport. Natural height makes the whole
+                                // state scrollable and keeps its action above
+                                // the floating bar instead of clipping both
+                                // ends around a forced centre point.
+                                currentEmptyState
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 24)
+                                    .padding(.bottom, Layout.floatingChromeInset)
+                            } else {
+                                currentEmptyState
+                                    .frame(maxWidth: .infinity)
+                                    // Centred in what a person can actually see,
+                                    // rather than nudged down the page by a typed
+                                    // 60. The three of these sat in the top third
+                                    // with the rest of the screen empty under them;
+                                    // the height is the scroll view's own, less the
+                                    // clearance the floating bar takes out of it.
+                                    .containerRelativeFrame(.vertical, alignment: .center) { height, _ in
+                                        height - Layout.tabBarInset
+                                    }
                             }
                         }
                     }
@@ -401,6 +500,19 @@ struct TableFeedView: View {
                 .task {
                     guard !hasLooked else { return }
                     hasLooked = true
+                    switch reviewState {
+                    case .empty:
+                        reach = .reached
+                        return
+                    case .loading:
+                        reach = .looking
+                        return
+                    case .error:
+                        reach = .unreachable
+                        return
+                    case .standard:
+                        break
+                    }
                     // Seed the ledger from the fields that used to hold
                     // this, once, before anything reads it.
                     TableReactions.backfill(posts, context: context)
@@ -411,6 +523,16 @@ struct TableFeedView: View {
                     // real id is an account switch, not a rename. The copy
                     // that used to live here moved the ledger and the outbox
                     // and left the household rows behind.
+                    //
+                    // Design Review runs on an in-memory household. Crossing
+                    // this boundary would replace its local identity with the
+                    // simulator's real CloudKit identity while the shell is
+                    // deciding who owns the head seat, creating a duplicate
+                    // organizer in the very fixture meant to audit trust.
+                    if PlatedApp.usesPreviewContainer {
+                        reach = .reached
+                        return
+                    }
                     _ = await TableIdentity.confirmAndReattribute(in: context)
                     await refreshFeed()
                 }
@@ -430,6 +552,9 @@ struct TableFeedView: View {
                 .onReceive(NotificationCenter.default.publisher(for: LinkRelay.postRequested)) { _ in
                     openRequestedPost()
                 }
+                .onChange(of: scopeIsMeaningful) { _, meaningful in
+                    if !meaningful { scope = .everyone }
+                }
             }
             .background(Color.canvas)
             .toolbar(.hidden, for: .navigationBar)
@@ -442,13 +567,9 @@ struct TableFeedView: View {
                 PersonProfileView(personName: person.name, colorHex: person.colorHex, memberID: person.memberID)
                     .navigationTransition(.zoom(sourceID: personDoor, in: zoom))
             }
-            // Discover and Activity both read as pushed screens — they wear
-            // the back chevron — so they are, and they inherit the edge swipe
-            // with the rest.
             .navigationDestination(item: $pushed) { destination in
                 switch destination {
-                case .activity: NotificationsView()
-                case .discover: DiscoverView()
+                case .activity: NotificationsView(homeTab: .table)
                 }
             }
         }
@@ -475,19 +596,37 @@ struct TableFeedView: View {
             }
         }
         .confirmationDialog(
-            pendingDelete.map { $0.dishTitle.isEmpty ? "Delete this post?" : "Delete \($0.dishTitle)?" }
-                ?? "Delete this post?",
-            isPresented: Binding(get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } }),
+            actionDialogTitle,
+            isPresented: Binding(
+                get: { pendingDelete != nil || safetyDialog != nil },
+                set: {
+                    if !$0 {
+                        pendingDelete = nil
+                        safetyDialog = nil
+                    }
+                }
+            ),
             titleVisibility: .visible
         ) {
             if let post = pendingDelete {
                 Button("Delete", role: .destructive) { deletePost(post) }
                 Button("Cancel", role: .cancel) {}
+            } else if let safetyDialog {
+                switch safetyDialog {
+                case .report(let target):
+                    ForEach(ContentSafety.ReportReason.allCases) { reason in
+                        Button(reason.rawValue) { report(target, because: reason) }
+                    }
+                    Button("Cancel", role: .cancel) {}
+                case .block(let author):
+                    Button("Block \(author.label)", role: .destructive) {
+                        block(author)
+                    }
+                    Button("Cancel", role: .cancel) {}
+                }
             }
         } message: {
-            // "Everyone" is now a promise the code keeps. It used to delete
-            // the local row only, and the post came back on the next pull.
-            Text("It comes off the table for everyone. The photo and comments go too.")
+            Text(actionDialogMessage)
         }
         // See TabPopRequest: tapping Table while a thread or a profile is
         // pushed returns to the feed.
@@ -497,21 +636,26 @@ struct TableFeedView: View {
             personShown = nil
             pushed = nil
         }
+        .onChange(of: activeAppTab) { _, _ in updateFeedPresence() }
+        .onChange(of: threadPost) { _, _ in updateFeedPresence() }
+        .onChange(of: personShown) { _, _ in updateFeedPresence() }
+        .onChange(of: pushed) { _, _ in updateFeedPresence() }
         .onAppear {
             // While the feed is in front, a banner about a new dish would
             // point at what is already on screen. See NotificationRouter.
             openRequestedPost()
+            updateFeedPresence()
             #if DEBUG
-            if LaunchFlags.consume("-plated-open-discover") {
-                pushed = .discover
-            }
             if LaunchFlags.consume("-plated-open-seats") {
                 seatsPresented = true
             }
             if LaunchFlags.consume("-plated-open-thread") {
-                threadPost = realPosts.first { $0.kind == "dish" }
+                threadPost = visiblePosts.first { $0.kind == "dish" }
             }
             #endif
+        }
+        .onDisappear {
+            if Presence.shared.feedVisible { Presence.shared.feedVisible = false }
         }
         .overlay(alignment: .bottom) {
             if let toast = savedToast {
@@ -520,7 +664,7 @@ struct TableFeedView: View {
                     .foregroundStyle(Color.canvas)
                     .padding(.horizontal, 18)
                     .frame(minHeight: 40)
-                    .background(Color.ink, in: Capsule())
+                    .background(Color.ink, in: Radius.shape(Radius.chip))
                     // The perch occupies 84…134; a hand-typed 100 put a long
                     // toast underneath it. The last bottom inset on the
                     // branch that hadn't gone through the token family the
@@ -528,6 +672,91 @@ struct TableFeedView: View {
                     .padding(.bottom, Layout.floatingChromeInset)
                     .transition(.plRise)
             }
+        }
+    }
+
+    private func updateFeedPresence() {
+        Presence.shared.feedVisible = activeAppTab == .table
+            && threadPost == nil && personShown == nil && pushed == nil
+    }
+
+    private var actionDialogTitle: String {
+        if let post = pendingDelete {
+            return post.dishTitle.isEmpty ? "Delete this post?" : "Delete \(post.dishTitle)?"
+        }
+        switch safetyDialog {
+        case .report(let target):
+            return "Why are you reporting this \(target.kind.rawValue)?"
+        case .block(let author):
+            return "Block \(author.label)?"
+        case nil:
+            return ""
+        }
+    }
+
+    private var actionDialogMessage: String {
+        if pendingDelete != nil {
+            // "Everyone" is now a promise the code keeps. It used to delete
+            // the local row only, and the post came back on the next pull.
+            return "It comes off the table for everyone. The photo and comments go too."
+        }
+        switch safetyDialog {
+        case .report:
+            return "Plated opens a private email with the reason and opaque references only. The post, comments and photos are not included."
+        case .block:
+            return "Their posts and comments disappear on this device. They are not notified, and you can unblock them from People."
+        case nil:
+            return ""
+        }
+    }
+
+    private func report(_ target: ContentSafety.ReportTarget, because reason: ContentSafety.ReportReason) {
+        safetyDialog = nil
+        guard let url = contentSafety.reportURL(for: target, reason: reason) else {
+            Haptic.warn()
+            showToast("Couldn't prepare the report email")
+            return
+        }
+        Haptic.tap()
+        openURL(url)
+    }
+
+    private func block(_ author: ContentSafety.Author) {
+        safetyDialog = nil
+        guard contentSafety.block(
+            author,
+            currentIdentityIDs: currentIdentityIDs,
+            currentDisplayNames: currentDisplayNames
+        ) else { return }
+        WidgetBridge.publish(from: context)
+        AppBadge.sync(context)
+        let message = "\(author.firstName)'s posts and comments are hidden"
+        showToast(message)
+    }
+
+    private func author(for post: TablePost) -> ContentSafety.Author {
+        ContentSafety.Author(identity: post.authorID, displayName: post.authorName)
+    }
+
+    private func canBlock(_ post: TablePost) -> Bool {
+        contentSafety.canBlock(
+            author(for: post),
+            currentIdentityIDs: currentIdentityIDs,
+            currentDisplayNames: currentDisplayNames
+        )
+    }
+
+    private func canReport(_ post: TablePost) -> Bool {
+        contentSafety.canReport(
+            author(for: post),
+            currentIdentityIDs: currentIdentityIDs,
+            knownToBeSelf: isMine(post)
+        )
+    }
+
+    private func visibleComments(for post: TablePost) -> [TableComment] {
+        post.sortedComments.filter {
+            !contentSafety.isBlocked(authorID: $0.authorID, authorName: $0.authorName)
         }
     }
 
@@ -564,184 +793,158 @@ struct TableFeedView: View {
 
     // MARK: Header
 
-    /// Past this the title and three trailing controls cannot share a line
-    /// — measured at AX3 the title broke mid-word ("The / Tabl / e"), HOST
-    /// wrapped to "HO / ST", and the seat chip collapsed to "…". Home's
-    /// masthead grew this same fallback on this branch; the Table has three
-    /// trailing controls to Home's three and needed it just as much.
-    private var hugeType: Bool { typeSize >= .accessibility1 }
-
     @ViewBuilder
     private var header: some View {
         PlatedMasthead(title: "The Table", titleBelowTools: true) {
             HStack(spacing: 8) {
                 ActivityBellButton(size: 44, accessibilityID: "table-notifications-bell") { pushed = .activity }
-                DesignIconButton(symbol: "plus", label: "Share a dish or question", accent: true) { composerShown = true }
                 AccountButton()
             }
         }
     }
 
-    private var headerTitle: some View {
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 6) {
-                    Image(systemName: "lock")
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundStyle(Color.inkFaint)
-                    MicroLabel("\(seatCount) \(seatCount == 1 ? "person" : "people") · Invite only")
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.7)
-                }
-                Text("The Table")
-                    .plType(.display)
-                    .foregroundStyle(Color.ink)
-                    // One line at ordinary sizes; only huge type may wrap,
-                    // and never mid-word.
-                    .lineLimit(hugeType ? 2 : 1)
-                    .minimumScaleFactor(hugeType ? 1 : 0.8)
-                    .fixedSize(horizontal: false, vertical: hugeType)
-            }
-            .layoutPriority(1)
-    }
-
-    @ViewBuilder
-    private var headerControls: some View {
-            // Sparkles, not a magnifying glass: Discover is finding dishes
-            // worth plating, not searching a catalogue, and a search glyph
-            // promised a filter that this button never opened.
-            IconDiscButton(systemName: "sparkles", label: "Discover", glyphSize: 15) {
-                pushed = .discover
-            }
-            ActivityBellButton {
-                pushed = .activity
-            }
-            // The seats at your table — tap to see, message, and manage them.
-            Button {
-                Haptic.tap()
-                seatsPresented = true
-            } label: {
-                HStack(spacing: -8) {
-                    // The "+N" chip was drawn unconditionally with a
-                    // `max(..., 1)` floor, so a table of one showed a tomato
-                    // "+1" beside the host: a badge announcing a person who
-                    // does not exist, on the first screen every new user
-                    // sees. It is an overflow marker, so it appears only
-                    // when something has actually overflowed.
-                    let others = Array(members.filter { !$0.isMe }.prefix(2))
-                    ForEach(others, id: \.persistentModelID) { member in
-                        AvatarCircle(member: member, size: 34)
-                            .overlay(Circle().strokeBorder(Color.canvas, lineWidth: 2))
+    /// The privacy promise and its audience are one compact door. It stays
+    /// above the feed because trust must be visible, but it may not consume
+    /// the first screen before a single person or dish appears.
+    private var tableContextBar: some View {
+        Button {
+            Haptic.tap()
+            seatsPresented = true
+        } label: {
+            Group {
+                if typeSize.isAccessibilitySize {
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack(alignment: .top, spacing: 12) {
+                            tablePrivacyIcon
+                            tablePrivacySummary
+                        }
+                        tablePeopleLabel
+                            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                     }
-                    let hidden = seatCount - 1 - others.count
-                    if hidden > 0 {
-                        AvatarCircle(initials: "+\(hidden)", tone: .tomatoPair, size: 34)
-                            .overlay(Circle().strokeBorder(Color.canvas, lineWidth: 2))
-                    } else if others.isEmpty {
-                        // Nobody else yet. An empty cluster would leave the
-                        // control invisible, and the thing you want here is
-                        // not a count, it is a way to ask somebody.
-                        Circle()
-                            .strokeBorder(Color.hairlineDashed, style: StrokeStyle(lineWidth: 1.5, dash: [4, 4]))
-                            .frame(width: 34, height: 34)
-                            .overlay {
-                                Image(systemName: "plus")
-                                    .font(.system(size: 13, weight: .bold))
-                                    .foregroundStyle(Color.inkFaint)
-                            }
+                    .padding(.vertical, 12)
+                } else {
+                    HStack(spacing: 12) {
+                        tablePrivacyIcon
+                        tablePrivacySummary
+                        tablePeopleLabel
+                            .frame(minHeight: 38)
                     }
                 }
-                .frame(minHeight: 44)
-                .contentShape(Rectangle())
             }
-            .buttonStyle(.pressable)
-            .accessibilityLabel("Everyone at the Table")
-            .plChrome()
+            .padding(.horizontal, 12)
+            .frame(minHeight: 64)
+            .contentShape(Radius.shape(Radius.card))
+        }
+        .buttonStyle(.pressable)
+        .background(Color.fill, in: Radius.shape(Radius.card))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(
+            seatCount == 1
+                ? "Private to your Table. Just you for now."
+                : "Private to your Table. Invite only. \(seatCount.things("person", "people"))."
+        )
+        .accessibilityHint("Shows who can see posts")
+    }
 
-            // The host's own door, the same one the plan and home offer.
-            Button {
-                Haptic.tap()
-                openOwnProfile()
-            } label: {
-                VStack(spacing: 2) {
-                    AvatarCircle(initials: hostInitial, tone: .neutralPair, size: 38,
-                                 photo: members.me?.photoData)
-                        .matchedTransitionSource(id: ZoomID.host, in: zoom)
-                    // The label is a fact about the row, not the corner: on
-                    // a member's phone the face in this corner is theirs and
-                    // the host is somebody else.
-                    Text(members.me?.isOwner == false ? "YOU" : "HOST")
-                        .plType(.micro)
-                        .foregroundStyle(Color.inkSecondary)
-                        // One line, always. This sits in a squeezed masthead
-                        // HStack, so at XXXL it wrapped and broke the word
-                        // across two lines: "HO" over "ST".
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.7)
+    private var tablePrivacyIcon: some View {
+        Image(systemName: "lock.fill")
+            .font(.system(size: 13, weight: .bold))
+            .foregroundStyle(Color.basil)
+            .frame(width: 34, height: 34)
+            .background(Color.basilTint, in: Circle())
+            .accessibilityHidden(true)
+    }
+
+    private var tablePrivacySummary: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text("Private to your Table")
+                .plType(.footnote, .bold)
+                .foregroundStyle(Color.ink)
+            Text(seatCount == 1
+                 ? "Just you for now"
+                 : "Invite only · \(seatCount.things("person", "people"))")
+                .plType(.caption)
+                .foregroundStyle(Color.inkSecondary)
+        }
+        .fixedSize(horizontal: false, vertical: true)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var tablePeopleLabel: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "person.2")
+                .font(.system(size: 13, weight: .semibold))
+            Text("People")
+                .plType(.caption, .bold)
+                .plActionLabel()
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .foregroundStyle(Color.ink)
+        .padding(.horizontal, 12)
+        .background(Color.raisedFill, in: Radius.shape(Radius.chip))
+        .overlay(Radius.shape(Radius.chip).strokeBorder(Color.navHairline))
+    }
+
+    private var refreshProblemBar: some View {
+        Group {
+            if typeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: 8) {
+                    refreshProblemMessage
+                    refreshRetryButton
                 }
-                // A 38pt avatar is a 38pt target; the law says 44. Home's
-                // copy of this control already had the frame.
-                .plTapTarget()
+                .padding(.vertical, 8)
+            } else {
+                HStack(spacing: 10) {
+                    refreshProblemMessage
+                    refreshRetryButton
+                }
             }
-            .buttonStyle(.pressable)
-            .accessibilityLabel("Your profile")
-            .plDiscAligned(38)
-            // Home's identical control has carried this since plChrome was
-            // written. The Table's did not, so at AX5 the host avatar and
-            // its HOST label kept growing while every other masthead in the
-            // app held.
-            .plChrome()
+        }
+        .padding(.horizontal, 12)
+        .frame(minHeight: 48)
+        .background(Color.fill, in: Radius.shape(Radius.chip))
     }
 
-    private var hostInitial: String {
-        String(members.me?.name.first ?? "Y").uppercased()
+    private var refreshProblemMessage: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
+            Image(systemName: "icloud.slash")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(Color.inkSecondary)
+                .accessibilityHidden(true)
+            Text("Couldn't refresh. Showing what's on this iPhone.")
+                .plType(.caption, .semibold)
+                .foregroundStyle(Color.inkSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
     }
 
-    private func openOwnProfile() {
-        let me = members.me
-        personDoor = .host
-        personShown = PersonRef(name: me?.name ?? "You", colorHex: me?.colorHex ?? "", memberID: me?.persistentModelID)
+    private var refreshRetryButton: some View {
+        Button("Retry") {
+            Haptic.tap()
+            reach = .looking
+            Task { await refreshFeed() }
+        }
+            .plType(.caption, .bold)
+            .plActionLabel()
+            .foregroundStyle(Color.ink)
+            .plTapTarget()
     }
 
-    /// Everyone or just the household — the X-style split, quiet edition.
+    /// All joined tables or just the household — a quiet two-way scope.
     /// The raised pill SLIDES between options (one shared identity), it
     /// doesn't blink out and reappear.
     private var scopePicker: some View {
-        HStack(spacing: 0) {
-            ForEach(FeedScope.allCases, id: \.self) { option in
-                let active = scope == option
-                Button {
-                    Haptic.select()
-                    withAnimation(.plSnap) { scope = option }
-                } label: {
-                    Text(option.rawValue)
-                        .plType(.footnote, .bold)
-                        .plActionLabel()
-                        .foregroundStyle(active ? Color.ink : Color.inkSecondary)
-                        .frame(maxWidth: .infinity)
-                        .frame(minHeight: 40)
-                        .contentShape(Capsule())
-                        .background {
-                            if active {
-                                Capsule()
-                                    .fill(Color.raisedFill)
-                                    .overlay(Capsule().strokeBorder(Color.navHairline))
-                                    .plTileShadow()
-                                    .matchedGeometryEffect(id: "scopePill", in: scopePill)
-                            }
-                        }
-                }
-                .buttonStyle(.pressable)
-                .accessibilityAddTraits(active ? .isSelected : [])
-            }
-        }
-        .padding(2)
-        .background(Color.hairlineSoft, in: Capsule())
+        EditorialSegments(options: FeedScope.allCases, selection: $scope,
+                          label: { $0.rawValue }, stacked: typeSize.isAccessibilitySize)
+            .accessibilityLabel("Table audience")
     }
 
     // MARK: Cards
 
     private func postCard(_ post: TablePost) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
+        let comments = visibleComments(for: post)
+        return VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 10) {
                 Button {
                     openProfile(post)
@@ -792,8 +995,12 @@ struct TableFeedView: View {
                         }
                     }
                     .contentShape(Rectangle())
+                    .frame(minHeight: 44)
                 }
                 .buttonStyle(.pressable)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(authorAccessibilityLabel(post))
+                .accessibilityHint("Shows \(post.firstName)'s profile")
                 Spacer()
                 // The overflow, where every social app puts it: trailing
                 // edge of the byline row, on the avatar's centreline.
@@ -813,7 +1020,7 @@ struct TableFeedView: View {
                         .foregroundStyle(Color.inkSecondary)
                         .plTapTarget()
                 }
-                .accessibilityLabel("More")
+                .accessibilityLabel("More options for \(postAccessibilityName(post))")
             }
             .padding(.bottom, 10)
 
@@ -826,6 +1033,12 @@ struct TableFeedView: View {
                         PhotoWell(image: image, clamped: true)
                     }
                     .buttonStyle(.pressable)
+                    .accessibilityLabel(
+                        post.dishTitle.isEmpty
+                            ? "Open dish by \(post.authorName)"
+                            : "Open \(post.dishTitle) by \(post.authorName)"
+                    )
+                    .accessibilityHint("Opens the post")
                     // Double-tap plates it, add-only, the way Instagram and
                     // Messages both do: a second double-tap is a no-op and
                     // the button in the row below stays the only way to
@@ -928,69 +1141,7 @@ struct TableFeedView: View {
                 }
                 .buttonStyle(.pressable)
             }
-
-
-            HStack(spacing: 14) {
-                plateButton(post)
-                Button {
-                    openThread(post)
-                } label: {
-                    HStack(spacing: 7) {
-                        // 20pt semibold, matched to PlateReactionGlyph's
-                        // stroke rather than to its own idea of a size. The
-                        // three controls on this row were a 26pt hand-drawn
-                        // glyph with a 2pt rim, an 18pt medium symbol and a
-                        // 14pt semibold one: three optical weights on one
-                        // baseline, where Instagram's row is one.
-                        Image(systemName: "bubble.right")
-                            .accessibilityLabel("Comments")
-                            .font(.system(size: 20, weight: .semibold))
-                            .foregroundStyle(Color.inkSecondary)
-                        // Same rule as the plate: the count is evidence, not
-                        // furniture. The "Add a comment" row below already
-                        // carries the invitation, so nothing is lost.
-                        if !post.sortedComments.isEmpty {
-                            Text("\(post.sortedComments.count)")
-                                .plType(.body, .bold)
-                                .foregroundStyle(Color.inkSecondary)
-                        }
-                    }
-                    .frame(minHeight: 44)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.pressable)
-                Spacer()
-                // Save belongs with the things you do to a dish, not up
-                // beside the byline where every feed ever built puts
-                // follow and more. Same row as the plate and the
-                // comments, trailing edge, the way a bookmark sits.
-                // One control in both states, not two. An `if/else` swaps
-                // SwiftUI's identity, so the bookmark was torn down and
-                // rebuilt and no transition could survive it. It also left
-                // a saved dish with a dead-looking label where a control
-                // had been — `beginSave` already answers a second tap with
-                // "Already in your cookbook", which is a better reply than
-                // nothing happening.
-                let saved = isSaved(post)
-                Button {
-                    beginSave(post)
-                } label: {
-                    HStack(spacing: 5) {
-                        Image(systemName: saved ? "bookmark.fill" : "bookmark")
-                            .font(.system(size: 20, weight: .semibold))
-                            .contentTransition(.symbolEffect(.replace.magic(fallback: .replace.downUp)))
-                        Text(saved ? "Saved" : "Save")
-                            .plType(.footnote, .bold)
-                            .plActionLabel()
-                    }
-                    .foregroundStyle(Color.inkSecondary)
-                    .frame(minHeight: 44)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.pressable)
-                .accessibilityLabel(saved ? "Saved to your cookbook" : "Save")
-                .accessibilityHint(saved ? "" : "Opens the recipe so you can make it yours")
-            }
+            postActions(post)
             .padding(.top, 10)
             .animation(.plSnap, value: isSaved(post))
             // The newest two, not the oldest two. `sortedComments` is
@@ -999,15 +1150,15 @@ struct TableFeedView: View {
             // busy the thread got. Instagram previews the most recent,
             // and in a table of eight the line that just changed is the
             // whole point.
-            ForEach(post.sortedComments.suffix(2), id: \.persistentModelID) { comment in
+            ForEach(comments.suffix(2), id: \.persistentModelID) { comment in
                 commentLine(comment)
             }
 
             Button {
-                openThread(post, writing: post.sortedComments.count <= 2)
+                openThread(post, writing: comments.count <= 2)
             } label: {
-                Text(post.sortedComments.count > 2
-                     ? "See all \(post.sortedComments.count) comments"
+                Text(comments.count > 2
+                     ? "See all \(comments.count) comments"
                      : "Add a comment")
                     .plType(.caption, .semibold)
                     .plActionLabel(0.72)
@@ -1067,6 +1218,26 @@ struct TableFeedView: View {
                 Label("See \(post.firstName)'s profile", systemImage: "person")
             }
         }
+        let reportAllowed = canReport(post)
+        let blockAllowed = canBlock(post)
+        if reportAllowed || blockAllowed {
+            Section {
+                if reportAllowed {
+                    Button {
+                        safetyDialog = .report(.post(post))
+                    } label: {
+                        Label("Report post", systemImage: "exclamationmark.bubble")
+                    }
+                }
+                if blockAllowed {
+                    Button(role: .destructive) {
+                        safetyDialog = .block(author(for: post))
+                    } label: {
+                        Label("Block \(post.firstName)", systemImage: "person.slash")
+                    }
+                }
+            }
+        }
         if isMine(post) {
             // Your own post's actions, in their own section. A menu that
             // mixes "see Nate's profile" with "delete Nate's post" while
@@ -1093,20 +1264,28 @@ struct TableFeedView: View {
         recipes.contains { $0.originID == post.originKey }
     }
 
-    /// First names bridge authors and household members until real user IDs
-    /// exist — the same rule `seatCount` uses.
     private func isMine(_ post: TablePost) -> Bool {
-        // Anything that arrived over the share belongs to whoever wrote it,
-        // whatever they are called. Without this a guest who happens to share
-        // the host's first name is offered Delete on the host's own dish —
-        // the same name-keying trap the swipe rows hit, and the reason posts
-        // now carry an origin and not just a byline.
-        // An id when there is one, a first name only as the fallback it
-        // always was. Two people called Sam broke this in about six places.
-        if !post.authorID.isEmpty { return post.authorID == TableIdentity.cached }
-        guard !post.isRemote else { return false }
-        guard let me = members.me?.name else { return false }
-        return post.authorName == me || post.firstName == me
+        TableMutationAuthorization.owns(
+            post: post,
+            identityIDs: currentIdentityIDs,
+            displayNames: currentDisplayNames
+        )
+    }
+
+    private var currentIdentityIDs: [String] {
+        [TableIdentity.cached, members.me?.participantID, members.me?.userRecordName]
+            .compactMap { $0 }
+    }
+
+    private var currentDisplayNames: [String] {
+        let typed = UserDefaults.standard.string(forKey: "userFirstName")
+        return [members.me?.name, typed].compactMap { $0 }
+    }
+
+    private var reactionAuthorName: String {
+        members.me?.name
+            ?? UserDefaults.standard.string(forKey: "userFirstName")
+            ?? ""
     }
 
     /// The record first, the row second.
@@ -1123,6 +1302,13 @@ struct TableFeedView: View {
     /// so, because a delete that half happened is worse than one that did
     /// not: DESIGN.md's rule is that state is recorded, never asserted.
     private func deletePost(_ post: TablePost) {
+        // The menu was authorized when it was drawn; the account may have
+        // changed before confirmation. Never let a stale dialog cross the
+        // destructive boundary.
+        guard isMine(post) else {
+            pendingDelete = nil
+            return
+        }
         let recordName = post.shareRecordName
         let zoneOwner = post.shareZoneOwner
         pendingDelete = nil
@@ -1132,14 +1318,18 @@ struct TableFeedView: View {
                 showToast("Couldn't reach iCloud. The post is still on the table.")
                 return
             }
+            // CloudKit awaited outside the UI transaction. Re-check before
+            // touching the local store for the same stale-account reason.
+            guard isMine(post) else { return }
             Haptic.plate()
             withAnimation(.plSnap) { context.delete(post) }
-            Persist.save(context)
+            Persist.save(context, "delete table post")
         }
     }
 
     private func askCard(_ post: TablePost) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
+        let comments = visibleComments(for: post)
+        return VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 10) {
                 Button {
                     openProfile(post)
@@ -1180,8 +1370,12 @@ struct TableFeedView: View {
                         }
                     }
                     .contentShape(Rectangle())
+                    .frame(minHeight: 44)
                 }
                 .buttonStyle(.pressable)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(authorAccessibilityLabel(post))
+                .accessibilityHint("Shows \(post.firstName)'s profile")
                 Spacer()
                 MicroLabel(post.hasPoll ? "Poll" : "Ask")
                 // The same overflow the dish cards carry. An ask is a post
@@ -1194,7 +1388,7 @@ struct TableFeedView: View {
                         .foregroundStyle(Color.inkSecondary)
                         .plTapTarget()
                 }
-                .accessibilityLabel("More")
+                .accessibilityLabel("More options for \(postAccessibilityName(post))")
             }
             Button {
                 openThread(post)
@@ -1211,7 +1405,7 @@ struct TableFeedView: View {
                             Text("\(post.pollOptions.count.things("choice")) · \(post.totalPollVotes.things("vote"))")
                                 .plType(.micro)
                         }
-                        .foregroundStyle(Color.basil)
+                        .foregroundStyle(Color.completion)
                     }
                 }
                 .padding(14)
@@ -1223,18 +1417,18 @@ struct TableFeedView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.pressable)
-            ForEach(post.sortedComments.suffix(2), id: \.persistentModelID) { comment in
+            ForEach(comments.suffix(2), id: \.persistentModelID) { comment in
                 commentLine(comment)
             }
             Button {
-                openThread(post, writing: post.sortedComments.count <= 2)
+                openThread(post, writing: comments.count <= 2)
             } label: {
-                // The same branch the dish card already has, worded for
-                // an ask. This always said "Suggest a dish", so a question
-                // with five answers on it looked exactly like one with none.
-                Text(post.sortedComments.count > 2
-                     ? "See all \(post.sortedComments.count) suggestions"
-                     : "Suggest a dish")
+                // Questions can be broader than dinner suggestions. "Reply"
+                // stays true for a recipe link, a vote explanation, or a
+                // simple answer.
+                Text(comments.count > 2
+                     ? "See all \(comments.count) replies"
+                     : "Add a reply")
                     .plType(.caption, .semibold)
                     .plActionLabel(0.72)
                     .foregroundStyle(Color.inkSecondary)
@@ -1259,9 +1453,87 @@ struct TableFeedView: View {
         }
         .padding(.horizontal, 14)
         .frame(minHeight: 36)
-        .background(Color.canvas, in: Capsule())
-        .overlay(Capsule().strokeBorder(Color.navHairline))
+        .background(Color.canvas, in: Radius.shape(Radius.chip))
+        .overlay(Radius.shape(Radius.chip).strokeBorder(Color.navHairline))
         .plCardShadow()
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Chef's kiss")
+    }
+
+    /// Three useful controls cannot remain one horizontal sentence once each
+    /// word is several times its default size. Give every action the full row
+    /// at accessibility sizes; the compact social row remains unchanged.
+    @ViewBuilder
+    private func postActions(_ post: TablePost) -> some View {
+        if typeSize.isAccessibilitySize {
+            VStack(alignment: .leading, spacing: 0) {
+                plateButton(post)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                commentsButton(post)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                saveButton(post)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        } else {
+            HStack(spacing: 14) {
+                plateButton(post)
+                commentsButton(post)
+                Spacer()
+                saveButton(post)
+            }
+        }
+    }
+
+    private func commentsButton(_ post: TablePost) -> some View {
+        let comments = visibleComments(for: post)
+        return Button {
+            openThread(post)
+        } label: {
+            HStack(spacing: 7) {
+                Image(systemName: "bubble.right")
+                    .font(.system(size: 20, weight: .semibold))
+                if typeSize.isAccessibilitySize {
+                    Text(comments.isEmpty
+                         ? "Comments"
+                         : comments.count.things("comment"))
+                        .plType(.footnote, .bold)
+                        .plActionLabel()
+                } else if !comments.isEmpty {
+                    Text("\(comments.count)")
+                        .plType(.body, .bold)
+                }
+            }
+            .foregroundStyle(Color.inkSecondary)
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.pressable)
+        .accessibilityLabel(comments.isEmpty
+                            ? "Comments"
+                            : comments.count.things("comment"))
+        .accessibilityHint("Opens the conversation")
+    }
+
+    private func saveButton(_ post: TablePost) -> some View {
+        let saved = isSaved(post)
+        return Button {
+            beginSave(post)
+        } label: {
+            HStack(spacing: 5) {
+                Image(systemName: saved ? "bookmark.fill" : "bookmark")
+                    .font(.system(size: 20, weight: .semibold))
+                    .contentTransition(.symbolEffect(.replace.magic(fallback: .replace.downUp)))
+                Text(saved ? "Saved" : "Save")
+                    .plType(.footnote, .bold)
+                    .plActionLabel()
+            }
+            .foregroundStyle(Color.inkSecondary)
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.pressable)
+        .accessibilityLabel(saved ? "Saved to your cookbook" : "Save")
+        .accessibilityHint(saved ? "" : "Opens the recipe so you can make it yours")
     }
 
     private func plateButton(_ post: TablePost) -> some View {
@@ -1270,6 +1542,12 @@ struct TableFeedView: View {
         } label: {
             HStack(spacing: 7) {
                 PlateReactionGlyph(filled: post.platedByMeNow)
+                if typeSize.isAccessibilitySize {
+                    Text(post.platedByMeNow ? "Plated" : "Plate")
+                        .plType(.footnote, .bold)
+                        .plActionLabel()
+                        .foregroundStyle(post.platedByMeNow ? Color.accentText : Color.inkSecondary)
+                }
                 // The numeral arrives with the first plate and not before.
                 // A mounted zero beside every dinner somebody cooked is not
                 // neutral in a room of eight people; it reads as a verdict
@@ -1280,7 +1558,7 @@ struct TableFeedView: View {
                 if post.totalPlates > 0 {
                     Text("\(post.totalPlates)")
                         .plType(.body, .bold)
-                        .foregroundStyle(post.platedByMeNow ? Color.tomato : Color.inkSecondary)
+                        .foregroundStyle(post.platedByMeNow ? Color.accentText : Color.inkSecondary)
                         .contentTransition(.numericText())
                 }
             }
@@ -1288,13 +1566,24 @@ struct TableFeedView: View {
             .plTapTarget()
         }
         .buttonStyle(.pressable)
+        .accessibilityLabel(post.platedByMeNow ? "Remove your plate" : "Plate this dish")
+        .accessibilityValue(post.totalPlates.things("plate"))
+        .accessibilityAddTraits(post.platedByMeNow ? .isSelected : [])
     }
 
     private func commentLine(_ comment: TableComment) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            (Text(comment.authorName).font(.jakarta(TypeScale.footnote.size, .bold)).foregroundStyle(Color.ink)
-             + Text("  ").font(.jakarta(TypeScale.footnote.size))
-             + Text(comment.text).font(.jakarta(TypeScale.footnote.size)).foregroundStyle(Color.inkSecondary))
+            (Text(comment.authorName)
+                .font(.custom(Font.SansWeight.bold.rawValue,
+                              size: TypeScale.footnote.size, relativeTo: .body))
+                .foregroundStyle(Color.ink)
+             + Text("  ")
+                .font(.custom(Font.SansWeight.regular.rawValue,
+                              size: TypeScale.footnote.size, relativeTo: .body))
+             + Text(comment.text)
+                .font(.custom(Font.SansWeight.regular.rawValue,
+                              size: TypeScale.footnote.size, relativeTo: .body))
+                .foregroundStyle(Color.inkSecondary))
                 .lineSpacing(2)
             if let url = URL.webLink(comment.linkURL) {
                 Link(destination: url) {
@@ -1304,11 +1593,11 @@ struct TableFeedView: View {
                         Text(comment.linkLabel)
                             .plType(.micro)
                     }
-                    .foregroundStyle(Color.tomato)
+                    .foregroundStyle(Color.accentText)
                     .padding(.horizontal, 12)
                     .frame(minHeight: 30)
-                    .background(Color.chipFill, in: Capsule())
-                    .overlay(Capsule().strokeBorder(Color.navHairline))
+                    .background(Color.chipFill, in: Radius.shape(Radius.chip))
+                    .overlay(Radius.shape(Radius.chip).strokeBorder(Color.navHairline))
                     .frame(minHeight: 44)
                     .contentShape(Rectangle())
                 }
@@ -1322,7 +1611,11 @@ struct TableFeedView: View {
     private func togglePlate(_ post: TablePost) {
         var turningOn = false
         withAnimation(.plPop) {
-            turningOn = TableReactions.togglePlate(post)
+            turningOn = TableReactions.togglePlate(
+                post,
+                context: context,
+                authorName: reactionAuthorName
+            )
         }
         if turningOn {
             post.hasChefsKiss(seats: seatCount) ? Haptic.kiss() : Haptic.plate()
@@ -1387,6 +1680,7 @@ struct TableFeedView: View {
     private func showToast(_ message: String) {
         // The confirmation reaches the hand as well as the eye.
         Haptic.tap()
+        AccessibilityNotification.Announcement(message).post()
         toastToken += 1
         let token = toastToken
         withAnimation(.plSnap) { savedToast = message }
@@ -1427,9 +1721,8 @@ struct TableFeedView: View {
     /// spelled out rather than applied. These are TypeScale.body's numbers;
     /// keep them in step with it.
     private func captionText(_ post: TablePost) -> some View {
-        (Text(post.authorName).font(.jakarta(TypeScale.body.size, .bold))
-         + Text("  ").font(.jakarta(TypeScale.body.size))
-         + Text(post.caption).font(.jakarta(TypeScale.body.size)))
+        Text(post.caption)
+            .plType(.body, .regular)
             .foregroundStyle(Color.ink)
             .lineSpacing(3)
     }
@@ -1443,6 +1736,10 @@ struct TableFeedView: View {
     /// "let me read this", and a keyboard over a thread you came to read is
     /// worse than no keyboard at all.
     private func openThread(_ post: TablePost, writing: Bool = false) {
+        guard !contentSafety.isBlocked(authorID: post.authorID, authorName: post.authorName) else {
+            showToast("This person's posts are hidden")
+            return
+        }
         Haptic.tap()
         threadStartsWriting = writing
         threadPost = post
@@ -1470,6 +1767,12 @@ struct TableFeedView: View {
     }
 
     private func open(_ post: TablePost) {
+        // Notification and universal-link requests can outlive the visible
+        // feed. They must honor the same local block as a card tap.
+        guard !contentSafety.isBlocked(authorID: post.authorID, authorName: post.authorName) else {
+            showToast("This person's posts are hidden")
+            return
+        }
         pushed = nil
         personShown = nil
         threadStartsWriting = false
@@ -1494,7 +1797,7 @@ struct TableFeedView: View {
 
 /// The plate reaction mark. At rest it is an actual plate — rim outside,
 /// well inside — so nobody mistakes it for an empty radio button; filled,
-/// it goes tomato with the well knocked out in canvas.
+/// it goes olive with the well knocked out in canvas.
 struct PlateReactionGlyph: View {
     var filled: Bool
     /// The count and badge shelves borrow this mark rather than reaching
@@ -1509,8 +1812,8 @@ struct PlateReactionGlyph: View {
     var body: some View {
         ZStack {
             Circle()
-                .strokeBorder(filled ? Color.tomato : tone, lineWidth: 2 * scale)
-                .background(Circle().fill(filled ? Color.tomato : Color.clear))
+                .strokeBorder(filled ? Color.olive : tone, lineWidth: 2 * scale)
+                .background(Circle().fill(filled ? Color.olive : Color.clear))
                 .frame(width: size, height: size)
             if filled {
                 Circle()
@@ -1537,7 +1840,11 @@ struct PlateReactionButton: View {
         Button {
             var turningOn = false
             withAnimation(.plPop) {
-                turningOn = TableReactions.togglePlate(post)
+                turningOn = TableReactions.togglePlate(
+                    post,
+                    context: context,
+                    authorName: members.me?.name
+                )
                 bounce = true
             }
             if turningOn {
@@ -1561,5 +1868,8 @@ struct PlateReactionButton: View {
                 .plTapTarget()
         }
         .buttonStyle(.pressable)
+        .accessibilityLabel(post.platedByMeNow ? "Remove your plate" : "Plate this dish")
+        .accessibilityValue(post.totalPlates.things("plate"))
+        .accessibilityAddTraits(post.platedByMeNow ? .isSelected : [])
     }
 }

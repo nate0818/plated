@@ -12,6 +12,13 @@ import AuthenticationServices
 /// asks them to invite their own people to a plan they are about to give
 /// up. Every other link is parked in `LinkRelay` for the shell.
 struct RootView: View {
+    private enum OnboardingReviewStep: Equatable {
+        case profile
+        case household
+        case tour
+        case shell
+    }
+
     @AppStorage("didSignIn") private var didSignIn = false
     /// The photo-and-name step. Its own flag rather than folded into
     /// `didSetTable`, so an existing install that already has a table is
@@ -32,6 +39,10 @@ struct RootView: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var splashDone = false
     @State private var appReady = false
+    /// Finishes a launch-argument tour preview without touching `sawTour`.
+    /// Reviewers can move on to the real shell, then relaunch to replay.
+    @State private var tourReviewDone = false
+    @State private var onboardingReviewStep: OnboardingReviewStep = .profile
     /// A household invitation that arrived before the table was set. Held
     /// here rather than parked in `LinkRelay`, because the shell must not
     /// route it a second time after onboarding has already answered it.
@@ -50,7 +61,7 @@ struct RootView: View {
     /// and the next sign-in walks back into it. Wiping data on revocation
     /// would turn "I reset my Apple ID permissions" into "dinner is gone."
     private func recheckCredential() async {
-        guard !Self.designReview else { return }
+        guard !Self.designReview, !Self.tourReview, !Self.onboardingReview else { return }
         if didSignIn, await AppleIdentity.credentialInvalid() {
             AppleIdentity.clear()
             didSignIn = false
@@ -63,7 +74,7 @@ struct RootView: View {
     /// Without it, shipping the tour would hand every existing household a
     /// walkthrough of the app they were in the middle of using.
     private func carryTourForward() {
-        guard !Self.designReview else { return }
+        guard !Self.designReview, !Self.tourReview, !Self.onboardingReview else { return }
         let store = UserDefaults.standard
         guard store.object(forKey: "sawTour") == nil else { return }
         store.set(store.bool(forKey: "didSetTable"), forKey: "sawTour")
@@ -77,11 +88,82 @@ struct RootView: View {
         #endif
     }
 
+    /// A non-destructive route into the tour for screenshots and motion
+    /// review. Unlike resetting defaults, it cannot sign somebody out,
+    /// recreate their profile or make the real tour become owed again.
+    private static var tourReview: Bool {
+        #if DEBUG
+        ProcessInfo.processInfo.arguments.contains("-plated-review-tour")
+        #else
+        false
+        #endif
+    }
+
+    /// The complete post-sign-in walkthrough, backed only by local sample
+    /// state. It is deliberately a separate flag from the one-screen Tour
+    /// review so existing screenshot and UI-test launch arguments keep working.
+    private static var onboardingReview: Bool {
+        #if DEBUG
+        ProcessInfo.processInfo.arguments.contains("-plated-review-onboarding")
+        #else
+        false
+        #endif
+    }
+
+    /// Holds the launch opener in its settled state for a non-destructive
+    /// tagline capture, without changing the user's onboarding defaults.
+    private static var openerReview: Bool {
+        #if DEBUG
+        ProcessInfo.processInfo.arguments.contains("-plated-review-opener")
+        #else
+        false
+        #endif
+    }
+
+    private static var signInReview: Bool {
+        #if DEBUG
+        ProcessInfo.processInfo.arguments.contains("-plated-review-sign-in")
+        #else
+        false
+        #endif
+    }
+
     var body: some View {
         ZStack {
             Color.canvas.ignoresSafeArea()
 
-            if Self.designReview {
+            if Self.signInReview {
+                SignInView(onSignedIn: {})
+            } else if Self.openerReview {
+                LaunchOpenerView(ready: false, brief: false) {}
+            } else if Self.onboardingReview {
+                switch onboardingReviewStep {
+                case .profile:
+                    ProfileSetupView(reviewOnly: true) {
+                        onboardingReviewStep = .household
+                    }
+                    .transition(.opacity)
+                case .household:
+                    ContactsView(reviewOnly: true) {
+                        onboardingReviewStep = .tour
+                    }
+                    .transition(.opacity)
+                case .tour:
+                    TourView { onboardingReviewStep = .shell }
+                        .transition(.opacity)
+                case .shell:
+                    MainShellView()
+                        .transition(.opacity)
+                }
+            } else if Self.tourReview {
+                if tourReviewDone {
+                    MainShellView()
+                        .transition(.opacity)
+                } else {
+                    TourView { tourReviewDone = true }
+                        .transition(.opacity)
+                }
+            } else if Self.designReview {
                 MainShellView()
             } else if !splashDone {
                 LaunchOpenerView(ready: appReady, brief: sawOpener) {
@@ -125,6 +207,8 @@ struct RootView: View {
         .animation(.plSettle, value: didSetProfile)
         .animation(.plSettle, value: didSetTable)
         .animation(.plSettle, value: sawTour)
+        .animation(.plSettle, value: tourReviewDone)
+        .animation(.plSettle, value: onboardingReviewStep)
         .animation(.plSettle, value: joinLink != nil)
         .onAppear(perform: carryTourForward)
         // The one door for every URL. Nothing else may add `onOpenURL`:

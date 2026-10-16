@@ -15,6 +15,7 @@ no third-party packages and this has to run on a fresh machine.
 
 Usage:
   scripts/asc builds                     list recent builds and their states
+  scripts/asc latest                     print the latest uploaded build number
   scripts/asc groups                     list beta groups and their builds
   scripts/asc distribute <build> [group] wait for processing, add to the group,
                                          submit for Beta App Review (default
@@ -62,12 +63,16 @@ def token() -> str:
 
 
 _TOKEN = None
+_TOKEN_REFRESH_AT = 0
 
 
 def call(method: str, path: str, body=None):
-    global _TOKEN
-    if _TOKEN is None:
+    global _TOKEN, _TOKEN_REFRESH_AT
+    if _TOKEN is None or time.time() >= _TOKEN_REFRESH_AT:
         _TOKEN = token()
+        # Tokens last 15 minutes; refresh early so a 45-minute processing
+        # wait can still add the finished build to its beta group.
+        _TOKEN_REFRESH_AT = time.time() + 14 * 60
     url = path if path.startswith("http") else API + path
     data = json.dumps(body).encode() if body is not None else None
     req = urllib.request.Request(url, data=data, method=method, headers={
@@ -101,7 +106,8 @@ def beta_detail(build_id: str):
 def groups():
     res = call("GET", f"/betaGroups?filter[app]={APP_ID}&include=builds"
                       "&fields[builds]=version"
-                      "&fields[betaGroups]=name,isInternalGroup,hasAccessToAllBuilds,publicLink,builds")
+                      "&fields[betaGroups]=name,isInternalGroup,hasAccessToAllBuilds,publicLink,builds"
+                      "&limit[builds]=200")
     versions = {b["id"]: b["attributes"]["version"] for b in res.get("included", [])}
     out = []
     for g in res["data"]:
@@ -123,6 +129,13 @@ def cmd_builds():
         state = beta_detail(b["id"])["attributes"]["externalBuildState"]
         flag = " EXPIRED" if a["expired"] else ""
         print(f"build {a['version']:>4}  {a['processingState']:<9} external={state}{flag}  {a['uploadedDate'][:16]}")
+
+
+def cmd_latest():
+    recent = builds(limit=1)
+    if not recent:
+        raise SystemExit("✗ no uploaded builds found")
+    print(recent[0]["attributes"]["version"])
 
 
 def cmd_groups():
@@ -183,6 +196,8 @@ def main(argv):
     cmd, args = argv[1], argv[2:]
     if cmd == "builds":
         cmd_builds()
+    elif cmd == "latest":
+        cmd_latest()
     elif cmd == "groups":
         cmd_groups()
     elif cmd == "distribute" and args:

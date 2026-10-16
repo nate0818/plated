@@ -71,8 +71,13 @@ enum AppleIdentity {
         return String(data: data, encoding: .utf8)
     }
 
+    /// Close the local identity boundary. Table blocks are a private choice by
+    /// one signed-in person, so they must not leak to whoever signs in next on
+    /// this device. Recipes and other CloudKit content remain untouched.
+    @MainActor
     static func clear() {
         Directory.clearSession()
+        ContentSafety.shared.reset()
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,

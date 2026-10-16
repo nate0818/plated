@@ -1,3 +1,5 @@
+> Historical exploration. Current tokens and components are documented in [the Plated design system](design-system.md); product rules live in [DESIGN.md](../DESIGN.md).
+
 # BUILD SHEET — Plated Home Screen, 4 Direction Mockups
 
 ## 0. Global rules (all four directions)

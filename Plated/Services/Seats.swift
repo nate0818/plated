@@ -63,7 +63,7 @@ enum Seats {
         if HouseholdShare.membership.owner != nil {
             let host = HouseholdShare.cachedOwnerName
                 .split(separator: " ").first.map(String.init) ?? ""
-            return "Only \(host.isEmpty ? "the host" : host) can invite people to this household."
+            return "Only \(host.isEmpty ? "the organizer" : "\(host), the organizer") can invite people to this household."
         }
         if let reason = prepared?.reason, !reason.isEmpty { return reason }
         return "Sign in to iCloud to send an invite link."
@@ -328,7 +328,7 @@ enum Seats {
     /// The short line a role earns. Never the seat: that is `subtitle`'s.
     static func roleLine(for role: String) -> String {
         switch role {
-        case "owner": return "Head of table"
+        case "owner": return "Organizer"
         case "partner": return "Partner"
         case "kid": return "Kid"
         default: return "Member"
@@ -1114,7 +1114,7 @@ enum Seats {
 
     /// A colour nobody at this table is already wearing. The old rule was
     /// `count % rotation.count`, which shifts every time somebody is
-    /// removed and lands the fourth person on the reserved tomato.
+    /// removed and lands the fourth person on the reserved olive.
     private static func nextTone(in context: ModelContext) -> String {
         let taken = Set(all(in: context).map(\.colorHex))
         return PersonTone.rotation.dropFirst().first { !taken.contains($0) }

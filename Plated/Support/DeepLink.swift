@@ -39,7 +39,9 @@ enum DeepLink: String {
     case table
     case grocery
     case cookbook
-    case prongsby
+    /// The active hands-free cooking session. Timer notifications use this
+    /// instead of dropping the cook at the app's front door.
+    case cook
     case home
     /// `plated://post?id=<record name>` — one dish's thread.
     case post

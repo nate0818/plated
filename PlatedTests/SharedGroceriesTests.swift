@@ -162,6 +162,62 @@ final class SharedGroceriesTests: XCTestCase {
         XCTAssertEqual(Set(beef?.sources.map(\.title) ?? []), ["Ragu", "Chilli"])
     }
 
+    func testRemoteIngredientEditChangesTheOpenGroceryRevision() {
+        let original = remote(title: "Chilli", day: 2, id: "theirs", lines: [
+            PlanShare.Line(name: "Beef mince", normalizedName: "beef mince",
+                           unit: "oz", quantity: 8,
+                           aisle: "Meat & Seafood", isPantryStaple: false)
+        ])
+        var edited = original
+        edited.lines?[0].quantity = 12
+
+        XCTAssertNotEqual(
+            GroceryListBuilder.remoteRevision([original]),
+            GroceryListBuilder.remoteRevision([edited]),
+            "a remote quantity edit must invalidate an already-open grocery list"
+        )
+    }
+
+    func testAHousematesNightIsPickableByItsStableShoppingID() {
+        let pantry = PlanShare.Line(
+            name: "Salt", normalizedName: "salt", unit: "tsp", quantity: 1,
+            aisle: "Pantry", isPantryStaple: true
+        )
+        let theirs = remote(title: "Chilli", day: 2, id: "theirs", lines: [pantry])
+
+        let choices = GroceryListBuilder.shoppingChoices(
+            meals: [], remote: [theirs],
+            from: Self.today, to: Self.day(7)
+        )
+
+        XCTAssertEqual(choices.map(\.id), ["theirs"])
+        XCTAssertEqual(choices.first?.remoteRecordName, theirs.recordName)
+        XCTAssertTrue(choices.first?.isRemote == true)
+    }
+
+    func testRemoteOnlyWindowStillCountsAsAPlanWhenPantryItemsAreHidden() {
+        let pantry = PlanShare.Line(
+            name: "Salt", normalizedName: "salt", unit: "tsp", quantity: 1,
+            aisle: "Pantry", isPantryStaple: true
+        )
+        let theirs = remote(title: "Chilli", day: 2, id: "theirs", lines: [pantry])
+
+        XCTAssertTrue(GroceryListBuilder.hasPlan(
+            meals: [], remote: [theirs],
+            from: Self.today, to: Self.day(7)
+        ))
+        XCTAssertEqual(
+            GroceryListBuilder(context: context)
+                .aggregate(
+                    nights: [.init(id: theirs.shoppingID, title: theirs.title,
+                                   date: theirs.date, lines: theirs.lines ?? [])],
+                    includePantryStaples: false
+                ).count,
+            0,
+            "the empty list should say ingredients are hidden, not that no plan exists"
+        )
+    }
+
     func testTheKeyAHousematesNightProducesIsTheKeyAMarkTravelsUnder() {
         // The whole reason the ingredients are canonicalised on the
         // author's phone: a mark is keyed on `GroceryMeasure.key`, so the

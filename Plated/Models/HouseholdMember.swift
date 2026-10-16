@@ -68,6 +68,13 @@ final class HouseholdMember {
     /// guarantees one. What there IS is a good path, and the monogram is the
     /// floor rather than the default. See `ProfilePhoto`.
     @Attribute(.externalStorage) var photoData: Data?
+    /// This person's profile cover, kept separate from the household cover.
+    /// Optional so existing seats migrate without replacing their family
+    /// banner or showing an invented personal photo.
+    @Attribute(.externalStorage) var profileBannerPhotoData: Data?
+    /// Per-field timestamp also distinguishes an intentional removal from
+    /// an older seat record that never had a personal banner.
+    var profileBannerPhotoModifiedAt: Date?
     var createdAt: Date = Date.now
 
     // MARK: Where they stand
@@ -172,7 +179,7 @@ final class HouseholdMember {
 
     /// Head of table, and nothing else. This gates what a host may do to
     /// other seats (Remove, Change role) and who carries the reserved
-    /// tomato. It does NOT mean "the person holding the phone": on a
+    /// olive. It does NOT mean "the person holding the phone": on a
     /// member's phone the head is somebody else. That is `isMe`.
     var isOwner: Bool { role == "owner" }
 
@@ -216,11 +223,11 @@ final class HouseholdMember {
     }
 
     /// The role as a person would say it. Not drawn on the reader's own
-    /// row: that line is locked copy ("You · Owner" / "You"), and
+    /// row: that line is locked copy ("You · Organizer" / "You"), and
     /// DESIGN.md forbids Head of table there.
     var roleTitle: String {
         switch role {
-        case "owner": return "Head of table"
+        case "owner": return "Organizer"
         case "partner": return "Partner"
         case "kid": return "Kid"
         default: return "Member"
@@ -263,7 +270,7 @@ final class HouseholdMember {
     /// A joined seat genuinely shares the plan, the list and the cookbook
     /// now (docs/household.md), so the sentence says what they can do, by
     /// role: a partner cooks, a kid or member sees. The reader's own row
-    /// is locked copy: household owner is "You · Owner", any other self
+    /// is locked copy: household organizer is "You · Organizer", any other self
     /// is "You". Head of table never prints here. Another host is Host.
     var subtitle: String {
         let line: String
@@ -271,7 +278,7 @@ final class HouseholdMember {
             line = HouseholdIdentity.PeopleCopy.selfSubtitle(isHouseholdOwner: isOwner)
         } else {
             switch seat {
-            case .head: line = "Host"
+            case .head: line = "Organizer"
             case .joined:
                 line = role == "partner" || role == "owner"
                     ? "Plans and cooks with you" : "Sees the plan with you"
@@ -291,7 +298,7 @@ final class HouseholdMember {
         if line.contains("Head of table") {
             return isMe
                 ? HouseholdIdentity.PeopleCopy.selfSubtitle(isHouseholdOwner: isOwner)
-                : "Host"
+                : "Organizer"
         }
         return line
     }

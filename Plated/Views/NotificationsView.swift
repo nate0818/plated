@@ -10,11 +10,14 @@ import SwiftData
 /// ago. The sentence is composed when it is drawn, so a person who renames
 /// themselves is called the new thing in last week's rows too.
 struct NotificationsView: View {
+    var homeTab: AppTab = .week
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.activeAppTab) private var activeAppTab
     @Query(sort: \PlatedNotification.createdAt, order: .reverse)
     private var notifications: [PlatedNotification]
     @Query(sort: \HouseholdMember.createdAt) private var members: [HouseholdMember]
+    @State private var contentSafety = ContentSafety.shared
 
     /// One row open at a time, same contract as the week's plan rows.
     @State private var swipedNote: PersistentIdentifier?
@@ -22,6 +25,12 @@ struct NotificationsView: View {
     /// The dish photographs, by post record, loaded once per visit rather
     /// than fetched on every body pass.
     @State private var thumbnails: [String: Data] = [:]
+
+    private var visibleNotifications: [PlatedNotification] {
+        notifications.filter { !contentSafety.hidesTableActivity($0) }
+    }
+
+    private var unreadCount: Int { visibleNotifications.lazy.filter { !$0.isRead }.count }
 
     /// The list in the order it is read. "New" is what is unread; the rest
     /// is read, on the Table's own ladder of days.
@@ -34,8 +43,8 @@ struct NotificationsView: View {
     private var groups: [Group] {
         let calendar = Calendar.current
         let weekAgo = Date.now.addingTimeInterval(-6 * 24 * 3600)
-        let unread = notifications.filter { !$0.isRead }
-        let read = notifications.filter(\.isRead)
+        let unread = visibleNotifications.filter { !$0.isRead }
+        let read = visibleNotifications.filter(\.isRead)
         var out: [Group] = []
         if !unread.isEmpty { out.append(Group(title: "New", rows: unread)) }
         let today = read.filter { calendar.isDateInToday($0.createdAt) }
@@ -54,7 +63,7 @@ struct NotificationsView: View {
                     dismiss()
                 }
                 VStack(alignment: .leading, spacing: 2) {
-                    MicroLabel("Recent")
+                    MicroLabel(unreadCount == 0 ? "Your Table" : unreadCount.things("new update"))
                     Text("Activity")
                         .plType(.display)
                         .foregroundStyle(Color.ink)
@@ -64,7 +73,7 @@ struct NotificationsView: View {
                 // described still happened, so this is clearing an inbox,
                 // not deleting anything. Asked once because there is no
                 // way back.
-                if !notifications.isEmpty {
+                if !visibleNotifications.isEmpty {
                     Button("Clear all") {
                         Haptic.tap()
                         clearAllAsked = true
@@ -80,16 +89,16 @@ struct NotificationsView: View {
             .padding(.bottom, 12)
             Divider().overlay(Color.hairlineSoft)
 
-            if notifications.isEmpty {
+            if visibleNotifications.isEmpty {
                 Spacer()
                 VStack(spacing: 8) {
                     Image(systemName: "bell")
                         .font(.system(size: 26, weight: .medium))
                         .foregroundStyle(Color.inkFaint)
-                    Text("Nothing yet")
+                    Text("All quiet at the Table")
                         .plType(.body, .bold)
                         .foregroundStyle(Color.ink)
-                    Text("What people plate, say and vote on lands here, and your cook reminders.")
+                    Text("New plates, replies, votes, and cook reminders will collect here.")
                         .plType(.footnote)
                         .foregroundStyle(Color.inkSecondary)
                         .multilineTextAlignment(.center)
@@ -111,18 +120,19 @@ struct NotificationsView: View {
                             }
                         }
                     }
-                    .padding(.bottom, Layout.floatingChromeInset)
+                    .padding(.bottom, Layout.focusedPageBottom)
                 }
             }
         }
         .background(Color.canvas)
         .toolbar(.hidden, for: .navigationBar)
         .plSwipeBack()
+        .hidesFloatingChrome()
         .confirmationDialog(
             "Clear all activity?", isPresented: $clearAllAsked, titleVisibility: .visible
         ) {
             Button("Clear all", role: .destructive) { clearAll() }
-            Button("Keep", role: .cancel) {}
+            Button("Keep activity", role: .cancel) {}
         } message: {
             Text("The list empties. Nothing at the Table changes.")
         }
@@ -130,21 +140,18 @@ struct NotificationsView: View {
             // Two devices, one event: keep one row. See TableNews.
             TableNews.dedupeRows(context)
             // Every row a banner would repeat is already on this screen.
-            Presence.shared.activityVisible = true
+            Presence.shared.activityVisible = activeAppTab == homeTab
             loadThumbnails()
         }
-        .onChange(of: notifications.count) { _, _ in loadThumbnails() }
-        .onDisappear {
-            Presence.shared.activityVisible = false
-            // Leaving the feed reads it — same contract as every inbox.
-            for note in notifications where !note.isRead {
-                note.isRead = true
+        .onChange(of: activeAppTab) { _, tab in
+            if tab == homeTab {
+                Presence.shared.activityVisible = true
+            } else {
+                finishReading()
             }
-            Persist.save(context, "activity read")
-            AppBadge.sync(context)
-            // Read here is read on the lock screen too.
-            Task { await TableNews.reconcileDelivered(context: context) }
         }
+        .onChange(of: notifications.count) { _, _ in loadThumbnails() }
+        .onDisappear { finishReading() }
     }
 
     private func row(_ note: PlatedNotification) -> some View {
@@ -182,6 +189,9 @@ struct NotificationsView: View {
             swipedNote = nil
             context.delete(note)
         }
+        Persist.save(context, "activity item cleared")
+        AppBadge.sync(context)
+        Task { await TableNews.reconcileDelivered(context: context) }
     }
 
     /// A row that knows where it came from opens it; a row that does not
@@ -195,7 +205,7 @@ struct NotificationsView: View {
             noteLine(note)
                 .onTapGesture {
                     Haptic.tap()
-                    note.isRead = true
+                    markRead(note)
                     LinkRelay.open(url)
                 }
                 .accessibilityAddTraits(.isButton)
@@ -209,11 +219,35 @@ struct NotificationsView: View {
     private func hint(for url: URL) -> String {
         switch DeepLink.destination(for: url) {
         case .post: return "Opens the dish"
-        case .home: return "Opens Home"
+        case .home: return "Opens the household"
         case .plan, .grocery: return "Opens the plan"
         case .cookbook: return "Opens the cookbook"
+        case .cook: return "Resumes cooking"
         default: return "Opens the Table"
         }
+    }
+
+    private func markRead(_ note: PlatedNotification) {
+        guard !note.isRead else { return }
+        note.isRead = true
+        Persist.save(context, "activity item read")
+        AppBadge.sync(context)
+        Task { await TableNews.reconcileDelivered(context: context) }
+    }
+
+    /// MainShell retains inactive tabs at zero opacity, so selecting another
+    /// tray item does not guarantee `onDisappear`. Treat that tab transition
+    /// as leaving the inbox too; the operation is idempotent for a later pop.
+    private func finishReading() {
+        Presence.shared.activityVisible = false
+        guard visibleNotifications.contains(where: { !$0.isRead }) else { return }
+        for note in visibleNotifications where !note.isRead {
+            note.isRead = true
+        }
+        Persist.save(context, "activity read")
+        AppBadge.sync(context)
+        // Read here is read on the lock screen too.
+        Task { await TableNews.reconcileDelivered(context: context) }
     }
 
     /// A row about a person shows the person. The icon is for rows about
@@ -264,7 +298,7 @@ struct NotificationsView: View {
 
     private func loadThumbnails() {
         var found: [String: Data] = [:]
-        for note in notifications {
+        for note in visibleNotifications {
             guard let url = note.linkURL, let record = DeepLink.postID(in: url),
                   found[record] == nil else { continue }
             if let photo = thumbnails[record] ?? TableNews.find(record, in: context)?.photoData {
@@ -277,6 +311,7 @@ struct NotificationsView: View {
     private func noteLine(_ note: PlatedNotification) -> some View {
         HStack(alignment: .center, spacing: 12) {
             face(for: note)
+                .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 3) {
                 Text(note.line(members: members))
                     .plType(.body, note.isRead ? TypeWeight.medium : .semibold)
@@ -292,7 +327,7 @@ struct NotificationsView: View {
                     .frame(width: 44, height: 44)
                     .accessibilityHidden(true)
             }
-            // Quiet unread: weight and an ink dot — the tomato budget is
+            // Quiet unread: weight and an ink dot — the olive budget is
             // spent on the bell badge.
             if !note.isRead {
                 Circle().fill(Color.ink).frame(width: 6, height: 6)

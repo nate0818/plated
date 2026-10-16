@@ -82,7 +82,7 @@ struct HouseholdStatsView: View {
     /// handed out awards for them. Ownership keys on first names, the same
     /// way Awards and PersonRef do, until real user ids exist.
     private var householdNames: Set<String> {
-        Set(members.map(Self.firstName))
+        Set(members.readable.listed.map(Self.firstName))
     }
 
     private static func firstName(_ member: HouseholdMember) -> String { firstName(member.name) }
@@ -114,7 +114,11 @@ struct HouseholdStatsView: View {
 
     /// Dinners on the plan, which is the different question the first badge
     /// asks: "put a night on the plan".
-    private var dinners: [PlannedMeal] { meals.filter { $0.slotValue == .dinner } }
+    private var dinners: [PlannedMeal] {
+        meals.filter { !$0.isDeleted && $0.slotValue == .dinner }
+    }
+
+    private var liveRecipes: [Recipe] { recipes.filter { !$0.isDeleted } }
 
     /// The most nights ever planned inside one calendar week — the badge
     /// says "a week, plated", so counting every dinner ever would be a
@@ -134,7 +138,7 @@ struct HouseholdStatsView: View {
                   mark: .symbol("fork.knife"), have: dinners.count, need: 1),
             Badge(id: "first-recipe", title: "First recipe",
                   detail: "Add a dish to the cookbook.",
-                  mark: .symbol("text.book.closed"), have: recipes.count, need: 1),
+                  mark: .symbol("text.book.closed"), have: liveRecipes.count, need: 1),
             Badge(id: "first-post", title: "First plate shared",
                   detail: "Post something you cooked to the Table.",
                   mark: .symbol("table.furniture"), have: dishPosts.count, need: 1),
@@ -147,10 +151,10 @@ struct HouseholdStatsView: View {
                   have: members.reduce(0) { $0 + Awards.savesReceived(by: $1.name) }, need: 1),
             Badge(id: "full-table", title: "Full table",
                   detail: "Three people in your household.",
-                  mark: .symbol("person.3"), have: members.count, need: 3),
+                  mark: .symbol("person.3"), have: members.readable.peopleCount, need: 3),
             Badge(id: "ten-recipes", title: "Ten dishes deep",
                   detail: "A cookbook worth cooking from.",
-                  mark: .symbol("books.vertical"), have: recipes.count, need: 10),
+                  mark: .symbol("books.vertical"), have: liveRecipes.count, need: 10),
             Badge(id: "ten-plates", title: "Ten happy plates",
                   detail: "Ten plates across everything you've shared.",
                   mark: .plate, have: platesEarned, need: 10),
@@ -178,7 +182,7 @@ struct HouseholdStatsView: View {
         let shelf = badges
         let earned = shelf.filter(\.earned).count
         let closest = shelf
-            .filter { !$0.earned }
+            .filter { !$0.earned && $0.have > 0 }
             .sorted { ($0.fraction, Double(-$0.need)) > ($1.fraction, Double(-$1.need)) }
             .first
 
@@ -190,11 +194,12 @@ struct HouseholdStatsView: View {
             }
             .padding(.horizontal, 24)
             .padding(.top, 14)
-            .padding(.bottom, Layout.floatingChromeInset)
+            .padding(.bottom, Layout.focusedPageBottom)
         }
         .background(Color.canvas)
         .toolbar(.hidden, for: .navigationBar)
         .plSwipeBack()
+        .hidesFloatingChrome()
         .safeAreaInset(edge: .top) { topBar(earned: earned, total: shelf.count) }
         .sheet(item: $opened) { badge in
             BadgeDetailSheet(badge: badge)
@@ -223,7 +228,7 @@ struct HouseholdStatsView: View {
 
             VStack(alignment: .leading, spacing: 1) {
                 MicroLabel("\(earned) of \(total) earned")
-                Text("Stats and badges")
+                Text("Household progress")
                     .plType(.heading)
                     .foregroundStyle(Color.ink)
             }
@@ -250,8 +255,8 @@ struct HouseholdStatsView: View {
                 countCell("Dinners", dinnersCooked, .symbol("fork.knife"))
                 countCell("Happy plates", platesEarned, .plate)
                 countCell("Chef's kisses", kissCount, .symbol("sparkles"), accent: kissCount > 0)
-                countCell("Recipes", recipes.count, .symbol("text.book.closed"))
-                countCell("On the table", dishPosts.count, .symbol("table.furniture"))
+                countCell("Recipes", liveRecipes.count, .symbol("text.book.closed"))
+                countCell("Shared dishes", dishPosts.count, .symbol("table.furniture"))
                 // Honest about Awards.savesReceived: it counts dishes this
                 // phone saved, keyed by author — never saves other households
                 // made of ours (docs/open-decisions.md §3).
@@ -299,7 +304,7 @@ struct HouseholdStatsView: View {
                     .foregroundStyle(Color.accentText)
                     .padding(.horizontal, 12)
                     .frame(minHeight: 32)
-                    .background(Color.tomato.opacity(0.09), in: Capsule())
+                    .background(Color.olive.opacity(0.09), in: Radius.shape(Radius.chip))
             }
             .padding(16)
             .background(Color.canvas)
@@ -435,10 +440,10 @@ struct BadgeDetailSheet: View {
                         Text("Earned")
                             .plType(.footnote, .bold)
                     }
-                    .foregroundStyle(Color.basil)
+                    .foregroundStyle(Color.completion)
                     .padding(.horizontal, 14)
                     .frame(minHeight: 34)
-                    .background(Color.basilTint, in: Capsule())
+                    .background(Color.basilTint, in: Radius.shape(Radius.chip))
                 } else if let label = badge.progressLabel {
                     Text("\(label) · \(badge.remainingLine)")
                         .plType(.footnote, .bold)
@@ -446,7 +451,7 @@ struct BadgeDetailSheet: View {
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 14)
                         .frame(minHeight: 34)
-                        .overlay(Capsule().strokeBorder(Color.hairline))
+                        .overlay(Radius.shape(Radius.chip).strokeBorder(Color.hairline))
                 }
             }
             .frame(maxWidth: .infinity)

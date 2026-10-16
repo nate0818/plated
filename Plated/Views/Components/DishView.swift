@@ -43,7 +43,7 @@ struct DishPalette {
     }
 
     static let ember   = DishPalette(0x5C190D, 0xC7452B, 0xF2B279) // chili, stew, braise
-    static let wine    = DishPalette(0x471522, 0x9E3547, 0xEDA47C) // ragù, pasta, tomato
+    static let wine    = DishPalette(0x471522, 0x9E3547, 0xEDA47C) // ragù, pasta, olive
     static let saffron = DishPalette(0x6E4210, 0xDD9C34, 0xF6E3B4) // curry, rice, roast
     static let copper  = DishPalette(0x4C3A1E, 0xA5622F, 0xE8D9A6) // bakes, desserts
     static let basilP  = DishPalette(0x2E4B23, 0x6FA544, 0xEDE289) // salads, greens
@@ -54,7 +54,7 @@ struct DishPalette {
     private static let keywordMap: [(pattern: String, palette: DishPalette)] = [
         ("chili|stew|braise|rib", .ember),
         ("salad|green|herb|pesto|slaw", .basilP),
-        ("bolognese|ragù|ragu|pasta|tomato|pizza", .wine),
+        ("bolognese|ragù|ragu|pasta|olive|pizza", .wine),
         ("fish|salmon|shrimp|ceviche|tuna", .sea),
         ("curry|rice|roast|chicken", .saffron),
         ("grill|bbq|char|burger|steak", .char_),

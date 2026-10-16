@@ -24,7 +24,7 @@ final class SeatsNoLinkReasonTests: XCTestCase {
         HouseholdShare.setMembership(.member(owner: "owner-1"), ownerName: "Nate Meadows")
         XCTAssertEqual(
             Seats.noLinkReason(),
-            "Only Nate can invite people to this household."
+            "Only Nate, the organizer can invite people to this household."
         )
     }
 
@@ -34,7 +34,7 @@ final class SeatsNoLinkReasonTests: XCTestCase {
         HouseholdShare.setMembership(.member(owner: "owner-1"), ownerName: "Nate Meadows")
         XCTAssertEqual(
             Seats.noLinkReason(.timedOut),
-            "Only Nate can invite people to this household."
+            "Only Nate, the organizer can invite people to this household."
         )
     }
 
@@ -62,7 +62,7 @@ final class SeatsNoLinkReasonTests: XCTestCase {
         HouseholdShare.groupDefaults.removeObject(forKey: HouseholdShare.Keys.ownerName)
         XCTAssertEqual(
             Seats.noLinkReason(),
-            "Only the host can invite people to this household."
+            "Only the organizer can invite people to this household."
         )
     }
 }
@@ -384,9 +384,9 @@ final class SeatsInviteClaimTests: XCTestCase {
         let ale = Seats.resolvedDisplay(for: unnamed, among: people, reader: nate)
         XCTAssertEqual(ale.name, "Alessandra")
         XCTAssertNotEqual(ale.subtitle, "You")
-        XCTAssertNotEqual(ale.subtitle, "You · Owner")
+        XCTAssertNotEqual(ale.subtitle, "You · Organizer")
         let selfRow = Seats.resolvedDisplay(for: nate, among: people, reader: nate)
-        XCTAssertEqual(selfRow.subtitle, "You · Owner")
+        XCTAssertEqual(selfRow.subtitle, "You · Organizer")
         XCTAssertFalse(selfRow.subtitle.contains("Head of table"))
         XCTAssertFalse(selfRow.subtitle.contains("Host"))
     }

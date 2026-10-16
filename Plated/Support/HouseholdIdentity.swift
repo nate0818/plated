@@ -24,7 +24,7 @@ enum HouseholdIdentity {
     /// Locked People / Household copy (PEOPLE-IDENTITY-COPY-LOCK-2026-09-09).
     /// Do not invent alternatives. Account hero stays name-only.
     enum PeopleCopy {
-        static let ownOwnerSubtitle = "You · Owner"
+        static let ownOwnerSubtitle = "You · Organizer"
         static let ownMemberSubtitle = "You"
         static let missingSelfName = "Add your name"
         static let missingOtherName = "No name yet"

@@ -40,6 +40,10 @@ final class ShareAcceptor: NSObject, UIApplicationDelegate {
         _ application: UIApplication,
         didFinishLaunchingWithOptions options: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
+        // Review and test fixtures are memory-only products. Registering for
+        // APNs or subscribing to CloudKit from them crosses into the live
+        // account even when every SwiftData read is correctly in memory.
+        guard !PlatedApp.usesPreviewContainer else { return true }
         // Before anything else: a banner tapped to cold-start the app is
         // delivered to whatever delegate exists when launching finishes.
         NotificationRouter.install()

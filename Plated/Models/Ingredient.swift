@@ -12,8 +12,20 @@ final class Ingredient {
     var aisle: String = GroceryAisle.other.rawValue
     var isPantryStaple: Bool = false
     var sortIndex: Int = 0
+    /// Store/package facts are captured only when supplied by a person or a
+    /// named catalog. Blank metadata never contributes a fabricated price.
+    var packageData: Data?
 
     var recipe: Recipe?
+
+    var package: IngredientPackage {
+        get { packageData.flatMap { try? JSONDecoder().decode(IngredientPackage.self, from: $0) } ?? IngredientPackage() }
+        set {
+            let hasData = newValue.size != nil || newValue.price != nil
+                || !newValue.store.isEmpty || !newValue.source.isEmpty
+            packageData = hasData ? try? JSONEncoder().encode(newValue) : nil
+        }
+    }
 
     init(
         name: String = "",

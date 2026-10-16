@@ -55,10 +55,10 @@ struct MonthPlannerView: View {
     /// The strip's cells scroll edge to edge under a fade; these do not move
     /// and nothing is clipped, so there is no content for a mark to sit on.
     /// Measured: a column is (width - 48)/7, which is 46.7pt on the smallest
-    /// phone, and the selected day's 34pt tomato disc is centred in it,
+    /// phone, and the selected day's 34pt disc is centred in it,
     /// leaving 6.36pt. An inset mark would end 0.36pt from that disc, and
     /// `shift` lands on the 1st, which is often the first column, so it
-    /// would graze the tomato exactly when a month has just been chosen.
+    /// would graze the selection exactly when a month has just been chosen.
     private static let markGutter: CGFloat = PlanEdgeMark.size.width + 3
     private var calendar: Calendar { .current }
     private var first: Date { calendar.dateInterval(of: .month, for: anchor)?.start ?? anchor }
@@ -135,32 +135,27 @@ struct MonthPlannerView: View {
                         .plType(.body, .bold)
                     Spacer()
                     Button { planSlot = .dinner; planDay = anchor } label: {
-                        Label("Plan", systemImage: "plus")
+                        Label(anchor < Date.now.startOfDay ? "Remember" : "Plan", systemImage: "plus")
                             .plActionLabel()
                             .plTapTarget()
                     }
                         .plType(.footnote, .bold)
-                        .disabled(anchor < Date.now.startOfDay)
                 }
                 // A day with only a remote night is not empty: the Plan
                 // button in the line above still offers this phone's own
                 // night, and "Nothing planned" would be untrue.
                 if selectedMeals.isEmpty, selectedRemote.isEmpty {
-                    if anchor >= Date.now.startOfDay {
-                        SwipeRow(isOpen: $emptyActionsOpen, actions: [
-                            SwipeAction(symbol: "plus", label: "Plan") { planSlot = .dinner; planDay = anchor },
-                            SwipeAction(symbol: "fork.knife", label: "Eat out") { planEatingOut() }
-                        ], actionLabel: "Actions for this day") {
-                            Button { planSlot = .dinner; planDay = anchor } label: {
-                                Label("Plan dinner", systemImage: "plus")
-                                    .plType(.body)
-                                    .plActionLabel()
-                                    .frame(maxWidth: .infinity, minHeight: 72, alignment: .leading)
-                                    .contentShape(Rectangle())
-                            }.buttonStyle(.plain)
-                        }
-                    } else {
-                        Text("Nothing planned for this day.").plType(.body).foregroundStyle(Color.inkSecondary).padding(.vertical, 12)
+                    SwipeRow(isOpen: $emptyActionsOpen, actions: [
+                        SwipeAction(symbol: "plus", label: anchor < Date.now.startOfDay ? "Remember dinner" : "Plan") { planSlot = .dinner; planDay = anchor },
+                        SwipeAction(symbol: "fork.knife", label: "Eat out") { planEatingOut() }
+                    ], actionLabel: "Actions for this day") {
+                        Button { planSlot = .dinner; planDay = anchor } label: {
+                            Label(anchor < Date.now.startOfDay ? "Remember what you had" : "Plan dinner", systemImage: "plus")
+                                .plType(.body)
+                                .plActionLabel()
+                                .frame(maxWidth: .infinity, minHeight: 72, alignment: .leading)
+                                .contentShape(Rectangle())
+                        }.buttonStyle(.plain)
                     }
                 } else {
                     ForEach(selectedMeals) { meal in
@@ -253,16 +248,16 @@ struct MonthPlannerView: View {
                 Text(day, format: .dateTime.day())
                     .plType(.body, .bold)
                     .frame(width: 34, height: 34)
-                    .foregroundStyle(selected ? Color.onTomato : (today ? Color.tomato : Color.ink))
-                    .background(selected ? Color.tomato : Color.clear, in: Circle())
+                    .foregroundStyle(selected ? Color.onSelection : (today ? Color.accentText : Color.ink))
+                    .background(selected ? Color.selectionFill : Color.clear, in: Circle())
                 Circle().fill(count > 0 ? Color.inkSecondary : Color.clear).frame(width: 4, height: 4)
             }
             .frame(maxWidth: .infinity, minHeight: 48)
-            .background(dropTargetDay == day ? Color.tomatoTint : Color.clear, in: RoundedRectangle(cornerRadius: Radius.chip))
+            .background(dropTargetDay == day ? Color.oliveTint : Color.clear, in: RoundedRectangle(cornerRadius: Radius.chip))
             .overlay {
                 if dropTargetDay == day {
                     RoundedRectangle(cornerRadius: Radius.chip, style: .continuous)
-                        .strokeBorder(Color.tomato, lineWidth: 1.5)
+                        .strokeBorder(Color.olive, lineWidth: 1.5)
                 }
             }
             .contentShape(Rectangle())

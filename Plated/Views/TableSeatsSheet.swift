@@ -9,6 +9,7 @@ import SwiftData
 /// legacy pending-names string was a fourth notion of "invited" that
 /// reconciled with none of them, and it is gone.
 struct TableSeatsSheet: View {
+    @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var context
     @Environment(\.openURL) private var openURL
     @Query(sort: \HouseholdMember.createdAt) private var members: [HouseholdMember]
@@ -47,7 +48,7 @@ struct TableSeatsSheet: View {
 
     /// Which group a refusal belongs under, so the sentence sits beside
     /// the row it is about rather than at the foot of a long sheet.
-    enum Group: Equatable { case household, table, invited, joined, invite }
+    enum Group: Equatable { case household, table, invited, joined, blocked, invite }
     struct Problem: Equatable {
         var group: Group
         var text: String
@@ -77,6 +78,7 @@ struct TableSeatsSheet: View {
     @State private var invites = TableInvites.shared
     @State private var dialog: Dialog?
     @State private var problem: Problem?
+    @State private var contentSafety = ContentSafety.shared
 
     /// Only the host edits seats (docs/household.md §8, §9). On a member's
     /// phone `me` is the claimed seat, never the head, so this is false
@@ -117,22 +119,27 @@ struct TableSeatsSheet: View {
         }
     }
 
-    /// Everyone at the table, each once: the roster, the friends the
-    /// roster does not hold, and the invitations that actually went.
+    /// Everyone who can see posts now, each once. Pending invitations are
+    /// listed below but aren't counted as people until they accept.
     private var headCount: Int {
-        members.count + guests.count + invites.pending.count
+        members.readable.occupying.filter { $0.seat.canPost }.count + guests.count
     }
 
     var body: some View {
         VStack(spacing: 0) {
-            VStack(spacing: 2) {
-                MicroLabel(headCount.things("person", "people"))
-                // On every phone: a member's Table is the household's own
-                // (§9), so it is theirs too.
-                Text("Your table")
-                    .plType(.title)
-                    .foregroundStyle(Color.ink)
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 2) {
+                    MicroLabel(headCount.things("person", "people"))
+                    Text("People at your Table")
+                        .plType(.title)
+                        .foregroundStyle(Color.ink)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
+                }
+                Spacer(minLength: 8)
+                DesignIconButton(symbol: "xmark", label: "Close") { dismiss() }
             }
+            .padding(.horizontal, 22)
             .padding(.top, 22)
             .padding(.bottom, 8)
 
@@ -140,11 +147,24 @@ struct TableSeatsSheet: View {
                 VStack(alignment: .leading, spacing: 16) {
                     reachLine
 
+                    VStack(alignment: .leading, spacing: 6) {
+                        Label("Invite-only sharing", systemImage: "lock.fill")
+                            .plType(.footnote, .bold)
+                            .foregroundStyle(Color.ink)
+                        Text("Household members share your plan, groceries and cookbook. Friends at the Table only see what you choose to post.")
+                            .plType(.caption)
+                            .foregroundStyle(Color.inkSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(14)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.fill, in: Radius.shape(Radius.card))
+
                     // The roster is the household on every phone, subtitled
                     // by seat and role (§10): the same sentence Home prints,
                     // so the two screens cannot disagree about what somebody
                     // is.
-                    seatGroup("Household", problem: .household) {
+                    seatGroup("Your household", problem: .household) {
                         let people = members.readable.listed
                         let reader = people.me
                         ForEach(people, id: \.persistentModelID) { member in
@@ -153,7 +173,7 @@ struct TableSeatsSheet: View {
                     }
 
                     if !guests.isEmpty || problem?.group == .table {
-                        seatGroup("At your table", problem: .table) {
+                        seatGroup("Friends at the Table", problem: .table) {
                             ForEach(guests) { guest in
                                 guestRow(guest)
                             }
@@ -163,7 +183,7 @@ struct TableSeatsSheet: View {
                     // Invitations that actually went (§9). An entry that
                     // never settles can always be cancelled by hand.
                     if !invites.pending.isEmpty || problem?.group == .invited {
-                        seatGroup("Invited to the table", problem: .invited) {
+                        seatGroup("Invitations", problem: .invited) {
                             ForEach(invites.pending) { entry in
                                 invitedRow(entry)
                             }
@@ -175,9 +195,17 @@ struct TableSeatsSheet: View {
                     // listed here, and `joinedTables()` already leaves the
                     // household's out.
                     if let joinedTables, !joinedTables.isEmpty || problem?.group == .joined {
-                        seatGroup("Tables you've joined", problem: .joined) {
+                        seatGroup("Other Tables you joined", problem: .joined) {
                             ForEach(joinedTables) { table in
                                 joinedRow(table)
+                            }
+                        }
+                    }
+
+                    if !contentSafety.blockedAuthors.isEmpty {
+                        seatGroup("Blocked people", problem: .blocked) {
+                            ForEach(contentSafety.blockedAuthors) { blocked in
+                                blockedRow(blocked)
                             }
                         }
                     }
@@ -190,6 +218,7 @@ struct TableSeatsSheet: View {
                 .animation(.plSnap, value: guests)
                 .animation(.plSnap, value: joinedTables)
                 .animation(.plSnap, value: invites.pending)
+                .animation(.plSnap, value: contentSafety.blockedAuthors)
             }
         }
         .presentationDetents([.medium, .large])
@@ -231,6 +260,7 @@ struct TableSeatsSheet: View {
                 .plType(.caption, .bold)
                 .plActionLabel()
                 .foregroundStyle(Color.accentText)
+                .plTapTarget()
                 .buttonStyle(.pressable)
             }
             .transition(.opacity)
@@ -257,18 +287,16 @@ struct TableSeatsSheet: View {
             tone: (isMe || !member.showsColor) ? .neutralPair : member.tone,
             photo: drawn.photo
         ) {
-            // `messageURL` rather than a boolean: a Message button is only
-            // honest where there is somewhere for the message to go, and
-            // never for the reader's own row.
-            if let url = member.messageURL {
-                discButton("bubble.right", label: "Message \(member.name)") {
-                    openURL(url)
-                }
-            }
-            // The head keeps their seat, and only the head takes one away.
-            if readerIsHead, !member.isOwner {
-                discButton("minus", label: "Remove \(member.name)") {
-                    dialog = .removeMember(member)
+            if member.messageURL != nil || (readerIsHead && !member.isOwner) {
+                actionsMenu(label: "More options for \(drawn.name)") {
+                    if let url = member.messageURL {
+                        Button("Message", systemImage: "bubble.right") { openURL(url) }
+                    }
+                    if readerIsHead, !member.isOwner {
+                        Button("Remove from household", systemImage: "person.badge.minus", role: .destructive) {
+                            dialog = .removeMember(member)
+                        }
+                    }
                 }
             }
         }
@@ -281,8 +309,10 @@ struct TableSeatsSheet: View {
             // no Message here. Only the owner edits participants, so Remove
             // is the head's alone.
             if readerIsHead {
-                discButton("minus", label: "Remove \(guest.name)") {
-                    dialog = .removeGuest(guest)
+                actionsMenu(label: "More options for \(guest.name)") {
+                    Button("Remove from Table", systemImage: "person.badge.minus", role: .destructive) {
+                        dialog = .removeGuest(guest)
+                    }
                 }
             }
         }
@@ -294,16 +324,13 @@ struct TableSeatsSheet: View {
             subtitle: "Invited \(HouseholdMember.when(entry.sentAt))",
             tone: .neutralPair
         ) {
-            // Send again IS the message to them, so no separate Message
-            // disc: three controls on one row left no room for a name.
-            // Without Messages the control would open a blank composer.
-            if InviteComposer.isAvailable {
-                discButton("paperplane", label: "Send \(entry.name) the link again") {
-                    sendAgain(entry)
+            actionsMenu(label: "More options for \(entry.name)'s invitation") {
+                if InviteComposer.isAvailable {
+                    Button("Send again", systemImage: "paperplane") { sendAgain(entry) }
                 }
-            }
-            discButton("minus", label: "Cancel \(entry.name)'s invitation") {
-                withAnimation(.plSnap) { invites.cancel(entry.id) }
+                Button("Cancel invitation", systemImage: "xmark", role: .destructive) {
+                    withAnimation(.plSnap) { invites.cancel(entry.id) }
+                }
             }
         }
     }
@@ -314,25 +341,30 @@ struct TableSeatsSheet: View {
             subtitle: "You see what they cook",
             tone: .neutralPair
         ) {
-            // A verb that names the outcome, not a glyph: leaving is the
-            // one thing this row offers, and "minus" would read as taking
-            // the host off a list they are not on.
-            Button {
-                Haptic.tap()
-                dialog = .leave(table)
-            } label: {
-                Text("Leave")
-                    .plType(.footnote, .bold)
-                    .plActionLabel()
-                    .foregroundStyle(Color.ink)
-                    .padding(.horizontal, 16)
-                    .frame(minHeight: 34)
-                    .overlay(Capsule().strokeBorder(Color.hairline, lineWidth: 1.5))
-                    .frame(minHeight: 44)
-                    .contentShape(Capsule())
+            actionsMenu(label: "More options for \(table.title)") {
+                Button("Leave Table", systemImage: "rectangle.portrait.and.arrow.right", role: .destructive) {
+                    dialog = .leave(table)
+                }
             }
-            .buttonStyle(.pressable)
-            .accessibilityLabel("Leave \(table.title)")
+        }
+    }
+
+    private func blockedRow(_ blocked: ContentSafety.BlockedAuthor) -> some View {
+        seatRow(
+            name: blocked.displayName,
+            subtitle: "Posts and comments hidden on this device",
+            tone: .neutralPair
+        ) {
+            actionsMenu(label: "More options for blocked person \(blocked.displayName)") {
+                Button("Unblock", systemImage: "person.crop.circle.badge.checkmark") {
+                    contentSafety.unblock(blocked)
+                    WidgetBridge.publish(from: context)
+                    AppBadge.sync(context)
+                    Haptic.tap()
+                    let first = blocked.displayName.split(separator: " ").first.map(String.init) ?? "Their"
+                    AccessibilityNotification.Announcement("\(first)'s posts and comments are visible again").post()
+                }
+            }
         }
     }
 
@@ -359,27 +391,19 @@ struct TableSeatsSheet: View {
         .padding(.vertical, 10)
     }
 
-    /// The one container every icon control on a row wears. Message and
-    /// Remove are peers on one row and were once drawn as unlike things: a
-    /// contained disc beside a bare glyph, and the bare one in inkFaint,
-    /// which is the tone this app reserves for a control that is
-    /// genuinely off. Remove is not off.
-    private func discButton(_ symbol: String, label: String, action: @escaping () -> Void) -> some View {
-        Button {
-            Haptic.tap()
-            action()
-        } label: {
-            Circle()
-                .strokeBorder(Color.hairline, lineWidth: 1.5)
-                .frame(width: 34, height: 34)
-                .overlay {
-                    Image(systemName: symbol)
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(Color.ink)
-                }
-                .plTapTarget()
+    private func actionsMenu<Actions: View>(
+        label: String,
+        @ViewBuilder actions: () -> Actions
+    ) -> some View {
+        Menu(content: actions) {
+            Image(systemName: "ellipsis")
+                .font(.system(size: 14, weight: .bold))
+                .foregroundStyle(Color.ink)
+                .frame(width: 36, height: 36)
+                .background(Color.fill, in: Circle())
+                .frame(minWidth: 44, minHeight: 44)
+                .contentShape(Rectangle())
         }
-        .buttonStyle(.pressable)
         .accessibilityLabel(label)
     }
 
@@ -600,7 +624,7 @@ struct TableSeatsSheet: View {
                 // household door, so the one control that invites somebody
                 // does not look like two different buttons depending on
                 // which screen you reached it from.
-                InkPillButton(title: "Invite to the Table", systemImage: "person.badge.plus") {
+                SecondaryActionButton(title: "Invite someone", systemImage: "person.badge.plus") {
                     startInvite()
                 }
             }
@@ -623,8 +647,8 @@ struct TableSeatsSheet: View {
                     .foregroundStyle(Color.ink)
                     .frame(maxWidth: .infinity)
                     .frame(minHeight: 48)
-                    .overlay(Capsule().strokeBorder(Color.hairline, lineWidth: 1.5))
-                    .contentShape(Capsule())
+                    .overlay(Radius.shape(Radius.chip).strokeBorder(Color.hairline, lineWidth: 1.5))
+                    .contentShape(Radius.shape(Radius.chip))
                 }
             }
 
@@ -640,9 +664,7 @@ struct TableSeatsSheet: View {
             // Messages invite with an `i=` id.
             Text(link == .missing
                   ? noLinkLine
-                  : (InviteComposer.isAvailable
-                     ? "They get a text with a link. They see what everyone here cooks. They don't see the plan."
-                     : "Share the link however you like. They see what everyone here cooks, not the plan."))
+                  : "Anyone with the link can take a seat, so share it with people you trust. Guests see posts and conversations, never your plan.")
                 .plType(.micro, .medium)
                 .foregroundStyle(Color.inkSecondary)
                 .multilineTextAlignment(.center)
@@ -664,7 +686,7 @@ struct TableSeatsSheet: View {
         }
         if HouseholdShare.membership.owner != nil {
             let host = HouseholdShare.cachedOwnerName.split(separator: " ").first.map(String.init) ?? ""
-            return "The Table's link is still arriving from \(host.isEmpty ? "the host's" : "\(host)'s") phone."
+            return "The Table's link is still arriving from \(host.isEmpty ? "the organizer's" : "\(host)'s") phone."
         }
         return "Couldn't reach iCloud, so there's no invite link right now."
     }

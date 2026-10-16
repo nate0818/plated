@@ -87,6 +87,7 @@ record.slot
 record.tagline
 record.title
 write.aisle
+write.availableEquipment
 write.authorID
 write.autoRotateOpenNights
 write.avoidedIngredients
@@ -129,10 +130,14 @@ write.originTitle
 write.participantID
 write.photo
 write.photoHash
+write.planningMetadataJSON
+write.profileBannerPhoto
+write.profileBannerPhotoModifiedAt
 write.prepMinutes
 write.publishedAt
 write.purchasesJSON
 write.quantity
+write.recipeOriginsJSON
 write.removedIDs
 write.role
 write.roleLine

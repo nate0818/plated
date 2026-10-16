@@ -1,0 +1,999 @@
+#!/usr/bin/env python3
+"""Safely upload the release screenshot sets to App Store Connect.
+
+The command is read-only unless ``--apply`` is supplied. Normal uploads never
+overwrite or delete: if either target screenshot set already exists, the
+command stops. A narrowly guarded ``--replace-created-sets`` recovery exists
+only for an interrupted upload whose exact localization, two set IDs, display
+types, asset states, filenames, and stale fingerprints all still match.
+
+Usage:
+  scripts/asc-screenshots
+  scripts/asc-screenshots --dry-run
+  scripts/asc-screenshots --apply
+  scripts/asc-screenshots --replace-created-sets \
+      --expected-localization-id <localization-id> \
+      --expected-iphone-set <set-id> --expected-ipad-set <set-id>
+  scripts/asc-screenshots --verify-created-sets \
+      --expected-localization-id <localization-id> \
+      --expected-iphone-set <set-id> --expected-ipad-set <set-id>
+
+By default screenshots are read from:
+  fastlane/screenshots/en-US/iphone-69
+  fastlane/screenshots/en-US/ipad-13
+
+Authentication and ASC_APP_ID use the same environment variables and private
+key conventions as scripts/asc.
+"""
+
+import argparse
+import hashlib
+import os
+from pathlib import Path
+import runpy
+import sys
+import time
+import urllib.error
+import urllib.parse
+import urllib.request
+
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+ASC = runpy.run_path(str(REPO_ROOT / "scripts" / "asc"))
+asc_call = ASC["call"]
+
+# Apple keeps the historical APP_IPHONE_67 API name for the current large
+# iPhone screenshot class, including the accepted 6.9-inch resolutions.
+# Sources:
+# https://developer.apple.com/documentation/appstoreconnectapi/
+#   get-v1-appstoreversionlocalizations-_id_-appscreenshotsets
+# https://developer.apple.com/help/app-store-connect/reference/
+#   app-information/screenshot-specifications
+TARGETS = (
+    {
+        "label": "iPhone 6.9-inch",
+        "display_type": "APP_IPHONE_67",
+        "default_dir": REPO_ROOT / "fastlane/screenshots/en-US/iphone-69",
+        "dimensions": {
+            (1260, 2736), (2736, 1260),
+            (1290, 2796), (2796, 1290),
+            (1320, 2868), (2868, 1320),
+        },
+    },
+    {
+        "label": "iPad 13-inch",
+        "display_type": "APP_IPAD_PRO_3GEN_129",
+        "default_dir": REPO_ROOT / "fastlane/screenshots/en-US/ipad-13",
+        "dimensions": {
+            (2064, 2752), (2752, 2064),
+            (2048, 2732), (2732, 2048),
+        },
+    },
+)
+
+SOF_MARKERS = {
+    0xC0, 0xC1, 0xC2, 0xC3,
+    0xC5, 0xC6, 0xC7,
+    0xC9, 0xCA, 0xCB,
+    0xCD, 0xCE, 0xCF,
+}
+TERMINAL_FAILURE_STATES = {"FAILED", "ERROR", "REJECTED"}
+
+
+def fail(message):
+    raise SystemExit(f"✗ {message}")
+
+
+def api_path(path, params=None):
+    if not params:
+        return path
+    return path + "?" + urllib.parse.urlencode(params, doseq=True)
+
+
+def jpeg_dimensions(path):
+    """Read JPEG dimensions without a third-party image dependency."""
+    with path.open("rb") as image:
+        if image.read(2) != b"\xff\xd8":
+            fail(f"{path} is not a JPEG file")
+
+        while True:
+            byte = image.read(1)
+            if not byte:
+                break
+            if byte != b"\xff":
+                continue
+
+            while byte == b"\xff":
+                byte = image.read(1)
+            if not byte:
+                break
+            marker = byte[0]
+
+            # Standalone markers do not carry a length-prefixed segment.
+            if marker in {0x01, 0xD8, 0xD9} or 0xD0 <= marker <= 0xD7:
+                continue
+
+            raw_length = image.read(2)
+            if len(raw_length) != 2:
+                break
+            segment_length = int.from_bytes(raw_length, "big")
+            if segment_length < 2:
+                fail(f"{path} has a malformed JPEG segment")
+            payload_length = segment_length - 2
+
+            if marker in SOF_MARKERS:
+                header = image.read(5)
+                if len(header) != 5:
+                    break
+                height = int.from_bytes(header[1:3], "big")
+                width = int.from_bytes(header[3:5], "big")
+                if not width or not height:
+                    fail(f"{path} has invalid JPEG dimensions")
+                return width, height
+
+            image.seek(payload_length, os.SEEK_CUR)
+
+    fail(f"could not read JPEG dimensions from {path}")
+
+
+def md5_file(path):
+    digest = hashlib.md5()
+    with path.open("rb") as source:
+        while True:
+            chunk = source.read(1024 * 1024)
+            if not chunk:
+                return digest.hexdigest()
+            digest.update(chunk)
+
+
+def freeze_assets(assets):
+    """Snapshot validated bytes before any remote mutation can occur."""
+    frozen = []
+    for asset in assets:
+        payload = asset["path"].read_bytes()
+        checksum = hashlib.md5(payload).hexdigest()
+        if len(payload) != asset["file_size"] or checksum != asset["checksum"]:
+            fail(
+                f"{asset['path']} changed after validation; refusing to mutate "
+                "App Store Connect"
+            )
+        snapshot = dict(asset)
+        snapshot["payload"] = payload
+        frozen.append(snapshot)
+    return frozen
+
+
+def validate_directory(label, directory, accepted_dimensions):
+    if not directory.is_dir():
+        fail(f"{label} directory does not exist: {directory}")
+
+    visible = sorted(
+        (path for path in directory.iterdir() if not path.name.startswith(".")),
+        key=lambda path: (path.name.casefold(), path.name),
+    )
+    invalid = [
+        path.name for path in visible
+        if not path.is_file() or path.suffix.lower() not in {".jpg", ".jpeg"}
+    ]
+    if invalid:
+        fail(f"{label} directory contains non-JPEG entries: {', '.join(invalid)}")
+
+    if not 1 <= len(visible) <= 10:
+        fail(f"{label} requires 1–10 JPEGs; found {len(visible)} in {directory}")
+
+    assets = []
+    dimensions_seen = set()
+    for path in visible:
+        size = path.stat().st_size
+        if size <= 0:
+            fail(f"{path} is empty")
+        dimensions = jpeg_dimensions(path)
+        if dimensions not in accepted_dimensions:
+            allowed = ", ".join(
+                f"{width}×{height}" for width, height in sorted(accepted_dimensions)
+            )
+            fail(
+                f"{path.name} is {dimensions[0]}×{dimensions[1]}; "
+                f"accepted {label} sizes are {allowed}"
+            )
+        dimensions_seen.add(dimensions)
+        assets.append({
+            "path": path,
+            "file_name": path.name,
+            "file_size": size,
+            "dimensions": dimensions,
+            "checksum": md5_file(path),
+        })
+
+    if len(dimensions_seen) != 1:
+        rendered = ", ".join(
+            f"{width}×{height}" for width, height in sorted(dimensions_seen)
+        )
+        fail(f"{label} screenshots must use one consistent size; found {rendered}")
+
+    return assets
+
+
+def resolve_release(app_id, version_string, locale):
+    versions = asc_call("GET", api_path(
+        f"/apps/{app_id}/appStoreVersions",
+        {
+            "filter[platform]": "IOS",
+            "filter[versionString]": version_string,
+            "fields[appStoreVersions]":
+                "versionString,appStoreState,platform,appStoreVersionLocalizations",
+            "limit": "10",
+        },
+    ))["data"]
+    if len(versions) != 1:
+        fail(
+            f"expected exactly one iOS App Store version {version_string!r}; "
+            f"found {len(versions)}"
+        )
+
+    version = versions[0]
+    attributes = version["attributes"]
+    if attributes.get("appStoreState") != "PREPARE_FOR_SUBMISSION":
+        fail(
+            f"version {version_string} is {attributes.get('appStoreState')}, "
+            "not PREPARE_FOR_SUBMISSION"
+        )
+
+    localizations = asc_call("GET", api_path(
+        f"/appStoreVersions/{version['id']}/appStoreVersionLocalizations",
+        {
+            "fields[appStoreVersionLocalizations]": "locale,appScreenshotSets",
+            "limit": "50",
+        },
+    ))["data"]
+    matches = [item for item in localizations if item["attributes"].get("locale") == locale]
+    if len(matches) != 1:
+        fail(
+            f"expected exactly one {locale!r} localization for {version_string}; "
+            f"found {len(matches)}"
+        )
+
+    return version, matches[0]
+
+
+def screenshot_sets(localization_id):
+    return asc_call("GET", api_path(
+        f"/appStoreVersionLocalizations/{localization_id}/appScreenshotSets",
+        {
+            "fields[appScreenshotSets]": "screenshotDisplayType,appScreenshots",
+            "limit": "50",
+        },
+    ))["data"]
+
+
+def screenshot_set_details(set_id):
+    screenshot_set = asc_call("GET", api_path(
+        f"/appScreenshotSets/{set_id}",
+        {
+            "fields[appScreenshotSets]":
+                "screenshotDisplayType,appStoreVersionLocalization,appScreenshots",
+            "include": "appStoreVersionLocalization",
+            "fields[appStoreVersionLocalizations]": "locale",
+        },
+    ))["data"]
+    screenshots = asc_call("GET", api_path(
+        f"/appScreenshotSets/{set_id}/appScreenshots",
+        {
+            "fields[appScreenshots]":
+                "fileName,fileSize,sourceFileChecksum,assetDeliveryState",
+            "limit": "50",
+        },
+    ))["data"]
+    return screenshot_set, screenshots
+
+
+def validate_created_sets_replacement(localization_id, expected_ids, plans):
+    """Verify the exact partial-run fingerprint before allowing replacement."""
+    listed = screenshot_sets(localization_id)
+    listed_by_type = {
+        item.get("attributes", {}).get("screenshotDisplayType"): item["id"]
+        for item in listed
+    }
+    if len(listed) != 2 or listed_by_type != expected_ids:
+        rendered = ", ".join(
+            f"{kind}={set_id}" for kind, set_id in sorted(listed_by_type.items())
+        ) or "none"
+        fail(
+            "localization screenshot sets no longer match the exact two-set "
+            f"recovery precondition (found {rendered})"
+        )
+
+    plans_by_type = {
+        target["display_type"]: assets for target, assets in plans
+    }
+    summaries = {}
+    for display_type, expected_id in expected_ids.items():
+        screenshot_set, screenshots = screenshot_set_details(expected_id)
+        actual_type = screenshot_set.get("attributes", {}).get("screenshotDisplayType")
+        if actual_type != display_type:
+            fail(
+                f"set {expected_id} is {actual_type}, expected {display_type}"
+            )
+        related = (
+            screenshot_set.get("relationships", {})
+            .get("appStoreVersionLocalization", {})
+            .get("data")
+        ) or {}
+        if related.get("id") != localization_id:
+            fail(
+                f"set {expected_id} belongs to localization {related.get('id')}, "
+                f"not {localization_id}"
+            )
+
+        assets = plans_by_type[display_type]
+        local_by_name = {asset["file_name"]: asset for asset in assets}
+        remote_names = [item["attributes"].get("fileName") for item in screenshots]
+        if len(remote_names) != len(set(remote_names)):
+            fail(f"set {expected_id} contains duplicate screenshot filenames")
+
+        if display_type == "APP_IPHONE_67":
+            if set(remote_names) != set(local_by_name) or len(screenshots) != len(assets):
+                fail(
+                    f"set {expected_id} screenshot names/count no longer match "
+                    "the created-run fingerprint"
+                )
+            mismatches = []
+            for screenshot in screenshots:
+                attributes = screenshot["attributes"]
+                state = (attributes.get("assetDeliveryState") or {}).get("state")
+                if state != "COMPLETE":
+                    fail(
+                        f"iPhone screenshot {screenshot['id']} is {state}, "
+                        "expected COMPLETE"
+                    )
+                asset = local_by_name[attributes["fileName"]]
+                remote_checksum = (attributes.get("sourceFileChecksum") or "").lower()
+                if (
+                    attributes.get("fileSize") != asset["file_size"]
+                    or remote_checksum != asset["checksum"].lower()
+                ):
+                    mismatches.append(attributes["fileName"])
+            if not mismatches:
+                fail(
+                    "the completed iPhone set already matches every local asset; "
+                    "refusing destructive replacement"
+                )
+            summaries[display_type] = {
+                "screenshots": screenshots,
+                "mismatches": sorted(mismatches),
+            }
+        else:
+            if len(screenshots) != 1:
+                fail(
+                    f"set {expected_id} has {len(screenshots)} screenshots, "
+                    "expected the single partial-run reservation"
+                )
+            screenshot = screenshots[0]
+            attributes = screenshot["attributes"]
+            state = (attributes.get("assetDeliveryState") or {}).get("state")
+            if state != "AWAITING_UPLOAD":
+                fail(
+                    f"iPad screenshot {screenshot['id']} is {state}, "
+                    "expected AWAITING_UPLOAD"
+                )
+            file_name = attributes.get("fileName")
+            if file_name not in local_by_name:
+                fail(
+                    f"iPad reservation filename {file_name!r} is not a current asset"
+                )
+            if attributes.get("sourceFileChecksum") is not None:
+                fail(
+                    f"iPad reservation {screenshot['id']} unexpectedly has a checksum"
+                )
+            if attributes.get("fileSize") == local_by_name[file_name]["file_size"]:
+                fail(
+                    "the incomplete iPad reservation has the current file size; "
+                    "refusing destructive replacement without a stale-size signal"
+                )
+            summaries[display_type] = {
+                "screenshots": screenshots,
+                "mismatches": [file_name],
+            }
+
+    return summaries
+
+
+def delete_created_sets(expected_ids):
+    # Deleting a set also removes its screenshots. This is reachable only after
+    # the exact localization, IDs, display types, states, names, and stale local
+    # fingerprints above have all been checked twice.
+    for display_type in ("APP_IPAD_PRO_3GEN_129", "APP_IPHONE_67"):
+        set_id = expected_ids[display_type]
+        print(f"▸ deleting verified stale {display_type} set {set_id}", flush=True)
+        asc_call("DELETE", f"/appScreenshotSets/{set_id}")
+
+
+def verify_sets_once(localization_id, expected_ids, plans):
+    """Read integrity by filename and order from the relationship endpoint."""
+    issues = []
+    snapshots = {}
+    listed = screenshot_sets(localization_id)
+    actual_ids = {
+        item.get("attributes", {}).get("screenshotDisplayType"): item["id"]
+        for item in listed
+    }
+    if actual_ids != expected_ids or len(listed) != 2:
+        issues.append("localization does not yet expose the exact two expected sets")
+        return issues, snapshots
+
+    plans_by_type = {
+        target["display_type"]: assets for target, assets in plans
+    }
+    for display_type, set_id in expected_ids.items():
+        screenshot_set = asc_call("GET", api_path(
+            f"/appScreenshotSets/{set_id}",
+            {
+                "fields[appScreenshotSets]":
+                    "screenshotDisplayType,appStoreVersionLocalization,appScreenshots",
+                "include": "appStoreVersionLocalization",
+                "fields[appStoreVersionLocalizations]": "locale",
+            },
+        ))["data"]
+        actual_type = screenshot_set.get("attributes", {}).get("screenshotDisplayType")
+        if actual_type != display_type:
+            issues.append(f"set {set_id} reports display type {actual_type}")
+        related = (
+            screenshot_set.get("relationships", {})
+            .get("appStoreVersionLocalization", {})
+            .get("data")
+        ) or {}
+        if related.get("id") != localization_id:
+            issues.append(f"set {set_id} reports a different localization")
+
+        relationship = asc_call("GET", api_path(
+            f"/appScreenshotSets/{set_id}/relationships/appScreenshots",
+            {"limit": "50"},
+        ))["data"]
+        screenshots = []
+        for linkage in relationship:
+            screenshot = asc_call("GET", api_path(
+                f"/appScreenshots/{linkage['id']}",
+                {
+                    "fields[appScreenshots]":
+                        "fileName,fileSize,sourceFileChecksum,assetDeliveryState",
+                },
+            ))["data"]
+            screenshots.append(screenshot)
+
+        assets = plans_by_type[display_type]
+        expected_names = [asset["file_name"] for asset in assets]
+        assets_by_name = {asset["file_name"]: asset for asset in assets}
+        ordered_names = [
+            screenshot.get("attributes", {}).get("fileName")
+            for screenshot in screenshots
+        ]
+        if ordered_names != expected_names:
+            issues.append(
+                f"{display_type} relationship order is {ordered_names}, "
+                f"expected {expected_names}"
+            )
+        if len(ordered_names) != len(set(ordered_names)):
+            issues.append(f"{display_type} exposes duplicate filenames")
+
+        for screenshot in screenshots:
+            attributes = screenshot["attributes"]
+            file_name = attributes.get("fileName")
+            asset = assets_by_name.get(file_name)
+            if asset is None:
+                issues.append(f"{display_type} exposes unexpected file {file_name!r}")
+                continue
+            state = (attributes.get("assetDeliveryState") or {}).get("state")
+            checksum = (attributes.get("sourceFileChecksum") or "").lower()
+            if state != "COMPLETE":
+                issues.append(f"{display_type} {file_name} is {state}")
+            if attributes.get("fileSize") != asset["file_size"]:
+                issues.append(
+                    f"{display_type} {file_name} size is "
+                    f"{attributes.get('fileSize')}, expected {asset['file_size']}"
+                )
+            if checksum != asset["checksum"].lower():
+                issues.append(f"{display_type} {file_name} checksum is not current")
+
+        if set(ordered_names) != set(expected_names):
+            missing = sorted(set(expected_names) - set(ordered_names))
+            if missing:
+                issues.append(f"{display_type} is missing {', '.join(missing)}")
+        snapshots[display_type] = screenshots
+
+    return issues, snapshots
+
+
+def verify_sets_eventually(localization_id, expected_ids, plans, timeout, interval):
+    deadline = time.monotonic() + timeout
+    last_summary = None
+    while True:
+        issues, snapshots = verify_sets_once(localization_id, expected_ids, plans)
+        if not issues:
+            for display_type in ("APP_IPHONE_67", "APP_IPAD_PRO_3GEN_129"):
+                screenshots = snapshots[display_type]
+                print(
+                    f"✓ {display_type}: {len(screenshots)} assets COMPLETE; "
+                    "sizes, filename-mapped checksums, and relationship order verified"
+                )
+            return
+
+        summary = "; ".join(issues)
+        if summary != last_summary:
+            print(f"▸ verification pending: {summary}", flush=True)
+            last_summary = summary
+        if time.monotonic() >= deadline:
+            fail(f"timed out waiting for read-only screenshot verification: {summary}")
+        time.sleep(interval)
+
+
+def guard_empty_target_sets(localization_id):
+    sets = screenshot_sets(localization_id)
+    target_types = {target["display_type"] for target in TARGETS}
+    conflicts = [
+        item for item in sets
+        if item.get("attributes", {}).get("screenshotDisplayType") in target_types
+    ]
+    if conflicts:
+        rendered = ", ".join(
+            f"{item['attributes']['screenshotDisplayType']} ({item['id']})"
+            for item in conflicts
+        )
+        fail(
+            "target screenshot set already exists; refusing to overwrite or delete: "
+            + rendered
+        )
+    return sets
+
+
+def create_set(localization_id, display_type):
+    response = asc_call("POST", "/appScreenshotSets", {
+        "data": {
+            "type": "appScreenshotSets",
+            "attributes": {"screenshotDisplayType": display_type},
+            "relationships": {
+                "appStoreVersionLocalization": {
+                    "data": {
+                        "type": "appStoreVersionLocalizations",
+                        "id": localization_id,
+                    },
+                },
+            },
+        },
+    })
+    return response["data"]["id"]
+
+
+def reserve_screenshot(set_id, asset):
+    response = asc_call("POST", "/appScreenshots", {
+        "data": {
+            "type": "appScreenshots",
+            "attributes": {
+                "fileName": asset["file_name"],
+                "fileSize": asset["file_size"],
+            },
+            "relationships": {
+                "appScreenshotSet": {
+                    "data": {"type": "appScreenshotSets", "id": set_id},
+                },
+            },
+        },
+    })
+    data = response["data"]
+    operations = data.get("attributes", {}).get("uploadOperations") or []
+    if not operations:
+        fail(f"ASC returned no upload operations for {asset['file_name']}")
+    return data["id"], operations
+
+
+def validate_upload_operations(operations, file_size, file_name):
+    ordered = sorted(operations, key=lambda operation: int(operation["offset"]))
+    expected_offset = 0
+    for operation in ordered:
+        offset = int(operation["offset"])
+        length = int(operation["length"])
+        if offset != expected_offset or length <= 0:
+            fail(f"ASC returned invalid upload ranges for {file_name}")
+        parsed = urllib.parse.urlparse(operation.get("url", ""))
+        if parsed.scheme != "https" or not parsed.netloc:
+            fail(f"ASC returned an invalid upload destination for {file_name}")
+        expected_offset += length
+    if expected_offset != file_size:
+        fail(
+            f"ASC upload ranges cover {expected_offset} bytes for {file_name}; "
+            f"expected {file_size}"
+        )
+    return ordered
+
+
+def upload_asset(asset, operations):
+    operations = validate_upload_operations(
+        operations, asset["file_size"], asset["file_name"]
+    )
+    source = asset.get("payload")
+    if source is None:
+        fail(f"{asset['file_name']} was not frozen before upload")
+    for index, operation in enumerate(operations, start=1):
+        offset = int(operation["offset"])
+        length = int(operation["length"])
+        payload = source[offset:offset + length]
+        if len(payload) != length:
+            fail(f"could not read upload range {index} for {asset['file_name']}")
+
+        headers = {
+            header["name"]: header["value"]
+            for header in operation.get("requestHeaders", [])
+        }
+        request = urllib.request.Request(
+            operation["url"],
+            data=payload,
+            method=operation.get("method", "PUT"),
+            headers=headers,
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=120) as response:
+                response.read()
+        except urllib.error.HTTPError as error:
+            fail(
+                f"upload range {index} for {asset['file_name']} returned "
+                f"HTTP {error.code}"
+            )
+        except urllib.error.URLError as error:
+            fail(
+                f"upload range {index} for {asset['file_name']} failed: "
+                f"{error.reason}"
+            )
+
+
+def finalize_screenshot(screenshot_id, checksum):
+    asc_call("PATCH", f"/appScreenshots/{screenshot_id}", {
+        "data": {
+            "type": "appScreenshots",
+            "id": screenshot_id,
+            "attributes": {
+                "uploaded": True,
+                "sourceFileChecksum": checksum,
+            },
+        },
+    })
+
+
+def screenshot_details(screenshot_id):
+    response = asc_call("GET", api_path(
+        f"/appScreenshots/{screenshot_id}",
+        {"fields[appScreenshots]": "fileName,sourceFileChecksum,assetDeliveryState"},
+    ))
+    return response["data"].get("attributes", {})
+
+
+def wait_until_complete(screenshot_id, file_name, checksum, timeout, interval):
+    deadline = time.monotonic() + timeout
+    last_state = None
+    while time.monotonic() < deadline:
+        details = screenshot_details(screenshot_id)
+        delivery = details.get("assetDeliveryState") or {}
+        state = delivery.get("state", "UNKNOWN")
+        if state != last_state:
+            print(f"  {file_name}: {state}", flush=True)
+            last_state = state
+        if state == "COMPLETE":
+            delivered_checksum = details.get("sourceFileChecksum")
+            if delivered_checksum and delivered_checksum.lower() != checksum.lower():
+                fail(f"ASC checksum does not match {file_name}")
+            return
+        if state in TERMINAL_FAILURE_STATES:
+            errors = delivery.get("errors") or []
+            summary = "; ".join(
+                str(error.get("description") or error.get("code") or "unknown error")
+                for error in errors
+            )
+            fail(f"ASC processing failed for {file_name}: {summary or state}")
+        time.sleep(interval)
+    fail(f"timed out waiting for ASC to process {file_name}")
+
+
+def reorder_screenshots(set_id, screenshot_ids):
+    asc_call("PATCH", f"/appScreenshotSets/{set_id}/relationships/appScreenshots", {
+        "data": [
+            {"type": "appScreenshots", "id": screenshot_id}
+            for screenshot_id in screenshot_ids
+        ],
+    })
+
+
+def upload_set(localization_id, target, assets, timeout, interval, created):
+    if any("payload" not in asset for asset in assets):
+        assets = freeze_assets(assets)
+    display_type = target["display_type"]
+    print(f"▸ creating {display_type} screenshot set", flush=True)
+    set_id = create_set(localization_id, display_type)
+    progress = {"set_id": set_id, "display_type": display_type, "screenshot_ids": []}
+    created.append(progress)
+    print(f"  created set {set_id}", flush=True)
+
+    for position, asset in enumerate(assets, start=1):
+        print(
+            f"▸ {display_type} {position}/{len(assets)}: reserving "
+            f"{asset['file_name']}",
+            flush=True,
+        )
+        screenshot_id, operations = reserve_screenshot(set_id, asset)
+        progress["screenshot_ids"].append(screenshot_id)
+        upload_asset(asset, operations)
+        finalize_screenshot(screenshot_id, asset["checksum"])
+        wait_until_complete(
+            screenshot_id,
+            asset["file_name"],
+            asset["checksum"],
+            timeout=timeout,
+            interval=interval,
+        )
+
+    reorder_screenshots(set_id, progress["screenshot_ids"])
+    print(
+        f"✓ {display_type}: uploaded and ordered "
+        f"{len(progress['screenshot_ids'])} screenshots"
+    )
+
+
+def parse_args(argv):
+    parser = argparse.ArgumentParser(description=__doc__)
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument(
+        "--dry-run",
+        dest="apply",
+        action="store_false",
+        help="validate files and ASC state without changing anything (default)",
+    )
+    mode.add_argument(
+        "--apply",
+        dest="apply",
+        action="store_true",
+        help="perform the validated normal upload or guarded recovery mutation",
+    )
+    parser.set_defaults(apply=False)
+    parser.add_argument("--app-id", default=ASC["APP_ID"])
+    parser.add_argument("--version", default="1.0.0")
+    parser.add_argument("--locale", default="en-US")
+    parser.add_argument(
+        "--iphone-dir", type=Path, default=TARGETS[0]["default_dir"]
+    )
+    parser.add_argument(
+        "--ipad-dir", type=Path, default=TARGETS[1]["default_dir"]
+    )
+    parser.add_argument("--poll-timeout", type=int, default=600)
+    parser.add_argument("--poll-interval", type=int, default=5)
+    recovery_mode = parser.add_mutually_exclusive_group()
+    recovery_mode.add_argument(
+        "--replace-created-sets",
+        action="store_true",
+        help=(
+            "replace the exact two stale sets from this interrupted upload; "
+            "requires all three --expected-* IDs"
+        ),
+    )
+    recovery_mode.add_argument(
+        "--verify-created-sets",
+        action="store_true",
+        help=(
+            "read-only polling verification for two exact created set IDs; "
+            "requires all three --expected-* IDs"
+        ),
+    )
+    parser.add_argument(
+        "--expected-localization-id",
+        help="exact localization ID required by a guarded set mode",
+    )
+    parser.add_argument(
+        "--expected-iphone-set",
+        help="exact APP_IPHONE_67 set ID required by a guarded set mode",
+    )
+    parser.add_argument(
+        "--expected-ipad-set",
+        help="exact APP_IPAD_PRO_3GEN_129 set ID required by a guarded set mode",
+    )
+    args = parser.parse_args(argv)
+    if args.poll_timeout <= 0 or args.poll_interval <= 0:
+        parser.error("poll timeout and interval must be positive")
+    recovery_ids = (
+        args.expected_localization_id,
+        args.expected_iphone_set,
+        args.expected_ipad_set,
+    )
+    guarded_mode = args.replace_created_sets or args.verify_created_sets
+    if guarded_mode and not all(recovery_ids):
+        parser.error(
+            "the guarded set mode requires --expected-localization-id, "
+            "--expected-iphone-set, and --expected-ipad-set"
+        )
+    if not guarded_mode and any(recovery_ids):
+        parser.error("--expected-* IDs require a guarded set mode")
+    if args.verify_created_sets and args.apply:
+        parser.error("--verify-created-sets is always read-only; do not pass --apply")
+    return args
+
+
+def print_release_and_assets(version, localization, locale, plans):
+    print(
+        f"✓ ASC version {version['attributes']['versionString']} "
+        f"({version['attributes']['appStoreState']})"
+    )
+    print(f"✓ localization {locale}: {localization['id']}")
+    for target, assets in plans:
+        width, height = assets[0]["dimensions"]
+        print(
+            f"✓ {target['display_type']}: {len(assets)} JPEGs, "
+            f"{width}×{height}, lexical order"
+        )
+        for index, asset in enumerate(assets, start=1):
+            print(f"  {index}. {asset['file_name']} ({asset['file_size']} bytes)")
+
+
+def report_retained(created):
+    if not created:
+        return
+    print(
+        "✗ upload stopped after creating ASC resources; no automatic "
+        "cleanup was attempted",
+        file=sys.stderr,
+    )
+    for progress in created:
+        print(
+            f"  retained {progress['display_type']} set "
+            f"{progress['set_id']} with "
+            f"{len(progress['screenshot_ids'])} reserved screenshots",
+            file=sys.stderr,
+        )
+
+
+def main(argv=None):
+    args = parse_args(argv)
+    directories = (args.iphone_dir.resolve(), args.ipad_dir.resolve())
+    plans = []
+    for target, directory in zip(TARGETS, directories):
+        assets = validate_directory(
+            target["label"], directory, target["dimensions"]
+        )
+        plans.append((target, assets))
+
+    version, localization = resolve_release(args.app_id, args.version, args.locale)
+    print_release_and_assets(version, localization, args.locale, plans)
+
+    guarded_mode = args.replace_created_sets or args.verify_created_sets
+    if guarded_mode:
+        if localization["id"] != args.expected_localization_id:
+            fail(
+                f"resolved localization is {localization['id']}, not the explicit "
+                f"expected ID {args.expected_localization_id}"
+            )
+        expected_ids = {
+            "APP_IPHONE_67": args.expected_iphone_set,
+            "APP_IPAD_PRO_3GEN_129": args.expected_ipad_set,
+        }
+
+    if args.verify_created_sets:
+        verify_sets_eventually(
+            localization["id"],
+            expected_ids,
+            plans,
+            timeout=args.poll_timeout,
+            interval=args.poll_interval,
+        )
+        print("✓ read-only verification complete; App Store Connect was not changed")
+        return
+
+    if args.replace_created_sets:
+        summaries = validate_created_sets_replacement(
+            localization["id"], expected_ids, plans
+        )
+        print("✓ exact interrupted-upload fingerprint verified")
+        print(
+            "  APP_IPHONE_67 remote/local mismatches: "
+            + ", ".join(summaries["APP_IPHONE_67"]["mismatches"])
+        )
+        ipad_reservation = summaries["APP_IPAD_PRO_3GEN_129"]["screenshots"][0]
+        print(
+            "  APP_IPAD_PRO_3GEN_129 incomplete reservation: "
+            f"{ipad_reservation['id']} "
+            f"({(ipad_reservation['attributes'].get('assetDeliveryState') or {}).get('state')})"
+        )
+
+        if not args.apply:
+            print("✓ replacement dry run complete; App Store Connect was not changed")
+            print(
+                "  Re-run this exact command with --apply to delete only the two "
+                "verified stale sets, recreate them, and upload the frozen assets."
+            )
+            return
+
+        # Freeze all ten files before the first destructive request. Uploads use
+        # these byte snapshots, so a later filesystem rewrite cannot create a
+        # size/checksum mismatch or silently change the release assets.
+        frozen_plans = [
+            (target, freeze_assets(assets)) for target, assets in plans
+        ]
+        # Repeat every remote guard immediately before deletion.
+        validate_created_sets_replacement(
+            localization["id"], expected_ids, frozen_plans
+        )
+
+        created = []
+        deleted = False
+        try:
+            delete_created_sets(expected_ids)
+            deleted = True
+            remaining = screenshot_sets(localization["id"])
+            if remaining:
+                fail(
+                    "expected the localization to have zero screenshot sets after "
+                    "deleting the exact stale pair"
+                )
+            for target, assets in frozen_plans:
+                upload_set(
+                    localization["id"],
+                    target,
+                    assets,
+                    timeout=args.poll_timeout,
+                    interval=args.poll_interval,
+                    created=created,
+                )
+            new_ids = {
+                progress["display_type"]: progress["set_id"]
+                for progress in created
+            }
+            verify_sets_eventually(
+                localization["id"],
+                new_ids,
+                frozen_plans,
+                timeout=args.poll_timeout,
+                interval=args.poll_interval,
+            )
+        except BaseException:
+            if deleted:
+                print(
+                    "✗ the two verified stale sets were deleted before recovery "
+                    "stopped",
+                    file=sys.stderr,
+                )
+            report_retained(created)
+            raise
+
+        print(
+            "✓ both stale created sets were replaced and all frozen screenshots "
+            "verified COMPLETE"
+        )
+        print("✓ no build was selected and nothing was submitted")
+        return
+
+    all_sets = guard_empty_target_sets(localization["id"])
+    print(
+        f"✓ target screenshot sets are empty "
+        f"({len(all_sets)} total set{'s' if len(all_sets) != 1 else ''} in localization)"
+    )
+
+    if not args.apply:
+        print("✓ dry run complete; App Store Connect was not changed")
+        print("  Re-run with --apply to create and upload both new sets.")
+        return
+
+    created = []
+    try:
+        # Recheck immediately before the first mutation to narrow the race window.
+        guard_empty_target_sets(localization["id"])
+        for target, assets in plans:
+            upload_set(
+                localization["id"],
+                target,
+                assets,
+                timeout=args.poll_timeout,
+                interval=args.poll_interval,
+                created=created,
+            )
+    except BaseException:
+        report_retained(created)
+        raise
+
+    print("✓ screenshot upload complete; no build was selected and nothing was submitted")
+
+
+if __name__ == "__main__":
+    main()

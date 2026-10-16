@@ -38,6 +38,14 @@ final class CookLedger {
         /// twenty minute timer into forty.
         var timerEndsAt: Date?
         var timerStep: Int?
+        /// Original duration lets the cook restart the same timer after it
+        /// rings without guessing how long they chose.
+        var timerDuration: TimeInterval?
+        /// Stored with this cooking session so the alert choice survives
+        /// minimizing or reopening the cooking screen.
+        /// Optional for compatibility with cooking sessions written before
+        /// per-timer alert preferences existed.
+        var timerMuted: Bool?
         var stepsSnapshot: [String]?
         var ingredientsSnapshot: [String]?
         var titleSnapshot: String?
@@ -201,14 +209,29 @@ final class CookLedger {
         mutate(recipe) { s in
             s.timerEndsAt = date
             s.timerStep = step
+            s.timerDuration = max(0, date.timeIntervalSinceNow)
         }
         print("[CookLedger] timer ends \(date) for step \(step)")
+    }
+
+    func timerDuration(for recipe: Recipe) -> TimeInterval? {
+        session(for: recipe)?.timerDuration
+    }
+
+    func isTimerMuted(for recipe: Recipe) -> Bool {
+        session(for: recipe)?.timerMuted ?? false
+    }
+
+    func setTimerMuted(_ muted: Bool, in recipe: Recipe) {
+        mutate(recipe) { $0.timerMuted = muted }
     }
 
     func clearTimer(in recipe: Recipe) {
         mutate(recipe) { s in
             s.timerEndsAt = nil
             s.timerStep = nil
+            s.timerDuration = nil
+            s.timerMuted = nil
         }
         print("[CookLedger] timer cleared")
     }

@@ -18,8 +18,6 @@ const ORDERS: { dish: string; line: string }[] = [
   { dish: "🧇", line: "Waffle. Okay, that's genuinely enough." },
 ];
 
-const CLOSED = "The kitchen is closed. Go home and plan a real dinner.";
-
 export default function Kitchen() {
   const [count, setCount] = useState(0);
   const [stamp, setStamp] = useState(0); // restarts the landing animation

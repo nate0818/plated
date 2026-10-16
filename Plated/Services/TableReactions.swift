@@ -19,29 +19,56 @@ enum TableReactions {
 
     /// Turn a plate on or off. Returns the state it landed in.
     @discardableResult
-    static func togglePlate(_ post: TablePost) -> Bool {
+    static func togglePlate(
+        _ post: TablePost,
+        context: ModelContext? = nil,
+        authorName: String? = nil
+    ) -> Bool {
         let me = TableIdentity.cached
         let now = !TableLedger.shared.platedByMe(post.shareRecordName, me: me)
-        TableLedger.shared.setPlate(post.shareRecordName, author: me, active: now)
+        let at = Date.now
+        TableLedger.shared.setPlate(post.shareRecordName, author: me, active: now, at: at)
+        // A post composed moments ago may still be live only in its context.
+        // Put it on disk before a reaction referring to its record name can
+        // enter the durable queue or leave the device.
+        Persist.save(context ?? PlatedStore.shared.mainContext, "plate reaction")
         TableOutbox.shared.enqueue(
             .plate(post: post.shareRecordName, zoneOwner: post.shareZoneOwner, active: now),
-            author: me
+            author: me,
+            at: at
         )
+        TableOutbox.shared.kickReactionDrain(authorName: resolvedName(authorName))
         return now
     }
 
     /// Cast, change or withdraw a vote. Passing the option already chosen
     /// withdraws it, which is how the poll behaved before and is the only
     /// way to un-vote without a second control.
-    static func vote(_ post: TablePost, option: Int) {
+    static func vote(
+        _ post: TablePost,
+        option: Int,
+        context: ModelContext? = nil,
+        authorName: String? = nil
+    ) {
         let me = TableIdentity.cached
         let current = TableLedger.shared.myVote(post.shareRecordName, me: me)
         let choice = current == option ? -1 : option
-        TableLedger.shared.setBallot(post.shareRecordName, author: me, choice: choice)
+        let at = Date.now
+        TableLedger.shared.setBallot(post.shareRecordName, author: me, choice: choice, at: at)
+        Persist.save(context ?? PlatedStore.shared.mainContext, "poll reaction")
         TableOutbox.shared.enqueue(
             .ballot(post: post.shareRecordName, zoneOwner: post.shareZoneOwner, choice: choice),
-            author: me
+            author: me,
+            at: at
         )
+        TableOutbox.shared.kickReactionDrain(authorName: resolvedName(authorName))
+    }
+
+    private static func resolvedName(_ explicit: String?) -> String {
+        let named = explicit?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !named.isEmpty { return named }
+        return (UserDefaults.standard.string(forKey: "userFirstName") ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     /// Seed the ledger from the fields that used to hold this.
@@ -74,5 +101,67 @@ enum TableReactions {
         }
         UserDefaults.standard.set(true, forKey: flag)
         Persist.save(context, "ledger backfill")
+    }
+}
+
+/// Ownership rules for destructive Table actions.
+///
+/// CloudKit identity is authoritative whenever the row carries one. A name
+/// is only migration glue for an unstamped row that this device can still
+/// establish lives on its own table. This keeps two people named Sam from
+/// inheriting one another's Delete menu while preserving pre-identity local
+/// posts and comments.
+enum TableMutationAuthorization {
+    static func owns(
+        post: TablePost,
+        identityIDs: [String],
+        displayNames: [String]
+    ) -> Bool {
+        let ids = Set(identityIDs.filter { !$0.isEmpty })
+        if !post.authorID.isEmpty { return ids.contains(post.authorID) }
+        guard isLegacyLocal(post) else { return false }
+        return legacyNameMatches(post.authorName, firstName: post.firstName, names: displayNames)
+    }
+
+    /// Your own comment, or any comment on a post you own.
+    static func canDelete(
+        comment: TableComment,
+        on post: TablePost,
+        identityIDs: [String],
+        displayNames: [String]
+    ) -> Bool {
+        if owns(post: post, identityIDs: identityIDs, displayNames: displayNames) {
+            return true
+        }
+
+        let ids = Set(identityIDs.filter { !$0.isEmpty })
+        if !comment.authorID.isEmpty { return ids.contains(comment.authorID) }
+
+        // An unstamped note on somebody else's/shared-zone post cannot be
+        // proven local. Withhold Delete rather than authorize by a colliding
+        // display name. On a genuinely local legacy post, name fallback is
+        // the only ownership fact old builds left behind.
+        guard post.authorID.isEmpty, isLegacyLocal(post) else { return false }
+        return legacyNameMatches(comment.authorName, firstName: nil, names: displayNames)
+    }
+
+    private static func isLegacyLocal(_ post: TablePost) -> Bool {
+        !post.isRemote && post.shareZoneOwner.isEmpty
+    }
+
+    private static func legacyNameMatches(
+        _ fullName: String,
+        firstName: String?,
+        names: [String]
+    ) -> Bool {
+        let mine = Set(names.map(normalized).filter { !$0.isEmpty })
+        guard !mine.isEmpty else { return false }
+        if mine.contains(normalized(fullName)) { return true }
+        if let firstName, mine.contains(normalized(firstName)) { return true }
+        return false
+    }
+
+    private static func normalized(_ value: String) -> String {
+        value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     }
 }

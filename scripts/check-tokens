@@ -38,6 +38,42 @@ if drift:
     print("\n  Theme.swift is the source. Copy its values across.")
     sys.exit(1)
 print("\033[32m✓\033[0m no drift")
+
+# The website uses the same two palettes. Resolve CSS aliases so selection
+# roles cannot silently diverge while app and website work happen together.
+css = (root / "web/app/globals.css").read_text()
+base = re.search(r':root\s*\{([^}]+)\}', css, re.S)
+paper = re.search(r'\[data-theme="paper"\]\s*\{([^}]+)\}', css, re.S)
+if not base or not paper:
+    sys.exit("Missing website Editorial or paper palette")
+def declarations(block):
+    return dict(re.findall(r'--([\w-]+)\s*:\s*([^;]+);', block))
+def resolve(name, values, seen=()):
+    if name in seen: return None
+    value = values.get(name, '').strip()
+    if re.fullmatch(r'#[0-9A-Fa-f]{6}', value): return value[1:].upper()
+    if re.fullmatch(r'\d+\s+\d+\s+\d+', value):
+        channels = [int(part) for part in value.split()]
+        if all(0 <= part <= 255 for part in channels):
+            return ''.join(f'{part:02X}' for part in channels)
+    alias = re.fullmatch(r'var\(--([\w-]+)\)', value)
+    return resolve(alias[1], values, (*seen, name)) if alias else None
+for name, target in re.findall(r'static let (\w+)\s*=\s*(\w+)\s*$', app, re.M):
+    if target in a: a[name] = a[target]
+dark = declarations(base[1])
+light = {**dark, **declarations(paper[1])}
+required = {'canvas', 'ink', 'inkSecondary', 'primaryAction', 'onPrimary', 'selectionFill', 'onSelection'}
+web_shared = []
+for name, pair in a.items():
+    css_name = re.sub(r'(?<!^)(?=[A-Z])', '-', name).lower()
+    if css_name not in dark:
+        if name in required: sys.exit(f"Missing website token: --{css_name}")
+        continue
+    web_pair = (resolve(css_name, light), resolve(css_name, dark))
+    if web_pair != pair:
+        sys.exit(f"Website token drift: {name}: app {pair}, website {web_pair}")
+    web_shared.append(name)
+print(f"{len(web_shared)} website tokens match both native appearances")
 PY
 
 # The cook timer's Live Activity attributes are a second hand-copied file:

@@ -16,9 +16,19 @@ import PhotosUI
 struct RecipeImportSheet: View {
     private let initialImages: [Data]
 
+    private enum IntakeRoute {
+        case choices
+        case paste
+    }
+
     init(initialInput: String = "", initialImages: [Data] = []) {
         self.initialImages = initialImages
         _raw = State(initialValue: initialInput)
+        _intakeRoute = State(
+            initialValue: initialInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                ? .choices
+                : .paste
+        )
     }
 
     @Environment(\.modelContext) private var context
@@ -27,6 +37,7 @@ struct RecipeImportSheet: View {
     @Query(sort: \Recipe.createdAt, order: .reverse) private var recipes: [Recipe]
 
     @State private var raw = ""
+    @State private var intakeRoute: IntakeRoute
     @State private var draft: ImportedRecipe?
     @State private var reading = false
     /// Why the read did not produce a recipe.
@@ -87,9 +98,16 @@ struct RecipeImportSheet: View {
                 // path costs another pass with the camera. The guard below
                 // needs a door to exist first, or it is a trap.
                 HStack {
-                    Button("Cancel") {
+                    Button(intakeRoute == .paste && draft == nil ? "Back" : "Cancel") {
                         Haptic.tap()
-                        if hasWork { discardAsked = true } else { dismiss() }
+                        if intakeRoute == .paste, draft == nil {
+                            editing = false
+                            withAnimation(.plSnap) { intakeRoute = .choices }
+                        } else if hasWork {
+                            discardAsked = true
+                        } else {
+                            dismiss()
+                        }
                     }
                     .plType(.callout, .medium)
                     .foregroundStyle(Color.inkSecondary)
@@ -97,12 +115,18 @@ struct RecipeImportSheet: View {
                     .buttonStyle(.pressable)
                     Spacer()
                 }
-                MicroLabel(draft == nil ? "To your cookbook" : "New recipe")
-                Text(draft == nil ? "Add a recipe" : "Does this look right?")
+                MicroLabel(draft == nil ? "Your cookbook" : "Quick check")
+                Text(headerTitle)
                     .plType(.title)
                     .foregroundStyle(Color.ink)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
+                Text(headerDetail)
+                    .plType(.caption)
+                    .foregroundStyle(Color.inkSecondary)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 3)
             }
             .padding(.horizontal, 20)
             .padding(.top, 8)
@@ -161,6 +185,12 @@ struct RecipeImportSheet: View {
                 if let data = try? await item.loadTransferable(type: Data.self),
                    let image = UIImage(data: data) {
                     scan([image])
+                } else {
+                    Haptic.warn()
+                    withAnimation(.plSnap) { failure = .unreadablePhoto }
+                    AccessibilityNotification.Announcement(
+                        "That photo could not be read. Choose another photo and try again."
+                    ).post()
                 }
                 photoItem = nil
             }
@@ -179,26 +209,101 @@ struct RecipeImportSheet: View {
 
     // MARK: Bring it in
 
+    private var headerTitle: String {
+        if draft != nil { return "Recipe preview" }
+        return intakeRoute == .choices ? "Add a recipe" : "Paste a recipe"
+    }
+
+    private var headerDetail: String {
+        if draft != nil { return "Tweak anything before it joins your cookbook." }
+        return intakeRoute == .choices
+            ? "Bring it in however you have it."
+            : "A link, a copied recipe, or both work here."
+    }
+
     @ViewBuilder
     private var intake: some View {
-        if typeSize.isAccessibilitySize {
-            ScrollView(showsIndicators: false) {
-                intakeContent
-            }
-            .scrollDismissesKeyboard(.interactively)
-        } else {
+        ScrollView(showsIndicators: false) {
             intakeContent
         }
+        .scrollDismissesKeyboard(.interactively)
+        .scrollBounceBehavior(.basedOnSize)
     }
 
     private var intakeContent: some View {
+        Group {
+            switch intakeRoute {
+            case .choices:
+                routeChoices
+            case .paste:
+                pasteRoute
+            }
+        }
+        .padding(.horizontal, 24)
+        .padding(.bottom, 24)
+    }
+
+    private var routeChoices: some View {
+        VStack(spacing: 10) {
+            importRoute(
+                title: raw.isEmpty ? "Paste a link or recipe" : "Continue pasted recipe",
+                detail: raw.isEmpty
+                    ? "From Safari, Notes, Messages, or anywhere else"
+                    : "Your text is still here",
+                icon: "doc.on.clipboard"
+            ) {
+                nothingToPaste = false
+                withAnimation(.plSnap) { intakeRoute = .paste }
+            }
+
+            if DocumentScanner.isAvailable {
+                importRoute(
+                    title: "Scan a recipe",
+                    detail: "Point your camera at a cookbook or recipe card",
+                    icon: "doc.viewfinder"
+                ) { scannerShown = true }
+            }
+
+            PhotosPicker(selection: $photoItem, matching: .images) {
+                importRouteLabel(
+                    title: "Choose a photo",
+                    detail: "Use a screenshot or a photo from your library",
+                    icon: "photo"
+                )
+            }
+            .buttonStyle(.pressable)
+
+            importRoute(
+                title: "Write it yourself",
+                detail: "Build the recipe in your own words",
+                icon: "square.and.pencil"
+            ) { editorShown = true }
+
+            Text("Text and photos are read on this device. A website opens only when you ask us to preview it.")
+                .plType(.caption)
+                .foregroundStyle(Color.inkSecondary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, 10)
+                .padding(.top, 10)
+        }
+    }
+
+    private var pasteRoute: some View {
         VStack(spacing: 14) {
+            HStack {
+                MicroLabel("Recipe link or text")
+                Spacer()
+                Button("Paste") { pasteClipboard() }
+                    .plType(.caption, .bold)
+                    .foregroundStyle(Color.accentText)
+                    .plTapTarget()
+                    .buttonStyle(.pressable)
+            }
+
             ZStack(alignment: .topLeading) {
                 if raw.isEmpty {
-                    // The promise this makes is now one the parser keeps:
-                    // headed sections are read as sections, and "Notes",
-                    // "Nutrition" and the story are dropped on the floor.
-                    Text("Paste a recipe or link. We'll keep the useful parts and drop the rest.")
+                    Text("Paste a link or the recipe itself.")
                         .plType(.body, .medium)
                         .foregroundStyle(Color.inkSecondary)
                         .padding(.horizontal, 16)
@@ -213,17 +318,13 @@ struct RecipeImportSheet: View {
                     .padding(10)
                     .focused($editing)
             }
-            .frame(
-                minHeight: 190,
-                maxHeight: typeSize.isAccessibilitySize ? 260 : .infinity
-            )
-            // The fill IS the well. A `hairline` border on a `fill` ground
-            // measures 1.05:1, so this drew a stroke nobody has ever seen
-            // and the rounded rectangle was already being described twice.
+            .frame(minHeight: typeSize.isAccessibilitySize ? 230 : 320)
             .background(Color.fill, in: Radius.shape(Radius.card))
+            .contentShape(Radius.shape(Radius.card))
+            .onTapGesture { editing = true }
 
             if nothingToPaste {
-                Text("Nothing on the clipboard. Copy the recipe first.")
+                Text("There’s no recipe on the clipboard yet.")
                     .plType(.caption, .semibold)
                     .foregroundStyle(Color.inkSecondary)
                     .multilineTextAlignment(.center)
@@ -232,125 +333,82 @@ struct RecipeImportSheet: View {
             if let failure {
                 Text(failure.line)
                     .plType(.caption, .semibold)
-                    .foregroundStyle(Color.tomato)
+                    .foregroundStyle(Color.dangerText)
                     .multilineTextAlignment(.center)
-                    // No retry control: the Paste, Scan and Photos chips are
-                    // directly below this line.
             }
 
-            // Three peers, one geometry. "Choose photo" needed about 108pt
-            // of content in a 111pt chip, so on a real phone — where text
-            // sets a hair wider than the simulator, the trap CLAUDE.md
-            // names — it wrapped to two lines and that one chip stood
-            // taller than the two beside it. The label is a word now, the
-            // labels cannot wrap at all, and above xxLarge the three stop
-            // sharing one row instead of crushing each other.
-            sourceRow {
-                ghostButton("Paste", icon: "doc.on.clipboard") {
-                    // An empty clipboard used to be indistinguishable from a
-                    // broken button: the tap did nothing and said nothing.
-                    if let s = UIPasteboard.general.string,
-                       !s.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        raw = s
-                        nothingToPaste = false
-                    } else {
-                        Haptic.warn()
-                        withAnimation(.plSnap) { nothingToPaste = true }
-                    }
-                }
-                if DocumentScanner.isAvailable {
-                    ghostButton("Scan", icon: "doc.viewfinder") { scannerShown = true }
-                }
-                PhotosPicker(selection: $photoItem, matching: .images) {
-                    // "Photos" rather than "Choose photo": it names where
-                    // the picture comes from, which is the one thing that
-                    // distinguishes it from Scan beside it, and it fits.
-                    ghostLabel("Photos", icon: "photo")
-                }
-                .buttonStyle(.pressable)
-            }
-
-            // The shared pill. Hand-built at 48pt and .body/.bold, this
-            // lost TomatoPillStyle's pressed tomato and its float shadow,
-            // and stood 8pt shorter than every other committing action in
-            // the app.
-            TomatoPillButton(title: reading ? "Reading…" : "Read it",
-                             busy: reading, haptic: Haptic.plate) {
+            PrimaryActionButton(
+                title: reading ? "Reading recipe…" : "Preview recipe",
+                busy: reading,
+                haptic: Haptic.plate
+            ) {
                 editing = false
                 read(raw)
             }
             .disabled(raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || reading)
 
-            // The last way in. It used to be its own row in the + menu,
-            // sitting beside "Paste a recipe" — which asked people to pick
-            // how they were adding a recipe before they'd picked adding
-            // one. It belongs here, next to paste and scan and photo, as
-            // one more way to fill the same cookbook.
-            Button {
-                Haptic.tap()
-                editorShown = true
-            } label: {
-                Text("Write it out")
-                    .plType(.footnote, .bold)
-                    .plActionLabel()
-                    .foregroundStyle(Color.ink)
-                    .frame(maxWidth: .infinity)
-                    .plTapTarget()
-            }
-            .buttonStyle(.pressable)
-
-            Text("Pasted text and scans stay on your phone. Website links are fetched only when you ask.")
+            Text("Pasted text stays on this device. Website links are fetched only after you tap Preview recipe.")
                 .plType(.caption)
                 .foregroundStyle(Color.inkSecondary)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
-        }
-        .padding(.horizontal, 24)
-        .padding(.bottom, 24)
-    }
-
-    /// Three ways in, side by side while they fit and stacked when they do
-    /// not. Chips this small have nowhere to reflow inside themselves, so
-    /// the row reflows instead: at accessibility sizes a third of a screen
-    /// cannot hold a word plus an icon, and squeezing them is how "Choose
-    /// photo" wrapped in the first place.
-    @ViewBuilder
-    private func sourceRow(@ViewBuilder _ content: () -> some View) -> some View {
-        if typeSize.isAccessibilitySize {
-            VStack(spacing: 8) { content() }
-        } else {
-            HStack(spacing: 8) { content() }
+                .padding(.horizontal, 10)
         }
     }
 
-    private func ghostButton(_ title: String, icon: String, action: @escaping () -> Void) -> some View {
+    private func pasteClipboard() {
+        guard let value = UIPasteboard.general.string,
+              !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            Haptic.warn()
+            withAnimation(.plSnap) { nothingToPaste = true }
+            return
+        }
+        Haptic.tap()
+        raw = value
+        nothingToPaste = false
+        failure = nil
+        editing = true
+    }
+
+    private func importRoute(
+        title: String,
+        detail: String,
+        icon: String,
+        action: @escaping () -> Void
+    ) -> some View {
         Button {
             Haptic.tap()
             action()
         } label: {
-            ghostLabel(title, icon: icon)
+            importRouteLabel(title: title, detail: detail, icon: icon)
         }
         .buttonStyle(.pressable)
     }
 
-    private func ghostLabel(_ title: String, icon: String) -> some View {
-        HStack(spacing: 6) {
+    private func importRouteLabel(title: String, detail: String, icon: String) -> some View {
+        HStack(spacing: 14) {
             Image(systemName: icon)
-                .font(.system(size: 12, weight: .semibold))
-            Text(title)
-                .plType(.footnote, .bold)
-                // One line, always. A chip that grows a second line is a
-                // chip with different geometry from the two beside it, and
-                // DESIGN.md's rule is that peers look like peers.
-                .lineLimit(1)
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(Color.ink)
+                .frame(width: 42, height: 42)
+                .background(Color.raisedFill, in: Circle())
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .plType(.body, .bold)
+                    .foregroundStyle(Color.ink)
+                Text(detail)
+                    .plType(.caption)
+                    .foregroundStyle(Color.inkSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .foregroundStyle(Color.ink)
-        .frame(maxWidth: .infinity)
-        .frame(minHeight: 44)
-        .overlay(Capsule().strokeBorder(Color.hairline, lineWidth: 1.5))
-        // After the overlay, not before: a stroked capsule is a hollow ring,
-        // so without this the tap lands only where the letters are.
-        .contentShape(Capsule())
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.fill, in: Radius.shape(Radius.card))
+        .contentShape(Radius.shape(Radius.card))
     }
 
     // MARK: Review — editable, because the parse is a first draft
@@ -408,7 +466,7 @@ struct RecipeImportSheet: View {
                         // 56, like the pill beside it. Two buttons in one row
                         // are peers and a filled-versus-outlined pair already
                         // carries which is primary; an 8pt height difference
-                        // carried nothing, and at xxLarge the tomato label
+                        // carried nothing, and at xxLarge the olive label
                         // wraps to two lines and the gap becomes obvious.
                         Text("Start over")
                             .plType(.body, .bold)
@@ -417,12 +475,12 @@ struct RecipeImportSheet: View {
                             .minimumScaleFactor(0.8)
                             .frame(maxWidth: .infinity)
                             .frame(minHeight: 56)
-                            .overlay(Capsule().strokeBorder(Color.hairline, lineWidth: 1.5))
-                            .contentShape(Capsule())
+                            .overlay(Radius.shape(Radius.chip).strokeBorder(Color.hairline, lineWidth: 1.5))
+                            .contentShape(Radius.shape(Radius.chip))
                     }
                     .buttonStyle(.pressable)
 
-                    TomatoPillButton(title: unnamed ? "Name it to save" : "Save recipe",
+                    PrimaryActionButton(title: unnamed ? "Name it to save" : "Save recipe",
                                      haptic: Haptic.kiss) {
                         requestSave(bound.wrappedValue)
                     }
@@ -459,7 +517,7 @@ struct RecipeImportSheet: View {
                 .frame(minHeight: 52)
                 .overlay(
                     RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
-                        .strokeBorder(unnamed ? Color.tomato : Color.hairline, lineWidth: unnamed ? 1.5 : 1)
+                        .strokeBorder(unnamed ? Color.olive : Color.hairline, lineWidth: unnamed ? 1.5 : 1)
                 )
                 .plTapToFocus(radius: Radius.card) { namingDish = true }
             if !draft.wrappedValue.summary.isEmpty {
@@ -563,7 +621,7 @@ struct RecipeImportSheet: View {
                             // onto two lines, so every step past nine
                             // read as a stacked pair of digits.
                             //
-                            // inkSecondary, not tomato: the same ordinal is
+                            // inkSecondary, not olive: the same ordinal is
                             // inkSecondary on the recipe page and in the
                             // editor, and a static list ordinal is not an
                             // event that has earned the accent.
@@ -869,6 +927,8 @@ private struct ImportFactField: View {
                     .plType(.heading)
                     .foregroundStyle(Color.ink)
                     .frame(minWidth: 28)
+                    .accessibilityLabel(accessibilityLabel)
+                    .accessibilityValue(accessibilityValue)
                 if value > 0 && !suffix.isEmpty {
                     Text(suffix)
                         .plType(.caption, .semibold)
@@ -882,6 +942,21 @@ private struct ImportFactField: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 8)
+    }
+
+    private var accessibilityLabel: String {
+        switch label {
+        case "Serves": return "Servings"
+        case "Prep": return "Prep time in minutes"
+        case "Cook": return "Cook time in minutes"
+        default: return label
+        }
+    }
+
+    private var accessibilityValue: String {
+        guard value > 0 else { return "Not set" }
+        if label == "Serves" { return value.things("serving") }
+        return "\(value) minutes"
     }
 }
 

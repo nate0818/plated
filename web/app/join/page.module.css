@@ -27,7 +27,7 @@
 }
 
 /* The host's name earns the one splash of tomato on the page. */
-.who { color: var(--tomato); }
+.who { color: var(--olive); }
 
 .lede {
   font-size: 1.0625rem;
@@ -51,11 +51,11 @@
   background: var(--tomato);
   color: var(--on-tomato);
   text-decoration: none;
-  font-weight: 700;
+  font-weight: 600;
   font-size: 1.0625rem;
   letter-spacing: -0.01em;
   padding: 18px 32px;
-  border-radius: 999px;
+  border-radius: var(--radius-chip);
   min-width: 15rem;
   transition: background 0.15s ease, transform 0.15s ease;
 }

@@ -79,6 +79,8 @@ struct WeekSnapshot: Codable {
         /// dark room. Nil when tonight is a real photograph, which is the
         /// same picture in both rooms.
         var dishPhotoDark: UIImage?
+        /// The household's shared banner, when one has been chosen.
+        var householdPhoto: UIImage? = nil
         var tablePhoto: UIImage?
         var cookbookPhoto: UIImage?
     }
@@ -96,9 +98,12 @@ struct WeekSnapshot: Codable {
             .flatMap(UIImage.init(data:))
         let cookbook = (try? Data(contentsOf: container.appendingPathComponent("cookbook.jpg")))
             .flatMap(UIImage.init(data:))
+        let household = (try? Data(contentsOf: container.appendingPathComponent("household.jpg")))
+            .flatMap(UIImage.init(data:))
         var loaded = snapshot.aged(dishPhoto: dish, dishPhotoDark: dishDark, tablePhoto: table)
         // The cookbook card, like the table's, is true however long it sits.
         loaded.cookbookPhoto = cookbook
+        loaded.householdPhoto = household
         return loaded
     }
 
@@ -197,21 +202,26 @@ enum PlatedLink {
 }
 
 // MARK: - Brand type
-// Jakarta rides along in the appex; Gabarito stays home — nothing in a
-// widget reaches display scale.
+// Both Editorial faces ship in the widget extension for offline rendering.
 
 enum WidgetFonts {
     static let registered: Bool = {
-        guard let url = Bundle.main.url(forResource: "PlusJakartaSans", withExtension: "ttf") else { return false }
-        CTFontManagerRegisterFontsForURL(url as CFURL, .process, nil)
+        for name in ["DMSans", "Newsreader"] {
+            guard let url = Bundle.main.url(forResource: name, withExtension: "ttf") else { return false }
+            CTFontManagerRegisterFontsForURL(url as CFURL, .process, nil)
+        }
         return true
     }()
 }
 
 extension Font {
-    static func jakarta(_ size: CGFloat, _ weight: String = "Bold") -> Font {
+    static func editorial(_ size: CGFloat) -> Font {
         _ = WidgetFonts.registered
-        return .custom("PlusJakartaSans-Regular_\(weight)", size: size)
+        return .custom("Newsreader16pt-Regular", size: size)
+    }
+    static func sans(_ size: CGFloat, _ weight: String = "Bold") -> Font {
+        _ = WidgetFonts.registered
+        return .custom("DMSans-9ptRegular_\(weight == "Regular" ? "Regular" : weight == "Medium" ? "Medium" : "SemiBold")", size: size)
     }
 }
 
@@ -231,8 +241,8 @@ enum Plate {
         })
     }
 
-    static let canvas = color(0xFFFEFC, 0x16120E)
-    static let ink = color(0x221B14, 0xF4EDE3)
+    static let canvas = color(0xFAF9F4, 0x191C17)
+    static let ink = color(0x27362A, 0xEDF0E6)
     // 0x7F7364, not 0x8A8074. The old value measured 3.87:1 on canvas,
     // under the 4.5:1 floor, and was replaced in Theme.swift. This copy kept
     // shipping the failing one — and the amber note eleven lines down proves
@@ -240,31 +250,31 @@ enum Plate {
     // A fork that receives SOME fixes is worse than one that receives none,
     // because you cannot tell by looking which state it is in. See
     // scripts/check-tokens, which now fails the build of a drift like this.
-    static let inkSecondary = color(0x675D50, 0xB8AC9C)
-    static let inkFaint = color(0xB5AC9E, 0x6B6157)
-    static let hairlineDashed = color(0xEFE7DD, 0x342C22)
-    static let fill = color(0xF4F1EC, 0x282119)
+    static let inkSecondary = color(0x606958, 0xB0B8A8)
+    static let inkFaint = color(0xA5AD9A, 0x727D68)
+    static let hairlineDashed = color(0xCCD2C2, 0x4C5844)
+    static let fill = color(0xEFEFE6, 0x242720)
     static let basil = color(0x3DA35D, 0x55BE76)
-    static let tomato = color(0xFF5A3C, 0xF75434)
+    static let olive = color(0x355941, 0xB2C9A5)
     // A photograph is a photograph in both rooms, so these two do not flip.
     // The app has carried them since the remove-photo button vanished after
     // dark; the widget was still writing `.white` by hand over its own food
     // photos, which is the same fork drift the note above is about.
-    static let scrimInk = color(0x241C12, 0x241C12)
+    static let scrimInk = color(0x172018, 0x172018)
     static let onScrim = color(0xFFFFFF, 0xFFFFFF)
 
     static func person(_ hex: String) -> (tint: Color, tone: Color) {
         switch hex.uppercased() {
-        case "3DA35D": return (color(0xEDF5EF, 0x1F2E24), color(0x3DA35D, 0x55BE76))
+        case "3DA35D": return (color(0xE8EDE1, 0x303B29), color(0x3DA35D, 0x55BE76))
         // Amber darkened to clear 3:1 on canvas — see Color.amber. The key
         // stays "C88A00" because it is the stored `colorHex`, not a colour;
         // BF8300 is the same tone's light value if it ever lands as hex.
         case "C88A00", "BF8300": return (color(0xFFF4DC, 0x332A15), color(0xBF8300, 0xE3A83C))
         case "B95CF4": return (color(0xF5EDFB, 0x2E2138), color(0xB95CF4, 0xC98BF7))
-        // C86629 was the pre-rotation default terracotta; map it with tomato
+        // C86629 was the pre-rotation default terracotta; map it with olive
         // so existing seats keep a warm pair instead of falling to neutral.
-        case "FF5A3C", "C86629": return (color(0xFFEDE3, 0x39241C), color(0xFF5A3C, 0xF75434))
-        default:       return (color(0xF4F1EC, 0x282119), color(0x221B14, 0xF4EDE3))
+        case "FF5A3C", "C86629": return (color(0xE8EDE1, 0x303B29), olive)
+        default:       return (fill, ink)
         }
     }
 }
@@ -276,6 +286,7 @@ struct WeekEntry: TimelineEntry {
     var snapshot: WeekSnapshot?
     var photo: UIImage?
     var photoDark: UIImage?
+    var householdPhoto: UIImage? = nil
     var tablePhoto: UIImage?
     var cookbookPhoto: UIImage?
 }
@@ -297,6 +308,7 @@ struct WeekProvider: TimelineProvider {
             snapshot: loaded.snapshot,
             photo: loaded.dishPhoto,
             photoDark: loaded.dishPhotoDark,
+            householdPhoto: loaded.householdPhoto,
             tablePhoto: loaded.tablePhoto,
             cookbookPhoto: loaded.cookbookPhoto
         ))
@@ -309,6 +321,7 @@ struct WeekProvider: TimelineProvider {
             snapshot: loaded?.snapshot,
             photo: loaded?.dishPhoto,
             photoDark: loaded?.dishPhotoDark,
+            householdPhoto: loaded?.householdPhoto,
             tablePhoto: loaded?.tablePhoto,
             cookbookPhoto: loaded?.cookbookPhoto
         )
@@ -327,6 +340,7 @@ extension WeekEntry {
         snapshot: .sample,
         photo: WidgetSamples.tonight,
         photoDark: nil,
+        householdPhoto: nil,
         tablePhoto: WidgetSamples.table,
         cookbookPhoto: WidgetSamples.cookbook
     )
@@ -430,7 +444,7 @@ struct CookDot: View {
             .frame(width: size, height: size)
             .overlay {
                 Text(initial)
-                    .font(.jakarta(size * 0.5))
+                    .font(.sans(size * 0.5))
                     .foregroundStyle(tone.tone)
             }
     }
@@ -443,7 +457,7 @@ struct MicroCap: View {
     var color: Color = Plate.inkSecondary
     var body: some View {
         Text(text)
-            .font(.jakarta(10))
+            .font(.sans(10))
             // 0.05em, which is TypeScale.micro's tracking. This was a flat
             // 1.0 at size 10, or 0.10em: every eyebrow in every widget set
             // twice as loose as the same eyebrow in the app.
@@ -484,8 +498,12 @@ struct PlateArt: View {
 
     /// A real photograph is the same in both rooms; the drawn plate answers
     /// the room, so it comes in two.
-    private var picture: UIImage? { (scheme == .dark ? entry.photoDark : nil) ?? entry.photo }
-    var isPhotograph: Bool { entry.snapshot?.tonight?.hasPhoto == true && entry.photo != nil }
+    private var picture: UIImage? {
+        entry.householdPhoto ?? ((scheme == .dark ? entry.photoDark : nil) ?? entry.photo)
+    }
+    var isPhotograph: Bool {
+        entry.householdPhoto != nil || (entry.snapshot?.tonight?.hasPhoto == true && entry.photo != nil)
+    }
 
     var body: some View {
         GeometryReader { geo in

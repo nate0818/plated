@@ -38,9 +38,22 @@ struct MealInsights {
             counts[title] = entry
         }
 
-        let result = counts
-            .map { RecipeFrequency(title: $0.key, count: $0.value.count, lastCooked: $0.value.last, recipe: $0.value.recipe) }
-            .sorted { $0.count == $1.count ? $0.title < $1.title : $0.count > $1.count }
+        // Keep construction and ordering as separate compiler jobs. This was
+        // a single tuple-heavy map/sort chain, which Swift could no longer
+        // type-check after the model grew even though the work is trivial.
+        var result: [RecipeFrequency] = []
+        result.reserveCapacity(counts.count)
+        for (title, entry) in counts {
+            result.append(RecipeFrequency(
+                title: title,
+                count: entry.count,
+                lastCooked: entry.last,
+                recipe: entry.recipe
+            ))
+        }
+        result.sort { lhs, rhs in
+            lhs.count == rhs.count ? lhs.title < rhs.title : lhs.count > rhs.count
+        }
 
         guard let limit else { return result }
         return Array(result.prefix(limit))

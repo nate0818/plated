@@ -167,6 +167,8 @@ enum WidgetBridge {
         let grocery = groceryLine(from: context, windowStart: today)
         let (table, tablePhoto) = latestTablePost(from: context)
         let (cookbook, cookbookPhoto) = mostLovedRecipe(from: context)
+        let householdPhoto = (try? context.fetch(FetchDescriptor<HouseholdProfile>()))?
+            .first?.bannerPhotoData
 
         // The widget reads `ownerName == cookName` as "you". On a member's
         // phone the head of table is somebody else, so the name written
@@ -191,6 +193,7 @@ enum WidgetBridge {
             try write(photo: tonightPhotoDark, to: container.appendingPathComponent("tonight-dark.png"))
             try write(photo: tablePhoto, to: container.appendingPathComponent("table.jpg"))
             try write(photo: cookbookPhoto, to: container.appendingPathComponent("cookbook.jpg"))
+            try write(photo: householdPhoto, to: container.appendingPathComponent("household.jpg"))
             let data = try JSONEncoder().encode(snapshot)
             try data.write(to: container.appendingPathComponent("week-snapshot.json"), options: .atomic)
             WidgetCenter.shared.reloadAllTimelines()
@@ -275,9 +278,15 @@ enum WidgetBridge {
         // Not 1: the newest row can be a blank the mirror adopted (see
         // TablePost.isBlank), and the home screen is the last place that
         // should show an empty card. Take the newest real one.
-        descriptor.fetchLimit = 8
-        guard let post = (try? context.fetch(descriptor))?.first(where: \.isUserContent)
+        descriptor.fetchLimit = 32
+        guard let post = (try? context.fetch(descriptor))?.first(where: {
+            $0.isUserContent
+                && !ContentSafety.shared.isBlocked(authorID: $0.authorID, authorName: $0.authorName)
+        })
         else { return (nil, nil) }
+        let visibleCommentCount = post.sortedComments.lazy.filter {
+            !ContentSafety.shared.isBlocked(authorID: $0.authorID, authorName: $0.authorName)
+        }.count
         let card = Snapshot.TableCard(
             authorName: post.authorName,
             authorInitial: post.initials,
@@ -285,7 +294,7 @@ enum WidgetBridge {
             dishTitle: post.dishTitle,
             caption: post.caption,
             plates: post.totalPlates,
-            commentCount: post.sortedComments.count,
+            commentCount: visibleCommentCount,
             hasPhoto: post.photoData != nil,
             postedAt: post.createdAt
         )

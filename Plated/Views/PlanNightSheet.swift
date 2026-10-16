@@ -32,6 +32,7 @@ struct PlanNightSheet: View {
     @Query private var meals: [PlannedMeal]
     @Query private var recipes: [Recipe]
     @Query(sort: \HouseholdMember.createdAt) private var members: [HouseholdMember]
+    @Query(sort: \HouseholdProfile.createdAt) private var householdProfiles: [HouseholdProfile]
 
     @AppStorage("showCalendarEvents") private var showCalendarEvents = false
     /// One destination, not four flags.
@@ -252,7 +253,7 @@ struct PlanNightSheet: View {
                                     .fixedSize(horizontal: false, vertical: true)
                                     .frame(maxWidth: .infinity, alignment: .leading)
                             }
-                            InkPillButton(title: "Done", systemImage: "checkmark") { dismiss() }
+                            SecondaryActionButton(title: "Done", systemImage: "checkmark") { dismiss() }
                                 .padding(.top, 4)
                         }
                         // Nothing to change on a night that is going. The
@@ -326,8 +327,10 @@ struct PlanNightSheet: View {
                         // with choosing what to cook.
                         OptionRow(
                             icon: "book.closed",
-                            title: "Choose a recipe",
-                            detail: "\(recipes.count) \(recipes.count == 1 ? "dish" : "dishes") your household already knows."
+                            title: meal == nil ? "Choose a recipe" : "Change dinner",
+                            detail: meal == nil
+                                ? "Choose from \(recipes.count) household \(recipes.count == 1 ? "recipe" : "recipes")."
+                                : "Pick another dish. The cook and servings stay as planned."
                         ) { route = .picker }
 
                         OptionRow(
@@ -407,7 +410,11 @@ struct PlanNightSheet: View {
             switch destination {
             case .picker:
                 // Switches the route rather than dismissing itself first.
-                RecipePickerSheet(date: date, onWriteNew: { route = .newRecipe }) { recipe in
+                RecipePickerSheet(
+                    date: date,
+                    isReplacing: meal != nil || remote != nil,
+                    onWriteNew: { route = .newRecipe }
+                ) { recipe in
                     // `plate` closes the sheet: at once for this phone's own
                     // night, and on the zone's answer for a household one.
                     plate(recipe, tagline: "")
@@ -426,6 +433,12 @@ struct PlanNightSheet: View {
                     dismiss()
                 }
             }
+        }
+        .onAppear {
+            #if DEBUG
+            if LaunchFlags.consume("-plated-review-recipe-picker") { route = .picker }
+            if LaunchFlags.consume("-plated-review-gathering") { route = .gathering }
+            #endif
         }
     }
 
@@ -481,6 +494,7 @@ struct PlanNightSheet: View {
             Button {
                 Haptic.plate()
                 withAnimation(.plSnap) { context.delete(meal) }
+                Persist.save(context, "remove planned meal")
             } label: {
                 Image(systemName: "trash")
                     .accessibilityLabel("Remove this meal")
@@ -544,7 +558,7 @@ struct PlanNightSheet: View {
                 Haptic.warn()
                 confirmingRemoval = true
             } label: {
-                // Working, in `TomatoPillButton`'s shape: the spinner takes
+                // Working, in `PrimaryActionButton`'s shape: the spinner takes
                 // the glyph's place inside the same 44pt target, so the card
                 // does not move while the zone answers and the trash cannot
                 // be pressed a second time on a night already going.
@@ -660,9 +674,9 @@ struct PlanNightSheet: View {
                 .foregroundStyle(Color.canvas)
                 .padding(.horizontal, 16)
                 .frame(minHeight: 36)
-                .background(Color.ink, in: Capsule())
+                .background(Color.ink, in: Radius.shape(Radius.chip))
                 .frame(minHeight: 44)
-                .contentShape(Capsule())
+                .contentShape(Radius.shape(Radius.chip))
                 .buttonStyle(.pressable)
 
                 Button(HouseholdEdits.keepTitle) {
@@ -811,7 +825,11 @@ struct PlanNightSheet: View {
     // MARK: Actions
 
     private func pickForMe() {
-        let engine = SuggestionEngine(recipes: recipes, members: members)
+        let engine = SuggestionEngine(
+            recipes: recipes,
+            members: members,
+            availableEquipment: householdProfiles.first?.availableEquipment ?? []
+        )
         let thisWeek = Set(
             meals.filter {
                 let delta = Calendar.current.dateComponents([.day], from: .now.startOfDay, to: $0.date).day ?? 99
@@ -1036,6 +1054,7 @@ struct PlanNightSheet: View {
                 context.insert(meal)
             }
         }
+        Persist.save(context, "mark eating out")
         dismiss()
     }
 
@@ -1070,6 +1089,7 @@ struct PlanNightSheet: View {
             }
             context.insert(meal)
         }
+        Persist.save(context, "restore planned meal")
         // Cleared rather than left to age out. Every caption is gated on the
         // night having no meal, so leaving it would be harmless today, and
         // that is the point: the gate is a property of four call sites
@@ -1088,7 +1108,7 @@ struct PlanNightSheet: View {
             var edit = PlanShare.Edit(changing: remote)
             edit.title = recipe.title
             edit.tagline = tagline
-            edit.servings = recipe.servings
+            edit.servings = PlanReplacement.servings(current: remote.servings, defaultValue: recipe.servings)
             edit.hasRecipe = true
             edit.recipeMinutes = recipe.totalMinutes
             edit.recipeOriginKey = recipe.originID
@@ -1105,18 +1125,19 @@ struct PlanNightSheet: View {
             return
         }
         Haptic.plate()
-        let cook = CookRotation.cook(for: date, members: members, meals: meals)
+        let cook = meal?.cook ?? CookRotation.cook(for: date, members: members, meals: meals)
+        let servings = PlanReplacement.servings(current: meal?.servings, defaultValue: recipe.servings)
         withAnimation(.plPop) {
             if let meal {
                 meal.recipe = recipe
                 meal.customTitle = ""
-                meal.servings = recipe.servings
+                meal.servings = servings
                 meal.cook = cook
                 meal.tagline = tagline
             } else {
                 context.insert(PlannedMeal(
                     date: date, slot: slot, recipe: recipe,
-                    servings: recipe.servings, cook: cook, tagline: tagline
+                    servings: servings, cook: cook, tagline: tagline
                 ))
             }
         }
@@ -1126,6 +1147,7 @@ struct PlanNightSheet: View {
             body: "\(dayTitle): \(recipe.title). \(cookName.capitalized) cook\(cookName == "you" ? "" : "s").",
             into: context
         )
+        Persist.save(context, "plan meal")
         // The moment to ask, and the only one. They have just said they
         // intend to cook on a given night, so "shall I remind you" continues
         // their own thought instead of interrupting it. iOS grants exactly
@@ -1143,6 +1165,15 @@ struct PlanNightSheet: View {
     }
 }
 
+/// Replacing a dish changes the recipe, not the household's decision about
+/// how many people are eating or who is on the stove.
+enum PlanReplacement {
+    static func servings(current: Int?, defaultValue: Int) -> Int {
+        guard let current, current > 0 else { return max(1, defaultValue) }
+        return current
+    }
+}
+
 /// An open ask for the table, optionally with a poll — give the household
 /// choices and let the votes cook.
 struct AskComposerSheet: View {
@@ -1157,6 +1188,52 @@ struct AskComposerSheet: View {
     @State private var options: [String] = []
     @State private var optionEntry = ""
     @State private var tagged: Set<String> = []
+    @State private var discardAsked = false
+    @State private var destinations: [TableShare.Destination] = []
+    @State private var selectedDestinationID: String?
+    @State private var destinationsLoaded = false
+    /// Held only when SwiftData could not make the newly inserted ask
+    /// durable. Retrying saves this exact object rather than inserting a
+    /// second copy of the question and its poll.
+    @State private var pendingSavePost: TablePost?
+    @State private var saveProblem: String?
+
+    private var pendingOption: String {
+        optionEntry.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var postOptions: [String] {
+        var choices = options
+        guard !pendingOption.isEmpty,
+              choices.count < 4,
+              !choices.contains(where: {
+                  $0.localizedCaseInsensitiveCompare(pendingOption) == .orderedSame
+              })
+        else { return choices }
+        choices.append(pendingOption)
+        return choices
+    }
+
+    private var hasContent: Bool {
+        !caption.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || !options.isEmpty
+            || !pendingOption.isEmpty
+            || !tagged.isEmpty
+            || pendingSavePost != nil
+    }
+
+    private var selectedDestination: TableShare.Destination? {
+        guard let selectedDestinationID else { return nil }
+        return destinations.first { $0.id == selectedDestinationID }
+    }
+
+    private var destinationReady: Bool {
+        destinationsLoaded && (destinations.isEmpty || selectedDestination != nil)
+    }
+
+    private var canPost: Bool {
+        pendingSavePost != nil || (destinationReady && postOptions.count != 1)
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -1168,6 +1245,14 @@ struct AskComposerSheet: View {
             }
             .padding(.top, 22)
             .padding(.bottom, 12)
+            .frame(maxWidth: .infinity)
+            .overlay(alignment: .topTrailing) {
+                IconDiscButton(systemName: "xmark", label: "Close") {
+                    if hasContent { discardAsked = true } else { dismiss() }
+                }
+                .padding(.trailing, 16)
+                .padding(.top, 12)
+            }
 
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 14) {
@@ -1228,59 +1313,179 @@ struct AskComposerSheet: View {
                                         .plTapTarget()
                                 }
                                 .buttonStyle(.pressable)
-                                .disabled(optionEntry.trimmingCharacters(in: .whitespaces).isEmpty)
+                                .disabled(pendingOption.isEmpty)
                             }
+                        }
+
+                        if postOptions.count == 1 {
+                            Text("Add one more choice to post a poll.")
+                                .plType(.caption, .semibold)
+                                .foregroundStyle(Color.inkSecondary)
                         }
                     }
 
                     if members.count > 1 {
                         VStack(alignment: .leading, spacing: 8) {
                             MicroLabel("Tag someone")
-                            HStack(spacing: 8) {
-                                ForEach(members.filter { !$0.isMe }, id: \.persistentModelID) { member in
-                                    let active = tagged.contains(member.name)
-                                    Button {
-                                        Haptic.tap()
-                                        withAnimation(.plSnap) {
-                                            if active { tagged.remove(member.name) } else { tagged.insert(member.name) }
-                                        }
-                                    } label: {
-                                        HStack(spacing: 5) {
-                                            AvatarCircle(member: member, size: 22)
-                                            Text("@\(member.name)")
-                                                .plType(.micro)
-                                                .plActionLabel()
-                                        }
-                                        .foregroundStyle(active ? Color.canvas : Color.ink)
-                                        .padding(.horizontal, 10)
-                                        .frame(minHeight: 36)
-                                        .background {
-                                            if active {
-                                                Capsule().fill(Color.ink)
-                                            } else {
-                                                Capsule().strokeBorder(Color.hairline)
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 8) {
+                                    ForEach(members.filter { !$0.isMe }, id: \.persistentModelID) { member in
+                                        let active = tagged.contains(member.name)
+                                        Button {
+                                            Haptic.tap()
+                                            withAnimation(.plSnap) {
+                                                if active { tagged.remove(member.name) } else { tagged.insert(member.name) }
                                             }
+                                        } label: {
+                                            HStack(spacing: 5) {
+                                                AvatarCircle(member: member, size: 22)
+                                                Text("@\(member.name)")
+                                                    .plType(.micro)
+                                                    .plActionLabel()
+                                            }
+                                            .foregroundStyle(active ? Color.canvas : Color.ink)
+                                            .padding(.horizontal, 10)
+                                            .frame(minHeight: 36)
+                                            .background {
+                                                if active {
+                                                    Capsule().fill(Color.ink)
+                                                } else {
+                                                    Radius.shape(Radius.chip).strokeBorder(Color.hairline)
+                                                }
+                                            }
+                                            .frame(minHeight: 44)
+                                            .contentShape(Radius.shape(Radius.chip))
                                         }
-                                    }
-                                    .buttonStyle(.pressable)
-                                    .accessibilityAddTraits(active ? .isSelected : [])
-                                }
-                            }
-                        }
+                                        .buttonStyle(.pressable)
+                                        .accessibilityAddTraits(active ? .isSelected : [])
+                }
+            }
+        }
+    }
+}
+
+                    HStack(spacing: 8) {
+                        Image(systemName: "lock.fill")
+                            .font(.system(size: 12, weight: .semibold))
+                        Text("Only people at your Table can see this.")
+                            .plType(.caption, .semibold)
                     }
+                    .foregroundStyle(Color.inkSecondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.top, 2)
+
+                    destinationControl
                 }
                 .padding(.horizontal, 24)
                 .padding(.bottom, 16)
             }
+            .disabled(pendingSavePost != nil)
 
-            TomatoPillButton(title: options.isEmpty ? "Post" : "Post with poll") {
-                post()
+            VStack(spacing: 8) {
+                if let saveProblem {
+                    Text(saveProblem)
+                        .plType(.caption, .semibold)
+                        .foregroundStyle(Color.dangerText)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                PrimaryActionButton(
+                    title: pendingSavePost != nil
+                        ? "Try saving again"
+                        : (postOptions.isEmpty ? "Post" : "Post with poll")
+                ) {
+                    post()
+                }
+                .disabled(!canPost)
             }
             .padding(.horizontal, 24)
             .padding(.bottom, 14)
         }
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
+        .interactiveDismissDisabled(hasContent)
+        .onAppear {
+            restoreDraft()
+            Task { await loadDestinations() }
+        }
+        .confirmationDialog("Discard this question?", isPresented: $discardAsked, titleVisibility: .visible) {
+            Button("Save draft") {
+                abandonPendingSave()
+                saveDraft()
+                dismiss()
+            }
+            Button("Discard", role: .destructive) {
+                abandonPendingSave()
+                clearDraft()
+                dismiss()
+            }
+            Button("Keep writing", role: .cancel) {}
+        }
+    }
+
+    @ViewBuilder
+    private var destinationControl: some View {
+        if !destinationsLoaded {
+            HStack(spacing: 8) {
+                ProgressView()
+                    .controlSize(.small)
+                    .tint(Color.inkSecondary)
+                Text("Finding your Table")
+                    .plType(.caption, .semibold)
+                    .foregroundStyle(Color.inkSecondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .center)
+            .frame(minHeight: 44)
+        } else if destinations.count > 1 {
+            VStack(alignment: .leading, spacing: 8) {
+                MicroLabel("Ask at")
+                Menu {
+                    ForEach(destinations) { destination in
+                        Button {
+                            Haptic.select()
+                            selectedDestinationID = destination.id
+                        } label: {
+                            if selectedDestinationID == destination.id {
+                                Label(destination.label, systemImage: "checkmark")
+                            } else {
+                                Text(destination.label)
+                            }
+                        }
+                    }
+                } label: {
+                    HStack(spacing: 10) {
+                        Image(systemName: "person.2.fill")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(Color.inkSecondary)
+                        Text(selectedDestination?.label ?? "Choose a Table")
+                            .plType(.body, .medium)
+                            .foregroundStyle(selectedDestination == nil ? Color.inkSecondary : Color.ink)
+                            .lineLimit(1)
+                        Spacer()
+                        Image(systemName: "table.furniture")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(Color.inkFaint)
+                    }
+                    .padding(.horizontal, 14)
+                    .frame(minHeight: 48)
+                    .contentShape(Rectangle())
+                    .overlay {
+                        RoundedRectangle(cornerRadius: Radius.chip, style: .continuous)
+                            .strokeBorder(Color.hairline)
+                    }
+                }
+                .buttonStyle(.pressable)
+                .accessibilityLabel("Table audience")
+                .accessibilityValue(selectedDestination?.label ?? "Not chosen")
+
+                if selectedDestination == nil {
+                    Text("Choose which private Table gets this question.")
+                        .plType(.caption, .semibold)
+                        .foregroundStyle(Color.inkSecondary)
+                }
+            }
+        }
     }
 
     /// The night is only baked into the caption text, so the words have to
@@ -1301,36 +1506,146 @@ struct AskComposerSheet: View {
     }
 
     private func addOption() {
-        let entry = optionEntry.trimmingCharacters(in: .whitespaces)
-        guard !entry.isEmpty, options.count < 4 else { return }
+        let entry = optionEntry.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !entry.isEmpty, options.count < 4,
+              !options.contains(where: { $0.localizedCaseInsensitiveCompare(entry) == .orderedSame })
+        else { return }
         Haptic.tap()
         withAnimation(.plSnap) { options.append(entry) }
         optionEntry = ""
     }
 
+    private var draftKey: String {
+        let day = Calendar.current.startOfDay(for: date)
+        return "plan.askDraft.\(Int(day.timeIntervalSinceReferenceDate))"
+    }
+
+    private func saveDraft() {
+        UserDefaults.standard.set(
+            [
+                "caption": caption,
+                "options": options,
+                "optionEntry": optionEntry,
+                "tags": tagged.sorted(),
+                "destinationOwner": selectedDestinationID ?? ""
+            ],
+            forKey: draftKey
+        )
+        Haptic.tap()
+    }
+
+    private func clearDraft() {
+        UserDefaults.standard.removeObject(forKey: draftKey)
+    }
+
+    private func restoreDraft() {
+        guard caption.isEmpty, options.isEmpty, optionEntry.isEmpty, tagged.isEmpty,
+              let saved = UserDefaults.standard.dictionary(forKey: draftKey)
+        else { return }
+        caption = saved["caption"] as? String ?? ""
+        options = Array((saved["options"] as? [String] ?? []).prefix(4))
+        optionEntry = saved["optionEntry"] as? String ?? ""
+        let availableNames = Set(members.filter { !$0.isMe }.map(\.name))
+        tagged = Set(saved["tags"] as? [String] ?? []).intersection(availableNames)
+        let savedDestination = saved["destinationOwner"] as? String ?? ""
+        selectedDestinationID = savedDestination.isEmpty ? nil : savedDestination
+    }
+
+    @MainActor
+    private func loadDestinations() async {
+        let choices = await TableShare.writableDestinations()
+        let preferred = selectedDestinationID
+        destinations = choices
+        switch choices.count {
+        case 0:
+            selectedDestinationID = nil
+        case 1:
+            selectedDestinationID = choices[0].id
+        default:
+            selectedDestinationID = preferred.flatMap { wanted in
+                choices.contains(where: { $0.id == wanted }) ? wanted : nil
+            }
+        }
+        destinationsLoaded = true
+    }
+
     private func post() {
+        guard canPost else { return }
+
+        if let pendingSavePost {
+            guard Persist.save(context, "retry table ask") else {
+                Haptic.warn()
+                AccessibilityNotification.Announcement(
+                    "The question still could not be saved. Your work is still here."
+                ).post()
+                return
+            }
+            self.pendingSavePost = nil
+            saveProblem = nil
+            finishPosting(pendingSavePost)
+            return
+        }
+
         Haptic.plate()
+        let publishedOptions = postOptions
+        let cleanCaption = caption.trimmingCharacters(in: .whitespacesAndNewlines)
         let owner = members.me
         let post = TablePost(
             authorName: owner?.name ?? "Me",
             authorColorHex: owner?.colorHex ?? "FF5A3C",
-            caption: caption.isEmpty ? defaultCaption : caption,
+            caption: cleanCaption.isEmpty ? defaultCaption : cleanCaption,
             kind: "ask"
         )
-        post.pollOptions = options
-        post.pollCounts = Array(repeating: 0, count: options.count)
+        if let selectedDestination {
+            post.shareZoneOwner = selectedDestination.ownerID
+        }
+        post.pollOptions = publishedOptions
+        post.pollCounts = Array(repeating: 0, count: publishedOptions.count)
         post.taggedNames = Array(tagged)
         context.insert(post)
+
+        guard Persist.save(context, "new table ask") else {
+            pendingSavePost = post
+            let message = "Couldn’t save the question yet. Your work is still here."
+            saveProblem = message
+            Haptic.warn()
+            AccessibilityNotification.Announcement(message).post()
+            return
+        }
+        finishPosting(post)
+    }
+
+    private func finishPosting(_ post: TablePost) {
+        clearDraft()
         // The household hears about it — that's the point of asking.
         Notifier.post(
-            .askPosted, actor: owner?.name ?? "Me",
-            body: options.isEmpty
-                ? "\(owner?.name ?? "Someone") asked the Table about \(dayName)."
-                : "\(owner?.name ?? "Someone") started a poll for \(dayName).",
+            .askPosted, actor: post.authorName,
+            body: post.pollOptions.isEmpty
+                ? "\(post.authorName) asked the Table about \(dayName)."
+                : "\(post.authorName) started a poll for \(dayName).",
             into: context
         )
+        Persist.save(context, "table ask activity")
+
+        // The local row is durable before CloudKit gets a turn. A failed or
+        // offline publish therefore leaves the question on the Table with
+        // `isPublished == false`, where the feed both labels and retries it.
+        Task { @MainActor in
+            if let name = await TableShare.publish(post, hostName: post.authorName) {
+                post.shareRecordName = name
+                post.isPublished = true
+                Persist.save(context, "publish table ask")
+            }
+        }
         dismiss()
         onPosted()
+    }
+
+    private func abandonPendingSave() {
+        guard let pendingSavePost else { return }
+        context.delete(pendingSavePost)
+        self.pendingSavePost = nil
+        saveProblem = nil
     }
 }
 
@@ -1411,34 +1726,37 @@ struct GatheringSheet: View {
 
                     DatePicker("Starts at", selection: $startTime, displayedComponents: .hourAndMinute)
                         .plType(.body, .bold)
-                        .tint(Color.tomato)
+                        .tint(Color.olive)
                         .padding(.horizontal, 16)
                         .padding(.vertical, 10)
                         .overlay(RoundedRectangle(cornerRadius: Radius.card, style: .continuous).strokeBorder(Color.hairline))
 
-                    HStack(spacing: 12) {
-                        Circle()
-                            .fill(Color.fill)
-                            .frame(width: 40, height: 40)
-                            .overlay {
-                                Image(systemName: "calendar.badge.plus")
-                                    .font(.system(size: 15, weight: .medium))
+                    Toggle(isOn: $syncToCalendar) {
+                        HStack(spacing: 12) {
+                            Circle()
+                                .fill(Color.fill)
+                                .frame(width: 40, height: 40)
+                                .overlay {
+                                    Image(systemName: "calendar.badge.plus")
+                                        .font(.system(size: 15, weight: .medium))
+                                        .foregroundStyle(Color.ink)
+                                }
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Add to Apple Calendar")
+                                    .plType(.body, .bold)
                                     .foregroundStyle(Color.ink)
+                                Text("Saves the event to your calendar. Add guests there.")
+                                    .plType(.caption)
+                                    .foregroundStyle(Color.inkSecondary)
                             }
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Add to Apple Calendar")
-                                .plType(.body, .bold)
-                                .foregroundStyle(Color.ink)
-                            Text("Adds an event you can invite guests from.")
-                                .plType(.caption)
-                                .foregroundStyle(Color.inkSecondary)
                         }
-                        Spacer()
-                        Toggle("", isOn: $syncToCalendar)
-                            .labelsHidden()
-                            .sensoryFeedback(.selection, trigger: syncToCalendar)
-                            .tint(Color.basil)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
+                    .toggleStyle(.switch)
+                    .accessibilityLabel("Add to Apple Calendar")
+                    .accessibilityHint("Adds an event you can invite guests from")
+                    .sensoryFeedback(.selection, trigger: syncToCalendar)
+                    .tint(Color.basil)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 12)
                     .overlay(RoundedRectangle(cornerRadius: Radius.card, style: .continuous).strokeBorder(Color.hairline))
@@ -1453,7 +1771,7 @@ struct GatheringSheet: View {
                 .padding(.bottom, 16)
             }
 
-            TomatoPillButton(
+            PrimaryActionButton(
                 title: savedGathering == nil ? "Save gathering" : "Add to calendar",
                 systemImage: savedGathering == nil ? "party.popper" : "calendar.badge.plus"
             ) {
@@ -1465,6 +1783,9 @@ struct GatheringSheet: View {
         }
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
+        .onChange(of: syncResult) { _, result in
+            if let result { AccessibilityNotification.Announcement(result).post() }
+        }
     }
 
     private func stepperButton(_ symbol: String, _ label: String, action: @escaping () -> Void) -> some View {

@@ -13,7 +13,9 @@ When creating or modifying an interface:
 
 - Follow the existing tokens and components. `Plated/Support/Theme.swift` holds
   the real values; reuse before inventing, and never hard-code a colour.
-- Preserve the register described in DESIGN.md — quiet chrome, earned colour.
+- Follow Editorial in DESIGN.md: Newsreader, DM Sans, paper surfaces, olive
+  supporting accents and original orange primary CTAs. The old tray and capsule
+  system is retired.
 - Flag deliberate deviations rather than making them quietly.
 
 ## Verifying

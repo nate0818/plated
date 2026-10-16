@@ -19,9 +19,17 @@ enum RecipeShareInbox {
     struct Import {
         var text: String
         var images: [Data]
+        /// The exact preferences value that produced this import. A second
+        /// share may replace the inbox while the first importer is animating
+        /// on screen; acknowledgements must never delete that newer parcel.
+        fileprivate var receipt: Data
+        fileprivate var imageNames: [String]
     }
 
-    static func consume() -> Import? {
+    /// Read without removing. The main app acknowledges only after the
+    /// importer owns the payload; another sheet may already be on screen
+    /// when the share extension wakes it.
+    static func peek() -> Import? {
         guard let defaults = UserDefaults(suiteName: appGroupID),
               let data = defaults.data(forKey: payloadKey) else { return nil }
         guard let payload = try? JSONDecoder().decode(Payload.self, from: data) else {
@@ -30,19 +38,51 @@ enum RecipeShareInbox {
             defaults.removeObject(forKey: payloadKey)
             return nil
         }
-        defaults.removeObject(forKey: payloadKey)
-
         let container = FileManager.default.containerURL(
             forSecurityApplicationGroupIdentifier: appGroupID
         )
         let images = payload.imageNames.compactMap { name -> Data? in
             guard let url = container?.appending(path: name) else { return nil }
-            defer { try? FileManager.default.removeItem(at: url) }
             return try? Data(contentsOf: url)
         }
+        let value = Import(
+            text: payload.text,
+            images: images,
+            receipt: data,
+            imageNames: payload.imageNames
+        )
         guard !payload.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !images.isEmpty else {
+            // A syntactically valid parcel can still be unusable after iOS
+            // purges its temporary image files. Clear only this exact one so
+            // it cannot poison every future foreground check.
+            acknowledge(value)
             return nil
         }
-        return Import(text: payload.text, images: images)
+        return value
+    }
+
+    /// Remove only the parcel that was actually handed to the importer.
+    /// Returns false when a newer share has replaced it and must stay queued.
+    @discardableResult
+    static func acknowledge(_ value: Import) -> Bool {
+        guard let defaults = UserDefaults(suiteName: appGroupID),
+              defaults.data(forKey: payloadKey) == value.receipt
+        else { return false }
+        defaults.removeObject(forKey: payloadKey)
+        let container = FileManager.default.containerURL(
+            forSecurityApplicationGroupIdentifier: appGroupID
+        )
+        for name in value.imageNames {
+            guard let url = container?.appending(path: name) else { continue }
+            try? FileManager.default.removeItem(at: url)
+        }
+        return true
+    }
+
+    /// Kept for callers that truly want an atomic move.
+    static func consume() -> Import? {
+        guard let value = peek() else { return nil }
+        acknowledge(value)
+        return value
     }
 }

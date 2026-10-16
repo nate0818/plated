@@ -5,7 +5,24 @@ import SwiftData
 /// they affect and always show their real state; permission failures lead to
 /// the place that can resolve them instead of leaving a disabled switch.
 struct SettingsSheet: View {
+    enum Scope {
+        case app
+        case household
+
+        var title: String {
+            switch self {
+            case .app: "Settings"
+            case .household: "Household settings"
+            }
+        }
+    }
+
     var focusHouseholdName = false
+    /// Settings is normally pushed from a person's profile. A few older,
+    /// task-shaped entrances (for example, renaming the household in place)
+    /// still present it modally and keep the Done affordance.
+    var isPushed = false
+    var scope: Scope = .app
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
@@ -13,8 +30,10 @@ struct SettingsSheet: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.modelContext) private var context
     @Query(sort: \HouseholdMember.createdAt) private var members: [HouseholdMember]
+    @Query private var meals: [PlannedMeal]
+    @Query(sort: \HouseholdProfile.createdAt) private var householdProfiles: [HouseholdProfile]
 
-    @AppStorage("appearance") private var appearanceRaw = Appearance.system.rawValue
+    @AppStorage("appearance") private var appearanceRaw = Appearance.editorial.rawValue
     @AppStorage("showCalendarEvents") private var showCalendarEvents = false
     @AppStorage("householdName") private var householdName = ""
     @AppStorage("didSignIn") private var didSignIn = false
@@ -30,12 +49,18 @@ struct SettingsSheet: View {
     @State private var planHousehold: PlanShare.Household = .unknown
 
     @State private var notificationState: NotificationScheduler.AuthorizationState = .notDetermined
+    @State private var pendingSyncCount = 0
     @State private var calendarRefused = false
     @State private var signOutAsked = false
+    @State private var deleteAccountAsked = false
+    @State private var deletingAccount = false
+    @State private var deleteProblem: String?
+    @State private var deleteProblemShown = false
     @State private var tourShown = false
-    @State private var editProfileShown = false
     @State private var sync = SyncStatus.shared
     @FocusState private var namingHousehold: Bool
+    @FocusState private var editingEquipment: Bool
+    @State private var equipmentText = ""
     /// Where this phone stands in the household (docs/household.md §8,
     /// §10). The app-group cache is not observed and Settings is a sheet,
     /// so it is read when the sheet opens and again after Leave.
@@ -50,161 +75,65 @@ struct SettingsSheet: View {
     /// phone the two are different people and Settings is about you.
     private var me: HouseholdMember? { members.me }
     private var appearance: Appearance {
-        Appearance(rawValue: appearanceRaw) ?? .system
+        Appearance(rawValue: appearanceRaw) ?? .editorial
     }
-    private var displayName: String {
-        guard let name = me?.name, !HouseholdIdentity.isPlaceholder(name) else {
-            return HouseholdIdentity.PeopleCopy.missingSelfName
-        }
-        return name
-    }
-
     var body: some View {
         ScrollView(showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 28) {
-                identityCard
-                    .padding(.top, 10)
-
-                SettingsSection(title: "Appearance", caption: "Light, Dark, or match the system.") {
-                    appearanceChooser
+            Group {
+                switch scope {
+                case .app: appSettings
+                case .household: householdSettings
                 }
-
-                SettingsSection(title: "Planning", caption: "Reminders and Calendar on the week.") {
-                    SettingsGroup {
-                        planningReminderRow
-                        SettingsDivider()
-                        calendarRow
-                    }
-                }
-
-                SettingsSection(title: "The Table", caption: "What other people do that reaches you.") {
-                    SettingsGroup {
-                        tableActivityRow
-                        // The finer switches only while the coarse one is
-                        // on and iOS would deliver: a row of switches under
-                        // a refusal is furniture.
-                        if notificationState == .allowed, tableNewsOn {
-                            ForEach(NewsPreferences.Category.allCases, id: \.self) { category in
-                                SettingsDivider()
-                                categoryRow(category)
-                            }
-                        }
-                    }
-                }
-
-                SettingsSection(title: "Household", caption: "Name at the top of Home, and who hosts.") {
-                    // The host names the household; a member reads the name
-                    // the host set and keeps the way out.
-                    switch membership {
-                    case .solo, .hosting: householdNameCard
-                    case .member: memberHouseholdCard
-                    }
-                    SettingsGroup {
-                        planShareRow
-                    }
-                }
-
-                SettingsSection(title: "iCloud & privacy", caption: "Where your information lives.") {
-                    SettingsGroup {
-                        syncRow
-                    }
-
-                    privacyNote
-                        .padding(.top, 10)
-                }
-
-                SettingsSection(title: "Help & account", caption: "Tour, permissions, and sign-out.") {
-                    SettingsGroup {
-                        Button {
-                            Haptic.tap()
-                            tourShown = true
-                        } label: {
-                            SettingsValueRow(
-                                symbol: "sparkles",
-                                title: "Show me around",
-                                detail: "A one-minute tour of the four main spaces",
-                                tint: .mangoTint,
-                                tone: .amber,
-                                value: "Begin"
-                            )
-                        }
-                        .buttonStyle(.pressable)
-
-                        SettingsDivider()
-
-                        Button {
-                            Haptic.tap()
-                            openSystemSettings()
-                        } label: {
-                            SettingsValueRow(
-                                symbol: "hand.raised.fill",
-                                title: "iOS permissions",
-                                detail: "Calendar, contacts, photos and notifications",
-                                tint: .grapeTint,
-                                tone: .grape,
-                                value: "Manage"
-                            )
-                        }
-                        .buttonStyle(.pressable)
-                        .accessibilityHint("Opens the Plated page in iOS Settings.")
-
-                        SettingsDivider()
-
-                        Button {
-                            Haptic.tap()
-                            signOutAsked = true
-                        } label: {
-                            SettingsValueRow(
-                                symbol: "rectangle.portrait.and.arrow.right",
-                                title: "Sign out",
-                                detail: "Your recipes, plan and household stay saved",
-                                tint: .tomatoTint,
-                                tone: .tomato,
-                                value: nil,
-                                titleColor: .tomato
-                            )
-                        }
-                        .buttonStyle(.pressable)
-                    }
-                }
-
-                Text(Self.versionLine)
-                    .plType(.micro, .medium)
-                    .foregroundStyle(Color.inkSecondary)
-                    .frame(maxWidth: .infinity)
-                    .padding(.top, 2)
             }
             .padding(.horizontal, 22)
+            .padding(.top, 12)
             .padding(.bottom, 34)
+            .frame(maxWidth: 760)
+            .frame(maxWidth: .infinity)
         }
         .background(Color.canvas)
         .toolbar(.hidden, for: .navigationBar)
         .safeAreaInset(edge: .top) { topBar }
+        .hidesFloatingChrome()
         .preferredColorScheme(appearance.scheme)
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
         .presentationBackground(Color.canvas)
         .presentationCornerRadius(Radius.sheet)
-        .task { await refreshStatus() }
+        .task {
+            await refreshStatus()
+            // The durable outboxes are intentionally plain on-disk queues,
+            // not UI models. Sample their tiny counts only while Settings is
+            // visible so “Syncing” settles to “Up to date” without waiting
+            // for an unrelated SwiftUI redraw.
+            while !Task.isCancelled {
+                refreshPendingSyncCount()
+                try? await Task.sleep(for: .seconds(1))
+            }
+        }
         .onAppear {
             membership = HouseholdShare.membership
             if focusHouseholdName { namingHousehold = true }
+            equipmentText = householdProfiles.first?.availableEquipment.joined(separator: ", ") ?? ""
         }
         // The name goes to the household on commit only: Done, or the field
         // losing focus, which includes the sheet closing over it.
         .onChange(of: namingHousehold) { _, focused in
             if !focused { commitHouseholdName() }
         }
-        .onDisappear { commitHouseholdName() }
+        .onChange(of: editingEquipment) { _, focused in
+            if !focused { commitHouseholdEquipment() }
+        }
+        .onDisappear {
+            commitHouseholdName()
+            commitHouseholdEquipment()
+        }
         .onChange(of: scenePhase) { _, phase in
             guard phase == .active else { return }
             Task { await refreshStatus() }
         }
         .fullScreenCover(isPresented: $tourShown) {
             TourView { tourShown = false }
-        }
-        .sheet(isPresented: $editProfileShown) {
-            EditProfileSheet()
         }
         .confirmationDialog(
             "Sign out of Plated?",
@@ -216,78 +145,251 @@ struct SettingsSheet: View {
         } message: {
             Text("Nothing is deleted. Your recipes, your week and your household stay where they are.")
         }
+        .confirmationDialog(
+            "Delete your directory account?",
+            isPresented: $deleteAccountAsked,
+            titleVisibility: .visible
+        ) {
+            Button("Delete directory account", role: .destructive) {
+                deleteDirectoryAccount()
+            }
+            Button("Keep account", role: .cancel) {}
+        } message: {
+            Text("This removes your Plated directory profile, invitation records and notification registrations. Your private iCloud food is not deleted. Plated will then open Apple Account; under Sign-In & Security, choose Sign in with Apple, Plated, and Delete to revoke Apple's authorization too.")
+        }
+        .alert("Couldn't delete directory account", isPresented: $deleteProblemShown) {
+            Button("Email privacy") { emailPrivacy() }
+            Button("OK", role: .cancel) { deleteProblem = nil }
+        } message: {
+            Text(deleteProblem ?? "Nothing was deleted. Try again shortly.")
+        }
+    }
+
+    private var appSettings: some View {
+        VStack(alignment: .leading, spacing: 28) {
+            SettingsSection(title: "Appearance", caption: "Use the look that feels best in your kitchen.") {
+                appearanceChooser
+            }
+
+            SettingsSection(title: "Notifications", caption: "Choose what deserves a nudge.") {
+                SettingsGroup {
+                    planningReminderRow
+                    SettingsDivider()
+                    tableActivityRow
+                    if notificationState == .allowed, tableNewsOn {
+                        ForEach(NewsPreferences.Category.allCases, id: \.self) { category in
+                            SettingsDivider()
+                            categoryRow(category)
+                        }
+                    }
+                }
+            }
+
+            SettingsSection(title: "Calendar", caption: "Bring the rest of your day into the plan.") {
+                SettingsGroup { calendarRow }
+            }
+
+            SettingsSection(title: "Data & privacy", caption: "Your data, permissions and iCloud status.") {
+                SettingsGroup {
+                    syncRow
+                    SettingsDivider()
+                    Button {
+                        Haptic.tap()
+                        openSystemSettings()
+                    } label: {
+                        SettingsValueRow(
+                            symbol: "hand.raised.fill",
+                            title: "iOS permissions",
+                            detail: "Calendar, contacts, photos and notifications",
+                            tint: .grapeTint,
+                            tone: .grape,
+                            value: "Manage"
+                        )
+                    }
+                    .buttonStyle(.pressable)
+                    .accessibilityHint("Opens the Plated page in iOS Settings.")
+                }
+
+                privacyNote
+                    .padding(.top, 10)
+            }
+
+            SettingsSection(title: "Help", caption: "A quick refresher whenever you need one.") {
+                SettingsGroup {
+                    Button {
+                        Haptic.tap()
+                        tourShown = true
+                    } label: {
+                        SettingsValueRow(
+                            symbol: "sparkles",
+                            title: "Show me around",
+                            detail: "A quick tour of Plan, Recipes, Groceries and the Table",
+                            tint: .mangoTint,
+                            tone: .amber,
+                            value: "Begin"
+                        )
+                    }
+                    .buttonStyle(.pressable)
+                }
+            }
+
+            SettingsSection(title: "Account", caption: "Your directory sign-in is separate from your private iCloud food.") {
+                SettingsGroup {
+                    Button {
+                        Haptic.tap()
+                        signOutAsked = true
+                    } label: {
+                        SettingsValueRow(
+                            symbol: "rectangle.portrait.and.arrow.right",
+                            title: "Sign out",
+                            detail: "Your recipes, plan and household stay saved",
+                            tint: .oliveTint,
+                            tone: .olive,
+                            value: nil,
+                            titleColor: .dangerText
+                        )
+                    }
+                    .buttonStyle(.pressable)
+
+                    SettingsDivider()
+
+                    Button {
+                        Haptic.tap()
+                        deleteAccountAsked = true
+                    } label: {
+                        SettingsControlRow(
+                            symbol: "person.crop.circle.badge.minus",
+                            title: "Delete directory account",
+                            detail: Directory.isRegistered
+                                ? "Removes your directory profile; private iCloud data stays saved"
+                                : "No verified directory session on this iPhone",
+                            tint: .oliveTint,
+                            tone: .dangerText
+                        ) {
+                            if deletingAccount {
+                                ProgressView()
+                                    .tint(Color.dangerText)
+                                    .frame(width: 44, height: 44)
+                                    .accessibilityLabel("Deleting directory account")
+                            } else {
+                                Text("Delete")
+                                    .plType(.footnote, .semibold)
+                                    .plActionLabel(0.72)
+                                    .foregroundStyle(Color.dangerText)
+                                    .padding(.horizontal, 10)
+                                    .frame(minHeight: 44)
+                                    .background(Color.oliveTint, in: Radius.shape(Radius.chip))
+                            }
+                        }
+                    }
+                    .buttonStyle(.pressable)
+                    .disabled(deletingAccount)
+                    .accessibilityHint("Deletes Plated directory data after confirmation. Private iCloud data is not deleted.")
+                }
+            }
+
+            Text(Self.versionLine)
+                .plType(.micro, .medium)
+                .foregroundStyle(Color.inkSecondary)
+                .frame(maxWidth: .infinity)
+                .padding(.top, 2)
+        }
+    }
+
+    private var householdSettings: some View {
+        VStack(alignment: .leading, spacing: 28) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("The people you plan with")
+                    .plType(.title, .semibold)
+                    .foregroundStyle(Color.ink)
+                Text("Household members can see and change the plan, grocery list and cookbook. Table posts stay separate; week sharing is an explicit choice below.")
+                    .plType(.footnote)
+                    .foregroundStyle(Color.inkSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            SettingsSection(title: "Household", caption: "The shared home for your week and cookbook.") {
+                switch membership {
+                case .solo, .hosting: householdNameCard
+                case .member: memberHouseholdCard
+                }
+            }
+
+            SettingsSection(title: "Kitchen equipment", caption: "Used to avoid suggesting recipes your household cannot make.") {
+                if membership == .hosting || membership == .solo {
+                    VStack(alignment: .leading, spacing: 8) {
+                        TextField("Oven, stovetop, air fryer…", text: $equipmentText)
+                            .plType(.body)
+                            .textInputAutocapitalization(.sentences)
+                            .focused($editingEquipment)
+                            .padding(14)
+                            .overlay(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous).strokeBorder(Color.hairline))
+                        Text("Separate items with commas. Leave blank if you want every recipe considered.")
+                            .plType(.caption)
+                            .foregroundStyle(Color.inkSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                } else {
+                    let equipment = householdProfiles.first?.availableEquipment ?? []
+                    Text(equipment.isEmpty ? "No equipment limits set" : equipment.joined(separator: ", "))
+                        .plType(.body)
+                        .foregroundStyle(Color.inkSecondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(14)
+                        .background(Color.fill, in: Radius.shape(Radius.card))
+                }
+            }
+
+            SettingsSection(title: "Week audience", caption: "Know exactly which invited group receives your planned nights.") {
+                SettingsGroup { planShareRow }
+            }
+
+            SettingsSection(title: "Privacy", caption: "Invite-only sharing, never public.") {
+                privacyNote
+            }
+        }
     }
 
     private var topBar: some View {
         HStack(spacing: 12) {
-            Text("Settings")
+            if isPushed {
+                Button {
+                    Haptic.tap()
+                    dismiss()
+                } label: {
+                    Image(systemName: "arrow.left")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(Color.ink)
+                        .frame(width: 38, height: 38)
+                        .background(Color.canvas.opacity(0.9), in: Circle())
+                        .overlay(Circle().strokeBorder(Color.hairline, lineWidth: 1.5))
+                        .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.pressable)
+                .accessibilityLabel("Back")
+            }
+            Text(scope.title)
                 .plType(.heading, .semibold)
                 .foregroundStyle(Color.ink)
+                .accessibilityAddTraits(.isHeader)
             Spacer()
-            Button("Done") { dismiss() }
-                .plType(.footnote, .bold)
-                .plActionLabel()
-                .foregroundStyle(Color.ink)
-                .padding(.horizontal, 16)
-                .frame(minHeight: 44)
-                .background(.ultraThinMaterial, in: Capsule())
-                .overlay(Capsule().strokeBorder(Color.hairline))
-                .contentShape(Capsule())
-                .buttonStyle(.pressable)
+            if !isPushed {
+                Button("Done") { dismiss() }
+                    .plType(.footnote, .bold)
+                    .plActionLabel()
+                    .foregroundStyle(Color.ink)
+                    .padding(.horizontal, 16)
+                    .frame(minHeight: 44)
+                    .background(.ultraThinMaterial, in: Radius.shape(Radius.chip))
+                    .overlay(Radius.shape(Radius.chip).strokeBorder(Color.hairline))
+                    .contentShape(Radius.shape(Radius.chip))
+                    .buttonStyle(.pressable)
+            }
         }
         .padding(.horizontal, 18)
         .padding(.vertical, 7)
         .background(.ultraThinMaterial)
-    }
-
-    private var identityCard: some View {
-        Button {
-            Haptic.select()
-            editProfileShown = true
-        } label: {
-            HStack(spacing: 14) {
-                AvatarCircle(
-                    initials: me?.initials ?? "Me",
-                    tone: .neutralPair,
-                    size: 54,
-                    photo: me?.photoData
-                )
-                .overlay(Circle().strokeBorder(Color.canvas, lineWidth: 3))
-                .shadow(color: Color.shadowInk.opacity(0.10), radius: 8, y: 4)
-
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(displayName)
-                        .plName()
-                        .plType(.heading, .semibold)
-                        .foregroundStyle(Color.ink)
-                    Text("Photo, name and personal details")
-                        .plType(.caption)
-                        .foregroundStyle(Color.inkSecondary)
-                }
-                Spacer(minLength: 8)
-                Text("Edit")
-                    .plType(.footnote, .bold)
-                    .plActionLabel()
-                    .foregroundStyle(Color.accentText)
-                    .padding(.horizontal, 13)
-                    .frame(minHeight: 34)
-                    .background(Color.tomato.opacity(0.10), in: Capsule())
-            }
-            .padding(16)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                LinearGradient(
-                    colors: [Color.tomatoTint, Color.raisedFill],
-                    startPoint: .leading,
-                    endPoint: .trailing
-                ),
-                in: Radius.shape(Radius.card)
-            )
-            .overlay(Radius.shape(Radius.card).strokeBorder(Color.tomato.opacity(0.12)))
-            .contentShape(Radius.shape(Radius.card))
-        }
-        .buttonStyle(.pressable)
-        .accessibilityIdentifier("settings-edit-profile")
     }
 
     private var appearanceChooser: some View {
@@ -339,13 +441,13 @@ struct SettingsSheet: View {
             .padding(horizontal ? 13 : 11)
             .frame(maxWidth: .infinity, minHeight: horizontal ? 70 : 108)
             .background(
-                appearance == option ? Color.tomatoTint : Color.raisedFill,
+                appearance == option ? Color.cardFill : Color.canvas,
                 in: Radius.shape(Radius.row)
             )
             .overlay {
                 Radius.shape(Radius.row)
                     .strokeBorder(
-                        appearance == option ? Color.tomato : Color.hairline,
+                        appearance == option ? Color.selectionFill : Color.hairline,
                         lineWidth: appearance == option ? 1.5 : 1
                     )
             }
@@ -361,23 +463,23 @@ struct SettingsSheet: View {
         ZStack {
             let dark = option == .dark
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(dark ? Color(rgb: 0x211A14) : Color(rgb: 0xFFFDFC))
+                .fill(dark ? Color(rgb: 0x191C17) : Color(rgb: 0xFAF9F4))
             VStack(spacing: 4) {
                 HStack(spacing: 3) {
                     Circle()
-                        .fill(Color.tomato)
+                        .fill(Color.olive)
                         .frame(width: 6, height: 6)
                     Capsule()
-                        .fill(dark ? Color(rgb: 0xF4EDE3) : Color(rgb: 0x221B14))
+                        .fill(dark ? Color(rgb: 0xEDF0E6) : Color(rgb: 0x27362A))
                         .frame(width: 20, height: 4)
                 }
                 Capsule()
-                    .fill(dark ? Color(rgb: 0x362E24) : Color(rgb: 0xEFE9E2))
+                    .fill(dark ? Color(rgb: 0x2C3127) : Color(rgb: 0xEFEFE6))
                     .frame(width: 35, height: 11)
             }
             if option == .system {
                 Rectangle()
-                    .fill(Color(rgb: 0x211A14))
+                    .fill(Color(rgb: 0x191C17))
                     .frame(width: 24)
                     .frame(maxWidth: .infinity, alignment: .trailing)
                     .mask(RoundedRectangle(cornerRadius: 8, style: .continuous))
@@ -393,7 +495,7 @@ struct SettingsSheet: View {
     private func selectionMark(_ option: Appearance) -> some View {
         Image(systemName: appearance == option ? "checkmark.circle.fill" : "circle")
             .font(.system(size: 13, weight: .semibold))
-            .foregroundStyle(appearance == option ? Color.tomato : Color.inkFaint)
+            .foregroundStyle(appearance == option ? Color.ink : Color.inkFaint)
             .plChrome()
     }
 
@@ -407,16 +509,21 @@ struct SettingsSheet: View {
                 detail: remindersOn
                     ? "The evening before your night, and Sundays when the week is still open"
                     : "Off. Plated will stay quiet.",
-                tint: .tomatoTint,
-                tone: .tomato
+                tint: .oliveTint,
+                tone: .olive
             ) {
                 Toggle("Cook reminders", isOn: $remindersOn)
                     .labelsHidden()
-                    .tint(Color.tomato)
+                    .tint(Color.olive)
+                    .frame(minHeight: 44)
                     .sensoryFeedback(.selection, trigger: remindersOn)
-                    .onChange(of: remindersOn) { _, on in
-                        if !on {
-                            Task { await NotificationScheduler.cancelAll() }
+                    .onChange(of: remindersOn) { _, _ in
+                        Task {
+                            // Both directions enter the same serialized
+                            // worker. It reads the latest preference, so a
+                            // quick Off → On cannot let the older cancellation
+                            // finish last and leave an enabled switch empty.
+                            await NotificationScheduler.rebuild(meals: meals)
                         }
                     }
             }
@@ -425,23 +532,24 @@ struct SettingsSheet: View {
                 symbol: "bell.badge",
                 title: "Cook reminders",
                 detail: "Helpful nudges tied to real plans",
-                tint: .tomatoTint,
-                tone: .tomato
+                tint: .oliveTint,
+                tone: .olive
             ) {
                 Button("Turn on") {
                     Haptic.tap()
                     Task {
-                        _ = await NotificationScheduler.requestFromSettings()
+                        let granted = await NotificationScheduler.requestFromSettings()
+                        if granted { await NotificationScheduler.rebuild(meals: meals) }
                         await refreshStatus()
                     }
                 }
                 .plType(.footnote, .bold)
                 .plActionLabel()
-                .foregroundStyle(Color.onTomato)
+                .foregroundStyle(Color.onPrimary)
                 .padding(.horizontal, 13)
                 .frame(minHeight: 44)
-                .background(Color.tomato, in: Capsule())
-                .contentShape(Capsule())
+                .background(Color.primaryAction, in: Radius.shape(Radius.chip))
+                .contentShape(Radius.shape(Radius.chip))
                 .buttonStyle(.pressable)
             }
         case .denied:
@@ -477,12 +585,13 @@ struct SettingsSheet: View {
                 detail: tableNewsOn
                     ? "Dishes, replies, plates, new seats and changes to the plan"
                     : "Off. The bell still keeps the list.",
-                tint: .tomatoTint,
-                tone: .tomato
+                tint: .oliveTint,
+                tone: .olive
             ) {
                 Toggle("Household and Table activity", isOn: $tableNewsOn)
                     .labelsHidden()
-                    .tint(Color.tomato)
+                    .tint(Color.olive)
+                    .frame(minHeight: 44)
                     .sensoryFeedback(.selection, trigger: tableNewsOn)
                     // The icon counts only while the Table may speak.
                     .onChange(of: tableNewsOn) { _, _ in AppBadge.sync(context) }
@@ -492,8 +601,8 @@ struct SettingsSheet: View {
                 symbol: "fork.knife.circle",
                 title: "Household and Table activity",
                 detail: "When someone plates, replies, takes a seat or changes the plan",
-                tint: .tomatoTint,
-                tone: .tomato
+                tint: .oliveTint,
+                tone: .olive
             ) {
                 Button("Turn on") {
                     Haptic.tap()
@@ -504,11 +613,11 @@ struct SettingsSheet: View {
                 }
                 .plType(.footnote, .bold)
                 .plActionLabel()
-                .foregroundStyle(Color.onTomato)
+                .foregroundStyle(Color.onPrimary)
                 .padding(.horizontal, 13)
                 .frame(minHeight: 44)
-                .background(Color.tomato, in: Capsule())
-                .contentShape(Capsule())
+                .background(Color.primaryAction, in: Radius.shape(Radius.chip))
+                .contentShape(Radius.shape(Radius.chip))
                 .buttonStyle(.pressable)
             }
         case .denied:
@@ -552,7 +661,8 @@ struct SettingsSheet: View {
         ) {
             Toggle(category.title, isOn: binding)
                 .labelsHidden()
-                .tint(Color.tomato)
+                .tint(Color.olive)
+                .frame(minHeight: 44)
                 .sensoryFeedback(.selection, trigger: binding.wrappedValue)
         }
     }
@@ -582,7 +692,8 @@ struct SettingsSheet: View {
             } else {
                 Toggle("Calendar on the plan", isOn: $showCalendarEvents)
                     .labelsHidden()
-                    .tint(Color.tomato)
+                    .tint(Color.olive)
+                    .frame(minHeight: 44)
                     .sensoryFeedback(.selection, trigger: showCalendarEvents)
                     .onChange(of: showCalendarEvents) { _, on in
                         guard on else { return }
@@ -609,7 +720,7 @@ struct SettingsSheet: View {
                     Text("Household name")
                         .plType(.body, .semibold)
                         .foregroundStyle(Color.ink)
-                    Text("Shown at the top of Home")
+                    Text("Shown to everyone in this household")
                         .plType(.caption)
                         .foregroundStyle(Color.inkSecondary)
                 }
@@ -621,9 +732,10 @@ struct SettingsSheet: View {
                 .padding(.horizontal, 14)
                 .frame(minHeight: 50)
                 .background(Color.fill, in: Radius.shape(Radius.chip))
-                .overlay(Radius.shape(Radius.chip).strokeBorder(namingHousehold ? Color.tomato : Color.hairline))
+                .overlay(Radius.shape(Radius.chip).strokeBorder(namingHousehold ? Color.olive : Color.hairline))
                 .focused($namingHousehold)
                 .plTapToFocus { namingHousehold = true }
+                .accessibilityLabel("Household name")
                 .submitLabel(.done)
                 .onSubmit { namingHousehold = false }
 
@@ -651,7 +763,7 @@ struct SettingsSheet: View {
                         .plName()
                         .plType(.body, .semibold)
                         .foregroundStyle(Color.ink)
-                    Text("\(hostFirstName) can rename it.")
+                    Text("\(hostFirstName) is the organizer and can rename it.")
                         .plType(.caption)
                         .foregroundStyle(Color.inkSecondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -689,8 +801,8 @@ struct SettingsSheet: View {
         }
     }
 
-    /// The tomato outline pill: the same shape the seats sheet gave "Leave
-    /// this table", quiet until pressed, never the filled tomato of a
+    /// The olive outline pill: the same shape the seats sheet gave "Leave
+    /// this table", quiet until pressed, never the filled olive of a
     /// committing action. Busy is a state of the label, not a fade of the
     /// control (DESIGN.md: a disabled control changes colour, it does not
     /// fade), so the tap is guarded rather than `.disabled`.
@@ -702,17 +814,17 @@ struct SettingsSheet: View {
         } label: {
             HStack(spacing: 8) {
                 if leaving {
-                    ProgressView().tint(Color.tomato)
+                    ProgressView().tint(Color.dangerText)
                 }
                 Text(leaving ? "Leaving" : "Leave household")
                     .plType(.body, .bold)
                     .plActionLabel()
             }
-            .foregroundStyle(Color.tomato)
+            .foregroundStyle(Color.dangerText)
             .frame(maxWidth: .infinity)
             .frame(minHeight: 48)
-            .overlay(Capsule().strokeBorder(Color.hairline, lineWidth: 1.5))
-            .contentShape(Capsule())
+            .overlay(Radius.shape(Radius.chip).strokeBorder(Color.hairline, lineWidth: 1.5))
+            .contentShape(Radius.shape(Radius.chip))
         }
         .buttonStyle(.pressable)
         .accessibilityLabel(leaving ? "Leaving the household" : "Leave household")
@@ -720,11 +832,11 @@ struct SettingsSheet: View {
     }
 
     /// The host's first name, from the app-group value the join recorded.
-    /// "The host" when it never arrived, rather than an empty possessive.
+    /// "The organizer" when the name never arrived, rather than an empty possessive.
     private var hostFirstName: String {
         let host = HouseholdShare.cachedOwnerName.trimmingCharacters(in: .whitespaces)
         let first = host.split(separator: " ").first.map(String.init) ?? host
-        return first.isEmpty ? "The host" : first
+        return first.isEmpty ? "The organizer" : first
     }
 
     /// On a member's phone the name is the root's alone (§3.6): the typed
@@ -754,7 +866,7 @@ struct SettingsSheet: View {
     private var hostCaption: String {
         let names = members.hostedNames
         guard !names.isEmpty else { return "Add someone from Home to plan together." }
-        return "You host this household with \(HouseholdIdentity.seatedLine(names: names))."
+        return "You organize this household with \(HouseholdIdentity.seatedLine(names: names))."
     }
 
     /// Section 8, verbatim, plus the by-name seats this phone laid: they
@@ -781,6 +893,29 @@ struct SettingsSheet: View {
         guard typed != synced else { return }
         HouseholdOutbox.shared.enqueueRoot()
         print("PLATED HOUSEHOLD: household name changed, root queued")
+    }
+
+    private func commitHouseholdEquipment() {
+        guard membership == .hosting || membership == .solo else { return }
+        var seen = Set<String>()
+        let values = equipmentText
+            .split(whereSeparator: { $0 == "," || $0 == "\n" })
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty && seen.insert($0.lowercased()).inserted }
+        let profile: HouseholdProfile
+        if let existing = householdProfiles.first {
+            profile = existing
+        } else {
+            profile = HouseholdProfile()
+            context.insert(profile)
+        }
+        guard profile.availableEquipment != values else { return }
+        profile.availableEquipment = values
+        guard Persist.save(context, "save kitchen equipment") else { return }
+        if membership == .hosting {
+            HouseholdOutbox.shared.enqueueRoot()
+            print("PLATED HOUSEHOLD: kitchen equipment changed, root queued")
+        }
     }
 
     private func leave() {
@@ -819,7 +954,7 @@ struct SettingsSheet: View {
         case .unknown:
             SettingsControlRow(
                 symbol: "calendar.badge.exclamationmark",
-                title: "Plan shared with",
+                title: "Week shared with",
                 detail: "Could not check iCloud.",
                 tint: .mangoTint,
                 tone: .amber
@@ -834,13 +969,13 @@ struct SettingsSheet: View {
                 .frame(minWidth: 44, minHeight: 44)
                 .contentShape(Rectangle())
                 .buttonStyle(.pressable)
-                .accessibilityLabel("Check again which table your plan is shared with")
+                .accessibilityLabel("Check again who receives your planned nights")
             }
         case .none:
             SettingsValueRow(
                 symbol: "calendar",
-                title: "Plan shared with",
-                detail: "Nobody yet. Invite somebody or take a seat at a table.",
+                title: "Week shared with",
+                detail: "Nobody yet. Your planned nights stay on this iPhone.",
                 tint: .fill,
                 tone: .inkSecondary,
                 value: nil
@@ -851,8 +986,8 @@ struct SettingsSheet: View {
             // zone is the publisher's business, reported in the console.
             SettingsValueRow(
                 symbol: "calendar",
-                title: "Plan shared with",
-                detail: "Where the nights you plan go",
+                title: "Week shared with",
+                detail: "This invited group receives your planned nights",
                 tint: .basilTint,
                 tone: .completion,
                 value: Self.label(for: table)
@@ -860,8 +995,8 @@ struct SettingsSheet: View {
         case .unresolved(let tables):
             SettingsControlRow(
                 symbol: "calendar.badge.exclamationmark",
-                title: "Plan shared with",
-                detail: "You sit at more than one table. Choose which one sees your week.",
+                title: "Week shared with",
+                detail: "Choose the invited Table that should receive plan updates.",
                 tint: .mangoTint,
                 tone: .amber
             ) {
@@ -877,7 +1012,7 @@ struct SettingsSheet: View {
                         .frame(minWidth: 44, minHeight: 44)
                         .contentShape(Rectangle())
                 }
-                .accessibilityLabel("Choose the table your plan is shared with")
+                .accessibilityLabel("Choose who receives your planned nights")
             }
         }
     }
@@ -897,15 +1032,57 @@ struct SettingsSheet: View {
         }
     }
 
+    @ViewBuilder
     private var syncRow: some View {
-        SettingsValueRow(
-            symbol: sync.account.isSyncing ? "icloud.fill" : "icloud",
-            title: syncTitle,
-            detail: syncDetail,
-            tint: sync.account.line == nil ? .basilTint : .mangoTint,
-            tone: sync.account.line == nil ? .completion : .amber,
-            value: sync.account.line == nil ? syncValue : "Review"
-        )
+        if sync.saveFailed {
+            SettingsControlRow(
+                symbol: "exclamationmark.icloud",
+                title: "A change wasn't saved",
+                detail: "Your work is still on screen. Try writing it to this iPhone again.",
+                tint: .mangoTint,
+                tone: .amber
+            ) {
+                Button("Try again") {
+                    Haptic.tap()
+                    Persist.save(context, "settings save retry")
+                    if !context.hasChanges { sync.acknowledgeSaveFailure() }
+                }
+                .plType(.footnote, .bold)
+                .plActionLabel()
+                .foregroundStyle(Color.accentText)
+                .frame(minWidth: 44, minHeight: 44)
+                .contentShape(Rectangle())
+                .buttonStyle(.pressable)
+            }
+        } else if sync.account.line != nil {
+            SettingsControlRow(
+                symbol: "icloud.slash",
+                title: syncTitle,
+                detail: syncDetail,
+                tint: .mangoTint,
+                tone: .amber
+            ) {
+                Button("Open Settings") {
+                    Haptic.tap()
+                    openSystemSettings()
+                }
+                .plType(.footnote, .bold)
+                .plActionLabel()
+                .foregroundStyle(Color.accentText)
+                .frame(minWidth: 44, minHeight: 44)
+                .contentShape(Rectangle())
+                .buttonStyle(.pressable)
+            }
+        } else {
+            SettingsValueRow(
+                symbol: sync.account.isSyncing ? "icloud.fill" : "iphone",
+                title: syncTitle,
+                detail: syncDetail,
+                tint: pendingSyncCount == 0 ? .basilTint : .mangoTint,
+                tone: pendingSyncCount == 0 ? .completion : .amber,
+                value: syncValue
+            )
+        }
     }
 
     private var privacyNote: some View {
@@ -916,7 +1093,8 @@ struct SettingsSheet: View {
                 .frame(width: 34, height: 34)
                 .background(Color.basilTint, in: Circle())
                 .plChrome()
-            Text("Your plan and cookbook are shared with your household and nobody else. Only posts you choose to share appear at the Table.")
+                .accessibilityHidden(true)
+            Text("Your household data is invite only. Table friends see posts you publish, plus planned nights only when you choose their Table under Week audience.")
                 .plType(.caption)
                 .foregroundStyle(Color.inkSecondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -933,6 +1111,9 @@ struct SettingsSheet: View {
     }
 
     private var syncDetail: String {
+        if pendingSyncCount > 0 {
+            return "\(pendingSyncCount) \(pendingSyncCount == 1 ? "change is" : "changes are") waiting to sync"
+        }
         if let line = sync.account.line { return line }
         switch sync.account {
         case .available:
@@ -945,19 +1126,38 @@ struct SettingsSheet: View {
     }
 
     private var syncValue: String {
+        if pendingSyncCount > 0 { return "Syncing" }
         switch sync.account {
         case .available: return "Up to date"
         case .notArmed: return "Local"
-        case .noAccount, .restricted, .temporarilyUnavailable: return "Review"
+        case .noAccount, .restricted, .temporarilyUnavailable: return "Needs attention"
         }
     }
 
+    private func refreshPendingSyncCount() {
+        pendingSyncCount = HouseholdOutbox.shared.pending.count
+            + TableOutbox.shared.pending.count
+            + PlanShare.queuedEdits().count
+    }
+
     private func refreshStatus() async {
+        let previousNotificationState = notificationState
         await sync.refresh()
         notificationState = await NotificationScheduler.authorizationState()
-        if DayEventsProvider.shared.isAuthorized {
-            calendarRefused = false
+        if notificationState == .allowed,
+           previousNotificationState != .allowed,
+           remindersOn {
+            // Permission may have been restored in iOS Settings while this
+            // screen was backgrounded. The switch already says On, so make
+            // its schedule true immediately rather than waiting for a later
+            // plan edit to happen to rebuild it.
+            await NotificationScheduler.rebuild(meals: meals)
         }
+        calendarRefused = DayEventsProvider.shared.isRefused
+        if calendarRefused && showCalendarEvents {
+            showCalendarEvents = false
+        }
+        refreshPendingSyncCount()
         await refreshPlanHousehold()
     }
 
@@ -984,6 +1184,39 @@ struct SettingsSheet: View {
         }
     }
 
+    private func deleteDirectoryAccount() {
+        guard !deletingAccount else { return }
+        deletingAccount = true
+        Task {
+            do {
+                try await Directory.deleteAccount()
+                // The server transaction has now confirmed success. Only at
+                // this boundary may the local Apple and directory credentials
+                // disappear; a failed request must remain retryable.
+                AppleIdentity.clear()
+                if let url = URL(string: "https://account.apple.com") {
+                    openURL(url)
+                }
+                didSignIn = false
+                deletingAccount = false
+                Haptic.plate()
+                dismiss()
+            } catch {
+                deletingAccount = false
+                deleteProblem = (error as? LocalizedError)?.errorDescription
+                    ?? "Nothing was deleted. Try again shortly."
+                deleteProblemShown = true
+            }
+        }
+    }
+
+    private func emailPrivacy() {
+        guard let url = URL(
+            string: "mailto:privacy@getplated.food?subject=Plated%20directory%20account%20deletion"
+        ) else { return }
+        openURL(url)
+    }
+
     private static var versionLine: String {
         let info = Bundle.main.infoDictionary
         let short = info?["CFBundleShortVersionString"] as? String ?? "0"
@@ -1001,6 +1234,7 @@ private struct SettingsSection<Content: View>: View {
         VStack(alignment: .leading, spacing: 11) {
             VStack(alignment: .leading, spacing: 3) {
                 MicroLabel(title)
+                    .accessibilityAddTraits(.isHeader)
                 Text(caption)
                     .plType(.caption)
                     .foregroundStyle(Color.inkSecondary)
@@ -1042,10 +1276,12 @@ private struct SettingsIcon: View {
             .frame(width: 38, height: 38)
             .background(tint, in: Circle())
             .plChrome()
+            .accessibilityHidden(true)
     }
 }
 
 private struct SettingsValueRow: View {
+    @Environment(\.dynamicTypeSize) private var typeSize
     let symbol: String
     let title: String
     let detail: String
@@ -1055,6 +1291,29 @@ private struct SettingsValueRow: View {
     var titleColor: Color = .ink
 
     var body: some View {
+        Group {
+            if typeSize >= .accessibility1, value != nil {
+                VStack(alignment: .leading, spacing: 12) {
+                    words
+                    valueLabel
+                        .padding(.leading, 51)
+                }
+            } else {
+                HStack(spacing: 13) {
+                    words
+                    Spacer(minLength: 8)
+                    valueLabel
+                }
+            }
+        }
+        .padding(.horizontal, 15)
+        .padding(.vertical, 12)
+        .frame(maxWidth: .infinity, minHeight: 68, alignment: .leading)
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+    }
+
+    private var words: some View {
         HStack(spacing: 13) {
             SettingsIcon(symbol: symbol, tint: tint, tone: tone)
             VStack(alignment: .leading, spacing: 2) {
@@ -1067,22 +1326,21 @@ private struct SettingsValueRow: View {
                     .foregroundStyle(Color.inkSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            Spacer(minLength: 8)
-            if let value {
-                Text(value)
-                    .plType(.footnote, .semibold)
-                    .plActionLabel(0.72)
-                    .foregroundStyle(tone)
-                    .multilineTextAlignment(.trailing)
-                    .padding(.horizontal, 10)
-                    .frame(minHeight: 30)
-                    .background(tint, in: Capsule())
-            }
         }
-        .padding(.horizontal, 15)
-        .padding(.vertical, 12)
-        .frame(maxWidth: .infinity, minHeight: 68, alignment: .leading)
-        .contentShape(Rectangle())
+    }
+
+    @ViewBuilder
+    private var valueLabel: some View {
+        if let value {
+            Text(value)
+                .plType(.footnote, .semibold)
+                .plActionLabel(0.72)
+                .foregroundStyle(tone)
+                .multilineTextAlignment(.trailing)
+                .padding(.horizontal, 10)
+                .frame(minHeight: 44)
+                .background(tint, in: Radius.shape(Radius.chip))
+        }
     }
 }
 

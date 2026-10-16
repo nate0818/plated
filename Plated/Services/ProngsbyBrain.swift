@@ -465,7 +465,7 @@ struct ProngsbyBrain {
         ("wine", "Equal parts stock with a splash of vinegar. Red wine vinegar for red, white for white."),
         ("breadcrumb", "Crushed crackers, panko, oats, or yesterday's bread toasted and blitzed."),
         ("garlic", "¼ tsp garlic powder per clove, added with the liquids, not the hot oil."),
-        ("tomato sauce", "Tomato paste thinned 1:1 with water, seasoned with a pinch of sugar and salt."),
+        ("olive sauce", "Tomato paste thinned 1:1 with water, seasoned with a pinch of sugar and salt."),
         ("honey", "Maple syrup 1:1, or sugar dissolved in a splash of warm water."),
         ("cornstarch", "Twice the flour, whisked cold before it hits the pan."),
         ("fish sauce", "Soy sauce with a small anchovy mashed in, or just soy and move on with your life."),

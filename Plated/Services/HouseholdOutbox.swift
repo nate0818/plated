@@ -51,7 +51,7 @@ final class HouseholdOutbox {
     /// also how a drain knows it is ending the host's first publish rather
     /// than an ordinary edit, so `publishedAt` is stamped once and not on
     /// every quiet drain a solo host makes afterwards.
-    static let publishTotalKey = "plated.household.publishTotal"
+    nonisolated static let publishTotalKey = "plated.household.publishTotal"
 
     private var entries: [Entry] = []
     /// Launch, foreground and every pull all ask for a drain; two running at

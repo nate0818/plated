@@ -9,7 +9,15 @@ import Contacts
 /// a person passing through on their way to somebody else's household
 /// never hosts an empty Table.
 struct ContactsView: View {
+    /// Uses local sample people and turns every invitation action into a
+    /// local state change. No Contacts, CloudKit or Messages work may begin.
+    let reviewOnly: Bool
     let onDone: () -> Void
+
+    init(reviewOnly: Bool = false, onDone: @escaping () -> Void) {
+        self.reviewOnly = reviewOnly
+        self.onDone = onDone
+    }
 
     struct Candidate: Identifiable {
         let id: String
@@ -24,6 +32,7 @@ struct ContactsView: View {
     @AppStorage("userFirstName") private var userFirstName = ""
     @Environment(\.modelContext) private var context
     @Environment(\.openURL) private var openURL
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var candidates: [Candidate] = []
     @State private var accessState: AccessState = .notAsked
     @State private var arrived = false
@@ -36,6 +45,7 @@ struct ContactsView: View {
     /// the first one's delegate. See `InviteFlow`.
     @State private var inviting: Candidate.ID?
     @State private var problem: String?
+    @State private var visibleSeats = 0
 
     enum AccessState { case notAsked, granted, denied }
 
@@ -51,6 +61,10 @@ struct ContactsView: View {
     /// first CloudKit import is still inbound — can't be closed here;
     /// MainShellView collapses duplicate owners whenever they appear.
     private func finish() {
+        guard !reviewOnly else {
+            onDone()
+            return
+        }
         #if !targetEnvironment(simulator)
         let owners = try? context.fetchCount(
             FetchDescriptor<HouseholdMember>(predicate: #Predicate { $0.role == "owner" })
@@ -59,7 +73,7 @@ struct ContactsView: View {
             let me = HouseholdMember(
                 name: userFirstName.isEmpty ? "Me" : userFirstName,
                 colorHex: "FF5A3C", isPrimaryCook: true,
-                role: "owner", roleLine: "Head of table", cookWeekdays: [],
+                role: "owner", roleLine: "Organizer", cookWeekdays: [],
                 seat: .head
             )
             if !TableIdentity.isPlaceholder { me.userRecordName = TableIdentity.cached }
@@ -76,14 +90,14 @@ struct ContactsView: View {
             VStack(spacing: 10) {
                 // Place settings around the table.
                 HStack(spacing: -12) {
-                    seatBubble("😋", tone: .tomatoPair)
-                    seatBubble("🤗", tone: .basilPair)
-                    seatBubble("😄", tone: .amberPair)
-                    seatBubble("+", tone: .grapePair)
+                    arrivingSeat("😋", tone: .tomatoPair, index: 0)
+                    arrivingSeat("🤗", tone: .basilPair, index: 1)
+                    arrivingSeat("😄", tone: .amberPair, index: 2)
+                    arrivingSeat("+", tone: .grapePair, index: 3)
                 }
                 .padding(.bottom, 8)
 
-                Text("Invite your household")
+                Text("Bring your people to the table")
                     .plType(.hero)
                     .foregroundStyle(Color.ink)
                     .multilineTextAlignment(.center)
@@ -93,8 +107,8 @@ struct ContactsView: View {
                     // title may never do. Its own subtitle already had it.
                     .fixedSize(horizontal: false, vertical: true)
                 Text(accessState == .granted
-                     ? "Anyone who joins sees the plan, the grocery list and the cookbook, and can change them."
-                     : "Plated is invite only. Nobody sees your plan or your recipes unless you invite them.")
+                     ? "As the organizer, you can name the household, invite or remove people, and manage what’s shared. Everyone who joins can plan meals, shop, and add recipes."
+                     : "You’re the household organizer. Invite the people you plan and cook with; your plan, groceries, and recipes stay private to the household.")
                     .plType(.body, .medium)
                     .foregroundStyle(Color.inkSecondary)
                     .multilineTextAlignment(.center)
@@ -170,15 +184,15 @@ struct ContactsView: View {
                         .foregroundStyle(Color.ink)
                         .frame(maxWidth: .infinity)
                         .frame(minHeight: 48)
-                        .overlay(Capsule().strokeBorder(Color.hairline, lineWidth: 1.5))
-                        .contentShape(Capsule())
+                        .overlay(Radius.shape(Radius.chip).strokeBorder(Color.hairline, lineWidth: 1.5))
+                        .contentShape(Radius.shape(Radius.chip))
                     }
                     .buttonStyle(.pressable)
                     .disabled(minting)
-                    TomatoPillButton(title: "Done") { finish() }
+                    PrimaryActionButton(title: "Start planning together") { finish() }
                 } else if accessState == .denied {
                     // iOS asks once. After a refusal `requestContacts()`
-                    // raises no prompt and changes nothing, so the tomato
+                    // raises no prompt and changes nothing, so the olive
                     // pill — the committing action on this screen — sat
                     // there saying "Use Contacts" and doing nothing at all,
                     // with the real route buried underneath it as a link.
@@ -189,10 +203,10 @@ struct ContactsView: View {
                         .multilineTextAlignment(.center)
                         .fixedSize(horizontal: false, vertical: true)
                     if let settings = URL(string: UIApplication.openSettingsURLString) {
-                        TomatoPillButton(title: "Open Settings") { openURL(settings) }
+                        PrimaryActionButton(title: "Open Settings") { openURL(settings) }
                     }
                 } else {
-                    TomatoPillButton(title: "Use Contacts") { requestContacts() }
+                    PrimaryActionButton(title: "Find my people") { requestContacts() }
                 }
                 // Only before contacts are granted. Once the list is up,
                 // "Done" is directly above this and calls the
@@ -203,7 +217,7 @@ struct ContactsView: View {
                         Haptic.tap()
                         finish()
                     } label: {
-                        Text("Not now")
+                        Text("I’ll invite later")
                             .plType(.body)
                             .plActionLabel()
                             .foregroundStyle(Color.inkSecondary)
@@ -229,20 +243,17 @@ struct ContactsView: View {
             .padding(.bottom, 28)
         }
         .plFitsOrScrolls()
-        .background {
-            ZStack(alignment: .topLeading) {
-                DriftingFoodPattern()
-                RadialGradient(colors: [.mangoTint, .mangoTint.opacity(0)], center: .center, startRadius: 0, endRadius: 220)
-                    .frame(width: 440, height: 440)
-                    .offset(x: -120, y: -180)
-            }
-            .ignoresSafeArea()
-        }
+        .background { OnboardingAtmosphere().ignoresSafeArea() }
         .onAppear {
             withAnimation(.plSettle.delay(0.1)) { arrived = true }
+            playSeatArrival()
             // UI-test hook: jump straight to the granted list when contacts
             // permission is pre-granted via `simctl privacy`.
-            if LaunchFlags.consume("-plated-find-people") { requestContacts() }
+            if reviewOnly {
+                prepareReview()
+            } else if LaunchFlags.consume("-plated-find-people") {
+                requestContacts()
+            }
         }
         .animation(.plSettle, value: accessState == .granted)
         .animation(.plSnap, value: problem)
@@ -254,6 +265,12 @@ struct ContactsView: View {
     /// went: cancelling used to still mark them "Waiting on them", which
     /// was a lie about a message that was never sent.
     private func startInvite(_ person: Candidate) {
+        if reviewOnly {
+            guard let index = candidates.firstIndex(where: { $0.id == person.id }) else { return }
+            Haptic.plate()
+            withAnimation(.plPop) { candidates[index].seated = true }
+            return
+        }
         guard inviting == nil else { return }
         withAnimation(.plSnap) {
             problem = nil
@@ -299,6 +316,13 @@ struct ContactsView: View {
     /// A seatless household link, handed over however they like. Whoever
     /// joins picks their seat on arrival (docs/household.md §7).
     private func shareLink() {
+        if reviewOnly {
+            Haptic.tap()
+            withAnimation(.plSnap) {
+                problem = "Review mode stays local. No invitation link was created."
+            }
+            return
+        }
         guard !minting else { return }
         Haptic.tap()
         withAnimation(.plSnap) {
@@ -319,13 +343,33 @@ struct ContactsView: View {
 
     private var seatedCount: Int { candidates.filter(\.seated).count }
 
+    private func arrivingSeat(_ symbol: String, tone: PersonTone, index: Int) -> some View {
+        seatBubble(symbol, tone: tone)
+            .scaleEffect(index < visibleSeats ? 1 : 0.64)
+            .opacity(index < visibleSeats ? 1 : 0)
+            .offset(y: index < visibleSeats ? 0 : -14)
+    }
+
+    private func playSeatArrival() {
+        if reduceMotion {
+            visibleSeats = 4
+            return
+        }
+        visibleSeats = 0
+        for index in 0..<4 {
+            withAnimation(.plPop.delay(0.10 + Double(index) * 0.11)) {
+                visibleSeats = index + 1
+            }
+        }
+    }
+
     private func seatBubble(_ symbol: String, tone: PersonTone) -> some View {
         Circle()
             .fill(tone.tint)
             .frame(width: 52, height: 52)
             .overlay {
                 if symbol == "+" {
-                    Text(symbol).font(.jakarta(17, .bold)).foregroundStyle(tone.tone)
+                    Text(symbol).font(.sans(17, .bold)).foregroundStyle(tone.tone)
                 } else {
                     Text(symbol).font(.system(size: 26))
                 }
@@ -363,13 +407,13 @@ struct ContactsView: View {
                 .foregroundStyle(Color.basil)
                 .padding(.horizontal, 16)
                 .frame(minHeight: 36)
-                .background(Color.basilTint, in: Capsule())
+                .background(Color.basilTint, in: Radius.shape(Radius.chip))
                 .transition(.plArrive)
-            } else if InviteComposer.isAvailable {
+            } else if reviewOnly || InviteComposer.isAvailable {
                 invitePill(person)
             }
             // No Messages: Share a link at the bottom of the screen is the
-            // door. A tomato Invite that opens a blank composer is worse
+            // door. A olive Invite that opens a blank composer is worse
             // than no pill.
         }
         .padding(.vertical, 12)
@@ -377,8 +421,8 @@ struct ContactsView: View {
 
     /// The one control on this row, and it says what it is doing. Minting
     /// the household share takes seconds, so the tapped pill takes the off
-    /// dress a disabled `TomatoPillButton` wears (`inkSecondary` on `fill`,
-    /// never a faded tomato) and every pill on the screen goes with it: a
+    /// dress a disabled `PrimaryActionButton` wears (`inkSecondary` on `fill`,
+    /// never a faded olive) and every pill on the screen goes with it: a
     /// second invitation cannot be started while the first is in flight.
     private func invitePill(_ person: Candidate) -> some View {
         let busy = inviting == person.id
@@ -394,15 +438,15 @@ struct ContactsView: View {
                     .plType(.footnote, .bold)
                     .plActionLabel()
             }
-            .foregroundStyle(inviting == nil ? Color.onTomato : Color.inkSecondary)
+            .foregroundStyle(inviting == nil ? Color.onPrimary : Color.inkSecondary)
             .padding(.horizontal, 18)
             // 44, not the 36 the label happened to be: a stroked or filled
             // capsule is only tappable across what it draws, and the row
             // beside it is 68 high.
             .frame(minHeight: 44)
-            .background(inviting == nil ? Color.tomato : Color.fill, in: Capsule())
+            .background(inviting == nil ? Color.primaryAction : Color.fill, in: Radius.shape(Radius.chip))
             .plDishShadow()
-            .contentShape(Capsule())
+            .contentShape(Radius.shape(Radius.chip))
         }
         .buttonStyle(.pressable)
         .disabled(inviting != nil)
@@ -414,6 +458,10 @@ struct ContactsView: View {
     }
 
     private func requestContacts() {
+        guard !reviewOnly else {
+            prepareReview()
+            return
+        }
         let store = CNContactStore()
         store.requestAccess(for: .contacts) { granted, _ in
             guard granted else {
@@ -478,47 +526,13 @@ struct ContactsView: View {
             }
         }
     }
-}
 
-/// The fun under the quiet: a sparse field of dishes drifting diagonally,
-/// faint enough that the type and the card stay in charge. Fades out before
-/// the CTA stack so the bottom of the screen keeps its calm.
-private struct DriftingFoodPattern: View {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    private static let emojis = ["🍕", "🥗", "🌮", "🍜", "🍳", "🥑", "🍓", "🥐", "🍤", "🫑", "🧀", "🍋"]
-
-    var body: some View {
-        TimelineView(.animation(minimumInterval: 1 / 20, paused: reduceMotion)) { ctx in
-            Canvas { context, size in
-                let tile: CGFloat = 118
-                let t = ctx.date.timeIntervalSinceReferenceDate
-                let drift = CGFloat((t * 6).truncatingRemainder(dividingBy: Double(tile)))
-                let cols = Int(size.width / tile) + 2
-                let rows = Int(size.height / tile) + 2
-                for row in -1..<rows {
-                    for col in -1..<cols {
-                        let seed = abs(row &* 31 &+ col &* 17)
-                        let emoji = Self.emojis[abs(row * 5 + col * 3) % Self.emojis.count]
-                        let jitterX = CGFloat(seed &* 37 % 52) - 26
-                        let jitterY = CGFloat(seed &* 53 % 44) - 22
-                        var layer = context
-                        layer.translateBy(x: CGFloat(col) * tile + jitterX + drift,
-                                          y: CGFloat(row) * tile + jitterY + drift)
-                        layer.rotate(by: .degrees(Double(seed % 30) - 15))
-                        layer.opacity = 0.18
-                        layer.draw(Text(verbatim: emoji).font(.system(size: 25)), at: .zero)
-                    }
-                }
-            }
-        }
-        .mask(
-            LinearGradient(stops: [.init(color: .white, location: 0),
-                                   .init(color: .white, location: 0.55),
-                                   .init(color: .clear, location: 0.92)],
-                           startPoint: .top, endPoint: .bottom)
-        )
-        .allowsHitTesting(false)
-        .accessibilityHidden(true)
+    private func prepareReview() {
+        candidates = [
+            Candidate(id: "review-maya", name: "Maya Chen", imageData: nil, phone: nil, seated: true),
+            Candidate(id: "review-noah", name: "Noah Williams", imageData: nil, phone: nil),
+            Candidate(id: "review-priya", name: "Priya Shah", imageData: nil, phone: nil),
+        ]
+        accessState = .granted
     }
 }

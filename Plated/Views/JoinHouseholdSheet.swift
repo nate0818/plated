@@ -95,28 +95,36 @@ struct JoinHouseholdSheet: View {
     private var content: some View {
         VStack(spacing: 18) {
             VStack(spacing: 12) {
-                AvatarCircle(
-                    initials: preview.map { String($0.hostName.prefix(1)).uppercased() }.flatMap { $0.isEmpty ? nil : $0 } ?? "?",
-                    tone: .neutralPair, size: 72, photo: preview?.hostPhoto
-                )
-                .padding(.top, 22)
                 if failure != nil {
-                    // Could not ask. No name, no household, no claim about
-                    // whose invitation this was: the phone never read it.
-                    EmptyView()
+                    Image(systemName: "exclamationmark.icloud")
+                        .font(.system(size: 28, weight: .medium))
+                        .foregroundStyle(Color.amber)
+                        .frame(width: 72, height: 72)
+                        .background(Color.mangoTint, in: Circle())
+                        .padding(.top, 22)
+                        .accessibilityHidden(true)
+                    Text("This invitation couldn't open")
+                        .plType(.title)
+                        .foregroundStyle(Color.ink)
+                        .multilineTextAlignment(.center)
                 } else if let preview {
+                    AvatarCircle(
+                        initials: String(host.prefix(1)).uppercased(),
+                        tone: .neutralPair, size: 72, photo: preview.hostPhoto
+                    )
+                    .padding(.top, 22)
                     VStack(spacing: 4) {
-                        Text("\(host) invited you to their household")
+                        MicroLabel("Household invitation")
+                        Text("Join \(invitedHouseholdName)?")
                             .plType(.title)
                             .foregroundStyle(Color.ink)
                             .multilineTextAlignment(.center)
                             .fixedSize(horizontal: false, vertical: true)
-                        if !preview.householdName.isEmpty {
-                            Text(preview.householdName)
-                                .plType(.body, .medium)
-                                .foregroundStyle(Color.inkSecondary)
-                                .multilineTextAlignment(.center)
-                        }
+                        Text("\(host) invited you to plan, shop and cook together.")
+                            .plType(.body, .medium)
+                            .foregroundStyle(Color.inkSecondary)
+                            .multilineTextAlignment(.center)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 } else {
                     // Still asking: no words. A sentence here would be a
@@ -150,11 +158,11 @@ struct JoinHouseholdSheet: View {
         } else {
             switch preview.state {
             case .ready, .willLeave:
-                factsList(facts(for: preview))
+                joinOverview(preview)
             case .ownShare:
                 sentence("This is your own household's link. Send it to someone else from Home.")
             case .hostingWithJoined(let names):
-                sentence("You host a household with \(Self.list(names)). Remove them first, or ask \(host) to join yours.")
+                sentence("You organize a household with \(Self.list(names)). Remove them first, or ask \(host) to join yours.")
             case .removed:
                 sentence("\(host) removed you from this household. Ask them for a new invitation.")
             case .alreadyHere, .needsSeat:
@@ -166,6 +174,11 @@ struct JoinHouseholdSheet: View {
         }
     }
 
+    private var invitedHouseholdName: String {
+        let named = preview?.householdName.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return named.isEmpty ? "\(host)'s household" : named
+    }
+
     private func sentence(_ text: String) -> some View {
         Text(text)
             .plType(.body, .medium)
@@ -175,55 +188,112 @@ struct JoinHouseholdSheet: View {
             .padding(.horizontal, 24)
     }
 
-    /// The facts, in §7's order. Every line is a sentence VoiceOver can
-    /// read on its own, so the row combines the mark and the words.
-    private func facts(for preview: HouseholdSync.JoinPreview) -> [String] {
-        var lines: [String] = []
-        if case .willLeave(let current) = preview.state {
-            let name = current.trimmingCharacters(in: .whitespaces)
-            lines.append(name.isEmpty ? "You'll leave your household first." : "You'll leave the \(name) household first.")
-        }
-        lines.append("You'll see the plan, the grocery list and the cookbook, and you can change them.")
-        lines.append("Your recipes come with you.")
-        let meals = preview.mealsFromToday
-        if meals == 1 {
-            lines.append("Your 1 planned meal from today on is replaced by \(host)'s plan.")
-        } else if meals > 1 {
-            lines.append("Your \(meals) planned meals from today on are replaced by \(host)'s plan.")
-        }
-        if preview.hasGroceryState {
-            lines.append("Your grocery list is replaced by the household's.")
-        }
-        if !preview.broughtSeats.isEmpty {
-            let names = Self.list(preview.broughtSeats)
-            lines.append(preview.broughtSeats.count == 1 ? "\(names) comes with you." : "\(names) come with you.")
-        }
-        if preview.publishedAt == nil {
-            lines.append("\(host)'s cookbook and plan arrive as their phone uploads them.")
-        }
-        lines.append("Leave any time from Settings.")
-        return lines
-    }
-
-    private func factsList(_ lines: [String]) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            ForEach(lines, id: \.self) { line in
-                HStack(alignment: .firstTextBaseline, spacing: 10) {
-                    Circle()
-                        .fill(Color.inkFaint)
-                        .frame(width: 6, height: 6)
-                        .offset(y: -3)
-                    Text(line)
-                        .plType(.body, .medium)
-                        .foregroundStyle(Color.ink)
-                        .fixedSize(horizontal: false, vertical: true)
+    private func joinOverview(_ preview: HouseholdSync.JoinPreview) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            if let change = changeNotice(for: preview) {
+                HStack(alignment: .top, spacing: 11) {
+                    Image(systemName: "arrow.triangle.2.circlepath")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(Color.amber)
+                        .frame(width: 32, height: 32)
+                        .background(Color.mangoTint, in: Circle())
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Before you join")
+                            .plType(.footnote, .bold)
+                            .foregroundStyle(Color.ink)
+                        Text(change)
+                            .plType(.caption)
+                            .foregroundStyle(Color.inkSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(line)
+                .padding(14)
+                .background(Color.mangoTint.opacity(0.55), in: Radius.shape(Radius.card))
+                .overlay(Radius.shape(Radius.card).strokeBorder(Color.amber.opacity(0.18)))
+                .accessibilityElement(children: .combine)
+            }
+
+            VStack(spacing: 0) {
+                joinFact("calendar", "One shared plan", "See who's cooking and change any night.")
+                Divider().overlay(Color.hairlineSoft).padding(.leading, 58)
+                joinFact("cart", "One grocery list", "Anything anyone adds stays in sync.")
+                Divider().overlay(Color.hairlineSoft).padding(.leading, 58)
+                joinFact("text.book.closed", "One cookbook", "Cook and improve the household's recipes together.")
+            }
+            .padding(.horizontal, 14)
+            .background(Color.raisedFill, in: Radius.shape(Radius.card))
+            .overlay(Radius.shape(Radius.card).strokeBorder(Color.hairline))
+
+            HStack(alignment: .top, spacing: 9) {
+                Image(systemName: "lock.fill")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Color.completion)
+                    .accessibilityHidden(true)
+                Text("Only household members get this access. Friends at the Table still see only what you choose to post.")
+                    .plType(.caption)
+                    .foregroundStyle(Color.inkSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .accessibilityElement(children: .combine)
+
+            if !preview.broughtSeats.isEmpty {
+                let names = Self.list(preview.broughtSeats)
+                Text("\(names) \(preview.broughtSeats.count == 1 ? "comes" : "come") with you.")
+                    .plType(.caption, .semibold)
+                    .foregroundStyle(Color.inkSecondary)
+            }
+
+            if preview.publishedAt == nil {
+                Text("The shared plan and cookbook may take a moment to arrive from \(host)'s phone.")
+                    .plType(.caption)
+                    .foregroundStyle(Color.inkSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 24)
+    }
+
+    private func changeNotice(for preview: HouseholdSync.JoinPreview) -> String? {
+        var changes: [String] = []
+        if case .willLeave(let current) = preview.state {
+            let name = current.trimmingCharacters(in: .whitespaces)
+            changes.append(name.isEmpty ? "You'll leave your current household." : "You'll leave \(name).")
+        }
+        let meals = preview.mealsFromToday
+        if meals == 1 {
+            changes.append("Your next planned meal will be replaced by this household's plan.")
+        } else if meals > 1 {
+            changes.append("Your \(meals) upcoming meals will be replaced by this household's plan.")
+        }
+        if preview.hasGroceryState {
+            changes.append("Your grocery list will be replaced by the shared list.")
+        }
+        guard !changes.isEmpty else { return nil }
+        return changes.joined(separator: " ") + " Your own recipes and awards stay with you."
+    }
+
+    private func joinFact(_ symbol: String, _ title: String, _ detail: String) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: symbol)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(Color.ink)
+                .frame(width: 34, height: 34)
+                .background(Color.fill, in: Circle())
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title)
+                    .plType(.body, .semibold)
+                    .foregroundStyle(Color.ink)
+                Text(detail)
+                    .plType(.caption)
+                    .foregroundStyle(Color.inkSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.vertical, 11)
+        .accessibilityElement(children: .combine)
     }
 
     /// A seatless link: the roster's open seats, and a way to say none of
@@ -231,9 +301,14 @@ struct JoinHouseholdSheet: View {
     /// seats.
     private func seatPicker(_ candidates: [HouseholdSync.SeatCandidate]) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Which seat is yours?")
-                .plType(.body, .bold)
-                .foregroundStyle(Color.ink)
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Which person are you?")
+                    .plType(.body, .bold)
+                    .foregroundStyle(Color.ink)
+                Text("Choose the place \(host) saved for you.")
+                    .plType(.caption)
+                    .foregroundStyle(Color.inkSecondary)
+            }
             VStack(spacing: 0) {
                 ForEach(candidates) { candidate in
                     seatRow(title: candidate.name, detail: candidate.role.capitalized) {
@@ -241,7 +316,7 @@ struct JoinHouseholdSheet: View {
                     }
                     Divider().overlay(Color.hairlineSoft)
                 }
-                seatRow(title: "None of these", detail: "A new seat, as yourself") {
+                seatRow(title: "None of these", detail: "Join with your own name") {
                     claim(nil)
                 }
             }
@@ -283,10 +358,10 @@ struct JoinHouseholdSheet: View {
             if let preview, candidates == nil {
                 switch preview.state {
                 case .ready:
-                    TomatoPillButton(title: joining ? "Joining" : "Join", busy: joining) { join() }
+                    PrimaryActionButton(title: joining ? "Joining household" : "Join household", busy: joining) { join() }
                         .disabled(joining)
                 case .willLeave:
-                    TomatoPillButton(title: joining ? "Joining" : "Leave and join", busy: joining) { join() }
+                    PrimaryActionButton(title: joining ? "Switching households" : "Switch households", busy: joining) { join() }
                         .disabled(joining)
                 case .ownShare, .hostingWithJoined, .removed, .alreadyHere, .needsSeat:
                     EmptyView()
@@ -465,7 +540,7 @@ struct JoinFromLinkStep: View {
                     Spacer()
                     ProblemRow(reason)
                     Spacer()
-                    InkPillButton(title: "Continue") { onDone() }
+                    SecondaryActionButton(title: "Continue") { onDone() }
                 }
                 .padding(.horizontal, 24)
                 .padding(.bottom, 28)
@@ -516,7 +591,7 @@ struct ProblemRow: View {
         HStack(alignment: .top, spacing: 10) {
             Image(systemName: "exclamationmark.circle")
                 .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(Color.tomato)
+                .foregroundStyle(Color.dangerText)
             Text(text)
                 .plType(.footnote, .semibold)
                 .foregroundStyle(Color.ink)
@@ -524,7 +599,7 @@ struct ProblemRow: View {
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.tomatoTint, in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
+        .background(Color.oliveTint, in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
         .accessibilityElement(children: .combine)
     }
 }

@@ -217,7 +217,7 @@ enum RecipeImporter {
         @Guide(description: "Minutes actually cooking. 0 if not stated.")
         var cookMinutes: Int
         var ingredients: [DraftIngredient]
-        @Guide(description: "The method, one instruction per element, in order. Strip any leading numbering. Omit blog commentary, tips, and nutrition notes.")
+        @Guide(description: "The method, one instruction per element, in order. Strip leading numbering. Preserve every ingredient amount, heat or temperature, duration, and visual doneness cue the source gives. Never invent missing detail. Omit blog commentary, tips, and nutrition notes.")
         var steps: [String]
     }
 
@@ -1035,14 +1035,14 @@ enum RecipeImporter {
     /// in "Other" and the grocery list lost its walking order — the one
     /// thing that makes the list worth generating.
     ///
-    /// Longer phrases first: "tomato paste" is pantry, "tomato" is produce.
+    /// Longer phrases first: "olive paste" is pantry, "olive" is produce.
     private static let aisleKeywords: [(String, GroceryAisle)] = [
         ("chili powder", .pantry), ("chilli powder", .pantry), ("curry powder", .pantry),
         ("garlic powder", .pantry), ("onion powder", .pantry), ("cocoa powder", .pantry),
         ("salt and pepper", .pantry), ("black pepper", .pantry), ("white pepper", .pantry),
         ("peppercorn", .pantry), ("pepper flake", .pantry), ("cayenne", .pantry),
-        ("sun-dried tomato", .pantry), ("tomato paste", .pantry), ("tomato sauce", .pantry),
-        ("canned tomato", .pantry), ("coconut milk", .pantry), ("ice cream", .frozen),
+        ("sun-dried olive", .pantry), ("olive paste", .pantry), ("olive sauce", .pantry),
+        ("canned olive", .pantry), ("coconut milk", .pantry), ("ice cream", .frozen),
         ("frozen", .frozen), ("sour cream", .dairy), ("cream cheese", .dairy),
         ("heavy cream", .dairy), ("olive oil", .pantry), ("soy sauce", .pantry),
         ("fish sauce", .pantry), ("peanut butter", .pantry), ("baking powder", .pantry),
@@ -1063,7 +1063,7 @@ enum RecipeImporter {
         ("bread", .bakery), ("bun", .bakery), ("tortilla", .bakery), ("baguette", .bakery),
         ("pita", .bakery), ("brioche", .bakery),
 
-        ("onion", .produce), ("garlic", .produce), ("tomato", .produce),
+        ("onion", .produce), ("garlic", .produce), ("olive", .produce),
         ("lettuce", .produce), ("spinach", .produce), ("kale", .produce),
         ("carrot", .produce), ("celery", .produce), ("potato", .produce),
         ("lemon", .produce), ("lime", .produce), ("apple", .produce),

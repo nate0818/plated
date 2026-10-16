@@ -1,0 +1,14 @@
+# The Vercel project is configured with `web` as its root directory.
+# Keep the deployment payload limited to that application so local Xcode
+# products and archived worktrees are never scanned or uploaded.
+/*
+!/web
+!/web/**
+
+# Never upload local dependencies, generated output, Vercel state, or secrets.
+/web/node_modules
+/web/.next
+/web/.vercel
+/web/.env*
+/web/tsconfig.tsbuildinfo
+**/.DS_Store

@@ -1,120 +1,131 @@
-/* The app's own tokens, not an approximation of them. Plated/Support/Theme.swift
-   is the source and every value here is its light value. Light only, on
-   purpose: this is the first thing a stranger sees of Plated and it should
-   look the same for every one of them. Change a colour in Theme.swift,
-   change it here. */
+/* Editorial defaults mirror Theme.swift throughout the public site and console. */
 :root {
-  --canvas: #FFFFFF;
-  --ink: #221B14;
-  --ink-secondary: #7F7364;
-  --ink-faint: #B5AC9E;
-  --hairline: #F0EBE4;
-  --hairline-soft: #F7F3EE;
-  --hairline-dashed: #EFE7DD;
-  --nav-hairline: #EFECE7;
-  --fill: #F4F1EC;
-  --chip-fill: #F7F5F1;
+  --canvas: #191C17;
+  --ink: #EDF0E6;
+  --ink-secondary: #B0B8A8;
+  --ink-faint: #727D68;
+  --hairline: #3A4434;
+  --hairline-soft: #2B3226;
+  --hairline-dashed: #4C5844;
+  --nav-hairline: #3A4434;
+  --fill: #242720;
+  --chip-fill: #22261F;
+  --raised-fill: #2C3127;
+  --card-fill: #1E211B;
+  --olive: #B2C9A5;
+  --on-olive: #182219;
+  --selection-fill: var(--ink);
+  --on-selection: var(--canvas);
+  --accent-text: var(--olive);
+  --primary-action: #FF5A3C;
+  --on-primary: #221B14;
+  --primary-pressed: #F36A4F;
+  --scrim-ink: #172018;
+  --on-scrim: #FFFFFF;
+  --danger-text: #F0A595;
+  --completion: var(--olive);
+  --basil: #55BE76;
+  --basil-tint: #303B29;
+  --mango: #FFB63A;
+  --mango-tint: #332A15;
+  --grape: #C98BF7;
+  --grape-tint: #2E2138;
+  --shadow-ink: 0 0 0;
+
+  --radius-small: 4px;
+  --radius-chip: 6px;
+  --radius-row: 6px;
+  --radius-card: 8px;
+  --radius-hero: 4px;
+  --radius-sheet: 18px;
+  --space-inline: 8px;
+  --space-compact: 12px;
+  --space-content: 16px;
+  --space-page: 24px;
+  --space-section: 28px;
+  --control-height: 48px;
+  --target-minimum: 44px;
+  --shadow-card: none;
+  --shadow-float: none;
+  --shadow-tile: none;
+  --ease-pop: cubic-bezier(0.2, 0, 0, 1);
+
+  /* Compatibility for utility components; these resolve to Editorial roles. */
+  --tomato: var(--primary-action);
+  --on-tomato: var(--on-primary);
+  --tomato-pressed: var(--primary-pressed);
+  --tomato-tint: var(--fill);
+  --font-gabarito: var(--font-editorial);
+  --font-jakarta: var(--font-sans);
+  color-scheme: dark;
+}
+
+[data-theme="paper"] {
+  --canvas: #FAF9F4;
+  --ink: #27362A;
+  --ink-secondary: #606958;
+  --ink-faint: #A5AD9A;
+  --hairline: #DFE2D7;
+  --hairline-soft: #ECEEE5;
+  --hairline-dashed: #CCD2C2;
+  --nav-hairline: #DFE2D7;
+  --fill: #EFEFE6;
+  --chip-fill: #F1F2E9;
   --raised-fill: #FFFFFF;
-  --card-fill: #FFFFFF;
-  --tomato: #FF5A3C;
-  --on-tomato: #FFFFFF;
-  --tomato-pressed: #D6401F;
-  --tomato-tint: #FFEDE3;
-  --accent-text: #A93620;
-  --completion: #386449;
+  --card-fill: #FAF9F4;
+  --olive: #355941;
+  --on-olive: #FFFFFF;
+  --accent-text: #355941;
+  --danger-text: #A33D2D;
+  --completion: #355941;
   --basil: #3DA35D;
-  --basil-tint: #EDF5EF;
+  --basil-tint: #E8EDE1;
   --mango: #FFB020;
   --mango-tint: #FFF4DC;
   --grape: #B95CF4;
   --grape-tint: #F5EDFB;
-  --shadow-ink: 60 50 40; /* 0x3C3228 as rgb triplet for rgba() */
-
-  --radius-small: 12px;
-  --radius-chip: 16px;
-  --radius-row: 18px;
-  --radius-card: 20px;
-  --radius-hero: 24px;
-  --radius-sheet: 28px;
-
-  /* plCardShadow and plFloatShadow, translated: opacity, blur, y. */
-  --shadow-card: 0 11px 18px rgba(var(--shadow-ink) / 0.09);
-  --shadow-float: 0 17px 28px rgba(var(--shadow-ink) / 0.07);
-  --shadow-tile: 0 3px 5px rgba(var(--shadow-ink) / 0.13);
-
-  /* The canvas spring, the same curve Theme.swift's springs are the twin of. */
-  --ease-pop: cubic-bezier(0.34, 1.56, 0.64, 1);
-
+  --shadow-ink: 39 54 42;
+  color: var(--ink);
+  background: var(--canvas);
   color-scheme: light;
 }
 
-
 *, *::before, *::after { box-sizing: border-box; }
-
-html {
-  -webkit-text-size-adjust: 100%;
-  scroll-behavior: smooth;
-}
-
+html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+html:has(dialog[open]) { overflow: hidden; }
 body {
   margin: 0;
+  min-height: 100svh;
   background: var(--canvas);
   color: var(--ink);
-  font-family: var(--font-jakarta), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  font-weight: 500;
-  font-size: 17px;
-  line-height: 1.55;
+  font-family: var(--font-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1.65;
   -webkit-font-smoothing: antialiased;
-  min-height: 100svh;
 }
-
-/* Gabarito carries display, weight ceiling 700. Lighter is often better at
-   large sizes, so headings default to 600 and the hero goes to 500. */
 h1, h2, h3, .display {
-  font-family: var(--font-gabarito), var(--font-jakarta), sans-serif;
-  font-weight: 600;
+  margin: 0;
+  font-family: var(--font-editorial), Georgia, serif;
+  font-optical-sizing: auto;
+  font-weight: 400;
   letter-spacing: -0.025em;
   line-height: 1.05;
-  margin: 0;
   text-wrap: balance;
 }
-
 p { margin: 0; }
 a { color: inherit; }
-button { font: inherit; color: inherit; }
-img { max-width: 100%; display: block; }
-
-/* Two text colours, not three. inkFaint paints strokes and dashes only. */
+button, input { font: inherit; color: inherit; }
+button { font-weight: 600; }
+img { display: block; max-width: 100%; }
 .secondary { color: var(--ink-secondary); }
-
-/* The eyebrow above a title. inkSecondary, never inkFaint: it is a word. */
-.micro {
-  font-family: var(--font-jakarta), sans-serif;
-  font-size: 0.8125rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--ink-secondary);
-}
-
-.wrap {
-  width: 100%;
-  max-width: 68rem;
-  margin: 0 auto;
-  padding-inline: clamp(20px, 5vw, 48px);
-}
-
-/* Focus is visible and shaped like the thing it is on. */
-:focus-visible {
-  outline: 2px solid var(--ink);
-  outline-offset: 3px;
-  border-radius: 6px;
-}
-
+.micro { font-family: var(--font-sans), sans-serif; font-size: 11px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-secondary); }
+.wrap { width: 100%; max-width: 68rem; margin-inline: auto; padding-inline: clamp(24px, 5vw, 48px); }
+:focus-visible { outline: 2px solid var(--olive); outline-offset: 5px; border-radius: var(--radius-small); }
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
-  *, *::before, *::after {
-    animation-duration: 0.01ms !important;
-    transition-duration: 0.01ms !important;
-  }
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+}
+@media (prefers-contrast: more) {
+  :root { --hairline: var(--ink-secondary); --hairline-dashed: var(--ink-secondary); }
 }

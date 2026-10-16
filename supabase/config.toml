@@ -15,6 +15,9 @@ verify_jwt = false
 [functions.lookup]
 verify_jwt = false
 
+[functions.account-delete]
+verify_jwt = false
+
 [functions.instacart-shopping-list]
 verify_jwt = false
 

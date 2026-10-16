@@ -37,13 +37,20 @@ enum SampleData {
         // People — Nate owns the account; Sam and Riley have standing nights.
         let nate = HouseholdMember(
             name: "Nate", colorHex: "FF5A3C", isPrimaryCook: true,
-            role: "owner", roleLine: "Head of table", cookWeekdays: [6, 4], // Fri, Wed
+            role: "owner", roleLine: "Organizer", cookWeekdays: [6, 4], // Fri, Wed
             seat: .head
         )
         // The seeded owner is the person holding the simulator, or every
         // "You" in the app would fall back to role and the household
         // rehearsal could not tell the reader from the arriving host.
-        nate.userRecordName = TableIdentity.cached
+        // A local placeholder is not a verified person and production code
+        // deliberately refuses to claim a seat with one. Stamping it here
+        // made the shell lay a second "Add your name" owner in screenshots.
+        // Real CloudKit identity is stable enough to carry; otherwise the
+        // head remains unclaimed, exactly like a genuine offline bootstrap.
+        if !TableIdentity.isPlaceholder {
+            nate.userRecordName = TableIdentity.cached
+        }
         let sam = HouseholdMember(
             name: "Sam", colorHex: "3DA35D",
             role: "partner", roleLine: "Partner · plans & cooks", cookWeekdays: [7, 1] // Sat, Sun
@@ -237,6 +244,12 @@ enum SampleData {
                 createdAt: Calendar.current.date(byAdding: .day, value: -2, to: .now) ?? .now
             )
         ]
+        // Review fixtures represent posts that are already on the Table. The
+        // live composer starts new posts unpublished until CloudKit confirms;
+        // leaving fixtures in that state puts a false "Not sent yet" warning
+        // on every design-review screenshot when the global backfill flag has
+        // already run in another launch.
+        [post1, post2, post3].forEach { $0.isPublished = true }
         [post1, post2, post3].forEach { context.insert($0) }
 
         seedDiscover(into: context)

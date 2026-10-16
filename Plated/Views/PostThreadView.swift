@@ -20,7 +20,9 @@ struct PostThreadView: View {
     var onSave: ((TablePost) -> Void)?
 
     @Environment(\.modelContext) private var context
+    @Environment(\.activeAppTab) private var activeAppTab
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.openURL) private var openURL
     @AppStorage("userFirstName") private var userFirstName = ""
     @Query(sort: \HouseholdMember.createdAt) private var members: [HouseholdMember]
     @Query private var recipes: [Recipe]
@@ -45,6 +47,9 @@ struct PostThreadView: View {
     @State private var localSave: TablePost?
     @State private var saveToast: String?
     @State private var saveToastToken = 0
+    @State private var presenceHomeTab: AppTab?
+    @State private var contentSafety = ContentSafety.shared
+    @State private var safetyDialog: SafetyDialog?
     @FocusState private var composerFocused: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -60,6 +65,11 @@ struct PostThreadView: View {
     /// the same bug wearing the shape of its own cure.
     private var arrival: AnyTransition {
         reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity)
+    }
+
+    private enum SafetyDialog {
+        case report(ContentSafety.ReportTarget)
+        case block(ContentSafety.Author, dismissThread: Bool)
     }
 
     var body: some View {
@@ -92,47 +102,35 @@ struct PostThreadView: View {
                         Spacer()
                     }
 
-                    // The byline-and-caption run, on the same condition the
-                    // feed card uses. Unguarded, a post with no caption drew
-                    // the bold name and its two trailing spaces and nothing
-                    // else: a name sitting alone under the plate, saying
-                    // nothing, while the same name is already in the bar
-                    // above it. The feed learned this and the thread did not.
                     if !post.caption.isEmpty || post.dishTitle.isEmpty {
-                        // Spelled out because concatenated Text takes a Font,
-                        // not a view modifier. TypeScale.body's numbers.
-                        (Text(post.authorName).font(.jakarta(TypeScale.body.size, .bold))
-                         + Text("  ").font(.jakarta(TypeScale.body.size))
-                         + Text(post.caption).font(.jakarta(TypeScale.body.size)))
+                        Text(post.caption)
+                            .plType(.body, .regular)
                             .foregroundStyle(Color.ink)
                             .lineSpacing(3)
                     }
 
                     if !post.taggedNames.isEmpty {
-                        HStack(spacing: 6) {
-                            ForEach(post.taggedNames, id: \.self) { name in
-                                Button {
-                                    openProfile(name, door: .person(name))
-                                } label: {
-                                    // The whole target was the glyph box:
-                                    // about 22 by 14 points for a short
-                                    // name. It is a chip inside a 44pt
-                                    // frame now, the same two-frame shape
-                                    // the Save pill above it uses.
-                                    Text("@\(name)")
-                                        .matchedTransitionSource(id: ZoomID.person(name), in: zoom)
-                                        .plType(.micro)
-                                        .plActionLabel()
-                                        .foregroundStyle(Color.ink)
-                                        .padding(.horizontal, 10)
-                                        .frame(minHeight: 30)
-                                        .overlay(Capsule().strokeBorder(Color.hairline))
-                                        .frame(minHeight: 44)
-                                        .contentShape(Capsule())
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 6) {
+                                ForEach(post.taggedNames, id: \.self) { name in
+                                    Button {
+                                        openProfile(name, door: .person(name))
+                                    } label: {
+                                        Text("@\(name)")
+                                            .matchedTransitionSource(id: ZoomID.person(name), in: zoom)
+                                            .plType(.micro)
+                                            .plActionLabel()
+                                            .foregroundStyle(Color.ink)
+                                            .padding(.horizontal, 10)
+                                            .frame(minHeight: 30)
+                                            .overlay(Radius.shape(Radius.chip).strokeBorder(Color.hairline))
+                                            .frame(minHeight: 44)
+                                            .contentShape(Radius.shape(Radius.chip))
+                                    }
+                                    .buttonStyle(.pressable)
                                 }
-                                .buttonStyle(.pressable)
+                                Spacer()
                             }
-                            Spacer()
                         }
                     }
 
@@ -143,13 +141,15 @@ struct PostThreadView: View {
                     // The count only once there is one. "COMMENTS · 0"
                     // sitting directly above "No comments yet" says the same
                     // nothing twice.
-                    MicroLabel(post.sortedComments.isEmpty
+                    MicroLabel(visibleComments.isEmpty
                                ? "Comments"
-                               : "Comments · \(post.sortedComments.count)")
+                               : "Comments · \(visibleComments.count)")
                         .padding(.top, 8)
 
-                    if post.sortedComments.isEmpty {
-                        Text(post.kind == "ask" ? "No suggestions yet" : "No comments yet")
+                    if visibleComments.isEmpty {
+                        Text(post.kind == "ask"
+                             ? "No replies yet. Be the first to answer."
+                             : "No comments yet. Start the conversation below.")
                             .plType(.footnote)
                             .foregroundStyle(Color.inkSecondary)
                     }
@@ -172,7 +172,7 @@ struct PostThreadView: View {
                         .transition(arrival)
                     }
                 }
-                .animation(.plSnap, value: post.sortedComments.count)
+                .animation(.plSnap, value: visibleComments.count)
                 .padding(.horizontal, 24)
                 .padding(.top, 16)
                 .padding(.bottom, 20)
@@ -207,7 +207,8 @@ struct PostThreadView: View {
         // A banner about this very thread would be the app tapping you on
         // the shoulder to point at what you are reading.
         .onAppear {
-            Presence.shared.openPost = post.shareRecordName
+            if presenceHomeTab == nil { presenceHomeTab = activeAppTab }
+            updatePostPresence()
             // Opening the dish is reading what was said about it: the bell
             // row, the icon's count and the banner still in the list.
             Task { await TableNews.markRead(post: post.shareRecordName, context: context) }
@@ -215,9 +216,12 @@ struct PostThreadView: View {
         .onDisappear {
             if Presence.shared.openPost == post.shareRecordName { Presence.shared.openPost = nil }
         }
+        .onChange(of: activeAppTab) { _, _ in updatePostPresence() }
+        .onChange(of: personShown) { _, _ in updatePostPresence() }
         // This page docks its own composer at the bottom-trailing corner,
         // exactly where the perch lives.
         .hidesProngsbyPerch()
+        .hidesFloatingChrome()
         .plSwipeBack()
         .navigationDestination(item: $personShown) { person in
             PersonProfileView(personName: person.name, colorHex: person.colorHex, memberID: person.memberID)
@@ -242,6 +246,31 @@ struct PostThreadView: View {
                 showSaveToast("Saved. \(post.firstName) gets the credit")
             }
         }
+        .confirmationDialog(
+            safetyDialogTitle,
+            isPresented: Binding(
+                get: { safetyDialog != nil },
+                set: { if !$0 { safetyDialog = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            if let safetyDialog {
+                switch safetyDialog {
+                case .report(let target):
+                    ForEach(ContentSafety.ReportReason.allCases) { reason in
+                        Button(reason.rawValue) { report(target, because: reason) }
+                    }
+                    Button("Cancel", role: .cancel) {}
+                case .block(let author, let dismissThread):
+                    Button("Block \(author.label)", role: .destructive) {
+                        block(author, dismissThread: dismissThread)
+                    }
+                    Button("Cancel", role: .cancel) {}
+                }
+            }
+        } message: {
+            Text(safetyDialogMessage)
+        }
         .overlay(alignment: .bottom) {
             if let toast = saveToast {
                 Text(toast)
@@ -249,16 +278,16 @@ struct PostThreadView: View {
                     .foregroundStyle(Color.canvas)
                     .padding(.horizontal, 18)
                     .frame(minHeight: 40)
-                    .background(Color.ink, in: Capsule())
+                    .background(Color.ink, in: Radius.shape(Radius.chip))
                     .padding(.bottom, 150)
                     .transition(arrival)
             }
         }
-        .onChange(of: photoItem) { _, item in
+        .onChange(of: photoItem, initial: false) { _, item in
             guard let item else { return }
             Task {
                 if let raw = try? await item.loadTransferable(type: Data.self) {
-                    commentPhoto = PersonProfileView.downscale(raw)
+                    commentPhoto = ProfilePhoto.downscale(raw)
                 }
             }
         }
@@ -285,7 +314,7 @@ struct PostThreadView: View {
                             .plName()
                             .plType(.body, .bold)
                             .foregroundStyle(Color.ink)
-                        Text(post.dishTitle.isEmpty ? "Open ask" : post.dishTitle)
+                        Text(post.kind == "ask" ? "Question" : (post.dishTitle.isEmpty ? "Dish" : post.dishTitle))
                             .plType(.caption, .semibold)
                             .foregroundStyle(Color.inkSecondary)
                     }
@@ -294,7 +323,6 @@ struct PostThreadView: View {
             }
             .buttonStyle(.pressable)
             Spacer()
-            AccountButton()
             if post.kind == "dish" {
                 if recipes.contains(where: { $0.originID == post.originKey }) {
                     // A receipt, not a button — same state the feed shows.
@@ -317,13 +345,32 @@ struct PostThreadView: View {
                             .foregroundStyle(Color.ink)
                             .padding(.horizontal, 14)
                             .frame(minHeight: 36)
-                            .overlay(Capsule().strokeBorder(Color.hairline, lineWidth: 1.5))
+                            .overlay(Radius.shape(Radius.chip).strokeBorder(Color.hairline, lineWidth: 1.5))
                             .frame(minHeight: 44)
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.pressable)
                 }
             }
+            if canReport(postAuthor, knownToBeSelf: postIsMine) || canBlock(postAuthor) {
+                Menu {
+                    safetyActions(
+                        target: .post(post),
+                        author: postAuthor,
+                        contentLabel: "post",
+                        dismissThreadOnBlock: true,
+                        reportAllowed: canReport(postAuthor, knownToBeSelf: postIsMine),
+                        blockAllowed: canBlock(postAuthor)
+                    )
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(Color.inkSecondary)
+                        .plTapTarget()
+                }
+                .accessibilityLabel("Safety options for this post")
+            }
+            AccountButton()
         }
         .padding(.horizontal, 20)
         .padding(.top, 6)
@@ -354,7 +401,12 @@ struct PostThreadView: View {
         return Button {
             Haptic.plate()
             withAnimation(.plSnap) {
-                TableReactions.vote(post, option: index)
+                TableReactions.vote(
+                    post,
+                    option: index,
+                    context: context,
+                    authorName: currentAuthorName
+                )
             }
         } label: {
             HStack(spacing: 10) {
@@ -370,7 +422,7 @@ struct PostThreadView: View {
                 Spacer()
                 Text("\(votes)")
                     .plType(.footnote, .bold)
-                    .foregroundStyle(mine ? Color.basil : Color.inkSecondary)
+                    .foregroundStyle(mine ? Color.completion : Color.inkSecondary)
                     .contentTransition(.numericText())
             }
             .padding(.horizontal, 12)
@@ -388,15 +440,151 @@ struct PostThreadView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.pressable)
+        .accessibilityLabel(option)
+        .accessibilityValue("\(votes.things("vote"))\(mine ? ", your choice" : "")")
+        .accessibilityHint(mine ? "Double tap to remove your vote" : "Double tap to vote")
         .accessibilityAddTraits(mine ? .isSelected : [])
     }
 
     private func commentKey(_ comment: TableComment) -> String { comment.shareRecordName.isEmpty ? String(describing: comment.persistentModelID) : comment.shareRecordName }
 
+    private var postAuthor: ContentSafety.Author {
+        ContentSafety.Author(identity: post.authorID, displayName: post.authorName)
+    }
+
+    private var postIsMine: Bool {
+        TableMutationAuthorization.owns(
+            post: post,
+            identityIDs: currentIdentityIDs,
+            displayNames: currentDisplayNames
+        )
+    }
+
+    private func author(for comment: TableComment) -> ContentSafety.Author {
+        ContentSafety.Author(identity: comment.authorID, displayName: comment.authorName)
+    }
+
+    private func canBlock(_ author: ContentSafety.Author) -> Bool {
+        contentSafety.canBlock(
+            author,
+            currentIdentityIDs: currentIdentityIDs,
+            currentDisplayNames: currentDisplayNames
+        )
+    }
+
+    private func canReport(_ author: ContentSafety.Author, knownToBeSelf: Bool) -> Bool {
+        contentSafety.canReport(
+            author,
+            currentIdentityIDs: currentIdentityIDs,
+            knownToBeSelf: knownToBeSelf
+        )
+    }
+
+    /// Old comments have no identity. Treat an exact current name as known
+    /// self only on a genuinely local legacy post; a shared row with the
+    /// same first name remains reportable because ownership is ambiguous.
+    private func isKnownSelfAuthoredLegacyComment(_ comment: TableComment) -> Bool {
+        guard comment.authorID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              post.authorID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              !post.isRemote,
+              post.shareZoneOwner.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        else { return false }
+
+        let target = normalizedSafetyName(comment.authorName)
+        guard !target.isEmpty else { return false }
+        return currentDisplayNames.contains { normalizedSafetyName($0) == target }
+    }
+
+    private func normalizedSafetyName(_ value: String) -> String {
+        value.trimmingCharacters(in: .whitespacesAndNewlines)
+            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+    }
+
+    @ViewBuilder
+    private func safetyActions(
+        target: ContentSafety.ReportTarget,
+        author: ContentSafety.Author,
+        contentLabel: String,
+        dismissThreadOnBlock: Bool,
+        reportAllowed: Bool,
+        blockAllowed: Bool
+    ) -> some View {
+        if reportAllowed {
+            Button {
+                safetyDialog = .report(target)
+            } label: {
+                Label("Report \(contentLabel)", systemImage: "exclamationmark.bubble")
+            }
+        }
+        if blockAllowed {
+            Button(role: .destructive) {
+                safetyDialog = .block(author, dismissThread: dismissThreadOnBlock)
+            } label: {
+                Label("Block \(author.firstName)", systemImage: "person.slash")
+            }
+        }
+    }
+
+    private var safetyDialogTitle: String {
+        switch safetyDialog {
+        case .report(let target):
+            return "Why are you reporting this \(target.kind.rawValue)?"
+        case .block(let author, _):
+            return "Block \(author.label)?"
+        case nil:
+            return ""
+        }
+    }
+
+    private var safetyDialogMessage: String {
+        switch safetyDialog {
+        case .report:
+            return "Plated opens a private email with the reason and opaque references only. The post, comments and photos are not included."
+        case .block:
+            return "Their posts and comments disappear on this device. They are not notified, and you can unblock them from People."
+        case nil:
+            return ""
+        }
+    }
+
+    private func report(_ target: ContentSafety.ReportTarget, because reason: ContentSafety.ReportReason) {
+        safetyDialog = nil
+        guard let url = contentSafety.reportURL(for: target, reason: reason) else {
+            showSaveToast("Couldn't prepare the report email")
+            return
+        }
+        Haptic.tap()
+        openURL(url)
+    }
+
+    private func block(_ author: ContentSafety.Author, dismissThread: Bool) {
+        safetyDialog = nil
+        guard contentSafety.block(
+            author,
+            currentIdentityIDs: currentIdentityIDs,
+            currentDisplayNames: currentDisplayNames
+        ) else { return }
+        WidgetBridge.publish(from: context)
+        AppBadge.sync(context)
+
+        let message = "\(author.firstName)'s posts and comments are hidden"
+        let nowHidesPost = contentSafety.isBlocked(
+            authorID: post.authorID,
+            authorName: post.authorName
+        )
+        if dismissThread || nowHidesPost {
+            Haptic.warn()
+            AccessibilityNotification.Announcement(message).post()
+            dismiss()
+        } else {
+            showSaveToast(message)
+        }
+    }
+
     /// Linearized tree with bounded indentation. Missing parents and cycles
     /// remain visible; stale sync data can never hide someone's comment.
     private var threadRows: [(comment: TableComment, depth: Int)] {
-        let comments = post.sortedComments
+        let comments = visibleComments
         let ids = Set(comments.map(commentKey))
         var visited = Set<String>()
         var rows: [(comment: TableComment, depth: Int)] = []
@@ -421,7 +609,7 @@ struct PostThreadView: View {
     private func descendantCount(_ id: String) -> Int {
         var visited: Set<String> = [id]
         func visit(_ parent: String) {
-            for child in post.sortedComments where child.parentCommentID == parent {
+            for child in visibleComments where child.parentCommentID == parent {
                 if visited.insert(child.shareRecordName).inserted { visit(child.shareRecordName) }
             }
         }
@@ -430,15 +618,27 @@ struct PostThreadView: View {
     }
 
     private func threadComment(_ comment: TableComment) -> some View {
-        HStack(alignment: .top, spacing: 10) {
+        let removable = canRemove(comment)
+        let commentAuthor = author(for: comment)
+        let reportAllowed = canReport(
+            commentAuthor,
+            knownToBeSelf: isKnownSelfAuthoredLegacyComment(comment)
+        ) && comment.deletedAt == nil
+        let blockAllowed = canBlock(commentAuthor) && comment.deletedAt == nil
+        return HStack(alignment: .top, spacing: 10) {
             Button {
                 openProfile(comment.authorName, door: .author(comment.persistentModelID))
             } label: {
                 AvatarCircle(initials: initials(for: comment.authorName), tone: tone(for: comment.authorName), size: 30,
                              photo: members.photo(forAuthor: comment.authorName))
                     .matchedTransitionSource(id: ZoomID.author(comment.persistentModelID), in: zoom)
+                    .plTapTarget()
             }
             .buttonStyle(.pressable)
+            // The adjacent name is the one VoiceOver door. Keeping the face
+            // visually tappable without announcing the same profile twice
+            // makes a long thread much faster to traverse.
+            .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
                     Button {
@@ -450,6 +650,7 @@ struct PostThreadView: View {
                             .foregroundStyle(Color.ink)
                     }
                     .buttonStyle(.pressable)
+                    .plTapTarget()
                     if !comment.replyToName.isEmpty {
                         HStack(spacing: 3) {
                             Image(systemName: "arrowshape.turn.up.left.fill")
@@ -482,11 +683,13 @@ struct PostThreadView: View {
                             Text(comment.linkLabel)
                                 .plType(.micro)
                         }
-                        .foregroundStyle(Color.tomato)
+                        .foregroundStyle(Color.accentText)
                         .padding(.horizontal, 12)
                         .frame(minHeight: 30)
-                        .background(Color.chipFill, in: Capsule())
-                        .overlay(Capsule().strokeBorder(Color.navHairline))
+                        .background(Color.chipFill, in: Radius.shape(Radius.chip))
+                        .overlay(Radius.shape(Radius.chip).strokeBorder(Color.navHairline))
+                        .frame(minHeight: 44)
+                        .contentShape(Rectangle())
                     }
                 }
                 Button {
@@ -507,6 +710,31 @@ struct PostThreadView: View {
                 .buttonStyle(.pressable)
             }
             Spacer(minLength: 0)
+            if removable || reportAllowed || blockAllowed {
+                Menu {
+                    if removable {
+                        Button(role: .destructive) { remove(comment) } label: {
+                            Label("Delete comment", systemImage: "trash")
+                        }
+                    }
+                    if reportAllowed || blockAllowed {
+                        safetyActions(
+                            target: .comment(comment, on: post),
+                            author: commentAuthor,
+                            contentLabel: "comment",
+                            dismissThreadOnBlock: false,
+                            reportAllowed: reportAllowed,
+                            blockAllowed: blockAllowed
+                        )
+                    }
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(Color.inkSecondary)
+                        .plTapTarget()
+                }
+                .accessibilityLabel("More options for \(commentAuthor.label)'s comment")
+            }
         }
         .padding(.vertical, 4)
         // Take back what you said.
@@ -523,19 +751,42 @@ struct PostThreadView: View {
         // SwiftUI's context menu is bridged to VoiceOver on its own, and
         // SwipeRow vends its actions through `.accessibilityActions`, so the
         // gesture has a non-gesture equivalent either way.
-        .modifier(CommentActions(comment: comment, canRemove: canRemove(comment)) {
-            remove(comment)
-        })
+        .modifier(CommentActions(
+            comment: comment,
+            canRemove: removable,
+            canReport: reportAllowed,
+            canBlock: blockAllowed,
+            remove: { remove(comment) },
+            report: {
+                safetyDialog = .report(.comment(comment, on: post))
+            },
+            block: {
+                safetyDialog = .block(commentAuthor, dismissThread: false)
+            }
+        ))
+    }
+
+    private var visibleComments: [TableComment] {
+        post.sortedComments.filter {
+            !contentSafety.isBlocked(authorID: $0.authorID, authorName: $0.authorName)
+        }
     }
 
     /// Your own comment, or any comment on your own post.
     private func canRemove(_ comment: TableComment) -> Bool {
-        let me = members.me?.name ?? userFirstName
-        guard !me.isEmpty, comment.deletedAt == nil else { return false }
-        return comment.authorName == me || post.authorName == me
+        guard comment.deletedAt == nil else { return false }
+        return TableMutationAuthorization.canDelete(
+            comment: comment,
+            on: post,
+            identityIDs: currentIdentityIDs,
+            displayNames: currentDisplayNames
+        )
     }
 
     private func remove(_ comment: TableComment) {
+        // Context menus are snapshots. Re-check at the destructive edge in
+        // case the account or the row changed while the menu was open.
+        guard canRemove(comment) else { return }
         Haptic.warn()
         withAnimation(.plSnap) {
             comment.deletedAt = .now
@@ -545,12 +796,32 @@ struct PostThreadView: View {
             comment.mentions = []
         }
         Persist.save(context, "delete comment")
-        TableOutbox.shared.enqueue(.note(post: post.shareRecordName, zoneOwner: post.shareZoneOwner, id: comment.shareRecordName), author: TableIdentity.cached)
+        let queued = TableOutbox.shared.enqueue(
+            .note(post: post.shareRecordName, zoneOwner: post.shareZoneOwner, id: comment.shareRecordName),
+            author: TableIdentity.cached
+        )
         Task {
-            if await TableShare.pushNote(comment, post: post.shareRecordName, zoneOwner: post.shareZoneOwner) {
-                TableOutbox.shared.remove("note:" + comment.shareRecordName)
-            }
+            let sent = await TableShare.pushNote(
+                comment,
+                post: post.shareRecordName,
+                zoneOwner: post.shareZoneOwner
+            )
+            TableOutbox.shared.finish(queued, succeeded: sent)
         }
+    }
+
+    private var currentAuthorName: String {
+        let typed = userFirstName.trimmingCharacters(in: .whitespacesAndNewlines)
+        return typed.isEmpty ? (members.me?.name ?? "") : typed
+    }
+
+    private var currentIdentityIDs: [String] {
+        [TableIdentity.cached, members.me?.participantID, members.me?.userRecordName]
+            .compactMap { $0 }
+    }
+
+    private var currentDisplayNames: [String] {
+        [members.me?.name, userFirstName].compactMap { $0 }
     }
 
     /// The comment body, with the names in it drawn as names.
@@ -567,8 +838,8 @@ struct PostThreadView: View {
     /// eats its first half.
     private func mentionedText(_ comment: TableComment) -> Text {
         let body = comment.text
-        let plain = Font.jakarta(TypeScale.body.size)
-        let bold = Font.jakarta(TypeScale.body.size, .bold)
+        let plain = Font.sans(TypeScale.body.size)
+        let bold = Font.sans(TypeScale.body.size, .bold)
         guard !comment.mentions.isEmpty else {
             return Text(body).font(plain).foregroundStyle(Color.ink)
         }
@@ -620,7 +891,7 @@ struct PostThreadView: View {
                         Image(systemName: "xmark")
                             .accessibilityLabel("Cancel reply")
                             .font(.system(size: 11, weight: .bold))
-                            .foregroundStyle(Color.inkFaint)
+                            .foregroundStyle(Color.inkSecondary)
                             .frame(minWidth: 44, minHeight: 44)
                             .contentShape(Rectangle())
                     }
@@ -649,7 +920,7 @@ struct PostThreadView: View {
                                 }
                                 .padding(.horizontal, 10)
                                 .frame(minHeight: 34)
-                                .overlay(Capsule().strokeBorder(Color.hairline))
+                                .overlay(Radius.shape(Radius.chip).strokeBorder(Color.hairline))
                             }
                             .buttonStyle(.pressable)
                         }
@@ -669,7 +940,7 @@ struct PostThreadView: View {
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .padding(.horizontal, 14)
-                    .frame(height: 40)
+                    .frame(minHeight: 44)
                     .overlay(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous).strokeBorder(Color.hairline))
                     .padding(.horizontal, 24)
                     .plTappableField()
@@ -764,13 +1035,13 @@ struct PostThreadView: View {
                     send()
                 } label: {
                     Circle()
-                        .fill(canSend ? Color.tomato : Color.fill)
+                        .fill(canSend ? Color.primaryAction : Color.fill)
                         .frame(width: 40, height: 40)
                         .overlay {
                             Image(systemName: "arrow.up")
                                 .accessibilityLabel("Send")
                                 .font(.system(size: 15, weight: .bold))
-                                .foregroundStyle(canSend ? Color.onTomato : Color.inkFaint)
+                                .foregroundStyle(canSend ? Color.onPrimary : Color.inkSecondary)
                         }
                         .plTapTarget()
                 }
@@ -778,30 +1049,22 @@ struct PostThreadView: View {
                 .disabled(!canSend)
             }
             .padding(.horizontal, 20)
-            // The floating tab bar rides over pushed pages — the composer
-            // clears it. Derived, not hand-typed: the 92 that used to sit
-            // here put the send button squarely under Prongsby's perch,
-            // so tapping send opened him instead of posting the comment.
-            //
-            // But only while the keyboard is down. Raised, the keyboard
-            // already covers the bar and the perch, so holding the clearance
-            // stranded the composer 84pt above the keys with a band of empty
-            // canvas under it — the one moment the bar is guaranteed not to
-            // be in the way is the one moment it was still being avoided.
-            .padding(.bottom, composerFocused ? 10 : Layout.tabBarInset)
+            // Threads are focused destinations, so the root tray retires and
+            // the composer only owes the home indicator a small breath.
+            .padding(.bottom, 10)
             .animation(.plSnap, value: composerFocused)
         }
     }
 
     private var placeholder: String {
         if replyTo != nil { return "Your reply…" }
-        return post.kind == "ask" ? "Suggest a dish…" : "Add a comment…"
+        return post.kind == "ask" ? "Add a reply…" : "Add a comment…"
     }
 
     private var canSend: Bool {
         // The link field is there so a comment can BE a link. Requiring
         // text as well made it decoration.
-        !draft.isEmpty || commentPhoto != nil
+        !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || commentPhoto != nil
             || !link.trimmingCharacters(in: .whitespaces).isEmpty
     }
 
@@ -816,8 +1079,8 @@ struct PostThreadView: View {
         }
         .padding(.horizontal, 14)
         .frame(minHeight: 36)
-        .background(Color.canvas, in: Capsule())
-        .overlay(Capsule().strokeBorder(Color.navHairline))
+        .background(Color.canvas, in: Radius.shape(Radius.chip))
+        .overlay(Radius.shape(Radius.chip).strokeBorder(Color.navHairline))
         .plCardShadow()
     }
 
@@ -841,6 +1104,7 @@ struct PostThreadView: View {
     private func showSaveToast(_ message: String) {
         // The confirmation reaches the hand as well as the eye.
         Haptic.tap()
+        AccessibilityNotification.Announcement(message).post()
         saveToastToken += 1
         let token = saveToastToken
         withAnimation(.plSnap) { saveToast = message }
@@ -864,10 +1128,10 @@ struct PostThreadView: View {
     }
 
     private func send() {
-        let author = userFirstName.isEmpty
-            ? (members.me?.name ?? "Me")
-            : userFirstName
-        let normalized = link.isEmpty ? "" : (link.hasPrefix("http") ? link : "https://\(link)")
+        let author = currentAuthorName.isEmpty ? "Me" : currentAuthorName
+        let cleanDraft = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanLink = link.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalized = cleanLink.isEmpty ? "" : (cleanLink.hasPrefix("http") ? cleanLink : "https://\(cleanLink)")
         let mentioned = members.map(\.name).filter { draft.contains("@\($0)") }
         let comment = TableComment(
             authorName: author,
@@ -877,7 +1141,7 @@ struct PostThreadView: View {
             // photograph that was not there. An empty body with a link or a
             // photo carrying the row is a valid comment and every renderer
             // already handles it.
-            text: draft,
+            text: cleanDraft,
             linkURL: normalized,
             replyToName: replyTo ?? "",
             mentions: mentioned,
@@ -887,19 +1151,6 @@ struct PostThreadView: View {
         comment.parentCommentID = replyToID
         comment.post = post
         context.insert(comment)
-        // Out to the table. Not awaited: the comment is already on screen
-        // and already saved, and a slow upload must never hold the composer.
-        // A refusal leaves it queued rather than lost.
-        let postRecord = post.shareRecordName
-        let zoneOwner = post.shareZoneOwner
-        Task {
-            if await TableShare.pushNote(comment, post: postRecord, zoneOwner: zoneOwner) == false {
-                TableOutbox.shared.enqueue(
-                    .note(post: postRecord, zoneOwner: zoneOwner, id: comment.shareRecordName),
-                    author: comment.authorID
-                )
-            }
-        }
         if post.authorName != author && post.firstName != author {
             Notifier.post(
                 .commentAdded, actor: author,
@@ -909,7 +1160,24 @@ struct PostThreadView: View {
                 into: context
             )
         }
+        // Save the comment (and its local activity row) before clearing the
+        // composer, queueing it or touching the network. The queue is
+        // written first and removed only after CloudKit confirms the exact
+        // version that was sent, so a force-quit or a quick delete cannot
+        // lose the latest intent.
+        Persist.save(context, "post comment")
+        let postRecord = post.shareRecordName
+        let zoneOwner = post.shareZoneOwner
+        let queued = TableOutbox.shared.enqueue(
+            .note(post: postRecord, zoneOwner: zoneOwner, id: comment.shareRecordName),
+            author: comment.authorID
+        )
+        Task {
+            let sent = await TableShare.pushNote(comment, post: postRecord, zoneOwner: zoneOwner)
+            TableOutbox.shared.finish(queued, succeeded: sent)
+        }
         Haptic.plate()
+        AccessibilityNotification.Announcement(replyTo == nil ? "Comment posted" : "Reply posted").post()
         draft = ""
         link = ""
         linkFieldShown = false
@@ -925,6 +1193,15 @@ struct PostThreadView: View {
             ?? members.first { $0.name == name || name.hasPrefix($0.name) }?.colorHex
             ?? "FF5A3C"
         personShown = PersonRef.author(name, colorHex: hex, in: members)
+    }
+
+    private func updatePostPresence() {
+        let visible = activeAppTab == presenceHomeTab && personShown == nil
+        if visible {
+            Presence.shared.openPost = post.shareRecordName
+        } else if Presence.shared.openPost == post.shareRecordName {
+            Presence.shared.openPost = nil
+        }
     }
 
     private func tone(for name: String) -> PersonTone {
@@ -957,18 +1234,42 @@ struct PostThreadView: View {
 private struct CommentActions: ViewModifier {
     let comment: TableComment
     let canRemove: Bool
+    let canReport: Bool
+    let canBlock: Bool
     let remove: () -> Void
+    let report: () -> Void
+    let block: () -> Void
 
+    @ViewBuilder
+    private var menu: some View {
+        if canRemove {
+            Button(role: .destructive, action: remove) {
+                Label("Delete comment", systemImage: "trash")
+            }
+        }
+        if canReport {
+            Button(action: report) {
+                Label("Report comment", systemImage: "exclamationmark.bubble")
+            }
+        }
+        if canBlock {
+            Button(role: .destructive, action: block) {
+                Label("Block \(comment.authorName.split(separator: " ").first.map(String.init) ?? "person")", systemImage: "person.slash")
+            }
+        }
+    }
+
+    @ViewBuilder
     func body(content: Content) -> some View {
         if canRemove {
             SwipeRow(isOpen: .constant(false), actions: [.remove(remove)]) {
                 content
             }
             .contextMenu {
-                Button(role: .destructive, action: remove) {
-                    Label("Delete comment", systemImage: "trash")
-                }
+                menu
             }
+        } else if canReport || canBlock {
+            content.contextMenu { menu }
         } else {
             content
         }

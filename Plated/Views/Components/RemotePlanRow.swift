@@ -193,7 +193,7 @@ struct RemoteCookFace: View {
 }
 
 /// The week list's date column: the weekday over the day number, today's
-/// numeral on the tomato disc. One view for the local rows and the remote
+/// numeral on the olive disc. One view for the local rows and the remote
 /// row, so the two can never drift a point apart. `WeekView.dateColumn`
 /// draws this; it is here because the remote row needs it too.
 struct PlanDateColumn: View {
@@ -206,9 +206,9 @@ struct PlanDateColumn: View {
                 .plType(.micro, .semibold).foregroundStyle(Color.inkSecondary)
             Text(date.formattedDayNumber())
                 .plType(today ? .callout : .heading, .semibold, family: .display).monospacedDigit()
-                .foregroundStyle(today ? Color.onTomato : Color.ink)
+                .foregroundStyle(today ? Color.onSelection : Color.ink)
                 .frame(width: 32, height: 32)
-                .background(today ? Color.tomato : Color.clear, in: Circle())
+                .background(today ? Color.selectionFill : Color.clear, in: Circle())
         }
         .plChrome()
         .frame(width: 40)

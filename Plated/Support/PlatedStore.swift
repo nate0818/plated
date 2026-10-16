@@ -41,14 +41,22 @@ enum PlatedStore {
         // back. TableSync.purgeMirroredData is the other half.
         #if DEBUG
         let purging = ProcessInfo.processInfo.arguments.contains("-plated-purge-cloud")
-        #else
-        let purging = false
-        #endif
         let configuration = ModelConfiguration(
             schema: schema,
             isStoredInMemoryOnly: false,
             cloudKitDatabase: purging ? .none : .automatic
         )
+        #else
+        // Keep the Release expression constant rather than feeding a known
+        // `false` through a ternary. Besides avoiding a compiler warning,
+        // this makes the shipping invariant explicit: purge mode is a
+        // DEBUG-only escape hatch and a release build always mirrors iCloud.
+        let configuration = ModelConfiguration(
+            schema: schema,
+            isStoredInMemoryOnly: false,
+            cloudKitDatabase: .automatic
+        )
+        #endif
         // BEFORE the container, not after it. The claim this supports is
         // "the watcher cannot miss a start", and "the line after
         // construction" is only good enough if NSPersistentCloudKitContainer

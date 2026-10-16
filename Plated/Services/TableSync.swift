@@ -1,14 +1,13 @@
 import Foundation
 import CloudKit
 
-/// Phase 3 scaffolding for real multi-household Tables.
+/// CloudKit capability and maintenance for shared household Tables.
 ///
-/// The architecture: each Table becomes a CKShare-backed record zone; setting
-/// a place sends a share invitation, and accepted seats sync TablePosts both
-/// ways. All of that requires the iCloud entitlement and a signing team —
-/// see README "Turning on iCloud sync". Until that's wired, this service
-/// reports capability honestly and composes the invite people actually send
-/// today: a message.
+/// Each Table is a `CKShare`-backed record zone: setting a place sends an
+/// invitation and accepted seats sync posts in both directions. Those paths
+/// require the iCloud entitlement and a signing team. An unentitled development
+/// build reports that state honestly and stays local instead of pretending a
+/// share reached somebody.
 enum TableSync {
     /// Whether this build can reach CloudKit at all. Gated on the
     /// PLATED_CLOUDKIT compile flag, set alongside the iCloud capability

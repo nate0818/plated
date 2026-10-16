@@ -28,7 +28,7 @@ export default function Privacy() {
           <span aria-current="page">Privacy</span>
         </nav>
         <h1 className={styles.title}>What Plated keeps, and where.</h1>
-        <p className={`${styles.updated} secondary`}>Last updated 7 September 2026</p>
+        <p className={`${styles.updated} secondary`}>Last updated 23 September 2026</p>
 
         <p className={styles.lede}>
           Plated is a dinner planner for a household. Your recipes, plans,
@@ -180,8 +180,22 @@ export default function Privacy() {
           Your Plated data lives in your iCloud account. Deleting the app removes
           the local copy. To remove the synced copy, delete Plated&rsquo;s data
           from iCloud in Settings, then your name, then iCloud, then Manage
-          Account Storage. To remove your entry from the directory or the
-          waitlist, write to the address below and it will be deleted.
+          Account Storage.
+        </p>
+        <p>
+          The directory is separate. In Plated, open Settings and choose
+          <strong> Delete directory account</strong>. After you confirm, Plated
+          removes your directory profile, invitations associated with it,
+          registered devices, directory sessions and personal notification
+          delivery records, then signs this iPhone out. It does not delete
+          recipes, plans, grocery lists, household data, Table posts,
+          photographs or any other content in your private iCloud. If this
+          iPhone no longer has a verified directory session, write to the
+          address below for help removing an earlier registration. Waitlist
+          email removal also remains available by email. This version does not
+          retain the Apple refresh token needed to revoke Sign in with Apple
+          automatically. After deletion, it shows the separate path in iOS
+          Settings: your name, Sign in with Apple, Plated, then Delete.
         </p>
 
         <h2>Changes to this policy</h2>

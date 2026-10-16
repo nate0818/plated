@@ -68,7 +68,7 @@ enum RecipePrint {
         return """
         <html><head><meta charset="utf-8"><style>
           body { font: 12pt/1.55 -apple-system, "Helvetica Neue", Helvetica, sans-serif; color: #1c1917; }
-          h1 { font-size: 26pt; line-height: 1.1; margin: 0 0 6pt; letter-spacing: -0.02em; }
+          h1 { font-family: Georgia, serif; font-weight: 400; color: #27362a; font-size: 26pt; line-height: 1.1; margin: 0 0 6pt; letter-spacing: -0.02em; }
           .summary { font-size: 12pt; color: #57534e; margin: 0 0 10pt; }
           .facts { font-size: 10pt; letter-spacing: 0.08em; text-transform: uppercase;
                    color: #78716c; margin: 0 0 18pt; }

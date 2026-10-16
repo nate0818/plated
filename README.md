@@ -17,9 +17,26 @@ of them.
 
 ## Status
 
-**v0.1 — scaffold.** The data model, services, and screens are in place and the
-app runs with seeded sample content. Nothing is App Store ready yet. See
-[Roadmap](#roadmap) for what is real and what is stubbed.
+**1.0 release candidate.** The four core rooms (Plan, Recipes, Groceries and
+Table), household sharing, onboarding, widgets, App Intents, Cook Mode and the
+Plated directory are implemented. Automated unit, design-token, static-analysis
+and unsigned Release archive gates run cleanly on the candidate.
+
+Distribution is deliberately still blocked on the external evidence listed in
+[`docs/app-store-quality-audit.md`](docs/app-store-quality-audit.md): deploy the
+newest additive CloudKit field and the directory-deletion backend to Production,
+complete automatic Sign in with Apple token revocation, run the two-account and
+physical-device matrix, complete App Store privacy disclosures, and prove a
+signed archive/export. The editable App Store draft is now aligned to 1.0.0,
+free, U.S.-only, and populated with version copy; it remains deliberately
+unsubmitted with no build selected. Its five iPhone and five iPad screenshots
+are uploaded and checksum-verified. Do not turn release gates into documentation
+checkmarks without the corresponding device or console evidence.
+
+Table safety reports are handled under the privacy-preserving operational
+procedure in [`docs/table-moderation-runbook.md`](docs/table-moderation-runbook.md).
+The exact App Store privacy-label answers and their release guards are mapped in
+[`docs/app-store-privacy-disclosures.md`](docs/app-store-privacy-disclosures.md).
 
 ## What it does
 
@@ -56,8 +73,9 @@ against dishes tagged for that mood:
 
 > It's going to be 55° and mostly cloudy — great day for your chili, Nate.
 
-The ranking is local and instant: weather match, how long since you last made
-it, favorite status, and whether it fits a weeknight. No network call, no model.
+WeatherKit supplies the forecast; the recipe ranking itself is local and
+instant: weather match, how long since you last made it, favorite status, and
+whether it fits a weeknight. No generative model is involved.
 
 ## Requirements
 
@@ -109,8 +127,8 @@ The full capability set is wired: `config/PlatedApp.entitlements` carries
 Sign in with Apple, iCloud (CloudKit, container `iCloud.com.natemeadows.plated`),
 WeatherKit, push (`aps-environment`), and the app group; both targets sign
 under team `JA9M6TYXYL` with automatic signing, and the app target sets the
-`PLATED_CLOUDKIT` compile flag that arms `TableSync` (account checks, and
-eventually CKShare Tables). The store is built with
+`PLATED_CLOUDKIT` compile flag that arms the CloudKit account and sharing
+paths. The store is built with
 `cloudKitDatabase: .automatic`, so sync is live wherever the entitlement is
 honored.
 
@@ -123,23 +141,24 @@ entitlements, so everything compiles and runs there regardless.
 
 ### Widgets, Siri, and the shared container
 
-The `PlatedWidgetsExtension` target ships two home-screen widgets — **Tonight**
-(small: what's on the plate) and **Your Week** (medium: the seven nights and
-who cooks). The app writes a snapshot (`week-snapshot.json` + `tonight.jpg`)
-into the `group.com.natemeadows.plated` app group whenever the scene changes;
-the widget reads it from the other side. Both targets carry the app-group
-entitlement (`config/PlatedApp.entitlements`, `config/PlatedWidgets.entitlements`);
-the group registers under the team on the first Xcode device build.
+The `PlatedWidgetsExtension` target ships home- and lock-screen views for
+Tonight, Table, Cookbook, Groceries and cook turns, plus the Cook Timer Live
+Activity. The app writes a snapshot and its current images into the
+`group.com.natemeadows.plated` app group whenever the scene changes; widgets
+read them from the other side. Both targets carry the app-group entitlement
+(`config/PlatedApp.entitlements`, `config/PlatedWidgets.entitlements`); the
+group registers under the team on the first Xcode device build.
 
 Siri and Shortcuts get two App Intents with zero setup: "What's for dinner in
 Plated" answers with tonight's plan, and "Plate a Dish Tonight" drops a
 cookbook dish onto an open tonight. Widgets follow the system light/dark
 appearance (the home screen is the system's room, not the app's).
 
-`Services/TableSync.swift` is the Phase 3 scaffolding for real multi-household
-Tables over CloudKit sharing (CKShare per Table). It reports capability
-honestly — without the iCloud entitlement it composes the invite message the
-host sends by hand from onboarding's "Send the invite".
+Tables and households use explicit CloudKit record zones and `CKShare`
+invitations. Pending mutations have durable outboxes, ownership is keyed by
+CloudKit identity rather than display name where available, and the UI reports
+whether iCloud is signed out, restricted or temporarily unreachable. The local
+fallback remains intentional for an unentitled development build.
 
 ### Turning on weather suggestions
 
@@ -161,40 +180,23 @@ live in the target's build settings as `INFOPLIST_KEY_NS*` entries.
 
 ```
 Plated/
-├── PlatedApp.swift          App entry, ModelContainer, CloudKit configuration
-├── Models/                  SwiftData models
-│   ├── Recipe.swift
-│   ├── Ingredient.swift     + GroceryAisle
-│   ├── PlannedMeal.swift    One dish, one slot, one day
-│   ├── HouseholdMember.swift
-│   ├── Gathering.swift
-│   ├── GroceryItem.swift
-│   ├── MealSlot.swift
-│   └── WeatherMood.swift
-├── Services/                Logic that does not belong in a view
-│   ├── GroceryListBuilder.swift   Meal plan → consolidated shopping list
-│   ├── RemindersExporter.swift    EventKit → Apple Reminders
-│   ├── CalendarSync.swift         Gatherings → system calendar
-│   ├── ForecastProvider.swift     WeatherKit + CoreLocation
-│   ├── SuggestionEngine.swift     Weather- and history-aware ranking
-│   └── MealInsights.swift         Cooking analytics
-├── Views/
-│   ├── ContentView.swift          Tab shell (sidebar-adaptable on iPad)
-│   ├── WeekPlanView.swift
-│   ├── RecipeLibraryView.swift    + Detail, Editor, Picker
-│   ├── GroceryListView.swift
-│   ├── GatheringsView.swift
-│   ├── HouseholdView.swift
-│   └── InsightsView.swift
-└── Support/
-    ├── Calendar+Week.swift
-    ├── Color+Hex.swift
-    └── SampleData.swift
+├── PlatedApp.swift          App entry and lifecycle integration
+├── Models/                  SwiftData recipes, plans, people, groceries, Table
+├── Services/                CloudKit sharing, outboxes, imports, reminders
+├── Support/                 Store, design system, routing and regression checks
+├── Intents/                 Siri and Shortcuts actions
+└── Views/                   Root shell and all feature surfaces
 
 config/
 ├── PlatedApp.entitlements      App target — full set, see "Capabilities and signing"
 ├── PlatedWidgets.entitlements  Widget extension — app group only
-└── Plated.entitlements         Historical reference; superseded by PlatedApp.entitlements
+├── cloudkit-schema.txt         Fields verified as deployed to Production
+└── ExportOptions.plist         App Store distribution export
+
+PlatedWidgets/                  Home-screen widgets and Cook Live Activity
+PlatedTests/                    Unit and contract regression coverage
+supabase/                       Directory schema and Edge Functions
+web/                            plated.food, privacy policy and founder console
 ```
 
 ### Notes on the data model
@@ -208,32 +210,22 @@ Grocery merging combines lines with the same ingredient name *and* the same
 unit. Different units stay separate rather than guessing at conversions — "2
 cups rice" and "1 lb rice" are genuinely different asks.
 
-## Roadmap
+## Product state
 
-**Working now**
-- Week calendar with four slots per day and cooked-state tracking
-- Recipe library with ingredients, aisles, pantry staples, moods, tags
-- Grocery aggregation with servings scaling and non-destructive rebuild
-- Reminders export and Calendar sync via EventKit
-- Household profiles with dietary conflict warnings
-- Insights: frequency, variety, home-cooked share, out-of-rotation
-- Local weather-aware suggestions
+Implemented for 1.0:
 
-**Next**
-- Drag-and-drop between slots on the week plan
-- Recipe photos and import from a URL
-- Assigning planned meals to a gathering from the plan screen
-- Per-member attendance on a meal, so servings scale to who is home
-- CloudKit share sheet for the household record zone
-- Widget: what's for dinner tonight
-- App Intents so Siri can answer "what's for dinner"
+- Week and month planning, drag/move alternatives and cooked-state history
+- Recipe creation, photos, URL/paste/scan imports and cookbook sharing
+- Rolling grocery aggregation, meal scoping, provenance and Reminders export
+- Household roles, CloudKit invitation/leave/remove flows and shared plan data
+- Private Table posts, comments, polls, reactions, activity and durable retries
+- Cook Mode with timers, Live Activity, resume and notification deep links
+- Home-screen widgets, Siri/Shortcuts, Calendar and local WeatherKit suggestions
 
-**Later**
-- Foundation Models pass over suggestion phrasing and recipe parsing
-- Leftover tracking that schedules the second night automatically
-- Store-specific aisle ordering
-- Watch app for the grocery list
-- Nutrition and HealthKit
+Intentionally outside 1.0: public discovery, payments, a Watch app, nutrition
+and HealthKit. A share-extension source exists, but no share-extension target is
+embedded in the shipping archive; in-app URL, paste, scan and photo import are
+the supported intake paths for this release.
 
 ## License
 

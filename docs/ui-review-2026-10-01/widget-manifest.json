@@ -1,0 +1,198 @@
+[
+  {
+    "id": 0,
+    "title": "TonightWidget systemSmall",
+    "view": "TonightWidgetView",
+    "family": "systemSmall",
+    "file": "widgets/01-tonightwidget-systemsmall.png"
+  },
+  {
+    "id": 1,
+    "title": "TonightWidget systemMedium",
+    "view": "TonightWidgetView",
+    "family": "systemMedium",
+    "file": "widgets/02-tonightwidget-systemmedium.png"
+  },
+  {
+    "id": 2,
+    "title": "TonightWidget systemLarge",
+    "view": "TonightWidgetView",
+    "family": "systemLarge",
+    "file": "widgets/03-tonightwidget-systemlarge.png"
+  },
+  {
+    "id": 3,
+    "title": "TableWidget systemSmall",
+    "view": "TableWidgetView",
+    "family": "systemSmall",
+    "file": "widgets/04-tablewidget-systemsmall.png"
+  },
+  {
+    "id": 4,
+    "title": "TableWidget systemMedium",
+    "view": "TableWidgetView",
+    "family": "systemMedium",
+    "file": "widgets/05-tablewidget-systemmedium.png"
+  },
+  {
+    "id": 5,
+    "title": "TableWidget systemLarge",
+    "view": "TableWidgetView",
+    "family": "systemLarge",
+    "file": "widgets/06-tablewidget-systemlarge.png"
+  },
+  {
+    "id": 6,
+    "title": "CookbookWidget systemSmall",
+    "view": "CookbookWidgetView",
+    "family": "systemSmall",
+    "file": "widgets/07-cookbookwidget-systemsmall.png"
+  },
+  {
+    "id": 7,
+    "title": "CookbookWidget systemMedium",
+    "view": "CookbookWidgetView",
+    "family": "systemMedium",
+    "file": "widgets/08-cookbookwidget-systemmedium.png"
+  },
+  {
+    "id": 8,
+    "title": "GroceryWidget systemSmall",
+    "view": "GroceryWidgetView",
+    "family": "systemSmall",
+    "file": "widgets/09-grocerywidget-systemsmall.png"
+  },
+  {
+    "id": 9,
+    "title": "GroceryWidget systemMedium",
+    "view": "GroceryWidgetView",
+    "family": "systemMedium",
+    "file": "widgets/10-grocerywidget-systemmedium.png"
+  },
+  {
+    "id": 10,
+    "title": "GroceryWidget systemLarge",
+    "view": "GroceryWidgetView",
+    "family": "systemLarge",
+    "file": "widgets/11-grocerywidget-systemlarge.png"
+  },
+  {
+    "id": 11,
+    "title": "CookTurnWidget systemSmall",
+    "view": "CookTurnWidgetView",
+    "family": "systemSmall",
+    "file": "widgets/12-cookturnwidget-systemsmall.png"
+  },
+  {
+    "id": 12,
+    "title": "CookTurnWidget systemMedium",
+    "view": "CookTurnWidgetView",
+    "family": "systemMedium",
+    "file": "widgets/13-cookturnwidget-systemmedium.png"
+  },
+  {
+    "id": 13,
+    "title": "TonightLock accessoryInline",
+    "view": "TonightLockView",
+    "family": "accessoryInline",
+    "file": "widgets/14-tonightlock-accessoryinline.png"
+  },
+  {
+    "id": 14,
+    "title": "TonightLock accessoryCircular",
+    "view": "TonightLockView",
+    "family": "accessoryCircular",
+    "file": "widgets/15-tonightlock-accessorycircular.png"
+  },
+  {
+    "id": 15,
+    "title": "TonightLock accessoryRectangular",
+    "view": "TonightLockView",
+    "family": "accessoryRectangular",
+    "file": "widgets/16-tonightlock-accessoryrectangular.png"
+  },
+  {
+    "id": 16,
+    "title": "GroceryLock accessoryInline",
+    "view": "GroceryLockView",
+    "family": "accessoryInline",
+    "file": "widgets/17-grocerylock-accessoryinline.png"
+  },
+  {
+    "id": 17,
+    "title": "GroceryLock accessoryCircular",
+    "view": "GroceryLockView",
+    "family": "accessoryCircular",
+    "file": "widgets/18-grocerylock-accessorycircular.png"
+  },
+  {
+    "id": 18,
+    "title": "GroceryLock accessoryRectangular",
+    "view": "GroceryLockView",
+    "family": "accessoryRectangular",
+    "file": "widgets/19-grocerylock-accessoryrectangular.png"
+  },
+  {
+    "id": 19,
+    "title": "CookTurnLock accessoryInline",
+    "view": "CookTurnLockView",
+    "family": "accessoryInline",
+    "file": "widgets/20-cookturnlock-accessoryinline.png"
+  },
+  {
+    "id": 20,
+    "title": "CookTurnLock accessoryCircular",
+    "view": "CookTurnLockView",
+    "family": "accessoryCircular",
+    "file": "widgets/21-cookturnlock-accessorycircular.png"
+  },
+  {
+    "id": 21,
+    "title": "CookTurnLock accessoryRectangular",
+    "view": "CookTurnLockView",
+    "family": "accessoryRectangular",
+    "file": "widgets/22-cookturnlock-accessoryrectangular.png"
+  },
+  {
+    "id": 22,
+    "title": "Cook timer live activity",
+    "family": "liveActivity",
+    "file": "widgets/23-cook-timer-live-activity.png"
+  },
+  {
+    "id": 23,
+    "title": "Cook timer expired",
+    "family": "liveActivity",
+    "file": "widgets/24-cook-timer-expired.png"
+  },
+  {
+    "id": 24,
+    "title": "Dynamic Island expanded layout",
+    "family": "liveActivity",
+    "file": "widgets/25-dynamic-island-expanded-layout.png"
+  },
+  {
+    "id": 25,
+    "title": "Dynamic Island compact layout",
+    "family": "liveActivity",
+    "file": "widgets/26-dynamic-island-compact-layout.png"
+  },
+  {
+    "id": 26,
+    "title": "Dynamic Island minimal layout",
+    "family": "liveActivity",
+    "file": "widgets/27-dynamic-island-minimal-layout.png"
+  },
+  {
+    "id": 27,
+    "title": "Share extension sending",
+    "family": "shareExtension",
+    "file": "widgets/28-share-extension-sending.png"
+  },
+  {
+    "id": 28,
+    "title": "Share extension saved",
+    "family": "shareExtension",
+    "file": "widgets/29-share-extension-saved.png"
+  }
+]

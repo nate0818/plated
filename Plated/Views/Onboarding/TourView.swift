@@ -23,36 +23,23 @@ struct TourView: View {
     }
 
     /// Four screens, named the way the app names them, so the tour teaches
-    /// the real nouns rather than a set of marketing ones.
-    ///
-    /// Each line is a fact about what the app does, not a description of how
-    /// it feels to use it. The first draft said "Everyone in the household
-    /// sees the same week", which was false for a long time: the store is
-    /// `cloudKitDatabase: .automatic`, so the plan reached this person's own
-    /// devices and nobody else's. The household share (docs/household.md)
-    /// makes it true only for people who have joined, and a person on this
-    /// screen has not invited anybody yet, so the line still says what the
-    /// plan does for one person. An onboarding screen is the worst possible
-    /// place to be wrong, because it is the one screen a person has no way
-    /// to check.
+    /// the real nouns rather than a set of marketing ones. Each sentence is
+    /// also demonstrated directly above it by a small piece of real product
+    /// furniture: a planned night, the calendar, an imported recipe, then a
+    /// post at the Table.
     private let panels: [Panel] = [
         Panel(eyebrow: "Tonight",
-              title: "What's for dinner",
-              line: "Tonight's dish and tonight's cook, before you tap anything."),
-        Panel(eyebrow: "Your week",
-              title: "Seven nights",
-              line: "Plan them ahead, and hand any night to somebody else to cook."),
-        Panel(eyebrow: "The Table",
-              title: "Invite only",
-              line: "Post what you cooked. Only the people you invite can see it."),
+              title: "Who's cooking what",
+              line: "See the dish, the night, and the cook at a glance."),
+        Panel(eyebrow: "Plan ahead",
+              title: "A week or a month",
+              line: "Pick any night and hand dinner to someone in your household."),
         Panel(eyebrow: "Recipes",
-              title: "Dishes you'll cook again",
-              // 59 characters, like its three siblings. At 43 it was too
-              // long for one line and too short to fill two, so the second
-              // line was "it out." on its own: the only card in the set
-              // whose copy did not wrap evenly, which is what made it look
-              // broken rather than short.
-              line: "Paste a link, scan a recipe card, or write one out by hand."),
+              title: "Keep the good ones",
+              line: "Paste a link, scan a card, or write your own."),
+        Panel(eyebrow: "The Table",
+              title: "Show them how it turned out",
+              line: "Post your plate, trade comments, and save dishes worth making again."),
     ]
 
     var body: some View {
@@ -73,6 +60,7 @@ struct TourView: View {
             TabView(selection: $page) {
                 ForEach(Array(panels.enumerated()), id: \.element.id) { index, panel in
                     panelView(panel, index: index)
+                        .plFitsOrScrolls()
                         .tag(index)
                 }
             }
@@ -81,7 +69,7 @@ struct TourView: View {
             dots
                 .padding(.bottom, 20)
 
-            TomatoPillButton(
+            PrimaryActionButton(
                 title: page == panels.count - 1 ? "Start planning" : "Next",
                 haptic: page == panels.count - 1 ? Haptic.plate : Haptic.tap
             ) {
@@ -94,7 +82,10 @@ struct TourView: View {
             .padding(.horizontal, 24)
             .padding(.bottom, 24)
         }
-        .background(Color.canvas.ignoresSafeArea())
+        .background {
+            OnboardingAtmosphere()
+                .ignoresSafeArea()
+        }
     }
 
     // MARK: Panels
@@ -109,11 +100,12 @@ struct TourView: View {
             Spacer(minLength: 0)
 
             illustration(index, isActive: page == index)
-                .frame(height: 168)
+                .frame(height: 220)
                 // The arrival the rest of the app uses, so the tour moves
                 // the way the product moves.
                 .transition(.plArrive)
-                .padding(.bottom, 34)
+                .padding(.horizontal, 20)
+                .padding(.bottom, 24)
 
             VStack(spacing: 10) {
                 MicroLabel(panel.eyebrow)
@@ -147,35 +139,20 @@ struct TourView: View {
     @ViewBuilder
     private func illustration(_ index: Int, isActive: Bool) -> some View {
         switch index {
-        case 0: tonightPlate
+        case 0: TourPlanRow(isActive: isActive)
         case 1: TourWeek(isActive: isActive)
-        case 2: TourSeats(isActive: isActive)
-        default: cookbookShelf
+        case 2: TourRecipeSave(isActive: isActive)
+        default: TourTablePost(isActive: isActive)
         }
-    }
-
-    /// Tonight's dinner, at the size the Tonight card uses.
-    private var tonightPlate: some View {
-        TourPlate(asset: "TourNachos", fallbackTitle: "Sheet-pan chicken", diameter: 132)
-    }
-
-    /// Three plates, the way the cookbook grid holds them.
-    private var cookbookShelf: some View {
-        HStack(spacing: -18) {
-            TourPlate(asset: "TourSalad", fallbackTitle: "Lemon orzo", diameter: 88)
-            TourPlate(asset: "TourPasta", fallbackTitle: "Chili", diameter: 104)
-            TourPlate(asset: "TourRamen", fallbackTitle: "Roast squash", diameter: 88)
-        }
-        .accessibilityHidden(true)
     }
 
     private var dots: some View {
         HStack(spacing: 7) {
             ForEach(0..<panels.count, id: \.self) { index in
                 Capsule()
-                    // Ink and hairline, not tomato. A page indicator is
+                    // Ink and hairline, not olive. A page indicator is
                     // chrome, and DESIGN.md keeps ambient accent out of
-                    // chrome: the one tomato on this screen is the pill that
+                    // chrome: the one olive on this screen is the pill that
                     // moves you forward.
                     .fill(index == page ? Color.ink : Color.hairline)
                     .frame(width: index == page ? 18 : 6, height: 6)

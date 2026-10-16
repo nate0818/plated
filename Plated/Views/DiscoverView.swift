@@ -53,7 +53,7 @@ struct DiscoverView: View {
                 TextField("Search dishes and cooks", text: $query)
                     .plType(.body, .medium)
                     .foregroundStyle(Color.ink)
-                    .tint(Color.tomato)
+                    .tint(Color.olive)
                     .autocorrectionDisabled()
                     .focused($searchFocused)
                 if !query.isEmpty {
@@ -71,8 +71,8 @@ struct DiscoverView: View {
             }
             .padding(.horizontal, 16)
             .frame(height: 48)
-            .background(Color.chipFill, in: Capsule())
-            .overlay(Capsule().strokeBorder(Color.navHairline))
+            .background(Color.chipFill, in: Radius.shape(Radius.chip))
+            .overlay(Radius.shape(Radius.chip).strokeBorder(Color.navHairline))
             // The pill is filled, so it was hit-testable — and tapping it
             // anywhere but the ~20pt text line still did nothing, because
             // nothing raised the keyboard. A surface that swallows a tap
@@ -246,7 +246,7 @@ struct DiscoverPostSheet: View {
                             PlateReactionGlyph(filled: post.platedByMeNow)
                             Text("\(post.totalPlates)")
                                 .plType(.body, .bold)
-                                .foregroundStyle(post.platedByMeNow ? Color.tomato : Color.inkSecondary)
+                                .foregroundStyle(post.platedByMeNow ? Color.accentText : Color.inkSecondary)
                                 .contentTransition(.numericText())
                         }
                         .plTapTarget()
@@ -262,7 +262,7 @@ struct DiscoverPostSheet: View {
                     .plType(.footnote)
                     .foregroundStyle(Color.inkSecondary)
 
-                // The tomato budget here is spent on the plate reaction, so the
+                // The olive budget here is spent on the plate reaction, so the
                 // committing action takes the ink pill — and "plate" stays the
                 // word for reactions and nights, never for saving.
                 if saved {
@@ -273,11 +273,11 @@ struct DiscoverPostSheet: View {
                     .foregroundStyle(Color.inkSecondary)
                     .frame(maxWidth: .infinity)
                     .frame(minHeight: 56)
-                    .overlay(Capsule().strokeBorder(Color.hairline, lineWidth: 1.5))
+                    .overlay(Radius.shape(Radius.chip).strokeBorder(Color.hairline, lineWidth: 1.5))
                     .padding(.top, 6)
                     .transition(.plArrive)
                 } else {
-                    InkPillButton(title: "Save to cookbook", systemImage: "book.closed") {
+                    SecondaryActionButton(title: "Save to cookbook", systemImage: "book.closed") {
                         save()
                     }
                     .padding(.top, 6)

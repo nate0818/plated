@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// One thing a swipe can reveal. The destructive one wears ink, not
-/// tomato: tomato is earned colour and belongs to good news, so the
+/// olive: olive is earned colour and belongs to good news, so the
 /// weight here comes from fill rather than hue.
 struct SwipeAction: Identifiable {
     /// Stable across body passes — a fresh UUID each time would rebuild
@@ -71,7 +71,7 @@ struct SwipeRow<Content: View>: View {
                             close()
                             action.perform()
                         } label: {
-                            // Destructive reads as weight, not as tomato.
+                            // Destructive reads as weight, not as olive.
                             // Tomato is earned colour — the + button, a plate
                             // landing, a committing CTA — and spending it on
                             // "remove" puts the loudest thing on the screen

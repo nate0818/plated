@@ -122,7 +122,9 @@ enum InviteFlow {
     /// True while any invitation is still minting or on screen.
     static var isBusy: Bool { !inFlight.isEmpty }
 
-    private final class PickerDelegate: NSObject, CNContactPickerDelegate, MFMessageComposeViewControllerDelegate {
+    private final class PickerDelegate: NSObject,
+        @MainActor CNContactPickerDelegate,
+        @MainActor MFMessageComposeViewControllerDelegate {
         private let kind: Seats.Kind
         private let hostName: String
         private let prepare: () async -> Seats.Prepared
@@ -147,6 +149,7 @@ enum InviteFlow {
             self.phone = phone
         }
 
+        @MainActor
         func contactPicker(_ picker: CNContactPickerViewController, didSelect contact: CNContact) {
             let full = "\(contact.givenName) \(contact.familyName)".trimmingCharacters(in: .whitespaces)
             chose(name: full.isEmpty ? contact.nickname : full,
@@ -161,6 +164,7 @@ enum InviteFlow {
             }
         }
 
+        @MainActor
         func contactPickerDidCancel(_ picker: CNContactPickerViewController) {
             picker.dismiss(animated: true) { [weak self] in
                 self?.finish(.cancelled)
@@ -208,6 +212,7 @@ enum InviteFlow {
         /// What the open composer is carrying, so the answer can name it.
         private var pending = Seats.Prepared.noCloud
 
+        @MainActor
         func messageComposeViewController(
             _ controller: MFMessageComposeViewController,
             didFinishWith result: MessageComposeResult

@@ -181,7 +181,8 @@ owns it end to end.
 `name`, `role`, `roleLine`, `colorHex`, `dietaryNotes`, `avoidedIngredients`
 (omit if empty), `cookWeekdays` (omit if empty), `isPrimaryCook` (INT64),
 `seat` (the raw seat string), `invitedAt`, `joinedAt`, `leftAt`,
-`participantID`, `userRecordName`, `bio`, `photo` (CKAsset), `authorID`,
+`participantID`, `userRecordName`, `bio`, `photo` (CKAsset),
+`profileBannerPhoto` (CKAsset), `profileBannerPhotoModifiedAt`, `authorID`,
 `modifiedBy`, `modifiedAt`.
 
 **`phoneE164` and `inviteEmail` never travel.** They are the address a
@@ -1009,6 +1010,7 @@ Model additions, all defaulted or optional so the mirror stays CloudKit-safe,
 each written non-empty by `SchemaPrimer`:
 
 - `HouseholdMember`: `userRecordName: String?`, `bio: String = ""`,
+  `profileBannerPhotoData: Data?`, `profileBannerPhotoModifiedAt: Date?`,
   `shareRecordName: String = ""` (init mints `seat-<UUID>`), `shareModifiedAt:
   Date?`, `shareFingerprint: String = ""`, `authorID: String = ""`,
   `leftAt: Date?`, `Seat.left`, `var isMe: Bool`, `[HouseholdMember].me`.

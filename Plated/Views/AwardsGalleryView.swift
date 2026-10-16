@@ -66,6 +66,7 @@ struct AwardsGalleryView: View {
         .background(Color.canvas)
         .toolbar(.hidden, for: .navigationBar)
         .safeAreaInset(edge: .top) { topBar }
+        .hidesFloatingChrome()
         .sheet(item: $selected) { award in
             AwardDetailSheet(award: award, showsProgress: showsProgress)
                 .presentationDetents([.medium, .large])
@@ -88,9 +89,9 @@ struct AwardsGalleryView: View {
                 .foregroundStyle(Color.ink)
                 .padding(.horizontal, 16)
                 .frame(minHeight: 44)
-                .background(.ultraThinMaterial, in: Capsule())
-                .overlay(Capsule().strokeBorder(Color.hairline))
-                .contentShape(Capsule())
+                .background(.ultraThinMaterial, in: Radius.shape(Radius.chip))
+                .overlay(Radius.shape(Radius.chip).strokeBorder(Color.hairline))
+                .contentShape(Radius.shape(Radius.chip))
                 .buttonStyle(.pressable)
         }
         .padding(.horizontal, 18)
@@ -102,10 +103,10 @@ struct AwardsGalleryView: View {
         VStack(alignment: .leading, spacing: 18) {
             HStack(alignment: .top, spacing: 14) {
                 ZStack {
-                    Circle().fill(Color.tomato.opacity(0.12))
+                    Circle().fill(Color.olive.opacity(0.12))
                     Image(systemName: standing.nextTitle == nil ? "trophy.fill" : "sparkles")
                         .font(.system(size: 25, weight: .semibold))
-                        .foregroundStyle(Color.tomato)
+                        .foregroundStyle(Color.olive)
                         .plChrome()
                 }
                 .frame(width: 58, height: 58)
@@ -129,7 +130,7 @@ struct AwardsGalleryView: View {
                         ZStack(alignment: .leading) {
                             Capsule().fill(Color.ink.opacity(0.08))
                             Capsule()
-                                .fill(LinearGradient(colors: [.tomato, .amber], startPoint: .leading, endPoint: .trailing))
+                                .fill(LinearGradient(colors: [.olive, .amber], startPoint: .leading, endPoint: .trailing))
                                 .frame(width: proxy.size.width * standing.progress)
                         }
                     }
@@ -147,13 +148,13 @@ struct AwardsGalleryView: View {
         .padding(18)
         .background(
             LinearGradient(
-                colors: [Color.tomatoTint, Color.mangoTint.opacity(0.72), Color.raisedFill],
+                colors: [Color.oliveTint, Color.mangoTint.opacity(0.72), Color.raisedFill],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             ),
             in: Radius.shape(Radius.hero)
         )
-        .overlay(Radius.shape(Radius.hero).strokeBorder(Color.tomato.opacity(0.14)))
+        .overlay(Radius.shape(Radius.hero).strokeBorder(Color.olive.opacity(0.14)))
         .shadow(color: Color.shadowWarm.opacity(0.09), radius: 20, y: 9)
     }
 
@@ -167,17 +168,17 @@ struct AwardsGalleryView: View {
                     Text(option.label)
                         .plType(.footnote, filter == option ? .bold : .medium)
                         .plActionLabel(0.72)
-                        .foregroundStyle(filter == option ? Color.ink : Color.inkSecondary)
+                        .foregroundStyle(filter == option ? Color.onSelection : Color.inkSecondary)
                         .frame(maxWidth: .infinity, minHeight: 44)
-                        .background(filter == option ? Color.raisedFill : .clear, in: Capsule())
-                        .contentShape(Capsule())
+                        .background(filter == option ? Color.selectionFill : .clear, in: Radius.shape(Radius.chip))
+                        .contentShape(Radius.shape(Radius.chip))
                 }
                 .buttonStyle(.pressable)
                 .accessibilityAddTraits(filter == option ? .isSelected : [])
             }
         }
         .padding(4)
-        .background(Color.fill, in: Capsule())
+        .background(Color.fill, in: Radius.shape(Radius.chip))
     }
 
     private func awardCard(_ award: PlatedAward) -> some View {
@@ -191,10 +192,10 @@ struct AwardsGalleryView: View {
                     Spacer()
                     Text(award.tier.rawValue)
                         .plType(.micro, .bold)
-                        .foregroundStyle(award.isEarned ? award.tone.foreground : Color.inkSecondary)
+                        .foregroundStyle(award.isEarned ? Color.ink : Color.inkSecondary)
                         .padding(.horizontal, 9)
                         .frame(minHeight: 28)
-                        .background(award.isEarned ? award.tone.tint : Color.fill, in: Capsule())
+                        .background(award.isEarned ? award.tone.tint : Color.fill, in: Radius.shape(Radius.chip))
                 }
 
                 VStack(alignment: .leading, spacing: 5) {
@@ -331,7 +332,15 @@ struct AwardsHighlightShelf: View {
     private var visible: [PlatedAward] {
         let earned = awards.filter(\.isEarned)
         if showsProgress, earned.isEmpty {
-            return Array(awards.sorted { $0.progress > $1.progress }.prefix(typeSize >= .accessibility1 ? 2 : 4))
+            // A zero-filled ring is not progress and should not be framed as
+            // a highlight. The profile stays about the person until they
+            // have actually begun one of these stories.
+            return Array(
+                awards
+                    .filter { $0.current > 0 }
+                    .sorted { $0.progress > $1.progress }
+                    .prefix(typeSize >= .accessibility1 ? 2 : 4)
+            )
         }
         return Array(earned.prefix(typeSize >= .accessibility1 ? 2 : 4))
     }
@@ -468,10 +477,10 @@ private struct AwardDetailSheet: View {
                         systemImage: "checkmark.seal.fill"
                     )
                     .plType(.footnote, .bold)
-                    .foregroundStyle(award.tone.foreground)
+                    .foregroundStyle(Color.ink)
                     .padding(.horizontal, 15)
                     .frame(minHeight: 42)
-                    .background(award.tone.tint, in: Capsule())
+                    .background(award.tone.tint, in: Radius.shape(Radius.chip))
                 } else if showsProgress {
                     VStack(spacing: 12) {
                         AwardProgressLine(award: award)
@@ -512,7 +521,7 @@ private enum AwardFilter: String, CaseIterable, Identifiable {
 private extension AwardTone {
     var foreground: Color {
         switch self {
-        case .tomato: return .tomato
+        case .olive: return .olive
         case .amber: return .amber
         case .basil: return .completion
         case .grape: return .grape
@@ -523,11 +532,11 @@ private extension AwardTone {
 
     var tint: Color {
         switch self {
-        case .tomato: return .tomatoTint
+        case .olive: return .oliveTint
         case .amber: return .mangoTint
         case .basil: return .basilTint
         case .grape: return .grapeTint
-        case .copper: return .tomatoTint
+        case .copper: return .oliveTint
         case .cocoa: return .fill
         }
     }

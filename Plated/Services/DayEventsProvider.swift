@@ -33,6 +33,16 @@ final class DayEventsProvider {
         EKEventStore.authorizationStatus(for: .event) == .fullAccess
     }
 
+    /// A state only iOS Settings can repair. `notDetermined` is intentionally
+    /// excluded so the in-app switch may still ask for access once.
+    var isRefused: Bool {
+        switch EKEventStore.authorizationStatus(for: .event) {
+        case .denied, .restricted, .writeOnly: return true
+        case .notDetermined, .fullAccess, .authorized: return false
+        @unknown default: return false
+        }
+    }
+
     /// Prompts for Calendar access (first time only) and loads on success.
     @discardableResult
     func requestAccess() async -> Bool {

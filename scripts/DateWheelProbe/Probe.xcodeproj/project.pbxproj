@@ -1,0 +1,16 @@
+// !$*UTF8*$!
+{ archiveVersion = 1; classes = {}; objectVersion = 77; objects = {
+A00000000000000000000001 = {isa = PBXProject; attributes = {LastUpgradeCheck = 2700;}; buildConfigurationList = A00000000000000000000010; compatibilityVersion = "Xcode 16.0"; developmentRegion = en; knownRegions = (en, Base); mainGroup = A00000000000000000000002; productRefGroup = A00000000000000000000003; projectDirPath = ""; projectRoot = ""; targets = (A00000000000000000000004);};
+A00000000000000000000002 = {isa = PBXGroup; children = (A00000000000000000000005, A00000000000000000000003); sourceTree = "<group>";};
+A00000000000000000000003 = {isa = PBXGroup; children = (A00000000000000000000006); name = Products; sourceTree = "<group>";};
+A00000000000000000000005 = {isa = PBXFileSystemSynchronizedRootGroup; path = Tests; sourceTree = "<group>";};
+A00000000000000000000006 = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; path = WheelProbe.xctest; sourceTree = BUILT_PRODUCTS_DIR;};
+A00000000000000000000004 = {isa = PBXNativeTarget; buildConfigurationList = A00000000000000000000011; buildPhases = (A00000000000000000000007, A00000000000000000000008, A00000000000000000000009); buildRules = (); dependencies = (); fileSystemSynchronizedGroups = (A00000000000000000000005); name = WheelProbe; productName = WheelProbe; productReference = A00000000000000000000006; productType = "com.apple.product-type.bundle.ui-testing";};
+A00000000000000000000007 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0;};
+A00000000000000000000008 = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0;};
+A00000000000000000000009 = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0;};
+A00000000000000000000010 = {isa = XCConfigurationList; buildConfigurations = (A00000000000000000000012); defaultConfigurationIsVisible = 0; defaultConfigurationName = Debug;};
+A00000000000000000000011 = {isa = XCConfigurationList; buildConfigurations = (A00000000000000000000013); defaultConfigurationIsVisible = 0; defaultConfigurationName = Debug;};
+A00000000000000000000012 = {isa = XCBuildConfiguration; buildSettings = {SDKROOT = iphoneos; IPHONEOS_DEPLOYMENT_TARGET = 18.0; SWIFT_VERSION = 5.0; CLANG_ENABLE_MODULES = YES;}; name = Debug;};
+A00000000000000000000013 = {isa = XCBuildConfiguration; buildSettings = {GENERATE_INFOPLIST_FILE = YES; PRODUCT_BUNDLE_IDENTIFIER = com.natemeadows.plated.WheelProbe; PRODUCT_NAME = "$(TARGET_NAME)"; TARGETED_DEVICE_FAMILY = "1,2"; SWIFT_VERSION = 5.0; CODE_SIGN_STYLE = Automatic;}; name = Debug;};
+}; rootObject = A00000000000000000000001; }

@@ -96,7 +96,7 @@ struct TonightCard: View {
             }
 
             if case .open = state {
-                TomatoPillButton(title: "Plan tonight", haptic: Haptic.plate) {
+                PrimaryActionButton(title: "Plan tonight", haptic: Haptic.plate) {
                     onPlanTonight()
                 }
                 .padding(.top, 2)

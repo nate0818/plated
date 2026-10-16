@@ -15,6 +15,9 @@ struct WeekView: View {
 
     @Environment(\.modelContext) private var context
     @Environment(\.verticalSizeClass) private var verticalSizeClass
+    @Environment(\.dynamicTypeSize) private var typeSize
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.activeAppTab) private var activeAppTab
     @Query private var meals: [PlannedMeal]
     @Query private var recipes: [Recipe]
     @Query(sort: \HouseholdMember.createdAt) private var members: [HouseholdMember]
@@ -23,30 +26,48 @@ struct WeekView: View {
 
     @State private var weekAnchor = Calendar.current.startOfDay(for: Date.now)
     @State private var showMonth = false
+    @State private var dateNavigationRevision = 0
     @State private var bounceDay: Date?
     /// The day a dragged plate is hovering over — it leans in to receive.
     @State private var dropHoverDay: Date?
     @State private var groceryPresented = false
     @State private var planDay: Date?
+    @State private var reusingMeal: PlannedMeal?
     @State private var mealToMove: PlannedMeal?
-    @State private var featuredRecipe: Recipe?
     @State private var calendarShown = false
     /// The day whose detail page is pushed. Tapping a day used to raise a
     /// change/remove dialog; those two are swipe actions inside the day now.
     @Environment(\.tabPop) private var tabPop
-    @State private var dayShown: Date?
-    /// Once per appearance of the view, not once per redraw.
-    @State private var landedOnTonight = false
+    /// Once per appearance of the view, not once per redraw. History lives
+    /// above the selected night, so the first frame has to land where the
+    /// plan starts rather than on the oldest week SwiftUI materialized.
+    @State private var landedOnTimeline = false
+    @State private var lastLandedType: DynamicTypeSize?
     @State private var swipedDay: Date?
-    @State private var personShown: PersonRef?
     @State private var pushed: PlanDestination?
     /// The night you tapped is the night that opens, and your own face is
     /// the door to your own profile. See CookbookView for the reasoning.
     @Namespace private var zoom
 
-    enum PlanDestination: String, Identifiable {
+    /// One navigation owner for every destination above Plan. Keeping these
+    /// in separate optionals allowed a household deep link to leave Activity,
+    /// a profile, and Household active at the same time.
+    enum PlanDestination: Hashable, Identifiable {
         case activity
-        var id: String { rawValue }
+        case household
+        case person(PersonRef)
+        case recipe(Recipe)
+        case day(Date)
+
+        var id: String {
+            switch self {
+            case .activity: "activity"
+            case .household: "household"
+            case .person(let person): "person-\(person.id)"
+            case .recipe(let recipe): "recipe-\(recipe.persistentModelID.hashValue)"
+            case .day(let date): "day-\(date.timeIntervalSinceReferenceDate)"
+            }
+        }
     }
     @State private var forecast = ForecastProvider.shared
     @State private var events = DayEventsProvider.shared
@@ -81,9 +102,9 @@ struct WeekView: View {
     }
 
     private var futureWeeks: [[Date]] {
-        let today = Calendar.current.startOfDay(for: .now)
+        let selected = Calendar.current.startOfDay(for: weekAnchor)
         return (1..<weeksAhead).compactMap { week in
-            guard let inWeek = Calendar.current.date(byAdding: .day, value: week * 7, to: today)
+            guard let inWeek = Calendar.current.date(byAdding: .day, value: week * 7, to: selected)
             else { return nil }
             return Calendar.current.weekDays(for: inWeek)
         }
@@ -140,12 +161,31 @@ struct WeekView: View {
             Group {
                 VStack(spacing: 0) {
                     header.padding(.horizontal, 24).padding(.top, 6)
-                    plannerControls.padding(.horizontal, 24).padding(.vertical, 12)
+                    Text(typeSize.isAccessibilitySize ? weekAnchor.formatted(.dateTime.month(.abbreviated).day()) : weekAnchor.formatted(.dateTime.weekday(.wide).month(.wide).day()))
+                        .plType(.caption).foregroundStyle(Color.inkSecondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 24)
+                        .padding(.bottom, 8)
+                    plannerControls.padding(.horizontal, 24).padding(.bottom, 12)
+                    if !showMonth {
+                        PlanDateStrip(
+                            selection: $weekAnchor,
+                            dropHoverDay: $dropHoverDay,
+                            hasDinner: { hasAnyDinner(on: $0) },
+                            canAcceptDrop: { !isPast($0) },
+                            moveMeal: { moveMeal(from: $0, to: $1) },
+                            selectionChanged: { swipedDay = nil },
+                            navigationRevision: dateNavigationRevision,
+                            shiftWeek: { shiftWeek($0) }
+                        )
+                        .padding(.horizontal, 24)
+                        .padding(.bottom, 8)
+                    }
                     if let arrivingHost {
                         // One quiet line, no spinner: the plan below is
                         // real, there is simply more of it on its way.
                         Text(arrivingHost.isEmpty
-                             ? "Still arriving from the host's phone."
+                                ? "Still arriving from the organizer's phone."
                              : "Still arriving from \(arrivingHost)'s phone.")
                             .plType(.caption, .medium)
                             .foregroundStyle(Color.inkSecondary)
@@ -165,21 +205,19 @@ struct WeekView: View {
             .background(Color.canvas)
             .toolbar(.hidden, for: .navigationBar)
             .plSwipeBack()
-            .navigationDestination(item: $personShown) { person in
-                PersonProfileView(personName: person.name, colorHex: person.colorHex, memberID: person.memberID)
-                    .navigationTransition(.zoom(sourceID: ZoomID.host, in: zoom))
-            }
             .navigationDestination(item: $pushed) { destination in
                 switch destination {
                 case .activity: NotificationsView()
+                case .household: HouseholdHomeView(embedded: true)
+                case .person(let person):
+                    PersonProfileView(personName: person.name, colorHex: person.colorHex, memberID: person.memberID)
+                        .navigationTransition(.zoom(sourceID: ZoomID.host, in: zoom))
+                case .recipe(let recipe):
+                    RecipeDetailView(recipe: recipe, meal: dinner(on: weekAnchor))
+                case .day(let day):
+                    DayDetailView(date: day, askTheTable: askTheTable)
+                        .navigationTransition(.zoom(sourceID: day, in: zoom))
                 }
-            }
-            .navigationDestination(item: $featuredRecipe) { recipe in
-                RecipeDetailView(recipe: recipe, meal: dinner(on: weekAnchor))
-            }
-            .navigationDestination(item: $dayShown) { day in
-                DayDetailView(date: day, askTheTable: askTheTable)
-                    .navigationTransition(.zoom(sourceID: day, in: zoom))
             }
         }
         .sheet(item: plannerSheet) { destination in
@@ -188,11 +226,12 @@ struct WeekView: View {
                 VStack(alignment: .leading, spacing: 16) {
                     HStack { Text("Choose a date").plType(.title); Spacer(); DesignIconButton(symbol: "xmark", label: "Close calendar") { calendarShown = false } }
                     DatePicker("Dinner date", selection: $weekAnchor, displayedComponents: .date).datePickerStyle(.graphical).tint(Color.accentText)
-                    TomatoPillButton(title: "View this date") { calendarShown = false }
+                    PrimaryActionButton(title: "View this date") { calendarShown = false }
                 }.padding(24).presentationDetents([.large]).presentationDragIndicator(.visible).plTapOutsideToDismiss()
             case .groceries: GrocerySheet()
             case .night(let date): PlanNightSheet(date: date, askTheTable: askTheTable)
             case .move(let meal): MoveMealSheet(meal: meal) { weekAnchor = $0 }
+            case .reuse(let meal): PlanAgainSheet(meal: meal)
             }
         }
         .onChange(of: openGrocery.wrappedValue, initial: true) { _, requested in
@@ -204,9 +243,13 @@ struct WeekView: View {
         // returns to the plan itself. See TabPopRequest.
         .onChange(of: tabPop) { _, request in
             guard request.tab == .week else { return }
-            dayShown = nil
-            personShown = nil
             pushed = nil
+        }
+        .onAppear { updatePlanPresence() }
+        .onChange(of: activeAppTab) { _, _ in updatePlanPresence() }
+        .onChange(of: pushed) { _, _ in updatePlanPresence() }
+        .onDisappear {
+            if Presence.shared.planVisible { Presence.shared.planVisible = false }
         }
         .task {
             await forecast.refresh(days: 10)
@@ -223,6 +266,12 @@ struct WeekView: View {
         .onReceive(NotificationCenter.default.publisher(for: LinkRelay.dayRequested)) { _ in
             if let day = LinkRelay.takeDay() { withAnimation(.plSnap) { weekAnchor = day } }
         }
+        .onReceive(NotificationCenter.default.publisher(for: LinkRelay.activityRequested)) { _ in
+            if LinkRelay.takeActivity() { pushed = .activity }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: LinkRelay.householdRequested)) { _ in
+            if LinkRelay.takeHousehold() { pushed = .household }
+        }
         .task {
             // The household's standing lives in the app group, which no
             // SwiftUI body observes. Read it while the plan is on screen:
@@ -236,8 +285,16 @@ struct WeekView: View {
         // without waiting for the next poll.
         .onChange(of: meals.count) { _, _ in readHouseholdStanding() }
         .onChange(of: weekAnchor) { _, _ in readHouseholdStanding() }
+        .onChange(of: showMonth) { _, monthIsShowing in
+            // The week scroll is rebuilt after Month. Re-arm its landing or
+            // the fresh ScrollView opens at the oldest history above the
+            // current-plan anchor.
+            if monthIsShowing { landedOnTimeline = false }
+        }
         .onAppear {
             if let day = LinkRelay.takeDay() { weekAnchor = day }
+            if LinkRelay.takeActivity() { pushed = .activity }
+            if LinkRelay.takeHousehold() { pushed = .household }
             if forceMonth || verticalSizeClass == .compact { showMonth = true }
             #if DEBUG
             // UI-test hooks — one-shot on purpose, they must never replay
@@ -251,8 +308,20 @@ struct WeekView: View {
             if LaunchFlags.consume("-plated-open-activity") {
                 pushed = .activity
             }
+            if ProcessInfo.processInfo.arguments.contains("-plated-open-stats") {
+                pushed = .household
+            }
             if let planFlag = LaunchFlags.consume("-plated-open-plan-day") ? weekDates.first(where: { !isPast($0) && dinner(on: $0) == nil }) : nil {
                 planDay = planFlag
+            }
+            if LaunchFlags.consume("-plated-review-plan-night") {
+                // Stable route for the recipe picker and gathering review
+                // fixtures, even when every upcoming night is already full.
+                planDay = weekDates.first ?? Calendar.current.startOfDay(for: .now)
+            }
+            if LaunchFlags.consume("-plated-review-move-meal"),
+               let sample = meals.first(where: { !$0.isCooked }) {
+                mealToMove = sample
             }
             if !showMonth, LaunchFlags.consume("-plated-reveal-plan-actions") {
                 swipedDay = weekDates.first(where: { !isPast($0) && dinner(on: $0) != nil })
@@ -264,44 +333,109 @@ struct WeekView: View {
         }
     }
 
+    private func updatePlanPresence() {
+        Presence.shared.planVisible = activeAppTab == .week && pushed == nil
+    }
+
     private enum PlannerSheet: Identifiable {
-        case groceries, calendar, night(Date), move(PlannedMeal)
-        var id: String { switch self { case .calendar: "calendar"; case .groceries: "groceries"; case .night(let date): "night-\(date.timeIntervalSince1970)"; case .move(let meal): "move-\(meal.persistentModelID)" } }
+        case groceries, calendar, night(Date), move(PlannedMeal), reuse(PlannedMeal)
+        var id: String { switch self { case .calendar: "calendar"; case .groceries: "groceries"; case .night(let date): "night-\(date.timeIntervalSince1970)"; case .move(let meal): "move-\(meal.persistentModelID)"; case .reuse(let meal): "reuse-\(meal.persistentModelID)" } }
     }
     private var plannerSheet: Binding<PlannerSheet?> {
-        Binding(get: { if calendarShown { return .calendar }; if let mealToMove { return .move(mealToMove) }; if let planDay { return .night(planDay) }; return groceryPresented ? .groceries : nil },
-                set: { if $0 == nil { planDay = nil; mealToMove = nil; groceryPresented = false; calendarShown = false } })
+        Binding(get: { if calendarShown { return .calendar }; if let mealToMove { return .move(mealToMove) }; if let reusingMeal { return .reuse(reusingMeal) }; if let planDay { return .night(planDay) }; return groceryPresented ? .groceries : nil },
+                set: { if $0 == nil { planDay = nil; mealToMove = nil; reusingMeal = nil; groceryPresented = false; calendarShown = false } })
     }
 
     private var portraitPlan: some View {
-        ScrollView(showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 18) {
-                PlanDateStrip(
-                    selection: $weekAnchor,
-                    dropHoverDay: $dropHoverDay,
-                    hasDinner: { hasAnyDinner(on: $0) },
-                    canAcceptDrop: { !isPast($0) },
-                    moveMeal: { moveMeal(from: $0, to: $1) },
-                    selectionChanged: { swipedDay = nil },
-                    shiftWeek: { shiftWeek($0) }
-                )
-                featuredDinner
-                HStack {
-                    Text("This week").plType(.title, .semibold)
-                    Spacer()
-                    Text("\(plannedCount) planned").plType(.footnote).foregroundStyle(Color.inkSecondary)
+        ScrollViewReader { scroll in
+            ScrollView(showsIndicators: false) {
+                Group {
+                    if horizontalSizeClass == .regular {
+                        HStack(alignment: .top, spacing: 28) {
+                            VStack(alignment: .leading, spacing: 18) {
+                                featuredDinner.id(Self.timelineAnchor)
+                                historySections
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+
+                            VStack(alignment: .leading, spacing: 18) {
+                                weekHeader(weekDates, count: plannedCount)
+                                VStack(spacing: 0) {
+                                    ForEach(aheadThisWeek(skipping: weekAnchor), id: \.self) { date in dayRow(date) }
+                                }
+                                futureWeekSections
+                                cooksFooter
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .frame(maxWidth: 1120)
+                        .frame(maxWidth: .infinity)
+                    } else {
+                        VStack(alignment: .leading, spacing: 18) {
+                            historySections
+                            featuredDinner.id(Self.timelineAnchor)
+                            weekHeader(weekDates, count: plannedCount)
+                            VStack(spacing: 0) {
+                                ForEach(aheadThisWeek(skipping: weekAnchor), id: \.self) { date in dayRow(date) }
+                            }
+                            futureWeekSections
+                            cooksFooter
+                        }
+                    }
                 }
-                VStack(spacing: 0) {
-                    ForEach(weekDates, id: \.self) { date in dayRow(date) }
-                }
-                cooksFooter
+                .padding(.horizontal, 24)
+                .padding(.top, 6)
+                .padding(.bottom, Layout.floatingChromeInset)
             }
-            .padding(.horizontal, 24)
-            .padding(.top, 6)
-            .padding(.bottom, Layout.floatingChromeInset)
+            .onScrollPhaseChange { _, phase in
+                if phase == .interacting { withAnimation(.plSnap) { swipedDay = nil } }
+            }
+            .task(id: typeSize) {
+                guard !landedOnTimeline || lastLandedType != typeSize else { return }
+                // Text reflow changes historical row heights above the selected dinner.
+                await Task.yield()
+                guard !Task.isCancelled else { return }
+                scroll.scrollTo(Self.timelineAnchor, anchor: .top)
+                landedOnTimeline = true
+                lastLandedType = typeSize
+            }
         }
-        .onScrollPhaseChange { _, phase in
-            if phase == .interacting { withAnimation(.plSnap) { swipedDay = nil } }
+    }
+
+    private var historySections: some View {
+        ForEach(cookedHistory) { section in
+            if !section.dates.isEmpty {
+                MicroLabel(section.label)
+                    .padding(.top, 8)
+                VStack(spacing: 0) {
+                    ForEach(section.dates, id: \.self) { date in dayRow(date) }
+                }
+            }
+        }
+    }
+
+    private var futureWeekSections: some View {
+        ForEach(futureWeeks, id: \.self) { week in
+            let visibleDates = week.filter { !isPast($0) }
+            if !visibleDates.isEmpty {
+                weekHeader(week, count: week.filter { hasAnyDinner(on: $0) }.count)
+                    .padding(.top, 8)
+                VStack(spacing: 0) {
+                    ForEach(visibleDates, id: \.self) { date in dayRow(date) }
+                }
+            }
+        }
+    }
+
+    /// The scroll's resting place. The pinned date strip is outside this
+    /// scroll view, so prior weeks remain above the selected night's content.
+    private static let timelineAnchor = "plan-current"
+
+    private func weekHeader(_ week: [Date], count: Int) -> some View {
+        HStack {
+            Text(weekSectionLabel(week)).plType(.title, .semibold)
+            Spacer()
+            Text("\(count) planned").plType(.footnote).foregroundStyle(Color.inkSecondary)
         }
     }
 
@@ -315,9 +449,9 @@ struct WeekView: View {
                 }.accessibilityLabel("Dinner options")
             }
             if let meal = dinner(on: weekAnchor) {
-                Button { Haptic.tap(); dayShown = weekAnchor } label: {
+                Button { Haptic.tap(); pushed = .day(weekAnchor) } label: {
                     VStack(alignment: .leading, spacing: 16) {
-                        RecipeArtwork(data: meal.recipe?.photoData, title: meal.title, ratio: 1.95)
+                        RecipeArtwork(data: meal.recipe?.photoData, title: meal.title, ratio: 1.55)
                         Text(meal.title).plType(.display, .semibold).foregroundStyle(Color.ink)
                             .fixedSize(horizontal: false, vertical: true)
                     }
@@ -336,12 +470,12 @@ struct WeekView: View {
                             .plType(.footnote)
                             .plActionLabel()
                             .foregroundStyle(Color.ink).padding(.horizontal, 12).frame(minHeight: 44)
-                            .background(Color.fill, in: Capsule())
+                            .background(Color.fill, in: Radius.shape(Radius.chip))
                     }.buttonStyle(.pressable).accessibilityLabel("Change servings and cook")
                 }
                 if meal.recipe != nil {
-                    TomatoPillButton(title: meal.isCooked ? "View recipe" : "Let's cook", systemImage: "fork.knife") {
-                        featuredRecipe = meal.recipe
+                    PrimaryActionButton(title: meal.isCooked ? "View recipe" : "Start cooking", systemImage: "fork.knife") {
+                        if let recipe = meal.recipe { pushed = .recipe(recipe) }
                     }
                 } else {
                     Button("Edit dinner") { planDay = weekAnchor }.plType(.body, .semibold).foregroundStyle(Color.accentText).plTapTarget()
@@ -373,15 +507,15 @@ struct WeekView: View {
                              : "Nothing is planned for this night.")
                             .plType(.body).foregroundStyle(Color.inkSecondary)
                     } else {
-                        Text(isPast(weekAnchor) ? "A night off the menu" : "Something good starts here.")
-                            .plType(.display, .medium).foregroundStyle(Color.ink)
-                        Text(isPast(weekAnchor) ? "No dinner was planned for this date." : "Choose a favorite, try a new recipe, or take the night off.")
+                        Text(emptyHeroTitle(for: weekAnchor))
+                            .plType(.title, .semibold).foregroundStyle(Color.ink)
+                        Text(isPast(weekAnchor)
+                             ? "Add what you ate, cooked, or picked up."
+                             : "Choose a favorite, try a new recipe, or take the night off.")
                             .plType(.body).foregroundStyle(Color.inkSecondary)
                     }
-                    if !isPast(weekAnchor) {
-                        TomatoPillButton(title: "Plan this night", systemImage: "plus") { planDay = weekAnchor }
-                    }
-                }.padding(22).frame(maxWidth: .infinity, alignment: .leading)
+                    PrimaryActionButton(title: "Plan the night", systemImage: "plus") { planDay = weekAnchor }
+                }.padding(16).frame(maxWidth: .infinity, alignment: .leading)
                     .background(Color.fill, in: Radius.shape(Radius.hero))
             }
         }
@@ -400,9 +534,9 @@ struct WeekView: View {
     private func remoteFeatured(_ entry: PlanLedger.Entry) -> some View {
         let ledger = PlanLedger.shared
         let cookLine = ledger.cookLine(for: entry)
-        Button { Haptic.tap(); dayShown = weekAnchor } label: {
+        Button { Haptic.tap(); pushed = .day(weekAnchor) } label: {
             VStack(alignment: .leading, spacing: 16) {
-                RecipeArtwork(data: ledger.photo(for: entry.recordName), title: entry.title, ratio: 1.95)
+                RecipeArtwork(data: ledger.photo(for: entry.recordName), title: entry.title, ratio: 1.55)
                 Text(entry.title).plType(.display, .semibold).foregroundStyle(Color.ink)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -439,8 +573,8 @@ struct WeekView: View {
         // to start a cook session on a dinner this phone has just taken off
         // the plan for everybody.
         if let recipe = cookbookRecipe(for: entry), !entry.isGoing {
-            TomatoPillButton(title: entry.cooked ? "View recipe" : "Let's cook", systemImage: "fork.knife") {
-                featuredRecipe = recipe
+            PrimaryActionButton(title: entry.cooked ? "View recipe" : "Start cooking", systemImage: "fork.knife") {
+                pushed = .recipe(recipe)
             }
         } else {
             // "Not in your cookbook" is a fact about this cookbook, and on a
@@ -464,18 +598,22 @@ struct WeekView: View {
 
     private var plannerControls: some View {
         HStack(spacing: 12) {
-            Picker("Calendar view", selection: $showMonth) {
-                Text("Week").tag(false)
-                Text("Month").tag(true)
-            }
-            .pickerStyle(.segmented)
+            EditorialSegments(options: [false, true], selection: $showMonth, label: { $0 ? "Month" : "Week" })
+            .accessibilityLabel("Calendar view")
             .frame(maxWidth: 148)
             Spacer(minLength: 0)
             Button { calendarShown = true } label: {
-                Text(weekAnchor.formatted(.dateTime.month(.abbreviated).day())).plType(.footnote, .semibold)
-            }.plTapTarget().accessibilityLabel("Choose a date")
+                Image(systemName: "calendar")
+                    .font(.system(size: 16, weight: .semibold))
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.pressable)
+            .accessibilityLabel("Choose a date")
+            .accessibilityValue(weekAnchor.formatted(.dateTime.weekday(.wide).month(.wide).day().year()))
             Button("Today") {
                 Haptic.select()
+                dateNavigationRevision &+= 1
                 withAnimation(.plSnap) { weekAnchor = .now.startOfDay }
             }
             .plType(.footnote, .bold)
@@ -525,10 +663,10 @@ struct WeekView: View {
             // hands it to its first row so the day still opens from the
             // thing that was tapped.
             if local == nil, !isPast(date), entry.id == remote.first?.id {
-                RemotePlanRow(entry: entry, date: date, members: members) { dayShown = date }
+                RemotePlanRow(entry: entry, date: date, members: members) { pushed = .day(date) }
                     .matchedTransitionSource(id: date, in: zoom)
             } else {
-                RemotePlanRow(entry: entry, date: date, members: members) { dayShown = date }
+                RemotePlanRow(entry: entry, date: date, members: members) { pushed = .day(date) }
             }
         }
     }
@@ -536,7 +674,7 @@ struct WeekView: View {
     // MARK: Header
 
     private var header: some View {
-        PlatedMasthead(title: showMonth ? "Your month" : "Your week") {
+        PlatedMasthead(title: showMonth ? "The month ahead" : Calendar.current.isDateInToday(weekAnchor) ? "At home, tonight." : "The dinner plan", wordmarkSize: 20) {
             HStack(spacing: 8) {
                 ActivityBellButton(size: 36) { pushed = .activity }
                 AccountButton()
@@ -603,7 +741,7 @@ struct WeekView: View {
                     Text(tagLine(for: meal, today: today, date: date))
                         .plType(.caption, .semibold)
                         .foregroundStyle(today ? Color.ink : Color.inkSecondary)
-                        .lineLimit(1)
+                        .lineLimit(2)
                 }
                 Spacer(minLength: 8)
             }
@@ -615,10 +753,10 @@ struct WeekView: View {
             // one screen the app is mostly looked at. The height and the
             // reclaimed 18pt of width are what let the row say the thing.
             .frame(minHeight: 76)
-            .background(dropHoverDay == date ? Color.tomatoTint : Color.canvas, in: Radius.shape(Radius.row))
+            .background(dropHoverDay == date ? Color.oliveTint : Color.canvas, in: Radius.shape(Radius.row))
             .overlay {
                 if dropHoverDay == date {
-                    Radius.shape(Radius.row).strokeBorder(Color.tomato, lineWidth: 1.5)
+                    Radius.shape(Radius.row).strokeBorder(Color.olive, lineWidth: 1.5)
                 } else {
                     VStack { Spacer(); Rectangle().fill(Color.hairline).frame(height: 0.5) }
                 }
@@ -626,7 +764,7 @@ struct WeekView: View {
             .contentShape(Rectangle())
             .onTapGesture {
                 Haptic.tap()
-                dayShown = date
+                pushed = .day(date)
             }
             // A gesture announces nothing: without this the row's swipe
             // actions scattered onto each child text and the tap itself
@@ -655,36 +793,28 @@ struct WeekView: View {
         .matchedTransitionSource(id: date, in: zoom)
     }
 
-    /// The whole empty row plans dinner — one primary target, matching the
-    /// plus that used to be the only door. Opening the day stays available
-    /// as a secondary VoiceOver action and in the context menu.
+    /// The whole empty row plans dinner. Swipe, the context menu and
+    /// accessibility actions keep the alternatives without drawing a plus,
+    /// a sentence and an ellipsis that all mean the same thing.
     private func emptyRow(date: Date) -> some View {
         SwipeRow(isOpen: swipeBinding(date), actions: [
-            SwipeAction(symbol: "plus", label: "Plan") { planDay = date },
+            SwipeAction(symbol: "plus", label: "Plan the night") { planDay = date },
             SwipeAction(symbol: "fork.knife", label: "Eat out") { markEatingOut(on: date) }
-        ], actionLabel: "Actions for \(date.formatted(.dateTime.weekday(.wide).month(.abbreviated).day()))") {
+        ]) {
         HStack(spacing: 10) {
             dateColumn(date)
-            Image(systemName: "plus")
-                .font(.system(size: 16, weight: .regular))
-                .foregroundStyle(Color.inkSecondary)
-                .frame(width: 48, height: 48)
-                .accessibilityHidden(true)
-            // An empty night that knows why it is empty. The household took
-            // this dinner off, the meal was deleted here, and nothing else on
-            // this phone remembers it existed: the digest cannot speak,
-            // because it needs an already-read bell row and the author never
-            // has one for a night they planned themselves. So this line and
-            // the hero are the only way the person learns their dinner went.
-            Text(RemovedNights.removedLine(on: date) ?? "Plan dinner")
-                .plType(.body)
-                .foregroundStyle(Color.inkSecondary)
-                // No limit, the way the past row's own "Nothing plated"
-                // already has none. This is the app's copy, not a dish
-                // somebody named, and at AX5 one line turned "Nothing plated
-                // yet" into "Nothing...", which is the whole sentence gone.
-                // The row's 76pt is a floor, so it grows to hold it.
-                .fixedSize(horizontal: false, vertical: true)
+            VStack(alignment: .leading, spacing: 3) {
+                // A removed night names what happened; an ordinary open night
+                // says what is missing rather than repeating its button.
+                Text(RemovedNights.removedLine(on: date) ?? emptyMealLine(for: date))
+                    .plType(.body, .semibold)
+                    .foregroundStyle(Color.ink)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(assignmentLine(for: date))
+                    .plType(.caption, .semibold)
+                    .foregroundStyle(Color.inkSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             Spacer()
         }
         .padding(.vertical, 12)
@@ -693,10 +823,10 @@ struct WeekView: View {
         .frame(minHeight: 76)
         // Same hover geometry as plannedRow: Radius.shape, not a bare
         // RoundedRectangle, so the lean matches the planned peer beside it.
-        .background(dropHoverDay == date ? Color.tomatoTint : Color.canvas, in: Radius.shape(Radius.row))
+        .background(dropHoverDay == date ? Color.oliveTint : Color.canvas, in: Radius.shape(Radius.row))
         .overlay {
             if dropHoverDay == date {
-                Radius.shape(Radius.row).strokeBorder(Color.tomato, lineWidth: 1.5)
+                Radius.shape(Radius.row).strokeBorder(Color.olive, lineWidth: 1.5)
             } else {
                 VStack { Spacer(); Rectangle().fill(Color.hairline).frame(height: 0.5) }
             }
@@ -708,14 +838,13 @@ struct WeekView: View {
         }
         .accessibilityElement(children: .ignore)
         .accessibilityAddTraits(.isButton)
-        .accessibilityLabel("\(dayName(date).capitalized), \(openLine(date))")
+        .accessibilityLabel("\(dayName(date).capitalized), \(openLine(date)). \(assignmentLine(for: date))")
         .accessibilityHint("Plans dinner")
-        .accessibilityAction(named: "Open day") { dayShown = date }
-        .accessibilityAction(named: "Eating out") { markEatingOut(on: date) }
+        .accessibilityAction(named: "Open day") { pushed = .day(date) }
         .contextMenu {
             Button {
                 Haptic.tap()
-                dayShown = date
+                pushed = .day(date)
             } label: {
                 Label("Open day", systemImage: "calendar")
             }
@@ -751,13 +880,22 @@ struct WeekView: View {
     }
 
     /// Nights already gone. They stay on screen so the week keeps its real
-    /// shape, but they collapse to a history strip. Tapping still opens the
-    /// day for reference; planning and dragging are unavailable. The compression is
-    /// what keeps tonight on screen come Saturday, when six of these sit
-    /// above it.
+    /// shape, but they collapse to a history strip. Tapping opens the day;
+    /// an empty row can also record a retrospective plan or dinner out. The
+    /// compression is what keeps tonight on screen come Saturday, when six
+    /// of these sit above it.
     private func pastRow(_ date: Date) -> some View {
         let meal = dinner(on: date)
-        return SwipeRow(isOpen: swipeBinding(date), actions: meal.map { planActions(for: $0) } ?? [], actionLabel: meal.map { "Actions for \($0.title)" }) {
+        var actions = meal.map { planActions(for: $0) } ?? [
+            SwipeAction(symbol: "plus", label: "Plan the night") { planDay = date },
+            SwipeAction(symbol: "fork.knife", label: "Eat out") { markEatingOut(on: date) }
+        ]
+        if let meal, meal.recipe != nil {
+            actions.append(SwipeAction(symbol: "arrow.clockwise", label: "Plan again") {
+                reusingMeal = meal
+            })
+        }
+        return SwipeRow(isOpen: swipeBinding(date), actions: actions, actionLabel: meal.map { "Actions for \($0.title)" }) {
         HStack(spacing: 12) {
             dateColumn(date)
 
@@ -768,12 +906,14 @@ struct WeekView: View {
                     .foregroundStyle(Color.inkSecondary)
                     .lineLimit(1)
             } else {
-                // Past tense on purpose: "yet" promises a night you can
-                // still cook.
-                Image(systemName: "minus").font(.footnote).foregroundStyle(Color.inkSecondary).frame(width: 48, height: 48)
-                Text("No dinner planned")
-                    .plType(.footnote, .semibold)
-                    .foregroundStyle(Color.inkSecondary)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(emptyMealLine(for: date))
+                        .plType(.footnote, .semibold)
+                        .foregroundStyle(Color.ink)
+                    Text(assignmentLine(for: date))
+                        .plType(.caption, .semibold)
+                        .foregroundStyle(Color.inkSecondary)
+                }
             }
             Spacer(minLength: 8)
         }
@@ -786,16 +926,17 @@ struct WeekView: View {
             VStack { Spacer(); Rectangle().fill(Color.hairline).frame(height: 0.5) }
         }
         // History answers questions — "what was that thing we ate Monday?"
-        // — so it opens the day like every other row. It just can't be
-        // planned from there.
+        // — so it opens the day like every other row. Empty history also
+        // exposes Plan and Eat out through swipe and the context menu.
         .contentShape(Rectangle())
         .onTapGesture {
             Haptic.tap()
-            dayShown = date
+            pushed = .day(date)
         }
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isButton)
         .accessibilityHint("Opens the day")
+        .contextMenu { nightMenu(date) }
         }
     }
 
@@ -827,7 +968,7 @@ struct WeekView: View {
             Haptic.tap()
             planDay = date
         } label: {
-            Label(planned == nil ? "Plan this night" : "Change the dish",
+            Label(planned == nil ? "Plan the night" : "Change the dish",
                   systemImage: planned == nil ? "plus.circle" : "arrow.2.squarepath")
         }
         if planned != nil {
@@ -884,6 +1025,33 @@ struct WeekView: View {
         return formatter.string(from: date)
     }
 
+    /// Empty nights keep the same promise while changing their flavor. The
+    /// date makes future nights stable; today also moves with the part of day,
+    /// so returning at dinner does not repeat the line seen over breakfast.
+    private func emptyHeroTitle(for date: Date) -> String {
+        let words = ["delicious", "savory", "cozy", "bright", "spicy", "fresh", "comforting"]
+        let calendar = Calendar.current
+        let day = calendar.ordinality(of: .day, in: .era, for: date) ?? 0
+        let time = calendar.isDateInToday(date) ? calendar.component(.hour, from: .now) / 6 : 0
+        let word = words[(day + time) % words.count]
+        return isPast(date) ? "Was it something \(word)?" : "Something \(word) starts here."
+    }
+
+    /// The same rotation that will be written when a recipe is chosen, said
+    /// before the choice so an open night still answers who is up to cook.
+    private func assignmentLine(for date: Date) -> String {
+        guard let cook = CookRotation.cook(for: date, members: members, meals: meals) else {
+            return "No cook assigned yet"
+        }
+        return cook.isMe ? "You're assigned to cook" : "\(cook.firstName) is assigned to cook"
+    }
+
+    /// Dinner is the week row's subject. If another occasion is already on
+    /// the day, do not erase it with the ordinary all-day empty sentence.
+    private func emptyMealLine(for date: Date) -> String {
+        otherSlots(on: date).isEmpty ? "No meal planned yet" : "No dinner planned yet"
+    }
+
     /// A night off the stove still counts as a plan for the week.
     private func markEatingOut(on date: Date) {
         Haptic.plate()
@@ -900,6 +1068,7 @@ struct WeekView: View {
             }
             bounceDay = date
         }
+        Persist.save(context, "plan eating out")
     }
 
     /// The same engine the night sheet uses, with the same forecast it can
@@ -936,6 +1105,7 @@ struct WeekView: View {
             }
             bounceDay = date
         }
+        Persist.save(context, "picked meal")
     }
 
     /// Dates are a column, not miniature cards. Only today's numeral wears
@@ -976,13 +1146,12 @@ struct WeekView: View {
 
     // MARK: Data
 
-    /// What is left of this week. `weekDates` itself is untouched, because
-    /// the ring, the counts and the week label all measure the whole week
-    /// including tonight; it is only the list that reorders around the card.
-    private func aheadThisWeek(skippingToday: Bool) -> [Date] {
+    /// What remains in the selected week around the featured card. The card
+    /// already draws the selected date, so the agenda never repeats it.
+    private func aheadThisWeek(skipping selected: Date) -> [Date] {
         weekDates.filter { date in
             if isPast(date) { return false }
-            if skippingToday, Calendar.current.isDateInToday(date) { return false }
+            if Calendar.current.isSameDay(date, selected) { return false }
             return true
         }
     }
@@ -1003,22 +1172,30 @@ struct WeekView: View {
     /// whole and the gaps are part of the record. Which nights you did not
     /// cook is as much of the rhythm as which nights you did.
     ///
-    /// Starts at the first dinner the household ever planned, so a new
-    /// install has no history rather than an empty scrollback, and stops at
-    /// twelve weeks because the rows are drawn eagerly and a year of them is
-    /// three hundred and sixty-four views built to show four.
+    /// Starts at the first dinner this phone or the household remembers, and
+    /// always includes earlier days in this week. A new household should still
+    /// be able to reach Sunday from Thursday. It stops at twelve weeks because
+    /// the rows are drawn eagerly and a year is hundreds of views built to
+    /// show a handful.
     private var cookedHistory: [HistorySection] {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: .now)
-        let past = meals.filter { $0.slotValue == .dinner && $0.date < today }
-        guard let earliest = past.map(\.date).min() else { return [] }
+        let localPast = meals
+            .filter { $0.slotValue == .dinner && $0.date < today }
+            .map(\.date)
+        let householdPast = PlanLedger.shared.all
+            .filter { $0.slotValue == .dinner && $0.date < today && !$0.isGoing }
+            .map(\.date)
 
         let thisWeek = calendar.startOfWeek(for: today)
         let floor = calendar.date(byAdding: .day, value: -7 * 12, to: thisWeek) ?? thisWeek
-        var weekStart = max(calendar.startOfWeek(for: earliest), floor)
+        let earliest = (localPast + householdPast).min()
+        var weekStart = max(earliest.map { calendar.startOfWeek(for: $0) } ?? thisWeek, floor)
 
         var sections: [HistorySection] = []
         while weekStart <= thisWeek {
+            // Stable while the strip is scrubbed. Removing the selected past
+            // row here changed the height above the strip under the finger.
             let days = calendar.weekDays(for: weekStart).filter { $0 < today }
             if !days.isEmpty {
                 sections.append(HistorySection(start: weekStart,
@@ -1032,9 +1209,17 @@ struct WeekView: View {
     }
 
     private func historyLabel(weekStart: Date) -> String {
+        timelineWeekLabel(starting: weekStart)
+    }
+
+    /// One calendar vocabulary everywhere in the timeline. A selected week
+    /// is not called "This week" after the date strip has moved elsewhere.
+    private func timelineWeekLabel(starting weekStart: Date) -> String {
         let calendar = Calendar.current
         let thisWeek = calendar.startOfWeek(for: .now)
         if calendar.isSameDay(weekStart, thisWeek) { return "Earlier this week" }
+        if let nextWeek = calendar.date(byAdding: .day, value: 7, to: thisWeek),
+           calendar.isSameDay(weekStart, nextWeek) { return "Next week" }
         if let lastWeek = calendar.date(byAdding: .day, value: -7, to: thisWeek),
            calendar.isSameDay(weekStart, lastWeek) { return "Last week" }
         let formatter = DateFormatter()
@@ -1095,11 +1280,15 @@ struct WeekView: View {
             let minutes = meal.recipe?.totalMinutes ?? 0
             base = minutes > 0 ? Recipe.durationText(minutes) : "Planned"
         }
+        let servings = meal.recipe == nil ? nil : "Serves \(max(1, meal.servings))"
+        let details = [base, servings].compactMap { $0 }.filter { !$0.isEmpty }
+        let detailLine = details.joined(separator: " · ")
         // The week row shows dinner; a day can now hold breakfast, lunch,
         // dessert and a snack too, and hiding them here would make the day
         // page a surprise.
         let others = otherSlots(on: date).count
-        return others > 0 ? "\(base) · +\(others) more" : base
+        let withOthers = others > 0 ? "\(detailLine) · +\(others) more" : detailLine
+        return withOthers
     }
 
     /// Everything planned on a day that isn't its dinner, earliest first.
@@ -1126,7 +1315,7 @@ struct WeekView: View {
             let joined = ListFormatter.localizedString(byJoining: others.map { $0.title.lowercased() })
             return "\(removed). \(joined.prefix(1).uppercased() + joined.dropFirst()) planned"
         }
-        guard !others.isEmpty else { return "Nothing plated yet" }
+        guard !others.isEmpty else { return "No meal planned yet" }
         let joined = ListFormatter.localizedString(byJoining: others.map { $0.title.lowercased() })
         return joined.prefix(1).uppercased() + joined.dropFirst() + " planned"
     }
@@ -1146,12 +1335,11 @@ struct WeekView: View {
         return "\(shortMonth.string(from: first)) to \(shortMonth.string(from: last))"
     }
 
-    private func weekSectionLabel(_ week: [Date], index: Int) -> String {
+    private func weekSectionLabel(_ week: [Date]) -> String {
         guard let first = week.first else { return "" }
-        if index == 0 { return "Next week" }
-        let formatter = DateFormatter()
-        formatter.dateFormat = "MMM d"
-        return "Week of \(formatter.string(from: first))"
+        let start = Calendar.current.startOfWeek(for: first)
+        let label = timelineWeekLabel(starting: start)
+        return label == "Earlier this week" ? "This week" : label
     }
 
     private func dayName(_ date: Date) -> String {
@@ -1198,7 +1386,7 @@ struct WeekView: View {
 
     private func openOwnProfile() {
         guard let owner = members.me else { return }
-        personShown = PersonRef(name: owner.name, colorHex: owner.colorHex, memberID: owner.persistentModelID)
+        pushed = .person(PersonRef(name: owner.name, colorHex: owner.colorHex, memberID: owner.persistentModelID))
     }
 
     private func swipeBinding(_ date: Date) -> Binding<Bool> {
@@ -1242,319 +1430,67 @@ struct WeekView: View {
     }
 }
 
-/// A day picker, not a disguised pair of week buttons. The old strip stayed
-/// perfectly still under the finger and replaced all seven dates only after a
-/// swipe ended. That made a direct manipulation feel like clicking a carousel.
-///
-/// This strip uses the system scroll physics, keeps the selected day centered,
-/// and adopts the date crossing that center line while the finger is moving.
-/// Each crossed day gets the quiet selection tick used by native pickers.
-private struct PlanDateStrip: View {
-    @Binding var selection: Date
-    @Binding var dropHoverDay: Date?
+/// Reuse a past recipe on an open future night without replacing a plan.
+private struct PlanAgainSheet: View {
+    let meal: PlannedMeal
+    @Environment(\.modelContext) private var context
+    @Environment(\.dismiss) private var dismiss
+    @Query private var meals: [PlannedMeal]
+    @State private var targetDate: Date
 
-    let hasDinner: (Date) -> Bool
-    let canAcceptDrop: (Date) -> Bool
-    let moveMeal: (String?, Date) -> Bool
-    let selectionChanged: () -> Void
-    /// The seven-day jump the header arrows used to make. WeekView owns it
-    /// so the strip never grows a second copy of the week arithmetic.
-    let shiftWeek: (Int) -> Void
+    init(meal: PlannedMeal) {
+        self.meal = meal
+        _targetDate = State(initialValue: Calendar.current.date(byAdding: .day, value: 1, to: Date.now.startOfDay) ?? Date.now.startOfDay)
+    }
 
-    @State private var dates: [Date]
-    @State private var scrollPosition: Date?
-    @State private var scrollPhase: ScrollPhase = .idle
-    @State private var centeredIndex: Int?
-    @State private var userIsScrubbing = false
-    /// Set by a week action and consumed by the scroll that follows it, so
-    /// VoiceOver's focus lands on the new day rather than staying on a cell
-    /// that just scrolled off the screen.
-    @State private var focusFollowsSelection = false
-    @AccessibilityFocusState private var focusedDay: Date?
-    @Environment(\.colorSchemeContrast) private var contrast
+    private var occupied: Bool {
+        meals.contains { Calendar.current.isSameDay($0.date, targetDate) && $0.slotValue == meal.slotValue }
+            || PlanLedger.shared.plans(on: targetDate, slot: meal.slotValue).contains { !$0.isGoing }
+    }
 
-    private let cellWidth: CGFloat = 46
-    private let cellSpacing: CGFloat = 2
-
-    /// The sheet grabber turned on its side and stood at each end of the
-    /// strip. iOS has taught everyone that a short grey capsule means "this
-    /// surface moves in the direction I am thin"; on a sheet that is down,
-    /// here it is sideways. It is a stroke, not a glyph, so inkFaint is the
-    /// paint DESIGN.md allows it. It never moves: a grabber does not animate
-    /// on a sheet either, and the claim it makes, that there is more strip
-    /// in that direction, is kept true by the runway rebuild below, so there
-    /// is no state for it to perform.
-    private static let edgeMarkSize = CGSize(width: 3, height: 20)
-    private static let edgeMarkInset: CGFloat = 3
-
-    /// The scroll content dissolves under each mark rather than being cut
-    /// off beside it. A grabber sits on the sheet, not on the sheet's words;
-    /// on a 430pt phone the strip's hard edge otherwise lands on half a "Su".
-    private static let edgeFade: CGFloat = 12
-
-    /// Rebuild the runway before a thumb can reach its end. A year each way
-    /// is generous, but the marks promise more strip in both directions and
-    /// a hard stop under one of them would make that a lie.
-    private static let runwayMargin = 7
-
-    init(
-        selection: Binding<Date>,
-        dropHoverDay: Binding<Date?>,
-        hasDinner: @escaping (Date) -> Bool,
-        canAcceptDrop: @escaping (Date) -> Bool,
-        moveMeal: @escaping (String?, Date) -> Bool,
-        selectionChanged: @escaping () -> Void,
-        shiftWeek: @escaping (Int) -> Void
-    ) {
-        self._selection = selection
-        self._dropHoverDay = dropHoverDay
-        self.hasDinner = hasDinner
-        self.canAcceptDrop = canAcceptDrop
-        self.moveMeal = moveMeal
-        self.selectionChanged = selectionChanged
-        self.shiftWeek = shiftWeek
-
-        let day = Calendar.current.startOfDay(for: selection.wrappedValue)
-        let initialDates = Self.makeDates(around: day)
-        self._dates = State(initialValue: initialDates)
-        // Start nil and assign after the scroll view exists. Supplying an ID
-        // before the lazy stack's first layout leaves that ID as the first
-        // materialized cell, with an empty half-strip to its left.
-        self._scrollPosition = State(initialValue: nil)
-        self._centeredIndex = State(initialValue: initialDates.firstIndex(of: day))
+    private var dateRange: ClosedRange<Date> {
+        let start = Calendar.current.date(byAdding: .day, value: 1, to: Date.now.startOfDay) ?? Date.now.startOfDay
+        let end = Calendar.current.date(byAdding: .day, value: 365, to: start) ?? start
+        return start...end
     }
 
     var body: some View {
-        GeometryReader { proxy in
-            let centerInset = max(0, (proxy.size.width - cellWidth) / 2)
-            // Increase Contrast softens nothing a person reads: the marks
-            // stay, the dissolve goes.
-            let fadeWidth = contrast == .increased ? 0 : Self.edgeFade
-
-            ScrollView(.horizontal) {
-                // Materialize only the visible runway. Building 731 buttons
-                // eagerly bloats the accessibility tree and can exhaust a
-                // phone during a drag. The scroll position starts nil and is
-                // assigned after layout, avoiding the old half-empty initial
-                // frame while retaining native continuous physics.
-                LazyHStack(spacing: cellSpacing) {
-                    ForEach(dates, id: \.self) { date in
-                        dayButton(date)
-                            .frame(width: cellWidth)
-                            .id(date)
-                    }
-                }
-                .scrollTargetLayout()
+        VStack(alignment: .leading, spacing: 18) {
+            Text("Plan this dinner again").plType(.title, .semibold).foregroundStyle(Color.ink)
+            Text(meal.title).plType(.body, .semibold).foregroundStyle(Color.ink)
+            Text("Choose an open date. The original dinner stays in your history.")
+                .plType(.footnote).foregroundStyle(Color.inkSecondary)
+            DatePicker("Dinner date", selection: $targetDate, in: dateRange, displayedComponents: .date)
+                .datePickerStyle(.graphical)
+                .tint(Color.accentText)
+            if occupied {
+                Text("There’s already a dinner planned for this date. Choose an open date to keep everyone’s plan intact.")
+                    .plType(.footnote).foregroundStyle(Color.dangerText)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            .scrollIndicators(.hidden)
-            .contentMargins(.horizontal, centerInset, for: .scrollContent)
-            .scrollPosition(id: $scrollPosition, anchor: .center)
-            .scrollTargetBehavior(.viewAligned(limitBehavior: .alwaysByFew))
-            .onScrollPhaseChange { _, phase in
-                scrollPhase = phase
-                if phase == .tracking {
-                    userIsScrubbing = true
-                    Haptic.prepare()
-                }
-
-                // A very short drag can move through the final threshold as
-                // the view snaps. Commit the resting date even when there was
-                // no deceleration callback between the two geometry samples.
-                if phase == .idle,
-                   userIsScrubbing,
-                   let centeredIndex,
-                   dates.indices.contains(centeredIndex) {
-                    adopt(dates[centeredIndex], haptic: false)
-                    userIsScrubbing = false
-
-                    // Keep the edge marks honest: a thumb nearing either end
-                    // of the runway gets a fresh year on both sides of where
-                    // it stopped. Only after a real scrub: the first idle
-                    // callback arrives while the geometry still reads index
-                    // zero, and rebuilding there put the selected day at the
-                    // far end of a runway that began a year earlier.
-                    if centeredIndex < Self.runwayMargin || centeredIndex > dates.count - 1 - Self.runwayMargin {
-                        let day = dates[centeredIndex]
-                        dates = Self.makeDates(around: day)
-                        self.centeredIndex = dates.firstIndex(of: day)
-                        scrollPosition = day
-                    }
-                }
+            PrimaryActionButton(title: occupied ? "Choose an open date" : "Add to plan", systemImage: "calendar.badge.plus") {
+                guard !occupied else { return }
+                let copy = PlannedMeal(
+                    date: targetDate,
+                    slot: meal.slotValue,
+                    recipe: meal.recipe,
+                    customTitle: meal.customTitle,
+                    servings: meal.servings,
+                    cook: meal.cook,
+                    tagline: meal.tagline
+                )
+                context.insert(copy)
+                Persist.save(context, "plan a past dinner again")
+                Haptic.plate()
+                dismiss()
             }
-            .onScrollGeometryChange(for: Int?.self) { geometry in
-                let stride = cellWidth + cellSpacing
-                guard stride > 0, !dates.isEmpty else { return nil }
-                let offset = geometry.contentOffset.x + geometry.contentInsets.leading
-                let index = Int((offset / stride).rounded())
-                return min(max(index, dates.startIndex), dates.index(before: dates.endIndex))
-            } action: { oldIndex, newIndex in
-                centeredIndex = newIndex
-                guard newIndex != oldIndex,
-                      scrollPhase == .interacting || scrollPhase == .decelerating,
-                      let newIndex,
-                      dates.indices.contains(newIndex)
-                else { return }
-                adopt(dates[newIndex], haptic: true)
-            }
-            .onChange(of: selection) { _, value in
-                let day = Calendar.current.startOfDay(for: value)
-                guard scrollPhase == .idle else { return }
-
-                if !dates.contains(day) {
-                    dates = Self.makeDates(around: day)
-                    centeredIndex = dates.firstIndex(of: day)
-                }
-                let follow = focusFollowsSelection
-                focusFollowsSelection = false
-                guard scrollPosition != day else {
-                    if follow { focusedDay = day }
-                    return
-                }
-                withAnimation(.plSnap) {
-                    scrollPosition = day
-                } completion: {
-                    if follow { focusedDay = day }
-                }
-            }
-            .onAppear {
-                scrollPosition = Calendar.current.startOfDay(for: selection)
-            }
-            // Painted over the strip rather than masked into it: a mask on
-            // the ScrollView left the lazy stack's first layout half empty,
-            // every cell right of the selected day missing until a scroll.
-            // The strip stands on canvas, so a canvas gradient at each edge
-            // is the same dissolve without touching the scroll view at all.
-            .overlay(alignment: .leading) { edgeFade(fadeWidth) }
-            .overlay(alignment: .trailing) { edgeFade(fadeWidth).scaleEffect(x: -1) }
-            .overlay(alignment: .leading) { edgeMark }
-            .overlay(alignment: .trailing) { edgeMark }
+            .disabled(occupied)
         }
-        .frame(height: 76)
-        .plChrome()
-        .accessibilityHint("Swipe left or right to choose a date")
-    }
-
-    /// The dissolve under each mark. Drawn for the leading edge and
-    /// mirrored for the trailing one, so the two can never drift apart.
-    private func edgeFade(_ width: CGFloat) -> some View {
-        LinearGradient(colors: [Color.canvas, Color.canvas.opacity(0)], startPoint: .leading, endPoint: .trailing)
-            .frame(width: width)
-            .allowsHitTesting(false)
-            .accessibilityHidden(true)
-    }
-
-    /// One view drawn twice here, and a third time on the month grid, so it
-    /// lives in Theme.swift rather than in either screen.
-    private var edgeMark: some View {
-        PlanEdgeMark().padding(.horizontal, Self.edgeMarkInset)
-    }
-
-    /// The jump the header arrows used to make, for readers who cannot
-    /// swipe the strip: VoiceOver's actions rotor, Voice Control's "Show
-    /// actions for Monday, September 7", Switch Control's actions menu.
-    /// The marks are silent and "Monday, September 14" alone does not tell
-    /// a listener that a week moved, so the week is spoken as well.
-    private func weekAction(_ delta: Int) {
-        let calendar = Calendar.current
-        let target = calendar.date(byAdding: .day, value: delta * 7, to: selection) ?? selection
-        focusFollowsSelection = true
-        shiftWeek(delta)
-
-        let spoken: String
-        if calendar.isDate(target, equalTo: .now, toGranularity: .weekOfYear) {
-            spoken = "This week"
-        } else {
-            let start = calendar.startOfWeek(for: target)
-            let sameYear = calendar.isDate(start, equalTo: .now, toGranularity: .year)
-            spoken = "Week of " + start.formatted(sameYear ? .dateTime.month(.wide).day() : .dateTime.month(.wide).day().year())
-        }
-        AccessibilityNotification.Announcement(spoken).post()
-    }
-
-    private func dayButton(_ date: Date) -> some View {
-        let selected = Calendar.current.isDate(date, inSameDayAs: selection)
-        let hovering = dropHoverDay.map { Calendar.current.isDate($0, inSameDayAs: date) } == true
-
-        return Button {
-            Haptic.select()
-            selectionChanged()
-            withAnimation(.plSnap) {
-                selection = date
-                scrollPosition = date
-            }
-        } label: {
-            VStack(spacing: 5) {
-                Text(date.formattedWeekday())
-                    .plType(.caption, .medium)
-                Text(date.formattedDayNumber())
-                    .plType(.heading, .semibold)
-                    .monospacedDigit()
-                Circle()
-                    .fill(hasDinner(date) ? (selected ? Color.onTomato : Color.inkSecondary) : Color.clear)
-                    .frame(width: 4, height: 4)
-            }
-            .foregroundStyle(selected ? Color.onTomato : Color.inkSecondary)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 8)
-            .background(
-                selected ? Color.tomato : hovering ? Color.tomatoTint : Color.clear,
-                in: Radius.shape(Radius.chip)
-            )
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.pressable)
-        .accessibilityAddTraits(selected ? .isSelected : [])
-        .accessibilityLabel(date.formatted(.dateTime.weekday(.wide).month().day()))
-        // The strip spans two years. A day-of-month identifier produced up
-        // to 24 indistinguishable controls for Voice Control and UI tests.
-        // Keep the spoken label human and make the programmatic identity a
-        // complete calendar date.
-        .accessibilityIdentifier(Self.accessibilityIdentifier(for: date))
-        .accessibilityFocused($focusedDay, equals: date)
-        // On the button itself, not the container: a ScrollView is not an
-        // element VoiceOver lands on, so actions hung there may never be
-        // offered, and this pair has to be certain.
-        .accessibilityAction(named: "Previous week") { weekAction(-1) }
-        .accessibilityAction(named: "Next week") { weekAction(1) }
-        .dropDestination(for: String.self) { tokens, _ in
-            moveMeal(tokens.first, date)
-        } isTargeted: { over in
-            if over, canAcceptDrop(date) {
-                dropHoverDay = date
-            } else if dropHoverDay.map({ Calendar.current.isDate($0, inSameDayAs: date) }) == true {
-                dropHoverDay = nil
-            }
-        }
-    }
-
-    private func adopt(_ date: Date, haptic: Bool) {
-        let day = Calendar.current.startOfDay(for: date)
-        guard !Calendar.current.isDate(day, inSameDayAs: selection) else { return }
-        if haptic { Haptic.select() }
-        selectionChanged()
-
-        // Rebuilding the featured card at every crossed day must not queue a
-        // train of animations behind the finger. The strip itself supplies
-        // all the movement; the content simply stays truthful to its center.
-        var transaction = Transaction()
-        transaction.animation = nil
-        withTransaction(transaction) { selection = day }
-    }
-
-    private static func makeDates(around center: Date) -> [Date] {
-        let calendar = Calendar.current
-        let center = calendar.startOfDay(for: center)
-        // A full year in either direction is a generous continuous runway;
-        // the date picker, a week action and a thumb nearing either end all
-        // rebuild it around wherever they land.
-        return (-365...365).compactMap {
-            calendar.date(byAdding: .day, value: $0, to: center)
-        }
-    }
-
-    private static func accessibilityIdentifier(for date: Date) -> String {
-        let components = Calendar.current.dateComponents([.year, .month, .day], from: date)
-        return "week-date-\(components.year ?? 0)-\(components.month ?? 0)-\(components.day ?? 0)"
+        .padding(24)
+        .plFitsOrScrolls()
+        .presentationDetents([.large])
+        .presentationDragIndicator(.visible)
+        .plTapOutsideToDismiss()
     }
 }
 

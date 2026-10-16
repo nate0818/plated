@@ -16,10 +16,11 @@ final class PlanShareTests: XCTestCase {
     private var container: ModelContainer!
     private var context: ModelContext { container.mainContext }
 
-    private static let calendar = Calendar.current
-    private nonisolated static var today: Date { calendar.startOfDay(for: .now) }
+    private nonisolated static var today: Date {
+        Calendar.current.startOfDay(for: .now)
+    }
     private nonisolated static func day(_ offset: Int) -> Date {
-        calendar.date(byAdding: .day, value: offset, to: today) ?? today
+        Calendar.current.date(byAdding: .day, value: offset, to: today) ?? today
     }
 
     /// The phone's real answer, put back afterwards, so running these on a

@@ -1,8 +1,9 @@
 import XCTest
+import SwiftData
 @testable import Plated
 
 /// The seat rules a sentence depends on. `hostedNames` is the list behind
-/// "You host this household with Riley and Max." in Settings, and it used
+/// "You organize this household with Riley and Max." in Settings, and it used
 /// to be "everybody but me who hasn't left", which named people who had
 /// only ever been sent a link.
 @MainActor
@@ -116,7 +117,7 @@ final class HouseholdMemberHostingTests: XCTestCase {
 
     func testOwnRowOmitsRole() {
         let nate = seat("Nate Meadows", .head, role: "owner", user: TableIdentity.cached)
-        XCTAssertEqual(nate.subtitle, "You · Owner")
+        XCTAssertEqual(nate.subtitle, "You · Organizer")
         XCTAssertFalse(nate.subtitle.contains("Head of table"))
         XCTAssertFalse(nate.subtitle.contains("Host"))
         let partner = seat("Alessandra", .joined, role: "partner", user: TableIdentity.cached)
@@ -136,7 +137,7 @@ final class HouseholdMemberHostingTests: XCTestCase {
         let nate = seat("Nate Meadows", .head, role: "owner", user: "ck-nate-real")
         nate.shareRecordName = "seat-nate"
         XCTAssertTrue(nate.isMe)
-        XCTAssertEqual(nate.subtitle, "You · Owner")
+        XCTAssertEqual(nate.subtitle, "You · Organizer")
         XCTAssertFalse(nate.subtitle.contains("Head of table"))
     }
 
@@ -152,8 +153,8 @@ final class HouseholdMemberHostingTests: XCTestCase {
         HouseholdShare.setMembership(.member(owner: "owner-1"))
         defer { HouseholdShare.setMembership(.solo) }
         let nate = seat("Nate Meadows", .head, role: "owner", user: "nate-id")
-        XCTAssertEqual(nate.subtitle, "Host")
-        XCTAssertNotEqual(nate.subtitle, "You · Head of table")
+        XCTAssertEqual(nate.subtitle, "Organizer")
+        XCTAssertNotEqual(nate.subtitle, "You · Organizer")
         XCTAssertFalse(nate.subtitle.contains("Head of table"))
     }
 
@@ -224,5 +225,82 @@ final class HouseholdMemberHostingTests: XCTestCase {
             HouseholdIdentity.seatedLine(names: ["Nate Meadows", "Alessandra"]),
             "Nate and Alessandra"
         )
+    }
+}
+
+/// A query can retain deleted rows until SwiftUI receives its next snapshot.
+/// Profile and its editor must filter that snapshot before reading identity.
+@MainActor
+final class HouseholdMemberQuerySnapshotTests: XCTestCase {
+    private var container: ModelContainer!
+    private var previousMembership: HouseholdShare.Membership!
+    private var previousSeat: String?
+    private var context: ModelContext { container.mainContext }
+
+    override func setUp() async throws {
+        previousMembership = HouseholdShare.membership
+        previousSeat = HouseholdShare.mySeat
+        HouseholdShare.setMembership(.solo)
+        HouseholdShare.mySeat = nil
+        container = try ModelContainer(
+            for: PlatedStore.schema,
+            configurations: [ModelConfiguration(
+                "profile-snapshot-\(UUID().uuidString)",
+                schema: PlatedStore.schema,
+                isStoredInMemoryOnly: true,
+                cloudKitDatabase: .none
+            )]
+        )
+    }
+
+    override func tearDown() async throws {
+        HouseholdShare.setMembership(previousMembership)
+        HouseholdShare.mySeat = previousSeat
+        container = nil
+    }
+
+    func testEditorFindsLiveSelfBehindDeletedSeatInQuerySnapshot() throws {
+        let stale = HouseholdMember(name: "Former seat", seat: .joined)
+        stale.userRecordName = "former-person"
+        stale.createdAt = Date(timeIntervalSince1970: 1)
+        let owner = HouseholdMember(name: "Jordan", role: "owner", seat: .head)
+        owner.userRecordName = TableIdentity.cached
+        owner.createdAt = Date(timeIntervalSince1970: 2)
+        context.insert(stale)
+        context.insert(owner)
+        try context.save()
+        let snapshot = try context.fetch(FetchDescriptor<HouseholdMember>(sortBy: [SortDescriptor(\.createdAt)]))
+        XCTAssertEqual(snapshot.count, 2)
+        XCTAssertTrue(snapshot.first === stale)
+
+        context.delete(stale)
+        XCTAssertTrue(snapshot.readable.me === owner)
+        try context.save()
+
+        XCTAssertEqual(snapshot.count, 2, "the retained query snapshot still contains the invalidated row")
+        XCTAssertEqual(snapshot.readable.count, 1)
+        XCTAssertTrue(snapshot.readable.me === owner)
+        XCTAssertEqual(snapshot.readable.me?.name, "Jordan")
+    }
+
+    func testProfileIdentityLookupExcludesDeletedSelfFromQuerySnapshot() throws {
+        let owner = HouseholdMember(name: "Jordan", role: "owner", seat: .head)
+        owner.userRecordName = TableIdentity.cached
+        let companion = HouseholdMember(name: "Riley", seat: .joined)
+        companion.userRecordName = "riley-person"
+        context.insert(owner)
+        context.insert(companion)
+        try context.save()
+        let snapshot = try context.fetch(FetchDescriptor<HouseholdMember>())
+        let ownerID = owner.persistentModelID
+        XCTAssertEqual(snapshot.count, 2)
+
+        context.delete(owner)
+        try context.save()
+
+        XCTAssertNil(snapshot.readable.first { $0.persistentModelID == ownerID })
+        XCTAssertNil(snapshot.readable.me)
+        XCTAssertNil(snapshot.readable.first { $0.name == "Jordan" })
+        XCTAssertTrue(snapshot.readable.first { $0.name == "Riley" } === companion)
     }
 }

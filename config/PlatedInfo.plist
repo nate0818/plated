@@ -2,8 +2,7 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<!-- Frame 0 of the opener: the plain persimmon field, so the launch
-	     animation takes over seamlessly (see design handoff §Interactions). -->
+	<!-- Editorial paper matches the readiness-driven launch lockup. -->
 	<key>UILaunchScreen</key>
 	<dict>
 		<key>UIColorName</key>

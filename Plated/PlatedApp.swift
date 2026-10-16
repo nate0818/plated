@@ -2,15 +2,23 @@ import SwiftUI
 import SwiftData
 import UIKit
 
-/// Which room the app is lit for.
-///
-/// This used to be a two-state switch that defaulted to light and ignored
-/// the phone entirely, so somebody whose iPhone is in Dark Mode opened
-/// Plated and got a white screen — and the widget, which is a separate
-/// target and has always followed the system, went dark beside it. One
-/// product disagreeing with itself on one Home Screen.
+/// The selected Editorial room is deep green, independent of the phone's theme.
 enum Appearance: String, CaseIterable, Identifiable {
     case system, light, dark
+
+    static let editorial: Appearance = .dark
+    static let migrationKey = "didAdoptEditorialAppearance20261016"
+
+    static func applyEditorialDefault(to defaults: UserDefaults) {
+        guard !defaults.bool(forKey: migrationKey) else { return }
+        let saved = defaults.string(forKey: "appearance").flatMap(Appearance.init(rawValue:))
+        // Older automatic defaults must not turn the selected green design into cream.
+        // A deliberate Light choice remains available, including after this migration.
+        if saved == nil || saved == .system {
+            defaults.set(editorial.rawValue, forKey: "appearance")
+        }
+        defaults.set(true, forKey: migrationKey)
+    }
 
     var id: String { rawValue }
 
@@ -18,11 +26,11 @@ enum Appearance: String, CaseIterable, Identifiable {
         switch self {
         case .system: return "System"
         case .light: return "Light"
-        case .dark: return "Dark"
+        case .dark: return "Editorial"
         }
     }
 
-    /// nil means "whatever the phone is doing", which is the point.
+    /// Following the phone is an optional setting; Editorial stays deep green.
     var scheme: ColorScheme? {
         switch self {
         case .system: return nil
@@ -42,10 +50,10 @@ enum Appearance: String, CaseIterable, Identifiable {
 
 @main
 struct PlatedApp: App {
-    @AppStorage("appearance") private var appearanceRaw = Appearance.system.rawValue
+    @AppStorage("appearance") private var appearanceRaw = Appearance.editorial.rawValue
 
     private var appearance: Appearance {
-        Appearance(rawValue: appearanceRaw) ?? .system
+        Appearance(rawValue: appearanceRaw) ?? .editorial
     }
     @Environment(\.scenePhase) private var scenePhase
     /// Only for `userDidAcceptCloudKitShareWith`, which has no SwiftUI
@@ -57,12 +65,46 @@ struct PlatedApp: App {
     /// on those launches: `HouseholdSync.ensureObserving` reaches for
     /// `PlatedStore.shared`, which would spin up the real store and its
     /// mirror beside the preview.
-    private static let previewFlags = ["-plated-design-review", "-plated-test-groceries", "-plated-test-probe-cleanup", "-plated-test-drag-moves"]
+    private static let previewFlags = [
+        "-plated-design-review",
+        "-plated-review-opener",
+        "-plated-review-sign-in",
+        "-plated-open-edit-profile",
+        "-plated-open-recipe-detail",
+        "-plated-open-recipe-ingredients",
+        "-plated-review-cooking-timer",
+        "-plated-review-recipe-share",
+        "-plated-review-recipe-picker",
+        "-plated-review-gathering",
+        "-plated-review-plan-night",
+        "-plated-review-move-meal",
+        "-plated-review-add-household-member",
+        "-plated-review-banner-crop",
+        "-plated-review-tour",
+        "-plated-review-onboarding",
+        "-plated-test-groceries",
+        "-plated-test-probe-cleanup",
+        "-plated-test-drag-moves"
+    ]
 
-    private static var usesPreviewContainer: Bool {
+    /// One boundary shared by the app, shell, feed and app delegate. A
+    /// preview-backed launch may read and mutate its in-memory fixture, but
+    /// it must never confirm identity, pull CloudKit, or repair the live
+    /// store sitting beside it.
+    static var usesPreviewContainer: Bool {
         #if DEBUG
         let arguments = ProcessInfo.processInfo.arguments
         return previewFlags.contains(where: { arguments.contains($0) })
+        #else
+        return false
+        #endif
+    }
+
+    private static var usesOnboardingReview: Bool {
+        #if DEBUG
+        let arguments = ProcessInfo.processInfo.arguments
+        return arguments.contains("-plated-review-tour")
+            || arguments.contains("-plated-review-onboarding")
         #else
         return false
         #endif
@@ -79,8 +121,19 @@ struct PlatedApp: App {
             }
             // Explicit UI-test fixture, inside the memory-only preview path.
             if arguments.contains("-plated-design-review") && arguments.contains("-plated-review-notifications") {
-                for _ in 0..<12 {
-                    preview.mainContext.insert(PlatedNotification(kind: .general, body: "A new update at your table."))
+                let sampleActivity: [(PlatedNotificationKind, String, String, TimeInterval)] = [
+                    (.dishPosted, "Sam Meadows", "Sam shared Pancake Dinner at the Table.", -90),
+                    (.commentAdded, "Riley Parker", "Riley replied to your question about Saturday.", -420),
+                    (.recipeAdded, "Sam Meadows", "Sam added Pesto Pasta to the cookbook.", -1_800),
+                    (.mealPlanned, "", "Dinner is planned for Friday.", -3_600),
+                    (.saveReceived, "Riley Parker", "Riley saved your Lemon Butter Salmon recipe.", -7_200),
+                    (.voteCast, "Sam Meadows", "Sam voted for Poke Night.", -14_400)
+                ]
+                for (kind, actor, body, age) in sampleActivity {
+                    preview.mainContext.insert(PlatedNotification(
+                        kind: kind, actorName: actor, body: body,
+                        at: .now.addingTimeInterval(age)
+                    ))
                 }
             }
             return preview
@@ -101,7 +154,7 @@ struct PlatedApp: App {
         }
         #endif
         BrandFonts.registerAll()
-        Self.carryAppearanceForward()
+        Appearance.applyEditorialDefault(to: .standard)
         #if DEBUG
         // The nine steps are a scale at every content size, or the app has
         // a callout bigger than its display and nobody notices until a
@@ -116,18 +169,6 @@ struct PlatedApp: App {
             _ = container
             HouseholdSync.ensureObserving()
         }
-    }
-
-    /// Somebody who deliberately turned the dark room on keeps it. Everybody
-    /// else joins the phone, which is what a fresh install now gives them and
-    /// what the widget has been doing all along. Runs once: after this the
-    /// `appearance` key exists and the old switch is never read again.
-    private static func carryAppearanceForward() {
-        let store = UserDefaults.standard
-        guard store.string(forKey: "appearance") == nil else { return }
-        let wasDark = store.bool(forKey: "afterDark")
-        store.set(wasDark ? Appearance.dark.rawValue : Appearance.system.rawValue,
-                  forKey: "appearance")
     }
 
     @MainActor
@@ -153,6 +194,7 @@ struct PlatedApp: App {
                 }
                 .onAppear { Self.applyRoomLighting(appearance) }
                 .task {
+                    guard !Self.usesPreviewContainer else { return }
                     await SyncStatus.shared.refresh()
                     await TableShare.removeSchemaProbes(from: container.mainContext)
                 }
@@ -160,7 +202,9 @@ struct PlatedApp: App {
                     // Every planner edit ends in a save, most of them
                     // through autosave with no call site to hook. Three
                     // seconds after the last one, the plan goes out.
-                    PlanShare.schedule(reason: "save")
+                    if !Self.usesPreviewContainer {
+                        PlanShare.schedule(reason: "save")
+                    }
                 }
                 .onReceive(NotificationCenter.default.publisher(for: PlanLedger.nightsDropped)) { _ in
                     // Nights left the ledger with no delivery to rebuild
@@ -168,13 +212,15 @@ struct PlatedApp: App {
                     // reset. Without this the 19:00 "Your night tomorrow"
                     // for a table this phone is no longer at fires anyway,
                     // until somebody opens the Plan tab.
-                    Task { @MainActor in await NotificationScheduler.rebuild(from: container.mainContext) }
+                    if !Self.usesPreviewContainer {
+                        Task { @MainActor in await NotificationScheduler.rebuild(from: container.mainContext) }
+                    }
                 }
                 .onChange(of: scenePhase) { _, phase in
                     // Someone who just switched iCloud back on in Settings
                     // returns here; that is precisely when the warning
                     // should be re-asked rather than left stale.
-                    if phase == .active {
+                    if phase == .active && !Self.usesPreviewContainer {
                         Task {
                             await SyncStatus.shared.refresh()
                             await TableShare.removeSchemaProbes(from: container.mainContext)
@@ -182,6 +228,14 @@ struct PlatedApp: App {
                     }
                 }
                 .task {
+                    // Every preview-backed launch is an inert product demo.
+                    // It may exercise local sample UI, but it must not confirm
+                    // a real CloudKit identity, clean up, or rewrite the live
+                    // app-group ledgers behind that UI. Letting Design Review
+                    // do so also races the shell's owner repair: the sample
+                    // head can be re-attributed between the shell's fetch and
+                    // insert, briefly laying a second "Add your name" owner.
+                    guard !Self.usesPreviewContainer else { return }
                     // Rehearsal nights are for one launch. Unless this one
                     // is a rehearsal, the nights a previous one left go,
                     // and the pretend household they pointed at goes too,
@@ -338,10 +392,13 @@ struct PlatedApp: App {
                 Self.applyRoomLighting(appearance)
             }
             // The home screen learns the week whenever the app breathes.
-            if phase == .background || phase == .active {
+            if (phase == .background || phase == .active) && !Self.usesPreviewContainer {
                 // And so does the household: a pass on the way in and on
                 // the way out, so a night planned and the app closed goes
-                // out before the phone sleeps.
+                // out before the phone sleeps. Preview-backed launches stay
+                // wholly in memory; a foreground pull reaches PlatedStore's
+                // live context and would cross the same boundary the launch
+                // task above deliberately protects.
                 PlanShare.schedule(reason: "scene")
                 Task { @MainActor in
                     // A night the household took off while this phone was

@@ -38,17 +38,26 @@ final class SyncStatus {
 /// to grow a `do/catch` around adding a grocery item — but the failure now
 /// reaches somewhere a person can see it.
 enum Persist {
+    @discardableResult
     @MainActor
-    static func save(_ context: ModelContext, _ what: StaticString = "") {
-        guard context.hasChanges else { return }
+    static func save(_ context: ModelContext, _ what: StaticString = "") -> Bool {
+        guard context.hasChanges else { return true }
+        let planChanged = context.insertedModelsArray.contains { $0 is PlannedMeal }
+            || context.changedModelsArray.contains { $0 is PlannedMeal }
+            || context.deletedModelsArray.contains { $0 is PlannedMeal }
         do {
             try context.save()
+            if planChanged {
+                NotificationScheduler.planDidChange(in: context)
+            }
+            return true
         } catch {
             // Not a crash: the object is still live in memory and the user's
             // work is on screen. What must not happen is pretending it was
             // written.
             print("PLATED SAVE FAILED [\(what)]: \(error)")
             SyncStatus.shared.noteSaveFailure()
+            return false
         }
     }
 }

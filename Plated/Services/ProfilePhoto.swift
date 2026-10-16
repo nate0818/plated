@@ -61,6 +61,22 @@ enum ProfilePhoto {
         return rendered.jpegData(compressionQuality: 0.8)
     }
 
+    /// Keep a household cover large enough to survive a full-width crop,
+    /// without syncing the original multi-megabyte camera image. This lives
+    /// outside a SwiftUI `View` so image work can safely run off the main
+    /// actor.
+    static func downscale(_ data: Data) -> Data? {
+        guard let image = UIImage(data: data) else { return nil }
+        let maxSide: CGFloat = 1400
+        let scale = min(1, maxSide / max(image.size.width, image.size.height))
+        let size = CGSize(width: image.size.width * scale, height: image.size.height * scale)
+        let renderer = UIGraphicsImageRenderer(size: size)
+        let resized = renderer.image { _ in
+            image.draw(in: CGRect(origin: .zero, size: size))
+        }
+        return resized.jpegData(compressionQuality: 0.75)
+    }
+
     // MARK: The hand-off between onboarding and the table
 
     /// Where a photo waits between "you chose it" and "there is a row to put

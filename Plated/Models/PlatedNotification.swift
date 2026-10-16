@@ -155,6 +155,7 @@ enum PlatedNotificationKind: String, Codable, CaseIterable {
 @Model
 final class HouseholdProfile {
     @Attribute(.externalStorage) var bannerPhotoData: Data?
+    var availableEquipment: [String] = []
     var createdAt: Date = Date.now
     /// The household root record's `modifiedAt` as last exchanged; the
     /// banner rides on the root (docs/household.md §3.6).

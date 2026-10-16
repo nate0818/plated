@@ -34,6 +34,16 @@ final class TableOutbox {
     }
 
     private var entries: [Entry] = []
+    /// One short-lived sender for a burst of plate / ballot taps.
+    ///
+    /// Reactions used to sit in the durable queue until an unrelated pull
+    /// happened. The queue remains the source of truth, but a tap now also
+    /// wakes a coalesced sender so the other seats see it promptly. Notes are
+    /// deliberately excluded: resolving one requires a ModelContext-owned
+    /// row, and treating a missing resolver as a deleted note loses words.
+    private var reactionDrainTask: Task<Void, Never>?
+    private var reactionDrainRequested = false
+    private var reactionAuthorName = ""
 
     private static var url: URL? {
         FileManager.default
@@ -52,11 +62,14 @@ final class TableOutbox {
     /// is one final state, not three writes. The key deliberately excludes
     /// the value, so the newest intent wins and the queue cannot grow with
     /// somebody fidgeting.
-    func enqueue(_ work: Work, author: String, at: Date = .now) {
+    @discardableResult
+    func enqueue(_ work: Work, author: String, at: Date = .now) -> Entry {
         let key = Self.key(for: work)
         entries.removeAll { Self.key(for: $0.work) == key }
-        entries.append(Entry(id: key, work: work, author: author, at: at))
+        let entry = Entry(id: key, work: work, author: author, at: at)
+        entries.append(entry)
         save()
+        return entry
     }
 
     func remove(_ id: String) {
@@ -67,13 +80,24 @@ final class TableOutbox {
     /// This attempt failed. Kept, so it goes out on the next pull.
     func failed(_ id: String) {
         guard let i = entries.firstIndex(where: { $0.id == id }) else { return }
-        entries[i].tries += 1
-        // Twenty refusals is not a network blip, it is a write that will
-        // never land — a post deleted at the far end, most likely. Dropping
-        // it is honest; retrying forever is a queue that never drains and a
-        // battery that never rests.
-        if entries[i].tries > 20 { entries.remove(at: i) }
-        save()
+        recordFailure(at: i)
+    }
+
+    /// Settle exactly the entry that was sent, never merely the entry with
+    /// the same key.
+    ///
+    /// A plate, un-plate and plate again all share one key. While the first
+    /// write is awaiting CloudKit, a later tap replaces its queue row. The
+    /// old completion must not remove or penalize that newer intent.
+    func finish(_ sent: Entry, succeeded: Bool) {
+        guard let i = entries.firstIndex(where: { $0.id == sent.id }),
+              entries[i] == sent else { return }
+        if succeeded {
+            entries.remove(at: i)
+            save()
+        } else {
+            recordFailure(at: i)
+        }
     }
 
     /// The identity that minted these turned out to be a real one.
@@ -86,8 +110,39 @@ final class TableOutbox {
     }
 
     func clear() {
+        reactionDrainRequested = false
+        reactionAuthorName = ""
         entries = []
         save()
+    }
+
+    /// Wake a single sender for a burst of reaction changes.
+    ///
+    /// The 140 ms window collapses a quick correction into the final state.
+    /// If another tap lands while CloudKit is answering, the loop makes one
+    /// more pass. Failures remain in the on-disk queue for the normal pull
+    /// drain; this is an eager attempt, never an alternate source of truth.
+    func kickReactionDrain(authorName: String) {
+        let name = authorName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else { return }
+        reactionAuthorName = name
+        reactionDrainRequested = true
+        guard reactionDrainTask == nil else { return }
+
+        reactionDrainTask = Task { @MainActor [weak self] in
+            do {
+                try await Task.sleep(for: .milliseconds(140))
+            } catch {
+                self?.reactionDrainTask = nil
+                return
+            }
+            guard let self else { return }
+            while self.reactionDrainRequested {
+                self.reactionDrainRequested = false
+                await self.drainReactions(authorName: self.reactionAuthorName)
+            }
+            self.reactionDrainTask = nil
+        }
     }
 
     /// Put everything queued on the table.
@@ -103,7 +158,7 @@ final class TableOutbox {
     /// moment CloudKit answers who this is.
     /// Finds a queued comment again by its wire name. Set by the view that
     /// owns a ModelContext; the outbox has none and should not.
-    var resolveNote: (String) -> TableComment? = { _ in nil }
+    var resolveNote: ((String) -> TableComment?)?
 
     func drain(authorName: String) async {
         let work = entries.sorted { $0.at < $1.at }
@@ -126,7 +181,13 @@ final class TableOutbox {
                 // again rather than carried in the queue: a queue that holds
                 // a copy of the text is a second place for the text to be
                 // wrong.
-                if let comment = await MainActor.run(body: { resolveNote(id) }) {
+                guard let resolveNote else {
+                    // No ModelContext was installed, so nil cannot tell us
+                    // "the row was deleted". Hold the durable entry until a
+                    // normal pull supplies a resolver.
+                    continue
+                }
+                if let comment = resolveNote(id) {
                     ok = await TableShare.pushNote(comment, post: post, zoneOwner: owner)
                 } else {
                     // Deleted before it ever went out. Nothing to send, and
@@ -134,8 +195,49 @@ final class TableOutbox {
                     ok = true
                 }
             }
-            if ok { remove(entry.id) } else { failed(entry.id) }
+            finish(entry, succeeded: ok)
         }
+    }
+
+    /// Eagerly send only work whose complete payload is in the outbox.
+    /// Notes point at SwiftData instead and wait for `drain`, whose caller
+    /// installs `resolveNote` first.
+    private func drainReactions(authorName: String) async {
+        let work = entries.sorted { $0.at < $1.at }.filter { entry in
+            switch entry.work {
+            case .plate, .ballot: return true
+            case .note: return false
+            }
+        }
+        for entry in work {
+            guard !entry.author.hasPrefix("local-") else { continue }
+            let ok: Bool
+            switch entry.work {
+            case let .plate(post, owner, active):
+                ok = await TableShare.pushPlate(
+                    post: post, zoneOwner: owner, author: entry.author,
+                    authorName: authorName, active: active, at: entry.at
+                )
+            case let .ballot(post, owner, choice):
+                ok = await TableShare.pushBallot(
+                    post: post, zoneOwner: owner, author: entry.author,
+                    authorName: authorName, choice: choice, at: entry.at
+                )
+            case .note:
+                continue
+            }
+            finish(entry, succeeded: ok)
+        }
+    }
+
+    private func recordFailure(at index: Int) {
+        entries[index].tries += 1
+        // Twenty refusals is not a network blip, it is a write that will
+        // never land — a post deleted at the far end, most likely. Dropping
+        // it is honest; retrying forever is a queue that never drains and a
+        // battery that never rests.
+        if entries[index].tries > 20 { entries.remove(at: index) }
+        save()
     }
 
     private static func key(for work: Work) -> String {

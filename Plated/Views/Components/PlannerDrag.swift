@@ -39,6 +39,7 @@ enum MealPlanMove {
         occupant?.date = previous
         do {
             try context.save()
+            NotificationScheduler.planDidChange(in: context)
             return true
         } catch {
             meal.date = previous
@@ -86,7 +87,7 @@ struct PlannerMealDrag: ViewModifier {
                         Spacer(minLength: 8)
                         Image(systemName: "arrow.up.and.down")
                             .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(Color.tomato)
+                            .foregroundStyle(Color.olive)
                     }
                     .padding(12)
                     .frame(width: 286, alignment: .leading)

@@ -1,7 +1,7 @@
 import Foundation
 
 enum AwardTone: String, CaseIterable {
-    case tomato, amber, basil, grape, copper, cocoa
+    case olive, amber, basil, grape, copper, cocoa
 }
 
 enum AwardTier: String {
@@ -77,7 +77,7 @@ enum Awards {
             id: "first-plate", title: "First plate",
             story: "The first dinner you finished with Plated.",
             howToEarn: "Cook one planned dish.", symbol: "fork.knife",
-            tone: .tomato, tier: .first, goal: 1, points: 75,
+            tone: .olive, tier: .first, goal: 1, points: 75,
             value: { $0.cookedMeals }
         ),
         Definition(
@@ -119,7 +119,7 @@ enum Awards {
             id: "crowd-pleaser", title: "Crowd pleaser",
             story: "Ten happy plates landed on food you shared.",
             howToEarn: "Receive 10 happy plates on your Table posts.", symbol: "hands.clap.fill",
-            tone: .tomato, tier: .silver, goal: 10, points: 250,
+            tone: .olive, tier: .silver, goal: 10, points: 250,
             value: { $0.happyPlates }
         ),
         Definition(

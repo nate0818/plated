@@ -6,13 +6,9 @@ import MessageUI
 ///
 /// The system share sheet on its own cannot answer the question a cook is
 /// actually asking, because the two most important destinations are inside
-/// Plated and iOS has never heard of them. So the app asks first — Table,
-/// Discover, or out into the world — and only then hands off to iOS for the
+/// Plated and iOS has never heard of them. So the app asks first — your
+/// private Table or out into the world — and only then hands off to iOS for the
 /// part iOS is better at.
-///
-/// Public and private sit in separate groups with a rule between them. They
-/// are one tap apart and the difference is who can read it forever, which is
-/// not a difference to leave to a subtitle nobody reads.
 struct RecipeShareSheet: View {
     let recipe: Recipe
 
@@ -22,8 +18,8 @@ struct RecipeShareSheet: View {
 
     @State private var messagesShown = false
     @State private var activityShown = false
-    @State private var confirmingDiscover = false
     @State private var copied = false
+    @State private var postedToTable = false
     /// The sheet's own height, measured rather than assumed.
     ///
     /// It was a literal 575, sized by hand for six rows. Two of those rows
@@ -42,7 +38,7 @@ struct RecipeShareSheet: View {
         VStack(spacing: 0) {
             VStack(spacing: 2) {
                 MicroLabel("Share")
-                Text(recipe.title.isEmpty ? "This recipe" : recipe.title)
+                Text(postedToTable ? "Saved to your Table" : "Choose where it goes")
                     .plType(.title)
                     .foregroundStyle(Color.ink)
                     .multilineTextAlignment(.center)
@@ -54,66 +50,68 @@ struct RecipeShareSheet: View {
 
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 10) {
-                    MicroLabel("On Plated")
-                    OptionRow(
-                        icon: "table.furniture",
-                        title: "Post to your Table",
-                        detail: "Your household and everyone with a seat"
-                    ) {
-                        RecipeShare.post(recipe, to: .table, by: owner, into: context)
-                        Haptic.plate()
-                        dismiss()
-                    }
-                    OptionRow(
-                        icon: "globe",
-                        title: "Share to Discover",
-                        detail: "Every table on Plated can read it"
-                    ) {
-                        confirmingDiscover = true
-                    }
+                    if postedToTable {
+                        tablePostConfirmation
+                            .frame(maxWidth: .infinity)
+                            .padding(.top, 18)
+                            .transition(.opacity.combined(with: .move(edge: .bottom)))
+                    } else {
+                        recipePreview
 
-                    MicroLabel("Anywhere else")
-                        .padding(.top, 8)
-                    // A device with no Messages account cannot send one, and
-                    // the composer presents as a blank sheet rather than
-                    // saying so. Same guard the scanner row uses.
-                    if RecipeMessageComposer.isAvailable {
+                        MicroLabel("On Plated")
                         OptionRow(
-                            icon: "message",
-                            title: "Message it",
-                            detail: "The photo and the whole recipe, in a text"
+                            icon: "table.furniture",
+                            title: "Post to your Table",
+                            detail: "Only your household and invited people"
                         ) {
-                            messagesShown = true
+                            RecipeShare.post(recipe, to: .table, by: owner, into: context)
+                            Haptic.plate()
+                            withAnimation(.plSnap) { postedToTable = true }
                         }
-                    }
-                    OptionRow(
-                        icon: "square.and.arrow.up",
-                        title: "More apps",
-                        detail: "Instagram, Pinterest, X, Mail, wherever"
-                    ) {
-                        activityShown = true
-                    }
-                    if RecipePrint.isAvailable {
+
+                        MicroLabel("Anywhere else")
+                            .padding(.top, 8)
+                        // A device with no Messages account cannot send one, and
+                        // the composer presents as a blank sheet rather than
+                        // saying so. Same guard the scanner row uses.
+                        if RecipeMessageComposer.isAvailable {
+                            OptionRow(
+                                icon: "message",
+                                title: "Message it",
+                                detail: "The photo and the whole recipe, in a text"
+                            ) {
+                                messagesShown = true
+                            }
+                        }
                         OptionRow(
-                            icon: "printer",
-                            title: "Print it",
-                            detail: "A clean card for the fridge"
+                            icon: "square.and.arrow.up",
+                            title: "More apps",
+                            detail: "Instagram, Pinterest, X, Mail, wherever"
                         ) {
-                            // The sheet is the thing being replaced by the
-                            // print sheet, so it leaves first — two system
-                            // sheets fighting for the same window is how you
-                            // get a print dialog nobody can dismiss.
-                            dismiss()
-                            RecipePrint.present(recipe)
+                            activityShown = true
                         }
-                    }
-                    OptionRow(
-                        icon: copied ? "checkmark" : "doc.on.doc",
-                        title: copied ? "Copied" : "Copy the recipe",
-                        detail: "Plain text, ready to paste"
-                    ) {
-                        UIPasteboard.general.string = RecipeShare.text(for: recipe, includeSource: false)
-                        withAnimation(.plSnap) { copied = true }
+                        if RecipePrint.isAvailable {
+                            OptionRow(
+                                icon: "printer",
+                                title: "Print it",
+                                detail: "A clean card for the fridge"
+                            ) {
+                                // The sheet is the thing being replaced by the
+                                // print sheet, so it leaves first — two system
+                                // sheets fighting for the same window is how you
+                                // get a print dialog nobody can dismiss.
+                                dismiss()
+                                RecipePrint.present(recipe)
+                            }
+                        }
+                        OptionRow(
+                            icon: copied ? "checkmark" : "doc.on.doc",
+                            title: copied ? "Copied" : "Copy the recipe",
+                            detail: "Plain text, ready to paste"
+                        ) {
+                            UIPasteboard.general.string = RecipeShare.text(for: recipe, includeSource: false)
+                            withAnimation(.plSnap) { copied = true }
+                        }
                     }
                 }
                 .padding(.horizontal, 24)
@@ -133,20 +131,6 @@ struct RecipeShareSheet: View {
         .presentationDragIndicator(.visible)
         .presentationBackground(Color.canvas)
         .presentationCornerRadius(Radius.sheet)
-        .confirmationDialog(
-            "Share to Discover?",
-            isPresented: $confirmingDiscover,
-            titleVisibility: .visible
-        ) {
-            Button("Share with every table") {
-                RecipeShare.post(recipe, to: .discover, by: owner, into: context)
-                Haptic.plate()
-                dismiss()
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("Anyone on Plated will be able to read this recipe and see your name on it.")
-        }
         .sheet(isPresented: $messagesShown) {
             RecipeMessageComposer(recipe: recipe) { messagesShown = false }
                 .ignoresSafeArea()
@@ -155,6 +139,50 @@ struct RecipeShareSheet: View {
             ShareActivityView(items: RecipeShare.activityItems(for: recipe))
                 .ignoresSafeArea()
         }
+    }
+
+    private var recipePreview: some View {
+        HStack(spacing: 12) {
+            RecipeArtwork(data: recipe.photoData, title: recipe.title, ratio: 1, radius: Radius.small)
+                .frame(width: 64, height: 64)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(recipe.title.isEmpty ? "Untitled recipe" : recipe.title)
+                    .plType(.body, .bold)
+                    .foregroundStyle(Color.ink)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text("Ingredients and method")
+                    .plType(.caption)
+                    .foregroundStyle(Color.inkSecondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(12)
+        .background(Color.raisedFill, in: Radius.shape(Radius.card))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Sharing \(recipe.title.isEmpty ? "untitled recipe" : recipe.title), including ingredients and method")
+    }
+
+    private var tablePostConfirmation: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 40, weight: .regular))
+                .foregroundStyle(Color.olive)
+                .accessibilityHidden(true)
+            Text(recipe.title.isEmpty ? "Your recipe is saved to your Table" : "\(recipe.title) is saved to your Table")
+                .plType(.body, .bold)
+                .foregroundStyle(Color.ink)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+            Text("It will appear for your household and invited people as it syncs.")
+                .plType(.footnote)
+                .foregroundStyle(Color.inkSecondary)
+                .multilineTextAlignment(.center)
+            PrimaryActionButton(title: "Done") { dismiss() }
+                .padding(.top, 6)
+        }
+        .padding(.horizontal, 12)
+        .accessibilityElement(children: .contain)
     }
 }
 

@@ -1,22 +1,21 @@
 import type { Metadata, Viewport } from "next";
-import { Gabarito, Plus_Jakarta_Sans } from "next/font/google";
-import AnimatedFavicon from "./components/AnimatedFavicon";
+import localFont from "next/font/local";
 import AnalyticsGate from "./components/AnalyticsGate";
 import "./globals.css";
 
-// The same two faces the app registers at launch, from Google Fonts so
-// plated.food and the phone draw the same letters. Gabarito is display only.
-const gabarito = Gabarito({
-  variable: "--font-gabarito",
-  subsets: ["latin"],
-  weight: ["500", "600", "700"],
+// The same font files the app registers at launch, self-hosted so page loads
+// and builds never depend on a third-party font service.
+const editorial = localFont({
+  src: "./fonts/Newsreader.ttf",
+  variable: "--font-editorial",
+  weight: "200 800",
   display: "swap",
 });
 
-const jakarta = Plus_Jakarta_Sans({
-  variable: "--font-jakarta",
-  subsets: ["latin"],
-  weight: ["500", "600", "700"],
+const sans = localFont({
+  src: "./fonts/DMSans.ttf",
+  variable: "--font-sans",
+  weight: "100 1000",
   display: "swap",
 });
 
@@ -29,7 +28,7 @@ const DESCRIPTION =
 export const metadata: Metadata = {
   metadataBase: new URL("https://plated.food"),
   title: {
-    default: "Plated: plan the week's dinners together",
+    default: "Plated: your week, well fed",
     template: "%s · Plated",
   },
   description: DESCRIPTION,
@@ -54,12 +53,12 @@ export const metadata: Metadata = {
     type: "website",
     locale: "en_US",
     url: "https://plated.food",
-    title: "Plated: plan the week's dinners together",
+    title: "Plated: your week, well fed",
     description: DESCRIPTION,
   },
   twitter: {
     card: "summary_large_image",
-    title: "Plated: plan the week's dinners together",
+    title: "Plated: your week, well fed",
     description: DESCRIPTION,
   },
   robots: {
@@ -68,14 +67,10 @@ export const metadata: Metadata = {
     googleBot: { index: true, follow: true, "max-image-preview": "large", "max-snippet": -1 },
   },
   formatDetection: { telephone: false, email: false, address: false },
-  icons: {
-    // Safari pinned tabs want a monochrome SVG and paint it in this colour.
-    other: [{ rel: "mask-icon", url: "/mask-icon.svg", color: "#FF5A3C" }],
-  },
 };
 
 export const viewport: Viewport = {
-  themeColor: "#FFFFFF",
+  themeColor: "#191C17",
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
@@ -83,9 +78,8 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`${gabarito.variable} ${jakarta.variable}`}>
+    <html lang="en" className={`${editorial.variable} ${sans.variable}`}>
       <body>
-        <AnimatedFavicon />
         {children}
         <AnalyticsGate />
       </body>

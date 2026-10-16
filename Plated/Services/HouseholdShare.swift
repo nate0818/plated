@@ -204,6 +204,7 @@ enum HouseholdShare {
         var autoRotate = true
         var publishedAt: Date?
         var removedIDs: [String] = []
+        var availableEquipment: [String] = []
         var modifiedAt = Date.now
     }
 
@@ -229,6 +230,8 @@ enum HouseholdShare {
         var userRecordName: String?
         var bio = ""
         var photo: Data?
+        var profileBannerPhoto: Data?
+        var profileBannerPhotoModifiedAt: Date?
     }
 
     /// One ingredient line as it rides inside `ingredientsJSON`.
@@ -239,6 +242,7 @@ enum HouseholdShare {
         var aisle = GroceryAisle.other.rawValue
         var isPantryStaple = false
         var sortIndex = 0
+        var package: IngredientPackage? = nil
     }
 
     struct RemoteRecipe: Equatable {
@@ -268,6 +272,7 @@ enum HouseholdShare {
         var createdAt = Date.now
         var cookNotes = ""
         var weatherMoods: [String] = []
+        var planningMetadata: RecipePlanningMetadata = .empty
         var ingredients: [WireIngredient] = []
         var photoData: Data?
         var extraPhotos: [Data] = []
@@ -299,6 +304,7 @@ enum HouseholdShare {
         /// yyyy-MM-dd of the window the line is filed under.
         var day = ""
         var originTitle = ""
+        var recipeOrigins: [RecipeGroceryOrigin] = []
         var isChecked = false
     }
 
@@ -565,6 +571,7 @@ enum HouseholdShare {
         r.autoRotate = TableShare.int(record, "autoRotateOpenNights") != 0
         r.publishedAt = record["publishedAt"] as? Date
         r.removedIDs = record["removedIDs"] as? [String] ?? []
+        r.availableEquipment = record["availableEquipment"] as? [String] ?? []
         r.modifiedAt = record["modifiedAt"] as? Date ?? .now
         return r
     }
@@ -592,6 +599,8 @@ enum HouseholdShare {
         s.userRecordName = record["userRecordName"] as? String
         s.bio = Wire.string(record, "bio")
         s.photo = Wire.data(record, "photo")
+        s.profileBannerPhoto = Wire.data(record, "profileBannerPhoto")
+        s.profileBannerPhotoModifiedAt = record["profileBannerPhotoModifiedAt"] as? Date
         return s
     }
 
@@ -623,6 +632,10 @@ enum HouseholdShare {
         r.createdAt = record["createdAt"] as? Date ?? .now
         r.cookNotes = Wire.string(record, "cookNotes")
         r.weatherMoods = record["weatherMoods"] as? [String] ?? []
+        if let json = record["planningMetadataJSON"] as? String,
+           let data = json.data(using: .utf8) {
+            r.planningMetadata = (try? JSONDecoder().decode(RecipePlanningMetadata.self, from: data)) ?? .empty
+        }
         if let json = record["ingredientsJSON"] as? String, let data = json.data(using: .utf8) {
             r.ingredients = (try? JSONDecoder().decode([WireIngredient].self, from: data)) ?? []
         }
@@ -659,6 +672,9 @@ enum HouseholdShare {
         l.aisle = record["aisle"] as? String ?? GroceryAisle.other.rawValue
         l.day = Wire.string(record, "day")
         l.originTitle = Wire.string(record, "originTitle")
+        if let json = record["recipeOriginsJSON"] as? String, let data = json.data(using: .utf8) {
+            l.recipeOrigins = (try? JSONDecoder().decode([RecipeGroceryOrigin].self, from: data)) ?? []
+        }
         l.isChecked = TableShare.int(record, "isChecked") != 0
         return l
     }
@@ -690,6 +706,7 @@ enum HouseholdShare {
         Wire.set(record, "autoRotateOpenNights", root.autoRotate ? 1 : 0)
         Wire.set(record, "publishedAt", root.publishedAt)
         Wire.setList(record, "removedIDs", root.removedIDs)
+        Wire.setList(record, "availableEquipment", root.availableEquipment)
         Wire.set(record, "modifiedAt", root.modifiedAt)
     }
 
@@ -713,6 +730,8 @@ enum HouseholdShare {
         Wire.set(record, "userRecordName", s.userRecordName)
         Wire.set(record, "bio", s.bio)
         Wire.setAsset(record, "photo", s.photo)
+        Wire.setAsset(record, "profileBannerPhoto", s.profileBannerPhoto)
+        Wire.set(record, "profileBannerPhotoModifiedAt", s.profileBannerPhotoModifiedAt)
     }
 
     /// `includingPhotos` false leaves the photo keys of a fetched record
@@ -743,6 +762,9 @@ enum HouseholdShare {
         Wire.set(record, "createdAt", r.createdAt)
         Wire.set(record, "cookNotes", r.cookNotes)
         Wire.setList(record, "weatherMoods", r.weatherMoods)
+        let metadataJSON = (try? JSONEncoder().encode(r.planningMetadata))
+            .flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
+        Wire.set(record, "planningMetadataJSON", metadataJSON)
         let json = (try? JSONEncoder().encode(r.ingredients))
             .flatMap { String(data: $0, encoding: .utf8) } ?? "[]"
         Wire.set(record, "ingredientsJSON", json)
@@ -775,6 +797,9 @@ enum HouseholdShare {
         Wire.set(record, "aisle", l.aisle)
         Wire.set(record, "day", l.day)
         Wire.set(record, "originTitle", l.originTitle)
+        let originsJSON = (try? JSONEncoder().encode(l.recipeOrigins))
+            .flatMap { String(data: $0, encoding: .utf8) } ?? "[]"
+        Wire.set(record, "recipeOriginsJSON", originsJSON)
         Wire.set(record, "isChecked", l.isChecked ? 1 : 0)
     }
 
@@ -812,6 +837,8 @@ enum HouseholdShare {
         s.userRecordName = member.userRecordName
         s.bio = member.bio
         s.photo = member.photoData
+        s.profileBannerPhoto = member.profileBannerPhotoData
+        s.profileBannerPhotoModifiedAt = member.profileBannerPhotoModifiedAt
         return s
     }
 
@@ -842,9 +869,11 @@ enum HouseholdShare {
         r.createdAt = recipe.createdAt
         r.cookNotes = recipe.cookNotes
         r.weatherMoods = recipe.weatherMoods
+        r.planningMetadata = RecipePlanningMetadata(recipe: recipe)
         r.ingredients = recipe.sortedIngredients.map {
             WireIngredient(name: $0.name, quantity: $0.quantity, unit: $0.unit,
-                           aisle: $0.aisle, isPantryStaple: $0.isPantryStaple, sortIndex: $0.sortIndex)
+                           aisle: $0.aisle, isPantryStaple: $0.isPantryStaple,
+                           sortIndex: $0.sortIndex, package: $0.package)
         }
         r.photoData = recipe.photoData
         r.extraPhotos = recipe.sortedExtraPhotos.compactMap(\.photoData)
@@ -877,6 +906,7 @@ enum HouseholdShare {
         l.aisle = line.aisle
         l.day = Wire.day(line.weekStart)
         l.originTitle = line.originTitle
+        l.recipeOrigins = line.recipeOrigins
         l.isChecked = line.isChecked
         return l
     }
@@ -1187,6 +1217,11 @@ enum HouseholdShare {
             if let photo = s.photo, photo != hostPhoto {
                 member.photoData = photo
             }
+            if let modifiedAt = s.profileBannerPhotoModifiedAt,
+               modifiedAt >= (member.profileBannerPhotoModifiedAt ?? .distantPast) {
+                member.profileBannerPhotoData = s.profileBannerPhoto
+                member.profileBannerPhotoModifiedAt = modifiedAt
+            }
         }
         if member.authorID.isEmpty { member.authorID = s.authorID }
         member.shareModifiedAt = s.modifiedAt
@@ -1216,6 +1251,7 @@ enum HouseholdShare {
         recipe.createdAt = r.createdAt
         recipe.cookNotes = r.cookNotes
         recipe.weatherMoods = r.weatherMoods
+        r.planningMetadata.apply(to: recipe)
         // isFavorite and isPinned are per person and never travel.
 
         // Ingredients are one write unit with the recipe: the editor rebuilds
@@ -1228,6 +1264,7 @@ enum HouseholdShare {
                 aisle: GroceryAisle(rawValue: w.aisle) ?? .other,
                 isPantryStaple: w.isPantryStaple, sortIndex: index
             )
+            ingredient.package = w.package ?? IngredientPackage()
             ingredient.recipe = recipe
             context.insert(ingredient)
         }
@@ -1270,6 +1307,7 @@ enum HouseholdShare {
         line.aisle = l.aisle
         if let day = Wire.date(fromDay: l.day) { line.weekStart = day }
         line.originTitle = l.originTitle
+        line.recipeOrigins = l.recipeOrigins
         line.isChecked = l.isChecked
         line.isManual = true
         if line.authorID.isEmpty { line.authorID = l.authorID }
@@ -1313,6 +1351,7 @@ enum HouseholdShare {
         if profile.bannerPhotoData != root.banner {
             profile.bannerPhotoData = root.banner
         }
+        profile.availableEquipment = root.availableEquipment
         profile.shareModifiedAt = root.modifiedAt
         print("PLATED HOUSEHOLD: root applied, name \"\(root.name)\", host \(root.hostName), published \(root.publishedAt.map { "\($0)" } ?? "not yet")")
     }
@@ -1335,7 +1374,9 @@ enum HouseholdShare {
         root.hostName = host?.name ?? cachedOwnerName
         root.hostPhoto = host?.photoData
         let profiles = (try? context.fetch(FetchDescriptor<HouseholdProfile>())) ?? []
-        root.banner = profiles.sorted(by: { $0.createdAt < $1.createdAt }).first?.bannerPhotoData
+        let profile = profiles.sorted(by: { $0.createdAt < $1.createdAt }).first
+        root.banner = profile?.bannerPhotoData
+        root.availableEquipment = profile?.availableEquipment ?? []
         root.tableShareURL = cachedTableShareURL
         root.autoRotate = UserDefaults.standard.object(forKey: "autoRotateOpenNights") as? Bool ?? true
         root.publishedAt = cachedPublishedAt

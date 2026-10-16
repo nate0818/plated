@@ -17,6 +17,13 @@ struct SuggestionEngine {
 
     let recipes: [Recipe]
     let members: [HouseholdMember]
+    let availableEquipment: [String]
+
+    init(recipes: [Recipe], members: [HouseholdMember], availableEquipment: [String] = []) {
+        self.recipes = recipes
+        self.members = members
+        self.availableEquipment = availableEquipment
+    }
 
     /// Ranks candidates for a given day, best first.
     func suggestions(
@@ -29,6 +36,7 @@ struct SuggestionEngine {
             // Anything that trips a household member's hard no is out entirely.
             let blocked = members.contains { !recipe.conflicts(for: $0).isEmpty }
             if blocked { return nil }
+            if !equipmentFits(recipe) { return nil }
 
             var score = 0.0
             var reasons: [String] = []
@@ -65,6 +73,13 @@ struct SuggestionEngine {
         }
 
         return Array(candidates.sorted { $0.score > $1.score }.prefix(limit))
+    }
+
+    private func equipmentFits(_ recipe: Recipe) -> Bool {
+        let available = Set(availableEquipment.map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }.filter { !$0.isEmpty })
+        let required = Set(recipe.equipment.map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }.filter { !$0.isEmpty })
+        guard !available.isEmpty, !required.isEmpty else { return true }
+        return required.isSubset(of: available)
     }
 
     private func headline(recipe: Recipe, forecast: ForecastProvider.DayForecast?, name: String?) -> String {

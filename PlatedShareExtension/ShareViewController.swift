@@ -21,23 +21,31 @@ final class ShareViewController: UIViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        view.backgroundColor = .systemBackground
+        view.backgroundColor = EditorialSharePalette.canvas
+        view.tintColor = EditorialSharePalette.olive
 
         spinner.startAnimating()
         statusLabel.text = "Sending to Plated…"
-        statusLabel.font = .preferredFont(forTextStyle: .body)
-        statusLabel.textColor = .label
+        let descriptor = UIFontDescriptor.preferredFontDescriptor(withTextStyle: .title2)
+        statusLabel.font = UIFont(descriptor: descriptor.withDesign(.serif) ?? descriptor, size: 0)
+        statusLabel.textColor = EditorialSharePalette.ink
         statusLabel.adjustsFontForContentSizeCategory = true
         statusLabel.textAlignment = .center
 
         detailLabel.font = .preferredFont(forTextStyle: .footnote)
-        detailLabel.textColor = .secondaryLabel
+        detailLabel.textColor = EditorialSharePalette.secondary
         detailLabel.adjustsFontForContentSizeCategory = true
         detailLabel.textAlignment = .center
         detailLabel.numberOfLines = 0
         detailLabel.isHidden = true
 
         doneButton.setTitle("Done", for: .normal)
+        var configuration = UIButton.Configuration.filled()
+        configuration.baseBackgroundColor = EditorialSharePalette.orange
+        configuration.baseForegroundColor = EditorialSharePalette.onOrange
+        configuration.background.cornerRadius = 6
+        configuration.contentInsets = NSDirectionalEdgeInsets(top: 12, leading: 28, bottom: 12, trailing: 28)
+        doneButton.configuration = configuration
         doneButton.titleLabel?.font = .preferredFont(forTextStyle: .headline)
         doneButton.titleLabel?.adjustsFontForContentSizeCategory = true
         doneButton.isHidden = true
@@ -178,4 +186,19 @@ final class ShareViewController: UIViewController {
             }
         }
     }
+}
+
+private enum EditorialSharePalette {
+    static func color(_ light: UInt32, _ dark: UInt32) -> UIColor {
+        UIColor { trait in
+            let value = trait.userInterfaceStyle == .dark ? dark : light
+            return UIColor(red: CGFloat((value >> 16) & 255) / 255, green: CGFloat((value >> 8) & 255) / 255, blue: CGFloat(value & 255) / 255, alpha: 1)
+        }
+    }
+    static let canvas = color(0xFAF9F4, 0x191C17)
+    static let ink = color(0x27362A, 0xEDF0E6)
+    static let secondary = color(0x606958, 0xB0B8A8)
+    static let olive = color(0x355941, 0xB2C9A5)
+    static let orange = color(0xFF5A3C, 0xFF785B)
+    static let onOrange = color(0x221B14, 0x221B14)
 }

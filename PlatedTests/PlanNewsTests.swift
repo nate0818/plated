@@ -455,6 +455,10 @@ final class PlanNewsTests: XCTestCase {
         XCTAssertEqual(PlanDay.date(PlanDay.string(noon)), Self.tomorrow)
     }
 
+    func testParkedProngsbyLinkHasNoDestination() {
+        XCTAssertNil(DeepLink.destination(for: URL(string: "plated://prongsby")!))
+    }
+
     func testNightPhrasesLadder() {
         XCTAssertEqual(Stamp.nightPhrase(Self.today), "tonight")
         XCTAssertEqual(Stamp.nightPhrase(Self.tomorrow), "tomorrow")

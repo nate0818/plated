@@ -30,9 +30,16 @@ enum Directory {
     /// UserDefaults: it is the credential that lets this device ask who
     /// somebody's contacts are.
     private static let tokenAccount = "plated.directory.token"
+    /// Kept across a transient network failure so a response lost after the
+    /// server commits can be retried without resurrecting an already-deleted
+    /// account as an apparent authorization error.
+    private static let deletionRequestKey = "plated.directory.deletion-request"
 
     static var isRegistered: Bool { token != nil }
-    static func clearSession() { token = nil }
+    static func clearSession() {
+        token = nil
+        UserDefaults.standard.removeObject(forKey: deletionRequestKey)
+    }
 
     private static var token: String? {
         get { Keychain.string(for: tokenAccount) }
@@ -67,6 +74,7 @@ enum Directory {
         else { return false }
 
         token = minted
+        UserDefaults.standard.removeObject(forKey: deletionRequestKey)
         // The token APNs gave this launch, now that there is somebody to
         // register it for.
         let store = UserDefaults(suiteName: WidgetBridge.appGroupID) ?? .standard
@@ -187,6 +195,89 @@ enum Directory {
         request.setValue(publishableKey, forHTTPHeaderField: "apikey")
         request.setValue(token, forHTTPHeaderField: "X-Plated-Session")
         return request
+    }
+
+    // MARK: Account deletion
+
+    enum AccountDeletionError: LocalizedError, Equatable, Sendable {
+        case notRegistered
+        case sessionExpired
+        case unavailable
+        case invalidResponse
+        case network
+
+        var errorDescription: String? {
+            switch self {
+            case .notRegistered:
+                "This iPhone has no verified directory session to delete. If you registered on another device, email privacy@getplated.food."
+            case .sessionExpired:
+                "This directory session is no longer valid. Sign in again, then retry deletion, or email privacy@getplated.food."
+            case .unavailable:
+                "Plated could not reach the directory deletion service. Nothing was deleted. Try again shortly."
+            case .invalidResponse:
+                "The directory did not confirm deletion. Nothing was cleared from this iPhone. Try again shortly."
+            case .network:
+                "The directory could not be reached. Nothing was cleared from this iPhone. Check your connection and try again."
+            }
+        }
+    }
+
+    /// Permanently remove the developer-side directory account. This never
+    /// touches private CloudKit data. Local credentials are cleared only after
+    /// the server confirms its atomic transaction; a failure leaves the user
+    /// signed in so the authenticated request can be retried.
+    static func deleteAccount() async throws {
+        guard let token else { throw AccountDeletionError.notRegistered }
+
+        let requestID: UUID
+        if let raw = UserDefaults.standard.string(forKey: deletionRequestKey),
+           let pending = UUID(uuidString: raw) {
+            requestID = pending
+        } else {
+            requestID = UUID()
+            UserDefaults.standard.set(requestID.uuidString.lowercased(), forKey: deletionRequestKey)
+        }
+
+        var request = URLRequest(url: base.appending(path: "account-delete"))
+        request.httpMethod = "POST"
+        request.timeoutInterval = 20
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(publishableKey, forHTTPHeaderField: "apikey")
+        request.setValue("Bearer \(publishableKey)", forHTTPHeaderField: "Authorization")
+        request.setValue(token, forHTTPHeaderField: "X-Plated-Session")
+        request.setValue(requestID.uuidString.lowercased(), forHTTPHeaderField: "Idempotency-Key")
+        request.httpBody = Data("{}".utf8)
+
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await URLSession.shared.data(for: request)
+        } catch {
+            throw AccountDeletionError.network
+        }
+        guard let http = response as? HTTPURLResponse else {
+            throw AccountDeletionError.invalidResponse
+        }
+        try accountDeletionSucceeded(statusCode: http.statusCode, data: data)
+        clearSession()
+    }
+
+    /// Kept separate from transport so the destructive-success boundary can be
+    /// unit tested without a live directory or a real Keychain credential.
+    static func accountDeletionSucceeded(statusCode: Int, data: Data) throws {
+        switch statusCode {
+        case 200..<300:
+            guard
+                let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                json["deleted"] as? Bool == true
+            else { throw AccountDeletionError.invalidResponse }
+        case 401, 403:
+            throw AccountDeletionError.sessionExpired
+        case 404, 408, 409, 425, 429, 500..<600:
+            throw AccountDeletionError.unavailable
+        default:
+            throw AccountDeletionError.invalidResponse
+        }
     }
 
     // MARK: Plumbing

@@ -1,0 +1,11 @@
+No demo account is required.
+
+Plated can be reviewed without signing in: during onboarding, Sign in with Apple enables the optional directory used for contact matching, invitations, and notifications. If Sign in with Apple is unavailable, choose “Continue on this iPhone.” Planning, recipes, groceries, Cook Mode, local insights, and the core Table experience remain accessible.
+
+Household and Table collaboration use private CloudKit shares between Apple IDs. A Table guest cannot access the household plan, groceries, or cookbook.
+
+Permissions are requested only when their feature is used: Location for WeatherKit suggestions, Calendar for gathering sync, Reminders for grocery export, Contacts for choosing invitees, Camera for recipe scans or a profile photo, and Notifications for invitations and service notices. Library images are chosen through Apple's system photo picker.
+
+User-generated-content controls are available from a post or comment menu. Report opens a pre-addressed message to privacy@getplated.food containing the selected reason and opaque references, not the post text, name, or photo. The inbox is checked daily and valid reports are acknowledged within 24 hours. A person can be blocked from that flow and unblocked from Table > People; a Table organizer can remove a participant from Table > People.
+
+After a verified Sign in with Apple directory session has been created, developer-held directory data can be deleted in-app from Profile > Settings > Account > Delete directory account. This removes the directory profile, sessions, devices, invitation records, and personal notification-delivery records, then signs the device out. The current release candidate also opens Apple Account with the exact manual path for removing the Sign in with Apple authorization; the build will not be submitted until server-side token revocation is configured and verified. Recipes, plans, groceries, household content, Table content, and photos live separately in the user's private iCloud account; iCloud deletion is managed in iOS Settings.

@@ -47,6 +47,53 @@ extension View {
     }
 }
 
+/// Whether the root navigation tray belongs on the screen currently in front.
+///
+/// Profiles, recipes, household management, threads, activity, and Settings
+/// are focused destinations with their own explicit way back. Keeping the root
+/// tray on top of them both steals working room and makes the selected tab look
+/// like the title of a screen it no longer describes.
+///
+/// Count requests instead of storing a Boolean: a child can arrive while its
+/// parent is disappearing, and the parent's release must not reveal the tray
+/// underneath a child that still needs quiet.
+@Observable
+final class FloatingChromeVisibility {
+    private(set) var hiddenRequests = 0
+    var isHidden: Bool { hiddenRequests > 0 }
+
+    func retain() { hiddenRequests += 1 }
+    func release() { hiddenRequests = max(0, hiddenRequests - 1) }
+}
+
+private struct FloatingChromeVisibilityKey: EnvironmentKey {
+    static let defaultValue = FloatingChromeVisibility()
+}
+
+extension EnvironmentValues {
+    var floatingChromeVisibility: FloatingChromeVisibility {
+        get { self[FloatingChromeVisibilityKey.self] }
+        set { self[FloatingChromeVisibilityKey.self] = newValue }
+    }
+}
+
+private struct HidesFloatingChrome: ViewModifier {
+    @Environment(\.floatingChromeVisibility) private var visibility
+
+    func body(content: Content) -> some View {
+        content
+            .onAppear { visibility.retain() }
+            .onDisappear { visibility.release() }
+    }
+}
+
+extension View {
+    /// Retire the root tray for as long as this focused destination is visible.
+    func hidesFloatingChrome() -> some View {
+        modifier(HidesFloatingChrome())
+    }
+}
+
 /// Prongsby's seat, now that he's out of the tab bar: one puck riding
 /// above the floating bar, drawn once in the shell and inherited by every
 /// tab and every page pushed inside one.
@@ -88,8 +135,8 @@ struct ProngsbyPerch: View {
             .background {
                 Capsule()
                     .fill(Color.canvas.opacity(0.94))
-                    .background(.ultraThinMaterial, in: Capsule())
-                    .overlay(Capsule().strokeBorder(Color.navHairline))
+                    .background(.ultraThinMaterial, in: Radius.shape(Radius.chip))
+                    .overlay(Radius.shape(Radius.chip).strokeBorder(Color.navHairline))
             }
             .overlay(alignment: .topTrailing) {
                 // Status, not news: he's still cooking an answer you can't
@@ -105,7 +152,7 @@ struct ProngsbyPerch: View {
             }
             .plFloatShadow()
             .frame(minWidth: 44, minHeight: 44)
-            .contentShape(Capsule())
+            .contentShape(Radius.shape(Radius.chip))
         }
         .buttonStyle(.pressable)
         .animation(.plSnap, value: session.thinking)

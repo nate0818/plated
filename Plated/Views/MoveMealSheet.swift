@@ -39,6 +39,10 @@ struct MoveMealSheet: View {
                     .accessibilityLabel("Cancel move")
             }
             Text(meal.title).plType(.body, .semibold)
+            Text("Choose a new night. An uncooked meal already planned there will switch dates with this one.")
+                .plType(.caption)
+                .foregroundStyle(Color.inkSecondary)
+                .fixedSize(horizontal: false, vertical: true)
             DatePicker("New date", selection: $target, in: Date.now.startOfDay..., displayedComponents: .date)
                 .datePickerStyle(.graphical).tint(Color.ink).plChrome()
             if let occupant {
@@ -48,7 +52,7 @@ struct MoveMealSheet: View {
                     .plType(.footnote).foregroundStyle(Color.inkSecondary)
             }
             if let failure { Text(failure).plType(.footnote).foregroundStyle(Color.ink) }
-            InkPillButton(title: occupant == nil ? "Move meal" : "Swap meals") { move() }
+            SecondaryActionButton(title: occupant == nil ? "Move meal" : "Swap meals") { move() }
                 .disabled(Calendar.current.isDate(target, inSameDayAs: meal.date) || occupant?.isCooked == true)
         }
         .foregroundStyle(Color.ink)

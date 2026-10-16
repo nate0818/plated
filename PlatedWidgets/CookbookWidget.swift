@@ -77,7 +77,7 @@ struct CookbookWidgetView: View {
                 MicroCap(text: "COOKBOOK")
             }
             Text(card.title)
-                .font(.jakarta(titleSize))
+                .font(.editorial(titleSize + 2))
                 .foregroundStyle(Plate.ink)
                 .lineLimit(2)
                 .minimumScaleFactor(0.9)
@@ -85,7 +85,7 @@ struct CookbookWidgetView: View {
             let line = cookbookLine(card)
             if !line.isEmpty {
                 Text(line)
-                    .font(.jakarta(11, "SemiBold"))
+                    .font(.sans(11, "SemiBold"))
                     .foregroundStyle(Plate.inkSecondary)
                     .lineLimit(1)
             }
@@ -113,10 +113,10 @@ struct CookbookWidgetView: View {
                 .font(.system(size: 26, weight: .medium))
                 .foregroundStyle(Plate.inkFaint)
             Text("No recipes yet")
-                .font(.jakarta(14))
+                .font(.sans(14))
                 .foregroundStyle(Plate.ink)
             Text("Tap to add one")
-                .font(.jakarta(11, "SemiBold"))
+                .font(.sans(11, "SemiBold"))
                 .foregroundStyle(Plate.inkSecondary)
             Spacer(minLength: 0)
         }

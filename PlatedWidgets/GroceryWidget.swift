@@ -19,6 +19,10 @@ struct GroceryWidgetView: View {
             default: small
             }
         }
+        // These widgets' text was flush to the left edge in the review
+        // captures. Reserve an explicit readable inset for each family.
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         .widgetURL(PlatedLink.grocery)
         .containerBackground(Plate.canvas, for: .widget)
@@ -31,10 +35,10 @@ struct GroceryWidgetView: View {
             if let grocery, grocery.openCount > 0 {
                 // No box around the number — the count is the thing itself.
                 Text("\(grocery.openCount)")
-                    .font(.jakarta(44, "ExtraBold"))
+                    .font(.sans(44, "ExtraBold"))
                     .foregroundStyle(Plate.ink)
                 Text(grocery.openCount == 1 ? "item to buy" : "items to buy")
-                    .font(.jakarta(13))
+                    .font(.sans(13))
                     .foregroundStyle(Plate.inkSecondary)
                 progress(grocery)
             } else {
@@ -43,7 +47,7 @@ struct GroceryWidgetView: View {
                     .font(.system(size: 26, weight: .medium))
                     .foregroundStyle(grocery == nil ? Plate.inkFaint : Plate.basil)
                 Text(grocery == nil ? "Nothing to shop for" : "All bought")
-                    .font(.jakarta(14))
+                    .font(.sans(14))
                     .foregroundStyle(Plate.ink)
                     .lineLimit(2)
             }
@@ -58,10 +62,10 @@ struct GroceryWidgetView: View {
                 Spacer(minLength: 0)
                 if let grocery, grocery.openCount > 0 {
                     Text("\(grocery.openCount)")
-                        .font(.jakarta(40, "ExtraBold"))
+                        .font(.sans(40, "ExtraBold"))
                         .foregroundStyle(Plate.ink)
                     Text("to buy")
-                        .font(.jakarta(12))
+                        .font(.sans(12))
                         .foregroundStyle(Plate.inkSecondary)
                     progress(grocery)
                 } else {
@@ -72,7 +76,7 @@ struct GroceryWidgetView: View {
                         .font(.system(size: 26, weight: .medium))
                         .foregroundStyle(grocery == nil ? Plate.inkFaint : Plate.basil)
                     Text(grocery == nil ? "Nothing to shop for" : "All bought")
-                        .font(.jakarta(14))
+                        .font(.sans(14))
                         .foregroundStyle(Plate.ink)
                         .lineLimit(2)
                 }
@@ -88,19 +92,19 @@ struct GroceryWidgetView: View {
                                 .strokeBorder(Plate.hairlineDashed, lineWidth: 2)
                                 .frame(width: 14, height: 14)
                             Text(name)
-                                .font(.jakarta(13, "SemiBold"))
+                                .font(.sans(13, "SemiBold"))
                                 .foregroundStyle(Plate.ink)
                                 .lineLimit(1)
                         }
                     }
                     if grocery.openCount > grocery.sample.count {
                         Text("+ \(grocery.openCount - grocery.sample.count) more")
-                            .font(.jakarta(12))
+                            .font(.sans(12))
                             .foregroundStyle(Plate.inkSecondary)
                     }
                 } else {
                     Text("Plate a few nights and the list builds itself.")
-                        .font(.jakarta(13, "SemiBold"))
+                        .font(.sans(13, "SemiBold"))
                         .foregroundStyle(Plate.inkSecondary)
                         .lineLimit(3)
                 }
@@ -119,7 +123,7 @@ struct GroceryWidgetView: View {
                 Spacer()
                 if let grocery, grocery.openCount > 0 {
                     Text(grocery.openCount == 1 ? "1 to buy" : "\(grocery.openCount) to buy")
-                        .font(.jakarta(11, "ExtraBold"))
+                        .font(.sans(11, "ExtraBold"))
                         .foregroundStyle(Plate.inkSecondary)
                 }
             }
@@ -133,7 +137,7 @@ struct GroceryWidgetView: View {
                             .strokeBorder(Plate.hairlineDashed, lineWidth: 2)
                             .frame(width: 16, height: 16)
                         Text(name)
-                            .font(.jakarta(13, "SemiBold"))
+                            .font(.sans(13, "SemiBold"))
                             .foregroundStyle(Plate.ink)
                             .lineLimit(1)
                         Spacer(minLength: 0)
@@ -145,7 +149,7 @@ struct GroceryWidgetView: View {
                 }
                 if grocery.openCount > min(grocery.sample.count, 9) {
                     Text("+ \(grocery.openCount - min(grocery.sample.count, 9)) more")
-                        .font(.jakarta(12))
+                        .font(.sans(12))
                         .foregroundStyle(Plate.inkSecondary)
                         .padding(.top, 8)
                 }
@@ -155,10 +159,10 @@ struct GroceryWidgetView: View {
                     .font(.system(size: 30, weight: .medium))
                     .foregroundStyle(grocery == nil ? Plate.inkFaint : Plate.basil)
                 Text(grocery == nil ? "Nothing to shop for" : "All bought")
-                    .font(.jakarta(16))
+                    .font(.sans(16))
                     .foregroundStyle(Plate.ink)
                 Text(grocery == nil ? "Plate a few nights and the list builds itself." : "The basket is full for the week.")
-                    .font(.jakarta(12, "SemiBold"))
+                    .font(.sans(12, "SemiBold"))
                     .foregroundStyle(Plate.inkSecondary)
             }
             Spacer(minLength: 0)
@@ -180,7 +184,7 @@ struct GroceryWidgetView: View {
             }
             .frame(height: 4)
             Text("\(bought) of \(grocery.totalCount) in the basket")
-                .font(.jakarta(10, "SemiBold"))
+                .font(.sans(10, "SemiBold"))
                 .foregroundStyle(Plate.inkSecondary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)

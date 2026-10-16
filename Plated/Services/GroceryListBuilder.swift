@@ -6,6 +6,104 @@ import SwiftData
 struct GroceryListBuilder {
     let context: ModelContext
 
+    /// One selectable source in Groceries' "Pick meals" mode. The id is the
+    /// planned night's stable shopping id on both sides of the household;
+    /// using a remote record name here would not match the ids carried by
+    /// `GrocerySource`, so selecting a housemate's dinner would reveal no rows.
+    struct ShoppingChoice: Identifiable, Equatable {
+        var id: String
+        var title: String
+        var date: Date
+        var servings: Int
+        var remoteRecordName: String?
+        var authorName: String
+
+        var isRemote: Bool { remoteRecordName != nil }
+    }
+
+    /// The meals that can contribute ingredients to one shopping window,
+    /// from this phone and from the household ledger. Local rows win a
+    /// defensive duplicate-id collision; the two stores are disjoint by
+    /// design, but a duplicate must never produce two SwiftUI identities or
+    /// double-count the meal in the picker.
+    @MainActor
+    static func shoppingChoices(
+        meals: [PlannedMeal], remote: [PlanLedger.Entry],
+        from start: Date, to end: Date
+    ) -> [ShoppingChoice] {
+        var choices = meals.compactMap { meal -> ShoppingChoice? in
+            guard meal.date >= start, meal.date < end,
+                  meal.cookedAt == nil, meal.recipe != nil,
+                  let id = meal.shoppingID, !id.isEmpty else { return nil }
+            return ShoppingChoice(
+                id: id, title: meal.title, date: meal.date,
+                servings: meal.servings, remoteRecordName: nil, authorName: ""
+            )
+        }
+        choices += remote.compactMap { entry -> ShoppingChoice? in
+            let hasRecipe = entry.hasRecipe || !(entry.lines ?? []).isEmpty
+            guard !entry.cooked, hasRecipe, !entry.shoppingID.isEmpty,
+                  entry.date >= start, entry.date < end else { return nil }
+            return ShoppingChoice(
+                id: entry.shoppingID, title: entry.title, date: entry.date,
+                servings: entry.servings, remoteRecordName: entry.recordName,
+                authorName: entry.authorFirstName
+            )
+        }
+
+        var seen = Set<String>()
+        return choices
+            .filter { seen.insert($0.id).inserted }
+            .sorted { ($0.date, $0.id) < ($1.date, $1.id) }
+    }
+
+    /// Empty-state truth is broader than picker eligibility: leftovers and a
+    /// cooked night are still a plan, even though neither contributes a row
+    /// to today's shopping list.
+    @MainActor
+    static func hasPlan(
+        meals: [PlannedMeal], remote: [PlanLedger.Entry],
+        from start: Date, to end: Date
+    ) -> Bool {
+        meals.contains { $0.date >= start && $0.date < end }
+            || remote.contains { $0.date >= start && $0.date < end }
+    }
+
+    /// Value semantics for the remote half of the grocery plan.
+    ///
+    /// `PlanLedger` is observable but its nights are not SwiftData rows, so a
+    /// `@Query` change cannot tell an already-open grocery screen to rebuild.
+    /// Keep this key limited to the fields `nights` and `aggregate` actually
+    /// read. Sorting each night's lines avoids rebuilding merely because a
+    /// record returned its ingredients in a different order.
+    @MainActor
+    static func remoteRevision(_ entries: [PlanLedger.Entry]) -> [String] {
+        entries.map { entry in
+            let lines = (entry.lines ?? []).map { line in
+                [
+                    line.name,
+                    line.normalizedName,
+                    line.unit,
+                    String(line.quantity.bitPattern),
+                    line.aisle,
+                    line.isPantryStaple ? "pantry" : "needed",
+                    line.package?.fingerprintKey ?? ""
+                ].joined(separator: "|")
+            }
+            .sorted()
+            .joined(separator: ";")
+            return [
+                "remote",
+                entry.recordName,
+                entry.shoppingID,
+                entry.day,
+                entry.title,
+                entry.cooked ? "cooked" : "open",
+                lines
+            ].joined(separator: "|")
+        }
+    }
+
     /// Main actor because the marks it folds are; the sheet and the
     /// regression checks, its only callers, both already are.
     @MainActor
@@ -143,9 +241,13 @@ struct GroceryListBuilder {
                 line.quantity += source.quantity
                 if let index = line.sources.firstIndex(where: { $0.id == night.id }) {
                     line.sources[index].quantity += source.quantity
+                    if line.sources[index].package != source.package {
+                        line.sources[index].package = nil
+                    }
                 } else {
                     line.sources.append(.init(id: night.id, title: night.title,
-                                              date: night.date, quantity: source.quantity))
+                                              date: night.date, quantity: source.quantity,
+                                              package: source.package))
                 }
                 lines[key] = line
             }

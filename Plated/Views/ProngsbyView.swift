@@ -10,7 +10,7 @@ struct ProngsbyGlyph: View {
     var tone: Color = .ink
     /// His eyes and smile are cut OUT of the head, so they have to be
     /// painted in whatever is actually behind him. Canvas is right on
-    /// every surface in the app today; anything sitting on tomato or on a
+    /// every surface in the app today; anything sitting on olive or on a
     /// photo must say so.
     var face: Color = .canvas
 
@@ -209,9 +209,9 @@ struct ProngsbyView: View {
                                     .foregroundStyle(Color.ink)
                                     .padding(.horizontal, 13)
                                     .frame(minHeight: 36)
-                                    .overlay(Capsule().strokeBorder(Color.hairline))
+                                    .overlay(Radius.shape(Radius.chip).strokeBorder(Color.hairline))
                                     .frame(minHeight: 44)
-                                    .contentShape(Capsule())
+                                    .contentShape(Radius.shape(Radius.chip))
                             }
                             .buttonStyle(.pressable)
                             .disabled(session.thinking)
@@ -240,17 +240,17 @@ struct ProngsbyView: View {
                     send(session.draft)
                 } label: {
                     Circle()
-                        .fill(session.draft.isEmpty ? Color.fill : Color.tomato)
+                        .fill(session.draft.isEmpty ? Color.fill : Color.olive)
                         .frame(width: 40, height: 40)
                         .overlay {
                             Image(systemName: "arrow.up")
                                 .accessibilityLabel("Send")
                                 .font(.system(size: 15, weight: .bold))
-                                .foregroundStyle(session.draft.isEmpty ? Color.inkFaint : Color.onTomato)
+                                .foregroundStyle(session.draft.isEmpty ? Color.inkFaint : Color.onOlive)
                         }
                         .frame(minWidth: 44, minHeight: 44)
                         .contentShape(Rectangle())
-                        // The arrow warms to tomato as the first character
+                        // The arrow warms to olive as the first character
                         // lands — armed, not flipped.
                         .animation(.plSnap, value: session.draft.isEmpty)
                 }

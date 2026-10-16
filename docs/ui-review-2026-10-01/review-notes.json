@@ -1,0 +1,457 @@
+{
+  "A01": {
+    "note": "- To me, this is a high priority change because this is one of the first screens that people land on. I think the date picker at the top, the days of the week, etc., could feel and look more like a slider, like a radial.... I feel like we could be leveraging more design best practices from Apple as an example, like leveraging their liquid and frosted glass. Making the date dial feel more like it spins so to speak. I think it's round maybe. And what happens if someone chooses a dinner that doesn't have a picture? That experience needs to be optimized too. ",
+    "decision": "Change",
+    "priority": "High"
+  },
+  "A02": {
+    "note": "This screen is just really lackluster. Doesn't really provide much value. Why not show like analytics on this page? You know, like not just what you're having that dinner for that night on a month view, but like how many dinners you've planned versus cooked, how many times you've eaten out, like what you've cooked, you know, those types of things. More insight based as well. ",
+    "decision": "Discuss",
+    "priority": "Medium"
+  },
+  "A03": {
+    "note": "I feel like this screen needs to be optimized for whatever meal is showing. We need to show more about it, right? Like, this just leaves a lot to be desired. Also, like, the menu bar at the bottom is gone. Why would we do that? I'm not sure this screen makes a whole lot of sense or adds a lot of value. ",
+    "decision": "Discuss",
+    "priority": "Medium"
+  },
+  "A04": {
+    "note": "",
+    "decision": "Keep",
+    "priority": "Medium"
+  },
+  "A05": {
+    "note": "This screen is kind of ugly. I'm not sure that it really is super intuitive or high impact. ",
+    "decision": "Change",
+    "priority": "Medium"
+  },
+  "A06": {
+    "note": "How are we showing recipes that someone saved/imported from someone else that shared it with them? Have we thought about all the different experiences here? And also like I think something for a future roadmap would be a catalog of recipes that they can also leverage and use and import, modify and make their own if they wanted, like what New York Times Cooking does. ",
+    "decision": "Discuss",
+    "priority": "Medium"
+  },
+  "A07": {
+    "note": "I feel like the UX in UI on this screen could be a lot better. ",
+    "decision": "Discuss",
+    "priority": "Medium"
+  },
+  "A08": {
+    "note": "Why don't we show on screens like this? Like maybe the last time they've cooked it, or if they've cooked it before. You know, we could also allow family members in the household to rate dishes. You know, and you could see that. ",
+    "decision": "Discuss",
+    "priority": "Medium"
+  },
+  "A09": {
+    "note": "I think we should try to use AI in understanding how to automatically set effort and if someone changes like the serving size, etc. Like things need to be dynamic and contextual and intelligent. ",
+    "decision": "Discuss",
+    "priority": "Medium"
+  },
+  "A10": {
+    "note": "Not sure this one is really laid out appropriately. Are we really asking people to identify how much prep time is involved in this? Why can't we figure out some of this for them? We need to take a Steve Jobs approach to every page, every screen, every experience, which is like how do we make it as intuitive and frictionless and just works as much as possible without having the user to do too much. ",
+    "decision": "Discuss",
+    "priority": "Medium"
+  },
+  "A11": {
+    "note": "This could be optimized from a UX/UI perspective. ",
+    "decision": "Discuss",
+    "priority": "Medium"
+  },
+  "A12": {
+    "note": "",
+    "decision": "Discuss",
+    "priority": "Medium"
+  },
+  "A13": {
+    "note": "Do we have all the right things here? Is this the best experience possible? ",
+    "decision": "Discuss",
+    "priority": "Medium"
+  },
+  "A14": {
+    "note": "The UX/UI on this is kind of ugly. We have center aligned text. We've got text all over the place. It feels crowded and jumbled and really messy. And we've got pictures that are not aligned on the same baseline, etc. Like, this is really fucking poor. ",
+    "decision": "Change",
+    "priority": "High"
+  },
+  "A15": {
+    "note": "I hate how ugly this screen is. ",
+    "decision": "Change",
+    "priority": "High"
+  },
+  "A16": {
+    "note": "",
+    "decision": "Discuss",
+    "priority": "Medium"
+  },
+  "A17": {
+    "note": "I still want to figure out how we incorporate Instacart. ",
+    "decision": "Discuss",
+    "priority": "Medium"
+  },
+  "A18": {
+    "note": "The table experience is one of the most experiences on the app. It needs to feel rich and powerful, like Instagram and Reddit. We've talked about this several times before, and I don't feel like we've really nailed this experience yet. And I feel like it needs to be highly optimized and really, really beautiful. ",
+    "decision": "Change",
+    "priority": "High"
+  },
+  "A19": {
+    "note": "",
+    "decision": "Discuss",
+    "priority": "Medium"
+  },
+  "A20": {
+    "note": "This could be better. Again, think Instagram and Reddit. Optimize this. ",
+    "decision": "Change",
+    "priority": "High"
+  },
+  "A21": {
+    "note": "Is this as good as what Instagram would do? ",
+    "decision": "Discuss",
+    "priority": "Medium"
+  },
+  "A22": {
+    "note": "",
+    "decision": "Discuss",
+    "priority": "Medium"
+  },
+  "A23": {
+    "note": "",
+    "decision": "Discuss",
+    "priority": "Medium"
+  },
+  "A24": {
+    "note": "Is this really the best experience? We need to think of like this like Instagram. I'm not sure that like the table inviting like the whole social networking experience is really optimized and working right. You know, like it needs to just work like Instagram works. We need to reconfigure our entire tech stack and approach this to make it feel and work seamlessly like an Instagram does. ",
+    "decision": "Discuss",
+    "priority": "Medium"
+  },
+  "A25": {
+    "note": "",
+    "decision": "Discuss",
+    "priority": "Medium"
+  },
+  "A26": {
+    "note": "If I click Edit Profile, can I edit both my avatar image and my banner image? Like, is this optimized? Is this great? Is this as good as Instagram? ",
+    "decision": "Discuss",
+    "priority": "Medium"
+  },
+  "A27": {
+    "note": "Why doesn't it show me like things like how many people I'm following, like in my household or at my table, etc. again? Think fucking Instagram. ",
+    "decision": "Discuss",
+    "priority": "Medium"
+  },
+  "A28": {
+    "note": "No way here to really optimize my banner photo, and this whole thing just does not feel good enough at all in general. ",
+    "decision": "Change",
+    "priority": "High"
+  },
+  "A29": {
+    "note": "The copy on this is so stupid. Under \"Add a household photo,\" give everyone a familiar front door. That's stupid. We shouldn't be writing lame ass copy like this. ",
+    "decision": "Discuss",
+    "priority": "Medium"
+  },
+  "A30": {
+    "note": "How does this work intuitively? Like Instagram, right? How can I just add people? You know, like I don't know that this is really the optimized experience. ",
+    "decision": "Discuss",
+    "priority": "High"
+  },
+  "A31": {
+    "note": "",
+    "decision": "Discuss",
+    "priority": "Medium"
+  },
+  "A32": {
+    "note": "",
+    "decision": "Discuss",
+    "priority": "Medium"
+  },
+  "A33": {
+    "note": "",
+    "decision": "Discuss",
+    "priority": "Medium"
+  },
+  "A34": {
+    "note": "I asked you to integrate with the Apple Invites app and Apple Calendar. Like, all this has to be good. Like, if I'm planning a family gathering, this is not good enough. ",
+    "decision": "Change",
+    "priority": "High"
+  },
+  "A35": {
+    "note": "The UX/UI in this needs to be better. ",
+    "decision": "Discuss",
+    "priority": "Medium"
+  },
+  "A36": {
+    "note": "How can this be better? ",
+    "decision": "Discuss",
+    "priority": "Medium"
+  },
+  "A37": {
+    "note": "I like this. I would just add like an Apple calendar icon in the background showing like the day, etc. ",
+    "decision": "Discuss",
+    "priority": "Medium"
+  },
+  "A38": {
+    "note": "Copy is lame. \nHow do we suggest a photo for the person? I wish we could just pull in their personal contact photo or something to make this a better experiences ",
+    "decision": "Discuss",
+    "priority": "Medium"
+  },
+  "A39": {
+    "note": "This needs to be optimized like instagram suggested friends etc. and adding peopel ",
+    "decision": "Discuss",
+    "priority": "Medium"
+  },
+  "A40": {
+    "note": "how can this be even better/elevated",
+    "decision": "Discuss",
+    "priority": "Medium"
+  },
+  "A41": {
+    "note": "Again, is this as optimized as it could/should be?",
+    "decision": "Discuss",
+    "priority": "Medium"
+  },
+  "A42": {
+    "note": "Again, is this as optimized as it could/should be?",
+    "decision": "Discuss",
+    "priority": "Medium"
+  },
+  "A43": {
+    "note": "Again, is this as optimized as it could/should be?",
+    "decision": "Discuss",
+    "priority": "Medium"
+  },
+  "A44": {
+    "note": "Tagline needs changed. \n- Plan. Shop. Cook. Eat. Together. \n\nOr something like that... ",
+    "decision": "Discuss",
+    "priority": "Medium"
+  },
+  "A45": {
+    "note": "Again, is this as optimized as it could/should be?",
+    "decision": "Discuss",
+    "priority": "Medium"
+  },
+  "A46": {
+    "note": "Again, is this as optimized as it could/should be?\nShouldn't there be a celebration? Award? Gamifcation or something? Share to the table? ",
+    "decision": "Discuss",
+    "priority": "Medium"
+  },
+  "A47": {
+    "note": "",
+    "decision": "Discuss",
+    "priority": "Medium"
+  },
+  "A48": {
+    "note": "Again, is this as optimized as it could/should be?",
+    "decision": "Discuss",
+    "priority": "Medium"
+  },
+  "A49": {
+    "note": "Again, is this as optimized as it could/should be? Why the next 7 days? What if I want to start on a wednesday not Sunday etc. this needs to be dynamic?? Like if there are three days left in the week, like why days not meals though... I am confused",
+    "decision": "Discuss",
+    "priority": "Medium"
+  },
+  "A50": {
+    "note": "IAgain, is this as optimized as it could/should be? Like an IG experience? ",
+    "decision": "Change",
+    "priority": "Medium"
+  },
+  "A51": {
+    "note": "This could be more fun",
+    "decision": "Discuss",
+    "priority": "Medium"
+  },
+  "A52": {
+    "note": "Boring ",
+    "decision": "Discuss",
+    "priority": "Medium"
+  },
+  "A53": {
+    "note": "Could be more fun and enticing  more consumer conversion optimization ",
+    "decision": "Discuss",
+    "priority": "Medium"
+  },
+  "A54": {
+    "note": "KILL prongsby ",
+    "decision": "Discuss",
+    "priority": "Medium"
+  },
+  "A55": {
+    "note": "We need to be explicit in instructions.. in this example, you should be able to touch ingredients or there should be some way to provide more detail per step and also help the user with sequencing like if I have an entree and that requires multiple moving things help me with that ya know, give option to be more explicit/detailed ",
+    "decision": "Discuss",
+    "priority": "Medium"
+  },
+  "A56": {
+    "note": "Sound? Able to mute? Restart? Have we thought through every possible scenerior? This page and all pages?",
+    "decision": "Discuss",
+    "priority": "Medium"
+  },
+  "A57": {
+    "note": "",
+    "decision": "Discuss",
+    "priority": "Medium"
+  },
+  "A58": {
+    "note": "Again, is this as optimized as it could/should be? I dont understand the context/useage/where how this is ",
+    "decision": "Discuss",
+    "priority": "Medium"
+  },
+  "A59": {
+    "note": "Ugly AF",
+    "decision": "Change",
+    "priority": "Medium"
+  },
+  "A60": {
+    "note": "BORING ",
+    "decision": "Discuss",
+    "priority": "Medium"
+  },
+  "A61": {
+    "note": "Broken UI in places logo overalaps time ",
+    "decision": "Discuss",
+    "priority": "Medium"
+  },
+  "A62": {
+    "note": "Again, is this as optimized as it could/should be? ",
+    "decision": "Change",
+    "priority": "Medium"
+  },
+  "W01": {
+    "note": "for name, should be refined to something like: Nate's cooking and not the time it takes, kill that \n\n\n\n",
+    "decision": "Discuss",
+    "priority": "Medium"
+  },
+  "W02": {
+    "note": "SHould be household pic instead of food",
+    "decision": "Discuss",
+    "priority": "Medium"
+  },
+  "W03": {
+    "note": "household pic instead",
+    "decision": "Discuss",
+    "priority": "Medium"
+  },
+  "W04": {
+    "note": "some ui is broken/cutoff",
+    "decision": "Discuss",
+    "priority": "Medium"
+  },
+  "W05": {
+    "note": "",
+    "decision": "Discuss",
+    "priority": "Medium"
+  },
+  "W06": {
+    "note": "",
+    "decision": "Discuss",
+    "priority": "Medium"
+  },
+  "W07": {
+    "note": "",
+    "decision": "Discuss",
+    "priority": "Medium"
+  },
+  "W08": {
+    "note": "This feels weak af",
+    "decision": "Discuss",
+    "priority": "Medium"
+  },
+  "W09": {
+    "note": "this is UI is very broken and also should be more fun ",
+    "decision": "Discuss",
+    "priority": "Medium"
+  },
+  "W10": {
+    "note": "This UI is broken, lame and boring. ",
+    "decision": "Discuss",
+    "priority": "Medium"
+  },
+  "W11": {
+    "note": "This UI is lame and broken. ",
+    "decision": "Discuss",
+    "priority": "Medium"
+  },
+  "W12": {
+    "note": "This UI is lame and broken. ",
+    "decision": "Discuss",
+    "priority": "Medium"
+  },
+  "W13": {
+    "note": "This could be a lot more fun. ",
+    "decision": "Discuss",
+    "priority": "Medium"
+  },
+  "W14": {
+    "note": "",
+    "decision": "Discuss",
+    "priority": "Medium"
+  },
+  "W15": {
+    "note": "This could be a lot more fun. And better optimize from UX/UI design perspective for consumers. ",
+    "decision": "Discuss",
+    "priority": "Medium"
+  },
+  "W16": {
+    "note": "This could be a lot more fun. And better optimize from UX/UI design perspective for consumers. ",
+    "decision": "Discuss",
+    "priority": "Medium"
+  },
+  "W17": {
+    "note": "This could be a lot more fun. And better optimize from UX/UI design perspective for consumers. ",
+    "decision": "Discuss",
+    "priority": "Medium"
+  },
+  "W18": {
+    "note": "This could be a lot more fun. And better optimize from UX/UI design perspective for consumers. ",
+    "decision": "Discuss",
+    "priority": "Medium"
+  },
+  "W19": {
+    "note": "This could be a lot more fun. And better optimize from UX/UI design perspective for consumers. ",
+    "decision": "Discuss",
+    "priority": "Medium"
+  },
+  "W20": {
+    "note": "This could be a lot more fun. And better optimize from UX/UI design perspective for consumers. ",
+    "decision": "Discuss",
+    "priority": "Medium"
+  },
+  "W21": {
+    "note": "This could be a lot more fun. And better optimize from UX/UI design perspective for consumers. ",
+    "decision": "Discuss",
+    "priority": "Medium"
+  },
+  "W22": {
+    "note": "This could be a lot more fun. And better optimize from UX/UI design perspective for consumers. ",
+    "decision": "Discuss",
+    "priority": "Medium"
+  },
+  "W23": {
+    "note": "",
+    "decision": "Discuss",
+    "priority": "Medium"
+  },
+  "W24": {
+    "note": "",
+    "decision": "Discuss",
+    "priority": "Medium"
+  },
+  "W25": {
+    "note": "",
+    "decision": "Discuss",
+    "priority": "Medium"
+  },
+  "W26": {
+    "note": "",
+    "decision": "Discuss",
+    "priority": "Medium"
+  },
+  "W27": {
+    "note": "",
+    "decision": "Discuss",
+    "priority": "Medium"
+  },
+  "X01": {
+    "note": "This could be a lot more fun. And better optimize from UX/UI design perspective for consumers. ",
+    "decision": "Discuss",
+    "priority": "Medium"
+  },
+  "X02": {
+    "note": "This could be a lot more fun. And better optimize from UX/UI design perspective for consumers. ",
+    "decision": "Discuss",
+    "priority": "Medium"
+  }
+}

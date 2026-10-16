@@ -87,6 +87,88 @@ enum TableShare {
     /// for a member, absent for none. App-group suite.
     static let householdOwnerKey = "plated.household.owner"
 
+    /// One Table a post may be published to. `ownerID` is always a real,
+    /// non-empty CloudKit user record name, including for this account's own
+    /// private zone. That makes a chosen own Table distinguishable from a new
+    /// post that has not chosen an audience yet, and keeps a failed publish
+    /// pinned to exactly the same place on its next attempt.
+    struct Destination: Identifiable, Codable, Equatable, Sendable {
+        let ownerID: String
+        let label: String
+        let isOwn: Bool
+
+        var id: String { ownerID }
+
+        init(ownerID: String, title: String, isOwn: Bool) {
+            self.ownerID = ownerID
+            let cleanTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+            self.label = cleanTitle.isEmpty
+                ? (isOwn ? "Your Table" : "A Table you joined")
+                : cleanTitle
+            self.isOwn = isOwn
+        }
+    }
+
+    /// Deterministic destination ordering, kept pure for regression tests.
+    /// A household Table is the first meaningful choice for a member; a host's
+    /// own Table is first otherwise. Joined Tables follow alphabetically, with
+    /// owner ID as the stable tie-break rather than CloudKit's list order.
+    static func orderedDestinations(
+        own: Destination?, householdOwnerID: String?, shared: [Destination]
+    ) -> [Destination] {
+        var byOwner: [String: Destination] = [:]
+        for destination in shared where !destination.ownerID.isEmpty {
+            if byOwner[destination.ownerID] == nil { byOwner[destination.ownerID] = destination }
+        }
+        if let own, !own.ownerID.isEmpty, householdOwnerID == nil {
+            byOwner[own.ownerID] = own
+        }
+
+        var ordered: [Destination] = []
+        if let householdOwnerID, let household = byOwner.removeValue(forKey: householdOwnerID) {
+            ordered.append(household)
+        } else if householdOwnerID == nil, let own,
+                  let mine = byOwner.removeValue(forKey: own.ownerID) {
+            ordered.append(mine)
+        }
+        ordered.append(contentsOf: byOwner.values.sorted {
+            let labels = $0.label.localizedCaseInsensitiveCompare($1.label)
+            return labels == .orderedSame ? $0.ownerID < $1.ownerID : labels == .orderedAscending
+        })
+        return ordered
+    }
+
+    /// The owner a save must use. Publication state—not the record name—is the
+    /// truth: post IDs are minted locally before CloudKit ever sees them.
+    /// Existing publications and failed attempts stay pinned; only a genuinely
+    /// unassigned first publication may infer a destination, and then only when
+    /// exactly one writable choice exists.
+    @MainActor
+    static func publicationOwner(
+        for post: TablePost, destinations: [Destination]
+    ) -> String? {
+        if post.isPublished { return post.shareZoneOwner }
+        if !post.shareZoneOwner.isEmpty { return post.shareZoneOwner }
+        guard destinations.count == 1 else { return nil }
+        return destinations[0].ownerID
+    }
+
+    private static var destinationCacheKey: String {
+        "plated.table.destinations.\(TableIdentity.cached)"
+    }
+
+    private static var cachedDestinations: [Destination] {
+        guard let data = UserDefaults.standard.data(forKey: destinationCacheKey),
+              let choices = try? JSONDecoder().decode([Destination].self, from: data)
+        else { return [] }
+        return choices
+    }
+
+    private static func rememberDestinations(_ choices: [Destination]) {
+        guard let data = try? JSONEncoder().encode(choices) else { return }
+        UserDefaults.standard.set(data, forKey: destinationCacheKey)
+    }
+
     #if DEBUG
     /// The ghost post, made unrepeatable.
     ///
@@ -592,23 +674,32 @@ enum TableShare {
     /// Guests write into the shared database and hosts into their own
     /// private one — same zone, different database handle, which is the
     /// single thing that most often goes wrong in a CKShare implementation.
+    @MainActor
     static func publish(_ post: TablePost, hostName: String) async -> String? {
         guard await TableSync.accountAvailable() else { return nil }
-        // A post that has already been published goes back to the table it
-        // is on. Only a brand new one gets to ask where it should live.
-        let target: (CKDatabase, CKRecordZone.ID, String)?
-        if post.shareRecordName.isEmpty {
-            target = await myWritableZone()
-        } else if let (db, id) = await zone(ownedBy: post.shareZoneOwner) {
-            target = (db, id, post.shareZoneOwner)
-        } else {
-            target = nil
+        // A locally minted record name says who the post is, not whether it
+        // has ever left the phone. Published posts and failed first attempts
+        // already name their exact Table. A wholly unassigned first attempt
+        // may infer its audience only when there is exactly one choice.
+        let choices = !post.isPublished && post.shareZoneOwner.isEmpty
+            ? await writableDestinations()
+            : []
+        guard let owner = publicationOwner(for: post, destinations: choices),
+              let (db, zoneID) = await zone(ownedBy: owner)
+        else {
+            if !post.isPublished && post.shareZoneOwner.isEmpty && choices.count > 1 {
+                print("PLATED SHARE: post needs an explicit Table destination")
+            }
+            return nil
         }
-        guard let (db, zoneID, owner) = target else { return nil }
-        await MainActor.run { post.shareZoneOwner = owner }
+        post.shareZoneOwner = owner
+        // Old rows can still have no name; pin one before the network call so
+        // an ambiguous CloudKit response retries the same record, not a copy.
+        if post.shareRecordName.isEmpty {
+            post.shareRecordName = "post-\(UUID().uuidString)"
+        }
         do {
-            let name = post.shareRecordName.isEmpty
-                ? "post-\(UUID().uuidString)" : post.shareRecordName
+            let name = post.shareRecordName
             let record = CKRecord(
                 recordType: postType,
                 recordID: CKRecord.ID(recordName: name, zoneID: zoneID)
@@ -647,9 +738,11 @@ enum TableShare {
                 record["photo"] = asset
                 defer { try? FileManager.default.removeItem(at: asset.fileURL!) }
                 _ = try await db.save(record)
+                post.isPublished = true
                 return name
             }
             _ = try await db.save(record)
+            post.isPublished = true
             return name
         } catch {
             return nil
@@ -2199,9 +2292,9 @@ enum TableShare {
         return p
     }
 
-    /// Which database and zone this user may write posts into: their own
-    /// table if they host one, otherwise the first table they've joined.
-    /// Canonical zone owner. "" always means MY OWN table.
+    /// Canonical zone owner for records already on the wire. The empty value
+    /// is the legacy spelling for this account's private Table; shared Tables
+    /// carry their host's stable CloudKit owner ID.
     ///
     /// `zoneID.ownerName` is observer-relative: `__defaultOwner__` for the
     /// host reading their private database, the host's real record name for
@@ -2219,7 +2312,10 @@ enum TableShare {
     /// has tapped Invite once hosts forever, so every write to a post on a
     /// table they had JOINED was aimed at their own zone instead.
     static func zone(ownedBy owner: String) async -> (CKDatabase, CKRecordZone.ID)? {
-        if owner.isEmpty {
+        // Empty is the legacy canonical value for published own-zone rows.
+        // New selections store the real owner ID so "own" is a pinned choice
+        // rather than being indistinguishable from "not chosen yet".
+        if owner.isEmpty || owner == TableIdentity.cached {
             let id = CKRecordZone.ID(zoneName: zoneName, ownerName: CKCurrentUserDefaultName)
             // `.zoneNotFound` means there is genuinely no table here. Any
             // other error means we could not ask, and must never be read as
@@ -2240,24 +2336,91 @@ enum TableShare {
         return (container.sharedCloudDatabase, z.zoneID)
     }
 
-    /// Where a NEW post goes: the household's table when I am a member of
-    /// one, never a zone I happen to host; else my own table if I host one;
-    /// else the table I have joined.
-    private static func myWritableZone() async -> (CKDatabase, CKRecordZone.ID, String)? {
-        if let owner = householdOwner {
-            guard let (db, id) = await zone(ownedBy: owner) else { return nil }
-            return (db, id, owner)
+    /// Every Table this account can currently write a post into. Listing is
+    /// explicit because `allRecordZones().first` changes meaning as soon as a
+    /// person has two seats. App-created Table shares are read-write; the
+    /// current participant is checked as well so a downgraded share is never
+    /// presented as an audience.
+    @MainActor
+    static func writableDestinations() async -> [Destination] {
+        let cached = cachedDestinations
+        guard await TableSync.accountAvailable(),
+              let myOwnerID = await TableIdentity.confirm(), !myOwnerID.isEmpty
+        else { return cached }
+
+        let sharedDB = container.sharedCloudDatabase
+        let sharedZones: [CKRecordZone]
+        do {
+            sharedZones = try await sharedDB.allRecordZones().filter {
+                $0.zoneID.zoneName == zoneName && !$0.zoneID.ownerName.isEmpty
+            }
+        } catch {
+            return cached
         }
-        if let (db, id) = await zone(ownedBy: "") { return (db, id, "") }
-        guard let zones = try? await container.sharedCloudDatabase.allRecordZones(),
-              let z = zones.first(where: { $0.zoneID.zoneName == zoneName })
-        else { return nil }
-        return (container.sharedCloudDatabase, z.zoneID, z.zoneID.ownerName)
+
+        let cachedByOwner = Dictionary(
+            cached.map { ($0.ownerID, $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
+        var shared: [Destination] = []
+        for zone in sharedZones {
+            let rootID = CKRecord.ID(recordName: "table-root", zoneID: zone.zoneID)
+            guard let root = try? await sharedDB.record(for: rootID) else {
+                if let old = cachedByOwner[zone.zoneID.ownerName] { shared.append(old) }
+                continue
+            }
+            if let reference = root.share,
+               let share = try? await sharedDB.record(for: reference.recordID) as? CKShare {
+                let canWrite = share.currentUserParticipant.map { $0.permission == .readWrite }
+                    ?? (share.publicPermission == .readWrite)
+                guard canWrite else { continue }
+            } else {
+                // A shared zone without its share record cannot establish that
+                // this participant may write. Do not guess from list order.
+                continue
+            }
+            shared.append(Destination(
+                ownerID: zone.zoneID.ownerName,
+                title: root["title"] as? String ?? "",
+                isOwn: false
+            ))
+        }
+
+        var own: Destination?
+        if householdOwner == nil {
+            let ownZoneID = CKRecordZone.ID(zoneName: zoneName, ownerName: CKCurrentUserDefaultName)
+            do {
+                _ = try await container.privateCloudDatabase.recordZone(for: ownZoneID)
+                let root = try? await container.privateCloudDatabase.record(
+                    for: CKRecord.ID(recordName: "table-root", zoneID: ownZoneID)
+                )
+                if root != nil {
+                    own = Destination(
+                        ownerID: myOwnerID,
+                        title: root?["title"] as? String ?? "",
+                        isOwn: true
+                    )
+                }
+            } catch let error as CKError where error.code == .zoneNotFound {
+                own = nil
+            } catch {
+                own = cached.first(where: \.isOwn)
+            }
+        }
+
+        let choices = orderedDestinations(
+            own: own, householdOwnerID: householdOwner, shared: shared
+        )
+        rememberDestinations(choices)
+        return choices
     }
 
     #else
     static func invitationURL(hostName: String) async -> URL? { nil }
     static func accept(_ metadata: CKShare.Metadata) async -> Accepted { .unreachable }
+    @MainActor
+    static func writableDestinations() async -> [Destination] { [] }
+    @MainActor
     static func publish(_ post: TablePost, hostName: String) async -> String? { nil }
     static func retract(recordName: String, zoneOwner: String) async -> Bool { true }
     struct RemotePost { var recordName = ""; var zoneOwner = ""; var authorID = ""

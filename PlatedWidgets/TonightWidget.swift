@@ -12,21 +12,15 @@ import SwiftUI
 /// widget" sat disabled in Plated's own menu. The week used to be a second
 /// widget whose medium was this medium exactly; it lives here now.
 
-/// "You cook · 25 min", "Riley cooks", "25 min", or "Plated": the same fact
-/// line the app's Tonight card carries (TonightAnswer.factLine), built the
-/// same way, from what is recorded and nothing else. The widget used to say
-/// "Plated" beside the cook's initial whenever the recipe had no time on it,
-/// which read as a dot with a caption about nothing.
+/// Names who has the turn without repeating a recipe's estimated duration.
+/// W01 asked for the widget to answer who is cooking rather than how long it
+/// takes, which is already visible in the recipe and cooking flow.
 func factLine(_ tonight: WeekSnapshot.Tonight, owner: String?) -> String {
-    var parts: [String] = []
     if let name = tonight.cookName, !name.isEmpty {
         let mine = owner.map { !$0.isEmpty && $0 == name } ?? false
-        parts.append(mine ? "You cook" : "\(name) cooks")
+        return mine ? "You're cooking" : "\(name)'s cooking"
     }
-    if tonight.minutes > 0 {
-        parts.append(durationText(tonight.minutes))
-    }
-    return parts.isEmpty ? "Plated" : parts.joined(separator: " · ")
+    return "Dinner is planned"
 }
 
 /// Recipe.durationText, which the widget cannot import.
@@ -47,9 +41,16 @@ struct TonightWidgetView: View {
         entry.snapshot?.days ?? WeekSnapshot.openWeek(from: .now)
     }
     private var plannedCount: Int { entry.snapshot?.plannedCount ?? 0 }
-    /// A real photograph fills the frame and the words go on the scrim.
-    private var onPhoto: Bool {
-        tonight?.hasPhoto == true && entry.photo != nil
+    /// The household is the picture in the Tonight widget. Meal photography
+    /// belongs to the Table and Cookbook widgets; W02/W03 asked that Tonight
+    /// represent the people sharing the meal instead.
+    private var onHouseholdPhoto: Bool { entry.householdPhoto != nil }
+
+    private var householdPeople: [WeekSnapshot.Day] {
+        var seen = Set<String>()
+        return days.filter { day in
+            !day.cookInitial.isEmpty && seen.insert(day.cookInitial).inserted
+        }.prefix(4).map { $0 }
     }
 
     /// The system's content margin, applied by hand: the picture wants the
@@ -73,8 +74,8 @@ struct TonightWidgetView: View {
     private var small: some View {
         GeometryReader { geo in
             ZStack(alignment: .bottomLeading) {
-                PlateArt(entry: entry, diameter: geo.size.width * 0.8, corner: .topTrailing)
-                if onPhoto {
+                householdArt
+                if onHouseholdPhoto {
                     GlassBand(inset: inset) {
                         VStack(alignment: .leading, spacing: 4) {
                             MicroCap(text: "TONIGHT")
@@ -97,8 +98,8 @@ struct TonightWidgetView: View {
     private var medium: some View {
         GeometryReader { geo in
             HStack(spacing: 0) {
-                PlateArt(entry: entry, diameter: geo.size.height * 0.92, corner: .leading)
-                .frame(width: onPhoto ? geo.size.width * 0.42 : geo.size.height * 0.72)
+                householdArt
+                .frame(width: geo.size.width * 0.42)
                 .clipped()
 
                 VStack(alignment: .leading, spacing: 6) {
@@ -109,7 +110,7 @@ struct TonightWidgetView: View {
                     plannedLine
                 }
                 .padding(.vertical, inset)
-                .padding(.leading, onPhoto ? inset : 4)
+                .padding(.leading, inset)
                 .padding(.trailing, inset)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -122,8 +123,8 @@ struct TonightWidgetView: View {
         GeometryReader { geo in
             VStack(alignment: .leading, spacing: 0) {
                 ZStack(alignment: .bottomLeading) {
-                    PlateArt(entry: entry, diameter: geo.size.height * 0.36, corner: .topTrailing)
-                    if onPhoto {
+                    householdArt
+                    if onHouseholdPhoto {
                         GlassBand(inset: inset) {
                             HStack(alignment: .lastTextBaseline) {
                                 answer(titleSize: 18, lineSize: 12)
@@ -147,7 +148,7 @@ struct TonightWidgetView: View {
                         MicroCap(text: "THE WEEK")
                         Spacer()
                         Text("\(plannedCount) of 7 plated")
-                            .font(.jakarta(11, "ExtraBold"))
+                            .font(.sans(11, "ExtraBold"))
                             .foregroundStyle(Plate.inkSecondary)
                     }
                     .padding(.top, 12)
@@ -167,6 +168,56 @@ struct TonightWidgetView: View {
 
     // MARK: Pieces
 
+    /// Use the chosen shared banner when present. A household without one
+    /// gets a small portrait of the cooks in the plan instead of a food
+    /// photograph, without inventing a personal image.
+    private var householdArt: some View {
+        GeometryReader { geo in
+            if let photo = entry.householdPhoto {
+                Image(uiImage: photo)
+                    .resizable()
+                    .widgetAccentedRenderingMode(.fullColor)
+                    .scaledToFill()
+                    .frame(width: geo.size.width, height: geo.size.height)
+                    .clipped()
+            } else {
+                householdIllustration
+                    .frame(width: geo.size.width, height: geo.size.height)
+                    .clipped()
+            }
+        }
+    }
+
+    private var householdIllustration: some View {
+        ZStack {
+            Plate.fill
+            Circle()
+                .fill(Plate.olive.opacity(0.10))
+                .frame(width: 180, height: 180)
+                .offset(x: 72, y: -55)
+            Circle()
+                .stroke(Plate.basil.opacity(0.24), lineWidth: 2)
+                .frame(width: 120, height: 120)
+                .offset(x: -82, y: 58)
+            HStack(spacing: 7) {
+                if householdPeople.isEmpty {
+                    Image(systemName: "person.3.fill")
+                        .font(.system(size: 28, weight: .medium))
+                        .foregroundStyle(Plate.basil)
+                } else {
+                    ForEach(Array(householdPeople.enumerated()), id: \.offset) { _, person in
+                        CookDot(initial: person.cookInitial, hex: person.cookHex, size: 34)
+                            .overlay(Circle().stroke(Plate.fill, lineWidth: 2))
+                    }
+                }
+            }
+            // The widget's own title and cook line carry the words. The
+            // illustration contributes only people, centered in the open
+            // space, so small and large families both stay collision-free.
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+        }
+    }
+
     /// The dish and its fact line, or the invitation. Both wrap: "Nothing
     /// plated yet" was truncating to "Nothing plated…" at the small size.
     @ViewBuilder
@@ -177,7 +228,7 @@ struct TonightWidgetView: View {
         VStack(alignment: .leading, spacing: 4) {
             if let tonight {
                 Text(tonight.title)
-                    .font(.jakarta(titleSize))
+                    .font(.editorial(titleSize + 2))
                     .foregroundStyle(ink)
                     .lineLimit(2)
                     .minimumScaleFactor(0.9)
@@ -187,18 +238,18 @@ struct TonightWidgetView: View {
                         CookDot(initial: tonight.cookInitial, hex: tonight.cookHex, size: 14)
                     }
                     Text(factLine(tonight, owner: entry.snapshot?.ownerName))
-                        .font(.jakarta(lineSize, "SemiBold"))
+                        .font(.sans(lineSize, "SemiBold"))
                         .foregroundStyle(quiet)
                         .lineLimit(1)
                 }
             } else {
                 Text("Nothing plated yet")
-                    .font(.jakarta(titleSize - 1))
+                    .font(.sans(titleSize - 1))
                     .foregroundStyle(ink)
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
                 Text("Tap to pick")
-                    .font(.jakarta(lineSize, "SemiBold"))
+                    .font(.sans(lineSize, "SemiBold"))
                     .foregroundStyle(quiet)
             }
         }
@@ -209,7 +260,7 @@ struct TonightWidgetView: View {
             ForEach(Array(days.enumerated()), id: \.offset) { _, day in
                 VStack(spacing: 4) {
                     Text(String(day.day.prefix(1)))
-                        .font(.jakarta(9, "ExtraBold"))
+                        .font(.sans(9, "ExtraBold"))
                         .foregroundStyle(Plate.inkSecondary)
                     if day.planned {
                         CookDot(initial: day.cookInitial, hex: day.cookHex)
@@ -227,7 +278,7 @@ struct TonightWidgetView: View {
         HStack(spacing: 6) {
             Circle().fill(Plate.basil).frame(width: 7, height: 7)
             Text("\(plannedCount) of 7 plated")
-                .font(.jakarta(12))
+                .font(.sans(12))
                 .foregroundStyle(Plate.inkSecondary)
         }
     }
@@ -235,7 +286,7 @@ struct TonightWidgetView: View {
     private func nightRow(_ day: WeekSnapshot.Day) -> some View {
         HStack(spacing: 10) {
             Text(String(day.day.prefix(3)))
-                .font(.jakarta(10, "ExtraBold"))
+                .font(.sans(10, "ExtraBold"))
                 .foregroundStyle(Plate.inkSecondary)
                 .lineLimit(1)
                 // 34, not 30: "MON" in ExtraBold set as "M…" at 30.
@@ -244,7 +295,7 @@ struct TonightWidgetView: View {
             if day.planned {
                 CookDot(initial: day.cookInitial, hex: day.cookHex, size: 20)
                 Text(day.title ?? "Plated")
-                    .font(.jakarta(13, "SemiBold"))
+                    .font(.sans(13, "SemiBold"))
                     .foregroundStyle(Plate.ink)
                     .lineLimit(1)
             } else {
@@ -252,7 +303,7 @@ struct TonightWidgetView: View {
                     .strokeBorder(Plate.hairlineDashed, style: StrokeStyle(lineWidth: 1.5, dash: [3, 3]))
                     .frame(width: 20, height: 20)
                 Text("Nothing plated yet")
-                    .font(.jakarta(13, "SemiBold"))
+                    .font(.sans(13, "SemiBold"))
                     .foregroundStyle(Plate.inkSecondary)
                     .lineLimit(1)
             }

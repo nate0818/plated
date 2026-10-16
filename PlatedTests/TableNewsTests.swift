@@ -426,6 +426,7 @@ final class TableNewsTests: XCTestCase {
         XCTAssertEqual(DeepLink.postID(in: url), "post-ABC")
         XCTAssertNil(DeepLink.postID(in: DeepLink.url(.table)))
         XCTAssertEqual(DeepLink.destination(for: URL(string: "plated://activity")!), .activity)
+        XCTAssertEqual(DeepLink.destination(for: DeepLink.url(.cook)), .cook)
     }
 
     // MARK: Passive plates, threads, photographs

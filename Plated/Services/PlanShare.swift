@@ -141,6 +141,7 @@ enum PlanShare {
         var quantity: Double
         var aisle: String
         var isPantryStaple: Bool
+        var package: IngredientPackage? = nil
     }
 
     nonisolated struct Plan: Equatable, Sendable {
@@ -176,7 +177,7 @@ enum PlanShare {
             // does not return the original bytes. At full precision that
             // drift reads as a changed night and republishes a window
             // nobody touched.
-            lines.map { "\($0.normalizedName)\u{1F}\($0.unit)\u{1F}\(String(format: "%.4f", $0.quantity))\u{1F}\($0.aisle)\u{1F}\($0.isPantryStaple ? 1 : 0)" }
+            lines.map { "\($0.normalizedName)\u{1F}\($0.unit)\u{1F}\(String(format: "%.4f", $0.quantity))\u{1F}\($0.aisle)\u{1F}\($0.isPantryStaple ? 1 : 0)\u{1F}\($0.package?.fingerprintKey ?? "")" }
                 .sorted().joined(separator: ";")
         }
         var fingerprint: String {
@@ -269,7 +270,8 @@ enum PlanShare {
                 name: ingredient.name, normalizedName: ingredient.normalizedName,
                 unit: amount.unit, quantity: amount.quantity,
                 aisle: ingredient.aisleValue.rawValue,
-                isPantryStaple: ingredient.isPantryStaple
+                isPantryStaple: ingredient.isPantryStaple,
+                package: ingredient.package
             )
         }
     }

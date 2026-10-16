@@ -45,7 +45,7 @@ final class PeopleTrustTests: XCTestCase {
     }
 
     func testCopyLockStringsAreExact() {
-        XCTAssertEqual(HouseholdIdentity.PeopleCopy.ownOwnerSubtitle, "You · Owner")
+        XCTAssertEqual(HouseholdIdentity.PeopleCopy.ownOwnerSubtitle, "You · Organizer")
         XCTAssertEqual(HouseholdIdentity.PeopleCopy.ownMemberSubtitle, "You")
         XCTAssertEqual(HouseholdIdentity.PeopleCopy.missingSelfName, "Add your name")
         XCTAssertEqual(HouseholdIdentity.PeopleCopy.missingOtherName, "No name yet")
@@ -282,7 +282,7 @@ final class PeopleTrustTests: XCTestCase {
         XCTAssertNotEqual(Seats.seatedCaption(among: people, reader: sam), "Sam and Sam")
 
         let owner = Seats.resolvedDisplay(for: sam, among: people, reader: sam)
-        XCTAssertEqual(owner.subtitle, "You · Owner")
+        XCTAssertEqual(owner.subtitle, "You · Organizer")
         XCTAssertFalse(owner.subtitle.contains("Head of table"))
         XCTAssertFalse(owner.subtitle.contains("Host"))
     }
@@ -326,7 +326,7 @@ final class PeopleTrustTests: XCTestCase {
         jordan.userRecordName = "ck-jordan"
         let people = [sam, jordan]
         let owner = Seats.resolvedDisplay(for: sam, among: people, reader: sam)
-        XCTAssertEqual(owner.subtitle, "You · Owner")
+        XCTAssertEqual(owner.subtitle, "You · Organizer")
         XCTAssertEqual(owner.name, "Sam Chen")
         XCTAssertFalse(owner.subtitle.contains("Head of table"))
 
@@ -339,8 +339,8 @@ final class PeopleTrustTests: XCTestCase {
         XCTAssertFalse(memberSelf.subtitle.contains("Owner"))
         XCTAssertFalse(memberSelf.subtitle.contains("Head of table"))
         let hostRow = Seats.resolvedDisplay(for: sam, among: people, reader: jordan)
-        XCTAssertEqual(hostRow.subtitle, "Host")
-        XCTAssertNotEqual(hostRow.subtitle, "You · Owner")
+        XCTAssertEqual(hostRow.subtitle, "Organizer")
+        XCTAssertNotEqual(hostRow.subtitle, "You · Organizer")
     }
 
     func testUnnamedInvitePrintsInvitedNotHostInitials() {
@@ -365,7 +365,7 @@ final class PeopleTrustTests: XCTestCase {
         me.userRecordName = TableIdentity.cached
         let drawn = Seats.resolvedDisplay(for: me, among: [me], reader: me)
         XCTAssertEqual(drawn.name, "Add your name")
-        XCTAssertEqual(drawn.subtitle, "You · Owner")
+        XCTAssertEqual(drawn.subtitle, "You · Organizer")
     }
 
     func testActivityActorUsesJoinerNotHost() {
@@ -421,7 +421,7 @@ final class PeopleTrustTests: XCTestCase {
     }
 
     func testPeopleListResolvedDisplayMatchesBindForStrangerHousehold() async throws {
-        let (context, sam, jordan) = try household(
+        let (context, sam, _) = try household(
             host: "Sam Chen",
             joinerStored: "New member",
             inviteName: "Jordan Lee"
@@ -433,7 +433,7 @@ final class PeopleTrustTests: XCTestCase {
         let drawn = occupying.map { Seats.resolvedDisplay(for: $0, among: occupying, reader: reader) }
         XCTAssertEqual(drawn.map(\.name).sorted(), ["Jordan Lee", "Sam Chen"])
         XCTAssertFalse(drawn.contains { $0.name == "New member" || $0.name == "Sam Chen" && $0.subtitle == "Plans and cooks with you" })
-        XCTAssertEqual(drawn.first { $0.name == "Sam Chen" }?.subtitle, "You · Owner")
+        XCTAssertEqual(drawn.first { $0.name == "Sam Chen" }?.subtitle, "You · Organizer")
         XCTAssertEqual(drawn.first { $0.name == "Jordan Lee" }?.subtitle, "Plans and cooks with you")
         XCTAssertEqual(Seats.seatedCaption(among: occupying, reader: reader), "Sam and Jordan")
         XCTAssertEqual(

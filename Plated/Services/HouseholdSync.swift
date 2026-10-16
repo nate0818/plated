@@ -61,6 +61,8 @@ enum HouseholdSync {
                 ("userRecordName", member.userRecordName ?? ""),
                 ("bio", member.bio),
                 ("photo", bytes(member.photoData)),
+                ("profileBannerPhoto", bytes(member.profileBannerPhotoData)),
+                ("profileBannerPhotoModifiedAt", date(member.profileBannerPhotoModifiedAt)),
             ]
         case let recipe as Recipe:
             fields = [
@@ -87,9 +89,11 @@ enum HouseholdSync {
                 ("createdAt", date(recipe.createdAt)),
                 ("cookNotes", recipe.cookNotes),
                 ("weatherMoods", list(recipe.weatherMoods)),
+                ("planningMetadata", encoded(RecipePlanningMetadata(recipe: recipe))),
                 ("ingredients", list(recipe.sortedIngredients.map {
                     [$0.name, String($0.quantity), $0.unit, $0.aisle,
-                     bool($0.isPantryStaple), String($0.sortIndex)].joined(separator: "\u{1F}")
+                     bool($0.isPantryStaple), String($0.sortIndex),
+                     encoded($0.package)].joined(separator: "\u{1F}")
                 })),
                 ("photo", bytes(recipe.photoData)),
                 ("extraPhotos", list(recipe.sortedExtraPhotos.map { bytes($0.photoData) })),
@@ -116,6 +120,9 @@ enum HouseholdSync {
                 ("aisle", line.aisle),
                 ("day", HouseholdMember.day(line.weekStart)),
                 ("originTitle", line.originTitle),
+                ("recipeOrigins", list(line.recipeOrigins.sorted { $0.id < $1.id }.map {
+                    [$0.id, $0.title].joined(separator: "\u{1F}")
+                })),
                 ("isChecked", bool(line.isChecked)),
             ]
         default:
@@ -136,6 +143,12 @@ enum HouseholdSync {
     private static func bytes(_ data: Data?) -> String {
         guard let data, !data.isEmpty else { return "" }
         return hex(SHA256.hash(data: data))
+    }
+
+    private static func encoded<T: Encodable>(_ value: T) -> String {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        return (try? encoder.encode(value)).flatMap { String(data: $0, encoding: .utf8) } ?? ""
     }
 
     /// Whole milliseconds: a Date that round-trips through CloudKit keeps
@@ -500,6 +513,13 @@ enum HouseholdSync {
                 for meal in twin.assignedMeals ?? [] { meal.cook = survivor }
                 if (survivor.userRecordName ?? "").isEmpty { survivor.userRecordName = twin.userRecordName }
                 if survivor.photoData == nil { survivor.photoData = twin.photoData }
+                if let twinDate = twin.profileBannerPhotoModifiedAt,
+                   twinDate > (survivor.profileBannerPhotoModifiedAt ?? .distantPast) {
+                    survivor.profileBannerPhotoData = twin.profileBannerPhotoData
+                    survivor.profileBannerPhotoModifiedAt = twinDate
+                } else if survivor.profileBannerPhotoData == nil {
+                    survivor.profileBannerPhotoData = twin.profileBannerPhotoData
+                }
                 context.delete(twin); removed += 1
             }
         }
@@ -922,6 +942,13 @@ enum HouseholdSync {
                 if !local.name.isEmpty, !HouseholdIdentity.isPlaceholder(local.name) { claimed.name = local.name }
                 if claimed.bio.isEmpty { claimed.bio = local.bio }
                 if claimed.photoData == nil { claimed.photoData = local.photoData }
+                if let localDate = local.profileBannerPhotoModifiedAt,
+                   localDate > (claimed.profileBannerPhotoModifiedAt ?? .distantPast) {
+                    claimed.profileBannerPhotoData = local.profileBannerPhotoData
+                    claimed.profileBannerPhotoModifiedAt = localDate
+                } else if claimed.profileBannerPhotoData == nil {
+                    claimed.profileBannerPhotoData = local.profileBannerPhotoData
+                }
                 if oldName != claimed.name { Awards.rekey(from: oldName, to: claimed.name) }
             }
             context.delete(local)

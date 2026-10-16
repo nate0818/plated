@@ -1,6 +1,16 @@
-# Plated — Design Specification v2.0 · "Quiet chrome, earned color"
+> Retired by the user-selected Editorial direction on October 16, 2026. Use [DESIGN.md](../DESIGN.md) and [the current system](../design/design-system.md).
 
-The single source of truth for Plated's visual and interaction design. Every value below is a decision, not a suggestion. iOS 18+, SwiftUI, bundled OFL fonts (Gabarito + Plus Jakarta Sans), no third-party UI libraries.
+# Historical design snapshot: v2.0 · "Quiet chrome, earned color"
+
+This file records the August 2026 direction and is retained for history. It is
+not the current source of truth and contains rules that the shipping product
+has deliberately superseded. Use [`DESIGN.md`](../DESIGN.md) for current visual,
+interaction, collaboration, accessibility, and release-quality decisions.
+The current [component and token reference](../design/design-system.md) documents
+the SwiftUI design system and its preview gallery.
+
+iOS 18+, SwiftUI, bundled OFL fonts (Gabarito + Plus Jakarta Sans), no
+third-party UI libraries.
 
 v1.0 (cream/serif "plates on porcelain") is retired; see git history. This register was locked 2026-08-21 against the design canvas ("Plated Journey" artifact) after an A/B pass.
 
@@ -57,15 +67,16 @@ Three springs, defined once: `.plPop` (0.32/0.55 — icon and reaction bounce, t
 
 ## 5. Structure
 
-- Tab IA: **Plan · Table · + · Recipes · Home** in a floating 68pt capsule; active item ink, others faint; + is tomato, 54pt, rotates 90° on press. Four tabs and the +, symmetric 2 | + | 2.
-- **Two floating objects, not one.** Prongsby is no longer a tab — six footer items was too crowded. He rides as a **perch**: one puck drawn once in the shell above the bar, inherited by every tab and every page pushed inside one, opening him as a sheet. A page that docks its own bottom control calls `.hidesProngsbyPerch()` (PostThreadView, RecipeDetailView) or the perch sits on that control.
+- Tab IA: **Plan · Recipes · Groceries · Table** in a floating 68pt capsule. These are stable destinations, never actions. Creation belongs to the screen that owns it; Household is pushed from Profile or Plan rather than masquerading as a fifth tab.
+- **One floating object.** The shell owns the bottom navigation. Prongsby is parked and has no tab, perch, deep link or launch route; the old interaction is retained only in source for possible future product review. Existing persisted messages remain readable.
 - **Bottom spacing is a token family, never a typed number** (`Layout`, Theme.swift): `tabBarInset` (84) clears the bar alone — what a page that hides the perch needs; `perchBottom` (= tabBarInset) is where the perch sits; `perchHeight` (50); `floatingChromeInset` (perchBottom + perchHeight + 8) is what a scroll owes at its bottom. Derived from each other on purpose: a hand-written copy drifted short of the chrome it was meant to clear, and a hand-written 92 put a send button underneath the perch.
-- Home: the household itself — masthead (HOUSEHOLD / the name), banner photo cropped to faces at pick time, the count, who sits at the table, who cooks when. Stats and badges live one tap in.
+- Household: a pushed collaboration space — masthead (HOUSEHOLD / the name), banner photo cropped to faces at pick time, the count, who belongs, and who cooks when. Stats and badges live one tap in.
 - **The count**: numbers carry no box and no glyph — number over word, hairline rules between, sentence case. A count that needs an icon to be legible has the wrong label, and a box around a number reads as a button that isn't one. One shared atom (`CountBlock`) across Home, the stats shelf and a person's profile.
 - **Badges** are a medal grid, never full-width rows. One ring carries every state: it fills as the household climbs and a closed ring means earned, so nothing draws a lock or a tick. Prose lives in the tap, and a "closest badge" card puts the nearest goal on top.
-- Plan (home): rolling next-7-nights, tonight first with 1.5pt ink border; open nights are dashed rows that expand into Pick for me / Cookbook / Ask the table; conic progress ring "N of 7 plated"; grocery is a basket in the header (of the plan, not a destination).
+- Plan: a week/month dinner timeline with tonight first, clear open-night actions, retrospective memory for past nights, and contextual routes into recipes and cooking.
+- Groceries: a first-class destination generated from a chosen planning window. Recipe provenance stays visible, pantry staples are an explicit reviewable choice, and empty progress furniture stays hidden.
 - Table: private invite-only feed; plate reactions; **10 plates = chef's kiss**; comments allow URLs (link chips).
-- Discover: behind the search glass, which now sits **beside the feed's scope picker** rather than in the Table header — scoping the feed and searching it are the same kind of act, and the header has the host's own avatar to seat instead. A 2-col rounded-rect grid of dinners from tables that chose to be open. View-only from outside; plating and "save to cookbook" work; nothing about your table leaks outward. Kiss badges (sparkle-in-circle) mark ≥10-plate dishes.
+- The Table has no public audience. Its People screen is the authority for exactly who can see a post. Every post and comment from another person can be reported without blocking them; blocking is silent, local to the device, hides that author's posts and comments, and is reversible from People. Public discovery remains out of scope until a server-backed moderation and response/removal workflow exists.
 - All tap targets ≥ 44pt. Sheets use `presentationCornerRadius(28)` and solid canvas backgrounds.
 
 ## 6. Widgets
@@ -74,6 +85,6 @@ Home-screen widgets are the register at postage-stamp size: canvas background, m
 
 ## 7. Roadmap register notes
 
-Phase 3 (widgets, App Intents, app-group bridge, CloudKit sharing scaffold, onboarding invites) shipped. The gamification/insights surface shipped 2026-08-22 — the count on Home, the stats shelf, and the badge grid. Prongsby's on-device mind (Apple Foundation Models, with a rule-brain fallback) and "Ask Prongsby" via Siri shipped alongside it.
+Phase 3 (widgets, App Intents, app-group bridge, CloudKit sharing scaffold, onboarding invites) shipped. The gamification/insights surface shipped 2026-08-22 — the count on Home, the stats shelf, and the badge grid. Prongsby was later parked and removed from user-facing entry points.
 
 Next: live CKShare Tables once a signing team is wired; seat management UI; in-app purchases (held deliberately — `PlatedPlus.gatingEnabled` is the single constant that re-arms the seat gate and the Settings row when Nate calls it); a **sync-status affordance**, which is where broken CloudKit setup should surface — the pull-to-refresh deliberately does not report it, see `CloudSync.observeImports`; and moving **authorship from a stored name string to a relationship**, which is the real fix for renames orphaning a person's posts (`HouseholdIdentity.rename` is the interim door).

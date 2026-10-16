@@ -36,38 +36,58 @@ struct RecipeArtwork: View {
 
 struct PlatedMasthead<Tools: View>: View {
     var title: String
-    /// Three header actions need their own row so the title keeps its width.
+    var wordmarkSize: CGFloat = 25
     var titleBelowTools = false
     @ViewBuilder var tools: Tools
-    var body: some View {
-        Group {
-            if titleBelowTools {
-                VStack(alignment: .leading, spacing: 9) {
-                    HStack(spacing: 12) {
-                        PlatedWordmark(size: 23)
-                        Spacer(minLength: 8)
-                        tools.plChrome()
-                    }
-                    Text(title).plType(.hero, .semibold).foregroundStyle(Color.ink)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            } else {
-                HStack(alignment: .top, spacing: 12) {
-                    VStack(alignment: .leading, spacing: 9) {
-                        PlatedWordmark(size: 23)
-                        Text(title).plType(.hero, .semibold).foregroundStyle(Color.ink)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    tools.padding(.top, 2).plChrome()
-                }
-            }
+    @Environment(\.dynamicTypeSize) private var typeSize
+
+    private var accessibleTitle: String {
+        switch title {
+        case "At home, tonight.", "The dinner plan", "The month ahead": "Plan"
+        case "The recipe book": "Recipes"
+        default: title
         }
-        .padding(.top, 12).padding(.bottom, 6)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            HStack(spacing: 8) {
+                PlatedWordmark(size: max(24, wordmarkSize))
+                Spacer(minLength: 8)
+                EditorialAddButton()
+                tools.plChrome()
+            }
+            .plChrome()
+            Text(typeSize.isAccessibilitySize ? accessibleTitle : title)
+                .plType(typeSize.isAccessibilitySize ? .heading : .hero, .regular)
+                .foregroundStyle(Color.ink)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityAddTraits(.isHeader)
+        }
+        .padding(.top, 6).padding(.bottom, 10)
+    }
+}
+
+struct EditorialAddButton: View {
+    var body: some View {
+        Button {
+            Haptic.tap()
+            NotificationCenter.default.post(name: .platedCreateRequested, object: nil)
+        } label: {
+            Image(systemName: "plus")
+                .font(.system(size: 20, weight: .regular))
+                .foregroundStyle(Color.accentText)
+                .plTapTarget()
+        }
+        .buttonStyle(.pressable)
+        .accessibilityLabel("Add")
+        .accessibilityHint("Add a recipe, Table post or question")
+        .accessibilityIdentifier("tray-create")
     }
 }
 
 struct DesignChip: View {
+    @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColor
     var title: String
     var symbol: String? = nil
     var selected = false
@@ -75,15 +95,19 @@ struct DesignChip: View {
     var body: some View {
         Button { Haptic.select(); action() } label: {
             HStack(spacing: 6) {
-                if let symbol { Image(systemName: symbol).font(.system(size: 13, weight: .medium)) }
+                if selected && differentiateWithoutColor {
+                    Image(systemName: "checkmark").accessibilityHidden(true)
+                } else if let symbol {
+                    Image(systemName: symbol).font(.system(size: 13, weight: .medium)).accessibilityHidden(true)
+                }
                 Text(title)
                     .plType(.footnote, selected ? .semibold : .regular)
                     .plActionLabel()
             }
-            .foregroundStyle(selected ? Color.onTomato : Color.inkSecondary)
+            .foregroundStyle(selected ? Color.onSelection : Color.inkSecondary)
             .padding(.horizontal, 16).frame(minHeight: 44)
-            .background(selected ? Color.tomato : Color.fill, in: Capsule())
-            .contentShape(Capsule())
+            .background(selected ? Color.selectionFill : Color.fill, in: Radius.shape(Radius.chip))
+            .contentShape(Radius.shape(Radius.chip))
         }.buttonStyle(.pressable)
             .accessibilityAddTraits(selected ? .isSelected : [])
     }
@@ -97,10 +121,73 @@ struct DesignIconButton: View {
     var body: some View {
         Button { Haptic.tap(); action() } label: {
             Image(systemName: symbol).font(.system(size: 18, weight: .medium))
-                .foregroundStyle(accent ? Color.onTomato : Color.ink)
+                .foregroundStyle(accent ? Color.onSelection : Color.ink)
                 .frame(width: 44, height: 44)
-                .background(accent ? Color.tomato : Color.fill, in: Circle())
-                .contentShape(Circle())
+                .background(accent ? Color.selectionFill : Color.fill, in: Radius.shape(Radius.chip))
+                .contentShape(Radius.shape(Radius.chip))
         }.buttonStyle(.pressable).accessibilityLabel(label)
     }
 }
+
+#if DEBUG
+/// A local review surface: no store, account, timers or network dependencies.
+private struct PlatedDesignSystemGallery: View {
+    @State private var selected = true
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: Spacing.section) {
+                Text("Plated design system").plType(.title, .semibold)
+                VStack(alignment: .leading, spacing: Spacing.inline) {
+                    Text("Editorial, made for dinner").plType(.heading, .semibold)
+                    Text("Plan dinner, keep the recipe and cook together.")
+                        .plType(.body).foregroundStyle(Color.inkSecondary)
+                    MicroLabel("Supporting detail")
+                }
+                VStack(spacing: Spacing.compact) {
+                    PrimaryActionButton(title: "Save recipe", systemImage: "checkmark") {}
+                    PrimaryActionButton(title: "Importing recipe", busy: true) {}
+                    PrimaryActionButton(title: "Save recipe") {}.disabled(true)
+                    SecondaryActionButton(title: "Choose another night", systemImage: "calendar") {}
+                    SecondaryActionButton(title: "Choose another night") {}.disabled(true)
+                }
+                VStack(alignment: .leading, spacing: Spacing.compact) {
+                    DesignChip(title: "Weeknight recipes", symbol: "clock", selected: selected) {
+                        selected.toggle()
+                    }
+                    OptionRow(icon: "book.closed", title: "Add a recipe", detail: "Paste it, scan it, or write it out") {}
+                    Button("Floating control") {}
+                        .plType(.callout)
+                        .padding(Spacing.content)
+                        .plFloatingGlass()
+                }
+                RecipeArtwork(data: nil, title: "Lemon butter salmon")
+            }
+            .foregroundStyle(Color.ink)
+            .padding(Spacing.page)
+            .frame(maxWidth: Layout.readableMaxWidth)
+            .frame(maxWidth: .infinity)
+        }
+        .background(Color.canvas)
+        .onAppear { BrandFonts.registerAll() }
+    }
+}
+
+#Preview("Design system / Light") {
+    PlatedDesignSystemGallery().preferredColorScheme(.light)
+}
+
+#Preview("Design system / Dark") {
+    PlatedDesignSystemGallery().preferredColorScheme(.dark)
+}
+
+#Preview("Design system / AX5") {
+    PlatedDesignSystemGallery().environment(\.dynamicTypeSize, .accessibility5)
+}
+
+#Preview("Design system / System accessibility settings") {
+    // Accessibility environment values are read-only in this SDK.
+    // Configure reduced effects and contrast in the preview host's settings.
+    PlatedDesignSystemGallery()
+}
+#endif

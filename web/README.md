@@ -3,7 +3,9 @@
 The website, separate from the app. Next.js in this folder; the Vercel
 project's Root Directory is `web`, so nothing above this folder is served.
 
-- `/` is the front door with the waitlist.
+- `/` introduces the app with real screenshots, an interactive feature tour,
+  and household and Table stories. Early access points to the shared TestFlight
+  URL in `app/lib/store.ts`; the waitlist is for the App Store launch.
 - `/privacy` is the policy. Every sentence describes the running system.
 - `/join` is the invitation landing page. A phone with Plated never sees it,
   because `/join` is in `public/.well-known/apple-app-site-association` and
@@ -49,8 +51,23 @@ of at least 14 characters, then requires TOTP. Reading the console requires
 AAL2; every founder command requires a TOTP verification from the last 15
 minutes.
 
-Colour tokens in `app/globals.css` are copied from `Plated/Support/Theme.swift`
-by hand, light values only. Change one there, change it here.
+Colour tokens in `app/globals.css` mirror the Editorial system in
+`Plated/Support/Theme.swift`: deep green by default across public pages, the private console, and error
+pages. The optional paper palette is retained for explicit future use. Change a native
+token there, change its web counterpart here; `make tokens` verifies both palettes. The homepage uses Newsreader
+titles, DM Sans reading text, fine rules, flat surfaces, small rectangular
+controls, and orange primary actions. The homepage pairs shared-table brand
+photography with actual app captures. The app preview uses a native dialog,
+named screen buttons, arrow-key navigation, and Escape to close.
+
+Fonts in `app/fonts` are the same variable TTFs shipped with the native app,
+self-hosted through `next/font/local`. Homepage imagery and its source captures
+are documented in `public/app/README.md` and `public/editorial/README.md`.
+
+Regenerate browser icons and the social card after a brand or screenshot change
+with `node scripts/generate-editorial-artwork.cjs`. It uses the bundled fonts,
+current CSS palette, and the actual Editorial Plan capture. Font licenses are
+stored beside the binaries.
 
 ```
 npm run dev

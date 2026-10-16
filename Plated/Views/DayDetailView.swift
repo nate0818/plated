@@ -80,8 +80,7 @@ struct DayDetailView: View {
                 }
                 .padding(.horizontal, 24)
                 .padding(.top, 12)
-                // Pushed pages clear the floating tab bar themselves.
-                .padding(.bottom, Layout.floatingChromeInset)
+                .padding(.bottom, Layout.focusedPageBottom)
             }
             .onScrollPhaseChange { _, phase in
                 if phase == .interacting, swipedSlot != nil {
@@ -142,15 +141,15 @@ struct DayDetailView: View {
                     withAnimation(.plSnap) { date = day; swipedSlot = nil }
                 } label: {
                     VStack(spacing: 4) {
-                        Text(day.formattedWeekday()).plType(.caption, .medium)
+                        Text(day.formattedWeekday()).plType(.caption, .medium) // design-ok(action-wrap): the calendar intentionally stacks weekday and date
                         Text(day.formattedDayNumber()).plType(.body, .semibold).monospacedDigit()
                     }
-                    .foregroundStyle(selected ? Color.onTomato : Color.inkSecondary)
+                    .foregroundStyle(selected ? Color.onSelection : Color.inkSecondary)
                     .frame(maxWidth: .infinity, minHeight: 56)
-                    .background(selected ? Color.tomato : dropTargetDay == day ? Color.tomatoTint : Color.clear, in: Radius.shape(Radius.chip))
+                    .background(selected ? Color.selectionFill : dropTargetDay == day ? Color.oliveTint : Color.clear, in: Radius.shape(Radius.chip))
                     .overlay {
                         if dropTargetDay == day, !selected {
-                            Radius.shape(Radius.chip).strokeBorder(Color.tomato, lineWidth: 1.5)
+                            Radius.shape(Radius.chip).strokeBorder(Color.olive, lineWidth: 1.5)
                         }
                     }
                     .contentShape(Rectangle())
@@ -308,20 +307,30 @@ struct DayDetailView: View {
     }
 
     /// One door to every other occasion — breakfast, lunch, a snack, dessert
-    /// — instead of five standing invitations. A day that has already
-    /// happened doesn't get invited to plan.
+    /// — instead of five standing invitations. Past days use the same door:
+    /// remembering what happened is still part of keeping the household plan.
     @ViewBuilder
     private var addMeal: some View {
-        if isPast {
-            if shownSlots.isEmpty {
-                Text("Nothing plated")
-                    .plType(.body)
-                    .foregroundStyle(Color.inkSecondary)
-                    .padding(.top, 8)
-            }
-        } else if !openSlots.isEmpty {
+        if !openSlots.isEmpty {
             Menu {
-                ForEach(openSlots) { slot in
+                if openSlots.contains(.dinner) {
+                    Button {
+                        planning = SlotPlan(date: date, slot: .dinner)
+                    } label: {
+                        Label("Plan the night", systemImage: "plus.circle")
+                    }
+                    // A remote dinner is edited through PlanNightSheet so the
+                    // household keeps one fact. With no dinner anywhere, this
+                    // direct action records the common retroactive answer.
+                    if remotePlans(in: .dinner).isEmpty {
+                        Button {
+                            markEatingOut()
+                        } label: {
+                            Label("Eating out", systemImage: "fork.knife")
+                        }
+                    }
+                }
+                ForEach(openSlots.filter { $0 != .dinner }) { slot in
                     Button {
                         planning = SlotPlan(date: date, slot: slot)
                     } label: {
@@ -339,11 +348,18 @@ struct DayDetailView: View {
                         .overlay {
                             Image(systemName: "plus")
                                 .font(.system(size: 14, weight: .bold))
-                                .foregroundStyle(Color.inkFaint)
+                                .foregroundStyle(Color.inkSecondary)
                         }
-                    Text(plannedSlots.isEmpty ? "Add a meal" : "Add another meal")
-                        .plType(.body)
-                        .foregroundStyle(Color.inkSecondary)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(shownSlots.isEmpty ? "No meal planned yet" : "Add another meal")
+                            .plType(.body, shownSlots.isEmpty ? .semibold : .regular)
+                            .foregroundStyle(shownSlots.isEmpty ? Color.ink : Color.inkSecondary)
+                        if shownSlots.isEmpty {
+                            Text(assignmentLine)
+                                .plType(.caption, .semibold)
+                                .foregroundStyle(Color.inkSecondary)
+                        }
+                    }
                     Spacer()
                 }
                 .padding(.horizontal, 14)
@@ -362,8 +378,10 @@ struct DayDetailView: View {
                 }
                 .contentShape(Rectangle())
             }
-            .accessibilityLabel(plannedSlots.isEmpty ? "Add a meal" : "Add another meal")
-            .accessibilityHint("Choose a meal")
+            .accessibilityLabel(shownSlots.isEmpty
+                                ? "No meal planned yet. \(assignmentLine)"
+                                : "Add another meal")
+            .accessibilityHint(isPast ? "Choose what happened on this day" : "Choose a meal")
         }
     }
 
@@ -408,6 +426,12 @@ struct DayDetailView: View {
                         .foregroundStyle(Color.inkSecondary)
                         .lineLimit(1)
                 }
+                if let detail = mealDetailLine(meal) {
+                    Text(detail)
+                        .plType(.caption, .regular)
+                        .foregroundStyle(Color.inkSecondary)
+                        .lineLimit(2)
+                }
             }
             Spacer(minLength: 8)
             // Not you. The meta line already says "You cook"; your own face
@@ -439,7 +463,15 @@ struct DayDetailView: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isButton)
+        .accessibilityHint(meal.recipe == nil ? "Opens meal options" : "Opens recipe details for \(meal.title)")
         .matchedTransitionSource(id: meal.persistentModelID, in: zoom)
+    }
+
+    /// A day card should explain the planned meal at a glance, before the
+    /// person opens the full recipe. Custom meals use their own note instead.
+    private func mealDetailLine(_ meal: PlannedMeal) -> String? {
+        if let summary = meal.recipe?.summary, !summary.isEmpty { return summary }
+        return meal.tagline.isEmpty ? nil : meal.tagline
     }
 
     @ViewBuilder
@@ -480,7 +512,7 @@ struct DayDetailView: View {
                     .overlay {
                         Image(systemName: "checkmark")
                             .font(.system(size: 10, weight: .bold))
-                            .foregroundStyle(Color.onTomato)
+                            .foregroundStyle(Color.onOlive)
                     }
                     .overlay { Circle().strokeBorder(Color.canvas, lineWidth: 2) }
                     .accessibilityHidden(true)
@@ -494,6 +526,7 @@ struct DayDetailView: View {
             swipedSlot = nil
             meal.cookedAt = meal.isCooked ? nil : .now
         }
+        Persist.save(context, "day cooked state")
     }
 
     // MARK: Data
@@ -523,6 +556,17 @@ struct DayDetailView: View {
             swipedSlot = nil
             context.delete(meal)
         }
+        Persist.save(context, "remove planned meal")
+    }
+
+    private func markEatingOut() {
+        Haptic.plate()
+        withAnimation(.plPop) {
+            let meal = PlannedMeal(date: date, slot: .dinner, customTitle: "Eating out")
+            meal.tagline = "Night off the stove"
+            context.insert(meal)
+        }
+        Persist.save(context)
     }
 
     private func mealMeta(_ meal: PlannedMeal) -> String? {
@@ -576,6 +620,16 @@ struct DayDetailView: View {
         guard !rostered.isEmpty else { return nil }
         let names = rostered.map { $0.isMe ? "you" : $0.name }
         return "Usually \(names.joined(separator: " and ")) on \(weekdayName)s"
+    }
+
+    /// The open-state counterpart to the planned card's cook line. It uses
+    /// the same rotation that planning will persist, so the empty day and the
+    /// sheet it opens cannot name different people.
+    private var assignmentLine: String {
+        guard let cook = CookRotation.cook(for: date, members: members, meals: meals) else {
+            return "No cook assigned yet"
+        }
+        return cook.isMe ? "You're assigned to cook" : "\(cook.firstName) is assigned to cook"
     }
 
     private var weekdayName: String {

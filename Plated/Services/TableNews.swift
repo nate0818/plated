@@ -964,7 +964,8 @@ enum TableNews {
             NotificationRouter.Key.link: n.link.absoluteString,
             NotificationRouter.Key.post: n.post,
             NotificationRouter.Key.kind: n.kind.rawValue,
-            NotificationRouter.Key.actor: n.actor
+            NotificationRouter.Key.actor: n.actor,
+            NotificationRouter.Key.actorID: n.actorID
         ]
         return content
     }
@@ -982,7 +983,17 @@ enum TableNews {
         // they muted. Every row was already written; this is only about
         // the screen. Filtered before the fold so "3 more" counts what
         // would actually have shown.
-        let heard = notices.filter(NewsPreferences.allows)
+        let unblocked = notices.filter {
+            !ContentSafety.shared.hidesTableNotice(
+                kind: $0.kind.rawValue,
+                authorID: $0.actorID,
+                authorName: $0.actor
+            )
+        }
+        let heard = unblocked.filter(NewsPreferences.allows)
+        if unblocked.count != notices.count {
+            print("[TableNews] \(notices.count - unblocked.count) notice(s) hidden by a local Table block")
+        }
         if heard.count != notices.count {
             print("[TableNews] \(notices.count - heard.count) notice(s) kept to the list by preference")
         }
@@ -1175,7 +1186,7 @@ enum TableNews {
         Persist.save(context, "notices for deleted posts")
         await clearDelivered(about: records)
         for record in records {
-            INInteraction.delete(with: record) { _ in }
+            try? await INInteraction.delete(with: record)
         }
         AppBadge.sync(context)
     }
@@ -1732,7 +1743,9 @@ enum AppBadge {
         let unread = (try? context.fetch(FetchDescriptor<PlatedNotification>(
             predicate: #Predicate { !$0.isRead && $0.eventKey != "" }
         ))) ?? []
-        return unread.filter(NewsPreferences.counts).count
+        return unread.filter {
+            NewsPreferences.counts($0) && !ContentSafety.shared.hidesTableActivity($0)
+        }.count
     }
 
     static func sync(_ context: ModelContext) {

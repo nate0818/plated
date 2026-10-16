@@ -20,9 +20,10 @@ enum ContactPhotoPicker {
         picker.predicateForSelectionOfContact = NSPredicate(value: true)
         host.present(picker, animated: true)
     }
-    private final class Delegate: NSObject, CNContactPickerDelegate {
+    private final class Delegate: NSObject, @MainActor CNContactPickerDelegate {
         let completion: (Data?) -> Void
         init(completion: @escaping (Data?) -> Void) { self.completion = completion }
+        @MainActor
         func contactPicker(_ picker: CNContactPickerViewController, didSelect contact: CNContact) {
             let raw = (contact.isKeyAvailable(CNContactImageDataKey) ? contact.imageData : nil)
                 ?? (contact.isKeyAvailable(CNContactThumbnailImageDataKey) ? contact.thumbnailImageData : nil)
@@ -32,6 +33,7 @@ enum ContactPhotoPicker {
                 retained = nil
             }
         }
+        @MainActor
         func contactPickerDidCancel(_ picker: CNContactPickerViewController) {
             picker.dismiss(animated: true) { self.completion(nil); retained = nil }
         }

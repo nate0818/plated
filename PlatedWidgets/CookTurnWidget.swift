@@ -38,12 +38,12 @@ struct CookTurnWidgetView: View {
                 // their own name is how a database talks; the notifications
                 // already say "you", and the home screen should agree.
                 Text(turn.isMine ? "You" : turn.name)
-                    .font(.jakarta(17))
+                    .font(.sans(17))
                     .foregroundStyle(Plate.ink)
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
                 Text(turnLine(turn))
-                    .font(.jakarta(12, "SemiBold"))
+                    .font(.sans(12, "SemiBold"))
                     .foregroundStyle(Plate.inkSecondary)
                     .lineLimit(1)
             } else {
@@ -69,12 +69,12 @@ struct CookTurnWidgetView: View {
                             CookDot(initial: turn.initial, hex: turn.hex, size: index == 0 ? 44 : 36)
                                 .frame(height: 44)
                             Text(turn.isMine ? "You" : turn.name)
-                                .font(.jakarta(13))
+                                .font(.sans(13))
                                 .foregroundStyle(Plate.ink)
                                 .lineLimit(1)
                                 .minimumScaleFactor(0.8)
                             Text(turn.when)
-                                .font(.jakarta(11, "SemiBold"))
+                                .font(.sans(11, "SemiBold"))
                                 .foregroundStyle(Plate.inkSecondary)
                                 .lineLimit(1)
                         }
@@ -97,10 +97,10 @@ struct CookTurnWidgetView: View {
                         .foregroundStyle(Plate.inkFaint)
                 }
             Text("Nobody yet")
-                .font(.jakarta(15))
+                .font(.sans(15))
                 .foregroundStyle(Plate.ink)
             Text("Tap to hand out the week")
-                .font(.jakarta(12, "SemiBold"))
+                .font(.sans(12, "SemiBold"))
                 .foregroundStyle(Plate.inkSecondary)
                 .lineLimit(2)
         }
