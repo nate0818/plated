@@ -144,6 +144,10 @@ struct PlanDateStrip: View {
                    let settled = interaction.settle(on: dates[finalIndex], at: ProcessInfo.processInfo.systemUptime) {
                     centeredIndex = finalIndex
                     commit(settled)
+                    // Native deceleration can stop a few points off a detent.
+                    // Use the same viewport alignment as the initial layout
+                    // so the committed day rests exactly in the center.
+                    reader.scrollTo(settled, anchor: .center)
 
                     // Keep the edge marks honest: a thumb nearing either end
                     // of the runway gets a fresh year on both sides of where
