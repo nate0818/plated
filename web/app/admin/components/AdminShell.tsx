@@ -10,7 +10,7 @@ import styles from "../admin.module.css";
 const NAVIGATION = [
   { href: "/admin", label: "Overview", glyph: "⌂" },
   { href: "/admin/people", label: "People", glyph: "◎" },
-  { href: "/admin/waitlist", label: "Waitlist", glyph: "↗" },
+  { href: "/admin/waitlist", label: "Early access", glyph: "↗" },
   { href: "/admin/announcements", label: "Announcements", glyph: "◉" },
   { href: "/admin/operations", label: "Operations", glyph: "◇" },
   { href: "/admin/audit", label: "Audit trail", glyph: "□" },

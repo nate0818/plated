@@ -35,7 +35,7 @@ export default async function OperationsPage() {
               <Panel title="Integrations">
                 <ul className={styles.checkList}>
                   <li className={styles.checkRow}><div><p className={styles.checkLabel}>Instacart</p><p className={styles.tableSubtext}>{operations.integrations.instacart.reason}</p></div><StatusPill status="unavailable" label="Coverage gap" /></li>
-                  <li className={styles.checkRow}><div><p className={styles.checkLabel}>App Store Connect</p><p className={styles.tableSubtext}>Authoritative release status and build readiness are not connected to this service.</p></div><StatusPill status="unavailable" label="Coverage gap" /></li>
+                  <li className={styles.checkRow}><div><p className={styles.checkLabel}>App Store Connect</p><p className={styles.tableSubtext}>{operations.integrations.appStoreConnect.configured ? "TestFlight invitations are configured in Early access. Release reporting is not connected here." : "App Store Connect needs setup. Release reporting is not connected here."}</p></div><StatusPill status={operations.integrations.appStoreConnect.configured ? "ready" : "unavailable"} label={operations.integrations.appStoreConnect.configured ? "Invitations" : "Coverage gap"} /></li>
                 </ul>
               </Panel>
             </div>

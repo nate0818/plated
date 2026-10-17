@@ -219,7 +219,7 @@ export function decodeOperations(value: unknown): AdminReadEnvelope<OperationsDT
     if (database.status !== "available" || adminAuth.mfaRequired !== true || adminAuth.signedRequestsRequired !== true ||
         push.acceptedLabel !== "Accepted by Apple" || deviceDirectory.tokenOwnership !== "global" || invitations.shareUrlsStored !== false ||
         adminRetention.terminalDeliveryTokensCleared !== "immediately" || instacart.status !== "coverage_gap" ||
-        appStoreConnect.status !== "coverage_gap" || appStoreConnect.configured !== false) {
+        !(["coverage_gap", "invitations_only"].includes(String(appStoreConnect.status))) || typeof appStoreConnect.configured !== "boolean") {
       throw new AdminContractError();
     }
     return {
@@ -246,7 +246,7 @@ export function decodeOperations(value: unknown): AdminReadEnvelope<OperationsDT
       },
       integrations: {
         instacart: { status: "coverage_gap", reason: text(instacart.reason) },
-        appStoreConnect: { status: "coverage_gap", configured: false },
+        appStoreConnect: { status: appStoreConnect.status as "coverage_gap" | "invitations_only", configured: flag(appStoreConnect.configured) },
       },
       phoneHashing: { configured: flag(phoneHashing.configured) },
     };

@@ -26,3 +26,6 @@ verify_jwt = true
 
 [functions.announce]
 verify_jwt = true
+
+[functions.admin-testflight]
+verify_jwt = true

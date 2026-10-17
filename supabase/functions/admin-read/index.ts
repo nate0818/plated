@@ -245,7 +245,10 @@ async function operations(context: AdminContext) {
         status: "coverage_gap",
         reason: "Instacart configuration belongs to a separate function and is not authoritative here.",
       },
-      appStoreConnect: { status: "coverage_gap", configured: false },
+      appStoreConnect: {
+        status: Deno.env.get("ASC_BETA_GROUP_ID") ? "invitations_only" : "coverage_gap",
+        configured: ["ASC_KEY_ID", "ASC_ISSUER_ID", "ASC_PRIVATE_KEY_B64", "ASC_APP_ID", "ASC_BETA_GROUP_ID"].every(name => Boolean(Deno.env.get(name))),
+      },
     },
     phoneHashing: { configured: aggregate.phonePepperConfigured ?? false },
   };
@@ -287,7 +290,7 @@ async function releases(context: AdminContext) {
       provider: "App Store Connect",
       connected: false,
       status: "coverage_gap",
-      reason: "No App Store Connect integration is configured for the founder console.",
+      reason: "Release reporting is not connected here. TestFlight invitations are managed separately in Early access.",
     },
     deviceReported: aggregate.deviceReported ?? {},
     caveat: "Device registrations show installed builds. They do not establish TestFlight or App Store release status.",

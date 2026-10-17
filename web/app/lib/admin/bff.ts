@@ -1,7 +1,7 @@
 import "server-only";
 
 import { createHmac, randomUUID } from "node:crypto";
-import type { AdminCommandRequest, AdminReadRequest } from "./contracts";
+import type { AdminCommandRequest, AdminReadRequest, TestFlightRequest } from "./contracts";
 import { AdminSessionError, requireAdminSession } from "./auth";
 import { getPublicSupabaseConfig } from "../supabase/config";
 
@@ -19,17 +19,17 @@ export type AdminEdgeResult<T> =
 
 class AdminEdgeConfigurationError extends Error {}
 
-function functionName(kind: "read" | "command"): string {
-  return kind === "read" ? "admin-read" : "announce";
+function functionName(kind: "read" | "command" | "testflight"): string {
+  return kind === "read" ? "admin-read" : kind === "testflight" ? "admin-testflight" : "announce";
 }
 
-function functionUrl(kind: "read" | "command"): URL {
+function functionUrl(kind: "read" | "command" | "testflight"): URL {
   const supabase = getPublicSupabaseConfig();
   if (!supabase) throw new AdminEdgeConfigurationError("Supabase public configuration is missing.");
 
   const override = kind === "read"
     ? process.env.ADMIN_READ_FUNCTION_URL
-    : process.env.ADMIN_COMMAND_FUNCTION_URL;
+    : kind === "command" ? process.env.ADMIN_COMMAND_FUNCTION_URL : undefined;
   const fallbackName = functionName(kind);
   const url = new URL(override?.trim() || `/functions/v1/${fallbackName}`, supabase.url);
   const expectedPath = `/functions/v1/${fallbackName}`;
@@ -92,14 +92,14 @@ function edgeMessage(value: unknown, fallback: string): string {
 }
 
 export async function callAdminEdge<T>(
-  kind: "read" | "command",
-  payload: AdminReadRequest | AdminCommandRequest,
+  kind: "read" | "command" | "testflight",
+  payload: AdminReadRequest | AdminCommandRequest | TestFlightRequest,
 ): Promise<AdminEdgeResult<T>> {
   const requestId = randomUUID();
 
   try {
     const [{ accessToken }, supabase] = await Promise.all([
-      requireAdminSession({ recentTotp: kind === "command" || payload.op === "waitlist-export" }),
+      requireAdminSession({ recentTotp: kind !== "read" || payload.op === "waitlist-export" }),
       Promise.resolve(getPublicSupabaseConfig()),
     ]);
     if (!supabase) throw new AdminEdgeConfigurationError("Supabase public configuration is missing.");
@@ -153,6 +153,7 @@ export async function callAdminEdge<T>(
         ok: false,
         status: response.status,
         error: edgeMessage(decoded, "The admin service refused the request."),
+        ...(decoded && typeof decoded === "object" && "code" in decoded && decoded.code === "mfa_step_up_required" ? {code: "mfa_step_up_required" as const} : {}),
         requestId,
       };
     }

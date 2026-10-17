@@ -131,7 +131,7 @@ export type OperationsDTO = {
   };
   integrations: {
     instacart: { status: "coverage_gap"; reason: string };
-    appStoreConnect: { status: "coverage_gap"; configured: false };
+    appStoreConnect: { status: "coverage_gap" | "invitations_only"; configured: boolean };
   };
   phoneHashing: { configured: boolean };
 };
@@ -189,3 +189,9 @@ export type AdminApiError = {
   request_id?: string;
   code?: "mfa_step_up_required";
 };
+
+export type AccessFilter = "active" | "invited" | "archived" | "all";
+export type AccessStatus = "new" | "archived" | "sending" | "invited" | "accepted" | "installed" | "failed" | "uncertain" | "revoked";
+export type TestFlightRequest = {op:"list";filter:AccessFilter;offset:number} | {op:"connection"} | {op:"invite"|"sync"|"archive"|"restore";id:string};
+export type AccessRow = {id:string;email:string;requestedAt:string;status:AccessStatus;appleState:string|null;invitedAt:string|null;checkedAt:string|null;errorCode:string|null};
+export type AccessRequestsDTO = {rows:AccessRow[];totalCount:number;counts:{pending:number;invited:number;archived:number};connection:{ready:boolean;groupName:string|null;build:string|null;message:string}};
