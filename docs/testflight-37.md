@@ -54,6 +54,25 @@ review; the final successful-removal check also passed on iPhone SE (3rd gen) /
 iOS 26.5 (`build/household-removal-compact-ui.xcresult`). Visual evidence is in
 `docs/household-removal-2026-10-17/`.
 
-Signed distribution verification is pending. Live two-account revocation and
-the user's exact production-state cause remain unverified without the connected
-accounts. Do not claim that Alessandra has already been removed.
+## Signed release
+
+Source commit: `a8bba2c464d309a5c260290605133577578f79ae`, pushed to `origin/main`.
+The signed 1.0.1 (37) archive/export succeeded. Signature trust and integrity,
+app/widget build matching, production CloudKit/APNs, WeatherKit entitlement,
+sharing/background keys, export compliance, privacy manifests and matching
+binary/dSYM UUID all passed. Native source fingerprints stayed unchanged during
+the archive. The package is retained in `build/releases/37/`; its SHA-256 and
+verification receipt are recorded in `docs/testflight-37-release.json`.
+
+Apple accepted the upload without errors (17,495,315 bytes; delivery/build ID
+`77335a29-5a3a-420a-adf4-d25ef291f91a`). At 2026-10-17 21:12:11 UTC the build was
+`VALID`, with both internal and external states `IN_BETA_TESTING`. Both
+configured groups include build 37; tester notes were read back successfully,
+automatic notifications are enabled, and build 36 had no individually assigned
+testers to carry forward. Older builds were not expired. Public TestFlight:
+https://testflight.apple.com/join/2exAQgYs
+
+Live two-account revocation and the user's exact production-state cause remain
+unverified without the connected accounts. No real household member was removed
+during this work. The user can update to build 37 and retry the action on their
+own household.
