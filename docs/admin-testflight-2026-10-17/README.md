@@ -21,3 +21,13 @@ The founder reviews requests at `/admin/waitlist` and sends Apple TestFlight inv
 ## Validation
 
 Unit tests cover new and existing testers, no duplicate sends, explicit NOT_INVITED handling, unknown states, network ambiguity, read-only refresh, founder authorization, request validation, exact address matching, pagination, destination checks, and ES256 JWT signing. SQL integration checks exercise archive/restore, leases, stale completion, source boundaries and RLS in a rolled-back transaction. Live provider validation is read-only.
+
+### Release verification
+
+- 32 automated tests pass (24 Deno, 8 Node); Next production build, TypeScript and ESLint pass.
+- Rolled-back database integration assertions passed. No synthetic requests remain.
+- Production: signed-out management calls return 401; foreign-origin calls return 403. Direct anonymous Edge calls return 401. The public request page remains 200.
+- Read-only Apple validation confirmed External group / build 33 in external testing. All five deployed secret digests match the validated settings.
+- Production runtime error scan was clean. Signed-in live review still requires the founder’s own login and MFA; sending behavior was tested with mocked Apple responses, without emailing real testers.
+- Security advisor reports the intended service-only table as “RLS enabled / no client policy.” Client table and RPC privileges were separately verified absent. Its pre-existing [leaked-password protection warning](https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection) is unrelated and unchanged.
+- Migration filename matches the version recorded by the hosted migration service (the CLI generated the original source file before application).
