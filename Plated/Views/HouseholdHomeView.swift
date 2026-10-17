@@ -79,6 +79,7 @@ private struct HouseholdHomeContent: View {
     @State private var dialog: RosterDialog?
     /// A refusal, said under the roster: "Couldn't remove Riley."
     @State private var problem: String?
+    @State private var removingName: String?
     /// The host's outbox while the household is first published (§6): what
     /// is still to go, and how many there were when publishing began.
     @State private var sharingPending = 0
@@ -89,23 +90,18 @@ private struct HouseholdHomeContent: View {
     @State private var peopleRefreshNote: String?
 
     enum RosterDialog: Identifiable {
-        case remove(HouseholdMember)
+        case remove(HouseholdRemoval.Target)
         case role(HouseholdMember)
         case demote(HouseholdMember, to: String)
 
         var id: String {
             switch self {
-            case .remove(let m): return "remove-\(m.shareRecordName)"
+            case .remove(let m): return "remove-\(m.id)"
             case .role(let m): return "role-\(m.shareRecordName)"
             case .demote(let m, let role): return "demote-\(m.shareRecordName)-\(role)"
             }
         }
 
-        var member: HouseholdMember {
-            switch self {
-            case .remove(let m), .role(let m), .demote(let m, _): return m
-            }
-        }
     }
     #if DEBUG
     /// One arming per view lifetime, so a re-appearance can't queue a
@@ -607,6 +603,9 @@ private struct HouseholdHomeContent: View {
         case .remove(let member):
             switch member.seat {
             case .joined:
+                if member.identityKey == nil {
+                    return "We’ll check this profile’s shared account in iCloud. If it isn’t linked, only the saved profile is removed and existing invitation links may still work."
+                }
                 return "\(member.firstName) loses the plan, the grocery list and the cookbook. Their own recipes stay in the cookbook."
             case .invited:
                 // Not "the invitation stops working": the household link is
@@ -673,17 +672,21 @@ private struct HouseholdHomeContent: View {
 
     /// Through the one door (§8). On a refusal the row stays and the
     /// reason is said under the roster.
-    private func remove(_ member: HouseholdMember) async {
+    private func remove(_ target: HouseholdRemoval.Target) async {
+        guard removingName == nil,
+              let member = context.model(for: target.id) as? HouseholdMember,
+              member.isRenderable else { return }
         let first = member.firstName
-        withAnimation(.plSnap) { problem = nil }
-        if await Seats.remove(member, in: context) {
+        removingName = first
+        defer { removingName = nil }
+        withAnimation(.plSnap) { problem = nil; peopleRefreshNote = nil }
+        let result = await Seats.remove(member, in: context)
+        if result.succeeded {
             Haptic.plate()
-            Persist.save(context, "seat removed")
+            peopleRefreshNote = result.message(name: first)
         } else {
             Haptic.warn()
-            withAnimation(.plSnap) {
-                problem = "Couldn't remove \(first). Check your connection and try again."
-            }
+            withAnimation(.plSnap) { problem = result.message(name: first) }
         }
     }
 
@@ -877,7 +880,10 @@ private struct HouseholdHomeContent: View {
                 let readerIsHead = reader?.isOwner == true
                 ForEach(people, id: \.persistentModelID) { member in
                     SwipeRow(isOpen: swipeBinding(member), actions: swipeActions(for: member, readerIsHead: readerIsHead)) {
-                        memberRow(member, readerIsHead: readerIsHead, reader: reader, among: people)
+                        // SwipeRow retains this closure during removal animation.
+                        if member.isRenderable {
+                            memberRow(member, readerIsHead: readerIsHead, reader: reader, among: people.filter(\.isRenderable))
+                        }
                     }
                     if member.persistentModelID != lastID {
                         Divider().overlay(Color.hairlineSoft)
@@ -890,7 +896,14 @@ private struct HouseholdHomeContent: View {
             .overlay(RoundedRectangle(cornerRadius: Radius.hero, style: .continuous).strokeBorder(Color.hairline))
             .plCardShadow()
             .animation(.plSnap, value: roster.count)
+            .disabled(removingName != nil)
 
+            if let removingName {
+                ProgressView("Removing \(removingName)…")
+                    .plType(.caption, .semibold)
+                    .foregroundStyle(Color.inkSecondary)
+                    .accessibilityIdentifier("household-removal-progress")
+            }
             if let problem {
                 ProblemRow(problem)
                     .transition(.opacity)
@@ -919,6 +932,7 @@ private struct HouseholdHomeContent: View {
                     }
                 }
                 .padding(.horizontal, 14)
+                .padding(.vertical, 10)
                 .frame(minHeight: 44)
                 .background(Color.raisedFill, in: Radius.shape(Radius.card))
                 .overlay(Radius.shape(Radius.card).strokeBorder(Color.hairline))
@@ -991,6 +1005,7 @@ private struct HouseholdHomeContent: View {
         let photo = drawn.photo
         let firstInitial = name.first.map(String.init)?.uppercased() ?? member.firstInitial
         let showsColor = member.showsColor
+        let isOwner = member.isOwner
         return HStack(spacing: 8) {
             Button {
                 Haptic.tap()
@@ -1063,7 +1078,7 @@ private struct HouseholdHomeContent: View {
                     .background(tone.tint, in: Radius.shape(Radius.chip))
             }
 
-            if !member.isOwner {
+            if !isOwner {
                 memberActionsMenu(member, readerIsHead: readerIsHead)
             }
         }
@@ -1072,8 +1087,12 @@ private struct HouseholdHomeContent: View {
 
     private func memberActionsMenu(_ member: HouseholdMember, readerIsHead: Bool) -> some View {
         let id = member.persistentModelID
+        let canResend = member.canResend
+        let messageURL = member.messageURL
+        let seat = member.seat
+        let name = member.name
         return Menu {
-            if member.canResend, InviteComposer.isAvailable, readerIsHead {
+            if canResend, InviteComposer.isAvailable, readerIsHead {
                 Button("Send invitation again", systemImage: "paperplane") {
                     Task {
                         guard let live = liveMember(id) else { return }
@@ -1081,10 +1100,10 @@ private struct HouseholdHomeContent: View {
                     }
                 }
             }
-            if let url = member.messageURL {
+            if let url = messageURL {
                 Button("Message", systemImage: "bubble.right") { openURL(url) }
             }
-            if readerIsHead, member.seat != .left {
+            if readerIsHead, seat != .left {
                 Button("Change role", systemImage: "person.text.rectangle") {
                     guard let live = liveMember(id) else { return }
                     dialog = .role(live)
@@ -1093,7 +1112,7 @@ private struct HouseholdHomeContent: View {
             if readerIsHead {
                 Button("Remove from household", systemImage: "person.badge.minus", role: .destructive) {
                     guard let live = liveMember(id) else { return }
-                    dialog = .remove(live)
+                    dialog = .remove(HouseholdRemoval.Target(live))
                 }
             }
         } label: {
@@ -1105,7 +1124,7 @@ private struct HouseholdHomeContent: View {
                 .frame(minWidth: 44, minHeight: 44)
                 .contentShape(Rectangle())
         }
-        .accessibilityLabel("More options for \(member.name)")
+        .accessibilityLabel("More options for \(name)")
     }
 
     /// The head of table keeps their seat — you cannot swipe away the
@@ -1146,7 +1165,7 @@ private struct HouseholdHomeContent: View {
             }
             actions.append(.remove {
                 guard let live = liveMember(id) else { return }
-                dialog = .remove(live)
+                dialog = .remove(HouseholdRemoval.Target(live))
             })
         }
         return actions
@@ -1469,6 +1488,7 @@ struct AddMemberSheet: View {
     @State private var copying = false
     @State private var copied = false
     @State private var problem: String?
+    @State private var removingName: String?
 
     var body: some View {
         ScrollView(showsIndicators: false) {

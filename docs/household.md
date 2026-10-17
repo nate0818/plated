@@ -671,15 +671,26 @@ not seeded at all, so a fresh joiner never inherits the household's leavers.
 successfully read participant list as `left`, and retires it the same way.
 
 **Remove** lives on the member row for the host only, and goes through
-`Seats.remove`: call `removeParticipant` on both shares matched by
-`userIdentity.userRecordID`; on refusal say so and stop ("Couldn't remove
-Riley. Check your connection and try again."); never write
-`publicPermission = .none`. On success delete the seat record, append the
+`Seats.remove`: use the first nonempty account/participant identity and revoke
+both shares by `userIdentity.userRecordID`. If a joined profile has no local
+identity, read its exact household seat record; never select an account by name
+or by its position in the share. A confirmed unclaimed/deleted seat permits
+removing the saved profile, with explicit copy that no linked account was found
+and invitation links may still work. An unreadable seat is a failure, not absence.
+Typed outcomes distinguish identity lookup, household revocation, Table
+revocation and local-save failures. Keep the row available for retry after a
+partial revocation. A fetched share without the participant is already removed;
+retry changed share records and check the individual save result. Never write
+`publicPermission = .none`. On full success delete the seat record, append the
 identity to the root's `removedIDs`, push the root, delete the row, and hand
 that person's cook nights back to unplanned. The confirmation says what is
 true: "Riley loses the plan, the grocery list and the cookbook. Their own
 recipes stay in the cookbook." A removed identity is refused at join
 (section 7) and never seated by reconcile.
+
+Removal shows progress and prevents duplicate taps. Local deletion is saved by
+the service; a failed save restores the profile and its cook assignments, while
+preserving edits saved before the deletion transaction.
 
 **Being removed** is noticed only on positive evidence: a
 `CKFetchDatabaseChangesOperation` on the shared database reporting the
@@ -978,7 +989,7 @@ enum Seats {   // additions and changes
     static func confirmSent(kind: Kind, prepared: Prepared, name: String, phone: String?, email: String?, role: String, in: ModelContext)
     static func abandon(kind: Kind, prepared: Prepared)
     static func resend(_ member: HouseholdMember, hostName: String) async -> Prepared
-    static func remove(_ member: HouseholdMember, in: ModelContext) async -> Bool   // the only door
+    static func remove(_ member: HouseholdMember, in: ModelContext) async -> HouseholdRemoval.Outcome
     static func changeRole(_ member: HouseholdMember, to: String, in: ModelContext)
     static func reconcile(in: ModelContext) async       // household standings; joins and lefts
     static func me(in: ModelContext) -> HouseholdMember?

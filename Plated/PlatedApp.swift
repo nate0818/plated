@@ -123,6 +123,13 @@ struct PlatedApp: App {
                 try? preview.mainContext.save()
             }
             if arguments.contains("-plated-design-review") {
+                if arguments.contains("-plated-review-removal-unlinked"),
+                   let sam = (try? preview.mainContext.fetch(FetchDescriptor<HouseholdMember>()))?.first(where: { $0.name == "Sam" }) {
+                    sam.seat = .joined
+                    sam.userRecordName = ""
+                    sam.participantID = nil
+                    try? preview.mainContext.save()
+                }
                 let fixtureOwner = "ux-audit-tonight"
                 if PlanLedger.shared.householdOwner == fixtureOwner {
                     PlanLedger.shared.forget(zoneOwner: fixtureOwner)

@@ -248,55 +248,66 @@ enum Seats {
     // MARK: Taking a seat back
 
     /// The only door out of the roster (§8). Host only. A joined person is
-    /// taken off both shares first, and on any refusal nothing local
-    /// changes: the caller says so rather than showing a seat that is gone
+    /// taken off both shares first, and on any refusal the roster stays:
+    /// the caller says so rather than showing a seat that is gone
     /// here and still open on their phone.
-    static func remove(_ member: HouseholdMember, in context: ModelContext) async -> Bool {
-        let members = all(in: context)
-        guard members.me?.isOwner == true else {
-            print("PLATED HOUSEHOLD: only the head of table removes a seat")
-            return false
-        }
+    static func remove(
+        _ member: HouseholdMember, in context: ModelContext,
+        services suppliedServices: HouseholdRemoval.Services? = nil
+    ) async -> HouseholdRemoval.Outcome {
+        let services = suppliedServices ?? .live
+        guard all(in: context).me?.isOwner == true,
+              HouseholdShare.membership.owner == nil else { return .notOrganizer }
+        guard !member.isOwner, member.seat != .head, !member.isMe else { return .protectedPerson }
         let hosting = HouseholdShare.membership == .hosting
-
-        switch member.seat {
-        case .head:
-            return false
-        case .joined:
-            // Identity is the only key on a public share (§1); a joined row
-            // without one cannot be evicted, and pretending otherwise would
-            // leave them reading the plan.
-            guard let identity = member.userRecordName ?? member.participantID, !identity.isEmpty else {
-                print("PLATED HOUSEHOLD: \(member.name) has no identity to remove")
-                return false
-            }
-            guard await HouseholdShare.removeParticipant(userRecordName: identity) else { return false }
-            // Same person, same record name on the Table share. The
-            // household eviction is the one that matters for the plan, so
-            // it gates; a refusal here is said and not fatal, because a
-            // second attempt could no longer find them on the household
-            // share and would refuse forever.
-            if !(await TableShare.remove(seatID: identity)) {
-                print("PLATED HOUSEHOLD: \(member.name) is off the household but still at the Table")
-            }
-            HouseholdOutbox.shared.enqueueDelete(.seat, member.shareRecordName)
-            appendRemovedID(identity)
-        case .invited, .notOnPlated, .left:
-            // Nothing on any share. The seat record still has to go if the
-            // household has been published; a phone that never shared has
-            // no zone to delete from and nothing queued.
-            if hosting {
-                HouseholdOutbox.shared.enqueueDelete(.seat, member.shareRecordName)
+        let recordName = member.shareRecordName
+        let name = member.name
+        // Unlike ??, identityKey skips an empty userRecordName and retains
+        // a valid participantID from a restored or accepted invitation.
+        var identity = member.identityKey
+        var removedUnlinked = false
+        if identity == nil, member.seat == .joined {
+            switch await services.identity(recordName) {
+            case .linked(let found) where !found.isEmpty: identity = found
+            case .unlinked: removedUnlinked = true
+            case .linked, .unavailable: return .identityUnavailable
             }
         }
-
-        // Their nights go back to unplanned rather than to whoever the
-        // rota picks next; nobody was asked to cook them.
-        for meal in member.assignedMeals ?? [] { meal.cook = nil }
-        let gone = "\(member.name) (\(member.seat.rawValue))"
+        if let identity {
+            guard await services.household(identity) else { return .householdUnavailable }
+            // A retry is safe even if the first share already removed them.
+            // Do not claim full removal while Table access remains open.
+            guard await services.table(identity) else { return .tableUnavailable }
+            // Publishing the removed-ID marker starts remote roster cleanup.
+            // Keep that cleanup behind both revocations so a partial failure
+            // cannot erase the row the organizer needs to retry.
+            appendRemovedID(identity)
+        }
+        guard member.isRenderable else { return .removed }
+        // Save existing edits before the synchronous deletion transaction.
+        // Its rollback then contains only this removal, never another draft.
+        guard services.save(context, "before removing member") else { return .saveFailed }
+        let memberID = member.persistentModelID
+        let assigned = member.assignedMeals ?? []
+        let mealIDs = assigned.map(\.persistentModelID)
+        for meal in assigned { meal.cook = nil }
         context.delete(member)
-        print("PLATED HOUSEHOLD: removed \(gone)")
-        return true
+        guard services.save(context, "seat removed") else {
+            context.rollback()
+            // SwiftData rolls back the row deletion but can leave the
+            // nullified inverse relationships empty in its live objects.
+            if let restored = context.model(for: memberID) as? HouseholdMember {
+                for id in mealIDs {
+                    (context.model(for: id) as? PlannedMeal)?.cook = restored
+                }
+            }
+            return .saveFailed
+        }
+        if hosting || identity != nil || removedUnlinked {
+            HouseholdOutbox.shared.enqueueDelete(.seat, recordName)
+        }
+        print("PLATED HOUSEHOLD: removed \(name)\(removedUnlinked ? " (unlinked profile)" : "")")
+        return removedUnlinked ? .removedUnlinked : .removed
     }
 
     /// A removed identity is refused at join and never seated again (§8).

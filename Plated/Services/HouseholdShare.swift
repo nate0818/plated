@@ -1611,43 +1611,36 @@ enum HouseholdShare {
         return rows
     }
 
-    /// Take one person off the household share, matched by identity. False
-    /// on any refusal, and the caller says so. `publicPermission` is never
-    /// written: setting it to `.none` on a share with participants evicts
-    /// everyone.
-    ///
-    /// A participant who is not on a share this call could read is answered
-    /// true: they deleted the app or dropped the zone before their `left`
-    /// push arrived, so what was asked for already holds. Answering false
-    /// there put "Couldn't remove Riley. Check your connection and try
-    /// again." on a screen where the connection was fine and the row could
-    /// never be removed at all.
+    /// Recover only this exact seat's account link. A missing seat or empty
+    /// identity means an unlinked profile; a failed read cannot prove absence.
+    static func removalIdentity(seat: String) async -> HouseholdRemoval.Identity {
+        guard !seat.isEmpty, await TableSync.accountAvailable() else { return .unavailable }
+        if membership != .hosting { _ = await refreshMembership() }
+        guard membership == .hosting else { return .unavailable }
+        let zone = CKRecordZone.ID(zoneName: zoneName, ownerName: CKCurrentUserDefaultName)
+        do {
+            let record = try await container.privateCloudDatabase.record(
+                for: CKRecord.ID(recordName: seat, zoneID: zone))
+            let identity = [record["userRecordName"] as? String, record["participantID"] as? String]
+                .compactMap { $0 }.first { !$0.isEmpty }
+            return identity.map(HouseholdRemoval.Identity.linked) ?? .unlinked
+        } catch let error as CKError where error.code == .unknownItem {
+            return .unlinked
+        } catch {
+            print("PLATED REMOVE: couldn't read the exact household seat: \(error.localizedDescription)")
+            return .unavailable
+        }
+    }
+
+    /// Revoke the exact account's access. Confirmed absence is idempotent
+    /// success; a failed fetch/save is not. Public permissions are untouched.
     static func removeParticipant(userRecordName: String) async -> Bool {
         guard !userRecordName.isEmpty, await TableSync.accountAvailable() else { return false }
-        guard case .hosting = membership else { return false }
-        guard let (db, share) = await currentShare() else {
-            print("PLATED HOUSEHOLD: could not read the household share to remove \(userRecordName)")
-            return false
-        }
-        guard let victim = share.participants.first(where: {
-            $0.userIdentity.userRecordID?.recordName == userRecordName
-        }) else {
-            print("PLATED HOUSEHOLD: \(userRecordName) is not on the household share, nothing to remove")
-            return true
-        }
-        guard victim.role != .owner else {
-            print("PLATED HOUSEHOLD: the owner is not removed from their own household share")
-            return false
-        }
-        share.removeParticipant(victim)
-        do {
-            _ = try await db.modifyRecords(saving: [share], deleting: [])
-            print("PLATED HOUSEHOLD: removed participant \(userRecordName)")
-            return true
-        } catch {
-            print("PLATED HOUSEHOLD: could not remove participant: \(error)")
-            return false
-        }
+        if membership != .hosting { _ = await refreshMembership() }
+        guard membership == .hosting else { return false }
+        let zone = CKRecordZone.ID(zoneName: zoneName, ownerName: CKCurrentUserDefaultName)
+        return await ShareParticipantRemoval.remove(userRecordName,
+            rootID: CKRecord.ID(recordName: rootRecordName, zoneID: zone), in: container.privateCloudDatabase)
     }
 
     /// A member leaves: their copy of the zone goes from the shared
@@ -2520,6 +2513,7 @@ enum HouseholdShare {
     static func refreshMembership() async -> Membership { membership }
     static func invitationURL(hostName: String) async -> URL? { nil }
     static func standings() async -> [TableShare.Standing] { [] }
+    static func removalIdentity(seat: String) async -> HouseholdRemoval.Identity { .unavailable }
     static func removeParticipant(userRecordName: String) async -> Bool { false }
     static func leave() async -> Bool { false }
     static func accept(_ metadata: CKShare.Metadata) async -> TableShare.Accepted { .unreachable }

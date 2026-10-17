@@ -1,0 +1,10 @@
+Household removal fixes:
+
+• A valid participant ID now works even if an older account-ID field is empty.
+• A joined profile missing its local account link is checked against its exact shared profile in iCloud.
+• Confirmed unlinked profiles can be removed with a clear notice explaining that no linked account access was revoked and existing invitation links may still work.
+• Removal shows progress and explains which step failed. Partial removal can be retried without losing the person’s row.
+• Failed local saves restore the person and their dinner assignments.
+• Fixed a crash while the household row disappeared after successful removal.
+
+Please try removal from Household or Table People. Live revocation across two signed-in accounts still requires device verification; automated tests use isolated records and simulated cloud responses.

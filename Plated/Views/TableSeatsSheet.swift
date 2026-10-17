@@ -57,7 +57,7 @@ struct TableSeatsSheet: View {
     /// One dialog at a time, keyed on the thing it is about. The seat rows
     /// have no swipe state to put back, so this is simpler than Home's.
     enum Dialog {
-        case removeMember(HouseholdMember)
+        case removeMember(HouseholdRemoval.Target)
         case removeGuest(Guest)
         case leave(JoinedTable)
     }
@@ -78,6 +78,8 @@ struct TableSeatsSheet: View {
     @State private var invites = TableInvites.shared
     @State private var dialog: Dialog?
     @State private var problem: Problem?
+    @State private var removingName: String?
+    @State private var removalNotice: String?
     @State private var contentSafety = ContentSafety.shared
 
     /// Only the host edits seats (docs/household.md §8, §9). On a member's
@@ -168,6 +170,18 @@ struct TableSeatsSheet: View {
                         let reader = people.me
                         ForEach(people, id: \.persistentModelID) { member in
                             memberRow(member, reader: reader, among: people)
+                                .disabled(removingName != nil)
+                        }
+                        if let removingName {
+                            ProgressView("Removing \(removingName)…")
+                                .plType(.caption, .semibold)
+                                .foregroundStyle(Color.inkSecondary)
+                        }
+                        if let removalNotice {
+                            Text(removalNotice)
+                                .plType(.caption, .semibold)
+                                .foregroundStyle(Color.inkSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
                     }
 
@@ -225,7 +239,9 @@ struct TableSeatsSheet: View {
         .presentationBackground(Color.canvas)
         .presentationCornerRadius(Radius.sheet)
         .task {
-            Seats.bindShareIdentity(in: context, standings: [])
+            if !PlatedApp.usesPreviewContainer {
+                Seats.bindShareIdentity(in: context, standings: [])
+            }
             await refreshFromiCloud()
         }
         .confirmationDialog(
@@ -276,6 +292,9 @@ struct TableSeatsSheet: View {
         let drawn = Seats.resolvedDisplay(for: member, among: people, reader: reader)
         let isMe = member.isMe
             || (reader != nil && reader!.persistentModelID == member.persistentModelID)
+        let isOwner = member.isOwner
+        let messageURL = member.messageURL
+        let target = HouseholdRemoval.Target(member)
         return seatRow(
             name: drawn.name,
             subtitle: drawn.subtitle,
@@ -286,14 +305,14 @@ struct TableSeatsSheet: View {
             tone: (isMe || !member.showsColor) ? .neutralPair : member.tone,
             photo: drawn.photo
         ) {
-            if member.messageURL != nil || (readerIsHead && !member.isOwner) {
+            if messageURL != nil || (readerIsHead && !isOwner) {
                 actionsMenu(label: "More options for \(drawn.name)") {
-                    if let url = member.messageURL {
+                    if let url = messageURL {
                         Button("Message", systemImage: "bubble.right") { openURL(url) }
                     }
-                    if readerIsHead, !member.isOwner {
+                    if readerIsHead, !isOwner {
                         Button("Remove from household", systemImage: "person.badge.minus", role: .destructive) {
-                            dialog = .removeMember(member)
+                            dialog = .removeMember(target)
                         }
                     }
                 }
@@ -437,6 +456,9 @@ struct TableSeatsSheet: View {
         case .removeMember(let member):
             switch member.seat {
             case .joined:
+                if member.identityKey == nil {
+                    return "We’ll check this profile’s shared account in iCloud. If it isn’t linked, only the saved profile is removed and existing invitation links may still work."
+                }
                 return "\(member.firstName) loses the plan, the grocery list and the cookbook. Their own recipes stay in the cookbook."
             case .invited:
                 // Not "the invitation stops working": the household link is
@@ -481,16 +503,22 @@ struct TableSeatsSheet: View {
 
     /// Through the one door. A local delete of a seat somebody holds on
     /// the share is not a removal, it is a row that comes back.
-    private func remove(_ member: HouseholdMember) async {
+    private func remove(_ target: HouseholdRemoval.Target) async {
+        guard removingName == nil,
+              let member = context.model(for: target.id) as? HouseholdMember,
+              member.isRenderable else { return }
         let first = member.firstName
-        withAnimation(.plSnap) { problem = nil }
-        if await Seats.remove(member, in: context) {
+        removingName = first
+        defer { removingName = nil }
+        withAnimation(.plSnap) { problem = nil; removalNotice = nil }
+        let result = await Seats.remove(member, in: context)
+        if result.succeeded {
             Haptic.plate()
-            Persist.save(context, "seat removed")
+            removalNotice = result.message(name: first)
         } else {
             Haptic.warn()
             withAnimation(.plSnap) {
-                problem = Problem(group: .household, text: "Couldn't remove \(first). Check your connection and try again.")
+                problem = Problem(group: .household, text: result.message(name: first) ?? "Couldn’t update this household.")
             }
         }
     }
@@ -695,6 +723,13 @@ struct TableSeatsSheet: View {
     /// before them, because it is what says whether an empty list means
     /// nobody or means the share could not be read.
     private func refreshFromiCloud() async {
+        if PlatedApp.usesPreviewContainer {
+            reach = .notArmed
+            participants = []
+            joinedTables = []
+            link = .missing
+            return
+        }
         async let state = TableSync.accountState()
         async let seats = TableShare.participants()
         async let tables = TableShare.joinedTables()

@@ -1362,18 +1362,10 @@ enum TableShare {
     /// from their shared database on their next sync. Only the owner edits
     /// participants, so on a member's phone this is a refusal.
     static func remove(seatID: String) async -> Bool {
-        guard householdOwner == nil else { return false }
-        guard let share = await currentShare(),
-              let victim = share.participants.first(where: {
-                  $0.userIdentity.userRecordID?.recordName == seatID
-              }), victim.role != .owner else { return false }
-        share.removeParticipant(victim)
-        do {
-            _ = try await container.privateCloudDatabase.modifyRecords(
-                saving: [share], deleting: []
-            )
-            return true
-        } catch { return false }
+        guard householdOwner == nil, await TableSync.accountAvailable() else { return false }
+        let zone = CKRecordZone.ID(zoneName: zoneName, ownerName: CKCurrentUserDefaultName)
+        return await ShareParticipantRemoval.remove(seatID,
+            rootID: CKRecord.ID(recordName: "table-root", zoneID: zone), in: container.privateCloudDatabase)
     }
 
     /// A guest leaves one table. Deleting the zone from one's OWN shared
