@@ -958,6 +958,10 @@ private struct HouseholdHomeContent: View {
         // is not skipped because our change token moved past it.
         TableShare.requestReplay(zoneOwner: "")
         await TablePull.pull(reason: "refresh-people")
+        guard TablePull.lastHouseholdReadSucceeded else {
+            withAnimation(.plSnap) { peopleRefreshNote = HouseholdIdentity.PeopleCopy.reachFailure }
+            return
+        }
         let before = Set(roster.map(\.persistentModelID))
         await Seats.settleStuckInvites(in: context)
         let after = Seats.all(in: context)
@@ -969,14 +973,12 @@ private struct HouseholdHomeContent: View {
                     ? "A household member"
                     : someone.firstName
                 peopleRefreshNote = added.count == 1
-                    ? "\(label) is back. Tap their row to open and rename if needed."
+                    ? "\(label) is here. Tap their row to open their profile."
                     : "\(added.count) people restored."
             } else if let invite = missing.first {
-                peopleRefreshNote = "\(invite.name) is not on iCloud's share anymore. Invite them again."
-                addPresented = true
+                peopleRefreshNote = "\(invite.name)'s invitation is still waiting for a confirmed join."
             } else {
-                peopleRefreshNote = "They are not on your household share in iCloud anymore. Invite them again."
-                addPresented = true
+                peopleRefreshNote = "Household refreshed."
             }
         }
     }

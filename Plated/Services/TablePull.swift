@@ -33,6 +33,7 @@ enum TablePull {
     private static var inFlight: Task<Void, Never>?
     private static var again = false
     private static var lastPull: Date?
+    private(set) static var lastHouseholdReadSucceeded = false
 
     /// Foreground pulls are throttled: `.active` fires after every
     /// permission sheet and every tab flip, and a table does not change
@@ -79,6 +80,7 @@ enum TablePull {
                 await TableShare.removeSchemaProbes(from: context)
 
                 let household = await HouseholdShare.fetchChanges()
+                lastHouseholdReadSucceeded = !household.failed && !household.zoneGone
                 await HouseholdSync.absorb(household, context: context)
                 // The merge can repair an older overwritten profile or
                 // consume a fresh reinvitation. Publish that repair now.

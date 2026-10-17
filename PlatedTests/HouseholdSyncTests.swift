@@ -282,7 +282,7 @@ final class HouseholdSyncTests: XCTestCase {
         let notices = TableNews.digest(household: changes, outcome: outcome, context: context)
         XCTAssertEqual(notices.count, 1)
         XCTAssertEqual(notices[0].kind, .householdSeat)
-        XCTAssertEqual(notices[0].key, "household:riley")
+        XCTAssertEqual(notices[0].key, "household:riley:seat-x")
         XCTAssertEqual(notices[0].title, "Riley joined your household")
         XCTAssertEqual(notices[0].body, "They can see the plan, the grocery list and the cookbook now.")
         XCTAssertTrue(notices[0].writesRow)
@@ -594,6 +594,151 @@ final class HouseholdSyncTests: XCTestCase {
         var outcome = HouseholdShare.MergeOutcome()
         outcome.newSeats = [riley]
         XCTAssertTrue(TableNews.digest(household: changes, outcome: outcome, context: context).isEmpty)
+    }
+
+    func testHostRecoveryDeliversARecentJoinOnceEvenIfStandingsAlreadySettledTheSeat() async throws {
+        setMembership("hosting")
+        let now = Date.now
+        let (riley, original) = seat("Riley Park", id: "riley", by: "riley")
+        riley.joinedAt = now.addingTimeInterval(-60)
+        var remote = original
+        remote.joinedAt = riley.joinedAt
+        remote.modifiedAt = now
+        try context.save()
+        var changes = HouseholdShare.Changes()
+        changes.seats = [remote]
+        changes.replayed = true
+        let merged = HouseholdShare.merge(changes, into: context)
+        XCTAssertTrue(merged.newSeats.isEmpty, "standings have already promoted the row")
+        await TableNews.deliver(household: changes, outcome: merged, context: context)
+        let rows = try context.fetch(FetchDescriptor<PlatedNotification>())
+        XCTAssertEqual(rows.map(\.body), ["Riley joined your household. They can see the plan, the grocery list and the cookbook now."])
+        XCTAssertFalse(try XCTUnwrap(rows.first).isRead)
+        XCTAssertEqual(rows.first?.createdAt, riley.joinedAt)
+        XCTAssertTrue(TableNews.digest(household: changes, outcome: merged, context: context).isEmpty)
+        TableNews.forgetAll()
+        XCTAssertTrue(TableNews.digest(household: changes, outcome: merged, context: context).isEmpty,
+                      "the stored bell row also prevents duplicate delivery after the key book is reset")
+    }
+
+    func testRecentParticipantOnlySeatRecoversWithoutAStateTransition() throws {
+        setMembership("hosting")
+        let (riley, original) = seat("Riley Park", id: "", by: "riley")
+        riley.participantID = "riley"
+        riley.joinedAt = .now
+        var remote = original
+        remote.participantID = "riley"
+        remote.joinedAt = riley.joinedAt
+        var changes = HouseholdShare.Changes()
+        changes.seats = [remote]
+        let outcome = HouseholdShare.merge(changes, into: context)
+        XCTAssertTrue(outcome.newSeats.isEmpty)
+        let notice = try XCTUnwrap(TableNews.digest(household: changes, outcome: outcome, context: context).first)
+        XCTAssertEqual(notice.actorID, "riley")
+        XCTAssertEqual(notice.key, "household:riley:seat-x")
+    }
+
+    func testReplayDoesNotAnnounceOldHousematesOrMyOwnJoin() throws {
+        setMembership("hosting")
+        let now = Date.now
+        let (riley, original) = seat("Riley", id: "riley", by: "riley")
+        riley.joinedAt = now.addingTimeInterval(-3 * 86400)
+        var remote = original
+        remote.joinedAt = riley.joinedAt
+        var changes = HouseholdShare.Changes()
+        changes.replayed = true
+        changes.seats = [remote]
+        var outcome = HouseholdShare.MergeOutcome()
+        outcome.newSeats = [riley]
+        XCTAssertTrue(TableNews.digest(household: changes, outcome: outcome, context: context, now: now).isEmpty)
+        riley.joinedAt = now
+        remote.joinedAt = now
+        remote.userRecordName = me
+        riley.userRecordName = me
+        changes.seats = [remote]
+        XCTAssertTrue(TableNews.digest(household: changes, outcome: outcome, context: context, now: now).isEmpty)
+        riley.userRecordName = "riley"
+        remote.userRecordName = "riley"
+        changes.seats = [remote]
+        setMembership("member", owner: "host")
+        XCTAssertTrue(TableNews.digest(household: changes, outcome: outcome, context: context, now: now).isEmpty,
+                      "initial joining does not announce the household's existing members")
+    }
+
+    func testNewSeatAfterRemovalHasItsOwnJoinNotice() throws {
+        setMembership("hosting")
+        TableNews.remember(["household:riley:seat-old", "household:riley"])
+        let (riley, remote) = seat("Riley", id: "riley", by: "riley", record: "seat-new")
+        var changes = HouseholdShare.Changes()
+        changes.seats = [remote]
+        var outcome = HouseholdShare.MergeOutcome()
+        outcome.newSeats = [riley]
+        XCTAssertEqual(TableNews.digest(household: changes, outcome: outcome, context: context).map(\.key),
+                       ["household:riley:seat-new"])
+    }
+
+    func testLegacyJoinStaysQuietOnReplayButANewerInvitationCanSpeak() throws {
+        setMembership("hosting")
+        let now = Date.now
+        let (riley, original) = seat("Riley", id: "riley", by: "riley")
+        riley.joinedAt = now.addingTimeInterval(-60)
+        riley.invitedAt = now.addingTimeInterval(-120)
+        var remote = original
+        remote.joinedAt = riley.joinedAt
+        let previous = PlatedNotification(kind: .householdJoined, eventKey: "household:riley", at: now)
+        context.insert(previous)
+        TableNews.remember([previous.eventKey])
+        var changes = HouseholdShare.Changes()
+        changes.seats = [remote]
+        changes.replayed = true
+        XCTAssertTrue(TableNews.digest(household: changes, outcome: .init(), context: context, now: now).isEmpty)
+        previous.createdAt = now.addingTimeInterval(-86400)
+        XCTAssertEqual(TableNews.digest(household: changes, outcome: .init(), context: context, now: now).count, 1)
+    }
+
+    func testHostRoleWriteDoesNotHideAnUnannouncedAcceptedSeat() throws {
+        setMembership("hosting")
+        let (riley, original) = seat("Riley", id: "riley", by: me)
+        riley.joinedAt = .now
+        var remote = original
+        remote.joinedAt = riley.joinedAt
+        var changes = HouseholdShare.Changes()
+        changes.seats = [remote]
+        XCTAssertEqual(TableNews.digest(household: changes, outcome: .init(), context: context).count, 1)
+    }
+
+    func testRecoveryDoesNotAnnounceARevokedSeatThatRemainsCached() throws {
+        setMembership("hosting")
+        let (riley, original) = seat("Riley", id: "riley", by: "riley")
+        riley.joinedAt = .now
+        var remote = original
+        remote.joinedAt = riley.joinedAt
+        var changes = HouseholdShare.Changes()
+        changes.seats = [remote]
+        changes.replayed = true
+        HouseholdShare.cacheAccessEntries(["riley"])
+        XCTAssertTrue(TableNews.digest(household: changes, outcome: .init(), context: context).isEmpty)
+    }
+
+    func testAlreadyAnnouncedRecentMemberDoesNotSilenceTheirNextRecipe() {
+        setMembership("hosting")
+        let (riley, original) = seat("Riley", id: "riley", by: "riley")
+        riley.joinedAt = .now
+        var remote = original
+        remote.joinedAt = riley.joinedAt
+        let recipe = Recipe(title: "Soup")
+        recipe.shareRecordName = "recipe-soup"
+        context.insert(recipe)
+        var remoteRecipe = HouseholdShare.RemoteRecipe()
+        remoteRecipe.recordName = recipe.shareRecordName
+        remoteRecipe.modifiedBy = "riley"
+        var changes = HouseholdShare.Changes()
+        changes.seats = [remote]
+        changes.recipes = [remoteRecipe]
+        var outcome = HouseholdShare.MergeOutcome()
+        outcome.newRecipes = [recipe]
+        TableNews.remember(["household:riley:seat-x"])
+        XCTAssertEqual(TableNews.digest(household: changes, outcome: outcome, context: context).map(\.kind), [.recipe])
     }
 
     func testARecipeIAddedIsNeverNarratedBackToMe() throws {

@@ -1,0 +1,7 @@
+Household joining and profile recovery
+
+- Recent household joins now appear in the bell even after an iCloud recovery refresh. A new invitation after removal has its own join notification.
+- Recover household profile photos even when the phone already has the current record version.
+- Refresh from iCloud no longer incorrectly tells you to invite an existing member again.
+
+Please update both phones. If you are already in the same household, stay joined. On each phone, open Table and pull down to refresh. Check each other's profile photo and a newly shared dish. Personal dinner history from before joining remains private.

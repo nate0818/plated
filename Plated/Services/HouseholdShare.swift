@@ -1108,7 +1108,20 @@ enum HouseholdShare {
                 // that overwrote its personal fields. A full repair read must
                 // still republish the protected local profile in that case.
                 if ownProfileNeedsRepair { HouseholdOutbox.shared.enqueueUpsert(.seat, member.shareRecordName) }
-                guard member.shareModifiedAt != s.modifiedAt else { continue }
+                if member.shareModifiedAt == s.modifiedAt {
+                    // A host write preserves the other account's server
+                    // profile, but its acknowledgement can precede this
+                    // phone receiving that profile. Version equality must
+                    // not leave the avatar missing after a recovery read.
+                    if !member.isMe, member.shareRecordName != claimedSeat,
+                       let identity = member.identityKey,
+                       identity == s.userRecordName || identity == s.participantID {
+                        applyPersonalFields(s, onto: member, isMine: false,
+                                            isOwnerSeat: identity == ownerRecordName,
+                                            hostNames: hostNames, hostPhoto: hostPhoto)
+                    }
+                    continue
+                }
                 let was = member.seat
                 applySeat(s, onto: member, isNew: false, me: me, claimedSeat: claimedSeat,
                           ownerRecordName: ownerRecordName, hostNames: hostNames, hostPhoto: hostPhoto)
@@ -1270,6 +1283,17 @@ enum HouseholdShare {
             member.participantID = id
         }
 
+        applyPersonalFields(s, onto: member, isMine: isMine, isOwnerSeat: isOwnerSeat,
+                            hostNames: hostNames, hostPhoto: hostPhoto)
+        if member.authorID.isEmpty { member.authorID = s.authorID }
+        member.shareModifiedAt = s.modifiedAt
+    }
+
+    @MainActor
+    private static func applyPersonalFields(
+        _ s: RemoteSeat, onto member: HouseholdMember, isMine: Bool, isOwnerSeat: Bool,
+        hostNames: [String], hostPhoto: Data?
+    ) {
         // Personal fields belong to the linked account. Another device on
         // that account can update them, but cannot erase a pending edit.
         // phoneE164 and inviteEmail never travel and are never touched here. An unnamed wire name
@@ -1279,7 +1303,7 @@ enum HouseholdShare {
         // The organizer's own seat is exempt from clone detection: its
         // previous name and photo are the reference values, not evidence
         // that a profile update belongs to somebody else.
-        let selfPublished = s.modifiedBy == member.userRecordName && !(member.userRecordName ?? "").isEmpty
+        let selfPublished = s.modifiedBy == member.identityKey && member.identityKey != nil
         let pendingOwnEdit = HouseholdOutbox.shared.hasPending(member.shareRecordName)
         if !isMine || (selfPublished && !pendingOwnEdit) {
             if !HouseholdIdentity.isUnnamed(s.name),
@@ -1298,8 +1322,6 @@ enum HouseholdShare {
                 member.profileBannerPhotoModifiedAt = modifiedAt
             }
         }
-        if member.authorID.isEmpty { member.authorID = s.authorID }
-        member.shareModifiedAt = s.modifiedAt
     }
 
     @MainActor
@@ -1880,7 +1902,7 @@ enum HouseholdShare {
                 TableShare.forgetToken(for: zoneID)
                 print("PLATED HOUSEHOLD: reading \(zoneID.zoneName) whole, a replay was asked for")
             }
-            let repairKey = "plated.household.completeReads38.\(zoneID.ownerName)"
+            let repairKey = "plated.household.completeReads39.\(zoneID.ownerName)"
             if !UserDefaults.standard.bool(forKey: repairKey) { TableShare.forgetToken(for: zoneID) }
             var cursor = TableShare.token(for: zoneID)
             if cursor == nil { found.replayed = true }

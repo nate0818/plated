@@ -1415,30 +1415,44 @@ enum TableNews {
         for n in notices where n.writesRow {
             writeRow(n, context: context)
         }
-        remember(notices.map(\.key))
         dedupeRows(context)
-        Persist.save(context, "household news")
+        guard Persist.save(context, "household news") else { return }
+        remember(notices.map(\.key))
         AppBadge.sync(context)
         print("[TableNews] \(notices.count) household notice(s): \(notices.map(\.kind.rawValue))")
         await show(notices)
     }
 
-    /// What in a household delta is news for me. Pure over the store and
-    /// the names book, so the tests can hold it to the rules: never about
-    /// my own action (`modifiedBy != me`), never unnamed, never twice,
-    /// nothing at all from a zone read from the beginning, where the join
-    /// has already written the one row that is owed, and nothing about a
-    /// plan or a cookbook that is still being uploaded.
+    /// A roster recovery must not swallow a recent acceptance. Replays
+    /// still keep the cookbook and old household history quiet.
     static func digest(
         household changes: HouseholdShare.Changes,
         outcome: HouseholdShare.MergeOutcome,
-        context: ModelContext
+        context: ModelContext,
+        now: Date = .now
     ) -> [Notice] {
-        guard !changes.replayed else { return [] }
         let me = TableIdentity.cached
         let members = Seats.all(in: context)
         let seen = seenKeys()
         var notices: [Notice] = []
+        let hosting = HouseholdShare.membership == .hosting
+        let transitions = Set(outcome.newSeats.map(\.shareRecordName))
+        var joined = outcome.newSeats
+        if hosting {
+            // Share standings can settle the invited row before its profile
+            // record arrives. That later delivery is still an acceptance
+            // even though merge no longer sees a seat-state transition.
+            for remote in changes.seats where !transitions.contains(remote.recordName) {
+                guard remote.seat == HouseholdMember.Seat.joined.rawValue,
+                      let at = remote.joinedAt, at >= now.addingTimeInterval(-window),
+                      let member = members.first(where: { $0.shareRecordName == remote.recordName }),
+                      member.seat == .joined, let id = member.identityKey,
+                      id == remote.userRecordName || id == remote.participantID,
+                      !HouseholdReinvitation.blocks(id, seat: remote.recordName,
+                                                   entries: HouseholdShare.cachedAccessEntries) else { continue }
+                joined.append(member)
+            }
+        }
 
         // History is not news, and the host's first publish is history.
         // A joiner's pull is incremental from the moment they joined
@@ -1461,7 +1475,7 @@ enum TableNews {
         // (section 7, step 5), so their whole cookbook lands in the
         // delivery that carries their seat. "Riley joined your household"
         // is the news; the cookbook behind it is not.
-        let arriving = Set(outcome.newSeats.compactMap(\.userRecordName).filter { !$0.isEmpty })
+        var arriving = Set(outcome.newSeats.compactMap(\.identityKey))
 
         // Who touched a record last, by name, from this delivery.
         var modifiedBy: [String: String] = [:]
@@ -1481,12 +1495,34 @@ enum TableNews {
             return first == "Someone" ? nil : (name, first)
         }
 
-        for member in outcome.newSeats {
+        var consideredSeats = Set<String>()
+        for member in joined {
+            guard consideredSeats.insert(member.shareRecordName).inserted,
+                  member.identityKey != me, !member.isMe else { continue }
             let by = modifiedBy[member.shareRecordName] ?? ""
-            guard by != me, member.userRecordName != me else { continue }
-            let id = member.userRecordName ?? member.shareRecordName
-            let key = "household:\(id)"
-            guard !seen.contains(key), !HouseholdIdentity.isUnnamed(member.name) else { continue }
+            let recovery = changes.replayed || !transitions.contains(member.shareRecordName)
+            if recovery {
+                guard hosting, let identity = member.identityKey,
+                      !HouseholdReinvitation.blocks(identity, seat: member.shareRecordName,
+                                                   entries: HouseholdShare.cachedAccessEntries),
+                      let at = member.joinedAt,
+                      at >= now.addingTimeInterval(-window), at <= now.addingTimeInterval(300) else { continue }
+            } else if by == me { continue }
+            let id = member.identityKey ?? member.shareRecordName
+            let legacyKey = "household:\(id)"
+            let key = "\(legacyKey):\(member.shareRecordName)"
+            guard !seen.contains(key), rows(eventKey: key, context: context).isEmpty,
+                  !HouseholdIdentity.isUnnamed(member.name) else { continue }
+            if recovery {
+                let legacy = rows(eventKey: legacyKey, context: context)
+                if seen.contains(legacyKey) || !legacy.isEmpty {
+                    // Older builds keyed by account forever. A genuinely
+                    // newer invitation can speak; replaying the same join
+                    // after upgrade must not raise a second notification.
+                    guard let invited = member.invitedAt,
+                          let last = legacy.map(\.createdAt).max(), invited > last else { continue }
+                }
+            }
             let who = firstName(member.name)
             guard who != "Someone" else { continue }
             notices.append(Notice(
@@ -1496,12 +1532,15 @@ enum TableNews {
                 line: "\(who) joined your household. They can see the plan, the grocery list and the cookbook now.",
                 link: DeepLink.url(.home), post: "",
                 direct: true, photo: nil, feedKind: .householdJoined,
-                actor: member.name, at: modifiedAt[member.shareRecordName] ?? .now, rowKey: key,
+                actor: member.name, at: member.joinedAt ?? modifiedAt[member.shareRecordName] ?? now, rowKey: key,
                 relevance: 0.8, actorID: member.identityKey ?? "",
                 deed: "Joined your household.", group: "Home",
                 quietAtNight: true
             ))
+            arriving.insert(id)
         }
+
+        guard !changes.replayed else { return notices }
 
         for member in outcome.leftSeats {
             let by = modifiedBy[member.shareRecordName] ?? ""

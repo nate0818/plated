@@ -114,6 +114,58 @@ final class HouseholdShareTests: XCTestCase {
         XCTAssertEqual(members()[0].dietaryNotes, "local edit", "an unchanged modifiedAt is skipped")
     }
 
+    func testSameVersionRecoveryHydratesTheOtherPersonsProfileWithoutRevertingHouseholdEdits() {
+        let at = Date.now
+        let riley = HouseholdMember(name: "Riley", role: "partner", seat: .joined, shareRecordName: "seat-riley")
+        riley.userRecordName = "riley"
+        riley.shareModifiedAt = at
+        riley.cookWeekdays = [2, 4]
+        context.insert(riley)
+        var remote = seat("Riley Park", record: "seat-riley", user: "riley", at: at)
+        remote.modifiedBy = me // host's acknowledgement preserved these server fields
+        remote.photo = Data([1, 2, 3])
+        remote.bio = "Loves pasta"
+        remote.cookWeekdays = [1]
+        var changes = HouseholdShare.Changes()
+        changes.seats = [remote]
+        HouseholdShare.merge(changes, into: context)
+        XCTAssertEqual(riley.name, "Riley Park")
+        XCTAssertEqual(riley.bio, "Loves pasta")
+        XCTAssertEqual(riley.photoData, remote.photo)
+        XCTAssertEqual(riley.cookWeekdays, [2, 4])
+    }
+
+    func testSameVersionProfileRepairRejectsASeatLinkedToADifferentAccount() {
+        let at = Date.now
+        let riley = HouseholdMember(name: "Riley", seat: .joined, shareRecordName: "seat-riley")
+        riley.userRecordName = "riley"
+        riley.shareModifiedAt = at
+        context.insert(riley)
+        var remote = seat("Sam", record: "seat-riley", user: "sam", at: at)
+        remote.photo = Data([9])
+        var changes = HouseholdShare.Changes()
+        changes.seats = [remote]
+        HouseholdShare.merge(changes, into: context)
+        XCTAssertEqual(riley.name, "Riley")
+        XCTAssertNil(riley.photoData)
+    }
+
+    func testParticipantOnlyProfileCanClearItsOwnPhotoAndBio() {
+        let riley = HouseholdMember(name: "Riley", seat: .joined, shareRecordName: "seat-riley")
+        riley.userRecordName = ""
+        riley.participantID = "riley"
+        riley.photoData = Data([1])
+        riley.bio = "Old bio"
+        context.insert(riley)
+        var remote = seat("Riley", record: "seat-riley")
+        remote.participantID = "riley"
+        var changes = HouseholdShare.Changes()
+        changes.seats = [remote]
+        HouseholdShare.merge(changes, into: context)
+        XCTAssertNil(riley.photoData)
+        XCTAssertEqual(riley.bio, "")
+    }
+
     // MARK: Nameless twins
 
     func testNamelessRecipeTwinAdoptsTheName() {
