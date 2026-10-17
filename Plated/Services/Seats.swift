@@ -564,7 +564,7 @@ enum Seats {
             name = HouseholdIdentity.printedName(
                 stored: member.name, resolved: nil, isSelf: true, seat: member.seat
             )
-        } else {
+        } else if isJoinerSeat(member) {
             let resolved = resolvedName(for: member, among: members)
             if let resolved, isUsableInviteeName(resolved, hosts: hosts) {
                 name = resolved
@@ -576,13 +576,13 @@ enum Seats {
             }
         }
         var photo = member.photoData
-        if !mine, let hostPhoto = hostPhoto(among: members), photo == hostPhoto {
+        if !mine, isJoinerSeat(member), let hostPhoto = hostPhoto(among: members), photo == hostPhoto {
             photo = nil
         }
         if photo == nil {
             photo = resolvedPhoto(for: member, among: members)
         }
-        if !mine, let hostPhoto = hostPhoto(among: members), photo == hostPhoto {
+        if !mine, isJoinerSeat(member), let hostPhoto = hostPhoto(among: members), photo == hostPhoto {
             photo = nil
         }
         let subtitle = mine

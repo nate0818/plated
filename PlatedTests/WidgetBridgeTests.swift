@@ -6,6 +6,25 @@ import SwiftData
 final class WidgetBridgeTests: XCTestCase {
     let day = Date(timeIntervalSince1970: 4_102_444_800).startOfDay
 
+    func testCookOnlyReservationKeepsWidgetDinnerOpenWithoutInventedArtwork() throws {
+        let container = try ModelContainer(for: PlatedStore.schema,
+            configurations: [ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)])
+        let context = container.mainContext
+        let cook = HouseholdMember(name: "Sam", role: "partner", seat: .joined)
+        context.insert(cook)
+        context.insert(PlannedMeal(date: .now, cook: cook))
+        try context.save()
+        PlanLedger.shared.clear()
+        WidgetBridge.publish(from: context)
+        let group = try XCTUnwrap(FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: WidgetBridge.appGroupID))
+        let data = try Data(contentsOf: group.appendingPathComponent("week-snapshot.json"))
+        let snapshot = try JSONDecoder().decode(WidgetBridge.Snapshot.self, from: data)
+        XCTAssertEqual(snapshot.tonight?.title, "Dinner to choose")
+        XCTAssertEqual(snapshot.tonight?.cookName, "Sam")
+        XCTAssertEqual(snapshot.days.first?.planned, false)
+        XCTAssertEqual(snapshot.tonight?.hasPhoto, false)
+    }
+
     func testGrocerySnapshotBuildsBeforeSheetOpensAndDoesNotCommitDrafts() throws {
         let container = try ModelContainer(for: PlatedStore.schema,
             configurations: [ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)])

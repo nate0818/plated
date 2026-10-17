@@ -122,7 +122,7 @@ enum WidgetBridge {
             let remoteCook = remote.map { cook(for: $0, me: me) }
             days.append(Snapshot.Day(
                 day: formatter.string(from: date).uppercased(),
-                planned: meal != nil || remote != nil,
+                planned: meal?.hasDish == true || remote?.hasDish == true,
                 cookInitial: meal?.cook?.firstInitial ?? remoteCook?.initial ?? "",
                 cookHex: meal?.cook?.colorHex ?? remoteCook?.hex ?? "",
                 cookName: meal?.cook?.name ?? remoteCook?.name,
@@ -143,14 +143,14 @@ enum WidgetBridge {
                 // a plated disc (DishView), and the home screen was the one
                 // place a dinner turned back into an icon. The plate's
                 // porcelain and shadow answer the room, so it is drawn twice.
-                if tonightPhoto == nil {
+                if tonightPhoto == nil, meal.hasDish {
                     tonightPhoto = platedDish(for: meal, dark: false)
                     tonightPhotoDark = platedDish(for: meal, dark: true)
                 }
             } else if offset == 0, let remote, let remoteCook {
                 let photo = ledger.photo(for: remote.recordName)
                 tonight = Snapshot.Tonight(
-                    title: remote.title,
+                    title: remote.hasDish ? remote.title : "Dinner to choose",
                     cookInitial: remoteCook.initial,
                     cookHex: remoteCook.hex,
                     minutes: remote.recipeMinutes,
@@ -160,8 +160,8 @@ enum WidgetBridge {
                 tonightPhoto = photo
                 // Same fallback as a local night: the plate, not a glyph.
                 if tonightPhoto == nil {
-                    tonightPhoto = platedDish(title: remote.title, dark: false)
-                    tonightPhotoDark = platedDish(title: remote.title, dark: true)
+                    tonightPhoto = platedDish(title: remote.hasDish ? remote.title : "Dinner to choose", dark: false)
+                    tonightPhotoDark = platedDish(title: remote.hasDish ? remote.title : "Dinner to choose", dark: true)
                 }
             }
         }

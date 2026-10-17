@@ -32,7 +32,7 @@ enum TonightAnswer {
         let tonight = meals.first {
             calendar.isDateInToday($0.date) && $0.slotValue == .dinner
         }
-        guard let tonight else { return hasRecipes ? .open : nil }
+        guard let tonight, tonight.hasDish else { return hasRecipes ? .open : nil }
         return tonight.isCooked ? .cooked(tonight) : .plated(tonight)
     }
 

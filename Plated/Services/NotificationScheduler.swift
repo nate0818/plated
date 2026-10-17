@@ -356,7 +356,7 @@ enum NotificationScheduler {
 
         for night in remoteTurns(nights, localDays: localDays) {
             let date = night.date
-            guard date > today, date <= horizon, !night.title.isEmpty else { continue }
+            guard date > today, date <= horizon, night.hasDish else { continue }
             guard let dayBefore = cal.date(byAdding: .day, value: -1, to: date) else { continue }
             var when = cal.dateComponents([.year, .month, .day], from: dayBefore)
             when.hour = 19

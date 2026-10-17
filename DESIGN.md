@@ -97,6 +97,12 @@ log. Cooked means marked complete; Eating out counts marked nights through today
 not future plans. Never substitute sample counts for missing history. Weather
 permission, loading and recovery states stay visible, with Apple attribution for
 live forecasts. These supporting sections are context, not another dated meal feed.
+The cook is a separate labeled role with a face and an explicit assignment action.
+Unconfirmed rotation says Suggested cook; an explicit No cook assigned choice stays
+unassigned when a dish is chosen. Household rows below the context show profile
+photos and recorded seven-day cooking/sharing activity, and open the person’s
+profile. Never infer activity from a planned recipe or use a name over an available
+account identity.
 
 ## Interaction and accessibility
 

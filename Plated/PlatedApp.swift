@@ -144,6 +144,19 @@ struct PlatedApp: App {
                     }
                     try? preview.mainContext.save()
                 }
+                if arguments.contains("-plated-review-household-activity"),
+                   let sam = (try? preview.mainContext.fetch(FetchDescriptor<HouseholdMember>()))?.first(where: { $0.name == "Sam" }) {
+                    sam.name = "Sam Rivera"; sam.seat = .joined; sam.userRecordName = "ux-audit-sam"
+                    sam.shareRecordName = "seat-ux-sam"
+                    sam.photoData = UIImage(systemName: "person.crop.circle.fill")?.pngData()
+                    let meals = (try? preview.mainContext.fetch(FetchDescriptor<PlannedMeal>())) ?? []
+                    for meal in meals where meal.isCooked { meal.cook = sam }
+                    let oldPosts = (try? preview.mainContext.fetch(FetchDescriptor<TablePost>())) ?? []
+                    for post in oldPosts where post.firstName == "Sam" { post.authorID = "ux-audit-different-sam" }
+                    let post = TablePost(authorName: "Sam Meadows", dishTitle: "Profile identity dinner", createdAt: .now.addingTimeInterval(-3600))
+                    post.authorID = "ux-audit-sam"; preview.mainContext.insert(post)
+                    try? preview.mainContext.save()
+                }
                 if arguments.contains("-plated-review-shared-tonight"),
                    let recipe = (try? preview.mainContext.fetch(FetchDescriptor<Recipe>()))?.first {
                     PlanLedger.shared.householdOwner = fixtureOwner
@@ -154,6 +167,9 @@ struct PlatedApp: App {
                     night.day = PlanDay.string(.now); night.slot = MealSlot.dinner.rawValue
                     night.title = recipe.title; night.servings = 6; night.hasRecipe = true
                     night.recipeOriginKey = recipe.planningKey
+                    if arguments.contains("-plated-review-shared-cook-only") {
+                        night.title = "Unplanned"; night.hasRecipe = false; night.recipeOriginKey = ""
+                    }
                     var changes = TableShare.Changes(); changes.plans = [night]
                     PlanLedger.shared.absorb(changes, me: "ux-audit-reader")
                 }

@@ -226,7 +226,7 @@ struct PostThreadView: View {
         .hidesFloatingChrome()
         .plSwipeBack()
         .navigationDestination(item: $personShown) { person in
-            PersonProfileView(personName: person.name, colorHex: person.colorHex, memberID: person.memberID)
+            PersonProfileView(personName: person.name, colorHex: person.colorHex, memberID: person.memberID, authorID: person.authorID)
                 .navigationTransition(.zoom(sourceID: personDoor, in: zoom))
         }
         .sheet(item: $localSave) { post in
@@ -363,11 +363,11 @@ struct PostThreadView: View {
     private var postHeading: some View {
         VStack(alignment: .leading, spacing: 8) {
             Button {
-                openProfile(post.authorName, colorHex: post.authorColorHex, door: .author(post.persistentModelID))
+                openProfile(post.authorName, colorHex: post.authorColorHex, authorID: post.authorID, door: .author(post.persistentModelID))
             } label: {
                 HStack(spacing: 10) {
                     AvatarCircle(initials: post.initials, tone: PersonTone.from(hex: post.authorColorHex), size: 38,
-                                 photo: members.photo(forAuthor: post.authorName))
+                                 photo: members.photo(forAuthor: post.authorName, authorID: post.authorID))
                         .matchedTransitionSource(id: ZoomID.author(post.persistentModelID), in: zoom)
                     Text(post.authorName).plType(.footnote, .semibold).foregroundStyle(Color.ink)
                         .fixedSize(horizontal: false, vertical: true)
@@ -630,10 +630,10 @@ struct PostThreadView: View {
         let blockAllowed = canBlock(commentAuthor) && comment.deletedAt == nil
         return HStack(alignment: .top, spacing: 10) {
             Button {
-                openProfile(comment.authorName, door: .author(comment.persistentModelID))
+                openProfile(comment.authorName, authorID: comment.authorID, door: .author(comment.persistentModelID))
             } label: {
                 AvatarCircle(initials: initials(for: comment.authorName), tone: tone(for: comment.authorName), size: 30,
-                             photo: members.photo(forAuthor: comment.authorName))
+                             photo: members.photo(forAuthor: comment.authorName, authorID: comment.authorID))
                     .matchedTransitionSource(id: ZoomID.author(comment.persistentModelID), in: zoom)
                     .plTapTarget()
             }
@@ -645,7 +645,7 @@ struct PostThreadView: View {
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
                     Button {
-                        openProfile(comment.authorName, door: .author(comment.persistentModelID))
+                        openProfile(comment.authorName, authorID: comment.authorID, door: .author(comment.persistentModelID))
                     } label: {
                         Text(comment.authorName)
                             .plName()
@@ -1198,13 +1198,13 @@ struct PostThreadView: View {
         withAnimation(.plSnap) { replyTo = nil; replyToID = nil }
     }
 
-    private func openProfile(_ name: String, colorHex: String? = nil, door: ZoomID) {
+    private func openProfile(_ name: String, colorHex: String? = nil, authorID: String = "", door: ZoomID) {
         Haptic.tap()
         personDoor = door
         let hex = colorHex
             ?? members.first { $0.name == name || name.hasPrefix($0.name) }?.colorHex
             ?? "FF5A3C"
-        personShown = PersonRef.author(name, colorHex: hex, in: members)
+        personShown = PersonRef.author(name, colorHex: hex, authorID: authorID, in: members)
     }
 
     private func updatePostPresence() {

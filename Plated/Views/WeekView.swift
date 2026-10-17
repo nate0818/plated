@@ -75,7 +75,7 @@ struct WeekView: View {
     /// The sentence a removal left for the first empty week (§8), shown in
     /// place of the invitation until a meal is planned.
     @State private var removedNotice: String?
-    @State private var eatingOutSaveFailed = false
+    @State private var dinnerSaveFailed = false
 
     /// How far ahead the plan scrolls — this week plus three more.
     private let weeksAhead = 4
@@ -180,7 +180,7 @@ struct WeekView: View {
                 case .activity: NotificationsView()
                 case .household: HouseholdHomeView(embedded: true)
                 case .person(let person):
-                    PersonProfileView(personName: person.name, colorHex: person.colorHex, memberID: person.memberID)
+                    PersonProfileView(personName: person.name, colorHex: person.colorHex, memberID: person.memberID, authorID: person.authorID)
                         .navigationTransition(.zoom(sourceID: ZoomID.host, in: zoom))
                 case .recipe(let recipe):
                     RecipeDetailView(recipe: recipe, meal: dinner(on: weekAnchor))
@@ -347,6 +347,13 @@ struct WeekView: View {
                                 additionalMealsForSelectedDay
                                 PlanContextView(date: weekAnchor, forecast: forecast,
                                     history: PlanDinnerHistory(local: meals, shared: PlanLedger.shared.all))
+                                Divider().accessibilityHidden(true)
+                                PlanHouseholdView(members: members, meals: meals) { member in
+                                    pushed = .person(PersonRef(name: member.name, colorHex: member.colorHex,
+                                        memberID: member.persistentModelID, authorID: member.identityKey ?? ""))
+                                } openHousehold: {
+                                    pushed = .household
+                                }
                             }
                             .frame(maxWidth: 760)
                             .frame(maxWidth: .infinity)
@@ -363,7 +370,7 @@ struct WeekView: View {
                 }
             }
             .accessibilityIdentifier("plan-selected-day-content")
-            .alert("Dinner didn’t save", isPresented: $eatingOutSaveFailed) {
+            .alert("Dinner didn’t save", isPresented: $dinnerSaveFailed) {
                 Button("OK", role: .cancel) { }
             } message: {
                 Text("Your plan hasn’t changed. Please try again.")
@@ -539,7 +546,7 @@ struct WeekView: View {
                     }.accessibilityLabel("Dinner options")
                 }
             }
-            if let meal = dinner(on: weekAnchor) {
+            if let meal = dinner(on: weekAnchor), meal.hasDish {
                 let who = whoCaption(for: meal)
                 Button { Haptic.tap(); pushed = .day(weekAnchor) } label: {
                     VStack(alignment: .leading, spacing: 16) {
@@ -559,21 +566,21 @@ struct WeekView: View {
                     .accessibilityAddTraits(.isButton)
                     .accessibilityIdentifier("featured-dinner-card")
                     .accessibilityHint("Tap to open the day. Hold and drag to another date to move dinner.")
-                let details = typeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8)) : AnyLayout(HStackLayout(spacing: 8))
-                details {
-                    if let member = who.member {
-                        AvatarCircle(member: member, size: 26).accessibilityHidden(true)
-                    }
-                    Text(meal.isCooked ? "Dinner made" : who.line)
-                        .plType(.footnote).foregroundStyle(Color.inkSecondary)
-                    Spacer()
+                if who.line != PlanRowVoice.whoLine(for: meal, members: members) {
+                    Text(who.line).plType(.footnote).foregroundStyle(Color.inkSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                if PlanRowVoice.isEatingOut(title: meal.title, hasRecipe: meal.recipe != nil) {
+                    Text("No cooking needed").plType(.body, .medium).foregroundStyle(Color.inkSecondary)
+                } else {
+                    localCookPicker(for: meal)
                     Button { planDay = weekAnchor } label: {
                         Label("Serves \(meal.servings)", systemImage: "person.2")
                             .plType(.footnote)
                             .plActionLabel()
                             .foregroundStyle(Color.ink).padding(.horizontal, 12).frame(minHeight: 44)
                             .background(Color.fill, in: Radius.shape(Radius.chip))
-                    }.buttonStyle(.pressable).accessibilityLabel("Change servings and cook")
+                    }.buttonStyle(.pressable).accessibilityLabel("Change servings")
                 }
                 if let recipe = meal.recipe {
                     PrimaryActionButton(title: meal.isCooked ? "View recipe" : cookLedger.isCooking(recipe) ? "Resume cooking" : "Start cooking", systemImage: "fork.knife") {
@@ -614,9 +621,11 @@ struct WeekView: View {
                         Text(Calendar.current.isDateInToday(weekAnchor) ? "What’s for dinner?" : PlanEmptyCopy.heroTitle(past: isPast(weekAnchor)))
                             .plType(.title, .medium).foregroundStyle(Color.ink)
                             .accessibilityAddTraits(.isHeader)
-                        Text(isPast(weekAnchor) ? PlanEmptyCopy.detailBody : "A home-cooked favorite or a night off?")
-                            .plType(.footnote).foregroundStyle(Color.inkSecondary)
+                        if isPast(weekAnchor) {
+                            Text(PlanEmptyCopy.detailBody).plType(.footnote).foregroundStyle(Color.inkSecondary)
+                        }
                     }
+                    localCookPicker(for: dinner(on: weekAnchor))
                     let actions = typeSize >= .xxLarge
                         ? AnyLayout(VStackLayout(spacing: 8))
                         : AnyLayout(HStackLayout(spacing: 8))
@@ -630,24 +639,65 @@ struct WeekView: View {
         }
     }
 
+    private func localCookPicker(for meal: PlannedMeal?) -> some View {
+        // A rotation is a suggestion until a plan exists. An explicit nil cook
+        // must not quietly fall back to the rotation when a recipe is chosen.
+        let cook = meal == nil && !isPast(weekAnchor)
+            ? CookRotation.cook(for: weekAnchor, members: members, meals: meals) : meal?.cook
+        let suggested = meal == nil && cook != nil
+        let name: String = {
+            guard let cook else { return "No cook assigned" }
+            if cook.seat == .invited { return "Waiting for \(cook.firstName) to join" }
+            if meal?.isCooked == true { return cook.isMe ? "Cooked by you" : "Cooked by \(cook.name)" }
+            if suggested { return cook.isMe ? "You · from your rotation" : "\(cook.name) · from your rotation" }
+            return cook.isMe ? "You’re cooking" : "\(cook.name) is cooking"
+        }()
+        return Menu {
+            Button("No cook assigned") { assignCook(nil, on: weekAnchor) }
+            ForEach(members.assignableCooks) { member in
+                Button(member.isMe ? "You" : member.name) { assignCook(member, on: weekAnchor) }
+            }
+        } label: {
+            PlanCookLabel(heading: suggested ? "Suggested cook" : meal?.isCooked == true ? "Dinner made" : "Cook", name: name, member: cook)
+        }
+        .accessibilityLabel(suggested ? "Suggested dinner cook" : "Dinner cook")
+        .accessibilityValue(name)
+        .accessibilityHint("Change who is cooking on the selected date")
+        .accessibilityIdentifier("plan-cook-assignment")
+    }
+
+    private func assignCook(_ cook: HouseholdMember?, on date: Date) {
+        let original = dinner(on: date)
+        let previous = original?.cook
+        let meal = original ?? PlannedMeal(date: date, slot: .dinner)
+        if original == nil { context.insert(meal) }
+        meal.cook = cook
+        guard Persist.save(context, "assign dinner cook") else {
+            if original == nil { context.delete(meal) } else { meal.cook = previous }
+            dinnerSaveFailed = true
+            return
+        }
+        Haptic.select()
+    }
+
     /// A shared night keeps the same editorial hierarchy as a local one.
     /// Cooking requires the recipe to exist in this phone's cookbook.
     @ViewBuilder
     private func remoteFeatured(_ entry: PlanLedger.Entry) -> some View {
         let ledger = PlanLedger.shared
         let honesty = entry.isGoing || entry.pendingLine != nil
+        let title = entry.hasDish ? entry.title : Calendar.current.isDateInToday(weekAnchor) ? "What’s for dinner?" : PlanEmptyCopy.heroTitle(past: isPast(weekAnchor))
         Button { Haptic.tap(); pushed = .day(weekAnchor) } label: {
             VStack(alignment: .leading, spacing: 16) {
-                Text(entry.title).plType(.title, .semibold).foregroundStyle(Color.ink)
+                Text(title).plType(.title, .semibold).foregroundStyle(Color.ink)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .fixedSize(horizontal: false, vertical: true)
-                RecipeArtwork(data: ledger.photo(for: entry.recordName), title: entry.title, ratio: 2.5)
-                    .frame(maxHeight: 180).clipped()
-                HStack(spacing: 8) {
-                    if !honesty {
-                        RemoteWhoFace(entry: entry, members: members, size: 26)
-                    }
-                    Text(honesty ? RemotePlanRow.caption(for: entry) : (entry.cooked ? "Dinner made" : ledger.whoLine(for: entry)))
+                if entry.hasDish && !PlanRowVoice.isEatingOut(title: entry.title, hasRecipe: entry.hasRecipe) {
+                    RecipeArtwork(data: ledger.photo(for: entry.recordName), title: entry.title, ratio: 2.5)
+                        .frame(maxHeight: 180).clipped()
+                }
+                if honesty || entry.cooked {
+                    Text(honesty ? RemotePlanRow.caption(for: entry) : "Dinner made")
                         .plType(.footnote).foregroundStyle(Color.inkSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -656,7 +706,7 @@ struct WeekView: View {
             .contentShape(Rectangle())
         }.buttonStyle(.pressable)
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel(entry.title)
+            .accessibilityLabel(title)
             .accessibilityAddTraits(.isButton)
             .accessibilityValue(honesty ? RemotePlanRow.caption(for: entry) : (entry.cooked ? "Dinner made" : ledger.whoLine(for: entry)))
             .accessibilityIdentifier("featured-remote-dinner-card")
@@ -674,10 +724,29 @@ struct WeekView: View {
                 .plType(.footnote).foregroundStyle(Color.inkSecondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
+        if !entry.isGoing {
+            if PlanRowVoice.isEatingOut(title: entry.title, hasRecipe: entry.hasRecipe) {
+                Text("No cooking needed").plType(.body, .medium).foregroundStyle(Color.inkSecondary)
+            } else {
+                let name = entry.cooked
+                    ? (ledger.isMine(cook: entry) ? "Cooked by you" : entry.hasCook ? "Cooked by \(entry.cookName)" : "Cook not recorded")
+                    : (ledger.cookLine(for: entry) ?? "No cook assigned")
+                Button { planDay = weekAnchor } label: {
+                    PlanCookLabel(heading: "Cook", name: name, member: PlanRowVoice.member(id: entry.cookID, in: members.readable), fallbackName: entry.hasCook ? entry.cookName : nil)
+                }
+                .buttonStyle(.pressable)
+                .accessibilityLabel("Dinner cook")
+                .accessibilityValue(name)
+                .accessibilityHint("Opens this household dinner to change its cook")
+                .accessibilityIdentifier("plan-cook-assignment")
+            }
+        }
         // No Let's cook on a night that is going. The pill is an invitation
         // to start a cook session on a dinner this phone has just taken off
         // the plan for everybody.
-        if let recipe = cookbookRecipe(for: entry), !entry.isGoing {
+        if !entry.hasDish && !entry.isGoing {
+            PrimaryActionButton(title: Calendar.current.isDateInToday(weekAnchor) ? "Plan tonight" : PlanEmptyCopy.planNight) { planDay = weekAnchor }
+        } else if let recipe = cookbookRecipe(for: entry), !entry.isGoing {
             PrimaryActionButton(title: entry.cooked ? "View recipe" : cookLedger.isCooking(recipe) ? "Resume cooking" : "Start cooking", systemImage: "fork.knife") {
                 if entry.cooked { pushed = .recipe(recipe) } else { startCooking(recipe, remote: entry) }
             }
@@ -1124,7 +1193,7 @@ struct WeekView: View {
                 original.recipe = previousRecipe; original.customTitle = previousTitle
                 original.tagline = previousTagline; original.cook = previousCook
             }
-            eatingOutSaveFailed = true
+            dinnerSaveFailed = true
         }
     }
 

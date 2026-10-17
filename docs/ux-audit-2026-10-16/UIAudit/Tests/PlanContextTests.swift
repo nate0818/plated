@@ -15,7 +15,7 @@ final class PlanContextTests: XCTestCase {
             if item.isHittable { return }
             app.scrollViews["plan-selected-day-content"].swipeUp()
         }
-        XCTAssertTrue(item.isHittable)
+        XCTAssertTrue(item.isHittable, app.debugDescription)
     }
     func capture(_ name: String) {
         let shot = XCTAttachment(screenshot: app.screenshot()); shot.name = name; shot.lifetime = .keepAlways; add(shot)
@@ -75,6 +75,75 @@ final class PlanContextTests: XCTestCase {
         capture("plan-context-eating-out-save-failure")
     }
 
+    func testChoosingCookBeforeRecipeKeepsDinnerOpenAndPreservesTheChoiceWhenPlanning() {
+        launch(["-plated-fake-weather"])
+        let cook = app.buttons["plan-cook-assignment"]
+        XCTAssertTrue(cook.waitForExistence(timeout: 8))
+        XCTAssertEqual(cook.label, "Suggested dinner cook")
+        XCTAssertTrue((cook.value as? String)?.contains("from your rotation") == true)
+        cook.tap(); app.buttons["Sam"].tap()
+        XCTAssertEqual(cook.value as? String, "Sam is cooking")
+        XCTAssertTrue(app.buttons["Plan tonight"].exists)
+        XCTAssertFalse(app.buttons["featured-dinner-card"].exists)
+        capture("plan-cook-assigned-before-dish")
+        app.buttons["Plan tonight"].tap()
+        let pick = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Pick for me")).firstMatch
+        XCTAssertTrue(pick.waitForExistence(timeout: 8)); pick.tap()
+        XCTAssertTrue(app.buttons["featured-dinner-card"].waitForExistence(timeout: 8))
+        reveal(cook)
+        XCTAssertEqual(cook.value as? String, "Sam is cooking")
+        capture("plan-cook-assigned-with-dish")
+    }
+
+    func testExplicitUnassignedCookIsNotReplacedByRotationWhenChoosingRecipe() {
+        launch(["-plated-fake-weather"])
+        let cook = app.buttons["plan-cook-assignment"]
+        cook.tap(); app.buttons["No cook assigned"].tap()
+        XCTAssertEqual(cook.value as? String, "No cook assigned")
+        app.buttons["Plan tonight"].tap()
+        let pick = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Pick for me")).firstMatch
+        XCTAssertTrue(pick.waitForExistence(timeout: 8)); pick.tap()
+        XCTAssertTrue(app.buttons["featured-dinner-card"].waitForExistence(timeout: 8))
+        reveal(cook)
+        XCTAssertEqual(cook.value as? String, "No cook assigned")
+        capture("plan-cook-unassigned-with-dish")
+    }
+
+    func testCookAssignmentFailureKeepsPreviousSuggestion() {
+        launch(["-plated-fake-weather", "-plated-review-fail-save", "assign dinner cook"])
+        let cook = app.buttons["plan-cook-assignment"]
+        let previous = cook.value as? String
+        cook.tap(); app.buttons["Sam"].tap()
+        XCTAssertTrue(app.alerts["Dinner didn’t save"].waitForExistence(timeout: 8))
+        app.alerts.buttons["OK"].tap()
+        XCTAssertEqual(cook.value as? String, previous)
+        XCTAssertEqual(cook.label, "Suggested dinner cook")
+        XCTAssertTrue(app.buttons["Plan tonight"].exists)
+    }
+
+    func testSharedDinnerNamesTheCookAndOpensAssignmentControls() {
+        app.launchArguments = ["-plated-design-review", "-plated-tab", "week", "-plated-fake-weather", "-plated-review-shared-tonight", "-appearance", "dark"]
+        app.launch()
+        XCTAssertTrue(app.buttons["featured-remote-dinner-card"].waitForExistence(timeout: 20))
+        let cook = app.buttons["plan-cook-assignment"]; reveal(cook)
+        XCTAssertEqual(cook.value as? String, "Sam is cooking")
+        capture("plan-cook-shared")
+        cook.tap()
+        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Cook, Sam Meadows")).firstMatch.waitForExistence(timeout: 8))
+    }
+
+    func testSharedCookOnlyReservationStillInvitesChoosingDinner() {
+        app.launchArguments = ["-plated-design-review", "-plated-tab", "week", "-plated-fake-weather", "-plated-review-shared-tonight", "-plated-review-shared-cook-only", "-appearance", "dark"]
+        app.launch()
+        XCTAssertTrue(app.buttons["Plan tonight"].waitForExistence(timeout: 20))
+        XCTAssertEqual(app.buttons["plan-cook-assignment"].value as? String, "Sam is cooking")
+        XCTAssertEqual(app.buttons["featured-remote-dinner-card"].label, "What’s for dinner?")
+        XCTAssertFalse(app.staticTexts["Unplanned"].exists)
+        capture("plan-cook-shared-before-dish")
+        app.buttons["Plan tonight"].tap()
+        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Choose a recipe")).firstMatch.waitForExistence(timeout: 8))
+    }
+
     func testPermissionDenialAndFailureHaveVisibleRecovery() {
         for (flag, action) in [("-plated-review-weather-permission", "Show local weather"),
                                ("-plated-review-weather-denied", "Open Settings"),
@@ -111,6 +180,38 @@ final class PlanContextTests: XCTestCase {
         XCTAssertFalse(element("plan-weather-conditions").exists)
         capture("plan-context-past")
     }
+
+    func testHouseholdActivityOpensRenamedMembersPhotoAndPosts() {
+        launch(["-plated-review-dinner-history", "-plated-fake-weather", "-plated-review-household-activity"])
+        let sam = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Sam Rivera,")).firstMatch
+        reveal(sam)
+        XCTAssertTrue(sam.label.contains("Sam Rivera"))
+        XCTAssertTrue(sam.label.contains("2 dinners cooked · 1 dish shared"))
+        capture("plan-household-activity")
+        sam.tap()
+        XCTAssertTrue(app.staticTexts["Sam Rivera"].waitForExistence(timeout: 8))
+        XCTAssertTrue(element("profile-recent-activity").label.contains("2 dinners cooked"))
+        let dish = app.buttons["Profile identity dinner, by Sam Meadows"]
+        for _ in 0..<5 where !dish.isHittable { app.swipeUp() }
+        XCTAssertTrue(dish.isHittable, "An account’s post survives its display-name change")
+        capture("profile-renamed-member")
+        dish.tap()
+        XCTAssertTrue(app.staticTexts["Profile identity dinner"].waitForExistence(timeout: 8))
+    }
+
+    func testHouseholdActivityRemainsReachableAtLargestText() {
+        launch(["-plated-review-dinner-history", "-plated-fake-weather", "-plated-review-household-activity"],
+            size: "UICTContentSizeCategoryAccessibilityXXXL", light: true)
+        let sam = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Sam Rivera,")).firstMatch
+        reveal(sam)
+        XCTAssertTrue(sam.label.contains("2 dinners cooked · 1 dish shared"))
+        capture("plan-household-ax")
+        sam.tap()
+        let activity = element("profile-recent-activity")
+        for _ in 0..<8 where !activity.isHittable { app.swipeUp() }
+        XCTAssertTrue(activity.isHittable)
+        capture("profile-household-ax")
+    }
 }
 
 @available(iOS 27.0, *)
@@ -129,7 +230,7 @@ final class PlanContextVoiceOverTests: XCTestCase {
         app.launch(); XCTAssertTrue(app.buttons["Plan tonight"].waitForExistence(timeout: 20))
         try voice.enable()
         var transcript = [try voice.currentSpeech().utterance]
-        let targets = ["What’s for dinner", "Plan tonight", "Eating out", "Mostly Clear", "2 cooked", "1 eating out"]
+        let targets = ["What’s for dinner", "Suggested dinner cook", "Plan tonight", "Eating out", "Mostly Clear", "2 cooked", "1 eating out", "Your household", "Manage household", "Riley"]
         var next = 0
         for _ in 0..<45 {
             let spoken = try voice.moveForward().utterance
@@ -139,6 +240,6 @@ final class PlanContextVoiceOverTests: XCTestCase {
         }
         let attachment = XCTAttachment(string: transcript.joined(separator: "\n"))
         attachment.name = "plan-context-voiceover"; attachment.lifetime = .keepAlways; add(attachment)
-        XCTAssertEqual(next, targets.count, "Every dinner action, the forecast and both counts should be read in order")
+        XCTAssertEqual(next, targets.count, "Dinner actions, weather, counts and household profiles should be read in order")
     }
 }

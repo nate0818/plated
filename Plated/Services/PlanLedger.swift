@@ -129,6 +129,9 @@ final class PlanLedger {
         /// A cook with a real seat. A name typed five seconds ago for an
         /// invited seat is not a cook, and the writer already blanks it.
         var hasCook: Bool { !cookName.isEmpty && cookSeat != HouseholdMember.Seat.invited.rawValue }
+        /// A cook-only reservation uses PlannedMeal's existing empty-title
+        /// fallback on the wire. It has a cook, but still needs a dish.
+        var hasDish: Bool { hasRecipe || (!title.isEmpty && title != "Unplanned" && title != "Dinner to choose") }
 
         static func firstName(_ name: String) -> String {
             name.split(separator: " ").first.map(String.init) ?? name

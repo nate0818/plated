@@ -194,7 +194,7 @@ private struct HouseholdHomeContent: View {
                 }
             }
             .navigationDestination(item: $personShown) { person in
-                PersonProfileView(personName: person.name, colorHex: person.colorHex, memberID: person.memberID)
+                PersonProfileView(personName: person.name, colorHex: person.colorHex, memberID: person.memberID, authorID: person.authorID)
                     .navigationTransition(.zoom(sourceID: personDoor, in: zoom))
             }
             .toolbar(.hidden, for: .navigationBar)

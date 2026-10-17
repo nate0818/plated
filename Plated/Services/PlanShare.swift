@@ -222,7 +222,7 @@ enum PlanShare {
     /// One night as the wire will carry it.
     ///
     /// The cook rules are the honesty rules: `cookID` is the cook's
-    /// participant id, or this phone's own id when the cook is the owner,
+    /// participant/user id, or this phone's own id when the cook is the reader,
     /// or "" so a reader never guesses; `cookName` is blank for an invited
     /// seat, because a name typed five seconds ago is not a cook.
     /// `recipeOriginKey` retains imported origins and uses a stable household
@@ -236,7 +236,8 @@ enum PlanShare {
         var cookID = ""
         if let cook {
             if let id = cook.participantID, !id.isEmpty { cookID = id }
-            else if cook.isOwner { cookID = me }
+            else if let id = cook.userRecordName, !id.isEmpty { cookID = id }
+            else if cook.isMe { cookID = me }
         }
         let cookName = cook?.seat == .invited ? "" : (cook?.name ?? "")
         let recipe = meal.recipe

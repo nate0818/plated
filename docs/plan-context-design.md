@@ -25,7 +25,7 @@ Dynamic Type stacks the dinner actions and history figures. Controls retain
 44-point targets; forecasts and counts have concise VoiceOver summaries.
 No new animations, persisted fields or CloudKit schema changes.
 
-## Validation
+## Initial dinner-context validation
 
 - Xcode 27.0, Plated Debug app and widget build passed.
 - Native suite: 427 executed, 423 passed, 4 intentional opt-in Calendar skips,
@@ -68,3 +68,46 @@ The initial unsigned native run could not initialize its CloudKit container;
 normal simulator signing resolved that harness issue. The first UI iteration
 found inherited container identifiers masking count identifiers; removing those
 container IDs fixed the issue, confirmed by the passing UI and VoiceOver runs.
+
+## Cook and household follow-up
+
+The cook is now a separate, labeled control with a face and a full sentence.
+Rotation is labeled Suggested cook until the user assigns someone. A cook can be
+assigned before a recipe; the dinner remains open, and choosing a dish preserves
+both an explicit cook and an explicit No cook assigned choice. Eating out says
+No cooking needed. Failed assignment rolls back only that edit.
+
+Plan includes a household section below weather/history. Rows show the available
+profile photo, name and recorded cooking/sharing totals for the same seven-day
+period, and open the person's profile. Profiles also show that activity summary.
+Invitations remain pending, missing photos use initials, and no activity is
+invented. Cooking credit requires a completed dinner assigned to that person;
+posting credit follows account identity. Shared/local echoes count once.
+
+The investigation found and fixed these concrete identity defects:
+
+- People hid the organizer's own photo on another member's phone because the
+  cloned-host-photo guard applied to every person other than the reader.
+- Table avatars, profile destinations and profile posts used names despite
+  carrying stable account IDs; renamed people could lose their photos/content,
+  and same-name people could be confused.
+- Publishing a local dinner used the reader's ID for an organizer without a
+  participant ID, even when the organizer was a different account. The cook's
+  user record now takes precedence over that fallback.
+- The remote cook face understood participantID but omitted userRecordName.
+
+The UI uses the available synced roster/photo data. These corrections do not
+prove that a particular missing asset has arrived from another live account.
+No new shared model or schema fields were introduced.
+
+
+Final native regression: 436 executed, 432 passed, four opt-in Calendar skips.
+An additional production widget-publisher test passed, reading the actual app-group
+snapshot: assigning only a cook keeps the day open, retains the cook, and supplies
+no invented food photo. These are simulator data-path checks, not a new physical
+Home Screen widget pass.
+
+The first household UI run found the identifier on an accessibility wrapper rather
+than its inner button. The row now uses native Button accessibility semantics;
+tests also locate the user-facing name. The renamed-profile flow and AX5 household
+navigation pass on the compact phone. Final full UI run evidence follows below.

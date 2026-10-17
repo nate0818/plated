@@ -152,8 +152,8 @@ extension View {
 }
 
 extension Collection where Element == HouseholdMember {
-    func photo(forAuthor name: String) -> Data? {
-        first { $0.name == name }?.photoData
+    func photo(forAuthor name: String, authorID: String = "") -> Data? {
+        ProfileIdentity.member(authorID: authorID, name: name, in: Array(self))?.photoData
     }
 }
 

@@ -121,7 +121,7 @@ struct PlanNightSheet: View {
     var body: some View {
         VStack(spacing: 0) {
             VStack(spacing: 4) {
-                MicroLabel(meal == nil && remote == nil ? planLabel : "Planned")
+                MicroLabel(meal?.hasDish != true && remote?.hasDish != true ? planLabel : "Planned")
                 Text(dayTitle)
                     .plType(.title)
                     .foregroundStyle(Color.ink)
@@ -151,8 +151,10 @@ struct PlanNightSheet: View {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 10) {
                     if let meal {
-                        currentMealCard(meal)
-                            .padding(.bottom, householdChange(meal) == nil && contestLine(for: meal) == nil ? 6 : 2)
+                        if meal.hasDish {
+                            currentMealCard(meal)
+                                .padding(.bottom, householdChange(meal) == nil && contestLine(for: meal) == nil ? 6 : 2)
+                        }
                         // The household changed a night this phone planned.
                         // This is the ONLY place the person finds out: the
                         // ledger drops every delivered record this phone
@@ -200,13 +202,15 @@ struct PlanNightSheet: View {
                                 Image(systemName: "slider.horizontal.3").font(.footnote)
                             }.foregroundStyle(Color.ink).frame(minHeight: 44)
                         }
-                        MicroLabel("Something else")
+                        MicroLabel(meal.hasDish ? "Something else" : "Choose dinner")
                     } else if let remote {
                         // The same card and the same two controls, writing
                         // the household record instead of a row in this
                         // phone's store.
-                        remoteNightCard(remote)
-                            .padding(.bottom, 6)
+                        if remote.hasDish {
+                            remoteNightCard(remote)
+                                .padding(.bottom, 6)
+                        }
                         // What the trash on that card actually reaches. The
                         // card carries it on the trash's accessibility label
                         // already, and a label is not a statement: a sighted
@@ -280,7 +284,7 @@ struct PlanNightSheet: View {
                                     Image(systemName: "slider.horizontal.3").font(.footnote)
                                 }.foregroundStyle(Color.ink).frame(minHeight: 44)
                             }
-                            MicroLabel("Something else")
+                            MicroLabel(remote.hasDish ? "Something else" : "Choose dinner")
                         }
                     } else if notice != nil {
                         // The night this page was changing is gone: somebody
@@ -327,8 +331,8 @@ struct PlanNightSheet: View {
                         // with choosing what to cook.
                         OptionRow(
                             icon: "book.closed",
-                            title: meal == nil ? "Choose a recipe" : "Change dinner",
-                            detail: meal == nil
+                            title: meal?.hasDish != true ? "Choose a recipe" : "Change dinner",
+                            detail: meal?.hasDish != true
                                 ? "Choose from \(recipes.count) household \(recipes.count == 1 ? "recipe" : "recipes")."
                                 : "Pick another dish. The cook and servings stay as planned."
                         ) { route = .picker }
@@ -1121,7 +1125,7 @@ struct PlanNightSheet: View {
             return
         }
         Haptic.plate()
-        let cook = meal?.cook ?? CookRotation.cook(for: date, members: members, meals: meals)
+        let cook = meal == nil ? CookRotation.cook(for: date, members: members, meals: meals) : meal?.cook
         let servings = PlanReplacement.servings(current: meal?.servings, defaultValue: recipe.servings)
         withAnimation(.plPop) {
             if let meal {

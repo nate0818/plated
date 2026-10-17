@@ -25,7 +25,8 @@ struct PlateTonightIntent: AppIntent {
         }
         let tonightPredicate = #Predicate<PlannedMeal> { $0.date >= today && $0.date < tomorrow }
         let tonightMeals = try context.fetch(FetchDescriptor(predicate: tonightPredicate))
-        if let existing = tonightMeals.first(where: { $0.slotValue == .dinner }) {
+        let existing = tonightMeals.first(where: { $0.slotValue == .dinner })
+        if let existing, existing.hasDish {
             return .result(dialog: "Tonight is already plated: \(existing.title). Swap it in the app if you'd rather.")
         }
         // A housemate's dinner lives in PlanLedger, not PlannedMeal. Without
@@ -33,6 +34,9 @@ struct PlateTonightIntent: AppIntent {
         // already showed as taken — the same trap WhatsForDinnerIntent
         // already closed.
         if let remote = PlanLedger.shared.dinner(on: today), !remote.isGoing {
+            if !remote.hasDish {
+                return .result(dialog: "Dinner is still open. Choose a dish for this shared night in Plated.")
+            }
             return .result(dialog: "Tonight is already plated: \(remote.title). Swap it in the app if you'd rather.")
         }
 
@@ -50,12 +54,14 @@ struct PlateTonightIntent: AppIntent {
         // take-turns toggle's fewest-dinners pick, then the head of table —
         // so plating by voice respects auto-rotate like plating by touch.
         let meals = try context.fetch(FetchDescriptor<PlannedMeal>())
-        let cook = CookRotation.cook(for: today, members: members, meals: meals)
-
-        context.insert(PlannedMeal(
-            date: today, slot: .dinner, recipe: recipe,
-            servings: recipe.servings, cook: cook
-        ))
+        let cook = existing == nil ? CookRotation.cook(for: today, members: members, meals: meals) : existing?.cook
+        if let existing {
+            existing.recipe = recipe
+            existing.servings = recipe.servings
+        } else {
+            context.insert(PlannedMeal(date: today, slot: .dinner, recipe: recipe,
+                servings: recipe.servings, cook: cook))
+        }
         try context.save()
         WidgetBridge.publish(from: context)
 

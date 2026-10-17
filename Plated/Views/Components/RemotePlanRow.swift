@@ -199,7 +199,7 @@ struct RemoteCookFace: View {
 
     static func member(for entry: PlanLedger.Entry, in members: [HouseholdMember]) -> HouseholdMember? {
         guard !entry.cookID.isEmpty else { return nil }
-        return members.first { $0.participantID == entry.cookID }
+        return PlanRowVoice.member(id: entry.cookID, in: members)
     }
 
     /// Same shape as `HouseholdMember.initials`, for a name with no row.

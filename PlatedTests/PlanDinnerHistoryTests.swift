@@ -74,4 +74,22 @@ final class PlanDinnerHistoryTests: XCTestCase {
         let history = PlanDinnerHistory(local: [dinner], shared: [], now: now)
         XCTAssertEqual(history.cooked, 1); XCTAssertEqual(history.eatingOut, 0)
     }
+
+    func testCookOnlyReservationKeepsDishOpenAndDoesNotBecomeCookedHistory() {
+        let dinner = meal(0, title: "")
+        let cook = HouseholdMember(name: "Sam", colorHex: "3DA35D", role: "partner")
+        context.insert(cook); dinner.cook = cook
+        XCTAssertFalse(dinner.hasDish)
+        XCTAssertEqual(dinner.title, "Dinner to choose")
+        if case .open = TonightAnswer.state(meals: [dinner], hasRecipes: true) { } else {
+            XCTFail("A cook assignment without a dish must keep tonight open")
+        }
+        var remote = TableShare.RemotePlan()
+        remote.title = dinner.title
+        XCTAssertFalse(PlanLedger.Entry(remote).hasDish)
+        XCTAssertEqual(PlanDinnerHistory(local: [dinner], shared: [], now: now).cooked, 0)
+        dinner.customTitle = "Leftovers"
+        XCTAssertTrue(dinner.hasDish)
+        XCTAssertEqual(PlanDinnerHistory(local: [dinner], shared: [], now: now).cooked, 0)
+    }
 }

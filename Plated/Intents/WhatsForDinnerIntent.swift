@@ -33,7 +33,7 @@ struct WhatsForDinnerIntent: AppIntent {
         // really is nothing. The same word order as the branch above, so
         // one question does not get two voices depending on who planned it.
         if let remote = PlanLedger.shared.dinner(on: today) {
-            var line = "Tonight: \(remote.title)"
+            var line = "Tonight: \(remote.hasDish ? remote.title : "Dinner to choose")"
             if !remote.cookName.isEmpty { line += ", \(remote.cookName) cooks" }
             if remote.recipeMinutes > 0 { line += ", about \(Recipe.spokenDuration(remote.recipeMinutes))" }
             return .result(dialog: "\(line).")

@@ -10,9 +10,10 @@ struct PersonProfileView: View {
     let personName: String
     let colorHex: String
     var memberID: PersistentIdentifier?
+    var authorID: String = ""
 
     var body: some View {
-        ProfileDestination(personName: personName, colorHex: colorHex, memberID: memberID)
+        ProfileDestination(personName: personName, colorHex: colorHex, memberID: memberID, authorID: authorID)
             .equatable()
     }
 }
@@ -25,9 +26,10 @@ private struct ProfileDestination: View, Equatable {
     let personName: String
     let colorHex: String
     var memberID: PersistentIdentifier?
+    var authorID: String = ""
 
     var body: some View {
-        PersonProfileContent(personName: personName, colorHex: colorHex, memberID: memberID)
+        PersonProfileContent(personName: personName, colorHex: colorHex, memberID: memberID, authorID: authorID)
     }
 }
 
@@ -41,6 +43,7 @@ private struct PersonProfileContent: View {
     /// the title reverts to "Me", the gear disappears, and "Edit profile"
     /// turns into "Message" pointing at a DM thread with yourself.
     var memberID: PersistentIdentifier?
+    var authorID: String = ""
 
     @Environment(\.openURL) private var openURL
     @Environment(\.dismiss) private var dismiss
@@ -109,13 +112,12 @@ private struct PersonProfileContent: View {
         if let memberID, let seated = roster.first(where: { $0.persistentModelID == memberID }) {
             return seated
         }
-        // Guests at the table have no seat to match — fall back to the name.
-        let pushedFirst = personName.split(separator: " ").first.map(String.init) ?? personName
-        return roster.first { $0.name == personName || $0.name == pushedFirst }
+        return ProfileIdentity.member(authorID: authorID, name: personName, in: roster)
     }
 
     private var isMe: Bool {
         if let member { return member.isMe }
+        if !authorID.isEmpty { return authorID == TableIdentity.cached }
         let pushed = personName.trimmingCharacters(in: .whitespacesAndNewlines)
         return HouseholdIdentity.isPlaceholder(pushed)
             || (!userFirstName.isEmpty && pushed == userFirstName)
@@ -133,7 +135,10 @@ private struct PersonProfileContent: View {
     }
 
     private var posts: [TablePost] {
-        allPosts.filter { $0.authorName == name || $0.firstName == firstName }
+        allPosts.filter {
+            ProfileIdentity.matches(authorID: $0.authorID, authorName: $0.authorName,
+                member: member, profileID: authorID, profileName: name, roster: roster)
+        }
     }
 
     private var dishes: [TablePost] { posts.filter { $0.kind != "ask" } }
@@ -237,6 +242,19 @@ private struct PersonProfileContent: View {
                     if isMe {
                         householdCard
                             .padding(.top, 4)
+                    }
+
+                    if let member {
+                        let activity = MemberDinnerActivity(member: member, roster: roster,
+                            meals: plannedMeals, remote: PlanLedger.shared.all, posts: allPosts)
+                        VStack(alignment: .leading, spacing: 6) {
+                            MicroLabel("Activity · last 7 days")
+                            Text(activity.summary).plType(.body).foregroundStyle(Color.ink)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .padding(.vertical, 12)
+                        .accessibilityElement(children: .combine)
+                        .accessibilityIdentifier("profile-recent-activity")
                     }
 
                     if awards.contains(where: { $0.current > 0 }) {
@@ -602,7 +620,7 @@ private struct PersonProfileContent: View {
 
     private var awardActivitySignature: String {
         let cooked = plannedMeals.filter { $0.cookedAt != nil }.count
-        let authored = allPosts.filter { $0.firstName == firstName }
+        let authored = posts
         let plates = authored.reduce(0) { $0 + $1.totalPlates }
         return "\(plannedMeals.count).\(cooked).\(recipes.count).\(authored.count).\(plates).\(roster.count).\(name)"
     }
@@ -1226,7 +1244,8 @@ struct PersonRef: Identifiable, Hashable {
     /// while you are looking at your own profile updates it instead of
     /// stranding you on a stale stranger.
     var memberID: PersistentIdentifier?
-    var id: String { memberID.map { "\($0.hashValue)" } ?? name }
+    var authorID: String = ""
+    var id: String { memberID.map { "\($0.hashValue)" } ?? (authorID.isEmpty ? name : authorID) }
 
     /// Build a ref for a name that may or may not belong to a seat here —
     /// a post's author, a comment's, an @mention.
@@ -1243,14 +1262,15 @@ struct PersonRef: Identifiable, Hashable {
     static func author(
         _ name: String,
         colorHex: String,
+        authorID: String = "",
         in members: [HouseholdMember]
     ) -> PersonRef {
-        let first = name.split(separator: " ").first.map(String.init) ?? name
-        let seat = members.first { $0.name == name || $0.name == first }
+        let seat = ProfileIdentity.member(authorID: authorID, name: name, in: members)
         return PersonRef(
             name: name,
             colorHex: colorHex,
-            memberID: seat?.persistentModelID
+            memberID: seat?.persistentModelID,
+            authorID: authorID
         )
     }
 }

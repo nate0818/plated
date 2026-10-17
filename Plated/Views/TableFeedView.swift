@@ -551,7 +551,7 @@ struct TableFeedView: View {
                     .navigationTransition(.zoom(sourceID: post.persistentModelID, in: zoom))
             }
             .navigationDestination(item: $personShown) { person in
-                PersonProfileView(personName: person.name, colorHex: person.colorHex, memberID: person.memberID)
+                PersonProfileView(personName: person.name, colorHex: person.colorHex, memberID: person.memberID, authorID: person.authorID)
                     .navigationTransition(.zoom(sourceID: personDoor, in: zoom))
             }
             .navigationDestination(item: $pushed) { destination in
@@ -938,7 +938,7 @@ struct TableFeedView: View {
                 } label: {
                     HStack(spacing: 10) {
                         AvatarCircle(initials: post.initials, tone: PersonTone.from(hex: post.authorColorHex), size: 38,
-                                     photo: members.photo(forAuthor: post.authorName))
+                                     photo: members.photo(forAuthor: post.authorName, authorID: post.authorID))
                             .matchedTransitionSource(id: ZoomID.author(post.persistentModelID), in: zoom)
                         VStack(alignment: .leading, spacing: 0) {
                             Text(post.authorName)
@@ -1323,7 +1323,7 @@ struct TableFeedView: View {
                 } label: {
                     HStack(spacing: 10) {
                         AvatarCircle(initials: post.initials, tone: PersonTone.from(hex: post.authorColorHex), size: 38,
-                                     photo: members.photo(forAuthor: post.authorName))
+                                     photo: members.photo(forAuthor: post.authorName, authorID: post.authorID))
                             .matchedTransitionSource(id: ZoomID.author(post.persistentModelID), in: zoom)
                         VStack(alignment: .leading, spacing: 0) {
                             Text(post.authorName)
@@ -1683,7 +1683,7 @@ struct TableFeedView: View {
         Haptic.tap()
         personDoor = .author(post.persistentModelID)
         personShown = PersonRef.author(
-            post.authorName, colorHex: post.authorColorHex, in: members
+            post.authorName, colorHex: post.authorColorHex, authorID: post.authorID, in: members
         )
     }
 

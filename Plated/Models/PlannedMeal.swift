@@ -81,13 +81,17 @@ final class PlannedMeal {
     var title: String {
         if !customTitle.isEmpty { return customTitle }
         if let recipe, !recipe.title.isEmpty { return recipe.title }
-        return "Unplanned"
+        return "Dinner to choose"
     }
 
     /// The calendar day this meal is on, as the wire spells it.
     var day: String { HouseholdMember.day(date) }
 
     var isCooked: Bool { cookedAt != nil }
+
+    /// Assigning a cook can precede choosing dinner. That open slot should
+    /// keep the dinner invitation rather than displaying an "Unplanned" dish.
+    var hasDish: Bool { recipe != nil || !customTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
 
     /// Ingredient quantities scaled from the recipe's base servings to this meal's.
     var scaledIngredients: [(ingredient: Ingredient, quantity: Double)] {
