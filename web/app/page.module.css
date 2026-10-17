@@ -8,8 +8,8 @@
 .navigation a:hover { color: var(--ink); }
 .headerAction { display: inline-flex; min-height: 44px; align-items: center; gap: 20px; padding: 8px 18px; border-radius: var(--radius-chip); background: var(--primary-action); color: var(--on-primary); font-size: 14px; font-weight: 600; text-decoration: none; }
 .headerAction:hover, .primaryAction:hover { background: var(--primary-pressed); }
-.hero { display: grid; grid-template-columns: 1.08fr .92fr; gap: 64px; align-items: start; padding-block: 40px 28px; }
-.heroCopy { padding-block: 64px 32px; }
+.hero { display: grid; grid-template-columns: minmax(0, 1.08fr) minmax(0, .92fr); gap: 64px; align-items: center; padding-block: 40px 28px; }
+.heroCopy { padding-block: 28px 32px; min-width: 0; }
 .category { color: var(--ink-secondary); font-size: 14px; line-height: 1.5; }
 .eyebrow { color: var(--ink-secondary); font-family: var(--font-sans), sans-serif; font-size: 14px; font-weight: 400; line-height: 1.5; letter-spacing: normal; text-wrap: wrap; }
 .heroTitle { font-size: clamp(72px, 7.1vw, 102px); font-weight: 450; line-height: .99; letter-spacing: -.045em; margin: 22px 0 0 -3px; }
@@ -64,7 +64,7 @@
   .headerInner, .hero, .product, .tableSection, .closing, .footer { width: calc(100% - 64px); }
   .headerInner { gap: 24px; }
   .navigation { gap: 24px; }
-  .hero { gap: 40px; grid-template-columns: 1.05fr .95fr; padding-bottom: 52px; }
+  .hero { gap: 40px; grid-template-columns: minmax(0, 1.05fr) minmax(0, .95fr); padding-bottom: 52px; }
   .heroTitle { font-size: clamp(54px, 7.2vw, 80px); }
   .heroDescription { font-size: 17px; }
   .heroActions { gap: 12px; }
@@ -82,7 +82,7 @@
   .headerInner { min-height: 76px; gap: 20px; }
   .navigation { display: none; }
   .headerAction { gap: 14px; font-size: 13px; padding-inline: 14px; }
-  .hero { grid-template-columns: 1fr; gap: 28px; padding-block: 40px 48px; }
+  .hero { grid-template-columns: minmax(0, 1fr); gap: 28px; padding-block: 40px 48px; }
   .heroCopy { padding: 0; }
   .category, .eyebrow { font-size: 13px; }
   .heroTitle { font-size: clamp(46px, 12.5vw, 82px); line-height: 1; margin-top: 20px; margin-left: -1px; }

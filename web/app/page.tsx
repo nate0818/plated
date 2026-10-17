@@ -2,7 +2,7 @@ import Link from "next/link";
 import AppShowcase from "./components/AppShowcase";
 import AppStoreBadge from "./components/AppStoreBadge";
 import FoodGallery from "./components/FoodGallery";
-import HeroPreview from "./components/HeroPreview";
+import HeroCollaboration from "./components/HeroCollaboration";
 import ProductTour from "./components/ProductTour";
 import Wordmark from "./components/Wordmark";
 import { EARLY_ACCESS_URL } from "./lib/store";
@@ -47,21 +47,17 @@ export default function Home() {
     </header>
 
     <main id="main" className={styles.main}>
-      <section className={styles.hero} aria-labelledby="hero-title">
-        <div className={styles.heroCopy}>
+      <HeroCollaboration intro={<>
           <h1 className={styles.eyebrow}>The meal planner for your household</h1>
           <h2 id="hero-title" className={styles.heroTitle}>Dinner plans{" "}<br />made together</h2>
           <p className={styles.heroDescription}>Decide what&rsquo;s for dinner, who&rsquo;s cooking, and what to pick up. One shared plan for your whole household.</p>
+        </>} actions={<>
           <div className={styles.heroActions}>
             <Link className={styles.primaryAction} href={EARLY_ACCESS_URL}>Request early access <Arrow /></Link>
             <a className={styles.secondaryAction} href="#how-it-works">See how it works</a>
           </div>
           <p className={styles.availability}>For iPhone and iPad. Invitations by email.</p>
-        </div>
-        <div className={styles.heroProduct}>
-          <HeroPreview />
-        </div>
-      </section>
+        </>} />
 
       <FoodGallery />
 

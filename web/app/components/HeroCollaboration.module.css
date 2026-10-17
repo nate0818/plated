@@ -1,0 +1,27 @@
+.household { --avatar-oat: #E9E9DB; --avatar-basil: #CBD8BE; --avatar-mango: #E5CF99; --avatar-ink: #25362A; width: min(100%, 330px); margin-top: 32px; }
+.cooks { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 22px; list-style: none; margin: 0; padding: 0; }
+.cook { min-width: 0; display: flex; flex-direction: column; align-items: center; text-align: center; }
+.avatarPosition { display: flex; align-items: flex-start; justify-content: center; width: 100%; height: 89px; }
+.cook:nth-child(2) .avatarPosition { padding-top: 5px; }
+.cook:nth-child(3) .avatarPosition { padding-top: 2px; }
+.avatar { position: relative; display: grid; place-items: center; width: 66px; height: 66px; border-radius: 50%; background: var(--avatar-oat); color: var(--avatar-ink); font-size: 26px; line-height: 1; font-weight: 500; transform: rotate(-6deg); transition: transform 600ms cubic-bezier(.2,.8,.2,1), box-shadow 600ms ease; }
+.avatar[data-tone="basil"] { background: var(--avatar-basil); transform: rotate(5deg); }
+.avatar[data-tone="mango"] { background: var(--avatar-mango); transform: rotate(-3deg); }
+.mealBadge { position: absolute; right: -8px; bottom: -6px; width: 37px; height: 37px; padding: 3px; border-radius: 50%; background: var(--canvas); transform: rotate(8deg); }
+.mealBadge img { display: block; width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
+.name { font-size: 13px; font-weight: 500; line-height: 1.4; }
+.meal { margin-top: 3px; color: var(--ink-secondary); font-size: 12px; line-height: 1.5; }
+.meal > span { display: block; }
+.household[data-phase="app"] .cook:first-child .avatar, .household[data-phase="sam"] .cook:nth-child(2) .avatar { transform: translateY(-8px) rotate(0deg); box-shadow: 0 0 0 4px var(--canvas), 0 0 0 5.5px var(--primary-action); }
+.household[data-phase="app"] .cook:first-child .mealBadge, .household[data-phase="sam"] .cook:nth-child(2) .mealBadge { animation: meal-settle 5s ease-in-out infinite; }
+.household[data-started="true"] .avatarEntry { animation: gather 700ms cubic-bezier(.2,.8,.2,1) both; }
+.household[data-started="true"] .cook:nth-child(2) .avatarEntry { animation-delay: 100ms; }
+.household[data-started="true"] .cook:nth-child(3) .avatarEntry { animation-delay: 200ms; }
+.household[data-running="false"] .avatarEntry, .household[data-running="false"] .mealBadge { animation-play-state: paused !important; }
+.cooking { display: flex; align-items: center; gap: 9px; margin-top: 18px; min-height: 23px; font-size: 13px; color: var(--ink); }
+.cooking > span { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--primary-action); }
+@keyframes gather { from { transform: translateY(11px) scale(.94); } to { transform: translateY(0) scale(1); } }
+@keyframes meal-settle { 0%, 100% { transform: translateY(0) rotate(8deg); } 45% { transform: translateY(-3px) rotate(-3deg); } }
+@media (max-width: 760px) { .household { margin-top: 30px; } }
+@media (max-width: 380px) { .cooks { gap: 13px; } .avatar { width: 59px; height: 59px; font-size: 23px; } .mealBadge { width: 34px; height: 34px; right: -6px; } .avatarPosition { height: 81px; } }
+@media (prefers-reduced-motion: reduce) { .household .avatarEntry, .household .mealBadge { animation: none !important; } .avatar { transition: none; } }

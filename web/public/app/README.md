@@ -23,7 +23,7 @@ Plated 1.0.1 (32), using the memory-only demonstration household and the app’s
 Light appearance. The simulator status-bar clock was temporarily set to 8:18
 using Apple’s capture override, then cleared. No pixels were retouched.
 
-`plated-preview-818.mp4` is an 18-second H.264 recording from that same app,
+`plated-preview-818.mp4` is an H.264 recording from that same app,
 starting on Plan and opening Recipes. AVFoundation trims and encodes the native
 recording for browser delivery. The UI is not reconstructed or recoloured.
 The QA app was returned to Editorial appearance and Plan after capture.
@@ -39,3 +39,9 @@ enlarged view now use this capture. The rejected avatar selector is removed.
 Unused Riley and Household captures are retained under
 `docs/website-household-preview-2026-10-16/`, outside the served website folder.
 The status-bar override was cleared after capture.
+
+`plated-collaboration-818.mp4` is a smaller 588 × 1280 H.264 encode of the same
+native recording, prepared with AVFoundation for the homepage collaboration
+story. Playback starts with your Plan, opens Recipes, then holds the existing
+`plan-sam-light-818.png` capture to show Sam cooking tomorrow. The household
+avatars reflect those captures; the phone UI is not reconstructed or edited.
