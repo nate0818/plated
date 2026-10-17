@@ -718,6 +718,10 @@ acknowledged. No CloudKit schema fields were added.
 Profile writes also respect field ownership at publication: a role/rotation
 edit preserves the linked person's server profile and identity. Same-account
 profile updates can arrive from another device unless a local edit is pending.
+A claim treats empty account IDs as unlinked and preserves the person's own
+profile when retiring their local owner row. It commits before enqueueing
+adopted records or announcing success. Failed saves restore the profile,
+invitation state and cook links and leave the claim retryable.
 Queue acknowledgements match revisions, and profile fingerprints describe the
 payload sent, not a newer edit made during the upload. Build 38 rereads each
 household/Table zone once to recover records skipped by older readers; any

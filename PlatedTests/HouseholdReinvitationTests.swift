@@ -212,4 +212,57 @@ final class HouseholdReinvitationTests: XCTestCase {
         HouseholdShare.initializeAccessEdits(legacyRootPending: true)
         XCTAssertTrue(HouseholdShare.pendingAccessEdits.isEmpty, "Ordinary edits cannot manufacture another removal")
     }
+
+    func testJoiningAnEmptyIdentitySeatPreservesThePersonsOwnPhoto() throws {
+        let own = HouseholdMember(name: "Alessandra", role: "owner", seat: .head)
+        own.userRecordName = TableIdentity.cached; own.photoData = Data([1, 2, 3]); own.bio = "My profile"
+        let invitation = HouseholdMember(name: "Contact name", role: "partner", seat: .invited, shareRecordName: fresh)
+        invitation.userRecordName = ""; invitation.photoData = Data([9, 9])
+        let past = PlannedMeal(date: .now.addingTimeInterval(-86_400), customTitle: "Pasta", cook: own)
+        context.insert(own); context.insert(invitation); context.insert(past)
+        XCTAssertTrue(HouseholdSync.saveClaimedProfile(invitation, context: context))
+        XCTAssertEqual(invitation.name, "Alessandra")
+        XCTAssertEqual(invitation.photoData, Data([1, 2, 3]))
+        XCTAssertEqual(invitation.bio, "My profile")
+        XCTAssertEqual(invitation.userRecordName, TableIdentity.cached)
+        XCTAssertEqual(past.cook?.persistentModelID, invitation.persistentModelID)
+        XCTAssertEqual(HouseholdShare.mySeat, fresh)
+        XCTAssertEqual(try context.fetch(FetchDescriptor<HouseholdMember>()).count, 1)
+        XCTAssertTrue(HouseholdOutbox.shared.hasPending(fresh))
+    }
+
+    func testFailedJoinSaveRestoresOwnPhotoAndCookLinksWithoutPublishing() throws {
+        let own = HouseholdMember(name: "Alessandra", role: "owner", seat: .head)
+        own.userRecordName = TableIdentity.cached; own.photoData = Data([1, 2, 3])
+        let invitation = HouseholdMember(name: "Contact name", role: "partner", seat: .invited, shareRecordName: fresh)
+        invitation.userRecordName = ""
+        let past = PlannedMeal(date: .now.addingTimeInterval(-86_400), customTitle: "Pasta", cook: own)
+        context.insert(own); context.insert(invitation); context.insert(past)
+        let saved = HouseholdSync.saveClaimedProfile(invitation, context: context) { context, operation in
+            if String(describing: operation) == "seat claimed" { return false }
+            return Persist.save(context, operation)
+        }
+        XCTAssertFalse(saved)
+        XCTAssertEqual(try context.fetch(FetchDescriptor<HouseholdMember>()).count, 2)
+        XCTAssertEqual(own.photoData, Data([1, 2, 3]))
+        XCTAssertEqual(past.cook?.persistentModelID, own.persistentModelID)
+        XCTAssertEqual(invitation.seat, .invited)
+        XCTAssertNil(HouseholdShare.mySeat)
+        XCTAssertTrue(HouseholdOutbox.shared.isEmpty)
+        XCTAssertFalse(HouseholdSync.suppressed)
+        XCTAssertTrue(HouseholdSync.saveClaimedProfile(invitation, context: context), "Retry must complete the original claim")
+        XCTAssertEqual(invitation.photoData, Data([1, 2, 3]))
+    }
+
+    func testClaimCannotDiscardOwnProfileForSomeoneElsesLinkedSeat() {
+        let own = HouseholdMember(name: "Alessandra", role: "owner", seat: .head)
+        own.userRecordName = TableIdentity.cached; own.photoData = Data([1, 2, 3])
+        let taken = HouseholdMember(name: "Sam", role: "partner", seat: .joined, shareRecordName: fresh)
+        taken.userRecordName = ""; taken.participantID = "someone-else"
+        context.insert(own); context.insert(taken)
+        XCTAssertFalse(HouseholdSync.saveClaimedProfile(taken, context: context))
+        XCTAssertEqual(own.photoData, Data([1, 2, 3]))
+        XCTAssertEqual(taken.name, "Sam")
+        XCTAssertTrue(HouseholdOutbox.shared.isEmpty)
+    }
 }

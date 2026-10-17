@@ -932,74 +932,11 @@ enum HouseholdSync {
     /// Steps 4 to 6 of §7 from the moment the seat is known: retire the
     /// local owner row onto it, adopt what I brought, push, collapse.
     private static func finishJoin(claimed: HouseholdMember, host: String, context: ModelContext) async -> JoinOutcome {
-        let me = TableIdentity.cached
+        guard saveClaimedProfile(claimed, context: context) else {
+            isJoining = false
+            return .failed("Couldn’t save your household profile on this phone. Try joining again.")
+        }
         let outbox = HouseholdOutbox.shared
-
-        suppressed = true
-        let members = fetchAll(HouseholdMember.self, context)
-        // The owner row minted at onboarding: never synced, role owner, and
-        // not the seat just claimed. The host's own seat arrived from the
-        // wire and carries `shareModifiedAt`, so it can never match.
-        let local = members.first {
-            $0 !== claimed && $0.role == "owner" && $0.shareModifiedAt == nil
-                && (($0.userRecordName ?? "").isEmpty || $0.userRecordName == me)
-        }
-        if let local {
-            for meal in local.assignedMeals ?? [] { meal.cook = claimed }
-            if claimed.userRecordName == nil || claimed.userRecordName == me {
-                let oldName = claimed.name
-                if !local.name.isEmpty, !HouseholdIdentity.isPlaceholder(local.name) { claimed.name = local.name }
-                if claimed.bio.isEmpty { claimed.bio = local.bio }
-                if claimed.photoData == nil { claimed.photoData = local.photoData }
-                if let localDate = local.profileBannerPhotoModifiedAt,
-                   localDate > (claimed.profileBannerPhotoModifiedAt ?? .distantPast) {
-                    claimed.profileBannerPhotoData = local.profileBannerPhotoData
-                    claimed.profileBannerPhotoModifiedAt = localDate
-                } else if claimed.profileBannerPhotoData == nil {
-                    claimed.profileBannerPhotoData = local.profileBannerPhotoData
-                }
-                if oldName != claimed.name { Awards.rekey(from: oldName, to: claimed.name) }
-            }
-            context.delete(local)
-            print("PLATED HOUSEHOLD: retired the local owner row onto \(claimed.shareRecordName)")
-        }
-        if (claimed.userRecordName ?? "").isEmpty { claimed.userRecordName = me }
-        if claimed.userRecordName == me {
-            if claimed.seat != .joined { claimed.seat = .joined }
-            if claimed.joinedAt == nil { claimed.joinedAt = .now }
-            if claimed.role == "owner" { claimed.role = "partner" }
-            if claimed.authorID.isEmpty { claimed.authorID = me }
-        }
-        HouseholdShare.mySeat = claimed.shareRecordName
-
-        // 5. Adopt what I brought: my recipes, gatherings and laid places
-        // are stamped mine and go to the household.
-        //
-        // Selected by sync state, never by a missing author: `willSave`
-        // stamps `authorID` on every row this build inserts, and a leave
-        // leaves every kept row stamped with me, so "authorID is empty" is
-        // an empty set on any phone newer than the field. A row that came
-        // from the household in the merge a moment ago carries a
-        // `shareModifiedAt`; everything this person brought does not.
-        var adopted = 0
-        for row in fetchAll(Recipe.self, context) where row.shareModifiedAt == nil {
-            if row.authorID.isEmpty { row.authorID = me }
-            outbox.enqueueUpsert(.recipe, row.shareRecordName); adopted += 1
-        }
-        for row in fetchAll(Gathering.self, context) where row.shareModifiedAt == nil {
-            if row.authorID.isEmpty { row.authorID = me }
-            outbox.enqueueUpsert(.gathering, row.shareRecordName); adopted += 1
-        }
-        for row in fetchAll(HouseholdMember.self, context)
-        where row.seat == .notOnPlated && row.shareModifiedAt == nil
-            && (row.authorID.isEmpty || row.authorID == me) {
-            if row.authorID.isEmpty { row.authorID = me }
-            outbox.enqueueUpsert(.seat, row.shareRecordName); adopted += 1
-        }
-        Persist.save(context, "seat claimed")
-        suppressed = false
-        outbox.enqueueUpsert(.seat, claimed.shareRecordName)
-        print("PLATED HOUSEHOLD: adopted \(adopted) row(s), pushing the seat")
 
         // Adoption is complete. Let the real drain run now instead of
         // parking the profile until after the join sheet has disappeared.
@@ -1019,6 +956,119 @@ enum HouseholdSync {
         isJoining = false
         pendingJoinHost = ""
         return .joined
+    }
+
+    /// Commit profile adoption before publishing or announcing a join. The
+    /// save seam lets regression tests exercise the actual rollback path.
+    static func saveClaimedProfile(
+        _ claimed: HouseholdMember, context: ModelContext,
+        save: (ModelContext, StaticString) -> Bool = Persist.save
+    ) -> Bool {
+        let me = TableIdentity.cached
+        guard claimed.identityKey == nil || claimed.identityKey == me else { return false }
+        guard save(context, "before claiming seat") else { return false }
+        let outbox = HouseholdOutbox.shared
+        let wasSuppressed = suppressed
+        suppressed = true
+        defer { suppressed = wasSuppressed }
+        let members = fetchAll(HouseholdMember.self, context)
+        // The owner row minted at onboarding: never synced, role owner, and
+        // not the seat just claimed. The host's own seat arrived from the
+        // wire and carries `shareModifiedAt`, so it can never match.
+        let local = members.first {
+            $0 !== claimed && $0.role == "owner" && $0.shareModifiedAt == nil
+                && (($0.userRecordName ?? "").isEmpty || $0.userRecordName == me)
+        }
+        let before = HouseholdShare.remote(from: claimed)
+        var restoreAuthors: [() -> Void] = []
+        let localID = local?.persistentModelID
+        let previousMealIDs = (local?.assignedMeals ?? []).map(\.persistentModelID)
+        var renamedFrom: String?
+        if let local {
+            for meal in local.assignedMeals ?? [] { meal.cook = claimed }
+            if claimed.identityKey == nil || claimed.identityKey == me {
+                let oldName = claimed.name
+                if !local.name.isEmpty, !HouseholdIdentity.isPlaceholder(local.name) { claimed.name = local.name }
+                if !local.bio.isEmpty { claimed.bio = local.bio }
+                if let photo = local.photoData { claimed.photoData = photo }
+                if let localDate = local.profileBannerPhotoModifiedAt,
+                   localDate > (claimed.profileBannerPhotoModifiedAt ?? .distantPast) {
+                    claimed.profileBannerPhotoData = local.profileBannerPhotoData
+                    claimed.profileBannerPhotoModifiedAt = localDate
+                } else if claimed.profileBannerPhotoData == nil {
+                    claimed.profileBannerPhotoData = local.profileBannerPhotoData
+                }
+                if oldName != claimed.name { renamedFrom = oldName }
+            }
+            context.delete(local)
+            print("PLATED HOUSEHOLD: retired the local owner row onto \(claimed.shareRecordName)")
+        }
+        if (claimed.userRecordName ?? "").isEmpty { claimed.userRecordName = me }
+        if claimed.userRecordName == me {
+            if claimed.seat != .joined { claimed.seat = .joined }
+            if claimed.joinedAt == nil { claimed.joinedAt = .now }
+            if claimed.role == "owner" { claimed.role = "partner" }
+            if claimed.authorID.isEmpty { claimed.authorID = me }
+        }
+
+        // 5. Adopt what I brought: my recipes, gatherings and laid places
+        // are stamped mine and go to the household.
+        //
+        // Selected by sync state, never by a missing author: `willSave`
+        // stamps `authorID` on every row this build inserts, and a leave
+        // leaves every kept row stamped with me, so "authorID is empty" is
+        // an empty set on any phone newer than the field. A row that came
+        // from the household in the merge a moment ago carries a
+        // `shareModifiedAt`; everything this person brought does not.
+        var adopted: [(HouseholdOutbox.Kind, String)] = []
+        for row in fetchAll(Recipe.self, context) where row.shareModifiedAt == nil {
+            let author = row.authorID
+            restoreAuthors.append { row.authorID = author }
+            if row.authorID.isEmpty { row.authorID = me }
+            adopted.append((.recipe, row.shareRecordName))
+        }
+        for row in fetchAll(Gathering.self, context) where row.shareModifiedAt == nil {
+            let author = row.authorID
+            restoreAuthors.append { row.authorID = author }
+            if row.authorID.isEmpty { row.authorID = me }
+            adopted.append((.gathering, row.shareRecordName))
+        }
+        for row in fetchAll(HouseholdMember.self, context)
+        where row.seat == .notOnPlated && row.shareModifiedAt == nil
+            && (row.authorID.isEmpty || row.authorID == me) {
+            let author = row.authorID
+            restoreAuthors.append { row.authorID = author }
+            if row.authorID.isEmpty { row.authorID = me }
+            adopted.append((.seat, row.shareRecordName))
+        }
+        guard save(context, "seat claimed") else {
+            context.rollback()
+            // SwiftData can retain changed values on the live objects after
+            // rolling back a deletion. Restore this transaction's exact
+            // fields as well as the inverse cook relationships.
+            claimed.name = before.name
+            claimed.bio = before.bio
+            claimed.photoData = before.photo
+            claimed.profileBannerPhotoData = before.profileBannerPhoto
+            claimed.profileBannerPhotoModifiedAt = before.profileBannerPhotoModifiedAt
+            claimed.role = before.role
+            claimed.seatRaw = before.seat
+            claimed.joinedAt = before.joinedAt
+            claimed.userRecordName = before.userRecordName
+            claimed.authorID = before.authorID
+            for restore in restoreAuthors { restore() }
+            if let localID, let restored = context.model(for: localID) as? HouseholdMember {
+                for id in previousMealIDs { (context.model(for: id) as? PlannedMeal)?.cook = restored }
+            }
+            print("PLATED HOUSEHOLD: profile adoption could not be saved; keeping the original profile")
+            return false
+        }
+        HouseholdShare.mySeat = claimed.shareRecordName
+        if let renamedFrom { Awards.rekey(from: renamedFrom, to: claimed.name) }
+        for (kind, name) in adopted { outbox.enqueueUpsert(kind, name) }
+        outbox.enqueueUpsert(.seat, claimed.shareRecordName)
+        print("PLATED HOUSEHOLD: adopted \(adopted.count) row(s), pushing the seat")
+        return true
     }
 
     /// The second device of an Apple ID that joined somewhere else (§2).

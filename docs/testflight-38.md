@@ -19,8 +19,11 @@ failure on the two phones.
   “Finish joining”; own links do not invite the organizer to join themself.
 - Role/rotation edits preserve linked personal fields in the fetched record.
   Same-account device updates and intentional profile clearing are supported,
-  while pending local edits remain protected. Joining now drains its completed
-  profile adoption immediately instead of parking it until after dismissal.
+  while pending local edits remain protected. An empty account ID on an invited
+  seat no longer discards the joining person's own name, bio or photo. Profile
+  adoption must save before it queues uploads or announces success; failure
+  restores the original profiles, invitation state and cook assignments. Joining
+  drains completed adoption immediately instead of parking until dismissal.
 - Upload acknowledgements remove only the revision sent. The seat fingerprint
   acknowledges the serialized content, not a newer edit made during the await.
 - Household and Table readers fail a page on any individual record failure.
@@ -39,10 +42,12 @@ permission model. No real household membership was changed during verification.
 
 ## Verification
 
-Full native suite: **471 executed, 467 passed, four optional Calendar checks
-skipped, zero failures** (`build/household-reinvitation-release.xcresult`).
+Full native suite: **474 executed, 470 passed, four optional Calendar checks
+skipped, zero failures** (`build/household-reinvitation-verified.xcresult`).
 Transport failures are injected; these tests exercise production codecs,
 publication policy, merge, queue and activity projections without live accounts.
+The failed-adoption regression initially exposed SwiftData retaining a joined
+state after rollback; the explicit transaction restore and retry now pass.
 The two-store photo/activity delivery tests pass in both directions. They do
 not establish live multi-account delivery.
 
@@ -55,8 +60,8 @@ reduce unnecessary scrolling at the largest text size. All five scenarios
 then passed again with the final copy on iPhone SE (3rd gen) / iOS 26.5,
 including the largest Dynamic Type setting and a reachable Close action
 (`build/household-invitation-compact-ui.xcresult`). Final screenshots and trees
-are in the `compact/` subdirectory. Native logic is unchanged by the final copy
-and build-number edits.
+are in the `compact/` subdirectory. The final adoption transaction change has
+no view/layout changes; it is covered by the complete native rerun above.
 
 Design, shared-token and deployed-schema gates pass: 172 Swift files and
 159 recorded CloudKit fields. The phone is disconnected and a second test

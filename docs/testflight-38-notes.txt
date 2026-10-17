@@ -4,6 +4,7 @@ Please update every household phone to build 38 before testing. After removing s
 
 • Fresh invitations can restore a removed household member.
 • Blocked invitations show one clear explanation instead of saying both invited and removed.
+• Joining preserves your existing photo; failed saves keep your profile safe to retry.
 • Household edits preserve each person's photo and profile.
 • New profile edits stay queued if an older upload finishes later.
 • Missing household and Table records are reread after updating, with failed records retried.
