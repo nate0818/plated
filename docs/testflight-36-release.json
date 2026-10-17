@@ -1,0 +1,161 @@
+{
+  "version": "1.0.1",
+  "build": "36",
+  "archive": "build/releases/36/Plated.xcarchive",
+  "ipa": "build/releases/36/export/Plated.ipa",
+  "ipaSHA256": "68222a9c52024a1431a3b73c3d7eebef377d172cdc5b5fbf88a1e5acf7c2341a",
+  "binaryAndDSYMUUID": "6B65F7ED-A17C-360C-A178-1C134DE03115",
+  "sourceUnchangedDuringArchive": true,
+  "signatureVerification": "passed",
+  "privacyManifestValidation": "passed",
+  "targets": [
+    {
+      "bundle": "com.natemeadows.plated",
+      "version": "1.0.1",
+      "build": "36",
+      "entitlements": {
+        "application-identifier": "JA9M6TYXYL.com.natemeadows.plated",
+        "aps-environment": "production",
+        "beta-reports-active": true,
+        "com.apple.developer.applesignin": [
+          "Default"
+        ],
+        "com.apple.developer.associated-domains": [
+          "applinks:plated.food"
+        ],
+        "com.apple.developer.icloud-container-environment": "Production",
+        "com.apple.developer.icloud-container-identifiers": [
+          "iCloud.com.natemeadows.plated"
+        ],
+        "com.apple.developer.icloud-services": [
+          "CloudKit"
+        ],
+        "com.apple.developer.team-identifier": "JA9M6TYXYL",
+        "com.apple.developer.ubiquity-kvstore-identifier": "JA9M6TYXYL.com.natemeadows.plated",
+        "com.apple.developer.usernotifications.communication": true,
+        "com.apple.developer.usernotifications.time-sensitive": true,
+        "com.apple.developer.weatherkit": true,
+        "com.apple.security.application-groups": [
+          "group.com.natemeadows.plated"
+        ],
+        "get-task-allow": false
+      }
+    },
+    {
+      "bundle": "com.natemeadows.plated.widgets",
+      "version": "1.0.1",
+      "build": "36",
+      "entitlements": {
+        "application-identifier": "JA9M6TYXYL.com.natemeadows.plated.widgets",
+        "beta-reports-active": true,
+        "com.apple.developer.team-identifier": "JA9M6TYXYL",
+        "com.apple.security.application-groups": [
+          "group.com.natemeadows.plated"
+        ],
+        "get-task-allow": false
+      }
+    }
+  ],
+  "uploadState": "VALID",
+  "sourceCommit": "8547ca011bf29c508327137206abf06bf554f292",
+  "uploadDeliveryUUID": "f71e0ebc-e226-477d-8537-c81222737c6d",
+  "uploadedBytes": 17461148,
+  "appStoreConnectBuildID": "f71e0ebc-e226-477d-8537-c81222737c6d",
+  "beta": {
+    "autoNotifyEnabled": true,
+    "internalBuildState": "IN_BETA_TESTING",
+    "externalBuildState": "IN_BETA_TESTING"
+  },
+  "groups": [
+    {
+      "id": "d4ceeaaa-518a-439b-8df8-7a2bbd795d69",
+      "name": "Internal",
+      "internal": true,
+      "all_builds": true,
+      "public_link": null,
+      "builds": [
+        "1",
+        "2",
+        "3",
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "11",
+        "12",
+        "13",
+        "14",
+        "15",
+        "16",
+        "17",
+        "18",
+        "19",
+        "20",
+        "21",
+        "24",
+        "25",
+        "26",
+        "27",
+        "28",
+        "29",
+        "30",
+        "31",
+        "32",
+        "33",
+        "34",
+        "35",
+        "36"
+      ]
+    },
+    {
+      "id": "21ee2218-8e43-49da-b27f-dbc543824a80",
+      "name": "External",
+      "internal": false,
+      "all_builds": false,
+      "public_link": "https://testflight.apple.com/join/2exAQgYs",
+      "builds": [
+        "2",
+        "10",
+        "11",
+        "12",
+        "13",
+        "14",
+        "15",
+        "16",
+        "17",
+        "18",
+        "19",
+        "20",
+        "21",
+        "24",
+        "25",
+        "26",
+        "27",
+        "28",
+        "29",
+        "30",
+        "31",
+        "32",
+        "33",
+        "34",
+        "35",
+        "36"
+      ]
+    }
+  ],
+  "distributionCheckedAt": "2026-10-17T20:07:56.008329+00:00",
+  "testerNotesVerified": true,
+  "individualTestersCarriedForward": 0,
+  "nativeVerification": {
+    "executed": 440,
+    "passed": 436,
+    "skipped": 4,
+    "failures": 0,
+    "resultBundle": "build/household-delivery-final.xcresult"
+  },
+  "liveTwoAccountDeliveryVerified": false,
+  "physicalWeatherKitVerified": false
+}
