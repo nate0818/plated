@@ -40,7 +40,7 @@ final class HouseholdSyncTests: XCTestCase {
         let defaults = UserDefaults(suiteName: WidgetBridge.appGroupID) ?? .standard
         for key in [HouseholdMember.Keys.membershipKind, HouseholdMember.Keys.mySeat,
                     HouseholdShare.Keys.owner, HouseholdShare.Keys.ownerName, HouseholdShare.Keys.name,
-                    HouseholdShare.Keys.epoch, HouseholdShare.Keys.publishedAt, HouseholdShare.Keys.removedIDs,
+                    HouseholdShare.Keys.epoch, HouseholdShare.Keys.publishedAt, HouseholdShare.Keys.removedIDs, HouseholdShare.Keys.accessEdits,
                     HouseholdShare.Keys.tableShareURL, HouseholdShare.Keys.unresolved,
                     HouseholdSync.Keys.minter, HouseholdSync.Keys.removedNotice,
                     HouseholdOutbox.publishTotalKey] {

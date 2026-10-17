@@ -1273,6 +1273,8 @@ enum TableShare {
                 // One call returns one page, so a table with more posts than
                 // a page holds used to arrive permanently truncated — and
                 // the token still advanced, so the rest never came at all.
+                let repairKey = "plated.table.completeReads38.\(zone.zoneID.zoneName).\(zone.zoneID.ownerName)"
+                if !UserDefaults.standard.bool(forKey: repairKey) { forgetToken(for: zone.zoneID) }
                 var cursor = token(for: zone.zoneID)
                 if cursor == nil { part.replayed = true }
                 var more = true
@@ -1280,8 +1282,7 @@ enum TableShare {
                     let changes = try await db.recordZoneChanges(
                         inZoneWith: zone.zoneID, since: cursor
                     )
-                    for (_, result) in changes.modificationResultsByID {
-                        guard let record = try? result.get().record else { continue }
+                    for record in try CloudRecordPage.records(changes.modificationResultsByID.values.map { $0.map { $0.record } }) {
                         switch record.recordType {
                         case postType, legacyPostType:
                             var post = remotePost(from: record)
@@ -1305,6 +1306,7 @@ enum TableShare {
                     more = changes.moreComing
                 }
                 store(cursor, for: zone.zoneID)
+                UserDefaults.standard.set(true, forKey: repairKey)
                 // Every field, for the reason `fetchChanges` gives: one
                 // left out of a copy like this is how a flag stops
                 // arriving without anything looking wrong.

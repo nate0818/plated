@@ -568,8 +568,10 @@ Before the facts, the sheet compares the metadata's owner to membership:
 - Hosting with only by-name seats, or a member of another household: the
   first fact is preceded by "You'll leave the Meadows household first." and
   the button reads **Leave and join**.
-- My identity is in the root's `removedIDs`: "Nate removed you from this
-  household. Ask them for a new invitation." and no button.
+- My identity is revoked without a matching fresh invitation capability:
+  “New invitation needed,” a removal explanation and a Close action. No
+  “Join” heading, invitation claim, or name prompt appears in this state.
+  Revocation is checked before the already-here route.
 
 Otherwise the buttons are **Join** and **Not now**. While joining, the pill
 reads "Joining" and is disabled. Failure is an inline problem row, the same
@@ -685,12 +687,43 @@ retry changed share records and check the individual save result. Never write
 identity to the root's `removedIDs`, push the root, delete the row, and hand
 that person's cook nights back to unplanned. The confirmation says what is
 true: "Riley loses the plan, the grocery list and the cookbook. Their own
-recipes stay in the cookbook." A removed identity is refused at join
-(section 7) and never seated by reconcile.
+recipes stay in the cookbook." Old links cannot reseat a removed account.
+A new organizer-issued invitation can restore it as described below.
 
 Removal shows progress and prevents duplicate taps. Local deletion is saved by
 the service; a failed save restores the profile and its cook assignments, while
 preserving edits saved before the deletion transaction.
+
+**Fresh reinvitations (build 38).** Every newly generated household link,
+including Copy/Share, carries an unpredictable seat token. Before handing the
+link to Messages or the share sheet, the organizer fetches the root and saves
+versioned SHA-256 grants in the existing `removedIDs` string list. Raw removed
+account IDs remain in that list, so older clients still refuse rather than
+silently treating a grant as blanket reinstatement. The root exposes the hash,
+not the bearer token; contact names and phone matching never authorize a join.
+Both phones must use build 38 or later and the organizer must generate a new
+invitation. Send again retains an existing invitation; it does not upgrade old
+links into new authorization.
+
+The join checks the exact token before acceptance and again after the first
+full pull. A revoked account cannot fall back to a different claimed seat. The
+organizer accepts only a joined seat published by that account with a matching
+grant, then consumes the account's grants. Removing the account again invalidates
+all previous grants. Durable per-device access intents are applied against the
+fresh server root on retries; normal root edits preserve its access entries,
+and a delayed acceptance cannot overrule a newer revocation. Grant publication
+fails closed on a changed record and returns no ready link until its save is
+acknowledged. No CloudKit schema fields were added.
+
+Profile writes also respect field ownership at publication: a role/rotation
+edit preserves the linked person's server profile and identity. Same-account
+profile updates can arrive from another device unless a local edit is pending.
+Queue acknowledgements match revisions, and profile fingerprints describe the
+payload sent, not a newer edit made during the upload. Build 38 rereads each
+household/Table zone once to recover records skipped by older readers; any
+individual record failure now prevents committing that page's token. Own
+profiles protected locally from an older household overwrite are queued for
+repair even if that server version had already been acknowledged.
 
 **Being removed** is noticed only on positive evidence: a
 `CKFetchDatabaseChangesOperation` on the shared database reporting the

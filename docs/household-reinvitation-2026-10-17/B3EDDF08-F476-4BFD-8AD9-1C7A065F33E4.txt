@@ -1,0 +1,177 @@
+Attributes: Application, 0x1073bcb40, pid: 1230, label: 'Plated'
+Element subtree:
+ →Application, 0x1073bcb40, pid: 1230, label: 'Plated'
+    Window (Main), 0x1073bd040, {{0.0, 0.0}, {402.0, 874.0}}
+      Other, 0x1073bcc80, {{0.0, 0.0}, {402.0, 874.0}}
+        Other, 0x1073bcdc0, {{0.0, 0.0}, {402.0, 874.0}}
+          Other, 0x1073bcf00, {{-402.0, -874.0}, {1206.0, 2622.0}}, identifier: 'PopoverDismissRegion', label: 'dismiss popup'
+          Other, 0x1073bd180, {{0.0, 0.0}, {402.0, 874.0}}
+            Other, 0x1073bd2c0, {{0.0, 0.0}, {402.0, 874.0}}
+              Other, 0x1073bd7c0, {{0.0, 0.0}, {402.0, 874.0}}
+                Other, 0x1073bdb80, {{0.0, 0.0}, {402.0, 874.0}}
+                  Other, 0x1073bdcc0, {{0.0, 0.0}, {402.0, 874.0}}
+                    Other, 0x1073bd900, {{0.0, 0.0}, {402.0, 874.0}}
+                      Other, 0x1073bde00, {{0.0, 0.0}, {402.0, 874.0}}
+                        ScrollView, 0x1073be080, {{0.0, 0.0}, {402.0, 874.0}}, identifier: 'plan-selected-day-content'
+                          Other, 0x1073be300, {{0.0, 0.0}, {402.0, 874.0}}
+                            Other, 0x1073bdf40, {{0.0, 0.0}, {402.0, 102.0}}
+                          Other, 0x1073be440, {{0.0, 0.0}, {402.0, 874.0}}
+                          Other, 0x1073be6c0, {{0.0, 62.0}, {402.0, 1367.0}}
+                            StaticText, 0x1073be800, {{24.0, 84.0}, {64.3, 24.0}}, label: 'Plated'
+                            Button, 0x1073be1c0, {{230.0, 74.0}, {44.0, 44.0}}, identifier: 'tray-create', label: 'Add'
+                            Button, 0x1073be940, {{282.0, 74.0}, {44.0, 44.0}}, identifier: 'notifications-bell', label: 'Notifications', value: No unread notifica...
+                              Button, 0x1073bebc0, {{282.0, 74.0}, {44.0, 44.0}}, identifier: 'bell', label: 'Notifications'
+                            Button, 0x1073bed00, {{334.0, 74.0}, {44.0, 44.0}}, label: 'Your profile'
+                            StaticText, 0x1073bea80, {{24.0, 139.4}, {76.3, 23.0}}, label: 'Hi, Nate'
+                            Button, 0x1073bee40, {{296.3, 130.0}, {81.7, 44.0}}, label: 'Calendar'
+                              StaticText, 0x1073bf0c0, {{296.3, 130.0}, {81.7, 44.0}}, label: 'Calendar'
+                              Image, 0x1073bf200, {{298.0, 145.7}, {13.3, 12.0}}, identifier: 'calendar', label: 'Calendar'
+                            Other, 0x1073bef80, {{24.0, 186.0}, {662.0, 1162.7}}
+                              Other, 0x1073bf340, {{24.0, 186.0}, {12.0, 76.0}}
+                              ScrollView, 0x1073bf5c0, {{24.0, 186.0}, {354.0, 76.0}}, identifier: 'plan-date-wheel'
+                                Other, 0x1073bf700, {{-17342.0, 186.0}, {35086.0, 76.0}}
+                                  Other, 0x1073bf480, {{-62.0, 189.7}, {526.0, 68.7}}
+                                    Button, 0x1073bf840, {{-62.0, 189.7}, {46.0, 68.7}}, identifier: 'week-date-2026-10-12', label: 'Monday, Oct 12', value: No dinner planned
+                                      StaticText, 0x1073bf980, {{-51.3, 197.7}, {24.7, 15.7}}, label: 'Mon'
+                                      StaticText, 0x1073bfac0, {{-52.0, 218.3}, {26.0, 23.0}}, label: '12'
+                                    Button, 0x1073bfd40, {{-14.0, 189.7}, {46.0, 68.7}}, identifier: 'week-date-2026-10-13', label: 'Tuesday, Oct 13', value: No dinner planned
+                                      StaticText, 0x1073bfe80, {{-1.2, 197.7}, {20.3, 15.7}}, label: 'Tue'
+                                      StaticText, 0x1073bfc00, {{-4.0, 218.3}, {26.0, 23.0}}, label: '13'
+                                    Button, 0x1073bc140, {{34.0, 189.7}, {46.0, 68.7}}, identifier: 'week-date-2026-10-14', label: 'Wednesday, Oct 14', value: No dinner planned
+                                      StaticText, 0x1073bc3c0, {{44.0, 197.7}, {26.0, 15.7}}, label: 'Wed'
+                                      StaticText, 0x10722b700, {{44.0, 218.3}, {26.0, 23.0}}, label: '14'
+                                    Button, 0x10722b980, {{82.0, 189.7}, {46.0, 68.7}}, identifier: 'week-date-2026-10-15', label: 'Thursday, Oct 15', value: No dinner planned
+                                      StaticText, 0x10722b840, {{94.5, 197.7}, {21.0, 15.7}}, label: 'Thu'
+                                      StaticText, 0x1072288c0, {{92.0, 218.3}, {26.0, 23.0}}, label: '15'
+                                    Button, 0x107229040, {{130.0, 189.7}, {46.0, 68.7}}, identifier: 'week-date-2026-10-16', label: 'Friday, Oct 16', value: No dinner planned
+                                      StaticText, 0x10a5cc000, {{145.8, 197.7}, {14.3, 15.7}}, label: 'Fri'
+                                      StaticText, 0x10a5cc140, {{140.0, 218.3}, {26.0, 23.0}}, label: '16'
+                                    Button, 0x10a5cc280, {{178.0, 189.7}, {46.0, 68.7}}, identifier: 'week-date-2026-10-17', label: 'Saturday, Oct 17', value: Dinner planned, Selected
+                                      StaticText, 0x10a5cc3c0, {{191.7, 197.7}, {18.7, 15.7}}, label: 'Sat'
+                                      StaticText, 0x10a5cc500, {{188.0, 218.3}, {26.0, 23.0}}, label: '17'
+                                    Button, 0x10a5cc640, {{226.0, 189.7}, {46.0, 68.7}}, identifier: 'week-date-2026-10-18', label: 'Sunday, Oct 18', value: Dinner planned
+                                      StaticText, 0x10a5cc780, {{238.3, 197.7}, {21.3, 15.7}}, label: 'Sun'
+                                      StaticText, 0x10a5cc8c0, {{236.0, 218.3}, {26.0, 23.0}}, label: '18'
+                                    Button, 0x10a5cca00, {{274.0, 189.7}, {46.0, 68.7}}, identifier: 'week-date-2026-10-19', label: 'Monday, Oct 19', value: Dinner planned
+                                      StaticText, 0x10a5ccb40, {{284.7, 197.7}, {24.7, 15.7}}, label: 'Mon'
+                                      StaticText, 0x10a5ccc80, {{284.0, 218.3}, {26.0, 23.0}}, label: '19'
+                                    Button, 0x10a5ccdc0, {{322.0, 189.7}, {46.0, 68.7}}, identifier: 'week-date-2026-10-20', label: 'Tuesday, Oct 20', value: No dinner planned
+                                      StaticText, 0x10a5ccf00, {{334.8, 197.7}, {20.3, 15.7}}, label: 'Tue'
+                                      StaticText, 0x10a5cd040, {{332.0, 218.3}, {26.0, 23.0}}, label: '20'
+                                    Button, 0x10a5cd180, {{370.0, 189.7}, {46.0, 68.7}}, identifier: 'week-date-2026-10-21', label: 'Wednesday, Oct 21', value: Dinner planned
+                                      StaticText, 0x10a5cd2c0, {{380.0, 197.7}, {26.0, 15.7}}, label: 'Wed'
+                                      StaticText, 0x10a5cd400, {{380.0, 218.3}, {26.0, 23.0}}, label: '21'
+                                    Button, 0x10a5cd540, {{418.0, 189.7}, {46.0, 68.7}}, identifier: 'week-date-2026-10-22', label: 'Thursday, Oct 22', value: Dinner planned
+                                      StaticText, 0x10a5cd680, {{430.5, 197.7}, {21.0, 15.7}}, label: 'Thu'
+                                      StaticText, 0x10a5cd7c0, {{428.0, 218.3}, {26.0, 23.0}}, label: '22'
+                              Other, 0x10a5cd900, {{366.0, 186.0}, {12.0, 76.0}}
+                              Other, 0x10a5cda40, {{27.0, 214.0}, {3.0, 20.0}}
+                              Other, 0x10a5cdb80, {{372.0, 214.0}, {3.0, 20.0}}
+                              Button, 0x10a5cdcc0, {{318.0, 290.0}, {44.0, 44.0}}, label: 'Dinner options'
+                                Button, 0x10a5cde00, {{318.0, 290.0}, {44.0, 44.0}}
+                                  Image, 0x10a5cdf40, {{318.0, 290.0}, {44.0, 44.0}}, identifier: 'ellipsis', label: 'More'
+                              StaticText, 0x10a5ce080, {{40.0, 304.8}, {106.0, 14.3}}, label: 'TONIGHT · OCT 17'
+                              Button, 0x10a5ce1c0, {{40.0, 346.0}, {322.0, 173.7}}, identifier: 'featured-dinner-card', label: 'Salmon Night'
+                                Button, 0x10a5ce300, {{40.0, 346.0}, {322.0, 173.7}}, label: 'Salmon Night'
+                                  StaticText, 0x10a5ce440, {{40.0, 346.0}, {322.0, 173.7}}, label: 'Salmon Night'
+                                  Image, 0x10a5ce580, {{40.0, 391.0}, {322.0, 128.7}}
+                              Button, 0x10a5ce6c0, {{40.0, 531.7}, {322.0, 44.0}}, identifier: 'plan-cook-assignment', label: 'Dinner cook', value: You’re cooking
+                                Button, 0x10a5ce800, {{40.0, 531.7}, {322.0, 44.0}}
+                                  StaticText, 0x10a5ce940, {{40.0, 537.7}, {32.0, 32.0}}, label: 'N'
+                                  StaticText, 0x10a5cea80, {{82.0, 535.3}, {36.0, 14.3}}, label: 'COOK'
+                                  StaticText, 0x10a5cebc0, {{82.0, 552.6}, {105.3, 19.7}}, label: 'You’re cooking'
+                                  StaticText, 0x10a5ced00, {{314.0, 545.3}, {48.0, 17.0}}, label: 'Change'
+                              Button, 0x10a5cee40, {{40.0, 587.7}, {104.7, 44.0}}, label: 'Change servings'
+                                Image, 0x10a5cef80, {{53.7, 603.3}, {18.7, 12.7}}, identifier: 'person.2', label: 'Two People'
+                                StaticText, 0x10a5cf0c0, {{53.7, 601.2}, {79.0, 17.0}}, label: 'Serves 4'
+                              Button, 0x10a5cf200, {{40.0, 643.7}, {322.0, 48.0}}, label: 'Start cooking'
+                                Image, 0x10a5cf340, {{140.0, 658.3}, {11.7, 19.0}}, identifier: 'fork.knife', label: 'Food'
+                                StaticText, 0x10a5cf480, {{161.5, 657.2}, {102.7, 21.0}}, label: 'Start cooking'
+                              StaticText, 0x10a5cf5c0, {{24.0, 731.8}, {149.7, 23.0}}, label: 'Today’s weather'
+                              StaticText, 0x10a5cf700, {{24.0, 766.8}, {332.0, 17.0}}, label: 'Allow location in Settings to see the forecast for dinner.'
+                              Button, 0x10a5cf840, {{24.0, 787.7}, {89.3, 44.0}}, label: 'Open Settings'
+                              Other, 0x10a5cf980, {{24.0, 855.7}, {354.0, 1.0}}
+                              StaticText, 0x10a5cfac0, {{24.0, 880.8}, {145.0, 23.0}}, label: 'Your dinner log'
+                              StaticText, 0x10a5cfc00, {{303.3, 886.8}, {74.7, 14.3}}, label: 'LAST 7 DAYS'
+                              Other, 0x10a5cfd40, {{24.0, 919.8}, {52.7, 52.0}}, identifier: 'plan-history-cooked', label: '0 cooked in the last 7 days'
+                                StaticText, 0x10a5cfe80, {{24.0, 919.8}, {16.3, 29.0}}, label: '0'
+                                Image, 0x10a5e4000, {{52.3, 928.0}, {24.3, 15.0}}, identifier: 'frying.pan', label: 'Frying Pan'
+                                StaticText, 0x10a5e4140, {{24.0, 954.8}, {46.7, 17.0}}, label: 'Cooked'
+                              Other, 0x10a5e4280, {{213.0, 919.8}, {61.0, 52.0}}, identifier: 'plan-history-eating-out', label: '0 eating out in the last 7 days'
+                                StaticText, 0x10a5e43c0, {{213.0, 919.8}, {16.3, 29.0}}, label: '0'
+                                Image, 0x10a5e4500, {{241.3, 927.0}, {19.7, 18.3}}, identifier: 'takeoutbag.and.cup.and.straw', label: 'Takeout Bag, Cup, And Straw'
+                                StaticText, 0x10a5e4640, {{213.0, 954.8}, {61.0, 17.0}}, label: 'Eating out'
+                              StaticText, 0x10a5e4780, {{24.0, 987.8}, {287.7, 37.0}}, label: 'Mark dinners cooked or eating out to start your household’s log.'
+                              Other, 0x10a5e48c0, {{24.0, 1048.7}, {354.0, 0.3}}
+                              Button, 0x10a5e4a00, {{328.7, 1073.0}, {49.3, 44.0}}, label: 'Manage household'
+                              StaticText, 0x10a5e4b40, {{24.0, 1082.6}, {146.3, 23.0}}, label: 'Your household'
+                              StaticText, 0x10a5e4c80, {{24.0, 1129.1}, {165.7, 15.7}}, label: 'Recorded activity · last 7 days'
+                              Button, 0x10a5e4dc0, {{24.0, 1156.7}, {354.0, 56.0}}, identifier: 'plan-household-seat-862BC3E6-3D47-4079-90B1-71053FD7C2B3', label: 'You, No activity recorded in the last 7 days.'
+                                StaticText, 0x10a5e4f00, {{24.0, 1163.7}, {42.0, 42.0}}, label: 'N'
+                                StaticText, 0x10a5e5040, {{78.0, 1163.7}, {26.3, 19.7}}, label: 'You'
+                                StaticText, 0x10a5e5180, {{341.3, 1163.7}, {36.7, 15.7}}, label: 'Profile'
+                                StaticText, 0x10a5e52c0, {{78.0, 1187.3}, {231.0, 17.0}}, label: 'No activity recorded in the last 7 days.'
+                              Button, 0x10a5e5400, {{24.0, 1224.7}, {354.0, 56.0}}, identifier: 'plan-household-seat-F668917D-EBD6-4C56-B146-D983C52CC0E7', label: 'Sam, No activity recorded in the last 7 days.'
+                                StaticText, 0x10a5e5540, {{24.0, 1231.7}, {42.0, 42.0}}, label: 'S'
+                                StaticText, 0x10a5e5680, {{78.0, 1231.7}, {31.7, 19.7}}, label: 'Sam'
+                                StaticText, 0x10a5e57c0, {{341.3, 1231.7}, {36.7, 15.7}}, label: 'Profile'
+                                StaticText, 0x10a5e5900, {{78.0, 1255.3}, {231.0, 17.0}}, label: 'No activity recorded in the last 7 days.'
+                              Button, 0x10a5e5a40, {{24.0, 1292.7}, {354.0, 56.0}}, identifier: 'plan-household-seat-1C23D2F6-1021-419C-9B51-8D95F4BA02DB', label: 'Riley, No activity recorded in the last 7 days.'
+                                StaticText, 0x10a5e5b80, {{24.0, 1299.7}, {42.0, 42.0}}, label: 'R'
+                                StaticText, 0x10a5e5cc0, {{78.0, 1299.7}, {34.7, 19.7}}, label: 'Riley'
+                                StaticText, 0x10a5e5e00, {{341.3, 1299.7}, {36.7, 15.7}}, label: 'Profile'
+                                StaticText, 0x10a5e5f40, {{78.0, 1323.3}, {231.0, 17.0}}, label: 'No activity recorded in the last 7 days.'
+                        Other, 0x10a5e6080, {{201.0, 451.0}, {0.0, 0.0}}
+                Toolbar, 0x10a5e61c0, {{0.0, 0.0}, {402.0, 874.0}}, identifier: 'Toolbar', label: 'Toolbar'
+                  Other, 0x10a5e6300, {{0.0, 0.0}, {402.0, 874.0}}
+              Button, 0x10a5e6440, {{16.0, 782.0}, {92.7, 54.0}}, identifier: 'tray-week', label: 'Plan', Selected
+                Image, 0x10a5e6580, {{52.3, 790.3}, {20.0, 18.3}}, identifier: 'calendar', label: 'Calendar'
+                StaticText, 0x10a5e66c0, {{49.3, 815.2}, {26.0, 14.3}}, label: 'Plan'
+              Button, 0x10a5e6800, {{108.7, 782.0}, {92.3, 54.0}}, identifier: 'tray-cookbook', label: 'Recipes'
+                Image, 0x10a5e6940, {{143.7, 790.3}, {22.0, 18.3}}, identifier: 'book', label: 'Bookmark'
+                StaticText, 0x10a5e6a80, {{131.7, 815.2}, {46.3, 14.3}}, label: 'Recipes'
+              Button, 0x10a5e6bc0, {{201.0, 782.0}, {92.7, 54.0}}, identifier: 'tray-groceries', label: 'Groceries'
+                Image, 0x10a5e6d00, {{236.0, 788.7}, {23.0, 21.0}}, identifier: 'basket', label: 'Shopping Basket With A Handle'
+                StaticText, 0x10a5e6e40, {{218.5, 816.5}, {57.7, 14.3}}, label: 'Groceries'
+              Button, 0x10a5e6f80, {{293.7, 782.0}, {92.3, 54.0}}, identifier: 'tray-table', label: 'Table'
+                Image, 0x10a5e70c0, {{326.0, 789.7}, {28.7, 19.7}}, identifier: 'person.2', label: 'Two People'
+                StaticText, 0x10a5e7200, {{324.0, 815.8}, {31.7, 14.3}}, label: 'Table'
+      Other, 0x10a5e7340, {{0.0, 0.0}, {402.0, 874.0}}
+        Other, 0x10a5e7480, {{-402.0, -874.0}, {1206.0, 2622.0}}, identifier: 'PopoverDismissRegion', label: 'dismiss popup'
+        Other, 0x10a5e75c0, {{8.0, 195.1}, {386.0, 670.9}}
+          Button, 0x10a5e7700, {{153.0, 191.3}, {96.0, 23.0}}, label: 'Sheet Grabber', value: Expanded
+          Other, 0x10a5e7840, {{8.0, 195.1}, {386.0, 670.9}}
+          Other, 0x10a5e7980, {{8.0, 195.1}, {386.0, 670.9}}
+            Other, 0x10a5e7ac0, {{8.0, 195.1}, {386.0, 670.9}}
+              Other, 0x10a5e7c00, {{8.0, 195.1}, {386.0, 670.9}}
+                ScrollView, 0x10a5e7d40, {{8.0, 195.1}, {386.0, 670.9}}
+                  Other, 0x10a5e7e80, {{8.0, 195.1}, {386.0, 638.2}}
+                    StaticText, 0x10a5f4000, {{191.4, 233.9}, {19.2, 33.9}}, label: 'N'
+                    StaticText, 0x10a5f4140, {{130.6, 296.9}, {140.8, 13.8}}, label: 'HOUSEHOLD INVITATION'
+                    StaticText, 0x10a5f4280, {{116.0, 314.5}, {170.0, 27.8}}, label: 'Join Meadows?'
+                    StaticText, 0x10a5f43c0, {{49.4, 346.2}, {303.1, 40.6}}, label: 'Nate Meadows invited you to plan, shop and cook together.'
+                    StaticText, 0x10a5f4500, {{44.5, 414.7}, {260.9, 34.9}}, label: 'One shared plan, See who's cooking and change any night.'
+                      Image, 0x10a5f4640, {{44.5, 416.0}, {32.6, 32.6}}, identifier: 'calendar', label: 'Calendar'
+                      StaticText, 0x10a5f4780, {{88.7, 414.7}, {113.6, 18.9}}, label: 'One shared plan'
+                      StaticText, 0x10a5f48c0, {{88.7, 434.6}, {216.7, 15.0}}, label: 'See who's cooking and change any night.'
+                    StaticText, 0x10a5f4a00, {{44.5, 471.0}, {236.8, 34.9}}, label: 'One grocery list, Anything anyone adds stays in sync.'
+                      Image, 0x10a5f4b40, {{44.5, 472.3}, {32.6, 32.6}}, identifier: 'cart', label: 'Shopping Cart'
+                      StaticText, 0x10a5f4c80, {{88.7, 471.0}, {110.4, 18.9}}, label: 'One grocery list'
+                      StaticText, 0x10a5f4dc0, {{88.7, 490.9}, {192.7, 15.0}}, label: 'Anything anyone adds stays in sync.'
+                    StaticText, 0x10a5f4f00, {{44.5, 527.4}, {231.7, 52.8}}, label: 'One cookbook, Cook and improve the household's recipes together.'
+                      StaticText, 0x10a5f5040, {{88.7, 527.4}, {100.8, 18.9}}, label: 'One cookbook'
+                      Image, 0x10a5f5180, {{44.5, 537.6}, {32.6, 32.6}}, identifier: 'text.book.closed', label: 'Text On A Closed Book'
+                      StaticText, 0x10a5f52c0, {{88.7, 547.2}, {187.6, 33.0}}, label: 'Cook and improve the household's recipes together.'
+                    StaticText, 0x10a5f5400, {{32.6, 604.2}, {321.7, 33.0}}, label: 'Only household members get this access. Friends at the Table still see only what you choose to post.'
+                      Image, 0x10a5f5540, {{32.6, 605.1}, {8.3, 11.5}}, identifier: 'lock.fill', label: 'Lock'
+                      StaticText, 0x10a5f5680, {{51.2, 604.2}, {303.1, 33.0}}, label: 'Only household members get this access. Friends at the Table still see only what you choose to post.'
+                    StaticText, 0x10a5f57c0, {{31.0, 650.6}, {323.3, 33.0}}, label: 'The shared plan and cookbook may take a moment to arrive from Nate Meadows's phone.'
+                    Button, 0x10a5f5900, {{31.0, 704.7}, {339.9, 46.1}}, label: 'Join household'
+                    Button, 0x10a5f5a40, {{173.5, 762.3}, {55.4, 42.2}}, label: 'Not now'
+Path to element:
+ →Application, 0x1073bcb40, pid: 1230, label: 'Plated'
+Query chain:
+ →Find: Application 'com.natemeadows.plated'
+  Output: {
+    Application, 0x10a5f5b80, pid: 1230, label: 'Plated'
+  }

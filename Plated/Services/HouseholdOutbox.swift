@@ -39,6 +39,8 @@ final class HouseholdOutbox {
         /// Refusals so far. A rate limit or a network blip does not count;
         /// only an answer that says the write itself is wrong.
         var tries: Int = 0
+        /// Optional so queues written by older builds still decode.
+        var revision: UUID? = UUID()
     }
 
     /// Seats and recipes go first, because a notice about either reads the
@@ -68,7 +70,10 @@ final class HouseholdOutbox {
             .appending(path: "household-outbox.json")
     }
 
-    private init() { load() }
+    private init() {
+        load()
+        HouseholdShare.initializeAccessEdits(legacyRootPending: entries.contains { $0.kind == .root })
+    }
 
     var pending: [Entry] { entries }
     var isEmpty: Bool { entries.isEmpty }
@@ -85,6 +90,7 @@ final class HouseholdOutbox {
         guard !recordName.isEmpty else { return }
         if let i = entries.firstIndex(where: { $0.id == recordName }) {
             guard !entries[i].isDelete else { return }
+            entries[i].revision = UUID()
             entries[i].kind = kind
             entries[i].at = min(entries[i].at, at)
         } else {
@@ -109,6 +115,13 @@ final class HouseholdOutbox {
     func remove(_ id: String) {
         entries.removeAll { $0.id == id }
         save()
+    }
+
+    /// An acknowledgement can remove only the revision it actually sent.
+    /// A profile edit or removal queued during the await still needs a push.
+    func acknowledge(_ sent: Entry) {
+        guard entries.first(where: { $0.id == sent.id }) == sent else { return }
+        remove(sent.id)
     }
 
     /// This attempt was refused. Kept, so it goes out on the next drain.
@@ -245,7 +258,7 @@ final class HouseholdOutbox {
                     }
                     switch outcome {
                     case .saved, .remoteNewer, .gone:
-                        remove(entry.id)
+                        acknowledge(entry)
                     case .retry:
                         continue
                     case .failed:
@@ -259,7 +272,7 @@ final class HouseholdOutbox {
                 print("PLATED HOUSEHOLD: deleting \(deletes.count) \(kind.rawValue) record(s)")
                 let ok = await HouseholdShare.delete(recordNames: deletes.map(\.id))
                 for entry in deletes {
-                    if ok { remove(entry.id) } else { failed(entry.id) }
+                    if ok { acknowledge(entry) } else { failed(entry.id) }
                 }
             }
         }

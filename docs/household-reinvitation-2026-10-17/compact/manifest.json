@@ -1,0 +1,140 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "BD07412B-A618-4313-A5F1-005DBB7A09CF",
+        "deviceName" : "Plated-UX-Audit-20261016",
+        "exportedFileName" : "FD2B217B-4FCA-419B-AAA4-CB74A6D2240C.txt",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "invitation-fresh-dark-tree_0_D88343AD-F86A-4548-8887-59F394301AC5.txt",
+        "timestamp" : 1792272839.167
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "BD07412B-A618-4313-A5F1-005DBB7A09CF",
+        "deviceName" : "Plated-UX-Audit-20261016",
+        "exportedFileName" : "514B453E-F9C9-4BE8-AB30-112C03E91A29.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "invitation-fresh-dark_0_605CCF35-C0FB-4845-9F36-8D3BFAEC35FB.png",
+        "timestamp" : 1792272838.978
+      }
+    ],
+    "testIdentifier" : "HouseholdInvitationUITests/testFreshInvitationOffersJoinWithoutRemovalMessage()",
+    "testIdentifierURL" : "test://com.apple.xcode/Probe/UIAudit/HouseholdInvitationUITests/testFreshInvitationOffersJoinWithoutRemovalMessage"
+  },
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "BD07412B-A618-4313-A5F1-005DBB7A09CF",
+        "deviceName" : "Plated-UX-Audit-20261016",
+        "exportedFileName" : "E8B036F9-9B40-4048-A96B-A13A4C26A73A.txt",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "invitation-resume-dark-tree_0_368EB9F9-3414-49A2-AA4A-84E317A4CE58.txt",
+        "timestamp" : 1792272843.958
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "BD07412B-A618-4313-A5F1-005DBB7A09CF",
+        "deviceName" : "Plated-UX-Audit-20261016",
+        "exportedFileName" : "0AF751B0-1E71-4464-A529-2911C9056375.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "invitation-resume-dark_0_9DA9755B-8F70-43C8-88ED-26F460A75EE5.png",
+        "timestamp" : 1792272843.79
+      }
+    ],
+    "testIdentifier" : "HouseholdInvitationUITests/testInterruptedJoinAsksToFinishSetup()",
+    "testIdentifierURL" : "test://com.apple.xcode/Probe/UIAudit/HouseholdInvitationUITests/testInterruptedJoinAsksToFinishSetup"
+  },
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "BD07412B-A618-4313-A5F1-005DBB7A09CF",
+        "deviceName" : "Plated-UX-Audit-20261016",
+        "exportedFileName" : "B8178AD1-24A3-4473-B790-0C886898FB09.txt",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "invitation-own-light-tree_0_EB0AA920-EE1B-4408-A718-B47FAB8FFC7C.txt",
+        "timestamp" : 1792272848.737
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "BD07412B-A618-4313-A5F1-005DBB7A09CF",
+        "deviceName" : "Plated-UX-Audit-20261016",
+        "exportedFileName" : "6C40E595-933C-4541-9927-DD15935B4302.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "invitation-own-light_0_C2B30CD0-138A-4206-A677-2043603E371A.png",
+        "timestamp" : 1792272848.575
+      }
+    ],
+    "testIdentifier" : "HouseholdInvitationUITests/testOwnLinkDoesNotOfferToInviteYourself()",
+    "testIdentifierURL" : "test://com.apple.xcode/Probe/UIAudit/HouseholdInvitationUITests/testOwnLinkDoesNotOfferToInviteYourself"
+  },
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "BD07412B-A618-4313-A5F1-005DBB7A09CF",
+        "deviceName" : "Plated-UX-Audit-20261016",
+        "exportedFileName" : "1D32F735-2201-465A-AC50-AA86DD9951A3.txt",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "invitation-removed-ax5-scrolled-tree_0_291A9FF7-83A3-4F0A-972B-B3E92E6ACE6B.txt",
+        "timestamp" : 1792272856.033
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "BD07412B-A618-4313-A5F1-005DBB7A09CF",
+        "deviceName" : "Plated-UX-Audit-20261016",
+        "exportedFileName" : "22D0B14E-7AD5-4D9E-B382-8E2C395C251E.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "invitation-removed-ax5-scrolled_0_C32352FE-5CEB-4068-A7A7-4953E2781DF1.png",
+        "timestamp" : 1792272855.875
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "BD07412B-A618-4313-A5F1-005DBB7A09CF",
+        "deviceName" : "Plated-UX-Audit-20261016",
+        "exportedFileName" : "7A1A037F-7D6E-462D-9340-E8A1B34DF234.txt",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "invitation-removed-ax5-light-tree_0_AC2671F3-505C-480B-90A1-5AA48AF62FC7.txt",
+        "timestamp" : 1792272853.467
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "BD07412B-A618-4313-A5F1-005DBB7A09CF",
+        "deviceName" : "Plated-UX-Audit-20261016",
+        "exportedFileName" : "02332D87-22B8-4174-B537-609C2874469A.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "invitation-removed-ax5-light_0_DB1D570C-6E29-42B9-808B-367584536759.png",
+        "timestamp" : 1792272853.298
+      }
+    ],
+    "testIdentifier" : "HouseholdInvitationUITests/testRemovedInvitationAtLargestTextKeepsExitReachable()",
+    "testIdentifierURL" : "test://com.apple.xcode/Probe/UIAudit/HouseholdInvitationUITests/testRemovedInvitationAtLargestTextKeepsExitReachable"
+  },
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "BD07412B-A618-4313-A5F1-005DBB7A09CF",
+        "deviceName" : "Plated-UX-Audit-20261016",
+        "exportedFileName" : "5A784FEE-A964-4883-9E93-276A1443B38A.txt",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "invitation-removed-dark-tree_0_D86D9564-B137-413D-A8B5-400D40A70807.txt",
+        "timestamp" : 1792272860.867
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "BD07412B-A618-4313-A5F1-005DBB7A09CF",
+        "deviceName" : "Plated-UX-Audit-20261016",
+        "exportedFileName" : "D2A96E44-6E30-4FEE-A8D9-7A8BDBEFF7AA.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "invitation-removed-dark_0_4D62C207-C3F8-4B8C-AE07-891175CC2A95.png",
+        "timestamp" : 1792272860.703
+      }
+    ],
+    "testIdentifier" : "HouseholdInvitationUITests/testRemovedInvitationShowsOnlyAccessExplanationAndClose()",
+    "testIdentifierURL" : "test://com.apple.xcode/Probe/UIAudit/HouseholdInvitationUITests/testRemovedInvitationShowsOnlyAccessExplanationAndClose"
+  }
+]

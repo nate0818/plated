@@ -35,6 +35,9 @@ struct JoinHouseholdSheet: View {
     /// the buttons pinned, and `onDone` instead of `dismiss`.
     var embedded = false
     var onDone: (() -> Void)? = nil
+    #if DEBUG
+    var reviewPreview: HouseholdSync.JoinPreview? = nil
+    #endif
 
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
@@ -117,23 +120,26 @@ struct JoinHouseholdSheet: View {
                         .foregroundStyle(Color.ink)
                         .multilineTextAlignment(.center)
                 } else if let preview {
+                    let copy = HouseholdInvitationCopy(state: preview.state, host: host, household: invitedHouseholdName)
                     AvatarCircle(
                         initials: String(host.prefix(1)).uppercased(),
                         tone: .neutralPair, size: 72, photo: preview.hostPhoto
                     )
                     .padding(.top, 22)
                     VStack(spacing: 4) {
-                        MicroLabel("Household invitation")
-                        Text("Join \(invitedHouseholdName)?")
+                        MicroLabel(copy.eyebrow)
+                        Text(copy.title)
                             .plType(.title)
                             .foregroundStyle(Color.ink)
                             .multilineTextAlignment(.center)
                             .fixedSize(horizontal: false, vertical: true)
-                        Text("\(host) invited you to plan, shop and cook together.")
-                            .plType(.body, .medium)
-                            .foregroundStyle(Color.inkSecondary)
-                            .multilineTextAlignment(.center)
-                            .fixedSize(horizontal: false, vertical: true)
+                        if let subtitle = copy.subtitle {
+                            Text(subtitle)
+                                .plType(.body, .medium)
+                                .foregroundStyle(Color.inkSecondary)
+                                .multilineTextAlignment(.center)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
                     }
                 } else {
                     // Still asking: no words. A sentence here would be a
@@ -146,7 +152,7 @@ struct JoinHouseholdSheet: View {
             .padding(.horizontal, 24)
 
             if let preview {
-                if needsName {
+                if needsName, HouseholdInvitationCopy(state: preview.state, host: host, household: invitedHouseholdName).acceptsName {
                     VStack(alignment: .leading, spacing: Spacing.compact) {
                         Text("What should your household call you?").plType(.body)
                         TextField("Your name", text: $joinName)
@@ -180,11 +186,11 @@ struct JoinHouseholdSheet: View {
             case .ready, .willLeave:
                 joinOverview(preview)
             case .ownShare:
-                sentence("This is your own household's link. Send it to someone else from Home.")
+                sentence("You already organize this household. Use Invite someone in Household to share it.")
             case .hostingWithJoined(let names):
                 sentence("You organize a household with \(Self.list(names)). Remove them first, or ask \(host) to join yours.")
             case .removed:
-                sentence("\(host) removed you from this household. Ask them for a new invitation.")
+                EmptyView()
             case .alreadyHere, .needsSeat:
                 // `.alreadyHere` closes on load with a toast, and
                 // `.needsSeat` sets `candidates` there, so the picker above
@@ -436,12 +442,16 @@ struct JoinHouseholdSheet: View {
     // MARK: Doing it
 
     private func load() async {
+        #if DEBUG
+        if PlatedApp.usesPreviewContainer, let reviewPreview {
+            preview = reviewPreview
+            if case .needsSeat(let open) = reviewPreview.state { candidates = open }
+            return
+        }
+        #endif
         guard preview == nil, failure == nil, let metadata else { return }
-        // The shell hands the metadata in, so there is nothing left to ask.
-        // Without a root the state is shown for a beat rather than never,
-        // so the sheet opens the same way on every road.
-        if root == nil { try? await Task.sleep(for: .milliseconds(350)) }
-        let read = HouseholdSync.preview(for: metadata, root: root, linkHost: linkHost, context: context)
+        // All copy and actions come from the same checked invitation state.
+        let read = HouseholdSync.preview(for: metadata, root: root, linkHost: linkHost, seat: seat, context: context)
         print("PLATED HOUSEHOLD: join sheet for \(read.hostName.isEmpty ? "an unnamed host" : read.hostName), state \(read.state)")
         if read.state == .alreadyHere {
             let name = read.hostName.trimmingCharacters(in: .whitespaces)
@@ -515,8 +525,18 @@ struct JoinHouseholdSheet: View {
             NotificationCenter.default.post(name: Self.didJoin, object: nil)
             finish()
         case .needsSeat(let open):
-            withAnimation(.plSnap) { candidates = open }
-        case .refused(let reason), .failed(let reason):
+            withAnimation(.plSnap) {
+                preview?.state = .needsSeat(candidates: open)
+                candidates = open
+            }
+        case .refused:
+            Haptic.warn()
+            withAnimation(.plSnap) {
+                preview?.state = .removed
+                candidates = nil
+                problem = nil
+            }
+        case .failed(let reason):
             Haptic.warn()
             withAnimation(.plSnap) { problem = reason }
         }

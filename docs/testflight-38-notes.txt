@@ -1,0 +1,11 @@
+Household invitations and profile sync fixes.
+
+Please update every household phone to build 38 before testing. After removing someone, generate a NEW invitation using Invite someone or Share a link; previously sent links are not renewed by this update.
+
+• Fresh invitations can restore a removed household member.
+• Blocked invitations show one clear explanation instead of saying both invited and removed.
+• Household edits preserve each person's photo and profile.
+• New profile edits stay queued if an older upload finishes later.
+• Missing household and Table records are reread after updating, with failed records retried.
+
+Please check each other's profile photo, recently cooked dinners and shared dishes after opening the updated app on both phones. Activity shows recorded household dinners and shared dishes from the last 7 days; personal history from before joining is not imported into the household.

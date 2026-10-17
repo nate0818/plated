@@ -652,7 +652,7 @@ enum HouseholdSync {
 
     static func preview(
         for metadata: CKShare.Metadata, root: HouseholdShare.RemoteRoot?,
-        linkHost: String, context: ModelContext
+        linkHost: String, seat: String? = nil, context: ModelContext
     ) -> JoinPreview {
         let host = hostName(metadata: metadata, root: root, linkHost: linkHost)
         let zoneOwner = metadata.hierarchicalRootRecordID?.zoneID.ownerName
@@ -664,10 +664,14 @@ enum HouseholdSync {
         let state: JoinPreview.State
         if !zoneOwner.isEmpty, zoneOwner == me {
             state = .ownShare
+        } else if let root, HouseholdReinvitation.blocks(me, seat: seat, entries: root.removedIDs) {
+            state = .removed
+        } else if let root, HouseholdReinvitation.allows(me, seat: seat, entries: root.removedIDs) {
+            let alreadyClaimed = membership.owner == zoneOwner && HouseholdShare.mySeat == seat
+                && members.contains { $0.shareRecordName == seat && $0.identityKey == me && $0.seat == .joined }
+            state = alreadyClaimed ? .alreadyHere : .ready
         } else if case .member(let owner) = membership, owner == zoneOwner {
             state = HouseholdShare.mySeat == nil ? .needsSeat(candidates: openSeats(in: members)) : .alreadyHere
-        } else if let root, root.removedIDs.contains(me) {
-            state = .removed
         } else if membership == .hosting,
                   members.contains(where: { $0.seat == .joined && !$0.isMe }) {
             let names = members.filter { $0.seat == .joined && !$0.isMe }
@@ -701,7 +705,7 @@ enum HouseholdSync {
     /// second seat beside the one the host is looking at.
     static func openSeats(in members: [HouseholdMember]) -> [SeatCandidate] {
         members
-            .filter { $0.seat != .head && $0.seat != .left && ($0.userRecordName ?? "").isEmpty }
+            .filter { $0.seat != .head && $0.seat != .left && $0.identityKey == nil }
             .sorted { $0.shareRecordName < $1.shareRecordName }
             .map { SeatCandidate(id: $0.shareRecordName, name: $0.name, role: $0.role) }
     }
@@ -766,7 +770,7 @@ enum HouseholdSync {
            let again = try? await ShareAcceptor.metadataWithRoot(for: url) {
             root = again.rootRecord.map(HouseholdShare.remoteRoot(from:))
         }
-        if let root, root.removedIDs.contains(me) {
+        if let root, HouseholdReinvitation.blocks(me, seat: seat, entries: root.removedIDs) {
             isJoining = false
             print("PLATED HOUSEHOLD: join refused, this identity is on the removed list")
             return .refused(removedSentence(host: host))
@@ -847,7 +851,7 @@ enum HouseholdSync {
         // could not see before the accept is visible now. Undo the accept
         // rather than leave somebody inside a household they were told they
         // may not be in.
-        if HouseholdShare.cachedRemovedIDs.contains(me) {
+        if HouseholdReinvitation.blocks(me, seat: seat, entries: HouseholdShare.cachedAccessEntries) {
             await discardAcceptedZone(ownedBy: zoneOwner)
             forgetHousehold(in: context, me: me, mySeat: nil)
             WidgetBridge.publish(from: context)
@@ -865,8 +869,8 @@ enum HouseholdSync {
         // own stamp, and matching that here is how the link's named seat
         // was never claimed: the host kept the invited row and received a
         // second joined one beside it.
-        if let mine = members.first(where: {
-            ($0.userRecordName == me || $0.participantID == me) && $0.shareModifiedAt != nil
+        if !HouseholdShare.cachedRemovedIDs.contains(me), let mine = members.first(where: {
+            $0.identityKey == me && $0.shareModifiedAt != nil && $0.seat != .left
         }) {
             claimed = mine
             print("PLATED HOUSEHOLD: a seat from the zone already carries this identity")
@@ -878,7 +882,7 @@ enum HouseholdSync {
             if let named = bindNamedSeat(seat, in: context) {
                 claimed = named
                 print("PLATED HOUSEHOLD: claiming the seat the link named (\(seat))")
-            } else if let fresh = freshSeat(in: context) {
+            } else if !HouseholdShare.cachedRemovedIDs.contains(me), let fresh = freshSeat(in: context) {
                 claimed = fresh
                 print("PLATED HOUSEHOLD: the named seat is taken, seating a fresh one")
             } else {
@@ -908,8 +912,13 @@ enum HouseholdSync {
         // cache is the same name, written by the join a moment before.
         let host = pendingJoinHost.isEmpty ? HouseholdShare.cachedOwnerName : pendingJoinHost
         let claimed: HouseholdMember?
+        if HouseholdReinvitation.blocks(TableIdentity.cached, seat: named, entries: HouseholdShare.cachedAccessEntries) {
+            isJoining = false
+            return .refused(removedSentence(host: host))
+        }
         if let named {
-            claimed = bindNamedSeat(named, in: context) ?? freshSeat(in: context)
+            claimed = bindNamedSeat(named, in: context)
+                ?? (HouseholdShare.cachedRemovedIDs.contains(TableIdentity.cached) ? nil : freshSeat(in: context))
         } else {
             claimed = freshSeat(in: context)
         }
@@ -992,6 +1001,9 @@ enum HouseholdSync {
         outbox.enqueueUpsert(.seat, claimed.shareRecordName)
         print("PLATED HOUSEHOLD: adopted \(adopted) row(s), pushing the seat")
 
+        // Adoption is complete. Let the real drain run now instead of
+        // parking the profile until after the join sheet has disappeared.
+        isJoining = false
         await outbox.drain(context: context)
         collapseDuplicates(in: context)
         // The bell says it only once the seat is real. Said before the seat
@@ -1069,7 +1081,7 @@ enum HouseholdSync {
         let me = TableIdentity.cached
         let members = fetchAll(HouseholdMember.self, context)
         if let existing = members.first(where: { $0.shareRecordName == seat }) {
-            let id = existing.userRecordName ?? ""
+            let id = existing.identityKey ?? ""
             if !id.isEmpty, id != me {
                 print("PLATED HOUSEHOLD: named seat \(seat) already carries \(id.prefix(12))")
                 return nil
@@ -1403,7 +1415,7 @@ enum HouseholdSync {
         HouseholdShare.mySeat = nil
         HouseholdShare.forgetUnresolved()
         let defaults = groupDefaults
-        for key in [HouseholdShare.Keys.name, HouseholdShare.Keys.publishedAt, HouseholdShare.Keys.removedIDs,
+        for key in [HouseholdShare.Keys.name, HouseholdShare.Keys.publishedAt, HouseholdShare.Keys.removedIDs, HouseholdShare.Keys.accessEdits,
                     HouseholdShare.Keys.tableShareURL, HouseholdShare.Keys.lastSyncedName,
                     // A total left behind makes the next household this
                     // phone hosts open with "Sharing with your household,

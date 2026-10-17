@@ -31,6 +31,7 @@ final class HouseholdShareTests: XCTestCase {
 
     private func resetBooks() {
         HouseholdOutbox.shared.clear()
+        HouseholdShare.groupDefaults.removeObject(forKey: HouseholdShare.Keys.accessEdits)
         GroceryMarks.shared.clear()
         TableInvites.shared.clear()
         TableNews.forgetAll()
@@ -297,6 +298,85 @@ final class HouseholdShareTests: XCTestCase {
     }
 
     // MARK: The codec, offline
+
+    func testOrganizerRoleEditPreservesLinkedPersonsPublishedProfile() {
+        var published = seat("Alessandra", record: "seat-guest", user: "guest-account")
+        published.photo = Data([1, 2, 3]); published.bio = "Sunday cooking"
+        let wire = record(HouseholdShare.seatType, published.recordName)
+        HouseholdShare.write(published, onto: wire)
+        defer { HouseholdShare.Wire.removeTemporaryAssets(on: [wire]) }
+        var stale = published
+        stale.name = "Old contact name"; stale.photo = nil; stale.bio = ""
+        stale.userRecordName = ""; stale.participantID = nil
+        stale.cookWeekdays = [2, 4]; stale.modifiedBy = me
+        HouseholdShare.writeSeatEdit(stale, onto: wire, editor: me)
+        let received = HouseholdShare.remoteSeat(from: wire)
+        XCTAssertEqual(received.name, "Alessandra")
+        XCTAssertEqual(received.photo, published.photo)
+        XCTAssertEqual(received.bio, published.bio)
+        XCTAssertEqual(received.userRecordName, "guest-account")
+        XCTAssertEqual(received.cookWeekdays, [2, 4])
+    }
+
+    func testParticipantOnlyProfileIsProtectedFromAnotherEditorsEmptyPhoto() {
+        var published = seat("Sam", record: "seat-guest", user: "")
+        published.participantID = "guest-account"; published.photo = Data([7, 8])
+        let wire = record(HouseholdShare.seatType, published.recordName)
+        HouseholdShare.write(published, onto: wire)
+        defer { HouseholdShare.Wire.removeTemporaryAssets(on: [wire]) }
+        var stale = published; stale.photo = nil
+        HouseholdShare.writeSeatEdit(stale, onto: wire, editor: me)
+        XCTAssertEqual(HouseholdShare.remoteSeat(from: wire).photo, published.photo)
+    }
+
+    func testPersonCanPublishAndClearTheirOwnProfile() throws {
+        var own = seat("Sam", record: "seat-person", user: "guest-account")
+        own.modifiedBy = "guest-account"; own.photo = Data([2, 3]); own.bio = "Cook"
+        let wire = record(HouseholdShare.seatType, own.recordName)
+        HouseholdShare.writeSeatEdit(own, onto: wire, editor: "guest-account")
+        var changes = HouseholdShare.Changes(); changes.add(wire)
+        HouseholdShare.merge(changes, into: context)
+        HouseholdShare.Wire.removeTemporaryAssets(on: [wire])
+        let person = try XCTUnwrap(members().first)
+        XCTAssertEqual(person.photoData, own.photo)
+        own.photo = nil; own.bio = ""; own.modifiedAt = own.modifiedAt.addingTimeInterval(1)
+        HouseholdShare.writeSeatEdit(own, onto: wire, editor: "guest-account")
+        changes = .init(); changes.add(wire)
+        HouseholdShare.merge(changes, into: context)
+        XCTAssertNil(person.photoData); XCTAssertEqual(person.bio, "")
+    }
+
+    func testOwnProfileReceivesSameAccountSecondDeviceUpdateWithoutLosingPendingEdit() {
+        let person = HouseholdMember(name: "Sam", role: "partner", seat: .joined, shareRecordName: "seat-me")
+        person.userRecordName = me; context.insert(person)
+        HouseholdShare.mySeat = person.shareRecordName
+        var own = seat("Sam Rivera", record: person.shareRecordName, user: me)
+        own.modifiedBy = me; own.photo = Data([1, 2]); own.bio = "Updated on my other phone"
+        var changes = HouseholdShare.Changes(); changes.seats = [own]
+        HouseholdShare.merge(changes, into: context)
+        XCTAssertEqual(person.photoData, own.photo)
+        XCTAssertEqual(person.name, "Sam Rivera")
+        person.photoData = Data([9, 8])
+        HouseholdOutbox.shared.enqueueUpsert(.seat, person.shareRecordName)
+        own.modifiedAt = own.modifiedAt.addingTimeInterval(1); own.photo = Data([3, 4])
+        changes.seats = [own]
+        HouseholdShare.merge(changes, into: context)
+        XCTAssertEqual(person.photoData, Data([9, 8]))
+        XCTAssertTrue(HouseholdOutbox.shared.hasPending(person.shareRecordName))
+    }
+
+    func testUpgradeRequeuesOwnPhotoEvenIfOlderReaderAcknowledgedClobberedVersion() {
+        let person = HouseholdMember(name: "Sam", role: "partner", seat: .joined, shareRecordName: "seat-me")
+        person.userRecordName = me; person.photoData = Data([1, 2, 3])
+        person.shareModifiedAt = Date.now; context.insert(person)
+        HouseholdShare.mySeat = person.shareRecordName
+        var stale = seat("Sam", record: person.shareRecordName, user: me, at: person.shareModifiedAt!)
+        stale.modifiedBy = "organizer"; stale.photo = nil
+        var changes = HouseholdShare.Changes(); changes.seats = [stale]
+        HouseholdShare.merge(changes, into: context)
+        XCTAssertEqual(person.photoData, Data([1, 2, 3]))
+        XCTAssertTrue(HouseholdOutbox.shared.hasPending(person.shareRecordName))
+    }
 
     func testGuestProfileAndActivityCrossTheWireToTheHost() throws {
         try assertProfileDelivery(senderIsHost: false)

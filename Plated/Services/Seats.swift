@@ -86,6 +86,17 @@ enum Seats {
                 return .noCloud
             }
             let seat = HouseholdShare.mintSeatName()
+            // Do not send a link while the preceding removal is still only
+            // local: authorization must be based on the published block.
+            if HouseholdOutbox.shared.pending.contains(where: { $0.kind == .root }) {
+                await HouseholdOutbox.shared.drain(context: PlatedStore.shared.mainContext)
+                guard !HouseholdOutbox.shared.pending.contains(where: { $0.kind == .root }) else {
+                    return Prepared(outcome: .noCloud, reason: "Your household changes are still syncing. Try inviting again in a moment.")
+                }
+            }
+            guard await HouseholdShare.authorizeFreshInvitation(seat: seat) else {
+                return Prepared(outcome: .noCloud, reason: "Couldn’t prepare this invitation in iCloud. Try again; no invitation was sent.")
+            }
             let link = Invitation.wrapped(url, hostName: hostName, kind: .household, seat: seat, invite: nil)
             print("PLATED HOUSEHOLD: household link ready for seat \(seat)")
             return Prepared(outcome: .ready(link), seat: seat, invite: nil)
@@ -109,14 +120,14 @@ enum Seats {
         }
     }
 
-    /// A link that names no seat and no invitation, for handing over by any
-    /// road but Messages (Copy link, Share a link). Whoever joins picks
-    /// their seat on arrival (§7).
+    /// Copy and Share issue the same fresh household capability as Messages.
+    /// The row is claimed on arrival if no composer created an invited row.
     static func shareableLink(kind: Kind, hostName: String) async -> URL? {
         switch kind {
         case .household:
-            guard let url = await householdURL(hostName: hostName) else { return nil }
-            return Invitation.wrapped(url, hostName: hostName, kind: .household, seat: nil, invite: nil)
+            let prepared = await prepareInvite(kind: .household, hostName: hostName)
+            guard case .ready(let url) = prepared.outcome else { return nil }
+            return url
         case .table:
             guard case .ready(let url) = await TableShare.invite(phone: nil, email: nil, hostName: hostName) else {
                 return nil
@@ -310,17 +321,9 @@ enum Seats {
         return removedUnlinked ? .removedUnlinked : .removed
     }
 
-    /// A removed identity is refused at join and never seated again (§8).
-    /// The list lives on the root; the cache is what `localRoot` reads when
-    /// the root entry is pushed.
+    /// Revocation also invalidates all earlier reinvitation capabilities.
     private static func appendRemovedID(_ identity: String) {
-        var ids = HouseholdShare.cachedRemovedIDs
-        guard !ids.contains(identity) else { return }
-        ids.append(identity)
-        if let data = try? JSONEncoder().encode(ids) {
-            HouseholdShare.groupDefaults.set(data, forKey: HouseholdShare.Keys.removedIDs)
-        }
-        HouseholdOutbox.shared.enqueueRoot()
+        HouseholdShare.queueAccessEdit(.init(action: .revoke, identity: identity))
     }
 
     // MARK: Roles

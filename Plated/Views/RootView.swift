@@ -86,6 +86,31 @@ struct RootView: View {
         #endif
     }
 
+    @ViewBuilder
+    private var designReviewContent: some View {
+        #if DEBUG
+        let args = ProcessInfo.processInfo.arguments
+        if let flag = args.first(where: { $0.hasPrefix("-plated-review-invitation-") }) {
+            let state: HouseholdSync.JoinPreview.State = switch flag {
+            case "-plated-review-invitation-removed": .removed
+            case "-plated-review-invitation-own": .ownShare
+            case "-plated-review-invitation-resume": .needsSeat(candidates: [.init(id: "seat-sam", name: "Sam", role: "partner")])
+            default: .ready
+            }
+            MainShellView()
+                .sheet(isPresented: .constant(true)) {
+                    JoinHouseholdSheet(metadata: nil, root: nil, seat: "review-seat", linkHost: "",
+                        reviewPreview: .init(hostName: "Nate Meadows", householdName: "Meadows", state: state,
+                            mealsFromToday: 0, hasGroceryState: false, broughtSeats: []))
+                }
+        } else {
+            MainShellView()
+        }
+        #else
+        MainShellView()
+        #endif
+    }
+
     var body: some View {
         ZStack {
             Color.canvas.ignoresSafeArea()
@@ -109,7 +134,7 @@ struct RootView: View {
                         .transition(.opacity)
                 }
             } else if Self.designReview {
-                MainShellView()
+                designReviewContent
             } else {
                 switch FirstRunRoute.resolve(
                     ready: splashDone, signedIn: didSignIn,

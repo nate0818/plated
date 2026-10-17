@@ -80,6 +80,9 @@ enum TablePull {
 
                 let household = await HouseholdShare.fetchChanges()
                 await HouseholdSync.absorb(household, context: context)
+                // The merge can repair an older overwritten profile or
+                // consume a fresh reinvitation. Publish that repair now.
+                await HouseholdOutbox.shared.drain(context: context)
                 if case .hosting = HouseholdShare.membership {
                     await Seats.settleStuckInvites(in: context)
                 }

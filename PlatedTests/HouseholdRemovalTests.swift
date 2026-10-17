@@ -15,6 +15,7 @@ final class HouseholdRemovalTests: XCTestCase {
         HouseholdShare.setMembership(.hosting)
         HouseholdShare.mySeat = nil
         HouseholdOutbox.shared.clear()
+        HouseholdShare.groupDefaults.removeObject(forKey: HouseholdShare.Keys.accessEdits)
         HouseholdShare.groupDefaults.removeObject(forKey: HouseholdShare.Keys.removedIDs)
         owner = HouseholdMember(name: "Nate", role: "owner", seat: .head)
         owner.userRecordName = TableIdentity.cached
@@ -25,6 +26,7 @@ final class HouseholdRemovalTests: XCTestCase {
 
     override func tearDown() async throws {
         HouseholdOutbox.shared.clear()
+        HouseholdShare.groupDefaults.removeObject(forKey: HouseholdShare.Keys.accessEdits)
         HouseholdShare.groupDefaults.removeObject(forKey: HouseholdShare.Keys.removedIDs)
         HouseholdShare.setMembership(.solo)
         HouseholdShare.mySeat = nil

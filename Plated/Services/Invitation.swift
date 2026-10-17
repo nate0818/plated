@@ -52,8 +52,8 @@ enum Invitation {
         // faked when we don't have one.
         let who = hostName.trimmingCharacters(in: .whitespaces)
         if !who.isEmpty { items.append(URLQueryItem(name: "h", value: who)) }
-        // The seat this link was minted for. A seatless link is legitimate
-        // (Copy link, Share a link): the joiner picks their seat on arrival.
+        // New household links carry the freshly authorized seat token.
+        // Older seatless links still let first-time members choose a seat.
         if kind == .household, let seat, !seat.isEmpty {
             items.append(URLQueryItem(name: "seat", value: seat))
         }

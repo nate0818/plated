@@ -53,7 +53,7 @@ enum TableIdentity {
         HouseholdShare.Keys.name,
         HouseholdShare.Keys.epoch,
         HouseholdShare.Keys.publishedAt,
-        HouseholdShare.Keys.removedIDs,
+        HouseholdShare.Keys.removedIDs, HouseholdShare.Keys.accessEdits,
         HouseholdShare.Keys.tableShareURL,
         HouseholdShare.Keys.autoRotate,
         HouseholdShare.Keys.lastSyncedName,

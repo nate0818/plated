@@ -102,6 +102,7 @@ enum HouseholdShare {
         static let epoch = "plated.household.epoch"
         static let publishedAt = "plated.household.publishedAt"
         static let removedIDs = "plated.household.removedIDs"
+        static let accessEdits = "plated.household.accessEdits"
         static let tableShareURL = "plated.household.tableShareURL"
         static let autoRotate = "plated.household.autoRotate"
         static let lastSyncedName = "plated.household.lastSyncedName"
@@ -153,6 +154,7 @@ enum HouseholdShare {
         // A new household is a new epoch: nothing cached for the old one
         // may be read as a fact about this one.
         if before != membership {
+            defaults.removeObject(forKey: Keys.accessEdits)
             defaults.set(UUID().uuidString, forKey: Keys.epoch)
         }
         print("PLATED HOUSEHOLD: membership \(membership.kind)\(zoneOwner.map { " of \($0)" } ?? "")")
@@ -179,9 +181,53 @@ enum HouseholdShare {
         groupDefaults.string(forKey: Keys.tableShareURL).flatMap(URL.init(string:))
     }
     static var cachedRemovedIDs: [String] {
+        HouseholdReinvitation.removedIdentities(in: cachedAccessEntries)
+    }
+    static var cachedAccessEntries: [String] {
         guard let data = groupDefaults.data(forKey: Keys.removedIDs) else { return [] }
         return (try? JSONDecoder().decode([String].self, from: data)) ?? []
     }
+    static func cacheAccessEntries(_ entries: [String]) {
+        if let data = try? JSONEncoder().encode(entries) { groupDefaults.set(data, forKey: Keys.removedIDs) }
+    }
+
+    @MainActor
+    static var pendingAccessEdits: [HouseholdReinvitation.Edit] {
+        guard let data = groupDefaults.data(forKey: Keys.accessEdits) else { return [] }
+        return (try? JSONDecoder().decode([HouseholdReinvitation.Edit].self, from: data)) ?? []
+    }
+
+    @MainActor
+    static func queueAccessEdit(_ edit: HouseholdReinvitation.Edit) {
+        let edits = pendingAccessEdits + [edit]
+        saveAccessEdits(edits)
+        cacheAccessEntries(HouseholdReinvitation.applying([edit], to: cachedAccessEntries))
+        HouseholdOutbox.shared.enqueueRoot()
+    }
+
+    @MainActor
+    private static func saveAccessEdits(_ edits: [HouseholdReinvitation.Edit]) {
+        if let data = try? JSONEncoder().encode(edits) { groupDefaults.set(data, forKey: Keys.accessEdits) }
+    }
+
+    @MainActor
+    static func initializeAccessEdits(legacyRootPending: Bool) {
+        guard groupDefaults.data(forKey: Keys.accessEdits) == nil else { return }
+        // Inspect the persisted queue before any new edits can be added.
+        // Later ordinary root edits must never infer revocation from a cache.
+        let legacy: [HouseholdReinvitation.Edit] = membership == .hosting && legacyRootPending
+            ? cachedRemovedIDs.map { .init(action: .revoke, identity: $0) } : []
+        saveAccessEdits(legacy)
+    }
+
+    @MainActor
+    static func acknowledgeAccessEdits(_ sent: [HouseholdReinvitation.Edit], server: [String]) {
+        let ids = Set(sent.map(\.id))
+        let remaining = pendingAccessEdits.filter { !ids.contains($0.id) }
+        saveAccessEdits(remaining)
+        cacheAccessEntries(HouseholdReinvitation.applying(remaining, to: server))
+    }
+
 
     /// The record name the zone's owner answers to: the host's own identity
     /// on the host's phone, the zone owner on a member's. The only seat that
@@ -710,11 +756,11 @@ enum HouseholdShare {
         Wire.set(record, "modifiedAt", root.modifiedAt)
     }
 
-    static func write(_ s: RemoteSeat, onto record: CKRecord) {
+    static func write(_ s: RemoteSeat, onto record: CKRecord, includingProfile: Bool = true) {
         Wire.set(record, "authorID", s.authorID)
         Wire.set(record, "modifiedBy", s.modifiedBy)
         Wire.set(record, "modifiedAt", s.modifiedAt)
-        Wire.set(record, "name", s.name)
+        if includingProfile { Wire.set(record, "name", s.name) }
         Wire.set(record, "role", s.role)
         Wire.set(record, "roleLine", s.roleLine)
         Wire.set(record, "colorHex", s.colorHex)
@@ -726,12 +772,22 @@ enum HouseholdShare {
         Wire.set(record, "invitedAt", s.invitedAt)
         Wire.set(record, "joinedAt", s.joinedAt)
         Wire.set(record, "leftAt", s.leftAt)
-        Wire.set(record, "participantID", s.participantID)
-        Wire.set(record, "userRecordName", s.userRecordName)
-        Wire.set(record, "bio", s.bio)
-        Wire.setAsset(record, "photo", s.photo)
-        Wire.setAsset(record, "profileBannerPhoto", s.profileBannerPhoto)
-        Wire.set(record, "profileBannerPhotoModifiedAt", s.profileBannerPhotoModifiedAt)
+        if includingProfile {
+            Wire.set(record, "participantID", s.participantID)
+            Wire.set(record, "userRecordName", s.userRecordName)
+            Wire.set(record, "bio", s.bio)
+            Wire.setAsset(record, "photo", s.photo)
+            Wire.setAsset(record, "profileBannerPhoto", s.profileBannerPhoto)
+            Wire.set(record, "profileBannerPhotoModifiedAt", s.profileBannerPhotoModifiedAt)
+        }
+    }
+
+    /// Household edits cannot replace a linked person's profile or identity
+    /// with an older local copy. Claiming an unlinked seat remains possible.
+    static func writeSeatEdit(_ seat: RemoteSeat, onto record: CKRecord, editor: String) {
+        let linked = [record["userRecordName"] as? String, record["participantID"] as? String]
+            .compactMap { $0 }.first { !$0.isEmpty }
+        write(seat, onto: record, includingProfile: linked == nil || linked == editor)
     }
 
     /// `includingPhotos` false leaves the photo keys of a fetched record
@@ -1012,7 +1068,6 @@ enum HouseholdShare {
 
         // Seats first: a recipe's notices and a gathering's rows both read
         // the roster the merge is about to write.
-        let removed = Set(cachedRemovedIDs)
         let hosting: Bool = { if case .hosting = membership { return true }; return false }()
         let hostNames = members.compactMap { member -> String? in
             guard member.isOwner || member.seat == .head else { return nil }
@@ -1022,14 +1077,19 @@ enum HouseholdShare {
         let hostPhoto = members.first { $0.isOwner || $0.seat == .head }?.photoData
         for s in changes.seats where !s.recordName.isEmpty {
             guard !pending(s.recordName) else { continue }
-            // A removed identity is never seated again (§8). Their share
-            // access is gone, but a write already in flight when the host
-            // removed them can still land, and the host is the one who can
-            // take the record back off the zone.
-            if hosting, let id = s.userRecordName, !id.isEmpty, removed.contains(id) {
-                HouseholdOutbox.shared.enqueueDelete(.seat, s.recordName)
-                print("PLATED HOUSEHOLD: a removed identity wrote a seat, deleting \(s.recordName)")
-                continue
+            // An in-flight write from a removed account is rejected unless
+            // it claims the specific fresh invitation the organizer issued.
+            if hosting, let id = [s.userRecordName, s.participantID].compactMap({ $0 }).first(where: { !$0.isEmpty }),
+               cachedRemovedIDs.contains(id) {
+                if s.seat == HouseholdMember.Seat.joined.rawValue, s.modifiedBy == id,
+                   HouseholdReinvitation.allows(id, seat: s.recordName, entries: cachedAccessEntries) {
+                    queueAccessEdit(.init(action: .accept, identity: id, seat: s.recordName))
+                    print("PLATED HOUSEHOLD: a fresh invitation restored this account's access")
+                } else {
+                    HouseholdOutbox.shared.enqueueDelete(.seat, s.recordName)
+                    print("PLATED HOUSEHOLD: a removed identity wrote an unauthorized seat, deleting \(s.recordName)")
+                    continue
+                }
             }
             var member = memberNamed(s.recordName)
             if member == nil, let twin = members.first(where: {
@@ -1040,6 +1100,14 @@ enum HouseholdShare {
                 print("PLATED HOUSEHOLD: adopted seat name \(s.recordName) onto \(twin.name)")
             }
             if let member {
+                let ownProfileNeedsRepair = (member.isMe || member.shareRecordName == claimedSeat)
+                    && s.modifiedBy != me
+                    && (member.name != s.name || member.bio != s.bio || member.photoData != s.photo
+                        || member.profileBannerPhotoData != s.profileBannerPhoto)
+                // An older reader may already have acknowledged the version
+                // that overwrote its personal fields. A full repair read must
+                // still republish the protected local profile in that case.
+                if ownProfileNeedsRepair { HouseholdOutbox.shared.enqueueUpsert(.seat, member.shareRecordName) }
                 guard member.shareModifiedAt != s.modifiedAt else { continue }
                 let was = member.seat
                 applySeat(s, onto: member, isNew: false, me: me, claimedSeat: claimedSeat,
@@ -1202,23 +1270,27 @@ enum HouseholdShare {
             member.participantID = id
         }
 
-        // Name, bio and photo belong to the person the seat is: the wire
-        // never overwrites them on my own seat. phoneE164 and inviteEmail
-        // never travel and are never touched here. An unnamed wire name
+        // Personal fields belong to the linked account. Another device on
+        // that account can update them, but cannot erase a pending edit.
+        // phoneE164 and inviteEmail never travel and are never touched here. An unnamed wire name
         // must not replace a real one the invite already had, a host
         // display name must not land on a joiner, and a missing or host
         // photograph must not clear or clone one that already landed.
         // The organizer's own seat is exempt from clone detection: its
         // previous name and photo are the reference values, not evidence
         // that a profile update belongs to somebody else.
-        if !isMine {
+        let selfPublished = s.modifiedBy == member.userRecordName && !(member.userRecordName ?? "").isEmpty
+        let pendingOwnEdit = HouseholdOutbox.shared.hasPending(member.shareRecordName)
+        if !isMine || (selfPublished && !pendingOwnEdit) {
             if !HouseholdIdentity.isUnnamed(s.name),
                isOwnerSeat || !HouseholdIdentity.isHostClone(s.name, hosts: hostNames) {
                 member.name = s.name
             }
-            if !s.bio.isEmpty { member.bio = s.bio }
+            if selfPublished || !s.bio.isEmpty { member.bio = s.bio }
             if let photo = s.photo, isOwnerSeat || photo != hostPhoto {
                 member.photoData = photo
+            } else if selfPublished, s.photo == nil {
+                member.photoData = nil
             }
             if let modifiedAt = s.profileBannerPhotoModifiedAt,
                modifiedAt >= (member.profileBannerPhotoModifiedAt ?? .distantPast) {
@@ -1332,7 +1404,7 @@ enum HouseholdShare {
             // means the host has not finished publishing.
             defaults.removeObject(forKey: Keys.publishedAt)
         }
-        if let data = try? JSONEncoder().encode(root.removedIDs) { defaults.set(data, forKey: Keys.removedIDs) }
+        cacheAccessEntries(HouseholdReinvitation.applying(pendingAccessEdits, to: root.removedIDs))
         if let url = root.tableShareURL { defaults.set(url.absoluteString, forKey: Keys.tableShareURL) }
         defaults.set(root.autoRotate, forKey: Keys.autoRotate)
 
@@ -1383,13 +1455,61 @@ enum HouseholdShare {
         root.tableShareURL = cachedTableShareURL
         root.autoRotate = UserDefaults.standard.object(forKey: "autoRotateOpenNights") as? Bool ?? true
         root.publishedAt = cachedPublishedAt
-        root.removedIDs = cachedRemovedIDs
+        root.removedIDs = cachedAccessEntries
         root.modifiedAt = .now
         return root
     }
 
+    /// The publication boundary is injectable for failure/race regression
+    /// tests; production passes the actual CloudKit fetch and checked save.
+    @MainActor
+    static func publishFreshInvitation(
+        seat: String, fetch: () async throws -> CKRecord,
+        save: (CKRecord) async throws -> CKRecord
+    ) async -> Bool {
+        guard !seat.isEmpty, pendingAccessEdits.isEmpty else { return false }
+        do {
+            let record = try await fetch()
+            let existing = remoteRoot(from: record).removedIDs
+            let granted = HouseholdReinvitation.authorizing(seat: seat, entries: existing)
+            if granted != existing {
+                var root = remoteRoot(from: record)
+                root.removedIDs = granted
+                root.modifiedAt = .now
+                write(root, onto: record)
+                defer { Wire.removeTemporaryAssets(on: [record]) }
+                // No retry across a conflict: a concurrent removal must not
+                // be overwritten by authorizing a link from an older view.
+                let saved = try await save(record)
+                acknowledgeAccessEdits([], server: remoteRoot(from: saved).removedIDs)
+            } else {
+                acknowledgeAccessEdits([], server: existing)
+            }
+            print("PLATED HOUSEHOLD: fresh invitation authorization checked")
+            return pendingAccessEdits.isEmpty
+        } catch {
+            print("PLATED HOUSEHOLD: fresh invitation could not be authorized: \(error.localizedDescription)")
+            return false
+        }
+    }
+
     #if PLATED_CLOUDKIT
     private static var container: CKContainer { .default() }
+
+    /// Publish a capability for this newly minted, unpredictable seat before
+    /// Messages receives the link. A failed save must never yield a ready link.
+    @MainActor
+    static func authorizeFreshInvitation(seat: String) async -> Bool {
+        guard membership == .hosting, !seat.isEmpty, await TableSync.accountAvailable() else { return false }
+        let db = container.privateCloudDatabase
+        let zone = CKRecordZone.ID(zoneName: zoneName, ownerName: CKCurrentUserDefaultName)
+        let id = CKRecord.ID(recordName: rootRecordName, zoneID: zone)
+        return await publishFreshInvitation(seat: seat, fetch: { try await db.record(for: id) }, save: { record in
+            let result = try await db.modifyRecords(saving: [record], deleting: [])
+            guard let saved = result.saveResults[id] else { throw CKError(.internalError) }
+            return try saved.get()
+        })
+    }
 
     /// The database and zone this phone's household lives in: my own zone
     /// in the private database when I host, the owner's in the shared
@@ -1760,13 +1880,14 @@ enum HouseholdShare {
                 TableShare.forgetToken(for: zoneID)
                 print("PLATED HOUSEHOLD: reading \(zoneID.zoneName) whole, a replay was asked for")
             }
+            let repairKey = "plated.household.completeReads38.\(zoneID.ownerName)"
+            if !UserDefaults.standard.bool(forKey: repairKey) { TableShare.forgetToken(for: zoneID) }
             var cursor = TableShare.token(for: zoneID)
             if cursor == nil { found.replayed = true }
             var more = true
             while more {
                 let changes = try await db.recordZoneChanges(inZoneWith: zoneID, since: cursor)
-                for (_, result) in changes.modificationResultsByID {
-                    guard let record = try? result.get().record else { continue }
+                for record in try CloudRecordPage.records(changes.modificationResultsByID.values.map { $0.map { $0.record } }) {
                     found.add(record)
                 }
                 for deleted in changes.deletions {
@@ -1776,6 +1897,7 @@ enum HouseholdShare {
                 more = changes.moreComing
             }
             TableShare.store(cursor, for: zoneID)
+            UserDefaults.standard.set(true, forKey: repairKey)
             print("PLATED HOUSEHOLD: read \(isShared ? zoneID.ownerName + "'s" : "my") zone: \(found.seats.count) seats, \(found.recipes.count) recipes, \(found.gatherings.count) gatherings, \(found.lines.count) lines, \(found.marks.count) marks, \(found.deleted.count) deleted\(found.root != nil ? ", root" : "")\(found.replayed ? ", replayed" : "")")
         } catch let error as CKError where error.code == .zoneNotFound {
             // Positive evidence only (§8): the account must be available and
@@ -2082,17 +2204,19 @@ enum HouseholdShare {
                     if row.seat == .head { row.seat = .joined }
                 }
                 if row.authorID.isEmpty { row.authorID = me }
+                var sentFingerprint = ""
                 found[entry.id] = Candidate(
                     entry: entry, shareModifiedAt: row.shareModifiedAt, markAt: nil, photoHash: nil,
                     write: { record, _ in
+                        sentFingerprint = HouseholdSync.fingerprint(of: row) ?? ""
                         var s = remote(from: row)
                         s.modifiedBy = me
                         s.modifiedAt = entry.at
-                        write(s, onto: record)
+                        writeSeatEdit(s, onto: record, editor: me)
                     },
                     saved: { at in bookkeeping {
                         row.shareModifiedAt = at
-                        row.shareFingerprint = HouseholdSync.fingerprint(of: row) ?? ""
+                        row.shareFingerprint = sentFingerprint
                     } },
                     gone: { bookkeeping { context.delete(row) } },
                     applyRemote: { record in
@@ -2101,7 +2225,7 @@ enum HouseholdShare {
                         // comes back carrying somebody else's identity. The
                         // record is theirs; this device stops arguing for it
                         // and takes a fresh seat, with its nights.
-                        let theirID = (record["userRecordName"] as? String) ?? ""
+                        let theirID = [record["userRecordName"] as? String, record["participantID"] as? String].compactMap { $0 }.first { !$0.isEmpty } ?? ""
                         let taken = entry.id == claimed && !theirID.isEmpty && theirID != me
                         // §3.1: the seat's field rules apply on push-conflict
                         // as well as on pull. Role and cookWeekdays belong to
@@ -2127,6 +2251,16 @@ enum HouseholdShare {
                             row.roleLine = roleLine
                             row.cookWeekdays = weekdays
                             row.isPrimaryCook = primary
+                        }
+                        // A newer household edit must not acknowledge an
+                        // unsent personal profile. Keep the actual local
+                        // change queued against the newly learned version.
+                        let remote = remoteSeat(from: record)
+                        if row.isMe,
+                           row.name != remote.name || row.bio != remote.bio || row.photoData != remote.photo
+                            || row.profileBannerPhotoData != remote.profileBannerPhoto {
+                            row.shareFingerprint = ""
+                            HouseholdOutbox.shared.enqueueUpsert(.seat, row.shareRecordName)
                         }
                     }
                 )
@@ -2268,7 +2402,7 @@ enum HouseholdShare {
         // seat; the entry for the taken one has nowhere to go, and keeping
         // it queued would push this phone's name onto a stranger's row on
         // every drain from here on.
-        let theirID = (record["userRecordName"] as? String) ?? ""
+        let theirID = [record["userRecordName"] as? String, record["participantID"] as? String].compactMap { $0 }.first { !$0.isEmpty } ?? ""
         if candidate.entry.id == mySeat, !theirID.isEmpty, theirID != TableIdentity.cached {
             return .gone
         }
@@ -2441,8 +2575,9 @@ enum HouseholdShare {
         return outcomes
     }
 
-    /// The root, with the fetched-instance discipline and no version check:
-    /// the host owns its fields and the last write wins.
+    /// Household presentation fields use last-writer wins. Access changes
+    /// are replayed as explicit intents against each fetched server version.
+    @MainActor
     static func pushRoot(_ root: RemoteRoot) async -> Bool {
         guard await TableSync.accountAvailable(), let (db, zoneID) = await householdZone() else { return false }
         let rootID = CKRecord.ID(recordName: rootRecordName, zoneID: zoneID)
@@ -2455,12 +2590,16 @@ enum HouseholdShare {
             print("PLATED HOUSEHOLD: could not fetch the root: \(error.localizedDescription)")
             return false
         }
+        let accessEdits = pendingAccessEdits
         for attempt in 1...3 {
-            write(root, onto: record)
+            var outgoing = root
+            outgoing.removedIDs = HouseholdReinvitation.applying(accessEdits, to: remoteRoot(from: record).removedIDs)
+            write(outgoing, onto: record)
             let answer = await modify(saving: [record], deleting: [], in: db)
             Wire.removeTemporaryAssets(on: [record])
             switch answer.saved[rootID] {
             case .success:
+                acknowledgeAccessEdits(accessEdits, server: outgoing.removedIDs)
                 groupDefaults.set(root.name, forKey: Keys.lastSyncedName)
                 groupDefaults.set(root.name, forKey: Keys.name)
                 print("PLATED HOUSEHOLD: root pushed")
@@ -2509,6 +2648,8 @@ enum HouseholdShare {
     }
 
     #else
+    @MainActor
+    static func authorizeFreshInvitation(seat: String) async -> Bool { false }
     static var isRateLimited: Bool { false }
     static func refreshMembership() async -> Membership { membership }
     static func invitationURL(hostName: String) async -> URL? { nil }
