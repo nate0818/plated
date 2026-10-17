@@ -56,7 +56,7 @@ async function main() {
     el("div", { style: { display: "flex", flexDirection: "column", width: 650 } },
       el("div", { style: { display: "flex", fontFamily: "Editorial", fontSize: 42 } }, "Plated"),
       el("div", { style: { display: "flex", flexDirection: "column", marginTop: 65, fontFamily: "Editorial", fontSize: 86, lineHeight: 1 } },
-        el("div", null, "Dinner plans."), el("div", null, "Made together.")),
+        el("div", null, "Dinner plans"), el("div", null, "made together")),
       el("div", { style: { marginTop: 34, fontSize: 24, color: token("ink-secondary") } }, "A shared meal plan, recipe book, and grocery list for your household."),
       el("div", { style: { marginTop: "auto", fontSize: 18, color: token("olive") } }, "plated.food")),
     el("img", { src: `data:image/png;base64,${screenPng.toString("base64")}`, width: 240, height: 522, style: { borderRadius: 12, border: `1px solid ${token("hairline")}` } })), 1200, 630);

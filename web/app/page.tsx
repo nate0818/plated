@@ -50,7 +50,7 @@ export default function Home() {
       <section className={styles.hero} aria-labelledby="hero-title">
         <div className={styles.heroCopy}>
           <h1 className={styles.eyebrow}>The meal planner for your household</h1>
-          <h2 id="hero-title" className={styles.heroTitle}>Dinner plans.<br />Made together.</h2>
+          <h2 id="hero-title" className={styles.heroTitle}>Dinner plans{" "}<br />made together</h2>
           <p className={styles.heroDescription}>Decide what&rsquo;s for dinner, who&rsquo;s cooking, and what to pick up. One shared plan for your whole household.</p>
           <div className={styles.heroActions}>
             <Link className={styles.primaryAction} href={EARLY_ACCESS_URL}>Request early access <Arrow /></Link>
@@ -68,8 +68,8 @@ export default function Home() {
       <section id="how-it-works" className={styles.product} aria-labelledby="product-title">
         <div className={styles.productHeading}>
           <p className={styles.category}>How Plated works</p>
-          <h2 id="product-title">Share the plan.<br />Share the cooking.</h2>
-          <p>Choose dinner together. Give each night a cook.<br className={styles.desktopBreak} /> Keep everyone in the loop, from the recipe to the shopping.</p>
+          <h2 id="product-title">Share the plan{" "}<br />and the cooking</h2>
+          <p>Choose dinner together and decide who&rsquo;s cooking.<br className={styles.desktopBreak} /> Everyone stays in the loop, from the recipe to the shopping.</p>
         </div>
         <ProductTour />
       </section>
@@ -77,11 +77,11 @@ export default function Home() {
       <section className={styles.tableSection} aria-labelledby="table-title">
         <div className={styles.tableCopy}>
           <p className={styles.category}>Your Table</p>
-          <h2 id="table-title">Good meals are<br />worth sharing.</h2>
-          <p>A weeknight win. An old family recipe. Pancakes for dinner. Share what you&rsquo;ve cooked with the friends you invite to your Table.</p>
+          <h2 id="table-title">Good meals are{" "}<br />worth sharing</h2>
+          <p>From an old family recipe to pancakes for dinner, share what you&rsquo;ve cooked with the friends you invite to your Table.</p>
           <div className={styles.privateNote}>
             <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.3" aria-hidden="true"><rect x="5" y="10" width="14" height="11" rx="2" /><path d="M8 10V7a4 4 0 0 1 8 0v3m-4 5v2" /></svg>
-            <div><strong>Invite-only. Shared by you.</strong><span>Cooking a meal never posts it automatically.</span></div>
+            <div><strong>Invite-only, shared by you</strong><span>Cooking a meal never posts it automatically.</span></div>
           </div>
           <Link className={styles.textLink} href="/privacy">How Plated keeps things private <Arrow /></Link>
         </div>
@@ -92,7 +92,7 @@ export default function Home() {
       </section>
 
       <section className={styles.closing} aria-labelledby="closing-title">
-        <div><h2 id="closing-title">Your next dinner,<br />planned together.</h2><p>Bring your recipes. Invite your household. Start with one night.</p></div>
+        <div><h2 id="closing-title">Your next dinner,{" "}<br />planned together</h2><p>Bring your recipes and your household together, one dinner at a time.</p></div>
         <div className={styles.closingActions}>
           <Link className={styles.primaryAction} href={EARLY_ACCESS_URL}>Request early access <Arrow /></Link>
           <p className={styles.availability}>For iPhone and iPad. Invitations by email.</p>
@@ -100,7 +100,7 @@ export default function Home() {
       </section>
 
       <section id="questions" className={styles.questions} aria-labelledby="questions-title">
-        <h2 id="questions-title">A few things to know.</h2>
+        <h2 id="questions-title">A few things to know</h2>
         <div className={styles.questionList}>
           {questions.map(({ question, answer }) => <details key={question}>
             <summary>{question}<span aria-hidden="true" /></summary>
@@ -111,7 +111,7 @@ export default function Home() {
     </main>
 
     <footer className={styles.footer}>
-      <div className={styles.footerBrand}><Link href="#main" aria-label="Plated home"><Wordmark size={34} /></Link><p>A shared plan for the food<br />and people you love.</p></div>
+      <div className={styles.footerBrand}><Link href="#main" aria-label="Plated home"><Wordmark size={34} /></Link><p>A shared plan for the food<br />and people you love</p></div>
       <nav aria-label="Footer navigation"><a href="#recipes">The food</a><a href="#how-it-works">How it works</a><a href="#questions">Questions</a><Link href="/privacy">Privacy</Link></nav>
       <div className={styles.footerNote}><AppStoreBadge /><span>© {new Date().getFullYear()} Plated</span></div>
     </footer>
