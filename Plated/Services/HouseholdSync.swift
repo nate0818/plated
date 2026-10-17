@@ -962,7 +962,7 @@ enum HouseholdSync {
     /// save seam lets regression tests exercise the actual rollback path.
     static func saveClaimedProfile(
         _ claimed: HouseholdMember, context: ModelContext,
-        save: (ModelContext, StaticString) -> Bool = Persist.save
+        save: @MainActor (ModelContext, StaticString) -> Bool = Persist.save
     ) -> Bool {
         let me = TableIdentity.cached
         guard claimed.identityKey == nil || claimed.identityKey == me else { return false }

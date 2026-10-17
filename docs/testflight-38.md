@@ -43,7 +43,7 @@ permission model. No real household membership was changed during verification.
 ## Verification
 
 Full native suite: **474 executed, 470 passed, four optional Calendar checks
-skipped, zero failures** (`build/household-reinvitation-verified.xcresult`).
+skipped, zero failures** (`build/household-reinvitation-final-verified.xcresult`).
 Transport failures are injected; these tests exercise production codecs,
 publication policy, merge, queue and activity projections without live accounts.
 The failed-adoption regression initially exposed SwiftData retaining a joined
