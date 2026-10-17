@@ -1,0 +1,9 @@
+Plan has a more useful dinner home screen:
+
+• A compact “What’s for dinner?” panel with Plan tonight and Eating out side by side.
+• Local weather below dinner: conditions, high/low and chance of rain for the selected date. Tap Show local weather to enable it.
+• A Last 7 days dinner log with your household’s cooked and eating-out counts. Scheduled recipes do not count as cooked.
+• Eating out updates your dinner and history together; failed saves leave the original plan intact.
+• Better layout and reading order at large text sizes and with VoiceOver.
+
+Please try date changes, location permission/retry, marking dinner cooked or eating out, and shared household history. Weather requires location access and an available forecast. Physical-device weather and live multi-account sync are still part of beta verification.

@@ -133,6 +133,17 @@ struct PlatedApp: App {
                     for meal in meals where Calendar.current.isDateInToday(meal.date) { preview.mainContext.delete(meal) }
                     try? preview.mainContext.save()
                 }
+                if arguments.contains("-plated-review-dinner-history") {
+                    // Memory-only history exercises real counts without touching
+                    // the person's dinner log or inventing activity in production.
+                    for offset in [-1, -3, -5] {
+                        let date = Calendar.current.date(byAdding: .day, value: offset, to: Date.now)!
+                        let dinner = PlannedMeal(date: date, customTitle: offset == -3 ? "Eating out" : "Home-cooked dinner")
+                        if offset != -3 { dinner.cookedAt = date }
+                        preview.mainContext.insert(dinner)
+                    }
+                    try? preview.mainContext.save()
+                }
                 if arguments.contains("-plated-review-shared-tonight"),
                    let recipe = (try? preview.mainContext.fetch(FetchDescriptor<Recipe>()))?.first {
                     PlanLedger.shared.householdOwner = fixtureOwner

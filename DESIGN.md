@@ -90,6 +90,14 @@ Plan opens with a compact personal greeting, a horizontal date row and the selec
 search visible. Grocery rows preserve meal provenance. Table shows audience
 compactly before posts.
 
+An empty dinner uses a compact decision panel with Plan tonight and Eating out
+visible together (stacked at larger text sizes). Below the selected day's meals,
+show that day's local forecast and a clearly labeled Last 7 days household dinner
+log. Cooked means marked complete; Eating out counts marked nights through today,
+not future plans. Never substitute sample counts for missing history. Weather
+permission, loading and recovery states stay visible, with Apple attribution for
+live forecasts. These supporting sections are context, not another dated meal feed.
+
 ## Interaction and accessibility
 
 Choose the standard SwiftUI profile: familiar semantics, responsive controls,

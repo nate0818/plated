@@ -2,12 +2,8 @@ import Foundation
 import CoreLocation
 import WeatherKit
 
-/// Wraps WeatherKit + CoreLocation and reduces a forecast down to the single
-/// thing Plated cares about: what kind of day is tomorrow.
-///
-/// WeatherKit requires the WeatherKit capability and a paid developer account.
-/// Without it, every call returns `nil` and the suggestion banner simply hides
-/// rather than surfacing an error the user can do nothing about.
+/// Weather for the selected dinner day, including the permission and failure
+/// states needed by Plan. Fetching stays outside SwiftUI body evaluation.
 @MainActor
 @Observable
 final class ForecastProvider: NSObject {
@@ -16,6 +12,12 @@ final class ForecastProvider: NSObject {
     private(set) var dailyForecasts: [DayForecast] = []
     private(set) var lastError: String?
     private(set) var isLoading = false
+    private(set) var locationAuthorization: CLAuthorizationStatus = .notDetermined
+    private(set) var attribution: WeatherAttribution?
+    private(set) var isPreview = false
+
+    var needsLocationPermission: Bool { locationAuthorization == .notDetermined }
+    var locationDenied: Bool { locationAuthorization == .denied || locationAuthorization == .restricted }
 
     private let locationManager = CLLocationManager()
     private let weather = WeatherKit.WeatherService.shared
@@ -36,42 +38,52 @@ final class ForecastProvider: NSObject {
         super.init()
         locationManager.delegate = self
         locationManager.desiredAccuracy = kCLLocationAccuracyKilometer
+        locationAuthorization = locationManager.authorizationStatus
     }
 
-    /// Loads a multi-day forecast for the user's current location. Silently
-    /// gives up when location or WeatherKit is unavailable.
-    ///
-    /// `mayAsk` decides whether this call is allowed to raise the system
-    /// location prompt. The prompt can only ever be shown once, so the
-    /// moment it is spent matters: the week list is the launch screen, and
-    /// asking there means a person's first sight of Plated is a permission
-    /// dialog for a feature they have not met yet. Opening a night is the
-    /// screen that actually shows the forecast and the suggestion built on
-    /// it, so that is where the ask is worth its one shot.
+    /// Passive refreshes never raise a location prompt. Plan's explicit
+    /// weather action or opening a day can opt in with `mayAsk`.
     func refresh(days: Int = 7, mayAsk: Bool = false) async {
+        guard !isLoading else { return }
         isLoading = true
         defer { isLoading = false }
 
         #if DEBUG
+        let arguments = ProcessInfo.processInfo.arguments
+        if arguments.contains("-plated-design-review") {
+            if arguments.contains("-plated-review-weather-permission") {
+                locationAuthorization = .notDetermined; dailyForecasts = []; lastError = nil
+                return
+            }
+            if arguments.contains("-plated-review-weather-denied") {
+                locationAuthorization = .denied; dailyForecasts = []; lastError = nil
+                return
+            }
+            if arguments.contains("-plated-review-weather-failed") {
+                locationAuthorization = .authorizedWhenInUse; dailyForecasts = []; lastError = "Review fixture"
+                return
+            }
+        }
         // WeatherKit needs the provisioned entitlement and a real fix, so the
         // day column is simply blank in the simulator. This seeds a plausible
         // week so the layout can be seen and reviewed without a device.
         if ProcessInfo.processInfo.arguments.contains("-plated-fake-weather") {
             dailyForecasts = Self.sampleWeek(days: days)
             lastError = nil
+            isPreview = true
             return
         }
         #endif
 
-        // Nothing to show and nothing to ask for. Leaving `lastError` clear
-        // is deliberate: not having been asked yet is not a failure, and the
-        // date cards already hold the forecast's line empty rather than
-        // collapsing, so the week looks the same either way.
-        guard mayAsk || locationManager.authorizationStatus != .notDetermined else { return }
+        isPreview = false
+        locationAuthorization = locationManager.authorizationStatus
+        guard mayAsk || !needsLocationPermission else { return }
 
         do {
             let location = try await currentLocation()
             let forecast = try await weather.weather(for: location, including: .daily)
+            // Publish weather only with its required attribution available.
+            if attribution == nil { attribution = try await weather.attribution }
             dailyForecasts = forecast.forecast.prefix(days).map { day in
                 let highF = day.highTemperature.converted(to: .fahrenheit).value
                 let lowF = day.lowTemperature.converted(to: .fahrenheit).value
@@ -97,8 +109,6 @@ final class ForecastProvider: NSObject {
         } catch {
             dailyForecasts = []
             lastError = error.localizedDescription
-            // The banner hides on failure by design, so the console is the
-            // only place a WeatherKit or location failure is visible at all.
             print("PLATED WEATHER: refresh failed — \(error)")
         }
     }
@@ -143,7 +153,9 @@ final class ForecastProvider: NSObject {
     }
 
     private func currentLocation() async throws -> CLLocation {
-        if let cached = locationManager.location { return cached }
+        guard !locationDenied else { throw CLError(.denied) }
+        if !needsLocationPermission, let cached = locationManager.location,
+           abs(cached.timestamp.timeIntervalSinceNow) < 15 * 60 { return cached }
 
         // While the permission prompt is up, requestLocation fails
         // immediately with kCLErrorDenied — so ask first, and let the
@@ -190,6 +202,11 @@ extension ForecastProvider: CLLocationManagerDelegate {
     nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         let status = manager.authorizationStatus
         Task { @MainActor in
+            locationAuthorization = status
+            if status == .denied || status == .restricted {
+                dailyForecasts = []
+                lastError = nil
+            }
             guard locationContinuation != nil else { return }
             switch status {
             case .authorizedWhenInUse, .authorizedAlways:

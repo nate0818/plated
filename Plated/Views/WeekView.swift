@@ -75,6 +75,7 @@ struct WeekView: View {
     /// The sentence a removal left for the first empty week (§8), shown in
     /// place of the invitation until a meal is planned.
     @State private var removedNotice: String?
+    @State private var eatingOutSaveFailed = false
 
     /// How far ahead the plan scrolls — this week plus three more.
     private let weeksAhead = 4
@@ -344,6 +345,8 @@ struct WeekView: View {
                                     .frame(maxWidth: .infinity, alignment: .leading)
                                     .background(Color.fill, in: Radius.shape(Radius.hero))
                                 additionalMealsForSelectedDay
+                                PlanContextView(date: weekAnchor, forecast: forecast,
+                                    history: PlanDinnerHistory(local: meals, shared: PlanLedger.shared.all))
                             }
                             .frame(maxWidth: 760)
                             .frame(maxWidth: .infinity)
@@ -360,6 +363,11 @@ struct WeekView: View {
                 }
             }
             .accessibilityIdentifier("plan-selected-day-content")
+            .alert("Dinner didn’t save", isPresented: $eatingOutSaveFailed) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text("Your plan hasn’t changed. Please try again.")
+            }
             .scrollIndicators(.hidden)
             .clipped()
             .onChange(of: weekAnchor) { _, _ in
@@ -525,9 +533,11 @@ struct WeekView: View {
             HStack {
                 MicroLabel((Calendar.current.isDateInToday(weekAnchor) ? "Tonight" : weekAnchor.formatted(.dateTime.weekday(.wide))) + " · " + weekAnchor.formatted(.dateTime.month(.abbreviated).day()))
                 Spacer()
-                Menu { nightMenu(weekAnchor) } label: {
-                    Image(systemName: "ellipsis").foregroundStyle(Color.ink).plTapTarget()
-                }.accessibilityLabel("Dinner options")
+                if dinner(on: weekAnchor) != nil || PlanLedger.shared.dinner(on: weekAnchor) != nil {
+                    Menu { nightMenu(weekAnchor) } label: {
+                        Image(systemName: "ellipsis").foregroundStyle(Color.ink).plTapTarget()
+                    }.accessibilityLabel("Dinner options")
+                }
             }
             if let meal = dinner(on: weekAnchor) {
                 let who = whoCaption(for: meal)
@@ -536,8 +546,10 @@ struct WeekView: View {
                         Text(meal.title).plType(.title, .semibold).foregroundStyle(Color.ink)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .fixedSize(horizontal: false, vertical: true)
-                        RecipeArtwork(data: meal.recipe?.photoData, title: meal.title, ratio: 2.5)
-                            .frame(maxHeight: 180).clipped()
+                        if !PlanRowVoice.isEatingOut(title: meal.title, hasRecipe: meal.recipe != nil) {
+                            RecipeArtwork(data: meal.recipe?.photoData, title: meal.title, ratio: 2.5)
+                                .frame(maxHeight: 180).clipped()
+                        }
                     }
                     .contentShape(Rectangle())
                 }.buttonStyle(.pressable)
@@ -601,10 +613,18 @@ struct WeekView: View {
                         // Kill soft ambient posters; dense title + useful subcopy.
                         Text(Calendar.current.isDateInToday(weekAnchor) ? "What’s for dinner?" : PlanEmptyCopy.heroTitle(past: isPast(weekAnchor)))
                             .plType(.title, .medium).foregroundStyle(Color.ink)
-                        Text(isPast(weekAnchor) ? PlanEmptyCopy.detailBody : PlanEmptyCopy.heroSubcopy)
-                            .plType(.body).foregroundStyle(Color.inkSecondary)
+                            .accessibilityAddTraits(.isHeader)
+                        Text(isPast(weekAnchor) ? PlanEmptyCopy.detailBody : "A home-cooked favorite or a night off?")
+                            .plType(.footnote).foregroundStyle(Color.inkSecondary)
                     }
-                    PrimaryActionButton(title: Calendar.current.isDateInToday(weekAnchor) ? "Plan tonight" : PlanEmptyCopy.planNight, systemImage: "plus") { planDay = weekAnchor }
+                    let actions = typeSize >= .xxLarge
+                        ? AnyLayout(VStackLayout(spacing: 8))
+                        : AnyLayout(HStackLayout(spacing: 8))
+                    actions {
+                        PrimaryActionButton(title: Calendar.current.isDateInToday(weekAnchor) ? "Plan tonight" : PlanEmptyCopy.planNight) { planDay = weekAnchor }
+                        SecondaryActionButton(title: "Eating out") { markEatingOut(on: weekAnchor) }
+                            .accessibilityHint("Marks dinner on the selected date as eating out")
+                    }
                 }.frame(maxWidth: .infinity, alignment: .leading)
             }
         }
@@ -1077,8 +1097,14 @@ struct WeekView: View {
 
     private func markEatingOut(on date: Date) {
         Haptic.plate()
+        let original = dinner(on: date)
+        let previousRecipe = original?.recipe
+        let previousTitle = original?.customTitle ?? ""
+        let previousTagline = original?.tagline ?? ""
+        let previousCook = original?.cook
+        var inserted: PlannedMeal?
         withAnimation(.plPop) {
-            if let meal = dinner(on: date) {
+            if let meal = original {
                 meal.recipe = nil
                 meal.customTitle = "Eating out"
                 meal.tagline = "Night off the stove"
@@ -1087,10 +1113,19 @@ struct WeekView: View {
                 let meal = PlannedMeal(date: date, slot: .dinner, customTitle: "Eating out")
                 meal.tagline = "Night off the stove"
                 context.insert(meal)
+                inserted = meal
             }
             bounceDay = date
         }
-        Persist.save(context, "plan eating out")
+        if !Persist.save(context, "plan eating out") {
+            // Revert only this action, preserving unrelated drafts in context.
+            if let inserted { context.delete(inserted) }
+            if let original {
+                original.recipe = previousRecipe; original.customTitle = previousTitle
+                original.tagline = previousTagline; original.cook = previousCook
+            }
+            eatingOutSaveFailed = true
+        }
     }
 
     /// The same engine the night sheet uses, with the same forecast it can
