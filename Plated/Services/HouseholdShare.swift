@@ -1208,13 +1208,16 @@ enum HouseholdShare {
         // must not replace a real one the invite already had, a host
         // display name must not land on a joiner, and a missing or host
         // photograph must not clear or clone one that already landed.
+        // The organizer's own seat is exempt from clone detection: its
+        // previous name and photo are the reference values, not evidence
+        // that a profile update belongs to somebody else.
         if !isMine {
             if !HouseholdIdentity.isUnnamed(s.name),
-               !HouseholdIdentity.isHostClone(s.name, hosts: hostNames) {
+               isOwnerSeat || !HouseholdIdentity.isHostClone(s.name, hosts: hostNames) {
                 member.name = s.name
             }
             if !s.bio.isEmpty { member.bio = s.bio }
-            if let photo = s.photo, photo != hostPhoto {
+            if let photo = s.photo, isOwnerSeat || photo != hostPhoto {
                 member.photoData = photo
             }
             if let modifiedAt = s.profileBannerPhotoModifiedAt,

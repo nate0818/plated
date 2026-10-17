@@ -1,0 +1,5 @@
+Plan now shows a clearer dinner decision, the cook and their photo, local weather, a seven-day cooked/eating-out log, and household photos with recorded cooking/sharing activity.
+
+This follow-up also fixes organizer profile updates getting rejected on another household member’s phone. Profile photos, posts and cooking credit follow account identity even after a name changes.
+
+Please update both household phones and check each person’s photo, profile, dinner assignment and shared activity. Live two-account delivery and physical-device weather still need beta verification; local regression tests do not establish iCloud delivery for a particular household.

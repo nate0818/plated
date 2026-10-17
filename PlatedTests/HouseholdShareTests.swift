@@ -298,6 +298,112 @@ final class HouseholdShareTests: XCTestCase {
 
     // MARK: The codec, offline
 
+    func testGuestProfileAndActivityCrossTheWireToTheHost() throws {
+        try assertProfileDelivery(senderIsHost: false)
+    }
+
+    func testHostProfileAndActivityCrossTheWireToAGuest() throws {
+        try assertProfileDelivery(senderIsHost: true)
+    }
+
+    func testProfileDeliveryStillRejectsHostIdentityClonedOntoGuest() throws {
+        HouseholdShare.setMembership(.hosting)
+        let host = HouseholdMember(name: "Alex Rivera", role: "owner", seat: .head,
+            shareRecordName: "seat-host")
+        host.userRecordName = me
+        host.photoData = Data([1, 2, 3])
+        context.insert(host)
+        let guest = HouseholdMember(name: "Sam", role: "partner", seat: .joined,
+            shareRecordName: "seat-guest")
+        guest.userRecordName = "guest-id"
+        guest.photoData = Data([4, 5, 6])
+        context.insert(guest)
+        var cloned = seat("Alex", record: guest.shareRecordName, user: "guest-id")
+        cloned.photo = host.photoData
+        var changes = HouseholdShare.Changes()
+        changes.seats = [cloned]
+        HouseholdShare.merge(changes, into: context)
+        XCTAssertEqual(guest.name, "Sam")
+        XCTAssertEqual(guest.photoData, Data([4, 5, 6]))
+    }
+
+    /// Two isolated stores with different account identities. Exercises the
+    /// actual serializers, receiver merge and UI projections; no CloudKit
+    /// service or account session is involved in this regression test.
+    private func assertProfileDelivery(senderIsHost: Bool) throws {
+        let senderStore = try ModelContainer(for: PlatedStore.schema,
+            configurations: [ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)])
+        let senderID = "other-account"
+        let sender = HouseholdMember(name: "Alex", role: senderIsHost ? "owner" : "partner",
+            seat: senderIsHost ? .head : .joined, shareRecordName: "seat-sender")
+        sender.userRecordName = senderID
+        sender.authorID = senderID
+        sender.photoData = Data([1, 2, 3])
+        sender.bio = "Weeknight cooking"
+        senderStore.mainContext.insert(sender)
+        HouseholdShare.setMembership(senderIsHost ? .member(owner: senderID) : .hosting)
+        let reader = HouseholdMember(name: "Reader", role: senderIsHost ? "partner" : "owner",
+            seat: senderIsHost ? .joined : .head, shareRecordName: "seat-reader")
+        reader.userRecordName = me
+        reader.photoData = Data([7, 8, 9])
+        context.insert(reader)
+        HouseholdShare.mySeat = reader.shareRecordName
+
+        func deliver(at time: Date) {
+            var outgoing = HouseholdShare.remote(from: sender)
+            outgoing.modifiedBy = senderID
+            outgoing.modifiedAt = time
+            let wire = record(HouseholdShare.seatType, sender.shareRecordName)
+            HouseholdShare.write(outgoing, onto: wire)
+            defer { HouseholdShare.Wire.removeTemporaryAssets(on: [wire]) }
+            var incoming = HouseholdShare.Changes()
+            incoming.add(wire)
+            HouseholdShare.merge(incoming, into: context)
+        }
+
+        let now = Date.now
+        deliver(at: now.addingTimeInterval(-1))
+        let received = try XCTUnwrap(members().first { $0.userRecordName == senderID })
+        XCTAssertEqual(received.photoData, sender.photoData)
+        XCTAssertEqual(Seats.resolvedDisplay(for: received, among: members()).photo, sender.photoData)
+        XCTAssertFalse(received.isMe)
+
+        // A later photo and a fuller name must reach the existing seat.
+        sender.name = "Alex Rivera"
+        sender.photoData = Data([4, 5, 6])
+        sender.bio = "Sunday roasts"
+        deliver(at: now)
+        XCTAssertEqual(members().count, 2)
+        XCTAssertEqual(received.name, "Alex Rivera")
+        XCTAssertEqual(received.photoData, sender.photoData)
+        XCTAssertEqual(received.bio, sender.bio)
+        XCTAssertEqual(members().photo(forAuthor: "Alex", authorID: senderID), sender.photoData)
+
+        let dinner = PlannedMeal(date: now, customTitle: "Pasta", cook: sender)
+        dinner.authorID = senderID
+        dinner.cookedAt = now
+        senderStore.mainContext.insert(dinner)
+        let plan = PlanShare.plan(for: dinner, me: senderID)
+        let wirePlan = TableShare.planRecord(plan, existing: nil, zone: zoneID, photo: .clear, now: now).record
+        let receivedPlan = PlanLedger.Entry(TableShare.remotePlan(from: wirePlan))
+        var post = TableShare.RemotePost()
+        post.recordName = "post-sender"
+        post.authorID = senderID
+        post.authorName = "Alex" // the name when the dish was shared
+        post.dishTitle = "Pasta"
+        post.kind = "dish"
+        post.createdAt = now.addingTimeInterval(-1)
+        var posts = TableShare.Changes()
+        posts.posts = [post]
+        TableShare.merge(posts, into: context)
+        let activity = MemberDinnerActivity(member: received, roster: members(), meals: [],
+            remote: [receivedPlan], posts: try context.fetch(FetchDescriptor<TablePost>()), now: now)
+        XCTAssertEqual(activity.cooked, 1)
+        XCTAssertEqual(activity.shared, 1)
+        XCTAssertEqual(try context.fetch(FetchDescriptor<PlannedMeal>()).count, 0,
+            "Shared activity is derived without copying a household dinner into SwiftData")
+    }
+
     private func record(_ type: String, _ name: String) -> CKRecord {
         CKRecord(recordType: type, recordID: CKRecord.ID(recordName: name, zoneID: zoneID))
     }

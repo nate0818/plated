@@ -24,7 +24,8 @@ changed. Eating-out and cook-assignment saves have narrow rollback and alerts.
 432 native tests passed; four opt-in Calendar tests skipped. An additional widget
 publisher test passed against its actual app-group snapshot. Fourteen Plan/context
 and household cases passed on each phone size; two iPad cases passed. The final
-extended VoiceOver and selected-day run is in progress. Dark/light and AX5 layouts
+typical-phone run passed all 18 cases, including real simulator VoiceOver through
+the household rows and all three selected-day regressions. Dark/light and AX5 layouts
 were reviewed. Design/token/schema checks passed. Full evidence and limits:
 [Plan design record](plan-context-design.md).
 
@@ -35,7 +36,28 @@ production submission or a claim of complete release clearance.
 
 ## Deployment
 
-Status: prepared; archive, upload and distribution results will be recorded here.
+Status: **available to Internal and External testers**. Source commit `d59fdac` is
+pushed to `origin/main`. App/widget are 1.0.1 (35), production CloudKit/APNs,
+get-task-allow=false; signatures and privacy manifests validate, binary/dSYM UUIDs
+match. Source fingerprints stayed unchanged during archive. The signed artifact is
+retained under `build/releases/35`; see [release receipt](testflight-35-release.json).
+Apple reports both beta states as `IN_BETA_TESTING`; both configured groups
+include build 35, automatic notifications are enabled, and English tester notes
+were read back successfully. Build 34 had no individually assigned testers to
+carry forward. Verified October 17 at 15:59 EDT. Public link:
+https://testflight.apple.com/join/2exAQgYs.
 Build 34's archive/export remain under `build/releases/34`. If dinner planning,
 history or weather shows a critical regression, expire build 35 and use retained
 build 34 while preparing a fix. Earlier betas will not be expired by this upload.
+
+
+Apple accepted the 17,460,365-byte IPA with no upload errors at October 17, 2026,
+15:57 EDT. Delivery UUID: `13247daa-8cb2-4ddc-879e-19df453b865a`.
+IPA SHA-256: `f3142402df5647c31086a6dbc4bea8c902e4cd3a54e37d4c3bdbb7f75e2df1e9`.
+Binary/dSYM UUID: `568A9353-9BD2-3E4B-B1FA-5B505B140DD2`.
+
+The user's clarification that the profile appears on the other phone prompted
+an additional receive-path regression. It found an organizer rename rejected
+by the merge's clone guard; follow-up verification is tracked in
+[build 36](testflight-36.md). The already-running build 35 distributor completed
+before it could be paused; no build was expired or removed from a tester group.

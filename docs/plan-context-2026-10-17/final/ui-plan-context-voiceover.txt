@@ -1,0 +1,30 @@
+selected Plated Plan Button Return to the top of Plan
+Recipes Button Open Recipes
+Groceries Button Open Groceries
+Table Button Open Table
+Plated
+Add Button Add a recipe, Table post or question
+Notifications No unread notifications Button Shows activity at y
+Your profile Button Opens your profile, household and settings.
+Hi, Nate Heading
+Calendar Button
+selected Saturday, Oct 17 No dinner planned Button adjustable Sw
+TONIGHT · OCT 17
+What’s for dinner? Heading
+Suggested dinner cook Sam · from your rotation Button Pop up but
+Plan tonight Button
+Eating out Button Marks dinner on the selected date as eating ou
+Today’s weather Heading
+Mostly Clear. High 78°F, low 61°F. 5 percent chance of rain.
+Preview weather
+Your dinner log Heading
+LAST 7 DAYS
+2 cooked in the last 7 days
+1 eating out in the last 7 days
+Your household’s cooked dinners and nights marked eating out.
+Your household Heading
+Manage household Button
+Recorded activity · last 7 days
+You, No activity recorded in the last 7 days. Button Opens profi
+Sam, No activity recorded in the last 7 days. Button Opens profi
+Riley, No activity recorded in the last 7 days. Button Opens pro

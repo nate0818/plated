@@ -110,4 +110,34 @@ Home Screen widget pass.
 The first household UI run found the identifier on an accessibility wrapper rather
 than its inner button. The row now uses native Button accessibility semantics;
 tests also locate the user-facing name. The renamed-profile flow and AX5 household
-navigation pass on the compact phone. Final full UI run evidence follows below.
+navigation pass on the compact phone. Final complete UI runs: **18/18** on iPhone 17 Pro / iOS 27 (14 context/household,
+one real VoiceOver-service transcript, three selected-day cases), **14/14** on
+SE / iOS 26.5, and **2/2** on iPad. The VoiceOver transcript reaches the dinner
+heading, suggested cook, both dinner actions, weather, both counts, then the
+household heading, Manage and each profile button in order. Default dark/light,
+compact AX5, typical phone and iPad captures were visually reviewed.
+
+Final evidence: `build/household-release-unit.xcresult`,
+`build/household-widget-reservation.xcresult`, `build/household-final-ui.xcresult`,
+`build/household-final-compact.xcresult`, and `build/household-final-ipad.xcresult`.
+Selected screenshots and transcript are in
+[final evidence](plan-context-2026-10-17/final/). Both new cook and household view
+static audits report zero findings. The earlier 84/100 evidence cap and physical
+verification limits still apply; this is not live two-account verification.
+
+## Delivered-record regression after the cross-account clarification
+
+The user sees the other person's photo/activity on that person's phone only.
+Two isolated-store tests now follow production profile serialization and asset
+decoding through the receiver merge, then project the delivered photo, cooked
+dinner and renamed-author post into the UI's actual readers. Both account
+directions pass after a further organizer-name merge fix: the organizer's
+previous name was incorrectly treated as evidence of a cloned profile. The
+guest clone-protection regression still passes. This does not confirm actual
+CloudKit transport or diagnose the user's current production records.
+
+Build 36 native regression: **440 executed, 436 passed, four opt-in Calendar
+skips**, zero failures, including the actual widget publisher. Before/final
+results: `build/household-delivery-before.xcresult` and
+`build/household-delivery-final.xcresult`. UI code is unchanged from the final
+build 35 interaction/VoiceOver evidence above. See [release 36](testflight-36.md).
