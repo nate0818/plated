@@ -2,7 +2,7 @@
 
 Date: October 17, 2026
 
-Status: App Store–signed archive/export verified; prepared for upload. The user explicitly requested committing and pushing all current changes and distributing the beta to all testers, including external testers, after being told about the remaining release-verification gaps. An App Store production release was not requested.
+Status: **available to Internal and External TestFlight testers**. Apple processing is `VALID`; both internal and external states are `IN_BETA_TESTING`. Automatic tester notification is enabled and the en-US testing notes were saved and read back. The user explicitly requested committing and pushing all current changes and distributing the beta to all testers, including external testers, after being told about the remaining release-verification gaps. An App Store production release was not requested.
 
 ## Changes
 
@@ -30,9 +30,13 @@ Mutation checks passed: the legitimate second writer is accepted; a new undeploy
 
 ## Tester distribution
 
-Configured groups: Internal (all builds) and External (public link). Final build processing, membership, beta-review and notification states will be recorded after upload. Tester notes are in [testflight-34-notes.txt](testflight-34-notes.txt).
+Both configured groups have access: Internal through its all-builds setting, External through an explicitly verified build-34 membership. External distribution is already `IN_BETA_TESTING`; no further beta-review wait is outstanding. Automatic tester notifications are enabled. Build 33 had no individual tester assignments outside the groups to carry forward. Tester notes are in [testflight-34-notes.txt](testflight-34-notes.txt).
 
 Public link: <https://testflight.apple.com/join/2exAQgYs>.
+
+## Source and upload
+
+All current source/documentation changes were committed as `4f0219ba522b2c2da16d601ce7497c70e3ed25c2` and pushed to `origin/main` before upload. Apple accepted the 17,303,549-byte IPA with no errors; delivery UUID `cabe9bff-6dde-44ea-8771-38ce5f0dc781`.
 
 ## Signed artifact
 
@@ -42,6 +46,8 @@ Public link: <https://testflight.apple.com/join/2exAQgYs>.
 - IPA SHA-256: `4e7d81532b39c1689b0b6517e429ccf2fa4e9ac7553eccadd0e7b1cfdd0210de`.
 - Build 34 archive/export and previous build 33 are preserved under `build/releases/`.
 - App source fingerprints remained unchanged during the archive, apart from the intended build-number bump.
-- Machine-readable verification: [testflight-34-release.json](testflight-34-release.json).
+- Machine-readable artifact and distribution verification: [testflight-34-release.json](testflight-34-release.json).
 
 Build 33 remains available; this upload does not expire earlier betas. If a critical regression is confirmed, the rollback is to expire build 34 in TestFlight and direct testers to the retained approved build while preparing a fix. No App Store production submission is part of this release.
+
+Distribution was read back from App Store Connect at 2026-10-17T16:26:51.043094+00:00. The source commit remains `4f0219b`; the final documentation-only commit records the observed distribution result.
