@@ -20,4 +20,6 @@ Design, native/widget/web token and deployed schema checks passed (172 Swift fil
 
 ## Distribution
 
-Packaging and App Store Connect availability are recorded in testflight-39-release.json after upload. Both configured tester groups and any individually assigned testers on build 38 are to receive this build. Older builds are retained.
+Source commit: eab37a594ba849bac70757153354daf0289794c5. Apple accepted the 17,552,303-byte upload without errors. Signed package/source/privacy/dSYM checks passed. At 2026-10-17T22:10:07.943117+00:00, build 39 was VALID with internal and external states IN_BETA_TESTING. Both configured groups include it, tester notes were read back successfully, and automatic notifications are enabled. Build 38 had no individual testers to carry forward. Older builds are retained. The signed package and full receipt are in build/releases/39 and testflight-39-release.json.
+
+TestFlight: https://testflight.apple.com/join/2exAQgYs
