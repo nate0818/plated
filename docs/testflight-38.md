@@ -71,6 +71,35 @@ activity delivery remain a release-verification limitation; no “zero bugs” o
 
 ## Distribution
 
-Build 38 is being packaged under the user's existing authorization to commit,
-push, upload and distribute to all internal and external testers. Signed-package
-verification and App Store Connect availability will be recorded after readback.
+Source commit: `8299509fc0b3347ffaf4ab808bd8f1e901e1f6d5`, pushed to
+`origin/main`. The final signed archive/export passed with unchanged native
+source fingerprints, matching app/widget versions, production CloudKit/APNs,
+WeatherKit, sharing/background keys, privacy manifests, signature trust/integrity
+and matching binary/dSYM UUID. The package is retained in `build/releases/38/`.
+An earlier packaging pass surfaced a main-actor callback annotation warning;
+that was corrected, the full native suite rerun, and the final archive rebuilt
+before any upload.
+
+Apple accepted the final 17,547,995-byte upload with no errors. Delivery/build
+ID: `400ca973-8ee0-4316-8784-992e6e6c0096`. At
+`2026-10-17T21:48:22.790097+00:00`, processing was `VALID` and both internal
+and external states were `IN_BETA_TESTING`. Both configured tester groups include
+build 38. Tester notes were read back successfully, automatic notifications are
+enabled, and build 37 had no individually assigned testers to carry forward.
+Older builds were not expired. The signed-package hashes and complete availability
+receipt are in `docs/testflight-38-release.json`.
+
+TestFlight: https://testflight.apple.com/join/2exAQgYs
+
+## Remaining live account check
+
+Use two real iCloud accounts on build 38 or newer. Generate a new invitation,
+accept it, then confirm the joining person's photo and profile on the organizer's
+phone. Edit the photo and bio on the member's phone; confirm the organizer sees
+the change after refresh and relaunch. Mark a newly shared household dinner
+cooked, then share a dish at the Table and confirm the member's 7-day activity
+on the other phone. Personal history from before joining remains private.
+Remove the member, confirm the previous link is refused, issue a new invitation,
+rejoin, and repeat removal to confirm the prior reinvitation no longer works.
+These live steps have NOT been run by this agent; disconnected hardware and the
+unavailable second account remain the constraint.
