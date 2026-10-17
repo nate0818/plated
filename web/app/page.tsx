@@ -4,15 +4,14 @@ import AppStoreBadge from "./components/AppStoreBadge";
 import FoodGallery from "./components/FoodGallery";
 import HeroPreview from "./components/HeroPreview";
 import ProductTour from "./components/ProductTour";
-import WaitlistForm from "./components/WaitlistForm";
 import Wordmark from "./components/Wordmark";
-import { INSTALL_URL } from "./lib/store";
+import { EARLY_ACCESS_URL } from "./lib/store";
 import styles from "./page.module.css";
 
 const questions = [
   {
     question: "Can I try Plated now?",
-    answer: <>Yes. Plated is in early access for iPhone and iPad through Apple TestFlight. <a href={INSTALL_URL}>Try Plated</a> while we keep improving it.</>,
+    answer: <>Plated is in early access for iPhone and iPad. <Link href={EARLY_ACCESS_URL}>Request an invitation</Link> and we’ll email you when we’re ready to invite your household. If invited, you’ll install the app through Apple TestFlight.</>,
   },
   {
     question: "Can I use my own recipes?",
@@ -37,27 +36,27 @@ export default function Home() {
     <a className={styles.skip} href="#main">Skip to content</a>
     <header className={styles.header}>
       <div className={styles.headerInner}>
-        <Link className={styles.homeLink} href="/" aria-label="Plated home"><Wordmark size={34} /></Link>
+        <Link className={styles.homeLink} href="#main" aria-label="Plated home"><Wordmark size={34} /></Link>
         <nav className={styles.navigation} aria-label="Main navigation">
           <a href="#recipes">The food</a>
           <a href="#how-it-works">How it works</a>
           <a href="#questions">Questions</a>
         </nav>
-        <a className={styles.headerAction} href={INSTALL_URL}>Try Plated <Arrow /></a>
+        <Link className={styles.headerAction} href={EARLY_ACCESS_URL}>Request access <Arrow /></Link>
       </div>
     </header>
 
-    <main id="main">
+    <main id="main" className={styles.main}>
       <section className={styles.hero} aria-labelledby="hero-title">
         <div className={styles.heroCopy}>
           <h1 className={styles.eyebrow}>The meal planner for your household</h1>
           <h2 id="hero-title" className={styles.heroTitle}>Dinner plans.<br />Made together.</h2>
           <p className={styles.heroDescription}>Decide what&rsquo;s for dinner, who&rsquo;s cooking, and what to pick up. One shared plan for your whole household.</p>
           <div className={styles.heroActions}>
-            <a className={styles.primaryAction} href={INSTALL_URL}>Try Plated on TestFlight <Arrow /></a>
+            <Link className={styles.primaryAction} href={EARLY_ACCESS_URL}>Request early access <Arrow /></Link>
             <a className={styles.secondaryAction} href="#how-it-works">See how it works</a>
           </div>
-          <p className={styles.availability}>Early access for iPhone and iPad</p>
+          <p className={styles.availability}>For iPhone and iPad. Invitations by email.</p>
         </div>
         <div className={styles.heroProduct}>
           <HeroPreview />
@@ -95,12 +94,8 @@ export default function Home() {
       <section className={styles.closing} aria-labelledby="closing-title">
         <div><h2 id="closing-title">Your next dinner,<br />planned together.</h2><p>Bring your recipes. Invite your household. Start with one night.</p></div>
         <div className={styles.closingActions}>
-          <a className={styles.primaryAction} href={INSTALL_URL}>Try Plated on TestFlight <Arrow /></a>
-          <p className={styles.availability}>Early access for iPhone and iPad</p>
-          <details className={styles.launchUpdates}>
-            <summary>Get an email when Plated launches</summary>
-            <div className={styles.waitlist}><WaitlistForm compact /></div>
-          </details>
+          <Link className={styles.primaryAction} href={EARLY_ACCESS_URL}>Request early access <Arrow /></Link>
+          <p className={styles.availability}>For iPhone and iPad. Invitations by email.</p>
         </div>
       </section>
 
@@ -116,7 +111,7 @@ export default function Home() {
     </main>
 
     <footer className={styles.footer}>
-      <div className={styles.footerBrand}><Link href="/" aria-label="Plated home"><Wordmark size={34} /></Link><p>A shared plan for the food<br />and people you love.</p></div>
+      <div className={styles.footerBrand}><Link href="#main" aria-label="Plated home"><Wordmark size={34} /></Link><p>A shared plan for the food<br />and people you love.</p></div>
       <nav aria-label="Footer navigation"><a href="#recipes">The food</a><a href="#how-it-works">How it works</a><a href="#questions">Questions</a><Link href="/privacy">Privacy</Link></nav>
       <div className={styles.footerNote}><AppStoreBadge /><span>© {new Date().getFullYear()} Plated</span></div>
     </footer>

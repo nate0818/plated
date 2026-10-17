@@ -99,7 +99,7 @@ export async function callAdminEdge<T>(
 
   try {
     const [{ accessToken }, supabase] = await Promise.all([
-      requireAdminSession({ recentTotp: kind === "command" }),
+      requireAdminSession({ recentTotp: kind === "command" || payload.op === "waitlist-export" }),
       Promise.resolve(getPublicSupabaseConfig()),
     ]);
     if (!supabase) throw new AdminEdgeConfigurationError("Supabase public configuration is missing.");

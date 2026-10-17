@@ -1,4 +1,4 @@
-import { decodeOffset, encodeOffset, maskEmail, parseAdminReadCommand } from "./contracts.ts";
+import { canExportWaitlist, decodeOffset, encodeOffset, maskEmail, parseAdminReadCommand } from "./contracts.ts";
 
 function assertEquals(actual: unknown, expected: unknown): void {
   if (JSON.stringify(actual) !== JSON.stringify(expected)) {
@@ -25,4 +25,12 @@ Deno.test("pagination cursor is opaque and bounded", () => {
 Deno.test("waitlist emails are masked before leaving the function", () => {
   assertEquals(maskEmail("Founder@example.com"), "f•••@e••.com");
   assertEquals(maskEmail("bad"), "hidden");
+});
+
+Deno.test("address exports are founder-only and bounded independently of read access", () => {
+  assertEquals(canExportWaitlist("founder"), true);
+  assertEquals(canExportWaitlist("operator"), false);
+  assertEquals(canExportWaitlist("read_only"), false);
+  assertEquals(parseAdminReadCommand({ op: "waitlist-export", limit: 100 }).limit, 100);
+  assertThrows(() => parseAdminReadCommand({ op: "waitlist-export", limit: 101 }));
 });

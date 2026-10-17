@@ -13,26 +13,36 @@ const steps: { screen: AppScreen; label: string; title: string; description: str
 ];
 
 const cooks = [
-  { name: "You", initial: "N", meal: "Salmon tonight", image: "salmon", tone: "oat" },
-  { name: "Sam", initial: "S", meal: "Pizza tomorrow", image: "pizza", tone: "basil" },
-  { name: "Riley", initial: "R", meal: "Steak on Tuesday", image: "steak", tone: "mango" },
+  { name: "You", initial: "N", meal: "Salmon", night: "Tonight", image: "salmon", tone: "oat" },
+  { name: "Sam", initial: "S", meal: "Pizza", night: "Tomorrow", image: "pizza", tone: "basil" },
+  { name: "Riley", initial: "R", meal: "Steak", night: "Tuesday", image: "steak", tone: "mango" },
 ];
 
 export default function ProductTour() {
   const [selected, setSelected] = useState(0);
+  const [preload, setPreload] = useState(false);
   const sections = useRef<(HTMLElement | null)[]>([]);
 
   useEffect(() => {
-    const observer = new IntersectionObserver(entries => {
-      for (const entry of entries) {
-        if (entry.isIntersecting) {
-          const index = sections.current.indexOf(entry.target as HTMLElement);
-          if (index !== -1) setSelected(index);
+    const desktop = window.matchMedia("(min-width: 761px)");
+    let observer: IntersectionObserver | undefined;
+    function observe() {
+      observer?.disconnect();
+      if (!desktop.matches) return;
+      observer = new IntersectionObserver(entries => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            setPreload(true);
+            const index = sections.current.indexOf(entry.target as HTMLElement);
+            if (index !== -1) setSelected(index);
+          }
         }
-      }
-    }, { rootMargin: "-30% 0px -40% 0px", threshold: 0 });
-    sections.current.forEach(section => { if (section) observer.observe(section); });
-    return () => observer.disconnect();
+      }, { rootMargin: "-30% 0px -40% 0px", threshold: 0 });
+      sections.current.forEach(section => { if (section) observer?.observe(section); });
+    }
+    observe();
+    desktop.addEventListener("change", observe);
+    return () => { observer?.disconnect(); desktop.removeEventListener("change", observe); };
   }, []);
 
   function goTo(index: number) {
@@ -46,7 +56,7 @@ export default function ProductTour() {
         {steps.map((step, index) => <button key={step.screen} aria-current={selected === index ? "step" : undefined} onClick={() => goTo(index)}>{step.label}</button>)}
       </nav>
       <div className={styles.frame}>
-        {steps.map((step, index) => <div key={step.screen} className={styles.screen} data-active={index === selected} aria-hidden={index !== selected} inert={index !== selected}><AppShowcase screen={step.screen} appearance="light" compact eager capture={step.screen === "plan" ? { src: "/app/plan-sam-light-818.png", alt: "Plated’s Plan screen showing Sam’s avatar, Pizza Night, and Sam is cooking" } : undefined} /></div>)}
+        {steps.map((step, index) => <div key={step.screen} className={styles.screen} data-active={index === selected} aria-hidden={index !== selected} inert={index !== selected}><AppShowcase screen={step.screen} appearance="light" compact eager={preload} capture={step.screen === "plan" ? { src: "/app/plan-sam-light-818.png", alt: "Plated’s Plan screen showing Sam’s avatar, Pizza Night, and Sam is cooking" } : undefined} /></div>)}
       </div>
       <p className={styles.caption}>{steps[selected].screen === "plan" ? "Pizza Night. Sam’s cooking tomorrow." : steps[selected].caption}</p>
     </div>
@@ -63,7 +73,7 @@ export default function ProductTour() {
                 <span className={styles.mealBadge}><Image src={`/editorial/${cook.image}.webp`} alt="" width={40} height={40} sizes="40px" /></span>
               </span>
               <span className={styles.cookName}>{cook.name}</span>
-              <span className={styles.cookMeal}>{cook.meal}</span>
+              <span className={styles.cookMeal}>{cook.meal}<span>{cook.night}</span></span>
             </li>)}
           </ul>}
         </div>

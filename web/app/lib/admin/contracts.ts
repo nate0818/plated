@@ -1,12 +1,12 @@
 export const ADMIN_CSRF_HEADER = "X-Plated-CSRF";
 export const ADMIN_CSRF_VALUE = "founder-console-v1";
 
-export const READ_OPS = ["overview", "people", "waitlist", "operations", "audit", "announcements", "releases"] as const;
+export const READ_OPS = ["overview", "people", "waitlist", "waitlist-export", "operations", "audit", "announcements", "releases"] as const;
 export type AdminReadOp = (typeof READ_OPS)[number];
 
 export type AdminReadRequest =
   | { op: "overview" | "operations" | "releases" }
-  | { op: "people" | "waitlist" | "audit" | "announcements"; cursor?: string; limit?: number };
+  | { op: "people" | "waitlist" | "waitlist-export" | "audit" | "announcements"; cursor?: string; limit?: number };
 
 export const ANNOUNCEMENT_AUDIENCES = ["me", "development", "testflight", "app_store", "all"] as const;
 export type AnnouncementAudience = (typeof ANNOUNCEMENT_AUDIENCES)[number];
@@ -101,10 +101,11 @@ export type PersonRow = {
 export type PeopleDTO = { rows: PersonRow[]; totalCount: number; nextCursor: string | null };
 
 export type WaitlistDTO = {
-  rows: Array<{ emailMasked: string; joinedAt: string }>;
+  rows: Array<{ emailMasked: string; source: string | null; joinedAt: string }>;
   totalCount: number;
   nextCursor: string | null;
   revealAvailable: false;
+  exportAvailable: boolean;
   retention: string;
 };
 

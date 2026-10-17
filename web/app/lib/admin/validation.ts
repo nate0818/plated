@@ -56,7 +56,7 @@ export function normalizeReadRequest(value: Record<string, unknown>): AdminReadR
     return { op };
   }
 
-  if (op === "people" || op === "waitlist" || op === "audit" || op === "announcements") {
+  if (op === "people" || op === "waitlist" || op === "waitlist-export" || op === "audit" || op === "announcements") {
     rejectUnknownKeys(value, ["op", "cursor", "limit"]);
     const cursor = optionalString(value.cursor, "cursor", 100);
     if (cursor && !/^[A-Za-z0-9+/=]+$/.test(cursor)) {

@@ -16,9 +16,11 @@ const looksLikeEmail = (s: string) => s.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s
 
 export async function POST(req: Request) {
   let email = "";
+  let intent: "launch" | "early-access" = "launch";
   try {
-    const body = (await req.json()) as { email?: unknown };
+    const body = (await req.json()) as { email?: unknown; intent?: unknown };
     email = typeof body.email === "string" ? body.email.trim() : "";
+    intent = body.intent === "early-access" ? "early-access" : "launch";
   } catch {
     return NextResponse.json({ error: "That didn't look like an email address." }, { status: 400 });
   }
@@ -37,7 +39,8 @@ export async function POST(req: Request) {
         apikey: PUBLISHABLE_KEY,
         Authorization: `Bearer ${PUBLISHABLE_KEY}`,
       },
-      body: JSON.stringify({ email, source: "plated.food" }),
+      body: JSON.stringify({ email, source: intent === "early-access" ? "plated.food/early-access" : "plated.food" }),
+      signal: AbortSignal.timeout(10_000),
     });
     if (!res.ok) {
       const text = await res.text().catch(() => "");

@@ -4,15 +4,18 @@ The website, separate from the app. Next.js in this folder; the Vercel
 project's Root Directory is `web`, so nothing above this folder is served.
 
 - `/` introduces the app with real screenshots, an interactive feature tour,
-  and household and Table stories. Early access points to the shared TestFlight
-  URL in `app/lib/store.ts`; the waitlist is for the App Store launch.
+  and household and Table stories. Marketing CTAs point to `/early-access`.
+- `/early-access` collects one email for a reviewed invitation. It explains that
+  invitations go out in batches and that invited people install through TestFlight.
 - `/privacy` is the policy. Every sentence describes the running system.
 - `/join` is the invitation landing page. A phone with Plated never sees it,
   because `/join` is in `public/.well-known/apple-app-site-association` and
   iOS opens the app straight from the link.
 - `app/api/waitlist` forwards to the `waitlist` edge function in the Supabase
-  project `plated`, which does the insert with the service role on Supabase's
-  side. The public browser receives only the publishable key, which can read
+  project `plated`, which stores the request with the service role on Supabase's
+  side. Early-access requests use `plated.food/early-access`; launch-only
+  signups retain `plated.food`. An existing launch subscriber who requests access
+  is upgraded without creating a duplicate. The public browser receives only the publishable key, which can read
   nothing on its own.
 - `/admin` is the private founder console. Supabase Auth supplies the
   invite-only account and requires a TOTP authenticator for every console
@@ -58,7 +61,8 @@ token there, change its web counterpart here; `make tokens` verifies both palett
 titles, DM Sans reading text, fine rules, flat surfaces, small rectangular
 controls, and orange primary actions. The hero is an 18-second recording of the
 actual app in Light appearance, starting on Plan at 8:18 before opening Recipes.
-Playback stops offscreen and in background tabs. A visible Play/Pause control
+The poster uses Next’s image optimizer instead of downloading the raw capture.
+Playback stops offscreen and in background tabs; autoplay also respects Data Saver. A visible Play/Pause control
 remains available; Reduced Motion keeps the Plan poster until Play is chosen.
 The masthead and footer use the Newsreader wordmark alone. The approved native
 P artwork is used for browser and touch icons.
@@ -68,8 +72,8 @@ photographs. Its copy focuses on adding your recipes and saving dishes friends
 share at your Table. It makes no claim that a cookbook comes preloaded.
 On desktop, the walkthrough keeps its phone and step navigation sticky while
 Plan, Recipes and Groceries copy scrolls on the right. IntersectionObserver
-selects the matching screen. All three images load ahead of transitions to avoid
-blank screens. On mobile, each story has its own inline app capture.
+selects the matching screen. The remaining screens load ahead once the desktop tour comes into view.
+Hidden desktop captures stay lazy on mobile. On mobile, each story has its own inline app capture.
 The Plan preview uses a real capture of Sam’s assigned Pizza Night. The native
 avatar and “Sam is cooking” label carry the collaboration story. Beneath the Plan
 description, a static, staggered group of household initials pairs each cook
@@ -81,12 +85,15 @@ Escape to close. Navigation remains usable with a keyboard and Reduced Motion.
 
 The current implementation and verification notes are in
 `../docs/website-product-story-2026-10-16/README.md`. Earlier design explorations
-remain in their dated folders. Launch-email signup is an optional native
-disclosure below the main TestFlight action.
+remain in their dated folders. Request capture is separate from invitation delivery. The founder console
+keeps addresses masked in its list, shows request purpose, and offers founder-only
+CSV downloads in batches of 100 after fresh MFA. Exports are audited and contain
+only early-access requests. Review the downloaded addresses and add selected
+people to an external testing group in App Store Connect; Apple sends invitations
+there. Downloading does not send messages or grant access.
 
 The footer includes Apple's unmodified App Store badge, explicitly marked as
-coming soon and unlinked while the configured listing returns 404. TestFlight
-remains the live install path. Set the badge's `available` prop only after the
+coming soon and unlinked while the configured listing returns 404. Invited people continue to install through TestFlight. Set the badge's `available` prop only after the
 listing is published and verified. Homepage depth and short entrance motion are
 scoped to marketing artwork; the native app's flat surface rules are unchanged.
 
@@ -103,3 +110,10 @@ stored beside the binaries.
 npm run dev
 npm run build
 ```
+
+Mobile refinement: the hero copy renders immediately; phone entry takes 450ms,
+the food composition opens once over 550ms, and tour changes fade over 200ms.
+Reduced Motion disables decorative movement and keeps the video poster until
+Play is chosen. All mobile walkthrough and Table previews share a 264px frame,
+and avatar meal/day labels use separate lines. Email fields use 16px text to
+avoid focus zoom on iOS.

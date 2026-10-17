@@ -28,7 +28,7 @@ export default function Privacy() {
           <span aria-current="page">Privacy</span>
         </nav>
         <h1 className={styles.title}>What Plated keeps, and where.</h1>
-        <p className={`${styles.updated} secondary`}>Last updated 23 September 2026</p>
+        <p className={`${styles.updated} secondary`}>Last updated 17 October 2026</p>
 
         <p className={styles.lede}>
           Plated is a dinner planner for a household. Your recipes, plans,
@@ -111,9 +111,12 @@ export default function Privacy() {
 
         <h2>On this website</h2>
         <p>
-          If you join the waitlist, plated.food stores the email address you
-          typed and the time you typed it. It is used only to announce when
-          Plated is available and remains until you ask Plated to delete it.
+          If you request early access or join the launch list, plated.food stores
+          your email address, the time you submitted it and which list you
+          requested. Early-access addresses are used to manage invitations and
+          email you about your request. Launch-list addresses are used to
+          announce when Plated is available. They remain until you ask Plated
+          to delete them.
           Write to the address at the bottom of this page to be removed.
         </p>
 

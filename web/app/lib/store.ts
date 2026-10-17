@@ -21,3 +21,7 @@ export const INSTALL_URL = TESTFLIGHT_URL;
 /// TestFlight is a different thing from the App Store and somebody who
 /// expected one and got the other has been told something untrue.
 export const INSTALL_LABEL = "Get Plated on TestFlight";
+
+// Marketing captures requests before an invitation is offered. Existing
+// household and Table invitation pages keep their direct installation path.
+export const EARLY_ACCESS_URL = "/early-access";

@@ -185,11 +185,12 @@ export function decodeWaitlist(value: unknown): AdminReadEnvelope<WaitlistDTO> {
     return {
       rows: list(root.rows).map((value) => {
         const row = record(value);
-        return { emailMasked: text(row.emailMasked), joinedAt: text(row.joinedAt) };
+        return { emailMasked: text(row.emailMasked), source: row.source === undefined ? null : nullableText(row.source), joinedAt: text(row.joinedAt) };
       }),
       totalCount: count(root.totalCount),
       nextCursor: nullableText(root.nextCursor),
       revealAvailable: false,
+      exportAvailable: root.exportAvailable === true,
       retention: text(root.retention),
     };
   });

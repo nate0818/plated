@@ -11,6 +11,7 @@ import {
 } from "../_shared/admin_auth.ts";
 import { apnsConfigured } from "../_shared/apns.ts";
 import {
+  canExportWaitlist,
   decodeOffset,
   encodeOffset,
   maskEmail,
@@ -136,18 +137,33 @@ async function people(context: AdminContext, command: AdminReadCommand) {
 async function waitlist(context: AdminContext, command: AdminReadCommand) {
   const offset = decodeOffset(command.cursor);
   const page = await context.db.from("waitlist")
-    .select("email, created_at", { count: "exact" })
+    .select("email, source, created_at", { count: "exact" })
     .order("created_at", { ascending: false })
     .range(offset, offset + command.limit - 1);
   failIf(page.error);
   const rows = page.data ?? [];
   return {
-    rows: rows.map((row) => ({ emailMasked: maskEmail(row.email), joinedAt: row.created_at })),
+    rows: rows.map((row) => ({ emailMasked: maskEmail(row.email), source: row.source ?? null, joinedAt: row.created_at })),
     totalCount: page.count ?? 0,
     nextCursor: nextCursor(offset, rows.length, page.count ?? 0),
     revealAvailable: false,
+    exportAvailable: canExportWaitlist(context.role),
     retention: "Waitlist emails remain until the person asks Plated to delete them.",
   };
+}
+
+async function waitlistExport(context: AdminContext, command: AdminReadCommand) {
+  if (!canExportWaitlist(context.role)) throw new AdminHttpError(403, "Only the founder can export access requests.");
+  const offset = decodeOffset(command.cursor);
+  const page = await context.db.from("waitlist")
+    .select("email, created_at", { count: "exact" })
+    .eq("source", "plated.food/early-access")
+    .order("created_at", { ascending: true }).order("email", { ascending: true })
+    .range(offset, offset + command.limit - 1);
+  failIf(page.error);
+  const rows = page.data ?? [];
+  return { rows: rows.map(row => ({ email: row.email, requestedAt: row.created_at })),
+    nextCursor: nextCursor(offset, rows.length, page.count ?? 0), totalCount: page.count ?? 0 };
 }
 
 async function announcements(context: AdminContext, command: AdminReadCommand) {
@@ -287,12 +303,13 @@ Deno.serve(async (req: Request) => {
     try { command = parseAdminReadCommand(JSON.parse(raw)); } catch (error) {
       throw new AdminHttpError(400, error instanceof Error ? error.message : "The read command is invalid.");
     }
-    const context = await authenticateAdmin(req, raw, "admin.read", { requestId });
+    const context = await authenticateAdmin(req, raw, "admin.read", { requestId, requireRecentTotp: command.op === "waitlist-export" });
     const { error: purgeError } = await context.db.rpc("purge_admin_ephemera");
     failIf(purgeError);
     const data = command.op === "overview" ? await overview(context)
       : command.op === "people" ? await people(context, command)
       : command.op === "waitlist" ? await waitlist(context, command)
+      : command.op === "waitlist-export" ? await waitlistExport(context, command)
       : command.op === "operations" ? await operations(context)
       : command.op === "audit" ? await auditRows(context, command)
       : command.op === "announcements" ? await announcements(context, command)

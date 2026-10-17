@@ -16,7 +16,7 @@ export const lightScreenImages: Partial<Record<AppScreen, string>> = {
 export const screenDescriptions: Record<AppScreen, string> = {
   plan: "Plated’s Plan screen with Week and Month controls, the date wheel, Salmon Night, and an assigned cook",
   recipes: "Plated’s Recipes screen with searchable saved recipes including pancakes, lemon butter salmon, and poke bowls",
-  groceries: "Plated’s Editorial Groceries screen with a shopping window, pantry controls, and a Reminders action",
+  groceries: "Plated’s shared grocery list with a shopping window, pantry controls, and a Reminders action",
   table: "Plated’s private Table screen with an invite-only audience and a pancake dinner shared with friends",
 };
 

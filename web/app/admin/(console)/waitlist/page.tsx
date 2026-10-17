@@ -1,4 +1,5 @@
 import Link from "next/link";
+import AccessExport from "../../components/AccessExport";
 import { decodeWaitlist } from "../../../lib/admin/decode";
 import { loadAdminPageData } from "../../../lib/admin/page-data";
 import styles from "../../admin.module.css";
@@ -17,9 +18,9 @@ export default async function WaitlistPage({ searchParams }: { searchParams: Pro
       {!result.ok ? <ServiceError result={result} /> : (
         <>
           <div className={styles.metricGridThree}>
-            <Metric label="Waiting" value={formatCount(result.data.data.totalCount)} detail="Stored addresses" />
-            <Metric label="Raw address access" value="Unavailable" detail="Masked here" />
-            <Metric label="Trend analytics" value="Unavailable" detail="No source connected" />
+            <Metric label="Saved addresses" value={formatCount(result.data.data.totalCount)} detail="Requests and launch signups" />
+            <Metric label="Invitations" value="By email" detail="Reviewed in batches" />
+            <Metric label="Address access" value="Protected" detail="Founder export with fresh MFA" />
           </div>
           <div className={styles.twoColumnWide}>
             <section className={styles.tablePanel} aria-labelledby="waitlist-table-title">
@@ -28,15 +29,20 @@ export default async function WaitlistPage({ searchParams }: { searchParams: Pro
                 <div className={styles.tableScroll}>
                   <table className={styles.table}>
                     <thead><tr><th>Email</th><th>Source</th><th>Joined</th></tr></thead>
-                    <tbody>{result.data.data.rows.map((row) => <tr key={`${row.emailMasked}:${row.joinedAt}`}><td><strong>{row.emailMasked}</strong></td><td>Not recorded</td><td>{formatWhen(row.joinedAt)}</td></tr>)}</tbody>
+                    <tbody>{result.data.data.rows.map((row) => <tr key={`${row.emailMasked}:${row.joinedAt}`}><td><strong>{row.emailMasked}</strong></td><td>{row.source === "plated.food/early-access" ? "Early access" : row.source === "plated.food" ? "Launch list" : row.source ?? "Not recorded"}</td><td>{formatWhen(row.joinedAt)}</td></tr>)}</tbody>
                   </table>
                 </div>
               )}
               <footer className={styles.tableFooter}>
-                <p>Raw addresses remain available only to the server workflow that sends the launch notice or fulfills deletion requests.</p>
+                <p>Addresses stay masked in this view. The founder can download early-access requests after confirming MFA.</p>
                 {result.data.data.nextCursor ? <Link className={styles.panelLink} href={`/admin/waitlist?cursor=${encodeURIComponent(result.data.data.nextCursor)}`}>Next page</Link> : null}
               </footer>
             </section>
+            <Panel title="Invite a batch">
+              {result.data.data.exportAvailable ? <AccessExport /> : <p className={styles.smallMuted}>Request downloads are available to the founder after fresh MFA.</p>}
+              <p className={styles.smallMuted}>Review the downloaded addresses, then add the people you choose to an external testing group in App Store Connect. Apple sends the invitation; downloading a list does not send one.</p>
+              <a className={styles.panelLink} href="https://developer.apple.com/help/app-store-connect/test-a-beta-version/invite-external-testers/" target="_blank" rel="noreferrer">Apple’s invitation guide ↗</a>
+            </Panel>
             <Panel title="Retention">
               <p className={styles.bodyMuted}>{result.data.data.retention}</p>
               <p className={styles.smallMuted}>Deletion requests go through the privacy inbox.</p>

@@ -1,9 +1,9 @@
 const OPS = new Set([
-  "overview", "people", "waitlist", "operations", "audit", "announcements", "releases",
+  "overview", "people", "waitlist", "waitlist-export", "operations", "audit", "announcements", "releases",
 ]);
 
 export type AdminReadOp =
-  | "overview" | "people" | "waitlist" | "operations" | "audit"
+  | "overview" | "people" | "waitlist" | "waitlist-export" | "operations" | "audit"
   | "announcements" | "releases";
 
 export interface AdminReadCommand {
@@ -51,3 +51,5 @@ export function maskEmail(raw: unknown): string {
   const suffix = dot > 0 ? domain.slice(dot) : "";
   return `${local[0]}${"•".repeat(Math.min(3, Math.max(1, local.length - 1)))}@${domainName[0] ?? "•"}••${suffix}`;
 }
+
+export function canExportWaitlist(role: string): boolean { return role === "founder"; }

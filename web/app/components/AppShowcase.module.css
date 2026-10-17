@@ -1,7 +1,7 @@
 .preview { width: 326px; max-width: 100%; margin-inline: auto; }
 .screenButton { display: block; width: 100%; min-width: 0; padding: 0; border: 0; background: none; font-weight: 400; cursor: zoom-in; }
 .capture { display: block; padding: 7px; border: 1px solid var(--ink-secondary); border-radius: 36px; background: var(--raised-fill); overflow: hidden; }
-.capture img { width: 100%; height: auto; border-radius: 28px; }
+.capture img { display: block; width: 100%; height: auto; border-radius: 28px; }
 .screenButton:hover .capture { border-color: var(--ink); }
 .compact { width: 300px; }
 .dialog { position: fixed; inset: 0; margin: auto; width: min(540px, calc(100% - 32px)); max-height: calc(100svh - 32px); border: 1px solid var(--hairline); border-radius: 8px; padding: 0; background: var(--canvas); color: var(--ink); overscroll-behavior: contain; }
@@ -27,3 +27,7 @@
   .screenControls { gap: 6px; }
   .screenControls button { font-size: 12px; padding-inline: 5px; }
 }
+
+.dialog[open] { animation: openPreview 180ms ease-out; }
+@keyframes openPreview { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .dialog[open] { animation: none; } }
