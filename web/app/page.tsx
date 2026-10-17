@@ -1,8 +1,8 @@
-import Image from "next/image";
 import Link from "next/link";
 import AppShowcase from "./components/AppShowcase";
 import AppStoreBadge from "./components/AppStoreBadge";
 import FoodGallery from "./components/FoodGallery";
+import HeroPreview from "./components/HeroPreview";
 import ProductTour from "./components/ProductTour";
 import WaitlistForm from "./components/WaitlistForm";
 import Wordmark from "./components/Wordmark";
@@ -16,7 +16,7 @@ const questions = [
   },
   {
     question: "Can I use my own recipes?",
-    answer: <>Save a recipe from a link or add one yourself. You can also start with the sample cookbook. Your household shares the same recipe book.</>,
+    answer: <>Yes. Save a recipe from a link or add one yourself. You can also save recipes friends share at your Table. Your household shares the same recipe book.</>,
   },
   {
     question: "What does my household share?",
@@ -37,7 +37,7 @@ export default function Home() {
     <a className={styles.skip} href="#main">Skip to content</a>
     <header className={styles.header}>
       <div className={styles.headerInner}>
-        <Link className={styles.homeLink} href="/" aria-label="Plated home"><Image src="/brand/plated-mark.png" alt="" width={56} height={56} priority /><Wordmark size={36} /></Link>
+        <Link className={styles.homeLink} href="/" aria-label="Plated home"><Wordmark size={34} /></Link>
         <nav className={styles.navigation} aria-label="Main navigation">
           <a href="#recipes">The food</a>
           <a href="#how-it-works">How it works</a>
@@ -52,7 +52,7 @@ export default function Home() {
         <div className={styles.heroCopy}>
           <h1 className={styles.eyebrow}>The meal planner for your household</h1>
           <h2 id="hero-title" className={styles.heroTitle}>Dinner plans.<br />Made together.</h2>
-          <p className={styles.heroDescription}>Save recipes, plan meals, and share the shopping. Your whole household can see what&rsquo;s for dinner and who&rsquo;s cooking.</p>
+          <p className={styles.heroDescription}>Decide what&rsquo;s for dinner, who&rsquo;s cooking, and what to pick up. One shared plan for your whole household.</p>
           <div className={styles.heroActions}>
             <a className={styles.primaryAction} href={INSTALL_URL}>Try Plated on TestFlight <Arrow /></a>
             <a className={styles.secondaryAction} href="#how-it-works">See how it works</a>
@@ -60,7 +60,7 @@ export default function Home() {
           <p className={styles.availability}>Early access for iPhone and iPad</p>
         </div>
         <div className={styles.heroProduct}>
-          <AppShowcase screen="recipes" priority featured />
+          <HeroPreview />
         </div>
       </section>
 
@@ -69,8 +69,8 @@ export default function Home() {
       <section id="how-it-works" className={styles.product} aria-labelledby="product-title">
         <div className={styles.productHeading}>
           <p className={styles.category}>How Plated works</p>
-          <h2 id="product-title">A dinner plan<br />you can all share.</h2>
-          <p>Recipes, plans, and groceries in one shared place.<br className={styles.desktopBreak} /> So the organising doesn&rsquo;t always fall to one person.</p>
+          <h2 id="product-title">Share the plan.<br />Share the cooking.</h2>
+          <p>Choose dinner together. Give each night a cook.<br className={styles.desktopBreak} /> Keep everyone in the loop, from the recipe to the shopping.</p>
         </div>
         <ProductTour />
       </section>
@@ -88,7 +88,7 @@ export default function Home() {
         </div>
         <figure className={styles.tableVisual}>
           <AppShowcase screen="table" compact />
-          <figcaption>A meal shared to the sample household&rsquo;s Table</figcaption>
+          <figcaption>Share a dish with your Table</figcaption>
         </figure>
       </section>
 
@@ -116,7 +116,7 @@ export default function Home() {
     </main>
 
     <footer className={styles.footer}>
-      <div className={styles.footerBrand}><Link href="/" aria-label="Plated home"><Image src="/brand/plated-mark.png" alt="" width={48} height={48} /><Wordmark size={36} /></Link><p>A shared plan for the food<br />and people you love.</p></div>
+      <div className={styles.footerBrand}><Link href="/" aria-label="Plated home"><Wordmark size={34} /></Link><p>A shared plan for the food<br />and people you love.</p></div>
       <nav aria-label="Footer navigation"><a href="#recipes">The food</a><a href="#how-it-works">How it works</a><a href="#questions">Questions</a><Link href="/privacy">Privacy</Link></nav>
       <div className={styles.footerNote}><AppStoreBadge /><span>© {new Date().getFullYear()} Plated</span></div>
     </footer>

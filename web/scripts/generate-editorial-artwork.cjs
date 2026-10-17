@@ -27,7 +27,7 @@ async function main() {
   const [editorial, sans, css, screen, mark] = await Promise.all([
     regularOutlines("Newsreader.ttf"), regularOutlines("DMSans.ttf"),
     fs.readFile(path.join(root, "app/globals.css"), "utf8"),
-    fs.readFile(path.join(root, "public/app/editorial-recipes-light-current.png")),
+    fs.readFile(path.join(root, "public/app/plan-light-818.png")),
     fs.readFile(path.join(root, "public/brand/plated-mark.png")),
   ]);
   const token = name => {
@@ -42,7 +42,7 @@ async function main() {
   // ImageResponse's image reader accepts PNG, not the website's WebP assets.
   const screenPng = await sharp(screen).png().toBuffer();
   const render = async (tree, width, height) => Buffer.from(await new ImageResponse(tree, { width, height, fonts }).arrayBuffer());
-  const icon = size => sharp(mark).resize(size, size).png().toBuffer();
+  const icon = size => sharp(mark).resize(size, size).ensureAlpha().png().toBuffer();
   const [small, apple] = await Promise.all([icon(64), icon(180)]);
   const ico = Buffer.alloc(22);
   ico.writeUInt16LE(1, 2); ico.writeUInt16LE(1, 4);
@@ -54,8 +54,7 @@ async function main() {
     color: token("ink"), padding: "54px 64px", fontFamily: "Sans", justifyContent: "space-between",
   } },
     el("div", { style: { display: "flex", flexDirection: "column", width: 650 } },
-      el("div", { style: { display: "flex", alignItems: "center", gap: 4, marginLeft: -12, fontFamily: "Editorial", fontSize: 42 } },
-        el("img", { src: `data:image/png;base64,${mark.toString("base64")}`, width: 64, height: 64 }), "Plated"),
+      el("div", { style: { display: "flex", fontFamily: "Editorial", fontSize: 42 } }, "Plated"),
       el("div", { style: { display: "flex", flexDirection: "column", marginTop: 65, fontFamily: "Editorial", fontSize: 86, lineHeight: 1 } },
         el("div", null, "Dinner plans."), el("div", null, "Made together.")),
       el("div", { style: { marginTop: 34, fontSize: 24, color: token("ink-secondary") } }, "A shared meal plan, recipe book, and grocery list for your household."),

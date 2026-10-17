@@ -8,6 +8,11 @@ export const screenImages: Record<AppScreen, string> = {
   groceries: "/app/editorial-groceries-current.png",
   table: "/app/editorial-table-current.png",
 };
+export const lightScreenImages: Partial<Record<AppScreen, string>> = {
+  plan: "/app/plan-light-818.png",
+  recipes: "/app/recipes-light-818.png",
+  groceries: "/app/groceries-light-818.png",
+};
 export const screenDescriptions: Record<AppScreen, string> = {
   plan: "Plated’s Plan screen with Week and Month controls, the date wheel, Salmon Night, and an assigned cook",
   recipes: "Plated’s Recipes screen with searchable saved recipes including pancakes, lemon butter salmon, and poke bowls",

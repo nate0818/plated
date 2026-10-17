@@ -3,11 +3,6 @@
 .capture { display: block; padding: 7px; border: 1px solid var(--ink-secondary); border-radius: 36px; background: var(--raised-fill); overflow: hidden; }
 .capture img { width: 100%; height: auto; border-radius: 28px; }
 .screenButton:hover .capture { border-color: var(--ink); }
-.featured { animation: float 8s ease-in-out infinite; transform-origin: center; }
-.featured .capture { border-color: #707668; background: #262A23; box-shadow: 0 30px 70px rgb(0 0 0 / .28), 0 5px 16px rgb(0 0 0 / .18); }
-.featured:hover, .featured:focus-within { animation-play-state: paused; }
-@keyframes float { 0%, 100% { transform: translateY(0) rotate(-2deg); } 50% { transform: translateY(-9px) rotate(-1deg); } }
-@media (prefers-reduced-motion: reduce) { .featured { animation: none; transform: none; } }
 .compact { width: 300px; }
 .dialog { position: fixed; inset: 0; margin: auto; width: min(540px, calc(100% - 32px)); max-height: calc(100svh - 32px); border: 1px solid var(--hairline); border-radius: 8px; padding: 0; background: var(--canvas); color: var(--ink); overscroll-behavior: contain; }
 .dialog::backdrop { background: rgb(0 0 0 / .78); }

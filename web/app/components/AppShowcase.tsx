@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useId, useRef, useState } from "react";
-import { type AppScreen, screenDescriptions, screenImages } from "./PhoneScreenshot";
+import { type AppScreen, lightScreenImages, screenDescriptions, screenImages } from "./PhoneScreenshot";
 import styles from "./AppShowcase.module.css";
 
 const screens: { screen: AppScreen; label: string }[] = [
@@ -12,11 +12,13 @@ const screens: { screen: AppScreen; label: string }[] = [
   { screen: "table", label: "Table" },
 ];
 
-export default function AppShowcase({ screen = "plan", priority = false, compact = false, featured = false }: { screen?: AppScreen; priority?: boolean; compact?: boolean; featured?: boolean }) {
+export default function AppShowcase({ screen = "plan", priority = false, eager = false, compact = false, appearance = "editorial", capture }: { screen?: AppScreen; priority?: boolean; eager?: boolean; compact?: boolean; appearance?: "editorial" | "light"; capture?: { src: string; alt: string } }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const titleId = useId();
   const [selected, setSelected] = useState(0);
   const current = screens[selected];
+  const imageFor = (name: AppScreen) => name === screen && capture ? capture.src : appearance === "light" ? lightScreenImages[name] ?? screenImages[name] : screenImages[name];
+  const descriptionFor = (name: AppScreen) => name === screen && capture ? capture.alt : screenDescriptions[name];
 
   function open(index: number) {
     setSelected(index);
@@ -24,10 +26,10 @@ export default function AppShowcase({ screen = "plan", priority = false, compact
   }
 
   return <>
-    <div className={`${styles.preview} ${compact ? styles.compact : ""} ${featured ? styles.featured : ""}`}>
+    <div className={`${styles.preview} ${compact ? styles.compact : ""}`}>
       <button className={styles.screenButton} onClick={() => open(screens.findIndex(item => item.screen === screen))} aria-label={`Enlarge Plated’s ${screens.find(item => item.screen === screen)?.label} screen`} aria-haspopup="dialog">
         <span className={styles.capture}>
-          <Image src={featured ? "/app/editorial-recipes-light-current.png" : screenImages[screen]} alt={featured ? "Plated’s recipe book in Light appearance, with saved recipes and food photography" : screenDescriptions[screen]} width={1206} height={2622} sizes="(max-width: 760px) 280px, 320px" priority={priority} loading={priority ? "eager" : "lazy"} />
+          <Image src={imageFor(screen)} alt={descriptionFor(screen)} width={1206} height={2622} sizes="(max-width: 760px) 280px, 320px" priority={priority} loading={priority || eager ? "eager" : "lazy"} />
         </span>
       </button>
     </div>
@@ -53,7 +55,7 @@ export default function AppShowcase({ screen = "plan", priority = false, compact
           {screens.map((item, index) => <button key={item.screen} aria-pressed={index === selected} onClick={() => setSelected(index)}>{item.label}</button>)}
         </div>
         <div className={styles.fullScreen}>
-          <Image src={featured && current.screen === "recipes" ? "/app/editorial-recipes-light-current.png" : screenImages[current.screen]} alt={featured && current.screen === "recipes" ? "Plated’s recipe book in Light appearance" : screenDescriptions[current.screen]} width={1206} height={2622} sizes="300px" />
+          <Image src={imageFor(current.screen)} alt={descriptionFor(current.screen)} width={1206} height={2622} sizes="300px" />
         </div>
         <p className={styles.dialogNote} aria-live="polite">{current.label} screen, {selected + 1} of {screens.length}</p>
       </div>
