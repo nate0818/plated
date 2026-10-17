@@ -205,7 +205,16 @@ struct MainShellView: View {
                     }
                 }
             case .table: resetTab(.table)
-            case .cookbook: resetTab(.cookbook)
+            case .cookbook:
+                resetTab(.cookbook)
+                if let id = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "id" })?.value {
+                    if let recipe = recipes.first(where: { $0.shareRecordName == id }) {
+                        Task { @MainActor in
+                            await Task.yield()
+                            LinkRelay.request(recipe: recipe)
+                        }
+                    } else { showToast("This recipe is no longer in your cookbook.") }
+                }
             case .cook:
                 // A timer may arrive while a retained recipe detail or the
                 // Activity list covers Recipes. Clear that route first; if
@@ -374,7 +383,7 @@ struct MainShellView: View {
             resumePendingCookIfPossible()
         }) { recipe in
             let session = ledger.session(for: recipe)
-            CookingFocusView(recipe: recipe, meal: meals.first { session?.mealID != nil && $0.shoppingID == session?.mealID }, servings: session?.servings ?? recipe.servings)
+            CookingFocusView(recipe: recipe, meal: meals.first { session?.mealID != nil && $0.shoppingID == session?.mealID }, servings: session?.servings ?? recipe.servings, remotePlanID: session?.remotePlanID)
                 .onAppear { cookResumeIntent.coverAppeared() }
         }
         .onReceive(NotificationCenter.default.publisher(for: .platedCreateRequested)) { _ in

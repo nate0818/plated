@@ -2,22 +2,9 @@ import UIKit
 import SwiftData
 import LinkPresentation
 
-/// Everything a recipe becomes when it leaves the cookbook.
-///
-/// There are three audiences and they are genuinely different places, so
-/// the sheet names them rather than hiding them behind one "Share":
-///
-/// - **Your Table.** A `TablePost` like any other. Your household sees it,
-///   and so does anyone holding a seat. Private, and it stays private.
-/// - **Discover.** The same post stamped `isDiscover`, which every table on
-///   Plated can read. Public. Worded as public at the point of choosing,
-///   because a recipe you can't unshare is not a thing to discover after.
-/// - **Off Plated entirely.** Messages, Mail, Instagram, Pinterest, X, the
-///   printer. Those ride the system share sheet rather than four
-///   hand-written integrations, for the reason Apple's own apps do it:
-///   every one of those targets is already in there, they update
-///   themselves, and a bespoke Instagram button is a thing that breaks on
-///   somebody else's release schedule for no gain the cook can see.
+/// Full-recipe exports for Messages, the clipboard, printing and other apps.
+/// Table dish posts use the regular composer, which resolves their audience
+/// and saves the photo/description with an acknowledged local result.
 enum RecipeShare {
 
     /// A shared recipe carries no link at all, deliberately.
@@ -28,63 +15,7 @@ enum RecipeShare {
     /// something you give on purpose, from Seats, to a person you named.
     /// And it cannot carry a marketing URL until one exists that is ours.
 
-    // MARK: On Plated
-
-    enum Audience {
-        /// Your household and everyone seated at your table.
-        case table
-        /// Every table on Plated.
-        case discover
-
-        var isDiscover: Bool { self == .discover }
-    }
-
-    /// Put the recipe on the Table as a dish post.
-    ///
-    /// Mirrors `TableComposerSheet.post()` rather than inventing a second
-    /// shape of post: the feed, the plate count and the thread all key on
-    /// `kind == "dish"`, and a recipe arriving by a different door should
-    /// still be an ordinary post when it lands.
-    @MainActor
-    @discardableResult
-    static func post(
-        _ recipe: Recipe, to audience: Audience,
-        by owner: HouseholdMember?, into context: ModelContext
-    ) -> TablePost {
-        let post = TablePost(
-            authorName: owner?.name ?? "Me",
-            authorColorHex: owner?.colorHex ?? "FF5A3C",
-            dishTitle: recipe.title,
-            caption: recipe.summary,
-            kind: "dish",
-            isDiscover: audience.isDiscover,
-            photoData: recipe.photoData
-        )
-        context.insert(post)
-
-        // Out to the table's zone, if there is one. Not awaited, for the
-        // same reason the composer doesn't await it: the post is already
-        // saved locally and already on screen, and a slow upload must never
-        // hold a sheet open.
-        let hostName = owner?.name ?? ""
-        Task { @MainActor in
-            if let name = await TableShare.publish(post, hostName: hostName) {
-                post.shareRecordName = name
-                Persist.save(context, "publish shared recipe")
-            }
-        }
-
-        // Discover is not the household's business — telling everyone at
-        // home that a dish went public is noise about a room they aren't in.
-        if audience == .table {
-            Notifier.post(
-                .general, actor: owner?.name ?? "Me",
-                body: "You put \(recipe.title.isEmpty ? "a recipe" : recipe.title) on the Table.",
-                into: context
-            )
-        }
-        return post
-    }
+    // Dish posts use TableComposerSheet for destination selection and checked saves.
 
     // MARK: Off Plated
 
@@ -114,6 +45,10 @@ enum RecipeShare {
             lines.append("")
             lines.append("Method")
             lines.append(contentsOf: recipe.steps.enumerated().map { "\($0 + 1). \($1)" })
+        } else if !recipe.instructions.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            lines.append("")
+            lines.append("Method")
+            lines.append(recipe.instructions)
         }
         if includeSource {
             lines.append("")

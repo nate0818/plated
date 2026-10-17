@@ -1,13 +1,6 @@
 import SwiftUI
 
-/// Dish square + title + avatar + who-line, for a filled Plan row.
-///
-/// The square's top is the meal title's top and its bottom is the who-line
-/// avatar's bottom — the full vertical stack, cover-cropped, no float and
-/// no letterbox. Growing the square to match is the fail-closed move;
-/// shrinking the face or inventing Plan chrome is not. Meal title
-/// ellipsizes first; the who-line is allowed to wrap rather than truncate
-/// mid-word.
+/// Artwork has independent geometry so text reflow cannot enlarge it recursively.
 struct PlanFilledMealStack<Face: View>: View {
     var photo: Data?
     var title: String
@@ -22,18 +15,24 @@ struct PlanFilledMealStack<Face: View>: View {
     var today = false
     @ViewBuilder var face: () -> Face
 
+    @Environment(\.dynamicTypeSize) private var typeSize
+
     var body: some View {
-        PlanPhotoStackLayout(spacing: 10) {
+        let layout = typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 10))
+            : AnyLayout(HStackLayout(alignment: .top, spacing: 10))
+        layout {
             PlanDishSquare(
                 photo: photo,
                 eatingOut: eatingOut,
                 well: onFill ? Color.canvas : Color.fill
             )
+            .frame(width: featured ? 72 : 56, height: featured ? 72 : 56)
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
                     .plType(featured ? .heading : .callout, .semibold, family: .text)
                     .foregroundStyle(Color.ink)
-                    .lineLimit(1)
+                    .fixedSize(horizontal: false, vertical: true)
                 HStack(alignment: .center, spacing: 6) {
                     face()
                     Text(whoLine)
@@ -45,6 +44,7 @@ struct PlanFilledMealStack<Face: View>: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 }
@@ -83,61 +83,5 @@ private struct PlanDishSquare: View {
             .clipShape(Radius.shape(Radius.small))
             .contentShape(Radius.shape(Radius.small))
             .accessibilityHidden(true)
-    }
-}
-
-/// Two children: the dish (0) and the text stack (1). The dish is a square
-/// whose side equals the stack's height, top-aligned with the title.
-///
-/// `SwiftUI.Layout`, not `Layout`: Theme.swift already owns that name for
-/// chrome insets, and CookbookView's `FlowLayout` is the same qualification.
-struct PlanPhotoStackLayout: SwiftUI.Layout {
-    var spacing: CGFloat = 10
-
-    func sizeThatFits(proposal: ProposedViewSize, subviews: LayoutSubviews, cache: inout ()) -> CGSize {
-        guard subviews.count == 2 else { return .zero }
-        let stack = subviews[1]
-        let proposedWidth = proposal.width
-        var photo: CGFloat = 44
-        var stackSize = CGSize.zero
-        for _ in 0..<6 {
-            let stackWidth: CGFloat?
-            if let proposedWidth, proposedWidth.isFinite, proposedWidth > 0 {
-                stackWidth = max(0, proposedWidth - photo - spacing)
-            } else {
-                stackWidth = nil
-            }
-            stackSize = stack.sizeThatFits(
-                ProposedViewSize(width: stackWidth, height: proposal.height)
-            )
-            let next = max(stackSize.height, 1)
-            if abs(next - photo) < 0.5 { break }
-            photo = next
-        }
-        let height = max(photo, stackSize.height)
-        let width: CGFloat
-        if let proposedWidth, proposedWidth.isFinite, proposedWidth > 0 {
-            width = proposedWidth
-        } else {
-            width = photo + spacing + stackSize.width
-        }
-        return CGSize(width: width, height: height)
-    }
-
-    func placeSubviews(
-        in bounds: CGRect, proposal: ProposedViewSize, subviews: LayoutSubviews, cache: inout ()
-    ) {
-        guard subviews.count == 2 else { return }
-        let photo = bounds.height
-        subviews[0].place(
-            at: bounds.origin,
-            proposal: ProposedViewSize(width: photo, height: photo)
-        )
-        let stackX = bounds.minX + photo + spacing
-        let stackWidth = max(0, bounds.maxX - stackX)
-        subviews[1].place(
-            at: CGPoint(x: stackX, y: bounds.minY),
-            proposal: ProposedViewSize(width: stackWidth, height: nil)
-        )
     }
 }

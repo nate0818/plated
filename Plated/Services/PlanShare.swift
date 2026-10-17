@@ -225,7 +225,8 @@ enum PlanShare {
     /// participant id, or this phone's own id when the cook is the owner,
     /// or "" so a reader never guesses; `cookName` is blank for an invited
     /// seat, because a name typed five seconds ago is not a cook.
-    /// `recipeOriginKey` is the recipe's `originID`, "" for every
+    /// `recipeOriginKey` retains imported origins and uses a stable household
+    /// recipe key for home-written recipes. Earlier records used "" for every
     /// home-written recipe, and an empty key never matches anything.
     static func plan(
         for meal: PlannedMeal, me: String,
@@ -249,7 +250,7 @@ enum PlanShare {
             servings: meal.servings, tagline: meal.tagline,
             cooked: meal.cookedAt != nil, cookedAt: meal.cookedAt,
             hasRecipe: recipe != nil, recipeMinutes: recipe?.totalMinutes ?? 0,
-            recipeOriginKey: recipe?.originID ?? "",
+            recipeOriginKey: recipe?.planningKey ?? "",
             createdAt: meal.createdAt, photoData: recipe?.photoData,
             lines: groceryLines(for: meal)
         )
@@ -1005,6 +1006,8 @@ enum PlanShare {
         var createdAt: Date = .now
         var title: String?
         var servings: Int?
+        var cooked: Bool?
+        var cookedAt: Date?
         var tagline: String?
         var cookID: String?
         var cookName: String?
@@ -1156,6 +1159,8 @@ enum PlanShare {
             entry.tries = waiting.tries
             entry.title = edit.title ?? waiting.title
             entry.servings = edit.servings ?? waiting.servings
+            entry.cooked = edit.cooked ?? waiting.cooked
+            entry.cookedAt = edit.cookedAt ?? waiting.cookedAt
             entry.tagline = edit.tagline ?? waiting.tagline
             entry.cookID = edit.cookID ?? waiting.cookID
             entry.cookName = edit.cookName ?? waiting.cookName
@@ -1567,6 +1572,8 @@ enum PlanShare {
             record["parent"] = CKRecord.Reference(recordID: rootID, action: .deleteSelf)
             record.setParent(rootID)
         }
+        if let cooked = edit.cooked { record["cooked"] = (cooked ? 1 : 0) as CKRecordValue }
+        if let cookedAt = edit.cookedAt { record["cookedAt"] = cookedAt as CKRecordValue }
         if let title = edit.title { record["title"] = title as CKRecordValue }
         if let servings = edit.servings {
             // Read before the overwrite: `record` IS `existing` here.

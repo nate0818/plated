@@ -116,7 +116,7 @@ Relabelling it to what it counts ("dishes you saved") makes it honest but
 turns a social signal into a personal one. Removing it is a product decision.
 Leaving it is the only option that is definitely wrong.
 
-**Decided:** relabelled to "Dishes you saved".
+**Decided:** relabelled to "Dishes you saved". The 16 October 2026 UX repairs also rename the household and personal sharing badges to "Saved here", state that saves are recorded on this device, and use the whole local ledger for the household total. Household dinner counts now require an explicit cooked mark and merge available local/shared records by night identity; they are not an inferred lifetime count.
 
 ## 4. `safeAreaBar` and the scroll edge effect
 

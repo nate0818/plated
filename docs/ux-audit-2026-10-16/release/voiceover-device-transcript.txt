@@ -1,0 +1,126 @@
+SCREEN -plated-tab week
+selected Plated Plan Button Return to the top of Plan
+BEGIN plan
+Recipes Button Open Recipes
+Groceries Button Open Groceries
+Table Button Open Table
+Plated
+Add Button Add a recipe, Table post or question
+Notifications No unread notifications Button Shows activity at your table
+Your profile Button Opens your profile, household and settings.
+Hi, Nate Heading
+Calendar Button
+TONIGHT · OCT 17
+Dinner options Button Pop up button Double tap to activate the picker
+Bowl, Green Beans, Plate, Quinoa, Textile, Tomato
+You're cooking
+Change servings and cook Button
+Start cooking Button
+SCREEN -plated-tab cookbook
+Plated Plan Button Open Plan
+BEGIN recipes
+selected Recipes Button Return to the top of Recipes
+Groceries Button Open Groceries
+Table Button Open Table
+Plated
+Add Button Add a recipe, Table post or question
+Notifications No unread notifications Button Shows activity at your table
+Your profile Button Opens your profile, household and settings.
+The recipe book Heading
+Search
+Find a dish or ingredient Text field Double tap to edit.
+SCREEN -plated-tab groceries
+Plated Plan Button Open Plan
+BEGIN groceries
+Recipes Button Open Recipes
+selected Groceries Button Return to the top of Groceries
+Table Button Open Table
+Plated
+Add Button Add a recipe, Table post or question
+Notifications No unread notifications Button Shows activity at your table
+Your profile Button Opens your profile, household and settings.
+Groceries Heading
+Shopping window, Oct 17–23, edit options Button
+PRODUCE
+Asparagus, 1 bunch To buy Button Actions available
+SCREEN -plated-tab table
+Plated Plan Button Open Plan
+BEGIN table
+Recipes Button Open Recipes
+Groceries Button Open Groceries
+selected Table Button Return to the top of Table
+Plated
+Add Button Add a recipe, Table post or question
+Notifications No unread notifications Button Shows activity at your table
+Your profile Button Opens your profile, household and settings.
+The Table Heading
+Private to your Table. Invite only. 3 people. Shows who can see posts
+selected Your Table Button
+Household Button
+Sam Meadows, Today · 9:07 AM Shows Sam's profile
+More options for Pancake Dinner Button Pop up button Double tap to activate the picker
+SCREEN -plated-open-thread
+Plated Back Button
+BEGIN thread
+Save Button
+Safety options for this post Button Pop up button Double tap to activate the picker
+Your profile Button Opens your profile, household and settings.
+SM , Sam Meadows Button
+Pancake Dinner Heading
+  Image
+Plate this dish 0 plates Button
+Breakfast for dinner. Zero regrets, full syrup.
+COMMENTS · 3
+Grandma Button
+1 hr. ago
+More options for Grandma's comment Button Pop up button Double tap to activate the picker
+This is the recipe I told you about.
+cooking.nytimes.com Link
+Reply Button
+Riley Button
+1 hr. ago
+More options for Riley's comment Button Pop up button Double tap to activate the picker
+Best dinner of the week and it isn't close
+Reply Button
+Dan Alvarez Button
+40 min. ago
+More options for Dan Alvarez's comment Button Pop up button Double tap to activate the picker
+Syrup-to-pancake ratio is elite here
+Reply Button
+Add attachment or mention Button
+Add a comment… Text field Double tap to edit. Use the rotor to access Misspelled Words
+SCREEN -plated-open-profile -plated-open-edit-profile
+Alert!
+BEGIN profile
+Cancel Button
+Edit profile Heading
+[Unrelated system notification omitted]
+Add banner photo Button
+YOUR NAME
+Nate Text field Double tap to edit.
+Alert!
+A short line about you Text field Double tap to edit. Use the rotor to access Misspelled Words
+INGREDIENTS TO AVOID
+For example: peanuts, sesame Text field Double tap to edit. Use the rotor to access Misspelled Words
+Separate with commas. Plated skips matching recipes in suggestions. This list cannot verify allergy safety, so check every recipe and package.
+Apple doesn't share your Apple ID photo with apps.
+Save Button
+SCREEN -plated-review-plan-night -plated-review-gathering
+Plated Sheet Grabber Expanded Button Double tap to dismiss sheet.
+BEGIN gathering
+[Unrelated system notification omitted]
+Close Button
+PLAN A GATHERING
+Sunday, Oct 11
+Sunday dinner party Text field Double tap to edit.
+Our place Text field Double tap to edit.
+Guests
+One fewer guest Button
+4
+One more guest Button
+Starts at
+Starts at Time Picker 6:00 PM Button Collapsed Double-tap to expand
+Apple Calendar
+Save an event to your calendar. Add guests there.
+Alert!
+Save gathering dimmed Button

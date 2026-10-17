@@ -1,0 +1,4 @@
+Query chain:
+ →Find: Application 'com.natemeadows.plated'
+  ↪︎Find: Descendants matching type Button
+    ↪︎Find: Elements matching predicate '"Done" IN identifiers'

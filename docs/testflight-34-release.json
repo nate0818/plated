@@ -1,0 +1,60 @@
+{
+  "version": "1.0.1",
+  "build": "34",
+  "archive": "build/releases/34/Plated.xcarchive",
+  "ipa": "build/releases/34/export/Plated.ipa",
+  "ipaSHA256": "4e7d81532b39c1689b0b6517e429ccf2fa4e9ac7553eccadd0e7b1cfdd0210de",
+  "binaryAndDSYMUUID": "314461D6-1EE3-3DCF-90B9-96A022DE89A6",
+  "sourceUnchangedDuringArchive": true,
+  "signatureVerification": "passed",
+  "privacyManifestValidation": "passed",
+  "targets": [
+    {
+      "bundle": "com.natemeadows.plated",
+      "version": "1.0.1",
+      "build": "34",
+      "entitlements": {
+        "application-identifier": "JA9M6TYXYL.com.natemeadows.plated",
+        "aps-environment": "production",
+        "beta-reports-active": true,
+        "com.apple.developer.applesignin": [
+          "Default"
+        ],
+        "com.apple.developer.associated-domains": [
+          "applinks:plated.food"
+        ],
+        "com.apple.developer.icloud-container-environment": "Production",
+        "com.apple.developer.icloud-container-identifiers": [
+          "iCloud.com.natemeadows.plated"
+        ],
+        "com.apple.developer.icloud-services": [
+          "CloudKit"
+        ],
+        "com.apple.developer.team-identifier": "JA9M6TYXYL",
+        "com.apple.developer.ubiquity-kvstore-identifier": "JA9M6TYXYL.com.natemeadows.plated",
+        "com.apple.developer.usernotifications.communication": true,
+        "com.apple.developer.usernotifications.time-sensitive": true,
+        "com.apple.developer.weatherkit": true,
+        "com.apple.security.application-groups": [
+          "group.com.natemeadows.plated"
+        ],
+        "get-task-allow": false
+      }
+    },
+    {
+      "bundle": "com.natemeadows.plated.widgets",
+      "version": "1.0.1",
+      "build": "34",
+      "entitlements": {
+        "application-identifier": "JA9M6TYXYL.com.natemeadows.plated.widgets",
+        "beta-reports-active": true,
+        "com.apple.developer.team-identifier": "JA9M6TYXYL",
+        "com.apple.security.application-groups": [
+          "group.com.natemeadows.plated"
+        ],
+        "get-task-allow": false
+      }
+    }
+  ],
+  "uploadState": "not yet uploaded"
+}

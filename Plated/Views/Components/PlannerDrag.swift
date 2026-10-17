@@ -32,6 +32,7 @@ enum MealPlanMove {
         guard let meal = MealPlanTransfer.meal(for: token, in: meals), !meal.isCooked,
               target.startOfDay >= Date.now.startOfDay,
               !Calendar.current.isDate(meal.date, inSameDayAs: target) else { return false }
+        guard PlanOccupancy.shared(on: target, slot: meal.slotValue) == nil else { return false }
         let occupant = meals.first { $0.slot == meal.slot && Calendar.current.isDate($0.date, inSameDayAs: target) }
         guard occupant?.isCooked != true else { return false }
         let previous = meal.date, otherDate = occupant?.date

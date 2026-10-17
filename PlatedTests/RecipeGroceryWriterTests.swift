@@ -35,6 +35,16 @@ final class RecipeGroceryWriterTests: XCTestCase {
         return try XCTUnwrap(rows.first { $0.name == name })
     }
 
+    func testUnboughtManualExtrasRemainEligibleAfterSevenDays() throws {
+        let old = GroceryItem(name: "Garlic", quantity: 1, unit: "clove", aisle: .produce,
+            weekStart: Calendar.current.date(byAdding: .day, value: -20, to: .now)!, isManual: true)
+        context.insert(old); try context.save()
+        let dish = recipe(title: "Soup", ingredients: [("Garlic", 2, "clove")])
+        _ = try RecipeGroceryWriter.add(recipe: dish, in: context)
+        XCTAssertEqual(try context.fetch(FetchDescriptor<GroceryItem>()).count, 1)
+        XCTAssertEqual(old.quantity, 3)
+    }
+
     func testRepeatedIngredientLinesFromOneRecipeAddTheirWholeQuantityOnce() throws {
         let salsa = recipe(title: "Salsa", ingredients: [
             ("Garlic", 2, "clove"),

@@ -1,0 +1,146 @@
+Attributes: Application, 0x112651f40, pid: 61486, label: 'Plated'
+Element subtree:
+ →Application, 0x112651f40, pid: 61486, label: 'Plated'
+    Window (Main), 0x1126521c0, {{0.0, 0.0}, {667.0, 375.0}}
+      Other, 0x112652080, {{0.0, 0.0}, {667.0, 375.0}}
+        Other, 0x112651b80, {{0.0, 0.0}, {667.0, 375.0}}
+          Other, 0x112651e00, {{0.0, 0.0}, {667.0, 375.0}}
+            Other, 0x112651cc0, {{0.0, 0.0}, {667.0, 375.0}}
+              Other, 0x1126517c0, {{0.0, 0.0}, {667.0, 375.0}}
+                Other, 0x112651a40, {{0.0, 0.0}, {667.0, 375.0}}
+                  Other, 0x112651900, {{0.0, 0.0}, {667.0, 375.0}}
+                    Other, 0x112651400, {{0.0, 0.0}, {667.0, 375.0}}
+                      Other, 0x112651680, {{0.0, 0.0}, {667.0, 375.0}}
+                        Other, 0x112651540, {{333.5, 187.5}, {0.0, 0.0}}
+                        StaticText, 0x112651180, {{24.0, 22.0}, {64.5, 24.0}}, label: 'Plated'
+                        Button, 0x1126512c0, {{495.0, 12.0}, {44.0, 44.0}}, identifier: 'tray-create', label: 'Add'
+                        Button, 0x112650dc0, {{547.0, 12.0}, {44.0, 44.0}}, identifier: 'notifications-bell', label: 'Notifications', value: No unread notifica...
+                          Button, 0x112651040, {{547.0, 12.0}, {44.0, 44.0}}, identifier: 'bell', label: 'Notifications'
+                        Button, 0x112650f00, {{599.0, 12.0}, {44.0, 44.0}}, label: 'Your profile'
+                        StaticText, 0x112650c80, {{24.0, 76.0}, {284.0, 40.0}}, label: 'The month ahead'
+                        StaticText, 0x112650b40, {{24.0, 126.0}, {100.0, 16.0}}, label: 'Friday, October 16'
+                        Button, 0x112650a00, {{26.0, 152.0}, {72.0, 44.0}}, label: 'Calendar view'
+                        Button, 0x112650780, {{98.0, 152.0}, {72.0, 44.0}}, label: 'Calendar view', Selected
+                        Button, 0x1126508c0, {{543.0, 152.0}, {44.0, 44.0}}, identifier: 'calendar', label: 'Choose a date', value: Friday, October 16...
+                        Button, 0x112650640, {{599.0, 152.0}, {44.0, 44.0}}, label: 'Today'
+                        ScrollView, 0x112650500, {{0.0, 210.0}, {667.0, 165.0}}
+                          Other, 0x1126503c0, {{0.0, 210.0}, {667.0, 573.5}}
+                            StaticText, 0x112650280, {{24.0, 210.0}, {168.0, 29.0}}, label: 'October 2026'
+                            StaticText, 0x112650140, {{64.5, 255.0}, {7.5, 16.0}}, label: 'S'
+                            StaticText, 0x112650000, {{151.4, 255.0}, {10.5, 16.0}}, label: 'M'
+                            StaticText, 0x112652440, {{241.3, 255.0}, {7.5, 16.0}}, label: 'T'
+                            StaticText, 0x112652580, {{327.3, 255.0}, {12.5, 16.0}}, label: 'W'
+                            StaticText, 0x1126526c0, {{418.2, 255.0}, {7.5, 16.0}}, label: 'T'
+                            StaticText, 0x112652800, {{506.9, 255.0}, {7.0, 16.0}}, label: 'F'
+                            StaticText, 0x112652940, {{595.0, 255.0}, {7.5, 16.0}}, label: 'S'
+                            Other, 0x112652a80, {{24.0, 275.0}, {619.0, 256.0}}
+                              Button, 0x112652bc0, {{377.5, 275.0}, {88.5, 48.0}}, identifier: 'month-date-1', label: 'Thursday, October 1, 0 meals planned'
+                              Button, 0x112652d00, {{466.0, 275.0}, {88.5, 48.0}}, identifier: 'month-date-2', label: 'Friday, October 2, 0 meals planned'
+                              Button, 0x112652e40, {{554.5, 275.0}, {88.5, 48.0}}, identifier: 'month-date-3', label: 'Saturday, October 3, 0 meals planned'
+                              Button, 0x112652f80, {{24.0, 327.0}, {88.5, 48.0}}, identifier: 'month-date-4', label: 'Sunday, October 4, 0 meals planned'
+                              Button, 0x112653e80, {{112.5, 327.0}, {88.5, 48.0}}, identifier: 'month-date-5', label: 'Monday, October 5, 0 meals planned'
+                              Button, 0x112653d40, {{201.0, 327.0}, {88.5, 48.0}}, identifier: 'month-date-6', label: 'Tuesday, October 6, 0 meals planned'
+                              Button, 0x112653c00, {{289.5, 327.0}, {88.0, 48.0}}, identifier: 'month-date-7', label: 'Wednesday, October 7, 0 meals planned'
+                              Button, 0x112653ac0, {{377.5, 327.0}, {88.5, 48.0}}, identifier: 'month-date-8', label: 'Thursday, October 8, 0 meals planned'
+                              Button, 0x112653980, {{466.0, 327.0}, {88.5, 48.0}}, identifier: 'month-date-9', label: 'Friday, October 9, 0 meals planned'
+                              Button, 0x112653840, {{554.5, 327.0}, {88.5, 48.0}}, identifier: 'month-date-10', label: 'Saturday, October 10, 0 meals planned'
+                              Button, 0x112653700, {{24.0, 379.0}, {88.5, 48.0}}, identifier: 'month-date-11', label: 'Sunday, October 11, 0 meals planned'
+                              Button, 0x112653480, {{112.5, 379.0}, {88.5, 48.0}}, identifier: 'month-date-12', label: 'Monday, October 12, 0 meals planned'
+                              Button, 0x1126535c0, {{201.0, 379.0}, {88.5, 48.0}}, identifier: 'month-date-13', label: 'Tuesday, October 13, 0 meals planned'
+                              Button, 0x112653340, {{289.5, 379.0}, {88.0, 48.0}}, identifier: 'month-date-14', label: 'Wednesday, October 14, 0 meals planned'
+                              Button, 0x112653200, {{377.5, 379.0}, {88.5, 48.0}}, identifier: 'month-date-15', label: 'Thursday, October 15, 0 meals planned'
+                              Button, 0x1126530c0, {{466.0, 379.0}, {88.5, 48.0}}, identifier: 'month-date-16', label: 'Friday, October 16, today, 1 meals planned', Selected
+                              Button, 0x112c64a00, {{554.5, 379.0}, {88.5, 48.0}}, identifier: 'month-date-17', label: 'Saturday, October 17, 1 meals planned'
+                              Button, 0x112c64dc0, {{24.0, 431.0}, {88.5, 48.0}}, identifier: 'month-date-18', label: 'Sunday, October 18, 1 meals planned'
+                              Button, 0x112c64b40, {{112.5, 431.0}, {88.5, 48.0}}, identifier: 'month-date-19', label: 'Monday, October 19, 0 meals planned'
+                              Button, 0x112c64500, {{201.0, 431.0}, {88.5, 48.0}}, identifier: 'month-date-20', label: 'Tuesday, October 20, 1 meals planned'
+                              Button, 0x112c643c0, {{289.5, 431.0}, {88.0, 48.0}}, identifier: 'month-date-21', label: 'Wednesday, October 21, 1 meals planned'
+                              Button, 0x112c648c0, {{377.5, 431.0}, {88.5, 48.0}}, identifier: 'month-date-22', label: 'Thursday, October 22, 0 meals planned'
+                              Button, 0x112c64780, {{466.0, 431.0}, {88.5, 48.0}}, identifier: 'month-date-23', label: 'Friday, October 23, 0 meals planned'
+                              Button, 0x112c64640, {{554.5, 431.0}, {88.5, 48.0}}, identifier: 'month-date-24', label: 'Saturday, October 24, 0 meals planned'
+                              Button, 0x112c64000, {{24.0, 483.0}, {88.5, 48.0}}, identifier: 'month-date-25', label: 'Sunday, October 25, 0 meals planned'
+                              Button, 0x112c64280, {{112.5, 483.0}, {88.5, 48.0}}, identifier: 'month-date-26', label: 'Monday, October 26, 0 meals planned'
+                              Button, 0x112c66300, {{201.0, 483.0}, {88.5, 48.0}}, identifier: 'month-date-27', label: 'Tuesday, October 27, 0 meals planned'
+                              Button, 0x112c64140, {{289.5, 483.0}, {88.0, 48.0}}, identifier: 'month-date-28', label: 'Wednesday, October 28, 0 meals planned'
+                              Button, 0x112c65cc0, {{377.5, 483.0}, {88.5, 48.0}}, identifier: 'month-date-29', label: 'Thursday, October 29, 0 meals planned'
+                              Button, 0x112c66080, {{466.0, 483.0}, {88.5, 48.0}}, identifier: 'month-date-30', label: 'Friday, October 30, 0 meals planned'
+                              Button, 0x112c661c0, {{554.5, 483.0}, {88.5, 48.0}}, identifier: 'month-date-31', label: 'Saturday, October 31, 0 meals planned'
+                            StaticText, 0x112c66440, {{24.0, 575.5}, {43.5, 20.0}}, label: 'Today'
+                            Button, 0x112c67e80, {{594.5, 563.5}, {48.5, 44.0}}, label: 'Plan'
+                              Image, 0x112c66580, {{596.0, 580.0}, {11.0, 11.0}}, identifier: 'plus', label: 'Add'
+                              StaticText, 0x112c666c0, {{594.5, 563.5}, {48.5, 44.0}}, label: 'Plan'
+                            Button, 0x112c66800, {{24.0, 623.5}, {575.0, 80.0}}, identifier: 'month-meal-dinner', label: 'Dinner, Salmon Night, 4 servings · You're cooking'
+                              StaticText, 0x112c67840, {{24.0, 633.5}, {38.0, 16.0}}, label: 'Dinner'
+                              StaticText, 0x112c67d40, {{24.0, 653.5}, {96.0, 20.0}}, label: 'Salmon Night'
+                              StaticText, 0x112c67480, {{24.0, 677.5}, {145.0, 16.0}}, label: '4 servings · You're cooking'
+                            Button, 0x112c67c00, {{599.0, 641.5}, {44.0, 44.0}}, identifier: 'month-meal-dinner', label: 'Actions for Salmon Night', value: Actions hidden
+                Other, 0x112c67ac0, {{0.0, 0.0}, {667.0, 375.0}}
+                  Other, 0x112c67700, {{0.0, 0.0}, {0.0, 0.0}}
+                  Other, 0x112c675c0, {{0.0, 0.0}, {667.0, 375.0}}
+              Other, 0x112c67340, {{0.0, 0.0}, {667.0, 375.0}}
+                Other, 0x112c66e40, {{0.0, 0.0}, {667.0, 375.0}}
+                  Other, 0x112c67200, {{0.0, 0.0}, {667.0, 375.0}}
+                    Other, 0x112c670c0, {{0.0, 0.0}, {667.0, 375.0}}
+                      Other, 0x112c66f80, {{0.0, 0.0}, {667.0, 375.0}}
+                        Other, 0x112c66d00, {{333.5, 187.5}, {0.0, 0.0}}
+                        StaticText, 0x112c66bc0, {{24.0, 21.5}, {67.5, 25.0}}, label: 'Plated'
+                        Button, 0x112c65e00, {{495.0, 12.0}, {44.0, 44.0}}, identifier: 'tray-create', label: 'Add'
+                        Button, 0x112c66a80, {{547.0, 12.0}, {44.0, 44.0}}, identifier: 'table-notifications-bell', label: 'Notifications', value: No unread notifica...
+                          Button, 0x112c66940, {{547.0, 12.0}, {44.0, 44.0}}, identifier: 'bell', label: 'Notifications'
+                        Button, 0x112c67980, {{599.0, 12.0}, {44.0, 44.0}}, label: 'Your profile'
+                        StaticText, 0x112c65f40, {{24.0, 76.0}, {160.0, 40.0}}, label: 'The Table'
+                        Other, 0x112c64f00, {{24.0, 136.0}, {619.0, 64.0}}, label: 'Private to your Table. Invite only. 3 people.'
+                          Button, 0x112c65540, {{24.0, 136.0}, {619.0, 64.0}}, label: 'Private to your Table, Invite only · 3 people, People'
+                            Image, 0x112c64c80, {{36.0, 151.0}, {34.0, 34.0}}, identifier: 'lock.fill', label: 'Lock'
+                            StaticText, 0x112c65180, {{82.0, 150.5}, {128.0, 17.0}}, label: 'Private to your Table'
+                            StaticText, 0x112c652c0, {{82.0, 169.5}, {114.5, 16.0}}, label: 'Invite only · 3 people'
+                            Image, 0x112c65040, {{554.0, 161.5}, {19.0, 13.0}}, identifier: 'person.2', label: 'person.2'
+                            StaticText, 0x112c65680, {{579.5, 160.0}, {39.5, 16.0}}, label: 'People'
+                        Button, 0x112c65400, {{26.0, 212.0}, {307.5, 44.0}}, label: 'Table audience', Selected
+                        Button, 0x112c65900, {{333.5, 212.0}, {307.5, 44.0}}, label: 'Table audience'
+                        ScrollView, 0x112c65a40, {{0.0, 270.0}, {667.0, 105.0}}
+                          Other, 0x112c657c0, {{0.0, 270.0}, {667.0, 4099.0}}
+                            Other, 0x1125e3980, {{24.0, 286.0}, {619.0, 994.0}}
+                              Other, 0x1125e3840, {{24.0, 289.0}, {152.5, 38.0}}, label: 'Sam Meadows, Tonight · 6:17 PM'
+                                Button, 0x1125e2e40, {{24.0, 289.0}, {152.5, 38.0}}, label: 'SM, Sam Meadows, Tonight · 6:17 PM'
+                                  StaticText, 0x1125e2a80, {{32.5, 298.8}, {21.0, 18.5}}, label: 'SM'
+                                  StaticText, 0x1125e3c00, {{72.0, 290.8}, {104.5, 20.0}}, label: 'Sam Meadows'
+                                  StaticText, 0x1125e2f80, {{72.0, 310.8}, {101.0, 14.5}}, label: 'Tonight · 6:17 PM'
+                              Button, 0x1125e2940, {{599.0, 286.0}, {44.0, 44.0}}, label: 'More options for Pancake Dinner'
+                                Button, 0x1125e3480, {{599.0, 286.0}, {44.0, 44.0}}
+                                  Image, 0x1125e35c0, {{599.0, 286.0}, {44.0, 44.0}}, identifier: 'ellipsis', label: 'More'
+                              Button, 0x1125e2bc0, {{24.0, 340.0}, {619.0, 749.0}}, label: 'Open Pancake Dinner by Sam Meadows'
+                              Button, 0x1125e2580, {{24.0, 1089.0}, {619.0, 49.0}}, label: 'Pancake Dinner, Breakfast for dinner. Zero regrets, full syrup.'
+                                StaticText, 0x1125e2800, {{24.0, 1093.0}, {146.5, 23.0}}, label: 'Pancake Dinner'
+                                StaticText, 0x1125e3340, {{24.0, 1118.0}, {299.5, 20.0}}, label: 'Breakfast for dinner. Zero regrets, full syrup.'
+                              Button, 0x1125e30c0, {{24.0, 1148.0}, {44.0, 44.0}}, label: 'Plate this dish', value: 0 plates
+                              Button, 0x1125e3200, {{82.0, 1148.0}, {43.5, 44.0}}, label: '3 comments'
+                                Image, 0x1125e3d40, {{84.5, 1159.5}, {22.5, 21.0}}, identifier: 'bubble.right', label: 'Comment Right'
+                                StaticText, 0x1125e2d00, {{116.5, 1160.0}, {9.0, 20.0}}, label: '3'
+                              Button, 0x112c548c0, {{587.0, 1148.0}, {56.0, 44.0}}, label: 'Save'
+                                Image, 0x11240c000, {{590.5, 1159.0}, {14.0, 22.0}}, identifier: 'bookmark', label: 'Bookmark'
+                                StaticText, 0x1125f7480, {{613.0, 1161.5}, {30.0, 17.0}}, label: 'Save'
+                              StaticText, 0x1125f61c0, {{24.0, 1195.9}, {280.0, 17.0}}, label: 'Riley  Best dinner of the week and it isn't close'
+                              StaticText, 0x1125f5400, {{24.0, 1216.9}, {298.0, 17.0}}, label: 'Dan Alvarez  Syrup-to-pancake ratio is elite here'
+                              Button, 0x1125f6a80, {{24.0, 1236.0}, {619.0, 44.0}}, label: 'See all 3 comments'
+                Other, 0x1125f4dc0, {{0.0, 0.0}, {667.0, 375.0}}
+                  Other, 0x1125f6800, {{0.0, 0.0}, {667.0, 375.0}}
+              Button, 0x1125f5180, {{16.0, 317.0}, {159.0, 54.0}}, identifier: 'tray-week', label: 'Plan'
+                Image, 0x1125f5b80, {{86.0, 325.5}, {19.5, 18.0}}, identifier: 'calendar', label: 'Calendar'
+                StaticText, 0x1125f6300, {{83.0, 349.8}, {25.0, 14.5}}, label: 'Plan'
+              Button, 0x1125f6940, {{175.0, 317.0}, {158.5, 54.0}}, identifier: 'tray-cookbook', label: 'Recipes'
+                Image, 0x1125f7980, {{243.5, 325.0}, {22.0, 18.5}}, identifier: 'book', label: 'Bookmark'
+                StaticText, 0x1125f57c0, {{231.0, 350.0}, {46.5, 14.5}}, label: 'Recipes'
+              Button, 0x1125f4780, {{333.5, 317.0}, {159.0, 54.0}}, identifier: 'tray-groceries', label: 'Groceries'
+                Image, 0x1125f4a00, {{401.5, 323.5}, {23.0, 21.5}}, identifier: 'basket', label: 'basket'
+                StaticText, 0x1125f5680, {{384.0, 351.5}, {58.0, 14.5}}, label: 'Groceries'
+              Button, 0x1125f4000, {{492.5, 317.0}, {158.5, 54.0}}, identifier: 'tray-table', label: 'Table', Selected
+                Image, 0x1125f52c0, {{558.0, 324.5}, {29.0, 20.0}}, identifier: 'person.2', label: 'person.2'
+                StaticText, 0x1125f6bc0, {{555.2, 350.8}, {33.0, 14.5}}, label: 'Table'
+Path to element:
+ →Application, 0x112651f40, pid: 61486, label: 'Plated'
+Query chain:
+ →Find: Application 'com.natemeadows.plated'
+  Output: {
+    Application, 0x1125f5540, pid: 61486, label: 'Plated'
+  }

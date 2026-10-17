@@ -5,6 +5,9 @@ import PhotosUI
 /// Post to the Table — the photo-first composer behind the +. A plated
 /// moment: the photo, the dish's name, a line about it, and whoever helped.
 struct TableComposerSheet: View {
+    var prefillRecipe: Recipe? = nil
+    var onSaved: () -> Void = {}
+    @State private var restored = false
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
     @Query(sort: \HouseholdMember.createdAt) private var members: [HouseholdMember]
@@ -204,7 +207,7 @@ struct TableComposerSheet: View {
         // A filled post doesn't die to one accidental swipe — the drag
         // rubber-bands instead. Leaving on purpose goes through the X,
         // which asks first. An empty composer still slides away freely.
-        .interactiveDismissDisabled(hasContent)
+        .interactiveDismissDisabled(hasContent || photoLoading)
         .onAppear {
             restoreDraft()
             Task { await loadDestinations() }
@@ -217,7 +220,7 @@ struct TableComposerSheet: View {
             // the offer at all. What does not transfer is a drafts shelf —
             // at one dinner a night there is only ever one draft, so it
             // restores silently the next time the composer opens.
-            Button("Save draft") { saveDraft(); dismiss() }
+            Button("Save draft") { if saveDraft() { dismiss() } }
             Button("Discard", role: .destructive) { clearDraft(); dismiss() }
             Button("Keep writing", role: .cancel) {}
         }
@@ -555,18 +558,29 @@ struct TableComposerSheet: View {
     @AppStorage("tableDraftTags") private var draftTags = ""
     @AppStorage("tableDraftDestinationOwner") private var draftDestinationOwner = ""
 
-    private func saveDraft() {
-        draftTitle = dishTitle
-        draftCaption = caption
-        draftKind = kind.rawValue
-        draftPoll = pollOptions.joined(separator: "\n")
-        draftPollEntry = pollEntry
-        draftTags = tagged.sorted().joined(separator: "\n")
-        draftDestinationOwner = selectedDestinationID ?? ""
-        Haptic.tap()
+    private var draftKey: String { prefillRecipe.map { "recipe-" + $0.shareRecordName } ?? "table" }
+
+    private func saveDraft() -> Bool {
+        guard !photoLoading else {
+            localSaveMessage = "The photo is still loading. Try saving the draft in a moment."
+            return false
+        }
+        do {
+            let draft = TableComposerDraft(title: dishTitle, caption: caption, kind: kind.rawValue,
+                poll: pollOptions, pollEntry: pollEntry, tags: tagged.sorted(),
+                destination: selectedDestinationID, photo: photoData)
+            try draft.save(to: TableComposerDraft.url(for: draftKey))
+            Haptic.tap()
+            return true
+        } catch {
+            localSaveMessage = "Couldn't save the draft. Your photo and writing are still here."
+            return false
+        }
     }
 
     private func clearDraft() {
+        if let url = try? TableComposerDraft.url(for: draftKey) { try? FileManager.default.removeItem(at: url) }
+        guard prefillRecipe == nil else { return }
         draftTitle = ""
         draftCaption = ""
         draftKind = PostKind.dish.rawValue
@@ -576,11 +590,30 @@ struct TableComposerSheet: View {
         draftDestinationOwner = ""
     }
 
-    /// The photo is deliberately not kept. A draft that restores a title and
-    /// a sentence is a convenience; one that silently holds on to a
-    /// photograph you chose and then walked away from is a surprise.
     private func restoreDraft() {
-        guard dishTitle.isEmpty, caption.isEmpty else { return }
+        guard !restored else { return }
+        restored = true
+        do {
+            let url = try TableComposerDraft.url(for: draftKey)
+            if FileManager.default.fileExists(atPath: url.path) {
+                let draft = try TableComposerDraft.load(from: url)
+                dishTitle = draft.title; caption = draft.caption
+                kind = PostKind(rawValue: draft.kind) ?? .dish
+                pollOptions = draft.poll; pollEntry = draft.pollEntry
+                tagged = Set(draft.tags); selectedDestinationID = draft.destination
+                photoData = draft.photo
+                return
+            }
+        } catch {
+            localSaveMessage = "The saved draft couldn't be opened. It has been kept on this device."
+            return
+        }
+        if let prefillRecipe {
+            dishTitle = prefillRecipe.title
+            caption = prefillRecipe.summary
+            photoData = prefillRecipe.photoData
+            return
+        }
         dishTitle = draftTitle
         caption = draftCaption
         kind = PostKind(rawValue: draftKind) ?? .dish
@@ -685,6 +718,7 @@ struct TableComposerSheet: View {
         // successful-looking data loss.
         localSaveMessage = nil
         clearDraft()
+        onSaved()
 
         // Out to the table's zone, if there is one. Deliberately not awaited:
         // the post is already on screen and already saved locally, and a slow

@@ -1,0 +1,7 @@
+VOICEOVER: selected Saturday, Oct 17 Dinner planned Button adjustable Swipe up or down to choose a date Swipe up or down with one finger to adjust the value. Actions available
+VOICEOVER: TONIGHT · OCT 17
+VOICEOVER: Dinner options Button Pop up button Double tap to activate the picker
+VOICEOVER: Salmon Night Button Tap to open the day. Hold and drag to another date to move dinner.
+VOICEOVER: You're cooking
+VOICEOVER: Change servings and cook Button
+VOICEOVER: Start cooking Button

@@ -152,13 +152,13 @@ final class PlanShareTests: XCTestCase {
         XCTAssertEqual(plan.slot, MealSlot.dinner.rawValue)
     }
 
-    func testARecipeTravelsAsAFlagMinutesAndAnEmptyOriginKey() {
+    func testARecipeTravelsWithAStableHouseholdCookingKey() {
         let recipe = Recipe(title: "Sheet-pan chicken", prepMinutes: 10, cookMinutes: 25)
         context.insert(recipe)
         let with = PlanShare.plan(for: meal(title: "", recipe: recipe), me: "_me")
         XCTAssertTrue(with.hasRecipe)
         XCTAssertEqual(with.recipeMinutes, 35)
-        XCTAssertEqual(with.recipeOriginKey, "", "a home-written recipe has no origin, and an empty key never matches")
+        XCTAssertEqual(with.recipeOriginKey, recipe.planningKey, "a home-written household recipe has a stable cooking link")
         XCTAssertEqual(with.title, "Sheet-pan chicken", "the recipe's title when the night has no name of its own")
         let without = PlanShare.plan(for: meal(), me: "_me")
         XCTAssertFalse(without.hasRecipe)
@@ -387,6 +387,65 @@ final class PlanShareTests: XCTestCase {
         changes.plans = [plan]
         PlanLedger.shared.absorb(changes, me: "_me")
         return PlanLedger.shared.entry("plan-\(id)")!
+    }
+
+    func testSharedCookingCompletionKeepsIdentityAndSurvivesQueuedFolds() throws {
+        let night = remoteNight()
+        let stamp = Date(timeIntervalSince1970: 1_800_000_000)
+        var completion = PlanShare.Edit(changing: night)
+        completion.cooked = true; completion.cookedAt = stamp
+        PlanShare.enqueue(completion)
+        var later = PlanShare.Edit(changing: night); later.tagline = "Together"
+        PlanShare.enqueue(later)
+        PlanShare.reloadEdits()
+        let edit = try XCTUnwrap(PlanShare.queuedEdits().first)
+        XCTAssertEqual(edit.cooked, true); XCTAssertEqual(edit.cookedAt, stamp)
+        let applied = PlanLedger.edited(night, by: edit)
+        XCTAssertTrue(applied.cooked); XCTAssertEqual(applied.recordName, night.recordName)
+        let zone = CKRecordZone.ID(zoneName: TableShare.householdZoneName, ownerName: "host")
+        let (record, _) = PlanShare.record(for: edit, existing: nil, zone: zone, now: stamp)
+        XCTAssertEqual(TableShare.int(record, "cooked"), 1)
+        XCTAssertEqual(record["cookedAt"] as? Date, stamp)
+    }
+
+    func testAuthorCanAdoptHouseholdCookingCompletionWithoutAnAutomaticModelWrite() throws {
+        defer { HouseholdEdits.clear() }
+        HouseholdEdits.clear()
+        let local = meal(on: Self.day(2)); local.shoppingID = "n1"
+        var remote = remoteNight()
+        remote.cooked = true; remote.cookedAt = Date(timeIntervalSince1970: 1_800_000_000)
+        HouseholdEdits.note([remote])
+        XCTAssertNil(local.cookedAt, "A delivery cannot silently overwrite the author's model")
+        let change = try XCTUnwrap(HouseholdEdits.pending(shoppingID: "n1"))
+        XCTAssertTrue(HouseholdEdits.adopt(change, in: context))
+        XCTAssertEqual(local.cookedAt, remote.cookedAt)
+    }
+
+    func testDragCannotMoveOrSwapIntoARemoteOccupiedNight() throws {
+        let source = meal(on: Self.day(1))
+        let target = meal(on: Self.day(2))
+        try context.save()
+        remoteNight(day: Self.day(2))
+        XCTAssertFalse(MealPlanMove.perform(MealPlanTransfer.token(for: source), to: Self.day(2), meals: [source, target], context: context))
+        XCTAssertEqual(source.date, Self.day(1))
+        XCTAssertEqual(target.date, Self.day(2))
+    }
+
+    func testSharedOccupancyAndCookedCountsUseBothAuthoritiesWithoutDuplicates() {
+        let date = Self.day(2)
+        var remote = remoteNight(day: date)
+        XCTAssertNotNil(PlanOccupancy.shared(on: date, slot: .dinner, entries: [remote]))
+        XCTAssertNil(PlanOccupancy.shared(on: date, slot: .lunch, entries: [remote]))
+        let local = meal(on: date)
+        local.shoppingID = "n1"
+        let past = meal(on: Self.day(-2))
+        XCTAssertEqual(HouseholdDinnerMetrics(local: [local, past], shared: [remote]).cookedCount, 0)
+        remote.cooked = true
+        let metrics = HouseholdDinnerMetrics(local: [local, past], shared: [remote])
+        XCTAssertEqual(metrics.cookedCount, 1)
+        XCTAssertEqual(metrics.plannedDates.count, 2)
+        local.cookedAt = .now
+        XCTAssertEqual(HouseholdDinnerMetrics(local: [local, past], shared: [remote]).cookedCount, 1)
     }
 
     func testAnEditMintsTheRecordForANightTheZoneNoLongerHolds() {

@@ -1,53 +1,68 @@
 import XCTest
 import SwiftData
-import UIKit
-import WidgetKit
 @testable import Plated
 
 @MainActor
 final class WidgetBridgeTests: XCTestCase {
-    func testSavedHouseholdBannerReachesTheWidgetSharedContainer() throws {
-        guard let shared = WidgetBridge.containerURL else {
-            throw XCTSkip("The test host does not have the Plated app-group entitlement")
-        }
+    let day = Date(timeIntervalSince1970: 4_102_444_800).startOfDay
 
-        let names = [
-            "tonight.jpg", "tonight-dark.png", "table.jpg", "cookbook.jpg",
-            "household.jpg", "week-snapshot.json"
-        ]
-        let files = names.map { shared.appendingPathComponent($0) }
-        let oldFiles = try files.map { url -> Data? in
-            guard FileManager.default.fileExists(atPath: url.path) else { return nil }
-            return try Data(contentsOf: url)
-        }
-        defer {
-            for (url, oldData) in zip(files, oldFiles) {
-                if let oldData {
-                    try? oldData.write(to: url, options: .atomic)
-                } else {
-                    try? FileManager.default.removeItem(at: url)
-                }
-            }
-            WidgetCenter.shared.reloadAllTimelines()
-        }
-
-        let imageData = UIGraphicsImageRenderer(size: CGSize(width: 48, height: 48)).image { context in
-            context.cgContext.setFillColor(UIColor.systemPink.cgColor)
-            context.cgContext.fill(CGRect(x: 0, y: 0, width: 48, height: 48))
-        }.pngData()!
-
-        let container = try ModelContainer(
-            for: PlatedStore.schema,
-            configurations: [ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)]
-        )
+    func testGrocerySnapshotBuildsBeforeSheetOpensAndDoesNotCommitDrafts() throws {
+        let container = try ModelContainer(for: PlatedStore.schema,
+            configurations: [ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)])
         let context = container.mainContext
-        context.insert(HouseholdProfile(bannerPhotoData: imageData))
+        context.autosaveEnabled = false
+        let recipe = Recipe(title: "Widget dinner", servings: 2)
+        recipe.ingredients = [Ingredient(name: "Widget test beans", quantity: 2, unit: "cups")]
+        context.insert(recipe)
+        context.insert(PlannedMeal(date: day, recipe: recipe, servings: 2))
         try context.save()
+        XCTAssertTrue(try context.fetch(FetchDescriptor<GroceryItem>()).isEmpty)
+        recipe.title = "Unsaved recipe edit"
+        context.insert(Recipe(title: "Unrelated draft"))
 
-        WidgetBridge.publish(from: context)
+        let grocery = try XCTUnwrap(WidgetBridge.groceryLine(from: context, windowStart: day))
+        XCTAssertEqual(grocery.openCount, 1)
+        XCTAssertEqual(grocery.totalCount, 1)
+        XCTAssertEqual(grocery.sample, ["Widget test beans"])
+        let reader = ModelContext(container)
+        XCTAssertEqual(try reader.fetch(FetchDescriptor<Recipe>()).map(\.title), ["Widget dinner"])
+        XCTAssertTrue(context.hasChanges)
+    }
 
-        let published = try Data(contentsOf: shared.appendingPathComponent("household.jpg"))
-        XCTAssertEqual(published, imageData)
-        XCTAssertNotNil(UIImage(data: published), "The widget's household image must remain decodable")
+    func testGrocerySnapshotPreservesPurchasesAndReopensIncreasedQuantity() throws {
+        let container = try ModelContainer(for: PlatedStore.schema,
+            configurations: [ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)])
+        let context = container.mainContext
+        let recipe = Recipe(title: "Widget dinner", servings: 2)
+        recipe.ingredients = [Ingredient(name: "Widget quantity beans", quantity: 2, unit: "cups")]
+        context.insert(recipe)
+        let meal = PlannedMeal(date: day, recipe: recipe, servings: 2)
+        context.insert(meal)
+        try context.save()
+        let item = try XCTUnwrap(GroceryListBuilder(context: context).rebuild(weekOf: day).first)
+        item.purchases = Dictionary(uniqueKeysWithValues: item.sources.map { ($0.id, $0.quantity) })
+        item.isChecked = true
+        try context.save()
+        XCTAssertEqual(WidgetBridge.groceryLine(from: context, windowStart: day)?.openCount, 0)
+        meal.servings = 4
+        try context.save()
+        XCTAssertEqual(WidgetBridge.groceryLine(from: context, windowStart: day)?.openCount, 1)
+    }
+
+    func testGrocerySnapshotHonorsPantryPreferenceAndPersistentManualExtras() throws {
+        let container = try ModelContainer(for: PlatedStore.schema,
+            configurations: [ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)])
+        let context = container.mainContext
+        let recipe = Recipe(title: "Pantry dinner")
+        recipe.ingredients = [Ingredient(name: "Widget pantry salt", quantity: 1, unit: "tsp", isPantryStaple: true)]
+        context.insert(recipe); context.insert(PlannedMeal(date: day, recipe: recipe))
+        context.insert(GroceryItem(name: "Old unbought extra", weekStart: day.addingTimeInterval(-20 * 86400), isManual: true))
+        let dismissed = GroceryItem(name: "Dismissed extra", weekStart: day, isManual: true)
+        dismissed.isDismissed = true; context.insert(dismissed)
+        try context.save()
+        XCTAssertEqual(WidgetBridge.groceryLine(from: context, windowStart: day)?.sample, ["Old unbought extra"])
+        let included = try XCTUnwrap(WidgetBridge.groceryLine(from: context, windowStart: day, includePantryStaples: true))
+        XCTAssertEqual(included.openCount, 2)
+        XCTAssertEqual(included.sample, ["Old unbought extra", "Widget pantry salt"])
     }
 }

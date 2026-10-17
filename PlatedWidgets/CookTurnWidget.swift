@@ -17,7 +17,8 @@ struct CookTurnWidgetView: View {
     @Environment(\.widgetFamily) private var family
     var entry: WeekEntry
 
-    private var turns: [WeekSnapshot.Turn] { entry.snapshot?.turns ?? [] }
+    private var isCurrent: Bool { entry.snapshot?.isCurrent(on: entry.date) == true }
+    private var turns: [WeekSnapshot.Turn] { isCurrent ? entry.snapshot?.turns ?? [] : [] }
 
     var body: some View {
         Group {
@@ -96,10 +97,10 @@ struct CookTurnWidgetView: View {
                         .font(.system(size: 20, weight: .medium))
                         .foregroundStyle(Plate.inkFaint)
                 }
-            Text("Nobody yet")
+            Text(isCurrent ? "Nobody yet" : "Open Plan to refresh")
                 .font(.sans(15))
                 .foregroundStyle(Plate.ink)
-            Text("Tap to hand out the week")
+            Text(isCurrent ? "Tap to hand out the week" : "The plan needs an update")
                 .font(.sans(12, "SemiBold"))
                 .foregroundStyle(Plate.inkSecondary)
                 .lineLimit(2)
@@ -124,9 +125,10 @@ struct CookTurnLockView: View {
     @Environment(\.widgetFamily) private var family
     var entry: WeekEntry
 
-    private var turn: WeekSnapshot.Turn? { entry.snapshot?.nextTurn }
+    private var isCurrent: Bool { entry.snapshot?.isCurrent(on: entry.date) == true }
+    private var turn: WeekSnapshot.Turn? { isCurrent ? entry.snapshot?.nextTurn : nil }
     private var sentence: String {
-        guard let turn else { return "Nobody cooking yet" }
+        guard let turn else { return isCurrent ? "Nobody cooking yet" : "Open Plan to refresh" }
         return "\(turn.isMine ? "You" : turn.name) \(turnLine(turn))"
     }
 
@@ -161,9 +163,9 @@ struct CookTurnLockView: View {
                     Text(turnLine(turn))
                         .font(.system(size: 12, weight: .medium))
                 } else {
-                    Text("Nobody yet")
+                    Text(isCurrent ? "Nobody yet" : "Open Plan to refresh")
                         .font(.system(size: 15, weight: .bold))
-                    Text("Tap to hand out the week")
+                    Text(isCurrent ? "Tap to hand out the week" : "The plan needs an update")
                         .font(.system(size: 12, weight: .medium))
                 }
             }

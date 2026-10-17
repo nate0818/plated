@@ -1,0 +1,22 @@
+{
+  "source": "main / origin/main",
+  "project": "prj_jtNygQEXj9KOEBX13JtILj8UQVuN",
+  "team": "team_S8apwORgPJckwlaliBG2S2F8",
+  "target": "production",
+  "rootDirectory": "web",
+  "fileCount": 139,
+  "payloadBytes": 17070975,
+  "sourceManifestSHA256": "89885c5532b2ecc73d03e6710faa65032eb3a8a0ba2053213d662f629807167f",
+  "previousProduction": "https://plated-oscewussa-nate-meadows-projects.vercel.app",
+  "stagedDeployment": "https://plated-b4rput86c-nate-meadows-projects.vercel.app",
+  "status": "READY",
+  "commit": "5fb4d69b2d00451aa66c9aeec802ba2f48d0506f",
+  "sourceUnchangedSinceStagedBuild": true,
+  "productionURL": "https://plated.food",
+  "productionDeployment": "dpl_7rgiH1UP1hdAf8WhuSRtw4vLUVnX",
+  "productionDeploymentURL": "https://plated-3yzf35mzf-nate-meadows-projects.vercel.app",
+  "faviconMatchesSource": true,
+  "privacyHTTPStatus": 200,
+  "browserWarningsAndErrors": 0,
+  "initialDeploymentErrorScan": 0
+}

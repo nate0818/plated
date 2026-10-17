@@ -1,0 +1,11 @@
+Plan now opens around today’s dinner, with a clearer greeting and only the selected day shown below the date row. This beta also improves recipe editing, gathering drafts, groceries, shared cooking updates, widgets, and VoiceOver feedback.
+
+Please test:
+• Switch dates and return to Today; check empty days and shared dinners.
+• Edit recipes and gatherings, dismiss the keyboard, and recover after a failed save.
+• Add, edit, or remove a gathering in Apple Calendar.
+• Check widget content, links, and changes across midnight.
+• With two different iCloud accounts, test invitations, shared plans, groceries, cooking completion, Table activity, offline edits, and reconnect.
+• Use VoiceOver and larger text throughout these flows.
+
+Still under verification: complete physical-device VoiceOver/rotor journeys, some physical widget variants and overnight scheduling, additional Calendar providers, and live two-account sync. Account deletion’s automatic Sign in with Apple revocation also remains unverified. This is a beta for continued testing, not a claim that release verification is complete.

@@ -122,9 +122,45 @@ struct PlatedApp: App {
                 try? preview.mainContext.delete(model: Recipe.self)
                 try? preview.mainContext.save()
             }
+            if arguments.contains("-plated-design-review") {
+                let fixtureOwner = "ux-audit-tonight"
+                if PlanLedger.shared.householdOwner == fixtureOwner {
+                    PlanLedger.shared.forget(zoneOwner: fixtureOwner)
+                    PlanLedger.shared.householdOwner = nil
+                }
+                if arguments.contains("-plated-review-empty-tonight") || arguments.contains("-plated-review-shared-tonight") {
+                    let meals = (try? preview.mainContext.fetch(FetchDescriptor<PlannedMeal>())) ?? []
+                    for meal in meals where Calendar.current.isDateInToday(meal.date) { preview.mainContext.delete(meal) }
+                    try? preview.mainContext.save()
+                }
+                if arguments.contains("-plated-review-shared-tonight"),
+                   let recipe = (try? preview.mainContext.fetch(FetchDescriptor<Recipe>()))?.first {
+                    PlanLedger.shared.householdOwner = fixtureOwner
+                    var night = TableShare.RemotePlan()
+                    night.recordName = "plan-ux-audit-tonight"; night.shoppingID = "ux-audit-tonight"
+                    night.zoneOwner = fixtureOwner; night.authorID = "ux-audit-sam"; night.authorName = "Sam Meadows"
+                    night.cookName = "Sam Meadows"; night.cookID = "ux-audit-sam"; night.cookSeat = "joined"
+                    night.day = PlanDay.string(.now); night.slot = MealSlot.dinner.rawValue
+                    night.title = recipe.title; night.servings = 6; night.hasRecipe = true
+                    night.recipeOriginKey = recipe.planningKey
+                    var changes = TableShare.Changes(); changes.plans = [night]
+                    PlanLedger.shared.absorb(changes, me: "ux-audit-reader")
+                }
+            }
             if arguments.contains("-plated-design-review") && arguments.contains("-plated-review-drag") {
                 PlannerDragChecks.prepareReview(in: preview.mainContext)
             }
+            #if targetEnvironment(simulator)
+            if arguments.contains("-plated-review-widgets") {
+                // Stable fixture IDs let real installed widgets exercise
+                // item routing without publishing a post to CloudKit.
+                let posts = (try? preview.mainContext.fetch(FetchDescriptor<TablePost>(sortBy: [SortDescriptor(\.createdAt, order: .reverse)]))) ?? []
+                for (index, post) in posts.enumerated() {
+                    post.shareRecordName = "ux-widget-post-\(index)"
+                }
+                try? preview.mainContext.save()
+            }
+            #endif
             // Explicit UI-test fixture, inside the memory-only preview path.
             if arguments.contains("-plated-design-review") && arguments.contains("-plated-review-notifications") {
                 let sampleActivity: [(PlatedNotificationKind, String, String, TimeInterval)] = [
@@ -392,6 +428,15 @@ struct PlatedApp: App {
         }
         .modelContainer(container)
         .onChange(of: scenePhase) { _, phase in
+            #if DEBUG && targetEnvironment(simulator)
+            // Opt-in installed-widget verification from the in-memory fixture.
+            // Never starts household sync or writes to a personal model store.
+            if Self.usesPreviewContainer,
+               ProcessInfo.processInfo.arguments.contains("-plated-review-widgets"),
+               phase == .active || phase == .background {
+                WidgetBridge.publish(from: container.mainContext)
+            }
+            #endif
             // Re-assert the room's lighting on every activation — a push
             // that lands during launch can otherwise flash the wrong room.
             if phase == .active {

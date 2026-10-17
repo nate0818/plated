@@ -1,0 +1,474 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Plated signature studio</title>
+  <style>
+    @font-face {
+      font-family: "Newsreader";
+      src: url("../../Plated/Resources/Fonts/Newsreader.ttf") format("truetype");
+      font-weight: 400 500;
+    }
+
+    @font-face {
+      font-family: "DM Sans";
+      src: url("../../Plated/Resources/Fonts/DMSans.ttf") format("truetype");
+      font-weight: 400 600;
+    }
+
+    :root {
+      --canvas: #191c17;
+      --ink: #edf0e6;
+      --secondary: #b0b8a8;
+      --rule: #3a4434;
+      --surface: #242720;
+      --olive: #b2c9a5;
+      --orange: #ff5a3c;
+      --on-orange: #221b14;
+      --paper: #faf9f4;
+      --paper-ink: #27362a;
+      --paper-secondary: #606958;
+      --paper-rule: #dfe2d7;
+      --paper-olive: #355941;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--canvas);
+      color: var(--ink);
+      font-family: "DM Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 15px;
+      font-weight: 400;
+      line-height: 1.55;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .shell {
+      width: min(1180px, calc(100% - 48px));
+      margin: 0 auto;
+      padding: 30px 0 80px;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 24px;
+      padding-bottom: 22px;
+      border-bottom: 1px solid var(--rule);
+    }
+
+    .wordmark {
+      color: var(--ink);
+      font: 400 32px/1 "Newsreader", Georgia, serif;
+      letter-spacing: -.025em;
+    }
+
+    .eyebrow {
+      margin: 0;
+      color: var(--secondary);
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+    }
+
+    .intro {
+      display: grid;
+      grid-template-columns: minmax(0, 1.45fr) minmax(260px, .55fr);
+      gap: 48px;
+      align-items: end;
+      padding: 52px 0 46px;
+    }
+
+    h1 {
+      max-width: 760px;
+      margin: 0;
+      font: 400 clamp(52px, 7vw, 86px)/.94 "Newsreader", Georgia, serif;
+      letter-spacing: -.045em;
+    }
+
+    .intro-copy {
+      max-width: 360px;
+      margin: 0;
+      color: var(--secondary);
+      font-size: 15px;
+      line-height: 1.7;
+    }
+
+    .intro-copy strong {
+      color: var(--ink);
+      font-weight: 600;
+    }
+
+    .studio {
+      display: grid;
+      grid-template-columns: 300px minmax(0, 1fr);
+      gap: 48px;
+      align-items: start;
+      padding-top: 28px;
+      border-top: 1px solid var(--rule);
+    }
+
+    .editor {
+      position: sticky;
+      top: 24px;
+    }
+
+    .section-label {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 22px;
+      color: var(--secondary);
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+    }
+
+    .section-label span:last-child { color: var(--olive); }
+
+    .fields { display: grid; }
+
+    label {
+      display: grid;
+      gap: 7px;
+      padding: 14px 0 15px;
+      border-bottom: 1px solid var(--rule);
+      color: var(--secondary);
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+
+    label:first-child { border-top: 1px solid var(--rule); }
+
+    input {
+      width: 100%;
+      padding: 0;
+      border: 0;
+      outline: 0;
+      background: transparent;
+      color: var(--ink);
+      font: 400 16px/1.4 "DM Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    input::placeholder { color: #727d68; }
+    input:focus { color: var(--olive); }
+
+    .editor-note {
+      margin: 18px 0 0;
+      color: var(--secondary);
+      font-size: 12px;
+      line-height: 1.6;
+    }
+
+    .previews { display: grid; gap: 32px; }
+
+    .preview-block {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 142px;
+      gap: 20px;
+      align-items: stretch;
+    }
+
+    .paper {
+      min-width: 0;
+      padding: clamp(28px, 5vw, 54px);
+      border-radius: 4px;
+      background: var(--paper);
+      color: var(--paper-ink);
+    }
+
+    .paper.reply { padding-block: 34px; }
+
+    .paper.story { padding-bottom: clamp(30px, 5vw, 54px); }
+
+    .mail-label {
+      display: flex;
+      justify-content: space-between;
+      gap: 20px;
+      margin-bottom: 34px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--paper-rule);
+      color: var(--paper-secondary);
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: .11em;
+      text-transform: uppercase;
+    }
+
+    .message {
+      max-width: 560px;
+      margin: 0 0 36px;
+      color: var(--paper-ink);
+      font: 14px/1.65 Arial, Helvetica, sans-serif;
+    }
+
+    .reply .message { margin-bottom: 26px; }
+
+    .preview-actions {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 2px 0;
+    }
+
+    .variant {
+      margin: 0;
+      color: var(--ink);
+      font: 400 22px/1.1 "Newsreader", Georgia, serif;
+      letter-spacing: -.025em;
+    }
+
+    .variant-note {
+      margin: 8px 0 0;
+      color: var(--secondary);
+      font-size: 11px;
+      line-height: 1.5;
+    }
+
+    button {
+      width: 100%;
+      min-height: 46px;
+      padding: 10px 14px;
+      border: 1px solid var(--orange);
+      border-radius: 6px;
+      background: var(--orange);
+      color: var(--on-orange);
+      font: 600 13px/1.25 "DM Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      cursor: pointer;
+    }
+
+    button:hover { background: #f36a4f; }
+    button:focus-visible { outline: 2px solid var(--olive); outline-offset: 4px; }
+
+    .status {
+      min-height: 34px;
+      margin: 10px 0 0;
+      color: var(--secondary);
+      font-size: 11px;
+      line-height: 1.45;
+    }
+
+    @media (max-width: 900px) {
+      .intro { grid-template-columns: 1fr; gap: 22px; }
+      .studio { grid-template-columns: 1fr; gap: 38px; }
+      .editor { position: static; }
+      .fields { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 24px; }
+      label:nth-child(2) { border-top: 1px solid var(--rule); }
+    }
+
+    @media (max-width: 650px) {
+      .shell { width: min(100% - 32px, 560px); padding-top: 22px; }
+      .topbar { align-items: center; }
+      .topbar .eyebrow { max-width: 150px; text-align: right; }
+      h1 { font-size: clamp(46px, 14vw, 66px); }
+      .fields { grid-template-columns: 1fr; }
+      label:nth-child(2) { border-top: 0; }
+      .preview-block { grid-template-columns: 1fr; }
+      .preview-actions { display: grid; grid-template-columns: 1fr 150px; gap: 18px; align-items: end; }
+      .status { grid-column: 1 / -1; min-height: 0; margin: 0; }
+      .paper { padding: 28px 22px; overflow-x: auto; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div class="wordmark" aria-label="Plated">Plated</div>
+      <p class="eyebrow">Email signature studio</p>
+    </header>
+
+    <section class="intro" aria-labelledby="page-title">
+      <h1 id="page-title">Identity stays.<br>Stories change.</h1>
+      <p class="intro-copy"><strong>The signature is not the campaign.</strong> Keep a restrained identity on every email. Add the product story when the conversation earns it. Strip it back for replies.</p>
+    </section>
+
+    <div class="studio">
+      <aside class="editor" aria-labelledby="details-title">
+        <div class="section-label">
+          <span id="details-title">Your details</span>
+          <span>01</span>
+        </div>
+        <div class="fields">
+          <label>Name
+            <input id="name" value="Nate Meadows" autocomplete="name">
+          </label>
+          <label>Role
+            <input id="role" value="Founder" autocomplete="organization-title">
+          </label>
+          <label>Email
+            <input id="email" placeholder="nate@plated.food" autocomplete="email">
+          </label>
+          <label>Phone
+            <input id="phone" placeholder="Optional" autocomplete="tel">
+          </label>
+          <label>Website
+            <input id="website" value="plated.food" autocomplete="url">
+          </label>
+        </div>
+        <p class="editor-note">Leave anything blank and it disappears. Use the product-story version for introductions, partnerships, press, and other high-value first touches.</p>
+      </aside>
+
+      <section class="previews" aria-label="Signature previews">
+        <div class="preview-block">
+          <div class="paper">
+            <div class="mail-label"><span>Core 01</span><span>Everyday identity</span></div>
+            <p class="message">Hi there,<br><br>Thanks for reaching out. I’ll take a look and get back to you shortly.<br><br>Best,</p>
+            <div id="identity-signature"></div>
+          </div>
+          <div class="preview-actions">
+            <div>
+              <h2 class="variant">Evergreen identity</h2>
+              <p class="variant-note">The credible default. Personal first, unmistakably Plated, and quiet enough for every email.</p>
+            </div>
+            <div>
+              <button id="copy-identity" type="button">Copy identity</button>
+              <p class="status" id="identity-status" aria-live="polite"></p>
+            </div>
+          </div>
+        </div>
+
+        <div class="preview-block">
+          <div class="paper story">
+            <div class="mail-label"><span>Core + campaign</span><span>Recommended for introductions</span></div>
+            <p class="message">Hi there,<br><br>I’d love to show you what we’re building for households who want dinner planning to feel simpler—and more shared.<br><br>Best,</p>
+            <div id="story-signature"></div>
+          </div>
+          <div class="preview-actions">
+            <div>
+              <h2 class="variant">Product story</h2>
+              <p class="variant-note">The consumer-app version. A real product view, a memorable promise, and the whole image acts as one clean link.</p>
+            </div>
+            <div>
+              <button id="copy-story" type="button">Copy product story</button>
+              <p class="status" id="story-status" aria-live="polite"></p>
+            </div>
+          </div>
+        </div>
+
+        <div class="preview-block">
+          <div class="paper reply">
+            <div class="mail-label"><span>Compact 02</span><span>Replies</span></div>
+            <p class="message">Absolutely, that works for me.<br><br>Thanks,</p>
+            <div id="reply-signature"></div>
+          </div>
+          <div class="preview-actions">
+            <div>
+              <h2 class="variant">Thread mode</h2>
+              <p class="variant-note">No logo tile, no banner, no repeated pitch. Just enough identity to close the loop.</p>
+            </div>
+            <div>
+              <button id="copy-reply" type="button">Copy reply signature</button>
+              <p class="status" id="reply-status" aria-live="polite"></p>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <script>
+    const fieldIDs = ["name", "role", "email", "phone", "website"];
+    const getValues = () => Object.fromEntries(fieldIDs.map(id => [id, document.getElementById(id).value.trim()]));
+    const escapeHTML = value => value.replace(/[&<>'"]/g, character => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;"
+    })[character]);
+    const websiteURL = value => /^https?:\/\//i.test(value) ? value : `https://${value}`;
+    const websiteLabel = value => value.replace(/^https?:\/\//i, "").replace(/\/$/, "");
+
+    function identitySignatureHTML() {
+      const { name, role, email, phone, website } = getValues();
+      const contacts = [
+        email ? `<a href="mailto:${escapeHTML(email)}" style="color:#606958;text-decoration:none;">${escapeHTML(email)}</a>` : "",
+        phone ? `<a href="tel:${escapeHTML(phone.replace(/[^+\d]/g, ""))}" style="color:#606958;text-decoration:none;">${escapeHTML(phone)}</a>` : ""
+      ].filter(Boolean).join(`<span style="color:#A5AD9A;padding:0 6px;">&middot;</span>`);
+
+      return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="440" style="width:440px;max-width:100%;border-collapse:collapse;font-family:Arial,Helvetica,sans-serif;color:#27362A;">
+  <tr>
+    <td width="3" bgcolor="#FF5A3C" style="width:3px;background-color:#FF5A3C;font-size:1px;line-height:1px;">&nbsp;</td>
+    <td style="padding:0 0 0 15px;vertical-align:top;">
+      ${name ? `<div style="font-family:Georgia,'Times New Roman',serif;font-size:20px;line-height:23px;font-weight:400;letter-spacing:-0.25px;color:#27362A;">${escapeHTML(name)}</div>` : ""}
+      <div style="padding-top:2px;font-size:11px;line-height:16px;color:#606958;">${role ? `${escapeHTML(role)} at ` : ""}<a href="https://plated.food" style="font-family:Georgia,'Times New Roman',serif;font-size:13px;color:#27362A;text-decoration:none;">Plated</a></div>
+      <div style="padding-top:8px;font-size:10px;line-height:15px;color:#606958;">
+        ${website ? `<a href="${escapeHTML(websiteURL(website))}" style="font-weight:700;color:#355941;text-decoration:none;">${escapeHTML(websiteLabel(website))}</a>` : ""}
+        ${website && contacts ? `<span style="color:#A5AD9A;padding:0 6px;">&middot;</span>` : ""}${contacts}
+      </div>
+    </td>
+  </tr>
+</table>`;
+    }
+
+    function storySignatureHTML() {
+      return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="480" style="width:480px;max-width:100%;border-collapse:collapse;font-family:Arial,Helvetica,sans-serif;color:#27362A;">
+  <tr><td style="padding:0;">${identitySignatureHTML()}</td></tr>
+  <tr><td height="18" style="height:18px;font-size:1px;line-height:1px;">&nbsp;</td></tr>
+  <tr>
+    <td style="padding:0;">
+      <a href="https://plated.food" style="display:block;text-decoration:none;">
+        <img src="https://plated.food/opengraph-image.png" width="480" alt="Plated — Dinner plans. Made together. A shared meal plan, recipe book, and grocery list for your household." style="display:block;width:480px;max-width:100%;height:auto;border:0;border-radius:4px;">
+      </a>
+    </td>
+  </tr>
+</table>`;
+    }
+
+    function replySignatureHTML() {
+      const { name, role, website } = getValues();
+      return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;font-family:Arial,Helvetica,sans-serif;color:#27362A;">
+  <tr>
+    <td width="2" bgcolor="#FF5A3C" style="width:2px;background-color:#FF5A3C;font-size:1px;line-height:1px;">&nbsp;</td>
+    <td style="padding:0 0 0 11px;vertical-align:top;white-space:nowrap;">
+      ${name ? `<div style="font-family:Georgia,'Times New Roman',serif;font-size:15px;line-height:18px;font-weight:400;color:#27362A;">${escapeHTML(name)}</div>` : ""}
+      <div style="padding-top:1px;font-size:10px;line-height:14px;color:#606958;">${role ? `${escapeHTML(role)} at ` : ""}<a href="${website ? escapeHTML(websiteURL(website)) : "https://plated.food"}" style="font-family:Georgia,'Times New Roman',serif;font-size:11px;color:#355941;text-decoration:none;">Plated</a></div>
+    </td>
+  </tr>
+</table>`;
+    }
+
+    function render() {
+      document.getElementById("identity-signature").innerHTML = identitySignatureHTML();
+      document.getElementById("story-signature").innerHTML = storySignatureHTML();
+      document.getElementById("reply-signature").innerHTML = replySignatureHTML();
+    }
+
+    function selectSignature(element) {
+      const range = document.createRange();
+      range.selectNodeContents(element);
+      const selection = window.getSelection();
+      selection.removeAllRanges();
+      selection.addRange(range);
+      return selection;
+    }
+
+    function copySignature(signatureID, statusID) {
+      const signature = document.getElementById(signatureID);
+      const status = document.getElementById(statusID);
+      const selection = selectSignature(signature);
+      let copied = false;
+      try { copied = document.execCommand("copy"); } catch (error) { copied = false; }
+
+      if (copied) {
+        selection.removeAllRanges();
+        status.textContent = "Copied. Paste into Hostinger.";
+      } else {
+        status.textContent = "Selected. Press Command-C, then paste into Hostinger.";
+      }
+    }
+
+    fieldIDs.forEach(id => document.getElementById(id).addEventListener("input", render));
+    document.getElementById("copy-identity").addEventListener("click", () => copySignature("identity-signature", "identity-status"));
+    document.getElementById("copy-story").addEventListener("click", () => copySignature("story-signature", "story-status"));
+    document.getElementById("copy-reply").addEventListener("click", () => copySignature("reply-signature", "reply-status"));
+    render();
+  </script>
+</body>
+</html>

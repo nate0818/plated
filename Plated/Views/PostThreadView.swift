@@ -22,6 +22,7 @@ struct PostThreadView: View {
     @Environment(\.modelContext) private var context
     @Environment(\.activeAppTab) private var activeAppTab
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var typeSize
     @Environment(\.openURL) private var openURL
     @AppStorage("userFirstName") private var userFirstName = ""
     @Query(sort: \HouseholdMember.createdAt) private var members: [HouseholdMember]
@@ -79,6 +80,7 @@ struct PostThreadView: View {
 
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 14) {
+                    postHeading
                     if let data = post.photoData, let image = UIImage(data: data) {
                         ZStack(alignment: .topTrailing) {
                             PhotoWell(image: image, clamped: true)
@@ -295,33 +297,14 @@ struct PostThreadView: View {
 
     // MARK: Pieces
 
+    @State private var attachmentsExpanded = false
+
     private var topBar: some View {
         HStack(spacing: 10) {
             IconDiscButton(systemName: "arrow.left", label: "Back") {
                 dismiss()
             }
 
-            Button {
-                openProfile(post.authorName, colorHex: post.authorColorHex,
-                            door: .author(post.persistentModelID))
-            } label: {
-                HStack(spacing: 10) {
-                    AvatarCircle(initials: post.initials, tone: PersonTone.from(hex: post.authorColorHex), size: 38,
-                                 photo: members.photo(forAuthor: post.authorName))
-                        .matchedTransitionSource(id: ZoomID.author(post.persistentModelID), in: zoom)
-                    VStack(alignment: .leading, spacing: 0) {
-                        Text(post.authorName)
-                            .plName()
-                            .plType(.body, .bold)
-                            .foregroundStyle(Color.ink)
-                        Text(post.kind == "ask" ? "Question" : (post.dishTitle.isEmpty ? "Dish" : post.dishTitle))
-                            .plType(.caption, .semibold)
-                            .foregroundStyle(Color.inkSecondary)
-                    }
-                }
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.pressable)
             Spacer()
             if post.kind == "dish" {
                 if recipes.contains(where: { $0.originID == post.originKey }) {
@@ -375,6 +358,26 @@ struct PostThreadView: View {
         .padding(.horizontal, 20)
         .padding(.top, 6)
         .padding(.bottom, 10)
+    }
+
+    private var postHeading: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Button {
+                openProfile(post.authorName, colorHex: post.authorColorHex, door: .author(post.persistentModelID))
+            } label: {
+                HStack(spacing: 10) {
+                    AvatarCircle(initials: post.initials, tone: PersonTone.from(hex: post.authorColorHex), size: 38,
+                                 photo: members.photo(forAuthor: post.authorName))
+                        .matchedTransitionSource(id: ZoomID.author(post.persistentModelID), in: zoom)
+                    Text(post.authorName).plType(.footnote, .semibold).foregroundStyle(Color.ink)
+                        .fixedSize(horizontal: false, vertical: true)
+                }.contentShape(Rectangle())
+            }.buttonStyle(.pressable)
+            Text(post.kind == "ask" ? "Question" : (post.dishTitle.isEmpty ? "Dish" : post.dishTitle))
+                .plType(.title, .semibold).foregroundStyle(Color.ink)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityAddTraits(.isHeader)
+        }.frame(maxWidth: .infinity, alignment: .leading)
     }
 
     /// The poll — vote bars that fill live, one vote each, change your mind
@@ -976,7 +979,8 @@ struct PostThreadView: View {
                 .padding(.horizontal, 24)
             }
 
-            HStack(spacing: 6) {
+            if attachmentsExpanded {
+                HStack(spacing: 6) {
                 Button {
                     Haptic.tap()
                     withAnimation(.plSnap) { mentionBarShown.toggle() }
@@ -984,7 +988,7 @@ struct PostThreadView: View {
                     Image(systemName: "at")
                         .accessibilityLabel("Mention someone")
                         .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(mentionBarShown ? Color.ink : Color.inkFaint)
+                        .foregroundStyle(mentionBarShown ? Color.ink : Color.inkSecondary)
                         .frame(minWidth: 44, minHeight: 44)
                         .contentShape(Rectangle())
                 }
@@ -994,7 +998,7 @@ struct PostThreadView: View {
                     Image(systemName: "photo")
                         .accessibilityLabel("Add a photo")
                         .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(commentPhoto == nil ? Color.inkFaint : Color.ink)
+                        .foregroundStyle(commentPhoto == nil ? Color.inkSecondary : Color.ink)
                         .frame(minWidth: 44, minHeight: 44)
                         .contentShape(Rectangle())
                 }
@@ -1007,13 +1011,21 @@ struct PostThreadView: View {
                     Image(systemName: "link")
                         .accessibilityLabel("Add a link")
                         .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(linkFieldShown ? Color.ink : Color.inkFaint)
+                        .foregroundStyle(linkFieldShown ? Color.ink : Color.inkSecondary)
                         .frame(minWidth: 44, minHeight: 44)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.pressable)
 
-                TextField(placeholder, text: $draft, axis: .vertical)
+                    Spacer()
+                }.padding(.horizontal, 20)
+            }
+            HStack(alignment: .bottom, spacing: 6) {
+                DesignIconButton(symbol: attachmentsExpanded ? "minus" : "plus", label: attachmentsExpanded ? "Hide attachments" : "Add attachment or mention") {
+                    withAnimation(.plSnap) { attachmentsExpanded.toggle() }
+                }
+                TextField(typeSize.isAccessibilitySize ? "Write…" : placeholder, text: $draft, axis: .vertical)
+                    .accessibilityLabel(placeholder)
                     .plType(.body, .medium)
                     .lineLimit(1...4)
                     .focused($composerFocused)

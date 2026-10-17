@@ -1,0 +1,147 @@
+Attributes: Application, 0x113aa4500, pid: 63242, label: 'Plated'
+Element subtree:
+ →Application, 0x113aa4500, pid: 63242, label: 'Plated'
+    Window (Main), 0x113aa4140, {{0.0, 0.0}, {375.0, 667.0}}
+      Other, 0x113aa43c0, {{0.0, 0.0}, {375.0, 667.0}}
+        Other, 0x113aa4280, {{0.0, 0.0}, {375.0, 667.0}}
+          Other, 0x113aa4000, {{0.0, 0.0}, {375.0, 667.0}}
+            Other, 0x113aa7e80, {{0.0, 0.0}, {375.0, 667.0}}
+              Other, 0x113aa7ac0, {{0.0, 0.0}, {375.0, 667.0}}
+                Other, 0x113aa7d40, {{0.0, 0.0}, {375.0, 667.0}}
+                  Other, 0x113aa7c00, {{0.0, 0.0}, {375.0, 667.0}}
+                    Other, 0x113aa7700, {{-112.0, 0.0}, {375.0, 667.0}}
+                      Other, 0x113aa7980, {{-112.0, 0.0}, {375.0, 667.0}}
+                        Other, 0x113aa7840, {{-112.0, 0.0}, {375.0, 667.0}}
+                          Other, 0x113aa7340, {{-112.0, 0.0}, {375.0, 667.0}}
+                            Other, 0x113aa75c0, {{75.5, 373.5}, {0.0, 0.0}}
+                            ScrollView, 0x113aa7480, {{-112.0, 0.0}, {375.0, 667.0}}
+                              Other, 0x113aa6f80, {{-112.0, 80.0}, {375.0, 754.0}}
+                                StaticText, 0x113aa7200, {{-57.2, 170.5}, {24.5, 43.0}}, label: 'N'
+                                Button, 0x113aa70c0, {{138.5, 200.0}, {100.5, 44.0}}, label: 'Edit profile'
+                                StaticText, 0x113aa6bc0, {{-88.0, 282.0}, {64.5, 34.0}}, label: 'Nate'
+                                Button, 0x113aa6d00, {{-88.0, 332.0}, {327.0, 82.5}}, label: 'Your household, Your household'
+                                  StaticText, 0x113aa6800, {{-59.2, 364.0}, {10.5, 18.5}}, label: 'N'
+                                  StaticText, 0x113aa6a80, {{-30.2, 364.0}, {8.5, 18.5}}, label: 'S'
+                                  StaticText, 0x113aa6940, {{-2.5, 364.0}, {9.0, 18.5}}, label: 'R'
+                                  StaticText, 0x113aa6300, {{35.0, 345.0}, {111.0, 14.5}}, label: 'YOUR HOUSEHOLD'
+                                  StaticText, 0x113aa61c0, {{35.0, 362.5}, {111.5, 20.0}}, label: 'Your household'
+                                  StaticText, 0x113aa6080, {{35.0, 385.5}, {161.0, 16.0}}, label: 'Plan, shop and cook together'
+                                Button, 0x113aa5f40, {{-88.0, 426.5}, {327.0, 122.5}}, label: 'Awards'
+                                  StaticText, 0x113aa5e00, {{-88.0, 439.2}, {51.5, 14.5}}, label: 'AWARDS'
+                                  StaticText, 0x113aa5cc0, {{201.5, 438.5}, {37.5, 16.0}}, label: 'See all'
+                                  Image, 0x113aa5b80, {{48.8, 464.8}, {53.5, 53.5}}, identifier: 'person.3.fill', label: 'person.3.fill'
+                                  StaticText, 0x113aa5900, {{46.8, 522.5}, {57.5, 14.5}}, label: 'Full table'
+                                Button, 0x113aa5a40, {{-88.0, 555.0}, {109.0, 48.0}}, label: 'Dishes', Selected
+                                Button, 0x113aa57c0, {{21.0, 555.0}, {109.0, 48.0}}, label: 'Questions'
+                                Button, 0x113aa5680, {{130.0, 555.0}, {109.0, 48.0}}, label: 'Favorites'
+                                Image, 0x113aa5540, {{67.5, 657.0}, {16.0, 27.0}}, identifier: 'fork.knife', label: 'Food'
+                                StaticText, 0x113aa4b40, {{-45.5, 696.0}, {242.0, 23.0}}, label: 'Your first plate starts here'
+                                StaticText, 0x11280db80, {{-71.5, 729.0}, {294.0, 37.0}}, label: 'Dinner wins, weeknight experiments and favorite plates will collect here.'
+                            Button, 0x11280d7c0, {{-92.0, 24.0}, {44.0, 44.0}}, identifier: 'arrow.left', label: 'Back'
+                            StaticText, 0x11280f980, {{-36.0, 34.5}, {113.5, 23.0}}, label: 'Your profile'
+                            Button, 0x11280d180, {{199.0, 24.0}, {44.0, 44.0}}, identifier: 'gearshape', label: 'Settings'
+                        Other, 0x11280cdc0, {{-112.0, 0.0}, {375.0, 667.0}}
+                    Other, 0x11280d2c0, {{0.0, 0.0}, {375.0, 667.0}}
+                    Other, 0x11280c140, {{0.0, 0.0}, {375.0, 667.0}}
+                      Other, 0x11280d400, {{0.0, 0.0}, {375.0, 667.0}}
+                        Other, 0x11280c000, {{0.0, 0.0}, {375.0, 667.0}}
+                          Other, 0x11280d900, {{0.0, 0.0}, {375.0, 667.0}}
+                            Other, 0x11280e080, {{0.0, 0.0}, {375.0, 667.0}}
+                              Other, 0x11280e800, {{187.5, 343.5}, {0.0, 0.0}}
+                              ScrollView, 0x11280e940, {{0.0, 0.0}, {375.0, 667.0}}
+                                Other, 0x11280c8c0, {{0.0, 20.0}, {375.0, 984.5}}
+                                  Button, 0x11280f200, {{24.0, 27.5}, {44.0, 44.0}}, identifier: 'arrow.left', label: 'Back'
+                                  Button, 0x11280ee40, {{78.0, 26.0}, {202.5, 46.5}}, label: 'Name your household'
+                                    StaticText, 0x11280fe80, {{78.0, 26.0}, {75.0, 14.5}}, label: 'HOUSEHOLD'
+                                    StaticText, 0x11280f840, {{78.0, 42.5}, {185.5, 30.0}}, label: 'Your household'
+                                    Image, 0x11280e1c0, {{269.5, 52.5}, {10.0, 10.0}}, identifier: 'pencil', label: 'Edit'
+                                  Button, 0x11280da40, {{307.0, 27.5}, {44.0, 44.0}}, identifier: 'notifications-bell', label: 'Notifications', value: No unread notifica...
+                                    Button, 0x11280ebc0, {{307.0, 27.5}, {44.0, 44.0}}, identifier: 'bell', label: 'Notifications'
+                                  Button, 0x11280f0c0, {{24.0, 94.5}, {327.0, 76.0}}, label: 'Household photo'
+                                    Image, 0x11280e6c0, {{49.5, 125.0}, {19.0, 15.0}}, identifier: 'photo', label: 'Photo'
+                                    StaticText, 0x11280df40, {{90.0, 115.0}, {145.5, 17.0}}, label: 'Add a household photo'
+                                    StaticText, 0x11280f5c0, {{90.0, 134.0}, {222.0, 16.0}}, label: 'Shared with everyone in your household'
+                                  StaticText, 0x11280f480, {{26.0, 178.5}, {109.0, 16.0}}, label: 'Nate, Sam and Riley'
+                                  StaticText, 0x11280e300, {{24.0, 231.2}, {46.0, 14.5}}, label: 'PEOPLE'
+                                  Button, 0x11280f340, {{307.0, 216.5}, {44.0, 44.0}}, label: 'People options'
+                                    Button, 0x11280ed00, {{307.0, 216.5}, {44.0, 44.0}}
+                                      Image, 0x11280e580, {{307.0, 216.5}, {44.0, 44.0}}, identifier: 'ellipsis', label: 'More'
+                                  Button, 0x11280de00, {{42.0, 282.5}, {291.0, 52.0}}, label: 'Nate', value: You · Organizer
+                                    StaticText, 0x11280cb40, {{58.8, 297.2}, {12.5, 22.5}}, label: 'N'
+                                    StaticText, 0x11280fac0, {{100.0, 290.0}, {34.5, 20.0}}, label: 'Nate'
+                                    StaticText, 0x11280ef80, {{100.0, 311.0}, {86.0, 16.0}}, label: 'You · Organizer'
+                                  Button, 0x11280ea80, {{42.0, 359.0}, {153.5, 55.5}}, label: 'Sam', value: You cook for them
+                                    StaticText, 0x11280d040, {{59.8, 375.5}, {10.5, 22.5}}, label: 'S'
+                                    StaticText, 0x11280cf00, {{100.0, 359.0}, {31.5, 20.0}}, label: 'Sam'
+                                    StaticText, 0x11280e440, {{100.0, 380.0}, {55.5, 34.5}}, label: 'You cook for them'
+                                  StaticText, 0x11280c280, {{215.5, 378.8}, {53.5, 16.0}}, label: 'Sun + Sat'
+                                  Button, 0x11280fd40, {{289.0, 365.0}, {44.0, 44.0}}, label: 'More options for Sam'
+                                    Button, 0x11280cc80, {{289.0, 365.0}, {44.0, 44.0}}
+                                      Image, 0x11280f700, {{289.0, 365.0}, {44.0, 44.0}}, identifier: 'ellipsis', label: 'More'
+                                  Button, 0x11280fc00, {{42.0, 439.0}, {239.0, 52.0}}, label: 'Riley', value: You cook for them
+                                    StaticText, 0x11280c640, {{59.5, 453.8}, {11.0, 22.5}}, label: 'R'
+                                    StaticText, 0x11280d540, {{100.0, 446.5}, {34.5, 20.0}}, label: 'Riley'
+                                    StaticText, 0x11280c3c0, {{100.0, 467.5}, {105.0, 16.0}}, label: 'You cook for them'
+                                  Button, 0x11280d680, {{289.0, 443.0}, {44.0, 44.0}}, label: 'More options for Riley'
+                                    Button, 0x11280c500, {{289.0, 443.0}, {44.0, 44.0}}
+                                      Image, 0x10323fd40, {{289.0, 443.0}, {44.0, 44.0}}, identifier: 'ellipsis', label: 'More'
+                                  Button, 0x10323fac0, {{24.0, 513.0}, {327.0, 68.0}}, label: 'Invite someone, Share the plan, groceries and cookbook'
+                                    Image, 0x10323f700, {{52.0, 538.0}, {19.0, 18.5}}, identifier: 'person.badge.plus', label: 'person.badge.plus'
+                                    StaticText, 0x10323f980, {{92.0, 528.0}, {111.0, 20.0}}, label: 'Invite someone'
+                                    StaticText, 0x10323fe80, {{92.0, 550.0}, {219.5, 16.0}}, label: 'Share the plan, groceries and cookbook'
+                                  StaticText, 0x10323f840, {{24.0, 617.8}, {117.0, 14.5}}, label: 'WHO COOKS WHEN'
+                                  Button, 0x10323f480, {{147.0, 603.0}, {44.0, 44.0}}, identifier: 'info.circle', label: 'How turns work'
+                                  Other, 0x10323f5c0, {{24.0, 657.0}, {41.5, 68.5}}, label: 'Sunday, Sam cooks'
+                                    Button, 0x10323f340, {{24.0, 657.0}, {41.5, 68.5}}, label: 'S, S'
+                                      StaticText, 0x10323fc00, {{41.0, 667.0}, {7.5, 14.5}}, label: 'S'
+                                      StaticText, 0x1128192c0, {{41.5, 694.2}, {7.0, 14.5}}, label: 'S'
+                                  Other, 0x112819a40, {{71.5, 657.0}, {41.5, 68.5}}, label: 'Monday, nobody yet'
+                                    Button, 0x11281a300, {{71.5, 657.0}, {41.5, 68.5}}, label: 'M'
+                                  Other, 0x112818f00, {{119.0, 657.0}, {41.5, 68.5}}, label: 'Tuesday, Riley cooks'
+                                    Button, 0x112818b40, {{119.0, 657.0}, {41.5, 68.5}}, label: 'T, R'
+                                      StaticText, 0x112819f40, {{136.0, 667.0}, {7.5, 14.5}}, label: 'T'
+                                      StaticText, 0x112819540, {{136.5, 694.2}, {7.0, 14.5}}, label: 'R'
+                                  Other, 0x11281a6c0, {{166.5, 657.0}, {42.0, 68.5}}, label: 'Wednesday, Nate cooks'
+                                    Button, 0x112819b80, {{166.5, 657.0}, {42.0, 68.5}}, label: 'W, N'
+                                      StaticText, 0x1128188c0, {{181.3, 667.0}, {12.0, 14.5}}, label: 'W'
+                                      StaticText, 0x112818000, {{183.2, 694.2}, {8.5, 14.5}}, label: 'N'
+                                  Other, 0x112819400, {{214.5, 657.0}, {41.5, 68.5}}, label: 'Thursday, nobody yet'
+                                    Button, 0x112818500, {{214.5, 657.0}, {41.5, 68.5}}, label: 'T'
+                                  Other, 0x11281b200, {{262.0, 657.0}, {41.5, 68.5}}, label: 'Friday, Nate cooks'
+                                    Button, 0x112819040, {{262.0, 657.0}, {41.5, 68.5}}, label: 'F, N'
+                                      StaticText, 0x11281ad00, {{279.3, 667.0}, {7.0, 14.5}}, label: 'F'
+                                      StaticText, 0x112818780, {{278.8, 694.2}, {8.5, 14.5}}, label: 'N'
+                                  Other, 0x11281a080, {{309.5, 657.0}, {41.5, 68.5}}, label: 'Saturday, Sam cooks'
+                                    Button, 0x112818280, {{309.5, 657.0}, {41.5, 68.5}}, label: 'S, S'
+                                      StaticText, 0x112819900, {{326.5, 667.0}, {7.5, 14.5}}, label: 'S'
+                                      StaticText, 0x11281b480, {{327.0, 694.2}, {7.0, 14.5}}, label: 'S'
+                                  StaticText, 0x11281a440, {{24.0, 735.5}, {315.0, 16.0}}, label: 'Tap a day to hand it to someone else. Nobody is notified.'
+                                  StaticText, 0x11281b0c0, {{40.0, 783.5}, {178.0, 20.0}}, label: 'Take turns automatically'
+                                  StaticText, 0x112819cc0, {{40.0, 805.5}, {175.5, 34.5}}, label: 'Open nights go to whoever has cooked least'
+                                  Switch, 0x1128183c0, {{274.0, 798.0}, {61.0, 28.0}}, label: 'Take turns automatically', value: 1
+                                    Switch, 0x112819680, {{274.0, 798.0}, {63.0, 28.0}}, value: 1
+                                  Button, 0x11281af80, {{24.0, 876.0}, {327.0, 96.5}}, label: '5 Dinners, 0 Happy plates, 0 Chef's kisses, All stats and badges'
+                                    StaticText, 0x1128197c0, {{54.7, 880.0}, {47.0, 46.5}}, label: '5 Dinners'
+                                      StaticText, 0x11281b840, {{70.2, 880.0}, {16.0, 29.0}}, label: '5'
+                                      StaticText, 0x112818640, {{54.7, 912.0}, {47.0, 14.5}}, label: 'Dinners'
+                                    Other, 0x11281bc00, {{132.5, 889.5}, {1.0, 28.0}}
+                                    StaticText, 0x11281a800, {{147.2, 880.0}, {80.5, 46.5}}, label: '0 Happy plates'
+                                      StaticText, 0x11281b340, {{179.5, 880.0}, {16.0, 29.0}}, label: '0'
+                                      StaticText, 0x11281b5c0, {{147.2, 912.0}, {80.5, 14.5}}, label: 'Happy plates'
+                                    Other, 0x112818c80, {{241.5, 889.5}, {1.0, 28.0}}
+                                    StaticText, 0x11281bd40, {{256.8, 880.0}, {80.0, 46.5}}, label: '0 Chef's kisses'
+                                      StaticText, 0x11281bac0, {{288.8, 880.0}, {16.0, 29.0}}, label: '0'
+                                      StaticText, 0x11281ae40, {{256.8, 912.0}, {80.0, 14.5}}, label: 'Chef's kisses'
+                                    Image, 0x112818140, {{121.5, 948.0}, {9.5, 11.5}}, identifier: 'sparkles', label: 'Sparkle'
+                                    StaticText, 0x11281b980, {{137.8, 945.5}, {117.0, 16.0}}, label: 'All stats and badges'
+                        Other, 0x11281a940, {{0.0, 0.0}, {375.0, 667.0}}
+                    Other, 0x112818dc0, {{100.0, 0.0}, {1.0, 1.0}}
+                Other, 0x11281a580, {{0.0, 0.0}, {375.0, 667.0}}
+                  Other, 0x11281aa80, {{0.0, 0.0}, {375.0, 667.0}}
+Path to element:
+ →Application, 0x113aa4500, pid: 63242, label: 'Plated'
+Query chain:
+ →Find: Application 'com.natemeadows.plated'
+  Output: {
+    Application, 0x112819180, pid: 63242, label: 'Plated'
+  }

@@ -41,6 +41,8 @@ enum HouseholdEdits {
         /// needed it for the same problem, and this was the one place that
         /// could take a night's name without being able to give it a dish.
         var recipeOriginKey: String = ""
+        var cooked: Bool? = nil
+        var cookedAt: Date? = nil
         /// Who made it so, empty when the record names nobody. A screen
         /// built from this may not guess a name.
         var by: String
@@ -99,6 +101,7 @@ enum HouseholdEdits {
             let sameAnswer = previous.map {
                 $0.title == e.title && $0.cookID == e.cookID
                     && $0.servings == e.servings && $0.day == e.day
+                    && $0.cooked == e.cooked && $0.cookedAt == e.cookedAt
             } ?? false
             if sameAnswer, previous?.settled == true { continue }
             book.removeAll { $0.shoppingID == e.shoppingID }
@@ -106,7 +109,7 @@ enum HouseholdEdits {
                 shoppingID: e.shoppingID, recordName: e.recordName,
                 title: e.title, cookID: e.cookID, cookName: e.cookName,
                 servings: e.servings, day: e.day, slot: e.slot,
-                recipeOriginKey: e.recipeOriginKey,
+                recipeOriginKey: e.recipeOriginKey, cooked: e.cooked, cookedAt: e.cookedAt,
                 by: e.editorName ?? "", at: .now
             ))
         }
@@ -160,12 +163,15 @@ enum HouseholdEdits {
                 // already solved this with the same key.
                 let recipes = (try? context.fetch(FetchDescriptor<Recipe>())) ?? []
                 meal.recipe = recipes.first {
-                    !change.recipeOriginKey.isEmpty && $0.originID == change.recipeOriginKey
+                    !change.recipeOriginKey.isEmpty && $0.planningKey == change.recipeOriginKey
                 } ?? recipes.first { $0.title == change.title }
                 _ = recipe
             }
         }
         if change.servings > 0 { meal.servings = change.servings }
+        if let cooked = change.cooked {
+            meal.cookedAt = cooked ? (change.cookedAt ?? meal.cookedAt ?? change.at) : nil
+        }
         if !change.cookID.isEmpty {
             let members = (try? context.fetch(FetchDescriptor<HouseholdMember>())) ?? []
             // Only when somebody is actually found. Assigning the lookup

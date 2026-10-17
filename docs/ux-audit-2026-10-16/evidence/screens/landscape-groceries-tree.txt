@@ -1,0 +1,254 @@
+Attributes: Application, 0x11265c280, pid: 61338, label: 'Plated'
+Element subtree:
+ →Application, 0x11265c280, pid: 61338, label: 'Plated'
+    Window (Main), 0x11265c500, {{0.0, 0.0}, {667.0, 375.0}}
+      Other, 0x11265c3c0, {{0.0, 0.0}, {667.0, 375.0}}
+        Other, 0x11265c140, {{0.0, 0.0}, {667.0, 375.0}}
+          Other, 0x11265c000, {{0.0, 0.0}, {667.0, 375.0}}
+            Other, 0x11265c780, {{0.0, 0.0}, {667.0, 375.0}}
+              Other, 0x11265c8c0, {{0.0, 0.0}, {667.0, 375.0}}
+                Other, 0x11265ca00, {{0.0, 0.0}, {667.0, 375.0}}
+                  Other, 0x11265cb40, {{0.0, 0.0}, {667.0, 375.0}}
+                    Other, 0x11265cc80, {{0.0, 0.0}, {667.0, 375.0}}
+                      Other, 0x11265cdc0, {{0.0, 0.0}, {667.0, 375.0}}
+                        Other, 0x11265cf00, {{333.5, 187.5}, {0.0, 0.0}}
+                        StaticText, 0x11265d040, {{24.0, 22.0}, {64.5, 24.0}}, label: 'Plated'
+                        Button, 0x11265d180, {{495.0, 12.0}, {44.0, 44.0}}, identifier: 'tray-create', label: 'Add'
+                        Button, 0x11265d2c0, {{547.0, 12.0}, {44.0, 44.0}}, identifier: 'notifications-bell', label: 'Notifications', value: No unread notifica...
+                          Button, 0x11265e300, {{547.0, 12.0}, {44.0, 44.0}}, identifier: 'bell', label: 'Notifications'
+                        Button, 0x11265e440, {{599.0, 12.0}, {44.0, 44.0}}, label: 'Your profile'
+                        StaticText, 0x11265ef80, {{24.0, 76.0}, {284.0, 40.0}}, label: 'The month ahead'
+                        StaticText, 0x11265fe80, {{24.0, 126.0}, {100.0, 16.0}}, label: 'Friday, October 16'
+                        Button, 0x11265fd40, {{26.0, 152.0}, {72.0, 44.0}}, label: 'Calendar view'
+                        Button, 0x11265fc00, {{98.0, 152.0}, {72.0, 44.0}}, label: 'Calendar view', Selected
+                        Button, 0x11265fac0, {{543.0, 152.0}, {44.0, 44.0}}, identifier: 'calendar', label: 'Choose a date', value: Friday, October 16...
+                        Button, 0x11265f980, {{599.0, 152.0}, {44.0, 44.0}}, label: 'Today'
+                        ScrollView, 0x11265f840, {{0.0, 210.0}, {667.0, 165.0}}
+                          Other, 0x11265f700, {{0.0, 210.0}, {667.0, 573.5}}
+                            StaticText, 0x11265f5c0, {{24.0, 210.0}, {168.0, 29.0}}, label: 'October 2026'
+                            StaticText, 0x11265f480, {{64.5, 255.0}, {7.5, 16.0}}, label: 'S'
+                            StaticText, 0x11265f340, {{151.4, 255.0}, {10.5, 16.0}}, label: 'M'
+                            StaticText, 0x11265f200, {{241.3, 255.0}, {7.5, 16.0}}, label: 'T'
+                            StaticText, 0x11265f0c0, {{327.3, 255.0}, {12.5, 16.0}}, label: 'W'
+                            StaticText, 0x11265ee40, {{418.2, 255.0}, {7.5, 16.0}}, label: 'T'
+                            StaticText, 0x11265ed00, {{506.9, 255.0}, {7.0, 16.0}}, label: 'F'
+                            StaticText, 0x11265ebc0, {{595.0, 255.0}, {7.5, 16.0}}, label: 'S'
+                            Other, 0x11265ea80, {{24.0, 275.0}, {619.0, 256.0}}
+                              Button, 0x11265e940, {{377.5, 275.0}, {88.5, 48.0}}, identifier: 'month-date-1', label: 'Thursday, October 1, 0 meals planned'
+                              Button, 0x11265e800, {{466.0, 275.0}, {88.5, 48.0}}, identifier: 'month-date-2', label: 'Friday, October 2, 0 meals planned'
+                              Button, 0x11265e6c0, {{554.5, 275.0}, {88.5, 48.0}}, identifier: 'month-date-3', label: 'Saturday, October 3, 0 meals planned'
+                              Button, 0x11265e580, {{24.0, 327.0}, {88.5, 48.0}}, identifier: 'month-date-4', label: 'Sunday, October 4, 0 meals planned'
+                              Button, 0x11265e1c0, {{112.5, 327.0}, {88.5, 48.0}}, identifier: 'month-date-5', label: 'Monday, October 5, 0 meals planned'
+                              Button, 0x11265e080, {{201.0, 327.0}, {88.5, 48.0}}, identifier: 'month-date-6', label: 'Tuesday, October 6, 0 meals planned'
+                              Button, 0x11265df40, {{289.5, 327.0}, {88.0, 48.0}}, identifier: 'month-date-7', label: 'Wednesday, October 7, 0 meals planned'
+                              Button, 0x11265de00, {{377.5, 327.0}, {88.5, 48.0}}, identifier: 'month-date-8', label: 'Thursday, October 8, 0 meals planned'
+                              Button, 0x11265dcc0, {{466.0, 327.0}, {88.5, 48.0}}, identifier: 'month-date-9', label: 'Friday, October 9, 0 meals planned'
+                              Button, 0x11265db80, {{554.5, 327.0}, {88.5, 48.0}}, identifier: 'month-date-10', label: 'Saturday, October 10, 0 meals planned'
+                              Button, 0x11265da40, {{24.0, 379.0}, {88.5, 48.0}}, identifier: 'month-date-11', label: 'Sunday, October 11, 0 meals planned'
+                              Button, 0x11265d7c0, {{112.5, 379.0}, {88.5, 48.0}}, identifier: 'month-date-12', label: 'Monday, October 12, 0 meals planned'
+                              Button, 0x11265d900, {{201.0, 379.0}, {88.5, 48.0}}, identifier: 'month-date-13', label: 'Tuesday, October 13, 0 meals planned'
+                              Button, 0x11265d680, {{289.5, 379.0}, {88.0, 48.0}}, identifier: 'month-date-14', label: 'Wednesday, October 14, 0 meals planned'
+                              Button, 0x11265d540, {{377.5, 379.0}, {88.5, 48.0}}, identifier: 'month-date-15', label: 'Thursday, October 15, 0 meals planned'
+                              Button, 0x11265d400, {{466.0, 379.0}, {88.5, 48.0}}, identifier: 'month-date-16', label: 'Friday, October 16, today, 1 meals planned', Selected
+                              Button, 0x1125f4640, {{554.5, 379.0}, {88.5, 48.0}}, identifier: 'month-date-17', label: 'Saturday, October 17, 1 meals planned'
+                              Button, 0x1125f5040, {{24.0, 431.0}, {88.5, 48.0}}, identifier: 'month-date-18', label: 'Sunday, October 18, 1 meals planned'
+                              Button, 0x1125f7ac0, {{112.5, 431.0}, {88.5, 48.0}}, identifier: 'month-date-19', label: 'Monday, October 19, 0 meals planned'
+                              Button, 0x1125f5cc0, {{201.0, 431.0}, {88.5, 48.0}}, identifier: 'month-date-20', label: 'Tuesday, October 20, 1 meals planned'
+                              Button, 0x1125f7700, {{289.5, 431.0}, {88.0, 48.0}}, identifier: 'month-date-21', label: 'Wednesday, October 21, 1 meals planned'
+                              Button, 0x1125f7840, {{377.5, 431.0}, {88.5, 48.0}}, identifier: 'month-date-22', label: 'Thursday, October 22, 0 meals planned'
+                              Button, 0x1125f7d40, {{466.0, 431.0}, {88.5, 48.0}}, identifier: 'month-date-23', label: 'Friday, October 23, 0 meals planned'
+                              Button, 0x1125f5e00, {{554.5, 431.0}, {88.5, 48.0}}, identifier: 'month-date-24', label: 'Saturday, October 24, 0 meals planned'
+                              Button, 0x1125f75c0, {{24.0, 483.0}, {88.5, 48.0}}, identifier: 'month-date-25', label: 'Sunday, October 25, 0 meals planned'
+                              Button, 0x1125f5900, {{112.5, 483.0}, {88.5, 48.0}}, identifier: 'month-date-26', label: 'Monday, October 26, 0 meals planned'
+                              Button, 0x1125f7c00, {{201.0, 483.0}, {88.5, 48.0}}, identifier: 'month-date-27', label: 'Tuesday, October 27, 0 meals planned'
+                              Button, 0x1125f4f00, {{289.5, 483.0}, {88.0, 48.0}}, identifier: 'month-date-28', label: 'Wednesday, October 28, 0 meals planned'
+                              Button, 0x1125f70c0, {{377.5, 483.0}, {88.5, 48.0}}, identifier: 'month-date-29', label: 'Thursday, October 29, 0 meals planned'
+                              Button, 0x1125f6d00, {{466.0, 483.0}, {88.5, 48.0}}, identifier: 'month-date-30', label: 'Friday, October 30, 0 meals planned'
+                              Button, 0x1125f6440, {{554.5, 483.0}, {88.5, 48.0}}, identifier: 'month-date-31', label: 'Saturday, October 31, 0 meals planned'
+                            StaticText, 0x1125f4140, {{24.0, 575.5}, {43.5, 20.0}}, label: 'Today'
+                            Button, 0x1125f4500, {{594.5, 563.5}, {48.5, 44.0}}, label: 'Plan'
+                              Image, 0x1125f5a40, {{596.0, 580.0}, {11.0, 11.0}}, identifier: 'plus', label: 'Add'
+                              StaticText, 0x1125f6f80, {{594.5, 563.5}, {48.5, 44.0}}, label: 'Plan'
+                            Button, 0x1125f7340, {{24.0, 623.5}, {575.0, 80.0}}, identifier: 'month-meal-dinner', label: 'Dinner, Salmon Night, 4 servings · You're cooking'
+                              StaticText, 0x1125f6e40, {{24.0, 633.5}, {38.0, 16.0}}, label: 'Dinner'
+                              StaticText, 0x1125f7e80, {{24.0, 653.5}, {96.0, 20.0}}, label: 'Salmon Night'
+                              StaticText, 0x1125f43c0, {{24.0, 677.5}, {145.0, 16.0}}, label: '4 servings · You're cooking'
+                            Button, 0x1125f6580, {{599.0, 641.5}, {44.0, 44.0}}, identifier: 'month-meal-dinner', label: 'Actions for Salmon Night', value: Actions hidden
+                Other, 0x1125f4b40, {{0.0, 0.0}, {667.0, 375.0}}
+                  Other, 0x1125f4280, {{0.0, 0.0}, {0.0, 0.0}}
+                  Other, 0x1125f6080, {{0.0, 0.0}, {667.0, 375.0}}
+              Other, 0x1125f7480, {{0.0, 0.0}, {667.0, 375.0}}
+                Other, 0x1125f61c0, {{0.0, 0.0}, {667.0, 375.0}}
+                  Other, 0x1125f5400, {{0.0, 0.0}, {667.0, 375.0}}
+                    Other, 0x1125f6a80, {{0.0, 0.0}, {667.0, 375.0}}
+                      Other, 0x1125f4dc0, {{0.0, 0.0}, {667.0, 375.0}}
+                        Other, 0x1125f7200, {{333.5, 187.5}, {0.0, 0.0}}
+                        ScrollView, 0x1125f6800, {{0.0, 0.0}, {667.0, 193.0}}
+                          Other, 0x1125f5180, {{0.0, 0.0}, {667.0, 1905.0}}
+                            StaticText, 0x1125f5540, {{24.0, 35.5}, {67.5, 25.0}}, label: 'Plated'
+                            Button, 0x1125f6bc0, {{495.0, 26.0}, {44.0, 44.0}}, identifier: 'tray-create', label: 'Add'
+                            Button, 0x1125f4000, {{547.0, 26.0}, {44.0, 44.0}}, identifier: 'notifications-bell', label: 'Notifications', value: No unread notifica...
+                              Button, 0x1125f52c0, {{547.0, 26.0}, {44.0, 44.0}}, identifier: 'bell', label: 'Notifications'
+                            Button, 0x1125f5680, {{599.0, 26.0}, {44.0, 44.0}}, label: 'Your profile'
+                            StaticText, 0x1125f4a00, {{24.0, 90.0}, {152.5, 40.0}}, label: 'Groceries'
+                            StaticText, 0x1125f4780, {{38.0, 170.0}, {120.5, 14.5}}, label: 'SHOPPING WINDOW'
+                            Button, 0x1125f5b80, {{38.0, 196.5}, {591.0, 38.0}}, label: 'Shopping dates, Oct 16–22'
+                              Image, 0x1125f57c0, {{40.0, 208.5}, {15.5, 14.0}}, identifier: 'calendar', label: 'Calendar'
+                              StaticText, 0x1125f7980, {{67.5, 196.5}, {73.0, 20.0}}, label: 'Oct 16–22'
+                              StaticText, 0x1125f6940, {{67.5, 218.5}, {178.0, 16.0}}, label: 'Everything planned in this range'
+                              StaticText, 0x1125f6300, {{581.0, 207.0}, {48.0, 17.0}}, label: 'Change'
+                            Button, 0x11240c000, {{40.0, 261.0}, {293.5, 44.0}}, label: 'Grocery scope', Selected
+                            Button, 0x112c548c0, {{333.5, 261.0}, {293.5, 44.0}}, label: 'Grocery scope'
+                            Switch, 0x1125e30c0, {{38.0, 334.5}, {591.0, 38.0}}, label: 'Include pantry staples, Review things recipes mark as usually on hand', value: 0
+                              StaticText, 0x1125e2d00, {{38.0, 334.5}, {162.0, 20.0}}, label: 'Include pantry staples'
+                              StaticText, 0x1125e3d40, {{38.0, 356.5}, {256.5, 16.0}}, label: 'Review things recipes mark as usually on hand'
+                              Switch, 0x1125e3200, {{568.0, 339.5}, {63.0, 28.0}}, value: 0
+                            Button, 0x1125e2bc0, {{24.0, 403.5}, {619.0, 44.0}}, label: 'Customize aisle order'
+                              Image, 0x1125e3340, {{25.5, 421.5}, {13.5, 8.0}}, identifier: 'line.3.horizontal.decrease', label: 'Filter'
+                              StaticText, 0x1125e2800, {{48.5, 417.0}, {136.0, 17.0}}, label: 'Customize aisle order'
+                              Image, 0x1125e2580, {{629.0, 420.0}, {12.5, 11.0}}, identifier: 'slider.horizontal.3', label: 'Edit'
+                            StaticText, 0x1125e35c0, {{24.0, 461.5}, {87.0, 16.0}}, label: '0 of 17 checked'
+                            StaticText, 0x1125e3480, {{551.5, 461.5}, {91.5, 16.0}}, label: '5 planned meals'
+                            StaticText, 0x1125e2940, {{38.0, 526.5}, {136.5, 20.0}}, label: 'Shopping estimate'
+                            StaticText, 0x1125e2f80, {{557.0, 528.5}, {72.0, 17.0}}, label: 'Unavailable'
+                            StaticText, 0x1125e3c00, {{38.0, 556.5}, {385.5, 16.0}}, label: 'Choose a store and add current package prices to recipe ingredients.'
+                            TextField, 0x1125e2a80, {{38.0, 582.5}, {471.0, 42.0}}, label: 'Store for grocery estimate', placeholderValue: 'Store'
+                            TextField, 0x1125e2e40, {{517.0, 582.5}, {112.0, 42.0}}, label: 'Optional grocery budget target', placeholderValue: 'Budget'
+                            StaticText, 0x1125e3840, {{24.0, 656.5}, {58.0, 14.5}}, label: 'PRODUCE'
+                            Button, 0x1125e3980, {{24.0, 675.0}, {567.0, 56.0}}, label: 'Asparagus, 1 bunch', value: To buy
+                              Image, 0x112c657c0, {{26.0, 691.0}, {24.0, 24.0}}, identifier: 'circle', label: 'circle'
+                              StaticText, 0x112c65a40, {{64.0, 683.0}, {77.0, 20.0}}, label: 'Asparagus'
+                              StaticText, 0x112c65900, {{64.0, 707.0}, {96.0, 16.0}}, label: 'Fri · Salmon Night'
+                              StaticText, 0x112c65400, {{543.5, 694.5}, {47.5, 17.0}}, label: '1 bunch'
+                            Button, 0x112c65680, {{599.0, 681.0}, {44.0, 44.0}}, identifier: 'info.circle', label: 'Meals that need Asparagus'
+                            Button, 0x112c65540, {{24.0, 735.0}, {567.0, 56.0}}, label: 'Basil, 1 bunch', value: To buy
+                              Image, 0x112c65040, {{26.0, 751.0}, {24.0, 24.0}}, identifier: 'circle', label: 'circle'
+                              StaticText, 0x112c652c0, {{64.0, 743.0}, {34.0, 20.0}}, label: 'Basil'
+                              StaticText, 0x112c65180, {{64.0, 767.0}, {87.0, 16.0}}, label: 'Sat · Pizza Night'
+                              StaticText, 0x112c64c80, {{543.5, 754.5}, {47.5, 17.0}}, label: '1 bunch'
+                            Button, 0x112c64f00, {{599.0, 741.0}, {44.0, 44.0}}, identifier: 'info.circle', label: 'Meals that need Basil'
+                            Button, 0x112c65e00, {{24.0, 795.0}, {567.0, 56.0}}, label: 'Bell peppers, 3', value: To buy
+                              Image, 0x112c65f40, {{26.0, 811.0}, {24.0, 24.0}}, identifier: 'circle', label: 'circle'
+                              StaticText, 0x112c67980, {{64.0, 803.0}, {90.5, 20.0}}, label: 'Bell peppers'
+                              StaticText, 0x112c66940, {{64.0, 827.0}, {102.0, 16.0}}, label: 'Sun · BBQ Skewers'
+                              StaticText, 0x112c66a80, {{583.0, 814.5}, {8.0, 17.0}}, label: '3'
+                            Button, 0x112c66bc0, {{599.0, 801.0}, {44.0, 44.0}}, identifier: 'info.circle', label: 'Meals that need Bell peppers'
+                            Button, 0x112c66e40, {{24.0, 855.0}, {567.0, 56.0}}, label: 'Cucumber, 1', value: To buy
+                              Image, 0x112c66d00, {{26.0, 871.0}, {24.0, 24.0}}, identifier: 'circle', label: 'circle'
+                              StaticText, 0x112c66f80, {{64.0, 863.0}, {76.5, 20.0}}, label: 'Cucumber'
+                              StaticText, 0x112c670c0, {{64.0, 887.0}, {93.0, 16.0}}, label: 'Wed · Poke Night'
+                              StaticText, 0x112c67200, {{586.0, 874.5}, {5.0, 17.0}}, label: '1'
+                            Button, 0x112c67340, {{599.0, 861.0}, {44.0, 44.0}}, identifier: 'info.circle', label: 'Meals that need Cucumber'
+                            Button, 0x112c67480, {{24.0, 915.0}, {567.0, 56.0}}, label: 'Lemon, 2', value: To buy
+                              Image, 0x112c675c0, {{26.0, 931.0}, {24.0, 24.0}}, identifier: 'circle', label: 'circle'
+                              StaticText, 0x112c67700, {{64.0, 923.0}, {49.0, 20.0}}, label: 'Lemon'
+                              StaticText, 0x112c67ac0, {{64.0, 947.0}, {96.0, 16.0}}, label: 'Fri · Salmon Night'
+                              StaticText, 0x112c67c00, {{583.0, 934.5}, {8.0, 17.0}}, label: '2'
+                            Button, 0x112c67d40, {{599.0, 921.0}, {44.0, 44.0}}, identifier: 'info.circle', label: 'Meals that need Lemon'
+                            Button, 0x112c67e80, {{24.0, 975.0}, {567.0, 56.0}}, label: 'Lime, 3', value: To buy
+                              Image, 0x112c67840, {{26.0, 991.0}, {24.0, 24.0}}, identifier: 'circle', label: 'circle'
+                              StaticText, 0x112c66800, {{64.0, 983.0}, {35.0, 20.0}}, label: 'Lime'
+                              StaticText, 0x112c666c0, {{64.0, 1007.0}, {95.0, 16.0}}, label: 'Tue · Steak Bowls'
+                              StaticText, 0x112c66580, {{583.0, 994.5}, {8.0, 17.0}}, label: '3'
+                            Button, 0x112c66440, {{599.0, 981.0}, {44.0, 44.0}}, identifier: 'info.circle', label: 'Meals that need Lime'
+                            Button, 0x112c66300, {{24.0, 1035.0}, {567.0, 56.0}}, label: 'Red onion, 2', value: To buy
+                              Image, 0x112c661c0, {{26.0, 1051.0}, {24.0, 24.0}}, identifier: 'circle', label: 'circle'
+                              StaticText, 0x112c66080, {{64.0, 1043.0}, {71.5, 20.0}}, label: 'Red onion'
+                              StaticText, 0x112c65cc0, {{64.0, 1067.0}, {102.0, 16.0}}, label: 'Sun · BBQ Skewers'
+                              StaticText, 0x112c64140, {{583.0, 1054.5}, {8.0, 17.0}}, label: '2'
+                            Button, 0x112c64280, {{599.0, 1041.0}, {44.0, 44.0}}, identifier: 'info.circle', label: 'Meals that need Red onion'
+                            StaticText, 0x112c64000, {{24.0, 1109.0}, {107.0, 14.5}}, label: 'MEAT & SEAFOOD'
+                            Button, 0x112c64500, {{24.0, 1127.5}, {567.0, 56.0}}, label: 'Ahi tuna, 1 lb', value: To buy
+                              Image, 0x112c64640, {{26.0, 1143.5}, {24.0, 24.0}}, identifier: 'circle', label: 'circle'
+                              StaticText, 0x112c64780, {{64.0, 1135.5}, {60.5, 20.0}}, label: 'Ahi tuna'
+                              StaticText, 0x112c648c0, {{64.0, 1159.5}, {93.0, 16.0}}, label: 'Wed · Poke Night'
+                              StaticText, 0x112c643c0, {{571.5, 1147.0}, {19.5, 17.0}}, label: '1 lb'
+                            Button, 0x112c64b40, {{599.0, 1133.5}, {44.0, 44.0}}, identifier: 'info.circle', label: 'Meals that need Ahi tuna'
+                            Button, 0x112c64a00, {{24.0, 1187.5}, {567.0, 56.0}}, label: 'Chicken thighs, 2 lb', value: To buy
+                              Image, 0x112c64dc0, {{26.0, 1203.5}, {24.0, 24.0}}, identifier: 'circle', label: 'circle'
+                              StaticText, 0x112634000, {{64.0, 1195.5}, {107.5, 20.0}}, label: 'Chicken thighs'
+                              StaticText, 0x112634140, {{64.0, 1219.5}, {102.0, 16.0}}, label: 'Sun · BBQ Skewers'
+                              StaticText, 0x112634280, {{568.5, 1207.0}, {22.5, 17.0}}, label: '2 lb'
+                            Button, 0x1126343c0, {{599.0, 1193.5}, {44.0, 44.0}}, identifier: 'info.circle', label: 'Meals that need Chicken thighs'
+                            Button, 0x112634500, {{24.0, 1247.5}, {567.0, 56.0}}, label: 'Flank steak, 1½ lb', value: To buy
+                              Image, 0x112634640, {{26.0, 1263.5}, {24.0, 24.0}}, identifier: 'circle', label: 'circle'
+                              StaticText, 0x112634780, {{64.0, 1255.5}, {81.5, 20.0}}, label: 'Flank steak'
+                              StaticText, 0x1126348c0, {{64.0, 1279.5}, {95.0, 16.0}}, label: 'Tue · Steak Bowls'
+                              StaticText, 0x112634a00, {{560.5, 1267.0}, {30.5, 17.0}}, label: '1½ lb'
+                            Button, 0x112634b40, {{599.0, 1253.5}, {44.0, 44.0}}, identifier: 'info.circle', label: 'Meals that need Flank steak'
+                            Button, 0x112634c80, {{24.0, 1307.5}, {567.0, 56.0}}, label: 'Salmon fillets, 4', value: To buy
+                              Image, 0x112634dc0, {{26.0, 1323.5}, {24.0, 24.0}}, identifier: 'circle', label: 'circle'
+                              StaticText, 0x112634f00, {{64.0, 1315.5}, {97.0, 20.0}}, label: 'Salmon fillets'
+                              StaticText, 0x112635040, {{64.0, 1339.5}, {96.0, 16.0}}, label: 'Fri · Salmon Night'
+                              StaticText, 0x112635180, {{582.5, 1327.0}, {8.5, 17.0}}, label: '4'
+                            Button, 0x1126352c0, {{599.0, 1313.5}, {44.0, 44.0}}, identifier: 'info.circle', label: 'Meals that need Salmon fillets'
+                            StaticText, 0x112635400, {{24.0, 1381.5}, {85.5, 14.5}}, label: 'DAIRY & EGGS'
+                            Button, 0x112635540, {{24.0, 1400.0}, {567.0, 56.0}}, label: 'Butter, 4 tbsp', value: To buy
+                              Image, 0x112635680, {{26.0, 1416.0}, {24.0, 24.0}}, identifier: 'circle', label: 'circle'
+                              StaticText, 0x1126357c0, {{64.0, 1408.0}, {46.0, 20.0}}, label: 'Butter'
+                              StaticText, 0x112635900, {{64.0, 1432.0}, {96.0, 16.0}}, label: 'Fri · Salmon Night'
+                              StaticText, 0x112635a40, {{550.0, 1419.5}, {41.0, 17.0}}, label: '4 tbsp'
+                            Button, 0x112635b80, {{599.0, 1406.0}, {44.0, 44.0}}, identifier: 'info.circle', label: 'Meals that need Butter'
+                            Button, 0x112635cc0, {{24.0, 1460.0}, {567.0, 56.0}}, label: 'Mozzarella, 1 lb', value: To buy
+                              Image, 0x112635e00, {{26.0, 1476.0}, {24.0, 24.0}}, identifier: 'circle', label: 'circle'
+                              StaticText, 0x112635f40, {{64.0, 1468.0}, {76.5, 20.0}}, label: 'Mozzarella'
+                              StaticText, 0x112636080, {{64.0, 1492.0}, {87.0, 16.0}}, label: 'Sat · Pizza Night'
+                              StaticText, 0x1126361c0, {{571.5, 1479.5}, {19.5, 17.0}}, label: '1 lb'
+                            Button, 0x112636300, {{599.0, 1466.0}, {44.0, 44.0}}, identifier: 'info.circle', label: 'Meals that need Mozzarella'
+                            StaticText, 0x112636440, {{24.0, 1534.0}, {46.5, 14.5}}, label: 'BAKERY'
+                            Button, 0x112636580, {{24.0, 1552.5}, {567.0, 56.0}}, label: 'Pizza dough, 2 balls', value: To buy
+                              Image, 0x1126366c0, {{26.0, 1568.5}, {24.0, 24.0}}, identifier: 'circle', label: 'circle'
+                              StaticText, 0x112636800, {{64.0, 1560.5}, {85.5, 20.0}}, label: 'Pizza dough'
+                              StaticText, 0x112636940, {{64.0, 1584.5}, {87.0, 16.0}}, label: 'Sat · Pizza Night'
+                              StaticText, 0x112636a80, {{551.0, 1572.0}, {40.0, 17.0}}, label: '2 balls'
+                            Button, 0x112636bc0, {{599.0, 1558.5}, {44.0, 44.0}}, identifier: 'info.circle', label: 'Meals that need Pizza dough'
+                            StaticText, 0x112636d00, {{24.0, 1626.5}, {46.5, 14.5}}, label: 'PANTRY'
+                            Button, 0x112636e40, {{24.0, 1645.0}, {567.0, 56.0}}, label: 'BBQ sauce, 1 bottle', value: To buy
+                              Image, 0x112636f80, {{26.0, 1661.0}, {24.0, 24.0}}, identifier: 'circle', label: 'circle'
+                              StaticText, 0x1126370c0, {{64.0, 1653.0}, {78.0, 20.0}}, label: 'BBQ sauce'
+                              StaticText, 0x112637200, {{64.0, 1677.0}, {102.0, 16.0}}, label: 'Sun · BBQ Skewers'
+                              StaticText, 0x112637340, {{545.0, 1664.5}, {46.0, 17.0}}, label: '1 bottle'
+                            Button, 0x112637480, {{599.0, 1651.0}, {44.0, 44.0}}, identifier: 'info.circle', label: 'Meals that need BBQ sauce'
+                            Button, 0x1126375c0, {{24.0, 1705.0}, {567.0, 56.0}}, label: 'Sushi rice, 2 cups', value: To buy
+                              Image, 0x112637700, {{26.0, 1721.0}, {24.0, 24.0}}, identifier: 'circle', label: 'circle'
+                              StaticText, 0x112637840, {{64.0, 1713.0}, {70.5, 20.0}}, label: 'Sushi rice'
+                              StaticText, 0x112637980, {{64.0, 1737.0}, {93.0, 16.0}}, label: 'Wed · Poke Night'
+                              StaticText, 0x112637ac0, {{549.5, 1724.5}, {41.5, 17.0}}, label: '2 cups'
+                            Button, 0x112637c00, {{599.0, 1711.0}, {44.0, 44.0}}, identifier: 'info.circle', label: 'Meals that need Sushi rice'
+                            Button, 0x112637d40, {{24.0, 1765.0}, {567.0, 56.0}}, label: 'Tomato sauce, 1 jar', value: To buy
+                              Image, 0x112637e80, {{26.0, 1781.0}, {24.0, 24.0}}, identifier: 'circle', label: 'circle'
+                              StaticText, 0x112650000, {{64.0, 1773.0}, {101.5, 20.0}}, label: 'Tomato sauce'
+                              StaticText, 0x112650140, {{64.0, 1797.0}, {87.0, 16.0}}, label: 'Sat · Pizza Night'
+                              StaticText, 0x112650280, {{567.0, 1784.5}, {24.0, 17.0}}, label: '1 jar'
+                            Button, 0x1126503c0, {{599.0, 1771.0}, {44.0, 44.0}}, identifier: 'info.circle', label: 'Meals that need Tomato sauce'
+                            Image, 0x112650500, {{39.5, 1860.5}, {11.0, 11.0}}, identifier: 'plus', label: 'Add'
+                            TextField, 0x112650640, {{62.0, 1855.0}, {567.0, 22.0}}, placeholderValue: 'Add an item or amount'
+                        ProgressIndicator, 0x112650780, {{38.0, 207.0}, {591.0, 4.0}}, value: 0%
+                          ProgressIndicator, 0x1126508c0, {{38.0, 197.0}, {591.0, 24.0}}, value: 0%
+                        Image, 0x112650a00, {{40.0, 233.0}, {21.5, 20.0}}, identifier: 'basket', label: 'basket'
+                        StaticText, 0x112650b40, {{73.5, 226.0}, {74.5, 17.0}}, label: '17 items left'
+                        StaticText, 0x112650c80, {{73.5, 244.0}, {90.0, 16.0}}, label: 'Tap to check off'
+                        Button, 0x112650dc0, {{514.0, 221.0}, {115.0, 44.0}}, label: 'Send 17 items to Reminders'
+                          Image, 0x112650f00, {{529.5, 236.5}, {15.0, 13.5}}, identifier: 'checklist', label: 'checklist'
+                          StaticText, 0x112651040, {{553.0, 235.0}, {62.0, 16.0}}, label: 'Reminders'
+                Other, 0x112651180, {{0.0, 0.0}, {667.0, 375.0}}
+                  Other, 0x1126512c0, {{0.0, 0.0}, {667.0, 375.0}}
+              Button, 0x112651400, {{16.0, 317.0}, {159.0, 54.0}}, identifier: 'tray-week', label: 'Plan'
+                Image, 0x112651540, {{86.0, 325.5}, {19.5, 18.0}}, identifier: 'calendar', label: 'Calendar'
+                StaticText, 0x112651680, {{83.0, 349.8}, {25.0, 14.5}}, label: 'Plan'
+              Button, 0x1126517c0, {{175.0, 317.0}, {158.5, 54.0}}, identifier: 'tray-cookbook', label: 'Recipes'
+                Image, 0x112651900, {{243.5, 325.0}, {22.0, 18.5}}, identifier: 'book', label: 'Bookmark'
+                StaticText, 0x112651a40, {{231.0, 350.0}, {46.5, 14.5}}, label: 'Recipes'
+              Button, 0x112651b80, {{333.5, 317.0}, {159.0, 54.0}}, identifier: 'tray-groceries', label: 'Groceries', Selected
+                Image, 0x112651cc0, {{401.5, 323.5}, {23.5, 21.5}}, identifier: 'basket', label: 'basket'
+                StaticText, 0x112651e00, {{383.0, 351.5}, {60.0, 14.5}}, label: 'Groceries'
+              Button, 0x112651f40, {{492.5, 317.0}, {158.5, 54.0}}, identifier: 'tray-table', label: 'Table'
+                Image, 0x112652080, {{558.0, 324.5}, {29.0, 19.5}}, identifier: 'person.2', label: 'person.2'
+                StaticText, 0x1126521c0, {{556.0, 350.5}, {31.5, 14.5}}, label: 'Table'
+Path to element:
+ →Application, 0x11265c280, pid: 61338, label: 'Plated'
+Query chain:
+ →Find: Application 'com.natemeadows.plated'
+  Output: {
+    Application, 0x112652300, pid: 61338, label: 'Plated'
+  }

@@ -38,6 +38,7 @@ struct WeekSnapshot: Codable {
         var sample: [String]
     }
     struct TableCard: Codable {
+        var recordID: String? = nil
         var authorName: String
         var authorInitial: String
         var authorHex: String
@@ -53,6 +54,7 @@ struct WeekSnapshot: Codable {
         }
     }
     struct CookbookCard: Codable {
+        var recipeID: String? = nil
         var title: String
         var minutes: Int
         var isFavorite: Bool
@@ -67,6 +69,8 @@ struct WeekSnapshot: Codable {
     var table: TableCard?
     /// Optional: a snapshot from a build before the cookbook widget has none.
     var cookbook: CookbookCard?
+
+    func isCurrent(on date: Date) -> Bool { Calendar.current.isDate(generatedAt, inSameDayAs: date) }
 
     static let appGroupID = "group.com.natemeadows.plated"
 
@@ -114,17 +118,17 @@ struct WeekSnapshot: Codable {
     ///
     /// The table card is exempt — it carries its own timestamp and stays true
     /// however long it sits there.
-    func aged(dishPhoto: UIImage?, dishPhotoDark: UIImage?, tablePhoto: UIImage?) -> Loaded {
+    func aged(dishPhoto: UIImage?, dishPhotoDark: UIImage?, tablePhoto: UIImage?, now: Date = .now) -> Loaded {
         let calendar = Calendar.current
         let written = calendar.startOfDay(for: generatedAt)
-        let today = calendar.startOfDay(for: .now)
+        let today = calendar.startOfDay(for: now)
         let delta = calendar.dateComponents([.day], from: written, to: today).day ?? 0
         guard delta > 0 else {
             return Loaded(snapshot: self, dishPhoto: dishPhoto, dishPhotoDark: dishPhotoDark, tablePhoto: tablePhoto)
         }
         guard delta < 7 else {
             let empty = WeekSnapshot(
-                generatedAt: generatedAt,
+                ownerName: ownerName, generatedAt: generatedAt,
                 plannedCount: 0,
                 tonight: nil,
                 days: Self.openWeek(from: today),
@@ -142,11 +146,11 @@ struct WeekSnapshot: Codable {
             rolled.append(Day(day: formatter.string(from: date).uppercased(), planned: false, cookInitial: "", cookHex: ""))
         }
         let aged = WeekSnapshot(
-            generatedAt: generatedAt,
+            ownerName: ownerName, generatedAt: generatedAt,
             plannedCount: rolled.filter(\.planned).count,
             tonight: nil, // the app knows tonight; a stale snapshot doesn't
             days: rolled,
-            grocery: grocery,
+            grocery: nil,
             table: table,
             cookbook: cookbook
         )
@@ -194,6 +198,13 @@ struct WeekSnapshot: Codable {
 enum PlatedLink {
     static func url(_ destination: String) -> URL {
         URL(string: "plated://\(destination)") ?? URL(string: "plated://plan")!
+    }
+    static func item(_ destination: String, id: String?, fallback: URL) -> URL {
+        guard let id, !id.isEmpty else { return fallback }
+        var components = URLComponents()
+        components.scheme = "plated"; components.host = destination
+        components.queryItems = [URLQueryItem(name: "id", value: id)]
+        return components.url ?? fallback
     }
     static let plan = url("plan")
     static let table = url("table")
@@ -315,22 +326,25 @@ struct WeekProvider: TimelineProvider {
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<WeekEntry>) -> Void) {
-        let loaded = WeekSnapshot.load()
-        let entry = WeekEntry(
-            date: .now,
-            snapshot: loaded?.snapshot,
-            photo: loaded?.dishPhoto,
-            photoDark: loaded?.dishPhotoDark,
-            householdPhoto: loaded?.householdPhoto,
-            tablePhoto: loaded?.tablePhoto,
-            cookbookPhoto: loaded?.cookbookPhoto
-        )
-        // The app pushes reloads on data changes; midnight rolls the week.
-        let midnight = Calendar.current.startOfDay(
-            for: Calendar.current.date(byAdding: .day, value: 1, to: .now) ?? .now
-        )
-        completion(Timeline(entries: [entry], policy: .after(midnight)))
+        completion(Self.timeline(from: WeekSnapshot.load(), now: .now))
     }
+
+    /// A requested refresh may be deferred. Ship the midnight state now so
+    /// yesterday's dinner and grocery count expire without a new provider run.
+    static func timeline(from loaded: WeekSnapshot.Loaded?, now: Date) -> Timeline<WeekEntry> {
+        let midnight = Calendar.current.startOfDay(
+            for: Calendar.current.date(byAdding: .day, value: 1, to: now) ?? now
+        )
+        let entries = [now, midnight].map { date in
+            let aged = loaded?.snapshot.aged(dishPhoto: loaded?.dishPhoto,
+                dishPhotoDark: loaded?.dishPhotoDark, tablePhoto: loaded?.tablePhoto, now: date)
+            return WeekEntry(date: date, snapshot: aged?.snapshot, photo: aged?.dishPhoto,
+                photoDark: aged?.dishPhotoDark, householdPhoto: loaded?.householdPhoto,
+                tablePhoto: aged?.tablePhoto, cookbookPhoto: loaded?.cookbookPhoto)
+        }
+        return Timeline(entries: entries, policy: .after(midnight))
+    }
+
 }
 
 extension WeekEntry {
@@ -583,6 +597,7 @@ struct GlassBand<Content: View>: View {
 
 // MARK: - Bundle
 
+#if !PLATED_WIDGET_TESTS
 @main
 struct PlatedWidgetsBundle: WidgetBundle {
     var body: some Widget {
@@ -601,3 +616,5 @@ struct PlatedWidgetsBundle: WidgetBundle {
         CookTimerLiveActivity()
     }
 }
+
+#endif

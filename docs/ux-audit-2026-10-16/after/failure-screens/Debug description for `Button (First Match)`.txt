@@ -1,0 +1,5 @@
+Query chain:
+ →Find: Application 'com.natemeadows.plated'
+  ↪︎Find: Descendants matching type Button
+    ↪︎Find: Elements matching predicate 'label BEGINSWITH "Tonight"'
+      ↪︎Find: First Match

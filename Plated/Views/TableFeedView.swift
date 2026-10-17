@@ -419,8 +419,10 @@ struct TableFeedView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                header
+            ScrollViewReader { scroll in
+                ScrollView {
+                    LazyVStack(spacing: 0) {
+                header.id("table-top")
                     .padding(.horizontal, 24)
                     .padding(.top, 6)
                     .padding(.bottom, 10)
@@ -443,8 +445,7 @@ struct TableFeedView: View {
                         .transition(.plUnfold)
                 }
 
-                ScrollView(showsIndicators: false) {
-                    LazyVStack(spacing: 0) {
+                        Color.clear.frame(height: 0).id("table-content")
                         ForEach(Array(shownPosts.enumerated()),
                                 id: \.element.persistentModelID) { index, post in
                             // Before each card except the very first thing in
@@ -467,34 +468,20 @@ struct TableFeedView: View {
                             .matchedTransitionSource(id: post.persistentModelID, in: zoom)
                         }
                         if shownPosts.isEmpty {
-                            if typeSize.isAccessibilitySize {
-                                // AX copy can be taller than the remaining
-                                // viewport. Natural height makes the whole
-                                // state scrollable and keeps its action above
-                                // the floating bar instead of clipping both
-                                // ends around a forced centre point.
-                                currentEmptyState
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 24)
-                                    .padding(.bottom, Layout.floatingChromeInset)
-                            } else {
-                                currentEmptyState
-                                    .frame(maxWidth: .infinity)
-                                    // Centred in what a person can actually see,
-                                    // rather than nudged down the page by a typed
-                                    // 60. The three of these sat in the top third
-                                    // with the rest of the screen empty under them;
-                                    // the height is the scroll view's own, less the
-                                    // clearance the floating bar takes out of it.
-                                    .containerRelativeFrame(.vertical, alignment: .center) { height, _ in
-                                        height - Layout.tabBarInset
-                                    }
-                            }
+                            currentEmptyState
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 24)
+                                .padding(.bottom, Layout.floatingChromeInset)
                         }
                     }
                     // An empty table is one screen and does not scroll; the
                     // clearance is for a list that runs under the bar.
                     .padding(.bottom, shownPosts.isEmpty ? 0 : Layout.floatingChromeInset)
+                }
+                .scrollIndicators(.hidden)
+                .onChange(of: tabPop) { _, request in
+                    guard request.tab == .table else { return }
+                    withAnimation(.plSnap) { scroll.scrollTo("table-top", anchor: .top) }
                 }
                 .refreshable { await refreshFeed() }
                 .task {
@@ -937,7 +924,7 @@ struct TableFeedView: View {
     private var scopePicker: some View {
         EditorialSegments(options: FeedScope.allCases, selection: $scope,
                           label: { $0.rawValue }, stacked: typeSize.isAccessibilitySize)
-            .accessibilityLabel("Table audience")
+            .accessibilityElement(children: .contain)
     }
 
     // MARK: Cards
@@ -1761,7 +1748,7 @@ struct TableFeedView: View {
             if let post = TableNews.find(id, in: context) {
                 open(post)
             } else {
-                print("[Notify] no post \(id) to open")
+                showToast("This post is no longer available at your Table.")
             }
         }
     }

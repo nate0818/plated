@@ -1,0 +1,28 @@
+{
+  "commit": "cea1cb955726a23e932a83627af02aa0ba8c0b60",
+  "deployment": "dpl_AxepH4BPGXBejWmYg9depCQm3hJY",
+  "url": "https://plated.food",
+  "requestPage": "https://plated.food/early-access",
+  "state": "READY",
+  "mobileWidths": [
+    320,
+    390,
+    430
+  ],
+  "desktopWidth": 1120,
+  "liveMobileWidth": 351,
+  "originalPosterBytes": 1262067,
+  "optimizedPosterBytes": 49852,
+  "unitTestsPassed": 13,
+  "build": "pass",
+  "lint": "pass",
+  "liveSubmission": "pass",
+  "temporaryQaRecordsRemoved": true,
+  "anonymousExportStatus": 401,
+  "browserWarningsAndErrors": 0,
+  "initialRuntimeErrorScan": 0,
+  "supabaseRestore": "ACTIVE_HEALTHY",
+  "waitlistFunctionVersion": 5,
+  "adminReadFunctionVersion": 4,
+  "invitationsSent": 0
+}

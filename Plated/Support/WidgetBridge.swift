@@ -48,6 +48,7 @@ enum WidgetBridge {
         }
         /// The newest thing on the table, for the social widget.
         struct TableCard: Codable {
+            var recordID: String? = nil
             var authorName: String
             var authorInitial: String
             var authorHex: String
@@ -61,6 +62,7 @@ enum WidgetBridge {
         /// The most loved recipe, for the cookbook widget: favourites first,
         /// then the ones actually cooked most.
         struct CookbookCard: Codable {
+            var recipeID: String? = nil
             var title: String
             var minutes: Int
             var isFavorite: Bool
@@ -164,7 +166,8 @@ enum WidgetBridge {
             }
         }
 
-        let grocery = groceryLine(from: context, windowStart: today)
+        let grocery = groceryLine(from: context, windowStart: today,
+            includePantryStaples: UserDefaults.standard.bool(forKey: "grocery.includePantryStaples"))
         let (table, tablePhoto) = latestTablePost(from: context)
         let (cookbook, cookbookPhoto) = mostLovedRecipe(from: context)
         let householdPhoto = (try? context.fetch(FetchDescriptor<HouseholdProfile>()))?
@@ -224,18 +227,29 @@ enum WidgetBridge {
     /// The same window and the same filters the Grocery sheet applies, so the
     /// number on the home screen is the number behind the basket.
     @MainActor
-    private static func groceryLine(from context: ModelContext, windowStart: Date) -> Snapshot.Grocery? {
+    static func groceryLine(from context: ModelContext, windowStart: Date,
+                            includePantryStaples: Bool = false) -> Snapshot.Grocery? {
+        // Groceries may never have been opened, or the plan may have changed
+        // since then. Rebuild from saved meals without saving an open editor's
+        // unrelated draft as a side effect of publishing a widget.
+        let projection = ModelContext(context.container)
+        projection.autosaveEnabled = false
+        let items: [GroceryItem]
+        do {
+            try GroceryListBuilder(context: projection).rebuild(
+                weekOf: windowStart, includePantryStaples: includePantryStaples)
+            items = try projection.fetch(
+                FetchDescriptor<GroceryItem>(sortBy: [SortDescriptor(\GroceryItem.name)]))
+        } catch {
+            return nil // Unknown must not become a reassuring "Nothing to buy".
+        }
         let manualHorizon = Calendar.current.date(byAdding: .day, value: -7, to: windowStart) ?? windowStart
-        let items = (try? context.fetch(
-            FetchDescriptor<GroceryItem>(sortBy: [SortDescriptor(\GroceryItem.name)])
-        )) ?? []
         let current = items.filter { item in
             guard !item.isDismissed else { return false }
             return item.isManual
-                ? item.weekStart >= manualHorizon
+                ? (!item.isChecked || item.weekStart >= manualHorizon)
                 : Calendar.current.isSameDay(item.weekStart, windowStart)
         }
-        guard !current.isEmpty else { return nil }
         let open = current.filter { !$0.isChecked }
         return Snapshot.Grocery(
             openCount: open.count,
@@ -260,6 +274,7 @@ enum WidgetBridge {
         }
         guard let pick = ranked.first else { return (nil, nil) }
         let card = Snapshot.CookbookCard(
+            recipeID: pick.shareRecordName,
             title: pick.title,
             minutes: pick.totalMinutes,
             isFavorite: pick.isFavorite,
@@ -288,6 +303,7 @@ enum WidgetBridge {
             !ContentSafety.shared.isBlocked(authorID: $0.authorID, authorName: $0.authorName)
         }.count
         let card = Snapshot.TableCard(
+            recordID: post.shareRecordName,
             authorName: post.authorName,
             authorInitial: post.initials,
             authorHex: post.authorColorHex,

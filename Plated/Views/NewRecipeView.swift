@@ -87,10 +87,8 @@ struct RecipeEditorView: View {
     /// the ingredients and method instead of becoming four required-looking
     /// decisions before the first ingredient can be typed.
     @State private var detailsExpanded = false
-    /// A failed disk write keeps the exact prepared graph for a clean retry.
-    /// Re-running the form-to-model conversion would insert a second meal,
-    /// notification, and set of grocery lines.
-    @State private var pendingSaveRecipe: Recipe?
+    /// A saved recipe whose optional grocery addition still needs a retry.
+    @State private var pendingGroceryRecipe: Recipe?
     @State private var saveProblem: String?
 
     /// The row the keyboard is currently in, if it is one that can move.
@@ -257,6 +255,7 @@ struct RecipeEditorView: View {
     }
     @State private var stepEntry = ""
     @State private var addToGroceries = true
+    @State private var initialDraft: EditorDraft?
     @State private var loaded = false
     /// What the dial showed when the sheet opened. The dial floors at 15,
     /// so comparing against the recipe's own total let an untouched save
@@ -264,7 +263,7 @@ struct RecipeEditorView: View {
     @State private var discardAsked = false
 
 
-    struct DraftIngredient: Identifiable {
+    struct DraftIngredient: Identifiable, Equatable {
         let id = UUID()
         var name: String
         var quantity: Double
@@ -327,7 +326,7 @@ struct RecipeEditorView: View {
         }
     }
 
-    struct DraftStep: Identifiable {
+    struct DraftStep: Identifiable, Equatable {
         let id = UUID()
         var text: String
     }
@@ -348,6 +347,7 @@ struct RecipeEditorView: View {
                     photoWell
 
                     TextField("Name the dish", text: $title)
+                        .focused($focused, equals: "title")
                         .plType(.display)
                         .foregroundStyle(Color.ink)
                         .tint(Color.olive)
@@ -361,7 +361,8 @@ struct RecipeEditorView: View {
                         .lineLimit(1...3)
                         .padding(12)
                         .overlay(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous).strokeBorder(Color.hairline))
-                        .plTappableField()
+                        .focused($focused, equals: "summary")
+                        .plTapToFocus { focused = "summary" }
 
                     // Prep and cook are two numbers on the model and were
                     // written by halving one picker's answer, so every recipe
@@ -402,7 +403,8 @@ struct RecipeEditorView: View {
                         MicroLabel("Notes")
                         EditableLine(
                             text: $cookNotes,
-                            placeholder: "Anything worth remembering next time."
+                            placeholder: "Anything worth remembering next time.",
+                            focus: $focused, focusID: "notes"
                         )
                     }
 
@@ -420,7 +422,7 @@ struct RecipeEditorView: View {
             // Freezing the containing scroll view prevents its interactive
             // keyboard pan from cancelling the reorder on the first move.
             .scrollDisabled(draggingStep != nil)
-            .disabled(pendingSaveRecipe != nil)
+            .disabled(pendingGroceryRecipe != nil)
 
             if focused != nil {
                 editingBar
@@ -434,15 +436,15 @@ struct RecipeEditorView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 PrimaryActionButton(
-                    title: pendingSaveRecipe != nil
-                        ? "Try saving again"
+                    title: pendingGroceryRecipe != nil
+                        ? "Retry groceries"
                         : (isEditing ? "Save changes" : "Save to cookbook"),
                     systemImage: "circle.circle"
                 ) {
                     save(plating: nil)
                 }
                 .disabled(!canSave)
-                if pendingSaveRecipe == nil, !isEditing, !hidePlateShortcut, let night = nextOpenNight {
+                if pendingGroceryRecipe == nil, !isEditing, !hidePlateShortcut, let night = nextOpenNight {
                     Button {
                         save(plating: night)
                     } label: {
@@ -482,12 +484,8 @@ struct RecipeEditorView: View {
         .presentationDragIndicator(.visible)
         .presentationBackground(Color.canvas)
         .presentationCornerRadius(Radius.sheet)
-        // A filled draft doesn't die to one accidental swipe. Only fresh
-        // drafts guard — an edit that's dragged away loses deltas, but it
-        // was opened onto a saved recipe and reads as safe, and asking on
-        // every look-then-leave would be nagging.
         .interactiveDismissDisabled(hasDraftContent)
-        .confirmationDialog("Discard this recipe?", isPresented: $discardAsked, titleVisibility: .visible) {
+        .alert("Discard this recipe?", isPresented: $discardAsked) {
             Button("Discard", role: .destructive) { dismiss() }
             Button("Keep writing", role: .cancel) {}
         }
@@ -557,28 +555,37 @@ struct RecipeEditorView: View {
             photoData = prefill.photo
             addToGroceries = false
         }
+        initialDraft = currentDraft
     }
 
     // MARK: Pieces
 
-    /// A fresh draft with real typing in it — the thing an accidental
-    /// dismissal would destroy.
+    private struct EditorDraft: Equatable {
+        var strings: [String]
+        var numbers: [Int]
+        var photo: Data?
+        var extraPhotos: [Data]
+        var ingredients: [DraftIngredient]
+        var steps: [DraftStep]
+        var groceries: Bool
+    }
+    private var currentDraft: EditorDraft {
+        EditorDraft(strings: [title, summary, cookNotes, equipmentText, dietaryLabelsText,
+            allergenText, caloriesText, proteinText, carbohydrateText, fatText, nutritionSource,
+            stepEntry, category?.rawValue ?? "", mealType.rawValue, difficultyOverride?.rawValue ?? ""],
+            numbers: [prepMinutes, cookMinutes, serves], photo: photoData, extraPhotos: extraPhotoData,
+            ingredients: draftIngredients, steps: draftSteps, groceries: addToGroceries)
+    }
     private var hasDraftContent: Bool {
-        editing == nil && (
-            !title.trimmingCharacters(in: .whitespaces).isEmpty
-                || !summary.trimmingCharacters(in: .whitespaces).isEmpty
-                || !draftSteps.isEmpty
-                || !cookNotes.isEmpty
-                || !stepEntry.trimmingCharacters(in: .whitespaces).isEmpty
-                || !draftIngredients.isEmpty
-                || photoData != nil
-        )
+        photoLoading || pendingGroceryRecipe != nil || (initialDraft != nil && currentDraft != initialDraft)
+            || (editing == nil && (!title.isEmpty || !summary.isEmpty || photoData != nil))
     }
 
     private var header: some View {
         HStack {
             Button {
-                if hasDraftContent { discardAsked = true } else { dismiss() }
+                if let pendingGroceryRecipe { onSaved(pendingGroceryRecipe); dismiss() }
+                else if hasDraftContent { discardAsked = true } else { dismiss() }
             } label: {
                 Text("Cancel")
                     .plType(.body, .bold)
@@ -760,7 +767,8 @@ struct RecipeEditorView: View {
                 .textInputAutocapitalization(.sentences)
                 .padding(12)
                 .overlay(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous).strokeBorder(Color.hairline))
-                .plTappableField()
+                .focused($focused, equals: "metadata-\(label)")
+                .plTapToFocus { focused = "metadata-\(label)" }
         }
     }
 
@@ -770,6 +778,7 @@ struct RecipeEditorView: View {
             HStack(spacing: 6) {
                 TextField("Optional", text: value)
                     .keyboardType(.decimalPad)
+                    .focused($focused, equals: "nutrition-\(label)")
                     .plType(.body)
                     .accessibilityLabel("\(label) per serving")
                 Text(unit).plType(.caption).foregroundStyle(Color.inkSecondary)
@@ -890,7 +899,9 @@ struct RecipeEditorView: View {
                     .plType(.body, .medium).lineLimit(1...3)
                     .padding(.horizontal, 14).padding(.vertical, 11)
                     .overlay(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous).strokeBorder(Color.hairline))
-                    .onSubmit(addStep).plTappableField()
+                    .onSubmit(addStep)
+                    .focused($focused, equals: "new-step")
+                    .plTapToFocus { focused = "new-step" }
                 addRoundButton(disabled: stepEntry.trimmingCharacters(in: .whitespaces).isEmpty, label: "Add step", action: addStep)
             }
         }
@@ -1039,7 +1050,7 @@ struct RecipeEditorView: View {
     /// Saving waits for the photo to finish processing so a picked photo is
     /// never silently dropped.
     private var canSave: Bool {
-        if pendingSaveRecipe != nil { return true }
+        if pendingGroceryRecipe != nil { return true }
         return !title.trimmingCharacters(in: .whitespaces).isEmpty
             && !photoLoading
             && (editing?.isEditableByCurrentDevice != false)
@@ -1049,7 +1060,7 @@ struct RecipeEditorView: View {
         let today = Calendar.current.startOfDay(for: .now)
         return (0..<7).compactMap { Calendar.current.date(byAdding: .day, value: $0, to: today) }
             .first { date in
-                !meals.contains { Calendar.current.isSameDay($0.date, date) && $0.slotValue == .dinner }
+                !PlanOccupancy.isOccupied(on: date, slot: .dinner, local: meals)
             }
     }
 
@@ -1077,17 +1088,13 @@ struct RecipeEditorView: View {
         // open, or a future route presents the editor directly.
         guard editing?.isEditableByCurrentDevice != false else { return }
 
-        if let pendingSaveRecipe {
-            if Persist.save(context, "retry recipe save") {
-                saveProblem = nil
-                onSaved(pendingSaveRecipe)
-                dismiss()
-            } else {
-                Haptic.warn()
-                AccessibilityNotification.Announcement(
-                    "The recipe still could not be saved. Your work is still here."
-                ).post()
-            }
+        if let pendingGroceryRecipe {
+            if addGroceries(for: pendingGroceryRecipe) { onSaved(pendingGroceryRecipe); dismiss() }
+            return
+        }
+
+        if let night, PlanOccupancy.isOccupied(on: night, slot: .dinner, local: meals) {
+            saveProblem = "That night has just been planned. Save the recipe, then choose another night."
             return
         }
 
@@ -1096,7 +1103,9 @@ struct RecipeEditorView: View {
         // and the loss surfaced days later at the stove.
         addStep()
         Haptic.plate()
+        let insertedBefore = Set(context.insertedModelsArray.map(\.persistentModelID))
         let recipe = editing ?? Recipe()
+        let original = editing.map(RecipeEditSnapshot.init)
         recipe.title = title.trimmingCharacters(in: .whitespaces)
         recipe.summary = summary.trimmingCharacters(in: .whitespaces)
         recipe.servings = serves
@@ -1143,7 +1152,7 @@ struct RecipeEditorView: View {
 
         // Rebuild children wholesale — simpler than diffing, and cascade
         // delete keeps the store clean.
-        (recipe.ingredients ?? []).forEach(context.delete)
+        recipe.ingredients = []
         // An edited row can be left blank, and a blank row is not an
         // ingredient.
         recipe.ingredients = draftIngredients
@@ -1158,7 +1167,7 @@ struct RecipeEditorView: View {
                 ingredient.package = item.package
                 return ingredient
             }
-        (recipe.extraPhotos ?? []).forEach(context.delete)
+        recipe.extraPhotos = []
         recipe.extraPhotos = extraPhotoData.enumerated().map { index, data in
             RecipePhoto(photoData: data, sortIndex: index)
         }
@@ -1178,27 +1187,6 @@ struct RecipeEditorView: View {
             }
         }
 
-        // The ask that used to be a surprise: new ingredients go straight to
-        // this week's basket when the cook says so. Manual lines survive the
-        // auto-rebuild by design.
-        if !isEditing && addToGroceries && night == nil && !hidePlateShortcut {
-            do {
-                let result = try RecipeGroceryWriter.add(recipe: recipe, in: context)
-                if result.added > 0 {
-                    let owner = members.me?.name ?? "Someone"
-                    Notifier.post(
-                        .groceriesAdded, actor: owner,
-                        body: "\(result.added.things("ingredient")) from \(recipe.title) added to the grocery list.",
-                        into: context
-                    )
-                }
-            } catch {
-                // The recipe is still worth keeping. Groceries can be retried
-                // from its detail page without duplicating lines that landed.
-                print("PLATED RECIPE: couldn't add ingredients to groceries — \(error)")
-            }
-        }
-
         if let night {
             let cook = members.first { $0.cookWeekdays.contains(Calendar.current.component(.weekday, from: night)) }
                 ?? members.me
@@ -1208,15 +1196,34 @@ struct RecipeEditorView: View {
             ))
         }
         guard Persist.save(context, "save recipe") else {
-            pendingSaveRecipe = recipe
+            if let original { original.restore(in: context) }
+            else {
+                let inserted = context.insertedModelsArray.filter { !insertedBefore.contains($0.persistentModelID) }
+                for model in inserted { context.delete(model) }
+            }
             let message = "Couldn't save the recipe yet. Your work is still here."
             saveProblem = message
             Haptic.warn()
             AccessibilityNotification.Announcement(message).post()
             return
         }
+        original?.retireReplacedChildren(in: context)
+        if !isEditing && addToGroceries && night == nil && !hidePlateShortcut {
+            guard addGroceries(for: recipe) else { pendingGroceryRecipe = recipe; return }
+        }
         onSaved(recipe)
         dismiss()
+    }
+
+    private func addGroceries(for recipe: Recipe) -> Bool {
+        do {
+            _ = try RecipeGroceryWriter.add(recipe: recipe, in: context)
+            saveProblem = nil
+            return true
+        } catch {
+            saveProblem = "The recipe is saved. Groceries couldn't be added yet. Retry, or close and add them from the recipe later."
+            return false
+        }
     }
 
     /// A few obvious keywords beat asking the cook to file groceries by hand.

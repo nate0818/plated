@@ -31,7 +31,7 @@ struct CookbookWidgetView: View {
                 empty
             }
         }
-        .widgetURL(PlatedLink.cookbook)
+        .widgetURL(PlatedLink.item("cookbook", id: card?.recipeID, fallback: PlatedLink.cookbook))
         .containerBackground(Plate.canvas, for: .widget)
     }
 

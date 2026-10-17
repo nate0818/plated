@@ -1,0 +1,30 @@
+Attributes: Application, 0x113b68640, pid: 60318, label: 'Plated'
+Element subtree:
+ →Application, 0x113b68640, pid: 60318, label: 'Plated'
+    Window (Main), 0x113b6a6c0, {{0.0, 0.0}, {375.0, 667.0}}
+      Other, 0x113b6b0c0, {{0.0, 0.0}, {375.0, 667.0}}
+        Other, 0x113b6a1c0, {{0.0, 0.0}, {375.0, 667.0}}
+          Other, 0x113b6a940, {{0.0, 0.0}, {375.0, 667.0}}
+            Other, 0x113b6a800, {{0.0, 0.0}, {375.0, 667.0}}
+              Other, 0x113b69f40, {{0.0, 0.0}, {375.0, 667.0}}
+              ScrollView, 0x113b69e00, {{0.0, 0.0}, {375.0, 667.0}}
+                Other, 0x113b6a080, {{0.0, 20.0}, {375.0, 710.5}}
+                  StaticText, 0x113b6a300, {{24.0, 36.0}, {76.0, 28.0}}, label: 'Plated'
+                  StaticText, 0x113b69400, {{24.0, 348.0}, {205.0, 120.0}}, label: 'Good food.
+A little more together.'
+                  StaticText, 0x113b697c0, {{24.0, 480.0}, {288.5, 42.5}}, label: 'Your recipes, dinner plans, and shopping list. Together.'
+                  Button, 0x113b69900, {{24.0, 550.5}, {327.0, 56.0}}, label: 'Continue with Apple'
+                  Button, 0x113b69a40, {{24.0, 620.5}, {327.0, 48.0}}, identifier: 'welcome-local', label: 'Continue on this device'
+                  Image, 0x113b69cc0, {{79.0, 684.5}, {8.5, 12.0}}, identifier: 'lock', label: 'Lock'
+                  StaticText, 0x113b69680, {{94.8, 682.5}, {203.0, 16.0}}, label: 'Sign in to share with your household.'
+                Other, 0x113b69540, {{342.0, 20.0}, {30.0, 647.0}}, label: 'Vertical scroll bar, 2 pages', value: 0%
+                  Other, 0x113b68780, {{369.0, 23.0}, {3.0, 585.5}}
+                Other, 0x113b68c80, {{342.0, 20.0}, {30.0, 647.0}}, label: 'Vertical scroll bar, 2 pages', value: 0%
+                  Other, 0x113b68dc0, {{369.0, 23.0}, {3.0, 585.5}}
+Path to element:
+ →Application, 0x113b68640, pid: 60318, label: 'Plated'
+Query chain:
+ →Find: Application 'com.natemeadows.plated'
+  Output: {
+    Application, 0x113b68000, pid: 60318, label: 'Plated'
+  }

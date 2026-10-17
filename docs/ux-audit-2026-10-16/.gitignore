@@ -1,0 +1,27 @@
+# Reproducible local runner output; documentation and readable evidence remain visible.
+evidence/*.xcresult/
+evidence/*-attachments/
+evidence/*.log
+evidence/screens/Screen Recording*
+evidence/screens/UI Snapshot*
+evidence/screens/Synthesized Event*
+UIAudit/**/xcuserdata/
+.DS_Store
+
+# Large reproducible remediation bundles; keep curated screenshots and text evidence.
+after/*.xcresult/
+after/*-attachments/
+after/screens/
+after/repair-attachments/
+after/review-*.jpg
+after/ax-review-*.jpg
+after/ipad-review-*.jpg
+after/landscape-review-*.jpg
+after/*-screens/Screen Recording*
+after/*-screens/UI Snapshot*
+after/*-screens/Synthesized Event*
+release/*.xcresult/
+release/*-attachments/
+release/*-screens/Screen Recording*
+release/*-screens/UI Snapshot*
+release/*-screens/Synthesized Event*

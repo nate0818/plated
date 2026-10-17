@@ -1,0 +1,24 @@
+{
+  "verifiedAt": "2026-10-17T16:18:39.810504+00:00",
+  "configuration": "Release",
+  "sdk": "iPhoneOS27.0",
+  "buildResult": "passed",
+  "signatureVerification": "codesign --verify --deep --strict: passed",
+  "distribution": "Local development signing; no archive, App Store upload or phone installation in this pass",
+  "targets": [
+    {
+      "bundle": "com.natemeadows.plated",
+      "version": "1.0.1",
+      "build": "33",
+      "minimumOS": "18.0",
+      "executableSHA256": "830eaf0297ae99b71dea708d813c731e54b44ba48cef76ae5d114ca3eb1132b3"
+    },
+    {
+      "bundle": "com.natemeadows.plated.widgets",
+      "version": "1.0.1",
+      "build": "33",
+      "minimumOS": "18.0",
+      "executableSHA256": "930d8bd3824193b03ded53a17b392496d5e9c0e20f2a1517dd086daa9d4ff0c3"
+    }
+  ]
+}

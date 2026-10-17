@@ -168,6 +168,7 @@ enum HouseholdIdentity {
         to newName: String,
         in context: ModelContext
     ) -> RenameOutcome {
+        var undo: [() -> Void] = []
         let new = newName.trimmingCharacters(in: .whitespaces)
         let old = member.name
         guard !new.isEmpty else { return .invalid }
@@ -213,12 +214,20 @@ enum HouseholdIdentity {
         if let posts = try? context.fetch(
             FetchDescriptor<TablePost>(predicate: #Predicate { $0.authorName == old })
         ) {
-            for post in posts { post.authorName = new }
+            for post in posts {
+                let value = post.authorName
+                undo.append { post.authorName = value }
+                post.authorName = new
+            }
         }
         if let comments = try? context.fetch(
             FetchDescriptor<TableComment>(predicate: #Predicate { $0.authorName == old })
         ) {
-            for comment in comments { comment.authorName = new }
+            for comment in comments {
+                let value = comment.authorName
+                undo.append { comment.authorName = value }
+                comment.authorName = new
+            }
         }
         // NINE places carry a person's name — and this comment has now
         // said three, five, and seven, each time declaring the class
@@ -239,17 +248,29 @@ enum HouseholdIdentity {
         if let threads = try? context.fetch(
             FetchDescriptor<DirectMessage>(predicate: #Predicate { $0.peerName == old })
         ) {
-            for message in threads { message.peerName = new }
+            for message in threads {
+                let value = message.peerName
+                undo.append { message.peerName = value }
+                message.peerName = new
+            }
         }
         if let notices = try? context.fetch(
             FetchDescriptor<PlatedNotification>(predicate: #Predicate { $0.actorName == old })
         ) {
-            for notice in notices { notice.actorName = new }
+            for notice in notices {
+                let value = notice.actorName
+                undo.append { notice.actorName = value }
+                notice.actorName = new
+            }
         }
         if let replies = try? context.fetch(
             FetchDescriptor<TableComment>(predicate: #Predicate { $0.replyToName == old })
         ) {
-            for reply in replies { reply.replyToName = new }
+            for reply in replies {
+                let value = reply.replyToName
+                undo.append { reply.replyToName = value }
+                reply.replyToName = new
+            }
         }
         // `TableComment.mentions` is deliberately NOT rewritten, and the
         // difference from `taggedNames` below is the whole point.
@@ -282,6 +303,8 @@ enum HouseholdIdentity {
         // `mentions` did.)
         if let tagged = try? context.fetch(FetchDescriptor<TablePost>()) {
             for post in tagged where post.taggedNames.contains(old) {
+                let value = post.taggedNames
+                undo.append { post.taggedNames = value }
                 post.taggedNames = post.taggedNames.map { $0 == old ? new : $0 }
             }
         }
@@ -303,10 +326,13 @@ enum HouseholdIdentity {
         let newKeyPrefix = "post:\(new)|"
         if let saved = try? context.fetch(FetchDescriptor<Recipe>()) {
             for recipe in saved where recipe.originID.hasPrefix(oldKeyPrefix) {
+                let value = recipe.originID
+                undo.append { recipe.originID = value }
                 recipe.originID = newKeyPrefix + recipe.originID.dropFirst(oldKeyPrefix.count)
             }
         }
 
+        undo.append { member.name = old }
         member.name = new
 
         // Report honestly. `try?` here swallowed the error and returned
@@ -330,7 +356,7 @@ enum HouseholdIdentity {
             // failure can be committed by a later autosave and land the
             // model side without the AppStorage name or the rekey. Which
             // is precisely the state this ordering exists to prevent.
-            context.rollback()
+            undo.reversed().forEach { $0() }
             return .failed
         }
 

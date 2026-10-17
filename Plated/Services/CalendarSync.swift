@@ -55,8 +55,13 @@ final class CalendarSync {
     }
 
     func removeEvent(for gathering: Gathering) async throws {
-        guard let id = gathering.calendarEventID, let event = store.event(withIdentifier: id) else { return }
-        try store.remove(event, span: .thisEvent, commit: true)
+        guard let id = gathering.calendarEventID else { return }
+        // A missing event is only authoritative with access. If access was
+        // revoked, retain the link so a later retry can still remove it.
+        guard try await requestAccess() else { throw SyncError.accessDenied }
+        if let event = store.event(withIdentifier: id) {
+            try store.remove(event, span: .thisEvent, commit: true)
+        }
         gathering.calendarEventID = nil
     }
 

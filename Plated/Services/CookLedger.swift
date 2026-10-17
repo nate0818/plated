@@ -51,6 +51,7 @@ final class CookLedger {
         var titleSnapshot: String?
         var servings: Int?
         var mealID: String?
+        var remotePlanID: String?
         var noteDraft: String?
     }
 
@@ -177,7 +178,7 @@ final class CookLedger {
 
     // MARK: Writing
 
-    func begin(_ recipe: Recipe, servings: Int, mealID: String? = nil) {
+    func begin(_ recipe: Recipe, servings: Int, mealID: String? = nil, remotePlanID: String? = nil) {
         guard session(for: recipe)?.stepsSnapshot == nil else { return }
         let count = max(1, servings)
         mutate(recipe) { s in
@@ -190,6 +191,7 @@ final class CookLedger {
             s.titleSnapshot = recipe.title
             s.servings = count
             s.mealID = mealID
+            s.remotePlanID = remotePlanID
         }
     }
 

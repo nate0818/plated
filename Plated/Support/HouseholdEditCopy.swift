@@ -44,6 +44,7 @@ extension HouseholdEdits {
         for change: Change, me: String, currentCookID: String, currentTitle: String
     ) -> String {
         let who = change.by.split(separator: " ").first.map(String.init) ?? ""
+        if change.cooked == true { return who.isEmpty ? "This dinner was marked cooked." : "\(who) marked this dinner cooked." }
         let dish = change.title.isEmpty ? "your night" : change.title
         // Being put down to cook is the fact with a consequence, so it leads
         // when it is NEW.
@@ -94,6 +95,7 @@ extension HouseholdEdits {
     /// lives on the page it opens.
     static func rowLine(for change: Change, me: String, currentCookID: String) -> String {
         let who = change.by.split(separator: " ").first.map(String.init) ?? ""
+        if change.cooked == true { return who.isEmpty ? "This dinner was marked cooked." : "\(who) marked this dinner cooked." }
         if !change.cookID.isEmpty, change.cookID == me, change.cookID != currentCookID {
             return who.isEmpty ? "You are down to cook this" : "\(who) put you down to cook"
         }

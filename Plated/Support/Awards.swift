@@ -130,9 +130,9 @@ enum Awards {
             value: { $0.chefsKisses }
         ),
         Definition(
-            id: "passed-around", title: "Passed around",
-            story: "Something you shared became part of another cookbook.",
-            howToEarn: "Have five shared dishes saved by others.", symbol: "square.and.arrow.down.fill",
+            id: "passed-around", title: "Saved here",
+            story: "Dishes by this cook were saved from the Table on this device.",
+            howToEarn: "Save five of this cook’s shared dishes on this device.", symbol: "square.and.arrow.down.fill",
             tone: .copper, tier: .silver, goal: 5, points: 275,
             value: { $0.savesReceived }
         ),

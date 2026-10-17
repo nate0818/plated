@@ -1,0 +1,71 @@
+Attributes: Application, 0x112041040, pid: 63586, label: 'Plated'
+Element subtree:
+ →Application, 0x112041040, pid: 63586, label: 'Plated'
+    Window (Main), 0x1120412c0, {{0.0, 0.0}, {834.0, 1210.0}}
+      Other, 0x112041180, {{0.0, 0.0}, {834.0, 1210.0}}
+        Other, 0x112040c80, {{0.0, 0.0}, {834.0, 1210.0}}
+          Other, 0x112040f00, {{0.0, 0.0}, {834.0, 1210.0}}
+            Other, 0x112040dc0, {{0.0, 0.0}, {834.0, 1210.0}}
+              Other, 0x1120408c0, {{0.0, 0.0}, {834.0, 1210.0}}
+                Other, 0x112040b40, {{37.0, 0.0}, {760.0, 1210.0}}
+                  Other, 0x112040a00, {{37.0, 0.0}, {760.0, 1210.0}}
+                    Other, 0x112040500, {{37.0, 0.0}, {760.0, 1210.0}}
+                      Other, 0x112040780, {{37.0, 0.0}, {760.0, 1210.0}}
+                        Other, 0x112040640, {{37.0, 0.0}, {760.0, 1210.0}}
+                          Other, 0x112040280, {{417.0, 604.0}, {0.0, 0.0}}
+                          ScrollView, 0x1120403c0, {{37.0, 0.0}, {760.0, 1210.0}}
+                            Other, 0x112040140, {{37.0, 92.0}, {760.0, 791.5}}
+                              StaticText, 0x112040000, {{61.0, 376.0}, {301.5, 34.0}}, label: 'Lemon Butter Salmon'
+                              StaticText, 0x112042580, {{61.0, 416.0}, {292.5, 16.0}}, label: 'Dinner · Quick & Easy · Plated for tonight · You cook'
+                              StaticText, 0x112041540, {{61.0, 438.0}, {77.5, 16.0}}, label: 'Added by you'
+                              Image, 0x112041680, {{61.0, -7.0}, {712.0, 474.0}}
+                              StaticText, 0x1120417c0, {{137.6, 470.0}, {83.5, 46.5}}, label: '25 min Time'
+                                StaticText, 0x112041900, {{137.6, 470.0}, {83.5, 29.0}}, label: '25 min'
+                                StaticText, 0x112041a40, {{164.3, 502.0}, {30.0, 14.5}}, label: 'Time'
+                              StaticText, 0x112041b80, {{396.5, 470.0}, {41.0, 46.5}}, label: '4 Serves'
+                                StaticText, 0x112041cc0, {{409.0, 470.0}, {16.0, 29.0}}, label: '4'
+                                StaticText, 0x112041e00, {{396.5, 502.0}, {41.0, 14.5}}, label: 'Serves'
+                              StaticText, 0x112041f40, {{613.4, 470.0}, {82.5, 46.5}}, label: 'Not set Effort'
+                                StaticText, 0x112042080, {{613.4, 470.0}, {82.5, 29.0}}, label: 'Not set'
+                                StaticText, 0x1120421c0, {{636.9, 502.0}, {35.5, 14.5}}, label: 'Effort'
+                              StaticText, 0x112043200, {{61.0, 532.5}, {250.0, 17.0}}, label: 'Weeknight hero. Crispy skin, bright sauce.'
+                              StaticText, 0x112043340, {{61.0, 584.2}, {80.0, 14.5}}, label: 'INGREDIENTS'
+                              Button, 0x112043480, {{693.5, 569.5}, {79.5, 44.0}}, label: 'Serves 4'
+                                Button, 0x112042440, {{693.5, 569.5}, {79.5, 44.0}}
+                                  StaticText, 0x112042300, {{693.5, 569.5}, {79.5, 44.0}}, label: 'Serves 4'
+                              StaticText, 0x102e47200, {{61.0, 627.5}, {712.0, 20.0}}, label: '4 Salmon fillets'
+                                StaticText, 0x102e47340, {{61.0, 627.5}, {92.0, 20.0}}, label: 'Salmon fillets'
+                                StaticText, 0x102e47480, {{765.0, 629.0}, {8.0, 17.0}}, label: '4'
+                              StaticText, 0x102e475c0, {{61.0, 665.5}, {712.0, 20.0}}, label: '2 Lemon'
+                                StaticText, 0x102e47700, {{61.0, 665.5}, {47.0, 20.0}}, label: 'Lemon'
+                                StaticText, 0x102e47840, {{765.5, 667.0}, {7.5, 17.0}}, label: '2'
+                              StaticText, 0x102e47980, {{61.0, 703.5}, {712.0, 20.0}}, label: '4 tbsp Butter'
+                                StaticText, 0x102e47ac0, {{61.0, 703.5}, {43.5, 20.0}}, label: 'Butter'
+                                StaticText, 0x102e47c00, {{733.5, 705.0}, {39.5, 17.0}}, label: '4 tbsp'
+                              StaticText, 0x102e47d40, {{61.0, 741.5}, {712.0, 20.0}}, label: '1 bunch Asparagus'
+                                StaticText, 0x102e47e80, {{61.0, 741.5}, {73.5, 20.0}}, label: 'Asparagus'
+                                StaticText, 0x105fd8640, {{727.5, 743.0}, {45.5, 17.0}}, label: '1 bunch'
+                              Button, 0x105fd8780, {{61.0, 775.5}, {712.0, 46.0}}, label: 'Add ingredients to groceries'
+                                Image, 0x105fd88c0, {{353.0, 791.0}, {15.5, 14.5}}, identifier: 'basket', label: 'basket'
+                                StaticText, 0x105fd8a00, {{61.0, 775.5}, {712.0, 46.0}}, label: 'Add to groceries'
+                              Image, 0x105fd8b40, {{62.5, 845.5}, {17.5, 12.0}}, identifier: 'person.2', label: 'person.2'
+                              StaticText, 0x105fd8c80, {{86.5, 843.5}, {282.0, 16.0}}, label: 'Everyone in your household can see and edit this'
+                          Button, 0x105fd8dc0, {{61.0, 36.0}, {44.0, 44.0}}, identifier: 'arrow.left', label: 'Back'
+                          Button, 0x105fd8f00, {{538.5, 36.0}, {44.0, 44.0}}, identifier: 'heart.fill', label: 'Remove from favorites'
+                          Button, 0x105fd9040, {{592.5, 36.0}, {44.0, 44.0}}, identifier: 'square.and.arrow.up', label: 'Share recipe'
+                          Button, 0x105fd9180, {{646.5, 36.0}, {72.5, 44.0}}, label: 'Edit recipe'
+                            Image, 0x105fd92c0, {{662.0, 52.5}, {11.5, 11.5}}, identifier: 'pencil', label: 'Edit'
+                            StaticText, 0x105fd9400, {{680.0, 49.5}, {25.0, 17.0}}, label: 'Edit'
+                          Button, 0x105fda440, {{729.0, 36.0}, {44.0, 44.0}}, label: 'Your profile'
+                          Button, 0x105fda580, {{61.0, 1132.0}, {712.0, 48.0}}, label: 'Start cooking'
+                            Image, 0x105fda6c0, {{356.0, 1146.5}, {11.5, 19.0}}, identifier: 'fork.knife', label: 'Food'
+                            StaticText, 0x105fdbe80, {{377.5, 1145.5}, {102.5, 21.0}}, label: 'Start cooking'
+                  Other, 0x105fdbac0, {{37.0, 0.0}, {760.0, 1210.0}}
+                    Other, 0x105fdbd40, {{37.0, 0.0}, {760.0, 1210.0}}
+Path to element:
+ →Application, 0x112041040, pid: 63586, label: 'Plated'
+Query chain:
+ →Find: Application 'com.natemeadows.plated'
+  Output: {
+    Application, 0x105fdbc00, pid: 63586, label: 'Plated'
+  }

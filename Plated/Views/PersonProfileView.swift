@@ -247,7 +247,8 @@ private struct PersonProfileContent: View {
                 }
                 .padding(.horizontal, 24)
 
-                HStack(spacing: 0) {
+                let tabsLayout = typeSize.isAccessibilitySize ? AnyLayout(VStackLayout(spacing: 4)) : AnyLayout(HStackLayout(spacing: 0))
+                tabsLayout {
                     ForEach(isMe ? ["Dishes", "Questions", "Favorites"] : ["Dishes", "Questions"], id: \.self) { tab in
                         Button { Haptic.select(); withAnimation(.plSnap) { profileTab = tab } } label: {
                             Text(tab)
@@ -382,10 +383,11 @@ private struct PersonProfileContent: View {
             }
             .buttonStyle(.pressable)
 
-            Text(isMe ? "Your profile" : firstName)
-                .plType(.heading, .semibold)
+            Text(isMe ? "Profile" : firstName)
+                .plType(.body, .semibold)
                 .foregroundStyle(Color.ink)
-                .lineLimit(1)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
 
             Spacer(minLength: 8)
             if isMe {
@@ -460,16 +462,17 @@ private struct PersonProfileContent: View {
             Haptic.select()
             householdShown = true
         } label: {
-            HStack(spacing: 14) {
+            let layout = typeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 12)) : AnyLayout(HStackLayout(spacing: 14))
+            layout {
                 householdFaces
 
                 VStack(alignment: .leading, spacing: 3) {
                     MicroLabel("Your household")
                     Text(householdDisplayName)
-                        .plName()
+                        .fixedSize(horizontal: false, vertical: true)
                         .plType(.body, .bold)
                         .foregroundStyle(Color.ink)
-                        .lineLimit(1)
+
                     Text("Plan, shop and cook together")
                         .plType(.caption)
                         .foregroundStyle(Color.inkSecondary)
@@ -654,24 +657,19 @@ struct EditProfileSheet: View {
     /// Why the last Done didn't take. A refusal that only buzzes is a
     /// refusal the user can't act on.
     @State private var nameError: String?
-    @FocusState private var namingSelf: Bool
+    @State private var profileSaveAttempt = 0
+    @FocusState private var profileField: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            ZStack {
-                Text("Edit profile")
-                    // .title at 22, like Settings one sheet away.
-                    .plType(.title)
-                    .foregroundStyle(Color.ink)
-                HStack {
-                    Button("Cancel") { dismiss() }
-                        .plType(.footnote, .bold)
-                        .foregroundStyle(Color.ink)
-                        .frame(minWidth: 44, minHeight: 44)
-                    Spacer()
-                }
+            VStack(alignment: .leading, spacing: 8) {
+                Button("Cancel") { dismiss() }
+                    .plType(.footnote, .bold).foregroundStyle(Color.inkSecondary).plActionLabel().plTapTarget()
+                Text("Edit profile").plType(.title).foregroundStyle(Color.ink)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityAddTraits(.isHeader)
             }
-            .frame(maxWidth: .infinity)
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.top, 10)
 
             PhotosPicker(selection: $pickerItem, matching: .images) {
@@ -753,15 +751,9 @@ struct EditProfileSheet: View {
                     .frame(minHeight: 48)
                     .overlay(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous).strokeBorder(Color.hairline))
                     .contentShape(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous))
-                    .onTapGesture { namingSelf = true }
-                    .focused($namingSelf)
+                    .onTapGesture { profileField = "name" }
+                    .focused($profileField, equals: "name")
                     .submitLabel(.done)
-                if let nameError {
-                    Text(nameError)
-                        .plType(.caption, .semibold)
-                        .foregroundStyle(Color.dangerText)
-                        .transition(.opacity)
-                }
             }
 
             VStack(alignment: .leading, spacing: 8) {
@@ -771,7 +763,8 @@ struct EditProfileSheet: View {
                     .lineLimit(2...4)
                     .padding(14)
                     .overlay(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous).strokeBorder(Color.hairline))
-                    .plTappableField()
+                    .focused($profileField, equals: "bio")
+                    .plTapToFocus { profileField = "bio" }
             }
 
             VStack(alignment: .leading, spacing: 8) {
@@ -781,7 +774,8 @@ struct EditProfileSheet: View {
                     .lineLimit(2...4)
                     .padding(14)
                     .overlay(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous).strokeBorder(Color.hairline))
-                    .plTappableField()
+                    .focused($profileField, equals: "ingredients")
+                    .plTapToFocus { profileField = "ingredients" }
                 Text("Separate with commas. Plated skips matching recipes in suggestions. This list cannot verify allergy safety, so check every recipe and package.")
                     .plType(.caption)
                     .foregroundStyle(Color.inkSecondary)
@@ -792,19 +786,22 @@ struct EditProfileSheet: View {
                 .plType(.micro, .medium)
                 .foregroundStyle(Color.inkSecondary)
 
+            if let nameError {
+                Text(nameError).plType(.caption, .semibold).foregroundStyle(Color.dangerText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             SecondaryActionButton(title: "Save") {
                 // Only leave if it took. Dismissing regardless is how a
                 // refusal became invisible.
-                if saveName() {
-                    savePhoto()
-                    saveBannerPhoto()
-                    saveBio()
-                    saveFoodPreferences()
+                if saveProfile() {
                     saved = true
                     UserDefaults.standard.removeObject(forKey: draftKey)
                     dismiss()
+                } else {
+                    profileSaveAttempt += 1
                 }
             }
+            .accessibilityValue(nameError ?? "")
             Spacer()
         }
         .onAppear {
@@ -835,6 +832,11 @@ struct EditProfileSheet: View {
                 showBannerCrop = true
             }
             #endif
+        }
+        .onChange(of: profileSaveAttempt) { _, _ in
+            // Announce each failed attempt, even when its message matches
+            // the previous one and VoiceOver remains on the Save button.
+            if let nameError { AccessibilityNotification.Announcement(nameError).post() }
         }
         .onChange(of: pickerItem) { _, item in
             guard let item else { return }
@@ -881,6 +883,16 @@ struct EditProfileSheet: View {
         }
         .padding(.horizontal, 24)
         .plFitsOrScrolls()
+        .scrollDismissesKeyboard(.immediately)
+        .safeAreaInset(edge: .bottom) {
+            if profileField != nil {
+                HStack {
+                    Spacer()
+                    Button("Done") { profileField = nil }
+                        .plType(.footnote, .semibold).foregroundStyle(Color.ink).plTapTarget()
+                }.plChrome().padding(.horizontal, 24).background(Color.canvas)
+            }
+        }
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
         .plTapOutsideToDismiss()
@@ -897,48 +909,35 @@ struct EditProfileSheet: View {
     /// same way a recipe photo does. Saved after the name, because a name
     /// collision aborts the whole Done and a half-applied edit is worse than
     /// none.
-    private func savePhoto() {
-        guard let owner = members.readable.me,
-              owner.photoData != photoData else { return }
-        owner.photoData = photoData
-        Persist.save(context)
-    }
-
-    private func saveBannerPhoto() {
+    private func saveProfile() -> Bool {
+        let trimmedBio = draftBio.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let owner = members.readable.me else {
-            localProfileBannerPhoto = bannerPhotoData ?? Data()
-            return
+            nameError = "Your profile isn't ready yet. Your draft is still here."
+            return false
         }
-        localProfileBannerPhoto = Data()
-        guard owner.profileBannerPhotoData != bannerPhotoData else { return }
-        owner.profileBannerPhotoData = bannerPhotoData
-        owner.profileBannerPhotoModifiedAt = .now
-        Persist.save(context)
-    }
-
-    /// The bio rides on the seat too. It used to be written only to
-    /// `userBio`, so `HouseholdMember.bio` was always "" on the wire and a
-    /// partner's page on the host's phone never showed the line they had
-    /// written about themselves. The preference is kept in step because
-    /// it is what a phone with no seat row still reads.
-    private func saveBio() {
-        let trimmed = draftBio.trimmingCharacters(in: .whitespacesAndNewlines)
-        bio = trimmed
-        guard let owner = members.readable.me, owner.bio != trimmed else { return }
-        owner.bio = trimmed
-        Persist.save(context)
-    }
-
-    private func saveFoodPreferences() {
-        guard let owner = members.readable.me else { return }
+        let oldPhoto = owner.photoData, oldBanner = owner.profileBannerPhotoData
+        let oldBannerDate = owner.profileBannerPhotoModifiedAt, oldBio = owner.bio
+        let oldAvoided = owner.avoidedIngredients
+        owner.photoData = photoData
+        if owner.profileBannerPhotoData != bannerPhotoData {
+            owner.profileBannerPhotoData = bannerPhotoData
+            owner.profileBannerPhotoModifiedAt = .now
+        }
+        owner.bio = trimmedBio
         var seen = Set<String>()
-        let values = avoidedIngredientsText
+        owner.avoidedIngredients = avoidedIngredientsText
             .split(whereSeparator: { $0 == "," || $0 == "\n" })
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty && seen.insert($0.lowercased()).inserted }
-        guard owner.avoidedIngredients != values else { return }
-        owner.avoidedIngredients = values
-        Persist.save(context, "save avoided ingredients")
+        guard saveName() else {
+            owner.photoData = oldPhoto; owner.profileBannerPhotoData = oldBanner
+            owner.profileBannerPhotoModifiedAt = oldBannerDate; owner.bio = oldBio
+            owner.avoidedIngredients = oldAvoided
+            return false
+        }
+        localProfileBannerPhoto = Data()
+        bio = trimmedBio
+        return true
     }
 
     /// The name lives in two places: the preference the app reads for
@@ -948,7 +947,11 @@ struct EditProfileSheet: View {
         let name = draftName.trimmingCharacters(in: .whitespaces)
         // An empty field means "I didn't touch the name" — the bio is the
         // other control on this sheet, so that has to stay a clean exit.
-        guard !name.isEmpty else { return true }
+        guard !name.isEmpty else {
+            let saved = Persist.save(context, "save profile")
+            if !saved { nameError = "That didn’t save. Your draft is still here." }
+            return saved
+        }
 
         // The model side FIRST, and `userFirstName` only once it stuck.
         // This used to write the AppStorage name before renaming, so a
@@ -961,8 +964,13 @@ struct EditProfileSheet: View {
             // Through the one door: a bare `owner.name = name` orphans
             // every dish they have posted and their whole awards ledger.
             switch HouseholdIdentity.rename(owner, to: name, in: context) {
-            case .renamed, .unchanged:
+            case .renamed:
                 break
+            case .unchanged:
+                guard Persist.save(context, "save profile") else {
+                    nameError = "That didn’t save. Your draft is still here."
+                    return false
+                }
             case .nameTaken(let who):
                 Haptic.warn()
                 withAnimation(.plSnap) {

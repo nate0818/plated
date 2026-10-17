@@ -1305,11 +1305,14 @@ private struct HouseholdHomeContent: View {
 
     private var cookGrid: some View {
         let today = Calendar.current.component(.weekday, from: .now)
-        return HStack(spacing: 6) {
-            ForEach(weekdaysInOrder, id: \.self) { weekday in
-                cookCell(weekday: weekday, isToday: weekday == today)
+        return ScrollView(.horizontal) {
+            HStack(spacing: 6) {
+                ForEach(weekdaysInOrder, id: \.self) { weekday in
+                    cookCell(weekday: weekday, isToday: weekday == today)
+                        .frame(minWidth: 44)
+                }
             }
-        }
+        }.scrollIndicators(.hidden)
     }
 
     private func cookCell(weekday: Int, isToday: Bool) -> some View {

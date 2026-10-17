@@ -1,0 +1,49 @@
+Attributes: Application, 0x11331e440, pid: 59929, label: 'Plated'
+Element subtree:
+ →Application, 0x11331e440, pid: 59929, label: 'Plated'
+    Window (Main), 0x11331c3c0, {{0.0, 0.0}, {375.0, 667.0}}
+      Other, 0x11331c280, {{0.0, 0.0}, {375.0, 667.0}}
+        Other, 0x11331c780, {{0.0, 0.0}, {375.0, 667.0}}
+          Other, 0x11331c140, {{0.0, 0.0}, {375.0, 667.0}}
+            Other, 0x11331c640, {{0.0, 0.0}, {375.0, 667.0}}
+              Other, 0x11331f340, {{0.0, 0.0}, {375.0, 667.0}}
+                Other, 0x11331cf00, {{0.0, 0.0}, {375.0, 667.0}}
+                  Other, 0x11331c8c0, {{0.0, 0.0}, {375.0, 667.0}}
+                    Other, 0x11331ebc0, {{0.0, 0.0}, {375.0, 667.0}}
+                      Other, 0x11331ef80, {{0.0, 0.0}, {375.0, 667.0}}
+                        Other, 0x11331e300, {{187.5, 373.5}, {0.0, 0.0}}
+                        ScrollView, 0x11331e080, {{0.0, 0.0}, {375.0, 667.0}}
+                          Other, 0x11331e6c0, {{0.0, 80.0}, {375.0, 754.0}}
+                            StaticText, 0x11331ee40, {{54.8, 170.5}, {24.5, 43.0}}, label: 'N'
+                            Button, 0x11331ed00, {{250.5, 200.0}, {100.5, 44.0}}, label: 'Edit profile'
+                            StaticText, 0x11331e1c0, {{24.0, 282.0}, {64.5, 34.0}}, label: 'Nate'
+                            Button, 0x11331ea80, {{24.0, 332.0}, {327.0, 82.5}}, label: 'Your household, Your household'
+                              StaticText, 0x11331e940, {{52.8, 364.0}, {10.5, 18.5}}, label: 'N'
+                              StaticText, 0x11331de00, {{81.8, 364.0}, {8.5, 18.5}}, label: 'S'
+                              StaticText, 0x11331d540, {{109.5, 364.0}, {9.0, 18.5}}, label: 'R'
+                              StaticText, 0x11331df40, {{147.0, 345.0}, {111.0, 14.5}}, label: 'YOUR HOUSEHOLD'
+                              StaticText, 0x11331d180, {{147.0, 362.5}, {111.5, 20.0}}, label: 'Your household'
+                              StaticText, 0x11331cdc0, {{147.0, 385.5}, {161.0, 16.0}}, label: 'Plan, shop and cook together'
+                            Button, 0x11331d400, {{24.0, 426.5}, {327.0, 122.5}}, label: 'Awards'
+                              StaticText, 0x11331cc80, {{24.0, 439.2}, {51.5, 14.5}}, label: 'AWARDS'
+                              StaticText, 0x11331ca00, {{313.5, 438.5}, {37.5, 16.0}}, label: 'See all'
+                              Image, 0x11331c500, {{160.8, 464.8}, {53.5, 53.5}}, identifier: 'person.3.fill', label: 'person.3.fill'
+                              StaticText, 0x11331cb40, {{158.8, 522.5}, {57.5, 14.5}}, label: 'Full table'
+                            Button, 0x11331c000, {{24.0, 555.0}, {109.0, 48.0}}, label: 'Dishes', Selected
+                            Button, 0x11331fe80, {{133.0, 555.0}, {109.0, 48.0}}, label: 'Questions'
+                            Button, 0x11331f840, {{242.0, 555.0}, {109.0, 48.0}}, label: 'Favorites'
+                            Image, 0x11331e580, {{179.5, 657.0}, {16.0, 27.0}}, identifier: 'fork.knife', label: 'Food'
+                            StaticText, 0x11331e800, {{66.5, 696.0}, {242.0, 23.0}}, label: 'Your first plate starts here'
+                            StaticText, 0x11331fac0, {{40.5, 729.0}, {294.0, 37.0}}, label: 'Dinner wins, weeknight experiments and favorite plates will collect here.'
+                        Button, 0x11331f980, {{20.0, 24.0}, {44.0, 44.0}}, identifier: 'arrow.left', label: 'Back'
+                        StaticText, 0x11331f5c0, {{76.0, 34.5}, {113.5, 23.0}}, label: 'Your profile'
+                        Button, 0x11331da40, {{311.0, 24.0}, {44.0, 44.0}}, identifier: 'gearshape', label: 'Settings'
+                Other, 0x11331dcc0, {{0.0, 0.0}, {375.0, 667.0}}
+                  Other, 0x11331db80, {{0.0, 0.0}, {375.0, 667.0}}
+Path to element:
+ →Application, 0x11331e440, pid: 59929, label: 'Plated'
+Query chain:
+ →Find: Application 'com.natemeadows.plated'
+  Output: {
+    Application, 0x11331f200, pid: 59929, label: 'Plated'
+  }

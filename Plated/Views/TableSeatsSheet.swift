@@ -133,8 +133,7 @@ struct TableSeatsSheet: View {
                     Text("People at your Table")
                         .plType(.title)
                         .foregroundStyle(Color.ink)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.75)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer(minLength: 8)
                 DesignIconButton(symbol: "xmark", label: "Close") { dismiss() }

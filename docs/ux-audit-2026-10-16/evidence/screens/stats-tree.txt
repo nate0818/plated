@@ -1,0 +1,80 @@
+Attributes: Application, 0x112c40640, pid: 63137, label: 'Plated'
+Element subtree:
+ →Application, 0x112c40640, pid: 63137, label: 'Plated'
+    Window (Main), 0x112c40a00, {{0.0, 0.0}, {375.0, 667.0}}
+      Other, 0x112c408c0, {{0.0, 0.0}, {375.0, 667.0}}
+        Other, 0x112c40780, {{0.0, 0.0}, {375.0, 667.0}}
+          Other, 0x112c40140, {{0.0, 0.0}, {375.0, 667.0}}
+            Other, 0x112c40500, {{0.0, 0.0}, {375.0, 667.0}}
+              Other, 0x112c403c0, {{0.0, 0.0}, {375.0, 667.0}}
+                Other, 0x112c40280, {{0.0, 0.0}, {375.0, 667.0}}
+                  Other, 0x112c40000, {{0.0, 0.0}, {375.0, 667.0}}
+                    Other, 0x112c40c80, {{0.0, 0.0}, {375.0, 667.0}}
+                      Other, 0x112c40dc0, {{0.0, 0.0}, {375.0, 667.0}}
+                        Other, 0x112c40f00, {{187.5, 373.5}, {0.0, 0.0}}
+                        ScrollView, 0x112c41180, {{0.0, 0.0}, {375.0, 667.0}}
+                          Other, 0x112c412c0, {{0.0, 80.0}, {375.0, 796.5}}
+                            StaticText, 0x112c41400, {{24.0, 94.0}, {70.0, 14.5}}, label: 'THE COUNT'
+                            Other, 0x112c41540, {{51.2, 122.5}, {288.7, 178.5}}
+                              Image, 0x112c41680, {{70.5, 124.5}, {9.5, 15.5}}, identifier: 'fork.knife', label: 'Food'
+                              StaticText, 0x112c417c0, {{51.7, 146.0}, {47.0, 46.5}}, label: '0 Dinners'
+                                StaticText, 0x112c41900, {{67.2, 146.0}, {16.0, 29.0}}, label: '0'
+                                StaticText, 0x112c42940, {{51.7, 178.0}, {47.0, 14.5}}, label: 'Dinners'
+                              Other, 0x112c42a80, {{178.0, 122.5}, {19.5, 19.5}}
+                              StaticText, 0x112c42bc0, {{147.2, 147.0}, {80.5, 46.5}}, label: '0 Happy plates'
+                                StaticText, 0x112c43c00, {{179.5, 147.0}, {16.0, 29.0}}, label: '0'
+                                StaticText, 0x112c43e80, {{147.2, 179.0}, {80.5, 14.5}}, label: 'Happy plates'
+                              Image, 0x112c43d40, {{293.5, 125.0}, {12.5, 15.0}}, identifier: 'sparkles', label: 'Sparkle'
+                              StaticText, 0x112c43840, {{259.8, 145.8}, {80.0, 46.5}}, label: '0 Chef's kisses'
+                                StaticText, 0x112c43ac0, {{291.8, 145.8}, {16.0, 29.0}}, label: '0'
+                                StaticText, 0x112c43980, {{259.8, 177.8}, {80.0, 14.5}}, label: 'Chef's kisses'
+                              Image, 0x112c43480, {{69.5, 225.5}, {11.5, 14.0}}, identifier: 'text.book.closed', label: 'text.book.closed'
+                              StaticText, 0x112c43700, {{51.2, 245.5}, {48.0, 46.5}}, label: '7 Recipes'
+                                StaticText, 0x112c435c0, {{67.2, 245.5}, {16.0, 29.0}}, label: '7'
+                                StaticText, 0x112c430c0, {{51.2, 277.5}, {48.0, 14.5}}, label: 'Recipes'
+                              Image, 0x112c43340, {{179.5, 227.5}, {16.5, 10.5}}, identifier: 'table.furniture', label: 'table.furniture'
+                              StaticText, 0x112c43200, {{144.2, 243.8}, {86.5, 46.5}}, label: '1 Shared dishes'
+                                StaticText, 0x112c42d00, {{179.5, 243.8}, {16.0, 29.0}}, label: '1'
+                                StaticText, 0x112c42f80, {{144.2, 275.8}, {86.5, 14.5}}, label: 'Shared dishes'
+                              Image, 0x112c42e40, {{295.0, 216.5}, {9.5, 14.5}}, identifier: 'bookmark', label: 'Bookmark'
+                              StaticText, 0x112c42800, {{269.6, 237.0}, {60.5, 64.0}}, label: '0 Dishes you saved'
+                                StaticText, 0x112c426c0, {{291.8, 237.0}, {16.0, 29.0}}, label: '0'
+                                StaticText, 0x112c42580, {{269.6, 269.0}, {60.5, 32.0}}, label: 'Dishes you saved'
+                            Button, 0x112c42440, {{24.0, 327.5}, {327.0, 88.5}}, label: 'CLOSEST BADGE, Ten dishes deep, 7 of 10 · 3 to go, View'
+                              Image, 0x112c42300, {{58.0, 364.0}, {18.5, 15.5}}, identifier: 'books.vertical', label: 'books.vertical'
+                              StaticText, 0x112c421c0, {{108.0, 343.5}, {99.0, 14.5}}, label: 'CLOSEST BADGE'
+                              StaticText, 0x112c42080, {{108.0, 361.0}, {117.5, 20.0}}, label: 'Ten dishes deep'
+                              StaticText, 0x112c41e00, {{108.0, 384.0}, {83.5, 16.0}}, label: '7 of 10 · 3 to go'
+                              StaticText, 0x112c41f40, {{294.5, 363.8}, {28.5, 16.0}}, label: 'View'
+                            StaticText, 0x112c41cc0, {{24.0, 442.0}, {49.0, 14.5}}, label: 'BADGES'
+                            Other, 0x112c41b80, {{24.0, 472.5}, {327.0, 240.0}}
+                              Button, 0x112c41a40, {{24.0, 481.5}, {101.0, 90.5}}, label: 'First dinner', value: Earned
+                                Image, 0x112c41040, {{68.0, 505.0}, {13.0, 21.0}}, identifier: 'fork.knife', label: 'Food'
+                                StaticText, 0x10323f980, {{24.0, 481.5}, {101.0, 90.5}}, label: 'First dinner'
+                              Button, 0x10323fe80, {{137.0, 481.5}, {101.0, 90.5}}, label: 'First recipe', value: Earned
+                                Image, 0x10323fc00, {{180.0, 506.0}, {15.5, 19.0}}, identifier: 'text.book.closed', label: 'text.book.closed'
+                                StaticText, 0x10323fac0, {{137.0, 481.5}, {101.0, 90.5}}, label: 'First recipe'
+                              Button, 0x10323fd40, {{250.0, 472.5}, {101.0, 108.0}}, label: 'First plate shared', value: Earned
+                                Image, 0x10323f840, {{289.5, 499.5}, {22.0, 14.5}}, identifier: 'table.furniture', label: 'table.furniture'
+                                StaticText, 0x10323f340, {{250.0, 472.5}, {101.0, 108.0}}, label: 'First plate shared'
+                              Button, 0x10323f700, {{24.0, 613.5}, {101.0, 90.5}}, label: 'First chef's kiss', value: Not earned yet
+                                Image, 0x10323f480, {{66.5, 637.5}, {16.5, 20.0}}, identifier: 'sparkles', label: 'Sparkle'
+                                StaticText, 0x10323f5c0, {{24.0, 613.5}, {101.0, 90.5}}, label: 'First chef's kiss'
+                              Button, 0x11281a300, {{137.0, 604.5}, {101.0, 108.0}}, label: 'Saved elsewhere', value: Not earned yet
+                                Image, 0x112818b40, {{181.5, 629.0}, {12.5, 19.5}}, identifier: 'bookmark', label: 'Bookmark'
+                                StaticText, 0x112819f40, {{137.0, 604.5}, {101.0, 108.0}}, label: 'Saved elsewhere'
+                              Button, 0x112819a40, {{250.0, 613.5}, {101.0, 90.5}}, label: 'Full table', value: Earned
+                                Image, 0x1128192c0, {{284.0, 638.5}, {33.5, 18.0}}, identifier: 'person.3', label: 'person.3'
+                                StaticText, 0x112819540, {{250.0, 613.5}, {101.0, 90.5}}, label: 'Full table'
+                        Button, 0x112819cc0, {{20.0, 24.0}, {44.0, 44.0}}, identifier: 'arrow.left', label: 'Back'
+                        StaticText, 0x112819b80, {{76.0, 26.8}, {91.0, 14.5}}, label: '4 OF 9 EARNED'
+                        StaticText, 0x112818500, {{76.0, 42.2}, {181.5, 23.0}}, label: 'Household progress'
+                Other, 0x112819900, {{0.0, 0.0}, {375.0, 667.0}}
+                  Other, 0x11281a080, {{0.0, 0.0}, {375.0, 667.0}}
+Path to element:
+ →Application, 0x112c40640, pid: 63137, label: 'Plated'
+Query chain:
+ →Find: Application 'com.natemeadows.plated'
+  Output: {
+    Application, 0x11281b200, pid: 63137, label: 'Plated'
+  }

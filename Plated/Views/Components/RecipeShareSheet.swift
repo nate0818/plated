@@ -16,8 +16,11 @@ struct RecipeShareSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Query(sort: \HouseholdMember.createdAt) private var members: [HouseholdMember]
 
-    @State private var messagesShown = false
-    @State private var activityShown = false
+    private enum Destination: String, Identifiable {
+        case messages, activity, table
+        var id: String { rawValue }
+    }
+    @State private var destination: Destination?
     @State private var copied = false
     @State private var postedToTable = false
     /// The sheet's own height, measured rather than assumed.
@@ -38,11 +41,11 @@ struct RecipeShareSheet: View {
         VStack(spacing: 0) {
             VStack(spacing: 2) {
                 MicroLabel("Share")
-                Text(postedToTable ? "Saved to your Table" : "Choose where it goes")
+                Text(postedToTable ? "Post saved locally" : "Share this recipe")
                     .plType(.title)
                     .foregroundStyle(Color.ink)
                     .multilineTextAlignment(.center)
-                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             .padding(.top, 22)
             .padding(.bottom, 16)
@@ -61,15 +64,13 @@ struct RecipeShareSheet: View {
                         MicroLabel("On Plated")
                         OptionRow(
                             icon: "table.furniture",
-                            title: "Post to your Table",
-                            detail: "Only your household and invited people"
+                            title: "Post this dish",
+                            detail: "Photo and description only. Choose your Table next."
                         ) {
-                            RecipeShare.post(recipe, to: .table, by: owner, into: context)
-                            Haptic.plate()
-                            withAnimation(.plSnap) { postedToTable = true }
+                            destination = .table
                         }
 
-                        MicroLabel("Anywhere else")
+                        MicroLabel("The full recipe")
                             .padding(.top, 8)
                         // A device with no Messages account cannot send one, and
                         // the composer presents as a blank sheet rather than
@@ -80,7 +81,7 @@ struct RecipeShareSheet: View {
                                 title: "Message it",
                                 detail: "The photo and the whole recipe, in a text"
                             ) {
-                                messagesShown = true
+                                destination = .messages
                             }
                         }
                         OptionRow(
@@ -88,7 +89,7 @@ struct RecipeShareSheet: View {
                             title: "More apps",
                             detail: "Instagram, Pinterest, X, Mail, wherever"
                         ) {
-                            activityShown = true
+                            destination = .activity
                         }
                         if RecipePrint.isAvailable {
                             OptionRow(
@@ -131,18 +132,23 @@ struct RecipeShareSheet: View {
         .presentationDragIndicator(.visible)
         .presentationBackground(Color.canvas)
         .presentationCornerRadius(Radius.sheet)
-        .sheet(isPresented: $messagesShown) {
-            RecipeMessageComposer(recipe: recipe) { messagesShown = false }
-                .ignoresSafeArea()
-        }
-        .sheet(isPresented: $activityShown) {
-            ShareActivityView(items: RecipeShare.activityItems(for: recipe))
-                .ignoresSafeArea()
+        .sheet(item: $destination) { target in
+            switch target {
+            case .messages:
+                RecipeMessageComposer(recipe: recipe) { destination = nil }.ignoresSafeArea()
+            case .activity:
+                ShareActivityView(items: RecipeShare.activityItems(for: recipe)).ignoresSafeArea()
+            case .table:
+                TableComposerSheet(prefillRecipe: recipe) { postedToTable = true }
+            }
         }
     }
 
+    @Environment(\.dynamicTypeSize) private var typeSize
+
     private var recipePreview: some View {
-        HStack(spacing: 12) {
+        let layout = typeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 12)) : AnyLayout(HStackLayout(spacing: 12))
+        return layout {
             RecipeArtwork(data: recipe.photoData, title: recipe.title, ratio: 1, radius: Radius.small)
                 .frame(width: 64, height: 64)
             VStack(alignment: .leading, spacing: 4) {
@@ -151,7 +157,7 @@ struct RecipeShareSheet: View {
                     .foregroundStyle(Color.ink)
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
-                Text("Ingredients and method")
+                Text("Share the full recipe, or post a photo and description")
                     .plType(.caption)
                     .foregroundStyle(Color.inkSecondary)
             }
@@ -160,7 +166,7 @@ struct RecipeShareSheet: View {
         .padding(12)
         .background(Color.raisedFill, in: Radius.shape(Radius.card))
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Sharing \(recipe.title.isEmpty ? "untitled recipe" : recipe.title), including ingredients and method")
+        .accessibilityLabel("Sharing \(recipe.title.isEmpty ? "untitled recipe" : recipe.title)")
     }
 
     private var tablePostConfirmation: some View {
@@ -169,12 +175,12 @@ struct RecipeShareSheet: View {
                 .font(.system(size: 40, weight: .regular))
                 .foregroundStyle(Color.olive)
                 .accessibilityHidden(true)
-            Text(recipe.title.isEmpty ? "Your recipe is saved to your Table" : "\(recipe.title) is saved to your Table")
+            Text("Your dish post is saved on this device")
                 .plType(.body, .bold)
                 .foregroundStyle(Color.ink)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
-            Text("It will appear for your household and invited people as it syncs.")
+            Text("Open the Table to check its upload status. Your post includes the photo and description; use a full recipe option to send ingredients and method.")
                 .plType(.footnote)
                 .foregroundStyle(Color.inkSecondary)
                 .multilineTextAlignment(.center)

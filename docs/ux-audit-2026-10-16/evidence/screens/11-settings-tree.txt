@@ -1,0 +1,84 @@
+Attributes: Application, 0x1133135c0, pid: 59962, label: 'Plated'
+Element subtree:
+ →Application, 0x1133135c0, pid: 59962, label: 'Plated'
+    Window (Main), 0x113312440, {{0.0, 0.0}, {375.0, 667.0}}
+      Other, 0x113312580, {{0.0, 0.0}, {375.0, 667.0}}
+        Other, 0x113313c00, {{0.0, 0.0}, {375.0, 667.0}}
+          Other, 0x113313e80, {{0.0, 0.0}, {375.0, 667.0}}
+            Other, 0x113313d40, {{0.0, 0.0}, {375.0, 667.0}}
+              Other, 0x113313980, {{0.0, 0.0}, {375.0, 667.0}}
+                Other, 0x113313200, {{0.0, 0.0}, {375.0, 667.0}}
+                  Other, 0x1133130c0, {{0.0, 0.0}, {375.0, 667.0}}
+                    Other, 0x113313340, {{0.0, 0.0}, {375.0, 667.0}}
+                      Other, 0x1133126c0, {{0.0, 0.0}, {375.0, 667.0}}
+                        ScrollView, 0x113312f80, {{0.0, 0.0}, {375.0, 667.0}}
+                          Other, 0x113312800, {{0.0, 86.0}, {375.0, 1485.0}}
+                            StaticText, 0x113313480, {{22.0, 98.0}, {81.0, 14.5}}, label: 'APPEARANCE'
+                            StaticText, 0x113311e00, {{22.0, 115.5}, {239.0, 16.0}}, label: 'Use the look that feels best in your kitchen.'
+                            Button, 0x113312d00, {{22.0, 142.5}, {103.5, 108.0}}, label: 'System appearance', value: Not selected
+                              Other, 0x113312e40, {{50.0, 162.5}, {48.0, 42.0}}
+                              StaticText, 0x113311b80, {{40.0, 213.5}, {47.0, 17.0}}, label: 'System'
+                              Image, 0x113313700, {{93.0, 215.5}, {13.5, 13.5}}, identifier: 'circle', label: 'circle'
+                            Button, 0x113312080, {{135.5, 142.5}, {104.0, 108.0}}, label: 'Light appearance', value: Not selected
+                              Other, 0x113312300, {{163.5, 162.5}, {48.0, 42.0}}
+                              StaticText, 0x113312a80, {{161.5, 213.5}, {31.5, 17.0}}, label: 'Light'
+                              Image, 0x113311f40, {{199.0, 215.5}, {13.5, 13.5}}, identifier: 'circle', label: 'circle'
+                            Button, 0x113311a40, {{249.5, 142.5}, {103.5, 108.0}}, label: 'Editorial appearance', value: Selected, Selected
+                              Other, 0x1133121c0, {{277.5, 162.5}, {48.0, 42.0}}
+                              StaticText, 0x113312940, {{265.0, 213.5}, {52.0, 17.0}}, label: 'Editorial'
+                              Image, 0x113311cc0, {{323.0, 215.5}, {13.5, 13.5}}, identifier: 'checkmark.circle.fill', label: 'Selected', Selected
+                            StaticText, 0x113313ac0, {{22.0, 278.5}, {93.5, 14.5}}, label: 'NOTIFICATIONS'
+                            StaticText, 0x113b67c00, {{22.0, 296.0}, {176.5, 16.0}}, label: 'Choose what deserves a nudge.'
+                            StaticText, 0x113b67ac0, {{88.0, 335.0}, {115.5, 20.0}}, label: 'Cook reminders'
+                            StaticText, 0x113b66580, {{88.0, 357.0}, {126.0, 34.5}}, label: 'Helpful nudges tied to real plans'
+                            Button, 0x113b66d00, {{265.0, 341.5}, {73.0, 44.0}}, label: 'Turn on'
+                            StaticText, 0x113b666c0, {{88.0, 416.0}, {112.0, 42.5}}, label: 'Household and Table activity'
+                            StaticText, 0x113b66e40, {{88.0, 460.5}, {129.5, 53.0}}, label: 'When someone plates, replies, takes a seat or changes the plan'
+                            Button, 0x113b66a80, {{265.0, 443.0}, {73.0, 44.0}}, label: 'Turn on'
+                            StaticText, 0x113b67340, {{22.0, 553.5}, {65.0, 14.5}}, label: 'CALENDAR'
+                            StaticText, 0x113b65180, {{22.0, 571.0}, {216.0, 16.0}}, label: 'Bring the rest of your day into the plan.'
+                            StaticText, 0x113b65680, {{88.0, 610.0}, {150.5, 20.0}}, label: 'Calendar on the plan'
+                            StaticText, 0x113b64140, {{88.0, 632.0}, {131.0, 34.5}}, label: 'See busy nights before choosing dinner'
+                            Switch, 0x113b64280, {{277.0, 624.5}, {61.0, 28.0}}, label: 'Calendar on the plan', value: 0
+                              Switch, 0x113b65400, {{277.0, 624.5}, {63.0, 28.0}}, value: 0
+                            StaticText, 0x113b64dc0, {{22.0, 706.5}, {98.5, 14.5}}, label: 'DATA & PRIVACY'
+                            StaticText, 0x113b652c0, {{22.0, 724.0}, {228.5, 16.0}}, label: 'Your data, permissions and iCloud status.'
+                            StaticText, 0x113b65e00, {{88.0, 763.0}, {98.5, 42.5}}, label: 'iCloud needs attention'
+                            StaticText, 0x113b65540, {{88.0, 807.5}, {111.5, 71.5}}, label: 'Sign in to iCloud in Settings and your table follows you to every device.'
+                            Button, 0x113b64f00, {{248.5, 799.0}, {89.5, 44.0}}, label: 'Open Settings'
+                            Button, 0x113b657c0, {{22.0, 891.5}, {331.0, 80.5}}, label: 'iOS permissions, Calendar, contacts, photos and notifications, Manage'
+                              Image, 0x113b65f40, {{37.0, 913.0}, {38.0, 38.0}}, identifier: 'hand.raised.fill', label: 'Block'
+                              StaticText, 0x113b64c80, {{88.0, 903.5}, {116.5, 20.0}}, label: 'iOS permissions'
+                              StaticText, 0x113b66bc0, {{88.0, 925.5}, {135.5, 34.5}}, label: 'Calendar, contacts, photos and notifications'
+                              StaticText, 0x113b66940, {{278.5, 923.2}, {49.5, 17.0}}, label: 'Manage'
+                            StaticText, 0x113b66080, {{73.0, 993.0}, {265.0, 71.5}}, label: 'Your household data is invite only. Table friends see posts you publish, plus planned nights only when you choose their Table under Week audience.'
+                            StaticText, 0x113b65040, {{22.0, 1092.5}, {30.5, 14.5}}, label: 'HELP'
+                            StaticText, 0x113b64a00, {{22.0, 1110.0}, {233.0, 16.0}}, label: 'A quick refresher whenever you need one.'
+                            Button, 0x113b67200, {{22.0, 1137.0}, {331.0, 80.5}}, label: 'Show me around, A quick tour of Plan, Recipes, Groceries and the Table, Begin'
+                              Image, 0x113b670c0, {{37.0, 1158.5}, {38.0, 38.0}}, identifier: 'sparkles', label: 'Sparkle'
+                              StaticText, 0x113b67980, {{88.0, 1149.0}, {120.5, 20.0}}, label: 'Show me around'
+                              StaticText, 0x113b675c0, {{88.0, 1171.0}, {161.0, 34.5}}, label: 'A quick tour of Plan, Recipes, Groceries and the Table'
+                              StaticText, 0x113b66800, {{293.0, 1168.8}, {35.0, 17.0}}, label: 'Begin'
+                            StaticText, 0x113b67840, {{22.0, 1245.5}, {60.0, 14.5}}, label: 'ACCOUNT'
+                            StaticText, 0x113b67d40, {{22.0, 1263.0}, {287.0, 34.5}}, label: 'Your directory sign-in is separate from your private iCloud food.'
+                            Button, 0x113b65b80, {{22.0, 1308.5}, {331.0, 80.5}}, label: 'Sign out, Your recipes, plan and household stay saved'
+                              Image, 0x113b67700, {{37.0, 1330.0}, {38.0, 38.0}}, identifier: 'rectangle.portrait.and.arrow.right', label: 'rectangle.portrait.and.arrow.right'
+                              StaticText, 0x113b661c0, {{88.0, 1320.5}, {59.0, 20.0}}, label: 'Sign out'
+                              StaticText, 0x113b66440, {{88.0, 1342.5}, {186.5, 34.5}}, label: 'Your recipes, plan and household stay saved'
+                            Button, 0x113b65a40, {{37.0, 1401.5}, {301.0, 79.0}}, label: 'Delete directory account, No verified directory session on this iPhone, Delete'
+                              Image, 0x113b66f80, {{37.0, 1422.0}, {38.0, 38.0}}, identifier: 'person.crop.circle.badge.minus', label: 'Unfollow'
+                              StaticText, 0x113b65cc0, {{88.0, 1401.5}, {121.5, 42.5}}, label: 'Delete directory account'
+                              StaticText, 0x113b64500, {{88.0, 1446.0}, {123.5, 34.5}}, label: 'No verified directory session on this iPhone'
+                              StaticText, 0x113b67480, {{287.0, 1432.5}, {41.0, 17.0}}, label: 'Delete'
+                            StaticText, 0x113b643c0, {{140.8, 1522.5}, {93.5, 14.5}}, label: 'Plated 1.0.1 (33)'
+                        Button, 0x113b66300, {{18.0, 27.0}, {44.0, 44.0}}, identifier: 'arrow.left', label: 'Back'
+                        StaticText, 0x113b64640, {{74.0, 37.5}, {76.0, 23.0}}, label: 'Settings'
+                Other, 0x113b67e80, {{0.0, 0.0}, {375.0, 667.0}}
+                  Other, 0x113b64000, {{0.0, 0.0}, {375.0, 667.0}}
+Path to element:
+ →Application, 0x1133135c0, pid: 59962, label: 'Plated'
+Query chain:
+ →Find: Application 'com.natemeadows.plated'
+  Output: {
+    Application, 0x113b64b40, pid: 59962, label: 'Plated'
+  }

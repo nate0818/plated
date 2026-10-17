@@ -1,0 +1,429 @@
+Application, 0x1127f3e80, pid: 62565, label: 'Plated' <App element pid: 62565>
+  Window (Main), 0x1127f3700, {{0.0, 0.0}, {375.0, 667.0}} <AX element pid: 62565, elementOrHash.elementID: 4374759424.4>
+    Other, 0x1127f35c0, {{0.0, 0.0}, {375.0, 667.0}} <AX element pid: 62565, elementOrHash.elementID: 4376845824.5>
+      Other, 0x1127f1180, {{0.0, 0.0}, {375.0, 667.0}} <AX element pid: 62565, elementOrHash.elementID: 4376624128.6>
+        Other, 0x1127f1f40, {{-375.0, -667.0}, {1125.0, 2001.0}} <AX element pid: 62565, elementOrHash.elementID: 4754529792.346>
+        Other, 0x1127f2d00, {{0.0, 0.0}, {375.0, 667.0}} <AX element pid: 62565, elementOrHash.elementID: 4374758400.7>
+          Other, 0x1127ebac0, {{0.0, 0.0}, {375.0, 667.0}} <AX element pid: 62565, elementOrHash.elementID: 4376439296.8>
+            Other, 0x1127eb340, {{0.0, 0.0}, {375.0, 667.0}} <AX element pid: 62565, elementOrHash.elementID: 4375756096.9>
+              Other, 0x1127eb480, {{0.0, 0.0}, {375.0, 667.0}} <AX element pid: 62565, elementOrHash.elementID: 4375693056.11>
+                Other, 0x1127eb5c0, {{0.0, 0.0}, {375.0, 667.0}} <AX element pid: 62565, elementOrHash.elementID: 4376205440.15>
+                  Other, 0x1127eb700, {{0.0, 0.0}, {375.0, 667.0}} <AX element pid: 62565, elementOrHash.elementID: 4375756800.20>
+                    Other, 0x1127eb840, {{0.0, 0.0}, {375.0, 667.0}} <AX element pid: 62565, elementOrHash.elementID: 4376767424.22>
+                      Other, 0x1127ebc00, {{187.5, 343.5}, {0.0, 0.0}} <AX element pid: 62565, elementOrHash.elementID: 4376150912.24>
+                      StaticText, 0x1127eb200, {{24.0, 42.0}, {64.5, 24.0}}, label: 'Plated' <AX element pid: 62565, elementOrHash.elementID: 4376440640.25>
+                      Button, 0x1127ebe80, {{203.0, 32.0}, {44.0, 44.0}}, identifier: 'tray-create', label: 'Add' <AX element pid: 62565, elementOrHash.elementID: 4376441088.26>
+                      Button, 0x1127ebd40, {{255.0, 32.0}, {44.0, 44.0}}, identifier: 'notifications-bell', label: 'Notifications', value: No unread notifica... <AX element pid: 62565, elementOrHash.elementID: 4376441984.27>
+                        Button, 0x1127f4000, {{255.0, 32.0}, {44.0, 44.0}}, identifier: 'bell', label: 'Notifications' <AX element pid: 62565, elementOrHash.elementID: 4376441536.49>
+                      Button, 0x1127f4140, {{307.0, 32.0}, {44.0, 44.0}}, label: 'Your profile' <AX element pid: 62565, elementOrHash.elementID: 4376442432.28>
+                      StaticText, 0x1127f4280, {{24.0, 96.0}, {278.5, 40.0}}, label: 'At home, tonight.' <AX element pid: 62565, elementOrHash.elementID: 4376443328.29>
+                      StaticText, 0x1127f43c0, {{24.0, 146.0}, {100.0, 16.0}}, label: 'Friday, October 16' <AX element pid: 62565, elementOrHash.elementID: 4376443776.30>
+                      Button, 0x1127f4500, {{26.0, 172.0}, {72.0, 44.0}}, label: 'Calendar view', Selected <AX element pid: 62565, elementOrHash.elementID: 4376444224.31>
+                      Button, 0x1127f4640, {{98.0, 172.0}, {72.0, 44.0}}, label: 'Calendar view' <AX element pid: 62565, elementOrHash.elementID: 4376359616.32>
+                      Button, 0x1127f4780, {{251.0, 172.0}, {44.0, 44.0}}, identifier: 'calendar', label: 'Choose a date', value: Friday, October 16... <AX element pid: 62565, elementOrHash.elementID: 4376158976.33>
+                      Button, 0x1127f48c0, {{307.0, 172.0}, {44.0, 44.0}}, label: 'Today' <AX element pid: 62565, elementOrHash.elementID: 4376379392.34>
+                      ScrollView, 0x1127f4a00, {{24.0, 230.0}, {327.0, 76.0}}, identifier: 'plan-date-wheel' <AX element pid: 62565, elementOrHash.elementID: 4377853952.35>
+                        Other, 0x1127f4b40, {{-17355.5, 230.0}, {35086.0, 76.0}} <AX element pid: 62565, elementOrHash.elementID: 4417433600.50>
+                          Other, 0x1127f4c80, {{-27.5, 233.5}, {430.0, 69.0}} <AX element pid: 62565, elementOrHash.elementID: 4376468928.57>
+                            Button, 0x1127f4dc0, {{-27.5, 233.5}, {46.0, 69.0}}, identifier: 'week-date-2026-10-12', label: 'Monday, Oct 12', value: No dinner planned <AX element pid: 62565, elementOrHash.elementID: 4376381184.124>
+                              StaticText, 0x1127f4f00, {{-16.8, 241.5}, {24.5, 16.0}}, label: 'Mon' <AX element pid: 62565, elementOrHash.elementID: 4376379840.319>
+                              StaticText, 0x1127f5040, {{-17.5, 262.5}, {26.0, 23.0}}, label: '12' <AX element pid: 62565, elementOrHash.elementID: 4376380736.320>
+                            Button, 0x1127f5180, {{20.5, 233.5}, {46.0, 69.0}}, identifier: 'week-date-2026-10-13', label: 'Tuesday, Oct 13', value: No dinner planned <AX element pid: 62565, elementOrHash.elementID: 4376385664.125>
+                              StaticText, 0x1127f52c0, {{33.2, 241.5}, {20.5, 16.0}}, label: 'Tue' <AX element pid: 62565, elementOrHash.elementID: 4376382080.321>
+                              StaticText, 0x1127f5400, {{30.5, 262.5}, {26.0, 23.0}}, label: '13' <AX element pid: 62565, elementOrHash.elementID: 4376383424.322>
+                            Button, 0x1127f5540, {{68.5, 233.5}, {46.0, 69.0}}, identifier: 'week-date-2026-10-14', label: 'Wednesday, Oct 14', value: No dinner planned <AX element pid: 62565, elementOrHash.elementID: 4376391936.126>
+                              StaticText, 0x1127f5680, {{78.5, 241.5}, {26.0, 16.0}}, label: 'Wed' <AX element pid: 62565, elementOrHash.elementID: 4376386560.323>
+                              StaticText, 0x1127f57c0, {{78.5, 262.5}, {26.0, 23.0}}, label: '14' <AX element pid: 62565, elementOrHash.elementID: 4376390592.324>
+                            Button, 0x1127f5900, {{116.5, 233.5}, {46.0, 69.0}}, identifier: 'week-date-2026-10-15', label: 'Thursday, Oct 15', value: No dinner planned <AX element pid: 62565, elementOrHash.elementID: 4376461312.127>
+                              StaticText, 0x1127f5a40, {{129.0, 241.5}, {21.0, 16.0}}, label: 'Thu' <AX element pid: 62565, elementOrHash.elementID: 4376392832.325>
+                              StaticText, 0x1127f5b80, {{126.5, 262.5}, {26.0, 23.0}}, label: '15' <AX element pid: 62565, elementOrHash.elementID: 4376395072.326>
+                            Button, 0x1127f5cc0, {{164.5, 233.5}, {46.0, 69.0}}, identifier: 'week-date-2026-10-16', label: 'Friday, Oct 16', value: Dinner planned, Selected <AX element pid: 62565, elementOrHash.elementID: 4376462656.128>
+                              StaticText, 0x1127f5e00, {{180.2, 241.5}, {14.5, 16.0}}, label: 'Fri' <AX element pid: 62565, elementOrHash.elementID: 4376461760.327>
+                              StaticText, 0x1127f5f40, {{174.5, 262.5}, {26.0, 23.0}}, label: '16' <AX element pid: 62565, elementOrHash.elementID: 4376462208.328>
+                            Button, 0x1127f6080, {{212.5, 233.5}, {46.0, 69.0}}, identifier: 'week-date-2026-10-17', label: 'Saturday, Oct 17', value: Dinner planned <AX element pid: 62565, elementOrHash.elementID: 4376464000.129>
+                              StaticText, 0x1127f61c0, {{226.2, 241.5}, {18.5, 16.0}}, label: 'Sat' <AX element pid: 62565, elementOrHash.elementID: 4376463104.329>
+                              StaticText, 0x1127f6300, {{222.5, 262.5}, {26.0, 23.0}}, label: '17' <AX element pid: 62565, elementOrHash.elementID: 4376463552.330>
+                            Button, 0x1127f6440, {{260.5, 233.5}, {46.0, 69.0}}, identifier: 'week-date-2026-10-18', label: 'Sunday, Oct 18', value: Dinner planned <AX element pid: 62565, elementOrHash.elementID: 4376465344.130>
+                              StaticText, 0x1127f6580, {{272.8, 241.5}, {21.5, 16.0}}, label: 'Sun' <AX element pid: 62565, elementOrHash.elementID: 4376464448.331>
+                              StaticText, 0x1127f66c0, {{270.5, 262.5}, {26.0, 23.0}}, label: '18' <AX element pid: 62565, elementOrHash.elementID: 4376464896.332>
+                            Button, 0x1127f6800, {{308.5, 233.5}, {46.0, 69.0}}, identifier: 'week-date-2026-10-19', label: 'Monday, Oct 19', value: No dinner planned <AX element pid: 62565, elementOrHash.elementID: 4376466688.131>
+                              StaticText, 0x1127f6940, {{319.2, 241.5}, {24.5, 16.0}}, label: 'Mon' <AX element pid: 62565, elementOrHash.elementID: 4376465792.333>
+                              StaticText, 0x1127f6a80, {{318.5, 262.5}, {26.0, 23.0}}, label: '19' <AX element pid: 62565, elementOrHash.elementID: 4376466240.334>
+                            Button, 0x1127f6bc0, {{356.5, 233.5}, {46.0, 69.0}}, identifier: 'week-date-2026-10-20', label: 'Tuesday, Oct 20', value: Dinner planned <AX element pid: 62565, elementOrHash.elementID: 4376468480.132>
+                              StaticText, 0x1127f6d00, {{369.2, 241.5}, {20.5, 16.0}}, label: 'Tue' <AX element pid: 62565, elementOrHash.elementID: 4376467136.335>
+                              StaticText, 0x1127f6e40, {{366.5, 262.5}, {26.0, 23.0}}, label: '20' <AX element pid: 62565, elementOrHash.elementID: 4376468032.336>
+                      Other, 0x1127f6f80, {{24.0, 230.0}, {12.0, 76.0}} <AX element pid: 62565, elementOrHash.elementID: 4376469824.36>
+                      Other, 0x1127f70c0, {{339.0, 230.0}, {12.0, 76.0}} <AX element pid: 62565, elementOrHash.elementID: 4376470272.37>
+                      Other, 0x1127f7200, {{27.0, 258.0}, {3.0, 20.0}} <AX element pid: 62565, elementOrHash.elementID: 4376470720.38>
+                      Other, 0x1127f7340, {{345.0, 258.0}, {3.0, 20.0}} <AX element pid: 62565, elementOrHash.elementID: 4376471616.39>
+                      ScrollView, 0x1127f7480, {{0.0, 314.0}, {375.0, 353.0}} <AX element pid: 62565, elementOrHash.elementID: 4377857024.40>
+                        Other, 0x1127f75c0, {{0.0, -130.5}, {375.0, 3110.5}} <AX element pid: 62565, elementOrHash.elementID: 4417435136.51>
+                          StaticText, 0x1127f7700, {{24.0, -116.5}, {118.0, 14.5}}, label: 'EARLIER THIS WEEK' <AX element pid: 62565, elementOrHash.elementID: 4376472064.58>
+                          Button, 0x1127f7840, {{24.0, -84.0}, {327.0, 76.0}}, label: 'Sunday, No meal planned' <AX element pid: 62565, elementOrHash.elementID: 4376476544.59>
+                            StaticText, 0x1127f7980, {{39.5, -71.2}, {25.0, 14.5}}, label: 'Sunday, October 11' <AX element pid: 62565, elementOrHash.elementID: 4376472960.133>
+                            StaticText, 0x1127f7ac0, {{39.0, -48.2}, {26.0, 23.0}}, label: 'Sunday, October 11' <AX element pid: 62565, elementOrHash.elementID: 4376473408.134>
+                            Image, 0x1127f7c00, {{99.5, -52.5}, {13.0, 13.0}}, identifier: 'plus', label: 'Add' <AX element pid: 62565, elementOrHash.elementID: 4376474304.135>
+                            StaticText, 0x1127f7d40, {{140.0, -65.0}, {121.5, 20.0}}, label: 'No meal planned' <AX element pid: 62565, elementOrHash.elementID: 4376474752.136>
+                            StaticText, 0x1127f7e80, {{140.0, -43.0}, {92.0, 16.0}}, label: 'No one assigned' <AX element pid: 62565, elementOrHash.elementID: 4376475200.137>
+                            StaticText, 0x1127f8000, {{312.5, -54.0}, {24.5, 16.0}}, label: 'Plan' <AX element pid: 62565, elementOrHash.elementID: 4376476096.138>
+                          Button, 0x1127f8140, {{24.0, -8.0}, {327.0, 76.0}}, label: 'Monday, No meal planned' <AX element pid: 62565, elementOrHash.elementID: 4375351680.60>
+                            StaticText, 0x1127f8280, {{37.5, 4.8}, {29.0, 14.5}}, label: 'Monday, October 12' <AX element pid: 62565, elementOrHash.elementID: 4375353024.139>
+                            StaticText, 0x1127f83c0, {{39.0, 27.8}, {26.0, 23.0}}, label: 'Monday, October 12' <AX element pid: 62565, elementOrHash.elementID: 4375348992.140>
+                            Image, 0x1127f8500, {{99.5, 23.5}, {13.0, 13.0}}, identifier: 'plus', label: 'Add' <AX element pid: 62565, elementOrHash.elementID: 4375359744.141>
+                            StaticText, 0x1127f8640, {{140.0, 11.0}, {121.5, 20.0}}, label: 'No meal planned' <AX element pid: 62565, elementOrHash.elementID: 4375361088.142>
+                            StaticText, 0x1127f8780, {{140.0, 33.0}, {92.0, 16.0}}, label: 'No one assigned' <AX element pid: 62565, elementOrHash.elementID: 4375361984.143>
+                            StaticText, 0x1127f88c0, {{312.5, 22.0}, {24.5, 16.0}}, label: 'Plan' <AX element pid: 62565, elementOrHash.elementID: 4375351232.144>
+                          Button, 0x1127f8a00, {{24.0, 68.0}, {327.0, 76.0}}, label: 'Tuesday, No meal planned' <AX element pid: 62565, elementOrHash.elementID: 4376498112.61>
+                            StaticText, 0x1127f8b40, {{40.5, 80.8}, {23.0, 14.5}}, label: 'Tuesday, October 13' <AX element pid: 62565, elementOrHash.elementID: 4376494080.145>
+                            StaticText, 0x1127f8c80, {{39.0, 103.8}, {26.0, 23.0}}, label: 'Tuesday, October 13' <AX element pid: 62565, elementOrHash.elementID: 4376494976.146>
+                            Image, 0x1127f8dc0, {{99.5, 99.5}, {13.0, 13.0}}, identifier: 'plus', label: 'Add' <AX element pid: 62565, elementOrHash.elementID: 4376495424.147>
+                            StaticText, 0x1127f8f00, {{140.0, 87.0}, {121.5, 20.0}}, label: 'No meal planned' <AX element pid: 62565, elementOrHash.elementID: 4376495872.148>
+                            StaticText, 0x1127f9040, {{140.0, 109.0}, {92.0, 16.0}}, label: 'No one assigned' <AX element pid: 62565, elementOrHash.elementID: 4376496768.149>
+                            StaticText, 0x1127f9180, {{312.5, 98.0}, {24.5, 16.0}}, label: 'Plan' <AX element pid: 62565, elementOrHash.elementID: 4376497216.150>
+                          Button, 0x1127f92c0, {{24.0, 144.0}, {327.0, 76.0}}, label: 'Wednesday, No meal planned' <AX element pid: 62565, elementOrHash.elementID: 4376501696.62>
+                            StaticText, 0x1127f9400, {{38.0, 156.8}, {28.0, 14.5}}, label: 'Wednesday, October 14' <AX element pid: 62565, elementOrHash.elementID: 4376498560.151>
+                            StaticText, 0x1127f9540, {{39.0, 179.8}, {26.0, 23.0}}, label: 'Wednesday, October 14' <AX element pid: 62565, elementOrHash.elementID: 4376499456.152>
+                            Image, 0x1127f9680, {{99.5, 175.5}, {13.0, 13.0}}, identifier: 'plus', label: 'Add' <AX element pid: 62565, elementOrHash.elementID: 4376499904.153>
+                            StaticText, 0x1127f97c0, {{140.0, 163.0}, {121.5, 20.0}}, label: 'No meal planned' <AX element pid: 62565, elementOrHash.elementID: 4376500352.154>
+                            StaticText, 0x1127f9900, {{140.0, 185.0}, {92.0, 16.0}}, label: 'No one assigned' <AX element pid: 62565, elementOrHash.elementID: 4376500800.155>
+                            StaticText, 0x1127f9a40, {{312.5, 174.0}, {24.5, 16.0}}, label: 'Plan' <AX element pid: 62565, elementOrHash.elementID: 4376501248.156>
+                          Button, 0x1127f9b80, {{24.0, 220.0}, {327.0, 76.0}}, label: 'Thursday, No meal planned' <AX element pid: 62565, elementOrHash.elementID: 4376505280.63>
+                            StaticText, 0x1127f9cc0, {{39.8, 232.8}, {24.5, 14.5}}, label: 'Thursday, October 15' <AX element pid: 62565, elementOrHash.elementID: 4376502144.157>
+                            StaticText, 0x1127f9e00, {{39.0, 255.8}, {26.0, 23.0}}, label: 'Thursday, October 15' <AX element pid: 62565, elementOrHash.elementID: 4376502592.158>
+                            Image, 0x1127f9f40, {{99.5, 251.5}, {13.0, 13.0}}, identifier: 'plus', label: 'Add' <AX element pid: 62565, elementOrHash.elementID: 4376503040.159>
+                            StaticText, 0x1127fa080, {{140.0, 239.0}, {121.5, 20.0}}, label: 'No meal planned' <AX element pid: 62565, elementOrHash.elementID: 4376503488.160>
+                            StaticText, 0x1127fa1c0, {{140.0, 261.0}, {92.0, 16.0}}, label: 'No one assigned' <AX element pid: 62565, elementOrHash.elementID: 4376504384.161>
+                            StaticText, 0x1127fa300, {{312.5, 250.0}, {24.5, 16.0}}, label: 'Plan' <AX element pid: 62565, elementOrHash.elementID: 4376504832.162>
+                          StaticText, 0x1127fa440, {{24.0, 328.8}, {107.0, 14.5}}, label: 'TONIGHT · OCT 16' <AX element pid: 62565, elementOrHash.elementID: 4376505728.64>
+                          Button, 0x1127fa580, {{307.0, 314.0}, {44.0, 44.0}}, label: 'Dinner options' <AX element pid: 62565, elementOrHash.elementID: 4376507072.65>
+                            Button, 0x1127fa6c0, {{307.0, 314.0}, {44.0, 44.0}} <AX element pid: 62565, elementOrHash.elementID: 4375769344.163>
+                              Image, 0x1127fa800, {{307.0, 314.0}, {44.0, 44.0}}, identifier: 'ellipsis', label: 'More' <AX element pid: 62565, elementOrHash.elementID: 4376506176.338>
+                          Button, 0x1127fa940, {{24.0, 370.0}, {327.0, 261.0}}, identifier: 'featured-dinner-card', label: 'Salmon Night' <AX element pid: 62565, elementOrHash.elementID: 4376508864.66>
+                            Image, 0x1127faa80, {{24.0, 370.0}, {327.0, 211.0}} <AX element pid: 62565, elementOrHash.elementID: 4376507968.164>
+                            StaticText, 0x1127fabc0, {{24.0, 370.0}, {327.0, 261.0}}, label: 'Salmon Night' <AX element pid: 62565, elementOrHash.elementID: 4376508416.165>
+                          StaticText, 0x1127fad00, {{33.2, 658.2}, {7.5, 13.5}}, label: 'N' <AX element pid: 62565, elementOrHash.elementID: 4376509312.67>
+                          StaticText, 0x1127fae40, {{58.0, 656.5}, {86.5, 17.0}}, label: 'You're cooking' <AX element pid: 62565, elementOrHash.elementID: 4376509760.68>
+                          Button, 0x1127faf80, {{245.5, 643.0}, {105.5, 44.0}}, label: 'Change servings and cook' <AX element pid: 62565, elementOrHash.elementID: 4376544128.69>
+                            Image, 0x1127fb0c0, {{259.0, 658.5}, {19.0, 13.0}}, identifier: 'person.2', label: 'person.2' <AX element pid: 62565, elementOrHash.elementID: 4376543232.166>
+                            StaticText, 0x1127fb200, {{259.0, 656.5}, {80.0, 17.0}}, label: 'Serves 4' <AX element pid: 62565, elementOrHash.elementID: 4376543680.167>
+                          Button, 0x1127fb340, {{24.0, 699.0}, {327.0, 48.0}}, label: 'Start cooking' <AX element pid: 62565, elementOrHash.elementID: 4376545472.70>
+                            Image, 0x1127fb480, {{126.5, 713.5}, {11.5, 19.0}}, identifier: 'fork.knife', label: 'Food' <AX element pid: 62565, elementOrHash.elementID: 4376544576.168>
+                            StaticText, 0x1127fb5c0, {{148.0, 712.5}, {102.5, 21.0}}, label: 'Start cooking' <AX element pid: 62565, elementOrHash.elementID: 4376545024.169>
+                          StaticText, 0x1127fb700, {{24.0, 765.0}, {119.5, 29.0}}, label: 'This week' <AX element pid: 62565, elementOrHash.elementID: 4376545920.71>
+                          StaticText, 0x1127fb840, {{291.0, 771.0}, {60.0, 17.0}}, label: '2 planned' <AX element pid: 62565, elementOrHash.elementID: 4376546816.72>
+                          Button, 0x1127fb980, {{24.0, 812.0}, {283.0, 76.0}}, identifier: 'week-meal-2026-10-17', label: 'Saturday, October 17, Saturday, October 17, Pizza Night, S, Sam is cooking' <AX element pid: 62565, elementOrHash.elementID: 4376550848.73>
+                            StaticText, 0x1127fbac0, {{40.8, 824.8}, {22.5, 14.5}}, label: 'Saturday, October 17' <AX element pid: 62565, elementOrHash.elementID: 4376547264.170>
+                            StaticText, 0x1127fbc00, {{39.0, 847.8}, {26.0, 23.0}}, label: 'Saturday, October 17' <AX element pid: 62565, elementOrHash.elementID: 4376547712.171>
+                            Image, 0x1127fbd40, {{82.0, 826.5}, {47.0, 47.0}} <AX element pid: 62565, elementOrHash.elementID: 4376548160.172>
+                            StaticText, 0x1127fbe80, {{139.0, 826.5}, {83.0, 21.0}}, label: 'Pizza Night' <AX element pid: 62565, elementOrHash.elementID: 4376548608.173>
+                            StaticText, 0x1127fc000, {{147.5, 857.2}, {5.0, 10.5}}, label: 'S' <AX element pid: 62565, elementOrHash.elementID: 4376549504.174>
+                            StaticText, 0x1127fc140, {{167.0, 854.5}, {86.5, 16.0}}, label: 'Sam is cooking' <AX element pid: 62565, elementOrHash.elementID: 4376550400.175>
+                          Button, 0x1127fc280, {{307.0, 828.0}, {44.0, 44.0}}, identifier: 'ellipsis', label: 'Actions for Pizza Night', value: Actions hidden <AX element pid: 62565, elementOrHash.elementID: 4376551296.74>
+                          StaticText, 0x1127fc3c0, {{24.0, 914.0}, {123.5, 29.0}}, label: 'Next week' <AX element pid: 62565, elementOrHash.elementID: 4376551744.75>
+                          StaticText, 0x1127fc500, {{291.0, 920.0}, {60.0, 17.0}}, label: '3 planned' <AX element pid: 62565, elementOrHash.elementID: 4376552192.76>
+                          Button, 0x1127fc640, {{24.0, 961.0}, {283.0, 76.0}}, identifier: 'week-meal-2026-10-18', label: 'Sunday, October 18, Sunday, October 18, BBQ Skewers, S, Sam is cooking' <AX element pid: 62565, elementOrHash.elementID: 4376556224.77>
+                            StaticText, 0x1127fc780, {{39.5, 973.8}, {25.0, 14.5}}, label: 'Sunday, October 18' <AX element pid: 62565, elementOrHash.elementID: 4376552640.176>
+                            StaticText, 0x1127fc8c0, {{39.0, 996.8}, {26.0, 23.0}}, label: 'Sunday, October 18' <AX element pid: 62565, elementOrHash.elementID: 4376553088.177>
+                            Image, 0x1127fca00, {{82.0, 975.5}, {47.0, 47.0}} <AX element pid: 62565, elementOrHash.elementID: 4376553536.178>
+                            StaticText, 0x1127fcb40, {{139.0, 975.5}, {99.5, 21.0}}, label: 'BBQ Skewers' <AX element pid: 62565, elementOrHash.elementID: 4376554432.179>
+                            StaticText, 0x1127fcc80, {{147.5, 1006.2}, {5.0, 10.5}}, label: 'S' <AX element pid: 62565, elementOrHash.elementID: 4376554880.180>
+                            StaticText, 0x1127fcdc0, {{167.0, 1003.5}, {86.5, 16.0}}, label: 'Sam is cooking' <AX element pid: 62565, elementOrHash.elementID: 4376555328.181>
+                          Button, 0x1127fcf00, {{307.0, 977.0}, {44.0, 44.0}}, identifier: 'ellipsis', label: 'Actions for BBQ Skewers', value: Actions hidden <AX element pid: 62565, elementOrHash.elementID: 4376557120.78>
+                          Button, 0x1127fd040, {{24.0, 1037.0}, {327.0, 84.5}}, label: 'Monday, No meal planned yet' <AX element pid: 62565, elementOrHash.elementID: 4376578688.79>
+                            StaticText, 0x1127fd180, {{37.5, 1054.0}, {29.0, 14.5}}, label: 'Monday, October 19' <AX element pid: 62565, elementOrHash.elementID: 4376558016.182>
+                            StaticText, 0x1127fd2c0, {{39.0, 1077.0}, {26.0, 23.0}}, label: 'Monday, October 19' <AX element pid: 62565, elementOrHash.elementID: 4376558464.183>
+                            Image, 0x1127fd400, {{99.5, 1073.0}, {13.0, 13.0}}, identifier: 'plus', label: 'Add' <AX element pid: 62565, elementOrHash.elementID: 4376576000.184>
+                            StaticText, 0x1127fd540, {{140.0, 1049.0}, {86.0, 42.5}}, label: 'No meal planned yet' <AX element pid: 62565, elementOrHash.elementID: 4376576896.185>
+                            StaticText, 0x1127fd680, {{140.0, 1093.5}, {92.0, 16.0}}, label: 'No one assigned' <AX element pid: 62565, elementOrHash.elementID: 4376577792.186>
+                            StaticText, 0x1127fd7c0, {{312.5, 1071.2}, {24.5, 16.0}}, label: 'Plan' <AX element pid: 62565, elementOrHash.elementID: 4376578240.187>
+                          Button, 0x1127fd900, {{24.0, 1121.5}, {283.0, 76.0}}, identifier: 'week-meal-2026-10-20', label: 'Tuesday, October 20, Tuesday, October 20, Steak Bowls, R, Riley is cooking' <AX element pid: 62565, elementOrHash.elementID: 4376582720.80>
+                            StaticText, 0x1127fda40, {{40.5, 1134.2}, {23.0, 14.5}}, label: 'Tuesday, October 20' <AX element pid: 62565, elementOrHash.elementID: 4376579136.188>
+                            StaticText, 0x1127fdb80, {{39.0, 1157.2}, {26.0, 23.0}}, label: 'Tuesday, October 20' <AX element pid: 62565, elementOrHash.elementID: 4376580032.189>
+                            Image, 0x1127fdcc0, {{82.0, 1136.0}, {47.0, 47.0}} <AX element pid: 62565, elementOrHash.elementID: 4376580480.190>
+                            StaticText, 0x1127fde00, {{139.0, 1136.0}, {91.5, 21.0}}, label: 'Steak Bowls' <AX element pid: 62565, elementOrHash.elementID: 4376580928.191>
+                            StaticText, 0x1127fdf40, {{147.2, 1166.8}, {5.5, 10.5}}, label: 'R' <AX element pid: 62565, elementOrHash.elementID: 4376581824.192>
+                            StaticText, 0x1127fe080, {{167.0, 1164.0}, {89.0, 16.0}}, label: 'Riley is cooking' <AX element pid: 62565, elementOrHash.elementID: 4376582272.193>
+                          Button, 0x1127fe1c0, {{307.0, 1137.5}, {44.0, 44.0}}, identifier: 'ellipsis', label: 'Actions for Steak Bowls', value: Actions hidden <AX element pid: 62565, elementOrHash.elementID: 4376583168.81>
+                          Button, 0x1127fe300, {{24.0, 1197.5}, {283.0, 76.0}}, identifier: 'week-meal-2026-10-21', label: 'Wednesday, October 21, Wednesday, October 21, Poke Night, N, You're cooking' <AX element pid: 62565, elementOrHash.elementID: 4376587200.82>
+                            StaticText, 0x1127fe440, {{38.0, 1210.2}, {28.0, 14.5}}, label: 'Wednesday, October 21' <AX element pid: 62565, elementOrHash.elementID: 4376583616.194>
+                            StaticText, 0x1127fe580, {{39.0, 1233.2}, {26.0, 23.0}}, label: 'Wednesday, October 21' <AX element pid: 62565, elementOrHash.elementID: 4376584064.195>
+                            Image, 0x1127fe6c0, {{82.0, 1212.0}, {47.0, 47.0}} <AX element pid: 62565, elementOrHash.elementID: 4376584512.196>
+                            StaticText, 0x1127fe800, {{139.0, 1212.0}, {81.5, 21.0}}, label: 'Poke Night' <AX element pid: 62565, elementOrHash.elementID: 4376584960.197>
+                            StaticText, 0x1127fe940, {{147.0, 1242.8}, {6.0, 10.5}}, label: 'N' <AX element pid: 62565, elementOrHash.elementID: 4376585856.198>
+                            StaticText, 0x1127fea80, {{167.0, 1240.0}, {84.0, 16.0}}, label: 'You're cooking' <AX element pid: 62565, elementOrHash.elementID: 4376586304.199>
+                          Button, 0x1127febc0, {{307.0, 1213.5}, {44.0, 44.0}}, identifier: 'ellipsis', label: 'Actions for Poke Night', value: Actions hidden <AX element pid: 62565, elementOrHash.elementID: 4376587648.83>
+                          Button, 0x1127fed00, {{24.0, 1273.5}, {327.0, 84.5}}, label: 'Thursday, No meal planned yet' <AX element pid: 62565, elementOrHash.elementID: 4376592832.84>
+                            StaticText, 0x1127fee40, {{39.8, 1290.5}, {24.5, 14.5}}, label: 'Thursday, October 22' <AX element pid: 62565, elementOrHash.elementID: 4376588544.200>
+                            StaticText, 0x1127fef80, {{39.0, 1313.5}, {26.0, 23.0}}, label: 'Thursday, October 22' <AX element pid: 62565, elementOrHash.elementID: 4376589440.201>
+                            Image, 0x1127ff0c0, {{99.5, 1309.5}, {13.0, 13.0}}, identifier: 'plus', label: 'Add' <AX element pid: 62565, elementOrHash.elementID: 4376589888.202>
+                            StaticText, 0x1127ff200, {{140.0, 1285.5}, {86.0, 42.5}}, label: 'No meal planned yet' <AX element pid: 62565, elementOrHash.elementID: 4376590336.203>
+                            StaticText, 0x1127ff340, {{140.0, 1330.0}, {92.0, 16.0}}, label: 'No one assigned' <AX element pid: 62565, elementOrHash.elementID: 4376590784.204>
+                            StaticText, 0x1127ff480, {{312.5, 1307.8}, {24.5, 16.0}}, label: 'Plan' <AX element pid: 62565, elementOrHash.elementID: 4376591680.205>
+                          Button, 0x1127ff5c0, {{24.0, 1358.0}, {327.0, 84.5}}, label: 'Friday, No meal planned yet' <AX element pid: 62565, elementOrHash.elementID: 4376596416.85>
+                            StaticText, 0x1127ff700, {{42.8, 1375.0}, {18.5, 14.5}}, label: 'Friday, October 23' <AX element pid: 62565, elementOrHash.elementID: 4376593280.206>
+                            StaticText, 0x1127ff840, {{39.0, 1398.0}, {26.0, 23.0}}, label: 'Friday, October 23' <AX element pid: 62565, elementOrHash.elementID: 4376593728.207>
+                            Image, 0x1127ff980, {{99.5, 1394.0}, {13.0, 13.0}}, identifier: 'plus', label: 'Add' <AX element pid: 62565, elementOrHash.elementID: 4376594624.208>
+                            StaticText, 0x1127ffac0, {{140.0, 1370.0}, {86.0, 42.5}}, label: 'No meal planned yet' <AX element pid: 62565, elementOrHash.elementID: 4376595072.209>
+                            StaticText, 0x1127ffc00, {{140.0, 1414.5}, {92.0, 16.0}}, label: 'No one assigned' <AX element pid: 62565, elementOrHash.elementID: 4376595520.210>
+                            StaticText, 0x1127ffd40, {{312.5, 1392.2}, {24.5, 16.0}}, label: 'Plan' <AX element pid: 62565, elementOrHash.elementID: 4376595968.211>
+                          Button, 0x1127ffe80, {{24.0, 1442.5}, {327.0, 84.5}}, label: 'Saturday, No meal planned yet' <AX element pid: 62565, elementOrHash.elementID: 4376599552.86>
+                            StaticText, 0x113228000, {{40.8, 1459.5}, {22.5, 14.5}}, label: 'Saturday, October 24' <AX element pid: 62565, elementOrHash.elementID: 4376596864.212>
+                            StaticText, 0x113228140, {{39.0, 1482.5}, {26.0, 23.0}}, label: 'Saturday, October 24' <AX element pid: 62565, elementOrHash.elementID: 4376597312.213>
+                            Image, 0x113228280, {{99.5, 1478.5}, {13.0, 13.0}}, identifier: 'plus', label: 'Add' <AX element pid: 62565, elementOrHash.elementID: 4376597760.214>
+                            StaticText, 0x1132283c0, {{140.0, 1454.5}, {86.0, 42.5}}, label: 'No meal planned yet' <AX element pid: 62565, elementOrHash.elementID: 4376598208.215>
+                            StaticText, 0x113228500, {{140.0, 1499.0}, {92.0, 16.0}}, label: 'No one assigned' <AX element pid: 62565, elementOrHash.elementID: 4376598656.216>
+                            StaticText, 0x113228640, {{312.5, 1476.8}, {24.5, 16.0}}, label: 'Plan' <AX element pid: 62565, elementOrHash.elementID: 4376599104.217>
+                          StaticText, 0x113228780, {{24.0, 1553.0}, {186.5, 29.0}}, label: 'Week of Oct 25' <AX element pid: 62565, elementOrHash.elementID: 4376600000.87>
+                          StaticText, 0x1132288c0, {{290.0, 1559.0}, {61.0, 17.0}}, label: '0 planned' <AX element pid: 62565, elementOrHash.elementID: 4376600448.88>
+                          Button, 0x113228a00, {{24.0, 1600.0}, {327.0, 84.5}}, label: 'Sunday, No meal planned yet' <AX element pid: 62565, elementOrHash.elementID: 4376603584.89>
+                            StaticText, 0x113228b40, {{39.5, 1617.0}, {25.0, 14.5}}, label: 'Sunday, October 25' <AX element pid: 62565, elementOrHash.elementID: 4376600896.218>
+                            StaticText, 0x113228c80, {{39.0, 1640.0}, {26.0, 23.0}}, label: 'Sunday, October 25' <AX element pid: 62565, elementOrHash.elementID: 4376601344.219>
+                            Image, 0x113228dc0, {{99.5, 1636.0}, {13.0, 13.0}}, identifier: 'plus', label: 'Add' <AX element pid: 62565, elementOrHash.elementID: 4376601792.220>
+                            StaticText, 0x113228f00, {{140.0, 1612.0}, {86.0, 42.5}}, label: 'No meal planned yet' <AX element pid: 62565, elementOrHash.elementID: 4376602240.221>
+                            StaticText, 0x113229040, {{140.0, 1656.5}, {92.0, 16.0}}, label: 'No one assigned' <AX element pid: 62565, elementOrHash.elementID: 4376602688.222>
+                            StaticText, 0x113229180, {{312.5, 1634.2}, {24.5, 16.0}}, label: 'Plan' <AX element pid: 62565, elementOrHash.elementID: 4376603136.223>
+                          Button, 0x1132292c0, {{24.0, 1684.5}, {327.0, 84.5}}, label: 'Monday, No meal planned yet' <AX element pid: 62565, elementOrHash.elementID: 4376606720.90>
+                            StaticText, 0x113229400, {{37.5, 1701.5}, {29.0, 14.5}}, label: 'Monday, October 26' <AX element pid: 62565, elementOrHash.elementID: 4376604032.224>
+                            StaticText, 0x113229540, {{39.0, 1724.5}, {26.0, 23.0}}, label: 'Monday, October 26' <AX element pid: 62565, elementOrHash.elementID: 4376604480.225>
+                            Image, 0x113229680, {{99.5, 1720.5}, {13.0, 13.0}}, identifier: 'plus', label: 'Add' <AX element pid: 62565, elementOrHash.elementID: 4376604928.226>
+                            StaticText, 0x1132297c0, {{140.0, 1696.5}, {86.0, 42.5}}, label: 'No meal planned yet' <AX element pid: 62565, elementOrHash.elementID: 4376605376.227>
+                            StaticText, 0x113229900, {{140.0, 1741.0}, {92.0, 16.0}}, label: 'No one assigned' <AX element pid: 62565, elementOrHash.elementID: 4376605824.228>
+                            StaticText, 0x113229a40, {{312.5, 1718.8}, {24.5, 16.0}}, label: 'Plan' <AX element pid: 62565, elementOrHash.elementID: 4376606272.229>
+                          Button, 0x113229b80, {{24.0, 1769.0}, {327.0, 84.5}}, label: 'Tuesday, No meal planned yet' <AX element pid: 62565, elementOrHash.elementID: 4376692928.91>
+                            StaticText, 0x113229cc0, {{40.5, 1786.0}, {23.0, 14.5}}, label: 'Tuesday, October 27' <AX element pid: 62565, elementOrHash.elementID: 4376607168.230>
+                            StaticText, 0x113229e00, {{39.0, 1809.0}, {26.0, 23.0}}, label: 'Tuesday, October 27' <AX element pid: 62565, elementOrHash.elementID: 4376607616.231>
+                            Image, 0x113229f40, {{99.5, 1805.0}, {13.0, 13.0}}, identifier: 'plus', label: 'Add' <AX element pid: 62565, elementOrHash.elementID: 4376608064.232>
+                            StaticText, 0x11322a080, {{140.0, 1781.0}, {86.0, 42.5}}, label: 'No meal planned yet' <AX element pid: 62565, elementOrHash.elementID: 4376690688.233>
+                            StaticText, 0x11322a1c0, {{140.0, 1825.5}, {92.0, 16.0}}, label: 'No one assigned' <AX element pid: 62565, elementOrHash.elementID: 4376691584.234>
+                            StaticText, 0x11322a300, {{312.5, 1803.2}, {24.5, 16.0}}, label: 'Plan' <AX element pid: 62565, elementOrHash.elementID: 4376692032.235>
+                          Button, 0x11322a440, {{24.0, 1853.5}, {327.0, 84.5}}, label: 'Wednesday, No meal planned yet' <AX element pid: 62565, elementOrHash.elementID: 4376696960.92>
+                            StaticText, 0x11322a580, {{38.0, 1870.5}, {28.0, 14.5}}, label: 'Wednesday, October 28' <AX element pid: 62565, elementOrHash.elementID: 4376693376.236>
+                            StaticText, 0x11322a6c0, {{39.0, 1893.5}, {26.0, 23.0}}, label: 'Wednesday, October 28' <AX element pid: 62565, elementOrHash.elementID: 4376694272.237>
+                            Image, 0x11322a800, {{99.5, 1889.5}, {13.0, 13.0}}, identifier: 'plus', label: 'Add' <AX element pid: 62565, elementOrHash.elementID: 4376695168.238>
+                            StaticText, 0x11322a940, {{140.0, 1865.5}, {86.0, 42.5}}, label: 'No meal planned yet' <AX element pid: 62565, elementOrHash.elementID: 4376695616.239>
+                            StaticText, 0x11322aa80, {{140.0, 1910.0}, {92.0, 16.0}}, label: 'No one assigned' <AX element pid: 62565, elementOrHash.elementID: 4376696064.240>
+                            StaticText, 0x11322abc0, {{312.5, 1887.8}, {24.5, 16.0}}, label: 'Plan' <AX element pid: 62565, elementOrHash.elementID: 4376696512.241>
+                          Button, 0x11322ad00, {{24.0, 1938.0}, {327.0, 84.5}}, label: 'Thursday, No meal planned yet' <AX element pid: 62565, elementOrHash.elementID: 4376700992.93>
+                            StaticText, 0x11322ae40, {{39.8, 1955.0}, {24.5, 14.5}}, label: 'Thursday, October 29' <AX element pid: 62565, elementOrHash.elementID: 4376697408.242>
+                            StaticText, 0x11322af80, {{39.0, 1978.0}, {26.0, 23.0}}, label: 'Thursday, October 29' <AX element pid: 62565, elementOrHash.elementID: 4376697856.243>
+                            Image, 0x11322b0c0, {{99.5, 1974.0}, {13.0, 13.0}}, identifier: 'plus', label: 'Add' <AX element pid: 62565, elementOrHash.elementID: 4376698304.244>
+                            StaticText, 0x11322b200, {{140.0, 1950.0}, {86.0, 42.5}}, label: 'No meal planned yet' <AX element pid: 62565, elementOrHash.elementID: 4376699200.245>
+                            StaticText, 0x11322b340, {{140.0, 1994.5}, {92.0, 16.0}}, label: 'No one assigned' <AX element pid: 62565, elementOrHash.elementID: 4376699648.246>
+                            StaticText, 0x11322b480, {{312.5, 1972.2}, {24.5, 16.0}}, label: 'Plan' <AX element pid: 62565, elementOrHash.elementID: 4376700096.247>
+                          Button, 0x11322b5c0, {{24.0, 2022.5}, {327.0, 84.5}}, label: 'Friday, No meal planned yet' <AX element pid: 62565, elementOrHash.elementID: 4376705024.94>
+                            StaticText, 0x11322b700, {{42.8, 2039.5}, {18.5, 14.5}}, label: 'Friday, October 30' <AX element pid: 62565, elementOrHash.elementID: 4376701888.248>
+                            StaticText, 0x11322b840, {{39.0, 2062.5}, {26.0, 23.0}}, label: 'Friday, October 30' <AX element pid: 62565, elementOrHash.elementID: 4376702784.249>
+                            Image, 0x11322b980, {{99.5, 2058.5}, {13.0, 13.0}}, identifier: 'plus', label: 'Add' <AX element pid: 62565, elementOrHash.elementID: 4376703232.250>
+                            StaticText, 0x11322bac0, {{140.0, 2034.5}, {86.0, 42.5}}, label: 'No meal planned yet' <AX element pid: 62565, elementOrHash.elementID: 4376703680.251>
+                            StaticText, 0x11322bc00, {{140.0, 2079.0}, {92.0, 16.0}}, label: 'No one assigned' <AX element pid: 62565, elementOrHash.elementID: 4376704128.252>
+                            StaticText, 0x11322bd40, {{312.5, 2056.8}, {24.5, 16.0}}, label: 'Plan' <AX element pid: 62565, elementOrHash.elementID: 4376704576.253>
+                          Button, 0x11322be80, {{24.0, 2107.0}, {327.0, 84.5}}, label: 'Saturday, No meal planned yet' <AX element pid: 62565, elementOrHash.elementID: 4376724800.95>
+                            StaticText, 0x11322c000, {{40.8, 2124.0}, {22.5, 14.5}}, label: 'Saturday, October 31' <AX element pid: 62565, elementOrHash.elementID: 4376705472.254>
+                            StaticText, 0x11322c140, {{39.0, 2147.0}, {26.0, 23.0}}, label: 'Saturday, October 31' <AX element pid: 62565, elementOrHash.elementID: 4376705920.255>
+                            Image, 0x11322c280, {{99.5, 2143.0}, {13.0, 13.0}}, identifier: 'plus', label: 'Add' <AX element pid: 62565, elementOrHash.elementID: 4376706368.256>
+                            StaticText, 0x11322c3c0, {{140.0, 2119.0}, {86.0, 42.5}}, label: 'No meal planned yet' <AX element pid: 62565, elementOrHash.elementID: 4376723456.257>
+                            StaticText, 0x11322c500, {{140.0, 2163.5}, {92.0, 16.0}}, label: 'No one assigned' <AX element pid: 62565, elementOrHash.elementID: 4376723904.258>
+                            StaticText, 0x11322c640, {{312.5, 2141.2}, {24.5, 16.0}}, label: 'Plan' <AX element pid: 62565, elementOrHash.elementID: 4376724352.259>
+                          StaticText, 0x11322c780, {{24.0, 2217.5}, {176.0, 29.0}}, label: 'Week of Nov 1' <AX element pid: 62565, elementOrHash.elementID: 4376725248.96>
+                          StaticText, 0x11322c8c0, {{290.0, 2223.5}, {61.0, 17.0}}, label: '0 planned' <AX element pid: 62565, elementOrHash.elementID: 4376725696.97>
+                          Button, 0x11322ca00, {{24.0, 2264.5}, {327.0, 84.5}}, label: 'Sunday, No meal planned yet' <AX element pid: 62565, elementOrHash.elementID: 4376728832.98>
+                            StaticText, 0x11322cb40, {{39.5, 2281.5}, {25.0, 14.5}}, label: 'Sunday, November 1' <AX element pid: 62565, elementOrHash.elementID: 4376726144.260>
+                            StaticText, 0x11322cc80, {{45.5, 2304.5}, {13.0, 23.0}}, label: 'Sunday, November 1' <AX element pid: 62565, elementOrHash.elementID: 4376726592.261>
+                            Image, 0x11322cdc0, {{99.5, 2300.5}, {13.0, 13.0}}, identifier: 'plus', label: 'Add' <AX element pid: 62565, elementOrHash.elementID: 4376727040.262>
+                            StaticText, 0x11322cf00, {{140.0, 2276.5}, {86.0, 42.5}}, label: 'No meal planned yet' <AX element pid: 62565, elementOrHash.elementID: 4376727488.263>
+                            StaticText, 0x11322d040, {{140.0, 2321.0}, {92.0, 16.0}}, label: 'No one assigned' <AX element pid: 62565, elementOrHash.elementID: 4376727936.264>
+                            StaticText, 0x11322d180, {{312.5, 2298.8}, {24.5, 16.0}}, label: 'Plan' <AX element pid: 62565, elementOrHash.elementID: 4376728384.265>
+                          Button, 0x11322d2c0, {{24.0, 2349.0}, {327.0, 84.5}}, label: 'Monday, No meal planned yet' <AX element pid: 62565, elementOrHash.elementID: 4376731968.99>
+                            StaticText, 0x11322d400, {{37.5, 2366.0}, {29.0, 14.5}}, label: 'Monday, November 2' <AX element pid: 62565, elementOrHash.elementID: 4376729280.266>
+                            StaticText, 0x11322d540, {{45.5, 2389.0}, {13.0, 23.0}}, label: 'Monday, November 2' <AX element pid: 62565, elementOrHash.elementID: 4376729728.267>
+                            Image, 0x11322d680, {{99.5, 2385.0}, {13.0, 13.0}}, identifier: 'plus', label: 'Add' <AX element pid: 62565, elementOrHash.elementID: 4376730176.268>
+                            StaticText, 0x11322d7c0, {{140.0, 2361.0}, {86.0, 42.5}}, label: 'No meal planned yet' <AX element pid: 62565, elementOrHash.elementID: 4376730624.269>
+                            StaticText, 0x11322d900, {{140.0, 2405.5}, {92.0, 16.0}}, label: 'No one assigned' <AX element pid: 62565, elementOrHash.elementID: 4376731072.270>
+                            StaticText, 0x11322da40, {{312.5, 2383.2}, {24.5, 16.0}}, label: 'Plan' <AX element pid: 62565, elementOrHash.elementID: 4376731520.271>
+                          Button, 0x11322db80, {{24.0, 2433.5}, {327.0, 84.5}}, label: 'Tuesday, No meal planned yet' <AX element pid: 62565, elementOrHash.elementID: 4376735104.100>
+                            StaticText, 0x11322dcc0, {{40.5, 2450.5}, {23.0, 14.5}}, label: 'Tuesday, November 3' <AX element pid: 62565, elementOrHash.elementID: 4376732416.272>
+                            StaticText, 0x11322de00, {{45.5, 2473.5}, {13.0, 23.0}}, label: 'Tuesday, November 3' <AX element pid: 62565, elementOrHash.elementID: 4376732864.273>
+                            Image, 0x11322df40, {{99.5, 2469.5}, {13.0, 13.0}}, identifier: 'plus', label: 'Add' <AX element pid: 62565, elementOrHash.elementID: 4376733312.274>
+                            StaticText, 0x11322e080, {{140.0, 2445.5}, {86.0, 42.5}}, label: 'No meal planned yet' <AX element pid: 62565, elementOrHash.elementID: 4376733760.275>
+                            StaticText, 0x11322e1c0, {{140.0, 2490.0}, {92.0, 16.0}}, label: 'No one assigned' <AX element pid: 62565, elementOrHash.elementID: 4376734208.276>
+                            StaticText, 0x11322e300, {{312.5, 2467.8}, {24.5, 16.0}}, label: 'Plan' <AX element pid: 62565, elementOrHash.elementID: 4376734656.277>
+                          Button, 0x11322e440, {{24.0, 2518.0}, {327.0, 84.5}}, label: 'Wednesday, No meal planned yet' <AX element pid: 62565, elementOrHash.elementID: 4376738240.101>
+                            StaticText, 0x11322e580, {{38.0, 2535.0}, {28.0, 14.5}}, label: 'Wednesday, November 4' <AX element pid: 62565, elementOrHash.elementID: 4376735552.278>
+                            StaticText, 0x11322e6c0, {{45.5, 2558.0}, {13.0, 23.0}}, label: 'Wednesday, November 4' <AX element pid: 62565, elementOrHash.elementID: 4376736000.279>
+                            Image, 0x11322e800, {{99.5, 2554.0}, {13.0, 13.0}}, identifier: 'plus', label: 'Add' <AX element pid: 62565, elementOrHash.elementID: 4376736448.280>
+                            StaticText, 0x11322e940, {{140.0, 2530.0}, {86.0, 42.5}}, label: 'No meal planned yet' <AX element pid: 62565, elementOrHash.elementID: 4376736896.281>
+                            StaticText, 0x11322ea80, {{140.0, 2574.5}, {92.0, 16.0}}, label: 'No one assigned' <AX element pid: 62565, elementOrHash.elementID: 4376737344.282>
+                            StaticText, 0x11322ebc0, {{312.5, 2552.2}, {24.5, 16.0}}, label: 'Plan' <AX element pid: 62565, elementOrHash.elementID: 4376737792.283>
+                          Button, 0x11322ed00, {{24.0, 2602.5}, {327.0, 84.5}}, label: 'Thursday, No meal planned yet' <AX element pid: 62565, elementOrHash.elementID: 4376758464.102>
+                            StaticText, 0x11322ee40, {{39.8, 2619.5}, {24.5, 14.5}}, label: 'Thursday, November 5' <AX element pid: 62565, elementOrHash.elementID: 4376738688.284>
+                            StaticText, 0x11322ef80, {{45.5, 2642.5}, {13.0, 23.0}}, label: 'Thursday, November 5' <AX element pid: 62565, elementOrHash.elementID: 4376756224.285>
+                            Image, 0x11322f0c0, {{99.5, 2638.5}, {13.0, 13.0}}, identifier: 'plus', label: 'Add' <AX element pid: 62565, elementOrHash.elementID: 4376756672.286>
+                            StaticText, 0x11322f200, {{140.0, 2614.5}, {86.0, 42.5}}, label: 'No meal planned yet' <AX element pid: 62565, elementOrHash.elementID: 4376757120.287>
+                            StaticText, 0x11322f340, {{140.0, 2659.0}, {92.0, 16.0}}, label: 'No one assigned' <AX element pid: 62565, elementOrHash.elementID: 4376757568.288>
+                            StaticText, 0x11322f480, {{312.5, 2636.8}, {24.5, 16.0}}, label: 'Plan' <AX element pid: 62565, elementOrHash.elementID: 4376758016.289>
+                          Button, 0x11322f5c0, {{24.0, 2687.0}, {327.0, 84.5}}, label: 'Friday, No meal planned yet' <AX element pid: 62565, elementOrHash.elementID: 4376761600.103>
+                            StaticText, 0x11322f700, {{42.8, 2704.0}, {18.5, 14.5}}, label: 'Friday, November 6' <AX element pid: 62565, elementOrHash.elementID: 4376758912.290>
+                            StaticText, 0x11322f840, {{45.5, 2727.0}, {13.0, 23.0}}, label: 'Friday, November 6' <AX element pid: 62565, elementOrHash.elementID: 4376759360.291>
+                            Image, 0x11322f980, {{99.5, 2723.0}, {13.0, 13.0}}, identifier: 'plus', label: 'Add' <AX element pid: 62565, elementOrHash.elementID: 4376759808.292>
+                            StaticText, 0x11322fac0, {{140.0, 2699.0}, {86.0, 42.5}}, label: 'No meal planned yet' <AX element pid: 62565, elementOrHash.elementID: 4376760256.293>
+                            StaticText, 0x11322fc00, {{140.0, 2743.5}, {92.0, 16.0}}, label: 'No one assigned' <AX element pid: 62565, elementOrHash.elementID: 4376760704.294>
+                            StaticText, 0x11322fd40, {{312.5, 2721.2}, {24.5, 16.0}}, label: 'Plan' <AX element pid: 62565, elementOrHash.elementID: 4376761152.295>
+                          Button, 0x11322fe80, {{24.0, 2771.5}, {327.0, 84.5}}, label: 'Saturday, No meal planned yet' <AX element pid: 62565, elementOrHash.elementID: 4376765632.104>
+                            StaticText, 0x113230000, {{40.8, 2788.5}, {22.5, 14.5}}, label: 'Saturday, November 7' <AX element pid: 62565, elementOrHash.elementID: 4376762048.296>
+                            StaticText, 0x113230140, {{45.5, 2811.5}, {13.0, 23.0}}, label: 'Saturday, November 7' <AX element pid: 62565, elementOrHash.elementID: 4376762496.297>
+                            Image, 0x113230280, {{99.5, 2807.5}, {13.0, 13.0}}, identifier: 'plus', label: 'Add' <AX element pid: 62565, elementOrHash.elementID: 4376762944.298>
+                            StaticText, 0x1132303c0, {{140.0, 2783.5}, {86.0, 42.5}}, label: 'No meal planned yet' <AX element pid: 62565, elementOrHash.elementID: 4376763840.299>
+                            StaticText, 0x113230500, {{140.0, 2828.0}, {92.0, 16.0}}, label: 'No one assigned' <AX element pid: 62565, elementOrHash.elementID: 4376764288.300>
+                            StaticText, 0x113230640, {{312.5, 2805.8}, {24.5, 16.0}}, label: 'Plan' <AX element pid: 62565, elementOrHash.elementID: 4376764736.301>
+                          StaticText, 0x113230780, {{33.8, 2880.2}, {6.5, 13.5}}, label: 'S' <AX element pid: 62565, elementOrHash.elementID: 4376766080.105>
+                          StaticText, 0x1132308c0, {{56.0, 2879.0}, {246.5, 16.0}}, label: 'Sam cooks Sat & Sun · Riley cooks Tuesday' <AX element pid: 62565, elementOrHash.elementID: 4376766528.106>
+              Other, 0x113230a00, {{0.0, 0.0}, {375.0, 667.0}} <AX element pid: 62565, elementOrHash.elementID: 4413951488.12>
+                Other, 0x113230b40, {{0.0, 0.0}, {0.0, 0.0}} <AX element pid: 62565, elementOrHash.elementID: 4375697984.16>
+                Other, 0x113230c80, {{0.0, 0.0}, {375.0, 667.0}} <AX element pid: 62565, elementOrHash.elementID: 4413953536.17>
+            Other, 0x113230dc0, {{0.0, 0.0}, {375.0, 667.0}} <AX element pid: 62565, elementOrHash.elementID: 4376160768.10>
+              Other, 0x113230f00, {{0.0, 0.0}, {375.0, 667.0}} <AX element pid: 62565, elementOrHash.elementID: 4376161216.13>
+                Other, 0x113231040, {{0.0, 0.0}, {375.0, 667.0}} <AX element pid: 62565, elementOrHash.elementID: 4376204992.18>
+                  Other, 0x113231180, {{0.0, 0.0}, {375.0, 667.0}} <AX element pid: 62565, elementOrHash.elementID: 4375764864.21>
+                    Other, 0x1132312c0, {{0.0, 0.0}, {375.0, 667.0}} <AX element pid: 62565, elementOrHash.elementID: 4376825344.23>
+                      Other, 0x113231400, {{187.5, 336.5}, {0.0, 0.0}} <AX element pid: 62565, elementOrHash.elementID: 4376174464.41>
+                      ScrollView, 0x113231540, {{0.0, 0.0}, {375.0, 667.0}} <AX element pid: 62565, elementOrHash.elementID: 4377863168.42>
+                        Other, 0x113231680, {{0.0, 80.0}, {375.0, 791.5}} <AX element pid: 62565, elementOrHash.elementID: 4653763584.52>
+                          StaticText, 0x1132317c0, {{24.0, 364.0}, {217.5, 34.0}}, label: 'Pancake Dinner' <AX element pid: 62565, elementOrHash.elementID: 4376769216.107>
+                          Image, 0x113231900, {{24.0, 20.0}, {327.0, 396.0}} <AX element pid: 62565, elementOrHash.elementID: 4376768768.108>
+                          StaticText, 0x113231a40, {{24.0, 404.0}, {95.0, 16.0}}, label: 'Dinner · Comfort' <AX element pid: 62565, elementOrHash.elementID: 4376769664.109>
+                          StaticText, 0x113231b80, {{24.0, 426.0}, {77.5, 16.0}}, label: 'Added by you' <AX element pid: 62565, elementOrHash.elementID: 4376770112.110>
+                          StaticText, 0x113231cc0, {{36.4, 458.0}, {83.5, 46.5}}, label: '25 min Time' <AX element pid: 62565, elementOrHash.elementID: 4376771456.111>
+                            StaticText, 0x113231e00, {{36.4, 458.0}, {83.5, 29.0}}, label: '25 min' <AX element pid: 62565, elementOrHash.elementID: 4376770560.302>
+                            StaticText, 0x113231f40, {{63.2, 490.0}, {30.0, 14.5}}, label: 'Time' <AX element pid: 62565, elementOrHash.elementID: 4376771008.303>
+                          StaticText, 0x113232080, {{167.0, 458.0}, {41.0, 46.5}}, label: '4 Serves' <AX element pid: 62565, elementOrHash.elementID: 4376790336.112>
+                            StaticText, 0x1132321c0, {{179.5, 458.0}, {16.0, 29.0}}, label: '4' <AX element pid: 62565, elementOrHash.elementID: 4376789440.304>
+                            StaticText, 0x113232300, {{167.0, 490.0}, {41.0, 14.5}}, label: 'Serves' <AX element pid: 62565, elementOrHash.elementID: 4376789888.305>
+                          StaticText, 0x113232440, {{255.6, 458.0}, {82.5, 46.5}}, label: 'Not set Effort' <AX element pid: 62565, elementOrHash.elementID: 4376792128.113>
+                            StaticText, 0x113232580, {{255.6, 458.0}, {82.5, 29.0}}, label: 'Not set' <AX element pid: 62565, elementOrHash.elementID: 4376791232.306>
+                            StaticText, 0x1132326c0, {{279.1, 490.0}, {35.5, 14.5}}, label: 'Effort' <AX element pid: 62565, elementOrHash.elementID: 4376791680.307>
+                          StaticText, 0x113232800, {{24.0, 520.5}, {260.0, 17.0}}, label: 'Breakfast for dinner. Zero regrets, full syrup.' <AX element pid: 62565, elementOrHash.elementID: 4376792576.114>
+                          StaticText, 0x113232940, {{24.0, 572.2}, {80.0, 14.5}}, label: 'INGREDIENTS' <AX element pid: 62565, elementOrHash.elementID: 4376793024.115>
+                          Button, 0x113232a80, {{271.5, 557.5}, {79.5, 44.0}}, label: 'Serves 4' <AX element pid: 62565, elementOrHash.elementID: 4376794816.116>
+                            Button, 0x113232bc0, {{271.5, 557.5}, {79.5, 44.0}} <AX element pid: 62565, elementOrHash.elementID: 4375766656.308>
+                              StaticText, 0x113232d00, {{271.5, 557.5}, {79.5, 44.0}}, label: 'Serves 4' <AX element pid: 62565, elementOrHash.elementID: 4376793920.340>
+                          StaticText, 0x113232e40, {{24.0, 615.5}, {327.0, 20.0}}, label: '2 cups Flour' <AX element pid: 62565, elementOrHash.elementID: 4376796608.117>
+                            StaticText, 0x113232f80, {{24.0, 615.5}, {34.5, 20.0}}, label: 'Flour' <AX element pid: 62565, elementOrHash.elementID: 4376795264.309>
+                            StaticText, 0x1132330c0, {{310.0, 617.0}, {41.0, 17.0}}, label: '2 cups' <AX element pid: 62565, elementOrHash.elementID: 4376795712.310>
+                          StaticText, 0x113233200, {{24.0, 653.5}, {327.0, 20.0}}, label: '3 Eggs' <AX element pid: 62565, elementOrHash.elementID: 4376797952.118>
+                            StaticText, 0x113233340, {{24.0, 653.5}, {33.0, 20.0}}, label: 'Eggs' <AX element pid: 62565, elementOrHash.elementID: 4376797056.311>
+                            StaticText, 0x113233480, {{343.0, 655.0}, {8.0, 17.0}}, label: '3' <AX element pid: 62565, elementOrHash.elementID: 4376797504.312>
+                          StaticText, 0x1132335c0, {{24.0, 691.5}, {327.0, 20.0}}, label: '1 bottle Maple syrup' <AX element pid: 62565, elementOrHash.elementID: 4376799296.119>
+                            StaticText, 0x113233700, {{24.0, 691.5}, {85.5, 20.0}}, label: 'Maple syrup' <AX element pid: 62565, elementOrHash.elementID: 4376798400.313>
+                            StaticText, 0x113233840, {{307.0, 693.0}, {44.0, 17.0}}, label: '1 bottle' <AX element pid: 62565, elementOrHash.elementID: 4376798848.314>
+                          StaticText, 0x113233980, {{24.0, 729.5}, {327.0, 20.0}}, label: '1 pint Blueberries' <AX element pid: 62565, elementOrHash.elementID: 4376800640.120>
+                            StaticText, 0x113233ac0, {{24.0, 729.5}, {78.5, 20.0}}, label: 'Blueberries' <AX element pid: 62565, elementOrHash.elementID: 4376799744.315>
+                            StaticText, 0x113233c00, {{319.5, 731.0}, {31.5, 17.0}}, label: '1 pint' <AX element pid: 62565, elementOrHash.elementID: 4376800192.316>
+                          Button, 0x113233d40, {{24.0, 763.5}, {327.0, 46.0}}, label: 'Add ingredients to groceries' <AX element pid: 62565, elementOrHash.elementID: 4376801984.121>
+                            Image, 0x113233e80, {{123.5, 779.0}, {15.5, 14.5}}, identifier: 'basket', label: 'basket' <AX element pid: 62565, elementOrHash.elementID: 4376801088.317>
+                            StaticText, 0x113234000, {{24.0, 763.5}, {327.0, 46.0}}, label: 'Add to groceries' <AX element pid: 62565, elementOrHash.elementID: 4376801536.318>
+                          Image, 0x113234140, {{25.5, 833.5}, {17.5, 12.0}}, identifier: 'person.2', label: 'person.2' <AX element pid: 62565, elementOrHash.elementID: 4376802880.122>
+                          StaticText, 0x113234280, {{49.5, 831.5}, {282.0, 16.0}}, label: 'Everyone in your household can see and edit this' <AX element pid: 62565, elementOrHash.elementID: 4376803328.123>
+                      Button, 0x1132343c0, {{24.0, 24.0}, {44.0, 44.0}}, identifier: 'arrow.left', label: 'Back' <AX element pid: 62565, elementOrHash.elementID: 4376804224.43>
+                      Button, 0x113234500, {{116.5, 24.0}, {44.0, 44.0}}, identifier: 'heart.fill', label: 'Remove from favorites' <AX element pid: 62565, elementOrHash.elementID: 4376804672.44>
+                      Button, 0x113234640, {{170.5, 24.0}, {44.0, 44.0}}, identifier: 'square.and.arrow.up', label: 'Share recipe' <AX element pid: 62565, elementOrHash.elementID: 4376821760.45>
+                      Button, 0x113234780, {{224.5, 24.0}, {72.5, 44.0}}, label: 'Edit recipe' <AX element pid: 62565, elementOrHash.elementID: 4376823104.46>
+                        Image, 0x1132348c0, {{240.0, 40.5}, {11.5, 11.5}}, identifier: 'pencil', label: 'Edit' <AX element pid: 62565, elementOrHash.elementID: 4376822208.53>
+                        StaticText, 0x113234a00, {{258.0, 37.5}, {25.0, 17.0}}, label: 'Edit' <AX element pid: 62565, elementOrHash.elementID: 4376822656.54>
+                      Button, 0x113234b40, {{307.0, 24.0}, {44.0, 44.0}}, label: 'Your profile' <AX element pid: 62565, elementOrHash.elementID: 4376823552.47>
+                      Button, 0x113234c80, {{24.0, 609.0}, {327.0, 48.0}}, identifier: 'recipe-plan', label: 'Plan a night' <AX element pid: 62565, elementOrHash.elementID: 4376824896.48>
+                        Image, 0x113234dc0, {{131.5, 624.5}, {20.5, 17.5}}, identifier: 'calendar.badge.plus', label: 'Add To Calendar' <AX element pid: 62565, elementOrHash.elementID: 4376824000.55>
+                        StaticText, 0x113234f00, {{157.2, 622.5}, {88.5, 21.0}}, label: 'Plan a night' <AX element pid: 62565, elementOrHash.elementID: 4376824448.56>
+              Other, 0x113235040, {{0.0, 0.0}, {375.0, 667.0}} <AX element pid: 62565, elementOrHash.elementID: 4642800640.14>
+                Other, 0x113235180, {{0.0, 0.0}, {375.0, 667.0}} <AX element pid: 62565, elementOrHash.elementID: 4642802688.19>
+    Other, 0x1132352c0, {{0.0, 0.0}, {375.0, 667.0}} <AX element pid: 62565, elementOrHash.elementID: 4652798976.343>
+      Other, 0x113235400, {{-375.0, -667.0}, {1125.0, 2001.0}} <AX element pid: 62565, elementOrHash.elementID: 4754529152.344>
+      Other, 0x113235540, {{0.0, 30.0}, {375.0, 637.0}} <AX element pid: 62565, elementOrHash.elementID: 4754530432.345>
+        Button, 0x113235680, {{149.5, 25.0}, {76.0, 25.0}}, label: 'Sheet Grabber', value: Expanded <AX element pid: 62565, elementOrHash.elementID: 4413958656.347>
+        Other, 0x1132357c0, {{0.0, 30.0}, {375.0, 637.0}} <AX element pid: 62565, elementOrHash.elementID: 4760908288.348>
+        Other, 0x113235900, {{0.0, 30.0}, {375.0, 637.0}} <AX element pid: 62565, elementOrHash.elementID: 4376877184.349>
+          Other, 0x113235a40, {{0.0, 30.0}, {375.0, 637.0}} <AX element pid: 62565, elementOrHash.elementID: 4376877632.350>
+            Other, 0x113235b80, {{0.0, 30.0}, {375.0, 637.0}} <AX element pid: 62565, elementOrHash.elementID: 4710549504.351>
+              Other, 0x113235cc0, {{0.0, 30.0}, {375.0, 637.0}} <AX element pid: 62565, elementOrHash.elementID: 4765795200.352>
+                Button, 0x113235e00, {{24.0, 48.0}, {50.5, 44.0}}, label: 'Cancel' <AX element pid: 62565, elementOrHash.elementID: 4765585344.353>
+                StaticText, 0x113235f40, {{137.5, 58.5}, {102.5, 23.0}}, label: 'Edit recipe' <AX element pid: 62565, elementOrHash.elementID: 4765585792.354>
+                ScrollView, 0x113236080, {{0.0, 92.0}, {375.0, 501.0}} <AX element pid: 62565, elementOrHash.elementID: 4713463808.355>
+                  Other, 0x1132361c0, {{0.0, -140.0}, {375.0, 1407.0}} <AX element pid: 62565, elementOrHash.elementID: 4412782592.357>
+                    Button, 0x113236300, {{24.0, -202.0}, {327.0, 396.0}}, label: 'Change' <AX element pid: 62565, elementOrHash.elementID: 4765587584.360>
+                      Image, 0x113236440, {{24.0, -202.0}, {327.0, 396.0}} <AX element pid: 62565, elementOrHash.elementID: 4765586240.394>
+                      Image, 0x113236580, {{256.5, 80.5}, {15.0, 11.5}}, identifier: 'camera', label: 'Camera' <AX element pid: 62565, elementOrHash.elementID: 4765586688.395>
+                      StaticText, 0x1132366c0, {{279.0, 78.8}, {46.0, 14.5}}, label: 'Change' <AX element pid: 62565, elementOrHash.elementID: 4765587136.396>
+                    TextField, 0x113236800, {{24.0, 132.0}, {327.0, 35.5}}, placeholderValue: 'Name the dish', value: Pancake Dinner <AX element pid: 62565, elementOrHash.elementID: 4321714944.361>
+                    TextField, 0x113236940, {{36.0, 203.5}, {303.0, 43.0}}, value: Breakfast for dinn... <AX element pid: 62565, elementOrHash.elementID: 4713466880.362>
+                      Other, 0x113236a80, {{36.0, 222.0}, {303.0, 21.5}}, label: 'Horizontal scroll bar, 1 page', value: 0% <AX element pid: 62565, elementOrHash.elementID: 4410619904.397>
+                        Other, 0x113236bc0, {{39.0, 240.5}, {294.0, 3.0}} <AX element pid: 62565, elementOrHash.elementID: 4756243328.428>
+                    StaticText, 0x113236d00, {{24.0, 274.5}, {30.0, 14.5}}, label: 'PREP' <AX element pid: 62565, elementOrHash.elementID: 4765588928.363>
+                    Other, 0x113236e40, {{24.0, 295.0}, {159.5, 52.0}}, label: 'Prep hours', value: 0 <AX element pid: 62565, elementOrHash.elementID: 4765590272.364>
+                      TextField, 0x113236f80, {{38.0, 309.5}, {113.0, 23.0}}, placeholderValue: '0' <AX element pid: 62565, elementOrHash.elementID: 4321717504.398>
+                      StaticText, 0x1132370c0, {{156.0, 312.5}, {13.5, 17.0}}, label: 'hr' <AX element pid: 62565, elementOrHash.elementID: 4765589824.399>
+                    Other, 0x113237200, {{191.5, 295.0}, {159.5, 52.0}}, label: 'Prep minutes', value: 10 <AX element pid: 62565, elementOrHash.elementID: 4765591616.365>
+                      TextField, 0x113237340, {{205.5, 309.0}, {103.0, 24.5}}, placeholderValue: '0', value: 10 <AX element pid: 62565, elementOrHash.elementID: 4321716224.400>
+                      StaticText, 0x113237480, {{313.5, 312.5}, {23.5, 17.0}}, label: 'min' <AX element pid: 62565, elementOrHash.elementID: 4765591168.401>
+                    StaticText, 0x1132375c0, {{24.0, 363.0}, {36.0, 14.5}}, label: 'COOK' <AX element pid: 62565, elementOrHash.elementID: 4765592064.366>
+                    Other, 0x113237700, {{24.0, 383.5}, {159.5, 52.0}}, label: 'Cook hours', value: 0 <AX element pid: 62565, elementOrHash.elementID: 4765593408.367>
+                      TextField, 0x113237840, {{38.0, 398.0}, {113.0, 23.0}}, placeholderValue: '0' <AX element pid: 62565, elementOrHash.elementID: 4321720064.402>
+                      StaticText, 0x113237980, {{156.0, 401.0}, {13.5, 17.0}}, label: 'hr' <AX element pid: 62565, elementOrHash.elementID: 4765592960.403>
+                    Other, 0x113237ac0, {{191.5, 383.5}, {159.5, 52.0}}, label: 'Cook minutes', value: 15 <AX element pid: 62565, elementOrHash.elementID: 4765594752.368>
+                      TextField, 0x113237c00, {{205.5, 397.5}, {103.0, 24.5}}, placeholderValue: '0', value: 15 <AX element pid: 62565, elementOrHash.elementID: 4321718784.404>
+                      StaticText, 0x113237d40, {{313.5, 401.0}, {23.5, 17.0}}, label: 'min' <AX element pid: 62565, elementOrHash.elementID: 4765594304.405>
+                    StaticText, 0x113237e80, {{24.0, 451.5}, {45.5, 14.5}}, label: 'SERVES' <AX element pid: 62565, elementOrHash.elementID: 4765595200.369>
+                    Other, 0x113238000, {{24.0, 472.0}, {327.0, 44.0}}, label: 'Serves 4' <AX element pid: 62565, elementOrHash.elementID: 4376825792.370>
+                      Button, 0x113238140, {{24.0, 472.0}, {44.0, 44.0}}, identifier: 'minus', label: 'One fewer' <AX element pid: 62565, elementOrHash.elementID: 4765595648.406>
+                      StaticText, 0x113238280, {{93.8, 482.5}, {12.5, 23.0}}, label: '4' <AX element pid: 62565, elementOrHash.elementID: 4765596096.407>
+                      Button, 0x1132383c0, {{132.0, 472.0}, {44.0, 44.0}}, identifier: 'plus', label: 'One more' <AX element pid: 62565, elementOrHash.elementID: 4765596544.408>
+                      StaticText, 0x113238500, {{259.0, 476.8}, {92.0, 34.5}}, label: 'what these quantities make' <AX element pid: 62565, elementOrHash.elementID: 4765596992.409>
+                    StaticText, 0x113238640, {{24.0, 532.0}, {80.0, 14.5}}, label: 'INGREDIENTS' <AX element pid: 62565, elementOrHash.elementID: 4765745152.371>
+                    TextField, 0x113238780, {{42.0, 566.5}, {237.0, 20.0}}, value: 2 cups Flour <AX element pid: 62565, elementOrHash.elementID: 4755832832.372>
+                      Other, 0x1132388c0, {{42.0, 573.5}, {237.0, 10.0}}, label: 'Horizontal scroll bar, 1 page', value: 0% <AX element pid: 62565, elementOrHash.elementID: 4760902144.410>
+                        Other, 0x113238a00, {{45.0, 580.5}, {231.0, 3.0}} <AX element pid: 62565, elementOrHash.elementID: 4756245568.436>
+                    Button, 0x113238b40, {{303.0, 554.5}, {44.0, 44.0}}, identifier: 'xmark', label: 'Remove Flour' <AX element pid: 62565, elementOrHash.elementID: 4765746048.373>
+                    Button, 0x113238c80, {{28.0, 604.5}, {319.0, 24.0}}, label: 'Package and price info' <AX element pid: 62565, elementOrHash.elementID: 4765747392.374>
+                      StaticText, 0x113238dc0, {{28.0, 604.5}, {319.0, 24.0}}, label: 'Package and price info' <AX element pid: 62565, elementOrHash.elementID: 4765746496.411>
+                      Image, 0x113238f00, {{339.0, 610.5}, {7.0, 12.0}}, identifier: 'collapsed' <AX element pid: 62565, elementOrHash.elementID: 4765746944.412>
+                    TextField, 0x113239040, {{42.0, 648.5}, {237.0, 20.0}}, value: 3 Eggs <AX element pid: 62565, elementOrHash.elementID: 4755835904.375>
+                      Other, 0x113239180, {{42.0, 655.5}, {237.0, 10.0}}, label: 'Horizontal scroll bar, 1 page', value: 0% <AX element pid: 62565, elementOrHash.elementID: 4760903680.413>
+                        Other, 0x1132392c0, {{45.0, 662.5}, {231.0, 3.0}} <AX element pid: 62565, elementOrHash.elementID: 4756246016.437>
+                    Button, 0x113239400, {{303.0, 636.5}, {44.0, 44.0}}, identifier: 'xmark', label: 'Remove Eggs' <AX element pid: 62565, elementOrHash.elementID: 4765748288.376>
+                    Button, 0x113239540, {{28.0, 686.5}, {319.0, 24.0}}, label: 'Package and price info' <AX element pid: 62565, elementOrHash.elementID: 4765749632.377>
+                      StaticText, 0x113239680, {{28.0, 686.5}, {319.0, 24.0}}, label: 'Package and price info' <AX element pid: 62565, elementOrHash.elementID: 4765748736.414>
+                      Image, 0x1132397c0, {{339.0, 692.5}, {7.0, 12.0}}, identifier: 'collapsed' <AX element pid: 62565, elementOrHash.elementID: 4765749184.415>
+                    TextField, 0x113239900, {{42.0, 730.5}, {237.0, 20.0}}, value: 1 bottle Maple syrup <AX element pid: 62565, elementOrHash.elementID: 4755838976.378>
+                      Other, 0x113239a40, {{42.0, 737.5}, {237.0, 10.0}}, label: 'Horizontal scroll bar, 1 page', value: 0% <AX element pid: 62565, elementOrHash.elementID: 4760904192.416>
+                        Other, 0x113239b80, {{45.0, 744.5}, {231.0, 3.0}} <AX element pid: 62565, elementOrHash.elementID: 4756246464.438>
+                    Button, 0x113239cc0, {{303.0, 718.5}, {44.0, 44.0}}, identifier: 'xmark', label: 'Remove Maple syrup' <AX element pid: 62565, elementOrHash.elementID: 4765750528.379>
+                    Button, 0x113239e00, {{28.0, 768.5}, {319.0, 24.0}}, label: 'Package and price info' <AX element pid: 62565, elementOrHash.elementID: 4765751872.380>
+                      StaticText, 0x113239f40, {{28.0, 768.5}, {319.0, 24.0}}, label: 'Package and price info' <AX element pid: 62565, elementOrHash.elementID: 4765750976.417>
+                      Image, 0x11323a080, {{339.0, 774.5}, {7.0, 12.0}}, identifier: 'collapsed' <AX element pid: 62565, elementOrHash.elementID: 4765751424.418>
+                    TextField, 0x11323a1c0, {{42.0, 812.5}, {237.0, 20.0}}, value: 1 pint Blueberries <AX element pid: 62565, elementOrHash.elementID: 4755842048.381>
+                      Other, 0x11323a300, {{42.0, 819.5}, {237.0, 10.0}}, label: 'Horizontal scroll bar, 1 page', value: 0% <AX element pid: 62565, elementOrHash.elementID: 4760904704.419>
+                        Other, 0x11323a440, {{45.0, 826.5}, {231.0, 3.0}} <AX element pid: 62565, elementOrHash.elementID: 4756246912.439>
+                    Button, 0x11323a580, {{303.0, 800.5}, {44.0, 44.0}}, identifier: 'xmark', label: 'Remove Blueberries' <AX element pid: 62565, elementOrHash.elementID: 4765752768.382>
+                    Button, 0x11323a6c0, {{28.0, 850.5}, {319.0, 24.0}}, label: 'Package and price info' <AX element pid: 62565, elementOrHash.elementID: 4765754112.383>
+                      StaticText, 0x11323a800, {{28.0, 850.5}, {319.0, 24.0}}, label: 'Package and price info' <AX element pid: 62565, elementOrHash.elementID: 4765753216.420>
+                      Image, 0x11323a940, {{339.0, 856.5}, {7.0, 12.0}}, identifier: 'collapsed' <AX element pid: 62565, elementOrHash.elementID: 4765753664.421>
+                    TextField, 0x11323aa80, {{38.0, 894.5}, {247.0, 20.0}}, placeholderValue: 'Add one, or paste the whole list' <AX element pid: 62565, elementOrHash.elementID: 4713469952.384>
+                      Other, 0x11323abc0, {{38.0, 901.5}, {247.0, 10.0}}, label: 'Horizontal scroll bar, 1 page', value: 0% <AX element pid: 62565, elementOrHash.elementID: 4760905216.422>
+                        Other, 0x11323ad00, {{41.0, 908.5}, {241.0, 3.0}} <AX element pid: 62565, elementOrHash.elementID: 4756247360.433>
+                    Button, 0x11323ae40, {{307.0, 882.5}, {44.0, 44.0}}, identifier: 'plus', label: 'Add ingredient', Disabled <AX element pid: 62565, elementOrHash.elementID: 4765755008.385>
+                    StaticText, 0x11323af80, {{24.0, 943.2}, {64.0, 14.5}}, label: 'THE STEPS' <AX element pid: 62565, elementOrHash.elementID: 4765755456.386>
+                    StaticText, 0x11323b0c0, {{266.0, 942.5}, {85.0, 16.0}}, label: 'Hold to reorder' <AX element pid: 62565, elementOrHash.elementID: 4765755904.387>
+                    StaticText, 0x11323b200, {{24.0, 966.5}, {325.0, 53.0}}, label: 'Write what to add, the heat to use, how it should look, and how long it takes. Those details become the cook’s guide and timer shortcuts.' <AX element pid: 62565, elementOrHash.elementID: 4765756352.388>
+                    TextField, 0x11323b340, {{38.0, 1039.5}, {247.0, 20.0}}, placeholderValue: 'Heat the oil over medium for 2 minutes…' <AX element pid: 62565, elementOrHash.elementID: 4713473024.389>
+                      Other, 0x11323b480, {{38.0, 1046.5}, {247.0, 10.0}}, label: 'Horizontal scroll bar, 1 page', value: 0% <AX element pid: 62565, elementOrHash.elementID: 4760906240.423>
+                        Other, 0x11323b5c0, {{41.0, 1053.5}, {241.0, 3.0}} <AX element pid: 62565, elementOrHash.elementID: 4756247808.434>
+                    Button, 0x11323b700, {{307.0, 1027.5}, {44.0, 44.0}}, identifier: 'plus', label: 'Add step', Disabled <AX element pid: 62565, elementOrHash.elementID: 4765757248.390>
+                    StaticText, 0x11323b840, {{24.0, 1087.5}, {40.0, 14.5}}, label: 'NOTES' <AX element pid: 62565, elementOrHash.elementID: 4765757696.391>
+                    TextField, 0x11323b980, {{38.0, 1121.0}, {299.0, 20.0}}, placeholderValue: 'Anything worth remembering next time.' <AX element pid: 62565, elementOrHash.elementID: 4713476096.392>
+                      Other, 0x11323bac0, {{38.0, 1128.0}, {299.0, 10.0}}, label: 'Horizontal scroll bar, 1 page', value: 0% <AX element pid: 62565, elementOrHash.elementID: 4760907264.424>
+                        Other, 0x11323bc00, {{41.0, 1135.0}, {293.0, 3.0}} <AX element pid: 62565, elementOrHash.elementID: 4756248256.435>
+                    Button, 0x11323bd40, {{40.0, 1184.0}, {295.0, 47.0}}, label: 'More details, Dinner · Comfort' <AX element pid: 62565, elementOrHash.elementID: 4765759936.393>
+                      StaticText, 0x11323be80, {{40.0, 1188.0}, {89.5, 20.0}}, label: 'More details' <AX element pid: 62565, elementOrHash.elementID: 4765758592.425>
+                      StaticText, 0x11325c000, {{40.0, 1211.0}, {91.5, 16.0}}, label: 'Dinner · Comfort' <AX element pid: 62565, elementOrHash.elementID: 4765759040.426>
+                      Image, 0x11325c140, {{327.0, 1201.5}, {7.0, 12.0}}, identifier: 'collapsed' <AX element pid: 62565, elementOrHash.elementID: 4765759488.427>
+                Button, 0x11325c280, {{24.0, 603.0}, {327.0, 48.0}}, label: 'Save changes' <AX element pid: 62565, elementOrHash.elementID: 4765794752.356>
+                  Image, 0x11325c3c0, {{123.0, 619.0}, {16.5, 16.5}}, identifier: 'circle.circle', label: 'circle.circle' <AX element pid: 62565, elementOrHash.elementID: 4765760832.358>
+                  StaticText, 0x11325c500, {{149.0, 616.5}, {104.5, 21.0}}, label: 'Save changes' <AX element pid: 62565, elementOrHash.elementID: 4765794304.359>

@@ -1,0 +1,159 @@
+Attributes: Application, 0x116410640, pid: 76528, label: 'Plated'
+Element subtree:
+ →Application, 0x116410640, pid: 76528, label: 'Plated'
+    Window (Main), 0x1164108c0, {{0.0, 0.0}, {375.0, 667.0}}
+      Other, 0x116412f80, {{0.0, 0.0}, {375.0, 667.0}}
+        Other, 0x1164130c0, {{0.0, 0.0}, {375.0, 667.0}}
+          Other, 0x116413200, {{-375.0, -667.0}, {1125.0, 2001.0}}
+          Other, 0x116412e40, {{0.0, 0.0}, {375.0, 667.0}}
+            Other, 0x116411900, {{0.0, 0.0}, {375.0, 667.0}}
+              Other, 0x116410b40, {{0.0, 0.0}, {375.0, 667.0}}
+                Other, 0x116410000, {{0.0, 0.0}, {375.0, 667.0}}
+                  Other, 0x116410140, {{0.0, 0.0}, {375.0, 667.0}}
+                    Other, 0x116410280, {{0.0, 0.0}, {375.0, 667.0}}
+                      Other, 0x1164103c0, {{0.0, 0.0}, {375.0, 667.0}}
+                        Other, 0x116413340, {{187.5, 243.5}, {0.0, 0.0}}
+                        ScrollView, 0x116413480, {{0.0, 0.0}, {375.0, 667.0}}
+                          Other, 0x1164135c0, {{0.0, 80.0}, {375.0, 754.0}}
+                            StaticText, 0x116413700, {{54.8, 170.5}, {24.5, 43.0}}, label: 'N'
+                            Button, 0x116413840, {{250.5, 200.0}, {100.5, 44.0}}, label: 'Edit profile'
+                            StaticText, 0x116413980, {{24.0, 282.0}, {64.5, 34.0}}, label: 'Nate'
+                            Button, 0x116413ac0, {{24.0, 332.0}, {327.0, 82.5}}, label: 'Your household, Your household'
+                              StaticText, 0x116413c00, {{52.8, 364.0}, {10.5, 18.5}}, label: 'N'
+                              StaticText, 0x116413d40, {{81.8, 364.0}, {8.5, 18.5}}, label: 'S'
+                              StaticText, 0x116413e80, {{109.5, 364.0}, {9.0, 18.5}}, label: 'R'
+                              StaticText, 0x106e1be80, {{147.0, 345.0}, {111.0, 14.5}}, label: 'YOUR HOUSEHOLD'
+                              StaticText, 0x106e1b0c0, {{147.0, 362.5}, {111.5, 20.0}}, label: 'Your household'
+                              StaticText, 0x106e1b200, {{147.0, 385.5}, {161.0, 16.0}}, label: 'Plan, shop and cook together'
+                            Button, 0x106e1b340, {{24.0, 426.5}, {327.0, 122.5}}, label: 'Awards'
+                              StaticText, 0x106e1b480, {{24.0, 439.2}, {51.5, 14.5}}, label: 'AWARDS'
+                              StaticText, 0x106e1b5c0, {{313.5, 438.5}, {37.5, 16.0}}, label: 'See all'
+                              Image, 0x106e1b700, {{160.8, 464.8}, {53.5, 53.5}}, identifier: 'person.3.fill', label: 'person.3.fill'
+                              StaticText, 0x106e1b840, {{158.8, 522.5}, {57.5, 14.5}}, label: 'Full table'
+                            Button, 0x106e1b980, {{24.0, 555.0}, {109.0, 48.0}}, label: 'Dishes', Selected
+                            Button, 0x106e1bac0, {{133.0, 555.0}, {109.0, 48.0}}, label: 'Questions'
+                            Button, 0x106e1bc00, {{242.0, 555.0}, {109.0, 48.0}}, label: 'Favorites'
+                            Image, 0x106e1bd40, {{179.5, 657.0}, {16.0, 27.0}}, identifier: 'fork.knife', label: 'Food'
+                            StaticText, 0x1165d0000, {{66.5, 696.0}, {242.0, 23.0}}, label: 'Your first plate starts here'
+                            StaticText, 0x1165d0140, {{40.5, 729.0}, {294.0, 37.0}}, label: 'Dinner wins, weeknight experiments and favorite plates will collect here.'
+                        Button, 0x1165d0280, {{20.0, 24.0}, {44.0, 44.0}}, identifier: 'arrow.left', label: 'Back'
+                        StaticText, 0x1165d03c0, {{76.0, 36.0}, {46.0, 20.0}}, label: 'Profile'
+                        Button, 0x1165d0500, {{311.0, 24.0}, {44.0, 44.0}}, identifier: 'gearshape', label: 'Settings'
+                Other, 0x1165d0640, {{0.0, 0.0}, {375.0, 667.0}}
+                  Other, 0x1165d0780, {{0.0, 0.0}, {375.0, 667.0}}
+      Other, 0x1165d08c0, {{0.0, 0.0}, {375.0, 667.0}}
+        Other, 0x1165d0a00, {{-375.0, -667.0}, {1125.0, 2001.0}}
+        Other, 0x1165d0b40, {{0.0, 30.0}, {375.0, 637.0}}
+          Button, 0x1165d0c80, {{149.5, 25.0}, {76.0, 25.0}}, label: 'Sheet Grabber', value: Expanded
+          Other, 0x1165d0dc0, {{0.0, 30.0}, {375.0, 637.0}}
+            Other, 0x1165d0f00, {{0.0, 30.0}, {375.0, 637.0}}
+              Other, 0x1165d1040, {{0.0, 30.0}, {375.0, 637.0}}
+                Other, 0x1165d1180, {{0.0, 30.0}, {375.0, 637.0}}
+                  Other, 0x1165d12c0, {{187.5, 218.5}, {0.0, 0.0}}
+                  ScrollView, 0x1165d1400, {{0.0, 30.0}, {375.0, 637.0}}
+                    Other, 0x1165d1540, {{0.0, -147.5}, {375.0, 868.0}}
+                      Button, 0x1165d1680, {{24.0, -137.5}, {44.0, 44.0}}, label: 'Cancel'
+                      StaticText, 0x1165d17c0, {{24.0, -85.6}, {133.5, 29.0}}, label: 'Edit profile'
+                      Button, 0x1165d1900, {{139.5, -40.5}, {96.0, 120.0}}, label: 'No photo yet, Add your photo'
+                        StaticText, 0x1165d1a40, {{139.5, -40.5}, {96.0, 96.0}}, label: 'No photo yet'
+                        StaticText, 0x1165d1b80, {{142.8, 63.5}, {89.5, 16.0}}, label: 'Add your photo'
+                      Button, 0x1165d1cc0, {{24.0, 199.5}, {327.0, 44.0}}, label: 'Add banner photo'
+                        Image, 0x1165d1e00, {{119.0, 215.5}, {15.5, 12.0}}, identifier: 'photo', label: 'Photo'
+                        StaticText, 0x1165d1f40, {{24.0, 199.5}, {327.0, 44.0}}, label: 'Add banner photo'
+                      StaticText, 0x1165d2080, {{24.0, 259.4}, {71.5, 14.5}}, label: 'YOUR NAME'
+                      TextField, 0x1165d21c0, {{24.0, 282.0}, {327.0, 48.0}}, placeholderValue: 'First name', value: Nate
+                      StaticText, 0x1165d2300, {{24.0, 345.9}, {21.5, 14.5}}, label: 'BIO'
+                      TextField, 0x1165d2440, {{38.0, 382.5}, {299.0, 24.5}}, value:  UX retained draft, Keyboard Focused
+                        Other, 0x1165d2580, {{38.0, 382.5}, {0.0, 0.0}}, identifier: '_UITextSelectionRangeAdjustmentContainerView'
+                          Other, 0x1165d26c0, {{38.0, 382.5}, {0.0, 0.0}}, identifier: 'com.apple.text.grabber.leading'
+                            Other, 0x1165d2800, {{30.8, 369.0}, {16.5, 16.5}}
+                            Other, 0x1165d2940, {{38.0, 382.5}, {2.0, 0.0}}
+                          Other, 0x1165d2a80, {{38.0, 382.5}, {0.0, 0.0}}, identifier: 'com.apple.text.grabber.leading'
+                            Other, 0x1165d2bc0, {{30.8, 369.0}, {16.5, 16.5}}
+                            Other, 0x1165d2d00, {{38.0, 382.5}, {2.0, 0.0}}
+                        Other, 0x1165d2e40, {{38.0, 399.0}, {299.0, 19.5}}, label: 'Horizontal scroll bar, 1 page', value: 0%
+                          Other, 0x1165d2f80, {{41.0, 415.5}, {293.0, 3.0}}
+                      StaticText, 0x1165d30c0, {{24.0, 451.5}, {141.5, 14.5}}, label: 'INGREDIENTS TO AVOID'
+                      TextField, 0x1165d3200, {{38.0, 488.0}, {299.0, 39.0}}, placeholderValue: 'For example: peanuts, sesame'
+                        Other, 0x1165d3340, {{38.0, 504.5}, {299.0, 19.5}}, label: 'Horizontal scroll bar, 1 page', value: 0%
+                          Other, 0x1165d3480, {{41.0, 521.0}, {293.0, 3.0}}
+                      StaticText, 0x1165d35c0, {{24.0, 549.1}, {324.5, 53.0}}, label: 'Separate with commas. Plated skips matching recipes in suggestions. This list cannot verify allergy safety, so check every recipe and package.'
+                      StaticText, 0x1165d3700, {{24.0, 618.1}, {308.5, 14.5}}, label: 'Apple doesn't share your Apple ID photo with apps.'
+                      Button, 0x1165d3840, {{24.0, 648.5}, {327.0, 48.0}}, label: 'Save'
+                    Other, 0x1165d3980, {{342.0, 68.0}, {30.0, 339.0}}, label: 'Vertical scroll bar, 3 pages', value: 36%
+                      Other, 0x1165d3ac0, {{369.0, 123.5}, {3.0, 188.0}}
+                    Other, 0x1165d3c00, {{342.0, 68.0}, {30.0, 339.0}}, label: 'Vertical scroll bar, 3 pages', value: 36%
+                      Other, 0x1165d3d40, {{369.0, 123.5}, {3.0, 188.0}}
+    Window, 0x1165d3e80, {{0.0, 0.0}, {375.0, 667.0}}
+      Other, 0x1165dc000, {{0.0, 0.0}, {375.0, 667.0}}
+        Other, 0x1165dc140, {{0.0, 0.0}, {375.0, 667.0}}
+        Other, 0x1165dc280, {{0.0, 407.0}, {375.0, 260.0}}
+          Other, 0x1165dc3c0, {{0.0, 407.0}, {375.0, 260.0}}, identifier: 'inputView'
+    Window, 0x1165dc500, {{0.0, 0.0}, {375.0, 667.0}}
+      Other, 0x1165dc640, {{0.0, 0.0}, {375.0, 667.0}}
+        Other, 0x1165dc780, {{0.0, 407.0}, {375.0, 260.0}}
+          Other, 0x1165dc8c0, {{0.0, 407.0}, {375.0, 44.0}}, identifier: 'SystemInputAssistantView'
+            Other, 0x1165dca00, {{0.0, 407.0}, {375.0, 44.0}}
+              Other, 0x1165dcb40, {{0.0, 407.0}, {375.0, 44.0}}, identifier: 'CenterPageView'
+                Other, 0x1165dcc80, {{0.0, -193.0}, {375.0, 1244.0}}
+                  ScrollView, 0x1165dcdc0, {{0.0, 407.0}, {375.0, 44.0}}
+                Other, 0x1165dcf00, {{0.0, 407.0}, {375.0, 44.0}}
+                  Other, 0x1165dd040, {{0.0, 407.0}, {375.0, 44.0}}, label: 'Typing Predictions'
+                    Other, 0x1165dd180, {{0.0, 407.0}, {375.0, 44.0}}
+                      Other, 0x1165dd2c0, {{0.0, 407.0}, {375.0, 44.0}}
+                        Other, 0x1165dd400, {{0.0, 407.0}, {125.0, 44.0}}, label: 'I'
+                        Other, 0x1165dd540, {{125.0, 407.0}, {125.0, 44.0}}, label: 'The'
+                        Other, 0x1165dd680, {{250.0, 407.0}, {125.0, 44.0}}, label: 'I’m'
+          Other, 0x1165dd7c0, {{0.0, 407.0}, {375.0, 260.0}}
+            Other, 0x1165dd900, {{0.0, 407.0}, {375.0, 260.0}}
+              Other, 0x1165dda40, {{0.0, 407.0}, {375.0, 260.0}}
+          Other, 0x1165ddb80, {{0.0, 451.0}, {375.0, 216.0}}
+            Keyboard, 0x1165ddcc0, {{0.0, 451.0}, {375.0, 216.0}}
+              Other, 0x1165dde00, {{0.0, 451.0}, {375.0, 216.0}}
+                Other, 0x1165ddf40, {{0.0, 451.0}, {375.0, 216.0}}, identifier: 'UIKeyboardLayoutStar Preview'
+                  Key, 0x1165de080, {{0.0, 451.0}, {0.0, 0.0}}, label: 'Padding-Left'
+                  Key, 0x1165de1c0, {{4.5, 458.0}, {37.0, 54.0}}, label: 'Q'
+                  Key, 0x1165de300, {{41.5, 458.0}, {36.5, 54.0}}, label: 'W'
+                  Key, 0x1165de440, {{78.0, 458.0}, {37.0, 54.0}}, label: 'E'
+                  Key, 0x1165de580, {{115.0, 458.0}, {36.5, 54.0}}, label: 'R'
+                  Key, 0x1165de6c0, {{151.5, 458.0}, {37.0, 54.0}}, label: 'T'
+                  Key, 0x1165de800, {{188.5, 458.0}, {37.0, 54.0}}, label: 'Y'
+                  Key, 0x1165de940, {{225.5, 458.0}, {36.5, 54.0}}, label: 'U'
+                  Key, 0x1165dea80, {{262.0, 458.0}, {37.0, 54.0}}, label: 'I'
+                  Key, 0x1165debc0, {{299.0, 458.0}, {36.5, 54.0}}, label: 'O'
+                  Key, 0x1165ded00, {{335.5, 458.0}, {37.0, 54.0}}, label: 'P'
+                  Key, 0x1165dee40, {{0.0, 451.0}, {0.0, 0.0}}, label: 'Padding-Right'
+                  Key, 0x1165def80, {{0.0, 451.0}, {0.0, 0.0}}, label: 'Padding-Left'
+                  Key, 0x1165df0c0, {{23.0, 512.0}, {36.5, 54.0}}, label: 'A'
+                  Key, 0x1165df200, {{59.5, 512.0}, {37.0, 54.0}}, label: 'S'
+                  Key, 0x1165df340, {{96.5, 512.0}, {37.0, 54.0}}, label: 'D'
+                  Key, 0x1165df480, {{133.5, 512.0}, {36.5, 54.0}}, label: 'F'
+                  Key, 0x1165df5c0, {{170.0, 512.0}, {37.0, 54.0}}, label: 'G'
+                  Key, 0x1165df700, {{207.0, 512.0}, {36.5, 54.0}}, label: 'H'
+                  Key, 0x1165df840, {{243.5, 512.0}, {37.0, 54.0}}, label: 'J'
+                  Key, 0x1165df980, {{280.5, 512.0}, {37.0, 54.0}}, label: 'K'
+                  Key, 0x1165dfac0, {{317.5, 512.0}, {36.5, 54.0}}, label: 'L'
+                  Key, 0x1165dfc00, {{0.0, 451.0}, {0.0, 0.0}}, label: 'Padding-Right'
+                  Button, 0x1165dfd40, {{4.5, 566.0}, {48.0, 54.0}}, identifier: 'shift', label: 'shift', Selected
+                  Key, 0x1165dfe80, {{0.0, 451.0}, {0.0, 0.0}}, label: 'Padding-Left'
+                  Key, 0x1165fc000, {{59.5, 566.0}, {37.0, 54.0}}, label: 'Z'
+                  Key, 0x1165fc140, {{96.5, 566.0}, {37.0, 54.0}}, label: 'X'
+                  Key, 0x1165fc280, {{133.5, 566.0}, {36.5, 54.0}}, label: 'C'
+                  Key, 0x1165fc3c0, {{170.0, 566.0}, {37.0, 54.0}}, label: 'V'
+                  Key, 0x1165fc500, {{207.0, 566.0}, {36.5, 54.0}}, label: 'B'
+                  Key, 0x1165fc640, {{243.5, 566.0}, {37.0, 54.0}}, label: 'N'
+                  Key, 0x1165fc780, {{280.5, 566.0}, {37.0, 54.0}}, label: 'M'
+                  Key, 0x1165fc8c0, {{0.0, 451.0}, {0.0, 0.0}}, label: 'Padding-Right'
+                  Key, 0x1165fca00, {{324.5, 566.0}, {48.0, 54.0}}, identifier: 'delete', label: 'delete'
+                  Key, 0x1165fcb40, {{4.5, 620.0}, {46.0, 54.0}}, identifier: 'more', label: 'numbers'
+                  Button, 0x1165fcc80, {{50.5, 620.0}, {46.0, 54.0}}, identifier: 'emoji', label: 'Emoji'
+                  Button, 0x1165fcdc0, {{96.5, 620.0}, {37.0, 54.0}}, identifier: 'dictation', label: 'Dictate'
+                  Key, 0x1165fcf00, {{133.5, 620.0}, {147.0, 54.0}}, identifier: 'space', label: ' '
+                  Button, 0x1165fd040, {{280.5, 620.0}, {92.0, 54.0}}, identifier: 'Return', label: 'return'
+Path to element:
+ →Application, 0x116410640, pid: 76528, label: 'Plated'
+Query chain:
+ →Find: Application 'com.natemeadows.plated'
+  Output: {
+    Application, 0x1165fd180, pid: 76528, label: 'Plated'
+  }

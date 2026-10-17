@@ -1,0 +1,32 @@
+[
+  {
+    "use": "Light comment toolbar icons",
+    "foreground": "A5AD9A",
+    "background": "FAF9F4",
+    "ratio": 2.2
+  },
+  {
+    "use": "Dark comment toolbar icons",
+    "foreground": "727D68",
+    "background": "191C17",
+    "ratio": 3.98
+  },
+  {
+    "use": "Light secondary text",
+    "foreground": "606958",
+    "background": "FAF9F4",
+    "ratio": 5.44
+  },
+  {
+    "use": "Dark secondary text",
+    "foreground": "B0B8A8",
+    "background": "191C17",
+    "ratio": 8.42
+  },
+  {
+    "use": "Primary label",
+    "foreground": "221B14",
+    "background": "FF5A3C",
+    "ratio": 5.49
+  }
+]

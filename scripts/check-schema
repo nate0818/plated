@@ -34,6 +34,30 @@ cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1
 
 MANIFEST="config/cloudkit-schema.txt"
 
+# The publisher and editor both write PlatedHouseholdPlan. Compare their
+# union: a field already deployed by the publisher is not a new schema
+# field when the editor starts writing it. Keep the historical manifest
+# intact; it remains the record of the deployment, not a release bypass.
+canonical() {
+  sed 's/^record\./planRecord./' | sort -u
+}
+
+# This alias is valid only while these two writers share a record type.
+# Fail closed if either constructor is refactored; revisit the mapping then.
+python3 - <<'PY' || exit 1
+from pathlib import Path
+import re
+table = Path('Plated/Services/TableShare.swift').read_text()
+edits = Path('Plated/Services/PlanShare.swift').read_text()
+publisher = re.search(r'static func planRecord\([\s\S]*?\n    }', table)
+editor = re.search(r'static func record\([\s\S]*?\n    }', edits)
+if not (publisher and editor
+        and 'static let planType = "PlatedHouseholdPlan"' in table
+        and 'recordType: planType,' in publisher.group()
+        and 'recordType: TableShare.planType,' in editor.group()):
+    raise SystemExit('✗ Shared-plan schema writer mapping changed; verify record types before shipping.')
+PY
+
 # Every literal record key the household and table writers use. Grepped from
 # the two files that own the wire, so a field added to a record shows up
 # here on the commit that adds it.
@@ -83,8 +107,8 @@ if [ ! -f "$MANIFEST" ]; then
   exit 1
 fi
 
-ADDED=$(comm -23 <(current) <(sort -u "$MANIFEST"))
-REMOVED=$(comm -13 <(current) <(sort -u "$MANIFEST"))
+ADDED=$(comm -23 <(current | canonical) <(canonical < "$MANIFEST"))
+REMOVED=$(comm -13 <(current | canonical) <(canonical < "$MANIFEST"))
 
 if [ -n "$ADDED" ]; then
   echo "✗ These CloudKit fields are written by the code and are NOT recorded as deployed:" >&2

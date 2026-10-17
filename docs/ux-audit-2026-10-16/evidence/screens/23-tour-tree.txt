@@ -1,0 +1,46 @@
+Attributes: Application, 0x113b68640, pid: 60333, label: 'Plated'
+Element subtree:
+ →Application, 0x113b68640, pid: 60333, label: 'Plated'
+    Window (Main), 0x113b6a6c0, {{0.0, 0.0}, {375.0, 667.0}}
+      Other, 0x113b6b0c0, {{0.0, 0.0}, {375.0, 667.0}}
+        Other, 0x113b6a1c0, {{0.0, 0.0}, {375.0, 667.0}}
+          Other, 0x113b6a940, {{0.0, 0.0}, {375.0, 667.0}}
+            Other, 0x113b6a800, {{0.0, 0.0}, {375.0, 667.0}}
+              Other, 0x113b69e00, {{0.0, 0.0}, {375.0, 667.0}}
+              Button, 0x113b68c80, {{311.0, 28.0}, {44.0, 44.0}}, label: 'Skip'
+              CollectionView, 0x113b68dc0, {{0.0, 72.0}, {375.0, 497.0}}
+                Cell, 0x113b69540, {{0.0, 72.0}, {375.0, 497.0}}
+                  Other, 0x113b68780, {{0.0, 72.0}, {375.0, 497.0}}
+                    Other, 0x113b6a080, {{0.0, 72.0}, {375.0, 497.0}}
+                      Other, 0x113b69680, {{0.0, 72.0}, {375.0, 497.0}}
+                        ScrollView, 0x113b69cc0, {{0.0, 72.0}, {375.0, 497.0}}
+                          Other, 0x113b69a40, {{0.0, 72.0}, {375.0, 497.0}}
+                            StaticText, 0x113b69900, {{22.5, 171.5}, {330.0, 349.5}}, label: 'Tonight. Who's cooking what. See the dish, the night, and the cook at a glance.'
+                              StaticText, 0x113b697c0, {{26.5, 171.5}, {54.5, 14.5}}, label: 'TONIGHT'
+                              StaticText, 0x113b69400, {{292.0, 171.5}, {56.5, 14.5}}, label: 'PLANNED'
+                              StaticText, 0x113b6a300, {{45.2, 216.8}, {18.5, 14.5}}, label: 'Friday, October 16, today'
+                              StaticText, 0x113b69f40, {{45.0, 243.2}, {19.0, 16.0}}, label: 'Friday, October 16, today'
+                              Image, 0x113b68f00, {{85.5, 209.0}, {66.0, 66.0}}
+                              StaticText, 0x113b68500, {{162.5, 216.5}, {134.5, 20.0}}, label: 'Sheet-pan nachos'
+                              StaticText, 0x113b69040, {{171.2, 249.5}, {6.5, 12.0}}, label: 'A'
+                              StaticText, 0x113b68a00, {{192.5, 247.5}, {86.0, 16.0}}, label: 'Alex is cooking'
+                              StaticText, 0x113b688c0, {{160.2, 364.0}, {54.5, 14.5}}, label: 'TONIGHT'
+                              StaticText, 0x113b69180, {{64.5, 388.5}, {246.0, 80.0}}, label: 'Who's cooking what'
+                              StaticText, 0x113b6ae40, {{47.5, 478.5}, {280.0, 42.5}}, label: 'See the dish, the night, and the cook at a glance.'
+                          Other, 0x113b69b80, {{342.0, 72.0}, {30.0, 497.0}}, label: 'Vertical scroll bar, 1 page', value: 0%
+                            Other, 0x113b692c0, {{369.0, 559.0}, {3.0, 7.0}}
+                          Other, 0x113b68280, {{342.0, 72.0}, {30.0, 497.0}}, label: 'Vertical scroll bar, 1 page', value: 0%
+                            Other, 0x113b6bc00, {{369.0, 559.0}, {3.0, 7.0}}
+                Other, 0x113b6b980, {{342.0, 72.0}, {30.0, 497.0}}, label: 'Vertical scroll bar, 4 pages', value: 0%
+                  Other, 0x113b6be80, {{369.0, 559.0}, {3.0, 7.0}}
+                Other, 0x113b6bac0, {{342.0, 72.0}, {30.0, 497.0}}, label: 'Vertical scroll bar, 4 pages', value: 0%
+                  Other, 0x113b683c0, {{369.0, 559.0}, {3.0, 7.0}}
+              Other, 0x113b6bd40, {{159.0, 569.0}, {57.0, 6.0}}, label: 'Page 1 of 4'
+              Button, 0x113b6b840, {{24.0, 595.0}, {327.0, 48.0}}, label: 'Next'
+Path to element:
+ →Application, 0x113b68640, pid: 60333, label: 'Plated'
+Query chain:
+ →Find: Application 'com.natemeadows.plated'
+  Output: {
+    Application, 0x113b68b40, pid: 60333, label: 'Plated'
+  }

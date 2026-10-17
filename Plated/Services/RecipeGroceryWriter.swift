@@ -32,7 +32,7 @@ enum RecipeGroceryWriter {
         var active = all.filter { item in
             guard !item.isDismissed else { return false }
             return item.isManual
-                ? item.weekStart >= horizon && item.weekStart < end
+                ? (!item.isChecked || (item.weekStart >= horizon && item.weekStart < end))
                 : Calendar.current.isSameDay(item.weekStart, start)
         }
         let resolved = lines ?? recipe.sortedIngredients.map { ($0, $0.quantity) }

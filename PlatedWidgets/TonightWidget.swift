@@ -36,7 +36,9 @@ struct TonightWidgetView: View {
     @Environment(\.widgetFamily) private var family
     var entry: WeekEntry
 
-    private var tonight: WeekSnapshot.Tonight? { entry.snapshot?.tonight }
+    private var tonight: WeekSnapshot.Tonight? {
+        entry.snapshot?.isCurrent(on: entry.date) == true ? entry.snapshot?.tonight : nil
+    }
     private var days: [WeekSnapshot.Day] {
         entry.snapshot?.days ?? WeekSnapshot.openWeek(from: .now)
     }
@@ -122,25 +124,20 @@ struct TonightWidgetView: View {
     private var large: some View {
         GeometryReader { geo in
             VStack(alignment: .leading, spacing: 0) {
-                ZStack(alignment: .bottomLeading) {
+                HStack(spacing: 0) {
                     householdArt
-                    if onHouseholdPhoto {
-                        GlassBand(inset: inset) {
-                            HStack(alignment: .lastTextBaseline) {
-                                answer(titleSize: 18, lineSize: 12)
-                                Spacer(minLength: 8)
-                                MicroCap(text: "TONIGHT")
-                            }
-                        }
-                    } else {
+                        .frame(width: geo.size.width * 0.42)
+                        .clipped()
+                    VStack(alignment: .leading, spacing: 6) {
                         MicroCap(text: "TONIGHT")
-                            .padding(inset)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                        answer(titleSize: 18, lineSize: 12)
-                            .padding(inset)
+                        answer(titleSize: 16, lineSize: 11)
                     }
+                    .padding(.horizontal, inset)
+                    .padding(.vertical, 10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .frame(height: geo.size.height * 0.44)
+                // Leave room for all six remaining nights on compact phones.
+                .frame(height: min(110, geo.size.height * 0.36))
                 .clipped()
 
                 VStack(alignment: .leading, spacing: 0) {
@@ -243,12 +240,12 @@ struct TonightWidgetView: View {
                         .lineLimit(1)
                 }
             } else {
-                Text("Nothing plated yet")
+                Text(entry.snapshot?.isCurrent(on: entry.date) == true ? "Nothing plated yet" : "Open Plan to refresh")
                     .font(.sans(titleSize - 1))
                     .foregroundStyle(ink)
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
-                Text("Tap to pick")
+                Text(entry.snapshot?.isCurrent(on: entry.date) == true ? "Tap to pick" : (entry.snapshot.map { "Updated " + $0.generatedAt.formatted(date: .abbreviated, time: .omitted) } ?? "Tap to refresh"))
                     .font(.sans(lineSize, "SemiBold"))
                     .foregroundStyle(quiet)
             }
@@ -302,14 +299,14 @@ struct TonightWidgetView: View {
                 Circle()
                     .strokeBorder(Plate.hairlineDashed, style: StrokeStyle(lineWidth: 1.5, dash: [3, 3]))
                     .frame(width: 20, height: 20)
-                Text("Nothing plated yet")
+                Text(entry.snapshot?.isCurrent(on: entry.date) == true ? "Nothing plated yet" : "Open Plan to refresh")
                     .font(.sans(13, "SemiBold"))
                     .foregroundStyle(Plate.inkSecondary)
                     .lineLimit(1)
             }
             Spacer(minLength: 0)
         }
-        .frame(maxWidth: .infinity, minHeight: 29, alignment: .leading)
+        .frame(maxWidth: .infinity, minHeight: 25, alignment: .leading)
         .overlay(alignment: .top) {
             Rectangle().fill(Plate.hairlineDashed).frame(height: 1)
         }
@@ -337,13 +334,15 @@ struct TonightLockView: View {
     @Environment(\.widgetFamily) private var family
     var entry: WeekEntry
 
-    private var tonight: WeekSnapshot.Tonight? { entry.snapshot?.tonight }
+    private var tonight: WeekSnapshot.Tonight? {
+        entry.snapshot?.isCurrent(on: entry.date) == true ? entry.snapshot?.tonight : nil
+    }
 
     var body: some View {
         switch family {
         case .accessoryInline:
             // One line, system-styled — a symbol and the dish, nothing else.
-            Label(tonight?.title ?? "Nothing plated", systemImage: "fork.knife")
+            Label(tonight?.title ?? (entry.snapshot?.isCurrent(on: entry.date) == true ? "Nothing plated" : "Open Plan to refresh"), systemImage: "fork.knife")
 
         case .accessoryCircular:
             ZStack {
@@ -361,7 +360,7 @@ struct TonightLockView: View {
                         .font(.system(size: 18, weight: .bold))
                 }
             }
-            .widgetLabel(tonight?.title ?? "Open night")
+            .widgetLabel(tonight?.title ?? (entry.snapshot?.isCurrent(on: entry.date) == true ? "Open night" : "Open Plan to refresh"))
 
         default: // .accessoryRectangular
             VStack(alignment: .leading, spacing: 2) {
@@ -376,9 +375,9 @@ struct TonightLockView: View {
                     Text(factLine(tonight, owner: entry.snapshot?.ownerName))
                         .font(.system(size: 12, weight: .medium))
                 } else {
-                    Text("Nothing plated")
+                    Text(entry.snapshot?.isCurrent(on: entry.date) == true ? "Nothing plated" : "Open Plan to refresh")
                         .font(.system(size: 15, weight: .bold))
-                    Text("Tap to pick a dish")
+                    Text(entry.snapshot?.isCurrent(on: entry.date) == true ? "Tap to pick a dish" : "The plan needs an update")
                         .font(.system(size: 12, weight: .medium))
                 }
             }

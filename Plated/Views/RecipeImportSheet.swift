@@ -860,6 +860,7 @@ struct RecipeImportSheet: View {
     }
 
     private func update(_ recipe: Recipe, with imported: ImportedRecipe) {
+        let original = RecipeEditSnapshot(recipe)
         recipe.title = imported.title.trimmingCharacters(in: .whitespacesAndNewlines)
         recipe.summary = imported.summary
         recipe.servings = max(1, imported.servings)
@@ -871,7 +872,7 @@ struct RecipeImportSheet: View {
         recipe.instructions = ""
         applySource(from: imported, to: recipe)
 
-        for ingredient in recipe.ingredients ?? [] { context.delete(ingredient) }
+        recipe.ingredients = []
         for (index, importedIngredient) in imported.ingredients.map(\.resolved)
             .filter({ !$0.name.isEmpty }).enumerated() {
             let row = Ingredient(
@@ -884,20 +885,26 @@ struct RecipeImportSheet: View {
             row.recipe = recipe
             context.insert(row)
         }
-        finishSaving(recipe)
+        if finishSaving(recipe) {
+            original.retireReplacedChildren(in: context)
+        } else {
+            original.restore(in: context)
+        }
     }
 
-    private func finishSaving(_ recipe: Recipe) {
+    @discardableResult
+    private func finishSaving(_ recipe: Recipe) -> Bool {
         pendingSaveRecipe = recipe
         guard Persist.save(context, "import recipe") else {
             saveFailed = true
             AccessibilityNotification.Announcement("Couldn't save the recipe. Try again.").post()
-            return
+            return false
         }
         saveFailed = false
         pendingSaveRecipe = nil
         onSaved(recipe)
         dismiss()
+        return true
     }
 
     private func applySource(from imported: ImportedRecipe, to recipe: Recipe) {

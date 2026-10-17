@@ -650,6 +650,8 @@ final class PlanLedger {
         var e = entry
         if let title = edit.title { e.title = title }
         if let servings = edit.servings { e.servings = servings }
+        if let cooked = edit.cooked { e.cooked = cooked }
+        if let cookedAt = edit.cookedAt { e.cookedAt = cookedAt }
         if let tagline = edit.tagline { e.tagline = tagline }
         if let cookID = edit.cookID { e.cookID = cookID }
         if let cookName = edit.cookName { e.cookName = cookName }

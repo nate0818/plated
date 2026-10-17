@@ -87,7 +87,7 @@ struct JoinHouseholdSheet: View {
                 // swipe here would leave a member of this household with no
                 // seat, no way back in (the link answers "already here")
                 // and their own plan gone. "None of these" is the way out.
-                .interactiveDismissDisabled(candidates != nil)
+                .interactiveDismissDisabled(joining || candidates != nil)
                 .presentationCornerRadius(Radius.sheet)
             }
         }

@@ -1,0 +1,17 @@
+SCREEN -plated-tab week
+selected Plated Plan Button Return to the top of Plan
+Recipes Button Open Recipes
+Groceries Button Open Groceries
+Table Button Open Table
+Plated
+Add Button Add a recipe, Table post or question
+Notifications No unread notifications Button Shows activity at your table
+Your profile Button Opens your profile, household and settings.
+Hi, Nate Heading
+Calendar Button
+TONIGHT · OCT 17
+Dinner options Button Pop up button Double tap to activate the picker
+Salmon Night Button Tap to open the day. Hold and drag to another date to move dinner.
+You're cooking
+Change servings and cook Button
+Start cooking Button

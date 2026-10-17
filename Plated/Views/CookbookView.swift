@@ -299,7 +299,9 @@ struct CookbookView: View {
                 .background(Color.fill, in: Radius.shape(Radius.chip))
                 .padding(.horizontal, 24).padding(.top, 16)
                 }
-                ScrollView(showsIndicators: false) {
+                ScrollViewReader { scroll in
+                ScrollView {
+                    Color.clear.frame(height: 0).id("cookbook-top")
                     if let householdLine {
                         // One quiet line above whatever has landed, and no
                         // spinner: the shelf is real, it is just not all
@@ -379,6 +381,12 @@ struct CookbookView: View {
                             noMatches
                         }
                     }
+                }
+                .scrollIndicators(.hidden)
+                .onChange(of: tabPop) { _, request in
+                    guard request.tab == .cookbook else { return }
+                    withAnimation(.plSnap) { scroll.scrollTo("cookbook-top", anchor: .top) }
+                }
                 }
             }
             .background(Color.canvas)
@@ -2114,6 +2122,7 @@ struct PlateAssignSheet: View {
     /// favour of the rotation's guess.
     @State private var cookPickedByHand = false
     @State private var confirmation: String?
+    @State private var saveFailure: String?
 
     private var nights: [Date] {
         let today = Calendar.current.startOfDay(for: .now)
@@ -2201,6 +2210,9 @@ struct PlateAssignSheet: View {
             // (`.contentTransition(.numericText())` went with the swap: it
             // spanned "Plan for Tuesday" → "Plated for Tuesday" and morphs
             // nothing that is not a numeral.)
+            if let saveFailure {
+                Text(saveFailure).plType(.footnote).foregroundStyle(Color.dangerText).padding(.horizontal, 24)
+            }
             Group {
                 if let confirmation {
                     HStack(spacing: 8) {
@@ -2340,7 +2352,7 @@ struct PlateAssignSheet: View {
 
     /// True when a housemate owns the night and this sheet cannot replace it.
     private var remoteBlocks: Bool {
-        guard let chosenDate, localDinner(on: chosenDate) == nil else { return false }
+        guard let chosenDate else { return false }
         return remoteDinner(on: chosenDate) != nil
     }
 
@@ -2349,7 +2361,7 @@ struct PlateAssignSheet: View {
     }
 
     private func remoteDinner(on date: Date) -> PlanLedger.Entry? {
-        PlanLedger.shared.dinner(on: date).flatMap { $0.isGoing ? nil : $0 }
+        PlanOccupancy.shared(on: date, slot: .dinner)
     }
 
     private func nightLabel(_ date: Date) -> String {
@@ -2364,7 +2376,11 @@ struct PlateAssignSheet: View {
         guard let date = chosenDate, !remoteBlocks else { return }
         Haptic.plate()
         let cook = chosenCook ?? cookCandidates.me ?? cookCandidates.first
-        if let existing = localDinner(on: date) {
+        let existing = localDinner(on: date)
+        let oldRecipe = existing?.recipe, oldCook = existing?.cook
+        let oldTitle = existing?.customTitle, oldServings = existing?.servings, oldTagline = existing?.tagline
+        var inserted: PlannedMeal?
+        if let existing {
             // A gathering names the night and counts its guests; the recipe
             // is only what is being cooked at it. Blanking both turned
             // "Anna's birthday · Cooking for 12" into the dish's own title
@@ -2379,17 +2395,27 @@ struct PlateAssignSheet: View {
                 existing.tagline = ""
             }
         } else {
-            context.insert(PlannedMeal(
-                date: date, slot: .dinner, recipe: recipe,
-                servings: servingCount, cook: cook
-            ))
+            let meal = PlannedMeal(date: date, slot: .dinner, recipe: recipe, servings: servingCount, cook: cook)
+            context.insert(meal)
+            inserted = meal
         }
         let cookName = (cook?.isMe ?? true) ? "you" : (cook?.name ?? "someone")
-        Notifier.post(
-            .mealPlanned, actor: cook?.name ?? "",
-            body: "\(nightLabel(date)): \(recipe.title). \(cookName.capitalized) cook\(cookName == "you" ? "" : "s").",
-            into: context
-        )
+        let notice = PlatedNotification(
+            kind: .mealPlanned, actorName: cook?.name ?? "",
+            body: "\(nightLabel(date)): \(recipe.title). \(cookName.capitalized) cook\(cookName == "you" ? "" : "s").")
+        context.insert(notice)
+        guard Persist.save(context, "plan recipe") else {
+            if let existing {
+                existing.recipe = oldRecipe; existing.cook = oldCook
+                existing.customTitle = oldTitle ?? ""; existing.servings = oldServings ?? servingCount
+                existing.tagline = oldTagline ?? ""
+            }
+            if let inserted { context.delete(inserted) }
+            context.delete(notice)
+            saveFailure = "Couldn't save this night. Your choices are still here. Try again."
+            return
+        }
+        saveFailure = nil
         withAnimation(.plSnap) { confirmation = "Plated for \(nightLabel(date))" }
         Task {
             try? await Task.sleep(for: .seconds(1))

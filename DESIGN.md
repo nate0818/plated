@@ -86,7 +86,7 @@ component spacing. Photos keep their own geometry. Page-level titles are allowed
 to wrap. Compact tabs, chips and segments keep concise single-line labels.
 Primary/secondary action labels may wrap at accessibility sizes and grow vertically.
 Interactive targets are at least 44 by 44 points and have matching hit shapes.
-Plan keeps its date wheel and week/month controls visible at the top, with tonight below. Recipes keeps
+Plan opens with a compact personal greeting, a horizontal date row and the selected day's content. Today is selected on arrival; its Tonight region contains the meal name, bounded artwork, cook/servings and primary action. Below the date row, only that date's meals appear. Vertical scrolling reveals more of the same day, never earlier or upcoming days. The date row stays available while that content scrolls. Calendar remains an explicit secondary mode with a clear Back to tonight action. This supersedes the Coming up agenda at the user’s request on October 17, 2026. Recipes keeps
 search visible. Grocery rows preserve meal provenance. Table shows audience
 compactly before posts.
 

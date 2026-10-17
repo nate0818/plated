@@ -33,6 +33,7 @@ struct PlanDateStrip: View {
     @AccessibilityFocusState private var focusedDay: Date?
     @Environment(\.colorSchemeContrast) private var contrast
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityVoiceOverEnabled) private var voiceOverEnabled
     @Environment(\.scenePhase) private var scenePhase
 
     private let cellWidth: CGFloat = 46
@@ -269,17 +270,25 @@ struct PlanDateStrip: View {
     private func dayButton(_ date: Date) -> some View {
         let selected = Calendar.current.isDate(date, inSameDayAs: interaction.previewDate ?? selection)
         let hovering = dropHoverDay.map { Calendar.current.isDate($0, inSameDayAs: date) } == true
+        let committed = Calendar.current.isDate(date, inSameDayAs: selection)
 
-        return Button {
+        let button = Button {
             choose(date)
         } label: {
             DateWheelDayLabel(date: date, selected: selected,
                               dinnerPlanned: hasDinner(date), hovering: hovering)
         }
         .buttonStyle(.pressable)
+
+        return button
         .accessibilityAddTraits(selected ? .isSelected : [])
         .accessibilityLabel(date.formatted(.dateTime.weekday(.wide).month().day()))
         .accessibilityValue(hasDinner(date) ? "Dinner planned" : "No dinner planned")
+        // VoiceOver scrolling to an offscreen date used to turn the wheel
+        // and change dinner merely while reading. Keep one adjustable date
+        // in its reading order; explicit day/week actions still navigate.
+        .accessibilityHidden(voiceOverEnabled && !committed)
+        .accessibilityHint(Text(voiceOverEnabled ? "Swipe up or down to choose a date" : ""))
         .modifier(DateWheelAdjustment(selected: selected) { adjustDay($0) })
         // The strip spans two years. A day-of-month identifier produced up
         // to 24 indistinguishable controls for Voice Control and UI tests.
@@ -296,11 +305,15 @@ struct PlanDateStrip: View {
         .dropDestination(for: String.self) { tokens, _ in
             moveMeal(tokens.first, date)
         } isTargeted: { over in
-            if over, canAcceptDrop(date) {
-                dropHoverDay = date
-            } else if dropHoverDay.map({ Calendar.current.isDate($0, inSameDayAs: date) }) == true {
-                dropHoverDay = nil
-            }
+            updateHover(over, on: date)
+        }
+    }
+
+    private func updateHover(_ over: Bool, on date: Date) {
+        if over, canAcceptDrop(date) {
+            dropHoverDay = date
+        } else if let hovered = dropHoverDay, Calendar.current.isDate(hovered, inSameDayAs: date) {
+            dropHoverDay = nil
         }
     }
 

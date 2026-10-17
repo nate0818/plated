@@ -9,7 +9,12 @@ struct GroceryWidgetView: View {
     @Environment(\.widgetFamily) private var family
     var entry: WeekEntry
 
-    private var grocery: WeekSnapshot.Grocery? { entry.snapshot?.grocery }
+    private var grocery: WeekSnapshot.Grocery? {
+        entry.snapshot?.isCurrent(on: entry.date) == true ? entry.snapshot?.grocery : nil
+    }
+    private var emptyLine: String {
+        grocery == nil ? "Open app to refresh" : (grocery?.totalCount == 0 ? "Nothing to buy" : "All bought")
+    }
 
     var body: some View {
         Group {
@@ -28,6 +33,10 @@ struct GroceryWidgetView: View {
         .containerBackground(Plate.canvas, for: .widget)
     }
 
+    private var refreshLine: String {
+        guard let date = entry.snapshot?.generatedAt else { return "Open Plated to load your list." }
+        return "Last updated " + date.formatted(date: .abbreviated, time: .shortened)
+    }
     private var small: some View {
         VStack(alignment: .leading, spacing: 6) {
             MicroCap(text: "GROCERY")
@@ -46,10 +55,11 @@ struct GroceryWidgetView: View {
                 Image(systemName: "basket")
                     .font(.system(size: 26, weight: .medium))
                     .foregroundStyle(grocery == nil ? Plate.inkFaint : Plate.basil)
-                Text(grocery == nil ? "Nothing to shop for" : "All bought")
+                Text(emptyLine)
                     .font(.sans(14))
                     .foregroundStyle(Plate.ink)
                     .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 0)
         }
@@ -75,10 +85,11 @@ struct GroceryWidgetView: View {
                     Image(systemName: "basket")
                         .font(.system(size: 26, weight: .medium))
                         .foregroundStyle(grocery == nil ? Plate.inkFaint : Plate.basil)
-                    Text(grocery == nil ? "Nothing to shop for" : "All bought")
+                    Text(emptyLine)
                         .font(.sans(14))
                         .foregroundStyle(Plate.ink)
                         .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer(minLength: 0)
             }
@@ -97,13 +108,13 @@ struct GroceryWidgetView: View {
                                 .lineLimit(1)
                         }
                     }
-                    if grocery.openCount > grocery.sample.count {
-                        Text("+ \(grocery.openCount - grocery.sample.count) more")
+                    if grocery.openCount > min(grocery.sample.count, 4) {
+                        Text("+ \(grocery.openCount - min(grocery.sample.count, 4)) more")
                             .font(.sans(12))
                             .foregroundStyle(Plate.inkSecondary)
                     }
                 } else {
-                    Text("Plate a few nights and the list builds itself.")
+                    Text(grocery == nil ? refreshLine : (grocery?.totalCount == 0 ? "Plan a meal to build your list." : "Everything on the list is bought."))
                         .font(.sans(13, "SemiBold"))
                         .foregroundStyle(Plate.inkSecondary)
                         .lineLimit(3)
@@ -131,7 +142,7 @@ struct GroceryWidgetView: View {
             if let grocery, grocery.openCount > 0 {
                 progress(grocery)
                     .padding(.bottom, 10)
-                ForEach(Array(grocery.sample.prefix(9).enumerated()), id: \.offset) { _, name in
+                ForEach(Array(grocery.sample.prefix(8).enumerated()), id: \.offset) { _, name in
                     HStack(spacing: 10) {
                         Circle()
                             .strokeBorder(Plate.hairlineDashed, lineWidth: 2)
@@ -147,8 +158,8 @@ struct GroceryWidgetView: View {
                         Rectangle().fill(Plate.hairlineDashed).frame(height: 1)
                     }
                 }
-                if grocery.openCount > min(grocery.sample.count, 9) {
-                    Text("+ \(grocery.openCount - min(grocery.sample.count, 9)) more")
+                if grocery.openCount > min(grocery.sample.count, 8) {
+                    Text("+ \(grocery.openCount - min(grocery.sample.count, 8)) more")
                         .font(.sans(12))
                         .foregroundStyle(Plate.inkSecondary)
                         .padding(.top, 8)
@@ -158,10 +169,10 @@ struct GroceryWidgetView: View {
                 Image(systemName: "basket")
                     .font(.system(size: 30, weight: .medium))
                     .foregroundStyle(grocery == nil ? Plate.inkFaint : Plate.basil)
-                Text(grocery == nil ? "Nothing to shop for" : "All bought")
+                Text(emptyLine)
                     .font(.sans(16))
                     .foregroundStyle(Plate.ink)
-                Text(grocery == nil ? "Plate a few nights and the list builds itself." : "The basket is full for the week.")
+                Text(grocery == nil ? refreshLine : (grocery?.totalCount == 0 ? "Plan a meal to build your list." : "Everything on the list is bought."))
                     .font(.sans(12, "SemiBold"))
                     .foregroundStyle(Plate.inkSecondary)
             }
@@ -201,6 +212,7 @@ struct GroceryWidget: Widget {
         .configurationDisplayName("Grocery")
         .description("What's still to buy for the week.")
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
+        .contentMarginsDisabled() // The view owns its insets; stacking system margins clips compact families.
     }
 }
 
@@ -211,11 +223,16 @@ struct GroceryLockView: View {
     @Environment(\.widgetFamily) private var family
     var entry: WeekEntry
 
-    private var grocery: WeekSnapshot.Grocery? { entry.snapshot?.grocery }
+    private var grocery: WeekSnapshot.Grocery? {
+        entry.snapshot?.isCurrent(on: entry.date) == true ? entry.snapshot?.grocery : nil
+    }
+    private var emptyLine: String {
+        grocery == nil ? "Open app to refresh" : (grocery?.totalCount == 0 ? "Nothing to buy" : "All bought")
+    }
     private var open: Int { grocery?.openCount ?? 0 }
     private var line: String {
-        guard grocery != nil else { return "Nothing to shop for" }
-        return open == 0 ? "All bought" : open == 1 ? "1 to buy" : "\(open) to buy"
+        guard grocery != nil else { return emptyLine }
+        return open == 0 ? emptyLine : open == 1 ? "1 to buy" : "\(open) to buy"
     }
 
     var body: some View {

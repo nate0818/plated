@@ -125,6 +125,8 @@ final class Recipe {
         self.shareRecordName = "recipe-\(UUID().uuidString)"
     }
 
+    var planningKey: String { originID.isEmpty ? "recipe:" + shareRecordName : originID }
+
     var totalMinutes: Int { prepMinutes + cookMinutes }
 
     /// How long it takes, said the way a person says it. A slow-cooker

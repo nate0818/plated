@@ -1,0 +1,15 @@
+{
+  "url": "https://plated.food/admin/waitlist",
+  "featureCommit": "3c66a10d6d0e9cb004b37e2bd9281139efbcc42a",
+  "sourceCommit": "58c0c95fb1c6d7ca9f91c4205d055d5b363a062b",
+  "verifiedReadyDeployment": "dpl_7hLJnoLLx9Y2dWKW84e7KV5qgaoN",
+  "edgeFunctions": {
+    "admin-testflight": 2,
+    "admin-read": 6
+  },
+  "automatedTestsPassed": 32,
+  "providerValidation": "Read-only External group / build 33",
+  "realInvitationsSentDuringQA": 0,
+  "syntheticRequestsRemaining": 0,
+  "signedInLiveReview": "Requires founder login and MFA"
+}

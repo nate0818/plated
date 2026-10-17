@@ -13,6 +13,8 @@ struct GrocerySheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.tabPop) private var tabPop
     @Environment(\.dynamicTypeSize) private var typeSize
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
+    private var shortWindow: Bool { verticalSizeClass == .compact && !typeSize.isAccessibilitySize }
     @Query(sort: \GroceryItem.name) private var items: [GroceryItem]
     /// Only to tell the two empty lists apart: a week with nights on it and
     /// nothing left to buy is a different sentence from a week with no plan.
@@ -44,6 +46,8 @@ struct GrocerySheet: View {
     @AppStorage("grocery.preferredStore") private var preferredStore = ""
     @AppStorage("grocery.budgetTarget") private var budgetTargetText = ""
     @AppStorage("grocery.aisleOrder") private var aisleOrderRaw = ""
+    @State private var undoRemoval: GroceryItem?
+    @State private var removalProblem: String?
     @State private var undoCheck: (GroceryItem, Data?, Bool)?
     @State private var sourceShown: GroceryItem?
     private var selectedIDs: Set<String>? { byMeal ? selectedMeals : nil }
@@ -87,8 +91,7 @@ struct GrocerySheet: View {
 
     private var currentItems: [GroceryItem] {
         let windowStart = shoppingStart
-        // Manual lines keep the window key of the day they were typed; give
-        // them a week of life so they don't vanish as the window rolls.
+        // Unbought manual extras remain until explicitly completed or removed.
         let manualHorizon = Calendar.current.date(byAdding: .day, value: -7, to: windowStart) ?? windowStart
         let windowEnd = Calendar.current.date(byAdding: .day, value: 7, to: windowStart) ?? windowStart
         return items.filter {
@@ -98,7 +101,7 @@ struct GrocerySheet: View {
                 else { guard $0.sources.contains(where: { selectedMeals.contains($0.id) }) else { return false } }
             }
             return $0.isManual
-                ? $0.weekStart >= manualHorizon && $0.weekStart < windowEnd
+                ? (!$0.isChecked || ($0.weekStart >= manualHorizon && $0.weekStart < windowEnd))
                 : Calendar.current.isSameDay($0.weekStart, windowStart)
         }
     }
@@ -111,7 +114,7 @@ struct GrocerySheet: View {
         let windowEnd = Calendar.current.date(byAdding: .day, value: 7, to: shoppingStart) ?? shoppingStart
         return items.contains {
             !$0.isDismissed && $0.isManual
-                && $0.weekStart >= manualHorizon && $0.weekStart < windowEnd
+                && (!$0.isChecked || ($0.weekStart >= manualHorizon && $0.weekStart < windowEnd))
         }
     }
 
@@ -126,6 +129,10 @@ struct GrocerySheet: View {
             .map { ($0.key, $0.value.sorted { $0.name < $1.name }) }
     }
 
+    private var removedItems: [GroceryItem] {
+        items.filter { $0.isDismissed && ($0.isManual || Calendar.current.isSameDay($0.weekStart, shoppingStart)) }
+    }
+
     private var aisleOrder: [GroceryAisle] {
         let saved = aisleOrderRaw.split(separator: "|").compactMap { GroceryAisle(rawValue: String($0)) }
         return saved + GroceryAisle.allCases.filter { !saved.contains($0) }
@@ -137,8 +144,20 @@ struct GrocerySheet: View {
             // shopping controls scroll with the estimate and aisles. In a
             // short sheet/window, fixing both ends left only a sliver for
             // the actual list.
-            ScrollView(showsIndicators: false) {
+            ScrollViewReader { scroll in
+            ScrollView {
                 VStack(spacing: 0) {
+                    Color.clear.frame(height: 0).id("groceries-top")
+                    if shortWindow {
+                        HStack(spacing: 12) {
+                            Text("Groceries").plType(.title).accessibilityAddTraits(.isHeader)
+                            Spacer()
+                            if embedded {
+                                ActivityBellButton(size: 44) { activityShown = true }
+                                AccountButton()
+                            } else { DesignIconButton(symbol: "xmark", label: "Close groceries") { dismiss() } }
+                        }.plChrome().padding(.horizontal, 24).padding(.top, 4)
+                    } else {
                     PlatedMasthead(title: "Groceries") {
                         if embedded {
                             HStack(spacing: 8) {
@@ -154,10 +173,19 @@ struct GrocerySheet: View {
                     // shell's tab stack; keep its masthead clear of the status
                     // bar while allowing it to scroll in compact windows.
                     .padding(.top, embedded ? 20 : 0)
+                    }
 
                     shoppingControls
 
                     if currentItems.isEmpty {
+                        if !removedItems.isEmpty {
+                            DisclosureGroup("Removed items") {
+                                ForEach(removedItems) { item in
+                                    Button("Restore \(item.name)") { restore(item) }
+                                        .plType(.footnote).plActionLabel().plTapTarget()
+                                }
+                            }.plType(.footnote).padding(.horizontal, 24)
+                        }
                         emptyContent
                             .frame(maxWidth: .infinity)
                             .padding(.horizontal, 24)
@@ -165,7 +193,6 @@ struct GrocerySheet: View {
                             .padding(.bottom, 40)
                     } else {
                         VStack(alignment: .leading, spacing: 18) {
-                            estimateCard
                             ForEach(grouped, id: \.0) { aisle, aisleItems in
                                 VStack(alignment: .leading, spacing: 4) {
                                     MicroLabel(aisle.rawValue)
@@ -175,6 +202,14 @@ struct GrocerySheet: View {
                                 }
                             }
                             addRow
+                            if !removedItems.isEmpty {
+                                DisclosureGroup("Removed items") {
+                                    ForEach(removedItems) { item in
+                                        Button("Restore \(item.name)") { restore(item) }
+                                            .plType(.footnote).plActionLabel().plTapTarget()
+                                    }
+                                }.plType(.footnote)
+                            }
                         }
                         .padding(.horizontal, 24)
                         .padding(.top, 18)
@@ -183,14 +218,28 @@ struct GrocerySheet: View {
                 }
             }
 
+            .scrollIndicators(.hidden)
+            .onChange(of: tabPop) { _, request in
+                guard request.tab == .groceries else { return }
+                withAnimation(.plSnap) { scroll.scrollTo("groceries-top", anchor: .top) }
+            }
+            }
+
+            if undoRemoval != nil {
+                Button("Undo remove") { if let item = undoRemoval { restore(item) } }
+                    .plType(.footnote, .semibold).plActionLabel().plTapTarget()
+            }
             if !currentItems.isEmpty {
-                shoppingFooter
+                shoppingFooter.plChrome()
                     .padding(.horizontal, 24)
-                    .padding(.bottom, 16)
+                    .padding(.bottom, shortWindow ? 4 : 16)
             }
         }
         .padding(.bottom, embedded ? Layout.floatingChromeInset : 0)
         .background(Color.canvas.ignoresSafeArea())
+        .alert("Couldn't update groceries", isPresented: Binding(get: { removalProblem != nil }, set: { if !$0 { removalProblem = nil } })) {
+            Button("OK") { removalProblem = nil }
+        } message: { Text(removalProblem ?? "Please try again.") }
         .toolbar(.hidden, for: .navigationBar)
         .navigationDestination(isPresented: $activityShown) {
             NotificationsView(homeTab: .groceries)
@@ -302,7 +351,7 @@ struct GrocerySheet: View {
                     .plType(.footnote)
                     .textInputAutocapitalization(.words)
                     .padding(.horizontal, 10)
-                    .frame(minHeight: 42)
+                    .frame(minHeight: 44)
                     .background(Color.canvas, in: Radius.shape(Radius.chip))
                     .overlay(Radius.shape(Radius.chip).strokeBorder(Color.hairline))
                     .accessibilityLabel("Store for grocery estimate")
@@ -311,7 +360,7 @@ struct GrocerySheet: View {
                     .keyboardType(.decimalPad)
                     .padding(.horizontal, 10)
                     .frame(width: 112)
-                    .frame(minHeight: 42)
+                    .frame(minHeight: 44)
                     .background(Color.canvas, in: Radius.shape(Radius.chip))
                     .overlay(Radius.shape(Radius.chip).strokeBorder(Color.hairline))
                     .accessibilityLabel("Optional grocery budget target")
@@ -357,8 +406,10 @@ struct GrocerySheet: View {
             }
 
             VStack(spacing: 10) {
-                ProgressView(value: Double(completed), total: Double(max(1, currentItems.count)))
-                    .tint(unchecked.isEmpty ? Color.completion : Color.olive)
+                if !shortWindow {
+                    ProgressView(value: Double(completed), total: Double(max(1, currentItems.count)))
+                        .tint(unchecked.isEmpty ? Color.completion : Color.olive)
+                }
 
                 HStack(spacing: 12) {
                     HStack(spacing: 10) {
@@ -374,7 +425,7 @@ struct GrocerySheet: View {
                                     : unchecked.count.things("item") + " left")
                                 .plType(.footnote, .bold)
                                 .foregroundStyle(Color.ink)
-                            if typeSize < .accessibility1 {
+                            if typeSize < .accessibility1 && !shortWindow {
                                 Text(unchecked.isEmpty ? "Everything is checked off" : "Tap to check off")
                                     .plType(.caption)
                                     .foregroundStyle(Color.inkSecondary)
@@ -414,7 +465,7 @@ struct GrocerySheet: View {
                     }
                 }
             }
-            .padding(14)
+            .padding(shortWindow ? 4 : 14)
             .background(Color.raisedFill, in: Radius.shape(Radius.card))
             .overlay(Radius.shape(Radius.card).strokeBorder(Color.hairline))
             .plCardShadow()
@@ -516,22 +567,33 @@ struct GrocerySheet: View {
     /// behind it and can simply go.
     private func remove(_ item: GroceryItem) {
         Haptic.tap()
-        withAnimation(.plSnap) {
-            swipedItem = nil
-            if item.isManual {
-                context.delete(item)
-            } else {
-                item.isDismissed = true
-                // The dismissal is the household's fact, not this phone's:
-                // the mark carries the window it lapses with.
-                item.recordMark()
-            }
+        swipedItem = nil
+        item.isDismissed = true
+        guard Persist.save(context, "remove grocery") else {
+            item.isDismissed = false
+            removalProblem = "Your item is still on the list. Please try again."
+            return
         }
+        item.recordMark()
+        undoRemoval = item
+    }
+
+    private func restore(_ item: GroceryItem) {
+        item.isDismissed = false
+        guard Persist.save(context, "restore grocery") else {
+            item.isDismissed = true
+            removalProblem = "Your item could not be restored. Please try again."
+            return
+        }
+        item.recordMark()
+        undoRemoval = nil
     }
 
     private func checkRow(_ item: GroceryItem) -> some View {
         let isChecked = checked(item)
-        return HStack(spacing: 8) {
+        let layout = typeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8)) : AnyLayout(HStackLayout(spacing: 8))
+        let measure = GroceryMeasure.shopping(isChecked ? selectedQuantity(item) : needed(item), item.unit).text
+        return layout {
             Button {
                 Haptic.select()
                 undoCheck = (item, item.purchasesData, item.isChecked)
@@ -539,7 +601,7 @@ struct GrocerySheet: View {
                 Persist.save(context)
                 exportResult = nil
             } label: {
-                HStack(spacing: 12) {
+                HStack(alignment: .top, spacing: 12) {
                     Image(systemName: isChecked ? "checkmark.circle.fill" : "circle")
                         .font(.system(size: 24, weight: .regular))
                         .foregroundStyle(isChecked ? Color.basil : Color.inkSecondary)
@@ -549,7 +611,11 @@ struct GrocerySheet: View {
                             .strikethrough(isChecked).foregroundStyle(isChecked ? Color.inkSecondary : Color.ink)
                         if let origin = groceryOriginLine(item) {
                             Text(origin)
-                                .plType(.caption).foregroundStyle(Color.inkSecondary).lineLimit(2)
+                                .plType(.caption).foregroundStyle(Color.inkSecondary).lineLimit(typeSize.isAccessibilitySize ? nil : 2)
+                        }
+                        if typeSize.isAccessibilitySize {
+                            Text(measure).plType(.footnote, .semibold).foregroundStyle(Color.inkSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
                         if let hint = packageHint(item) {
                             Text(hint)
@@ -558,16 +624,22 @@ struct GrocerySheet: View {
                                 .fixedSize(horizontal: false, vertical: true)
                         }
                     }
-                    Spacer(minLength: 6)
-                    Text(GroceryMeasure.shopping(isChecked ? selectedQuantity(item) : needed(item), item.unit).text)
-                        .plType(.footnote, .semibold).foregroundStyle(Color.inkSecondary)
+                    if !typeSize.isAccessibilitySize {
+                        Spacer(minLength: 6)
+                        Text(measure).plType(.footnote, .semibold).foregroundStyle(Color.inkSecondary)
+                            .fixedSize(horizontal: true, vertical: false)
+                    }
                 }.frame(minHeight: 56).contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel(item.name + ", " + GroceryMeasure.shopping(selectedQuantity(item), item.unit).text)
             .accessibilityValue(isChecked ? "Purchased" : "To buy")
             if !item.sources.isEmpty {
-                Button { sourceShown = item } label: { Image(systemName: "info.circle").plTapTarget() }
+                Button { sourceShown = item } label: {
+                    if typeSize.isAccessibilitySize {
+                        Label("Meal details", systemImage: "info.circle").plType(.caption).plTapTarget()
+                    } else { Image(systemName: "info.circle").plTapTarget() }
+                }
                     .foregroundStyle(Color.inkSecondary)
                     .accessibilityLabel("Meals that need " + item.name)
             }
@@ -632,13 +704,21 @@ struct GrocerySheet: View {
 
     private var shoppingControls: some View {
         VStack(spacing: 14) {
-            if typeSize >= .accessibility1 && !shoppingOptionsExpanded {
+            if !shoppingOptionsExpanded {
                 Button {
                     Haptic.tap()
                     withAnimation(.plSnap) { shoppingOptionsExpanded = true }
                 } label: {
                     Group {
-                        if typeSize >= .accessibility3 {
+                        if shortWindow {
+                            HStack(spacing: 10) {
+                                Image(systemName: "calendar")
+                                Text(shoppingRangeText).plType(.footnote, .semibold)
+                                Text(byMeal ? "Selected meals" : "Next 7 days").plType(.caption)
+                                Spacer()
+                                Text("Edit").plType(.footnote, .semibold)
+                            }.foregroundStyle(Color.ink).frame(minHeight: 44)
+                        } else if typeSize >= .accessibility3 {
                             VStack(alignment: .leading, spacing: 8) {
                                 HStack(spacing: 10) {
                                     Image(systemName: "calendar")
@@ -689,7 +769,7 @@ struct GrocerySheet: View {
                             }
                         }
                     }
-                    .padding(14)
+                    .padding(shortWindow ? 4 : 14)
                     .background(Color.fill, in: Radius.shape(Radius.card))
                     .contentShape(Radius.shape(Radius.card))
                 }
@@ -801,7 +881,7 @@ struct GrocerySheet: View {
                 .background(Color.cardFill, in: Radius.shape(Radius.card))
                 .overlay(Radius.shape(Radius.card).strokeBorder(Color.hairlineSoft))
 
-                if typeSize >= .accessibility1 {
+                if shoppingOptionsExpanded {
                     Button("Done editing shopping options") {
                         Haptic.tap()
                         withAnimation(.plSnap) {
@@ -816,6 +896,7 @@ struct GrocerySheet: View {
                 }
             }
 
+            if shoppingOptionsExpanded {
             Button {
                 aisleOrderDraft = aisleOrder
                 aisleOrderShown = true
@@ -867,13 +948,16 @@ struct GrocerySheet: View {
                         }
                 }.frame(height: 3).animation(.plSnap, value: unchecked.count)
             }
-        }.foregroundStyle(Color.ink).padding(.horizontal, 24).padding(.top, 16)
+                DisclosureGroup("Prices and budget") { estimateCard }
+                    .plType(.footnote)
+            }
+        }.foregroundStyle(Color.ink).padding(.horizontal, 24).padding(.top, shortWindow ? 4 : 16)
     }
 
     private var groceryScopePicker: some View {
         EditorialSegments(options: [false, true], selection: $byMeal,
                           label: { $0 ? "Pick meals" : "Next 7 days" }, stacked: typeSize.isAccessibilitySize)
-            .accessibilityLabel("Grocery scope")
+            .accessibilityElement(children: .contain)
     }
 
     private var aisleOrderEditor: some View {

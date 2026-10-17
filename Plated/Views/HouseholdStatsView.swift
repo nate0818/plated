@@ -102,40 +102,16 @@ struct HouseholdStatsView: View {
     }
     private var platesEarned: Int { ourPosts.reduce(0) { $0 + $1.totalPlates } }
 
-    /// Dinners that have actually happened.
-    ///
-    /// `meals` is every slot and every date, so a cell labelled "Dinners"
-    /// was counting Tuesday's breakfast and a Thursday nobody has cooked
-    /// yet. A count must count the real thing.
-    private var dinnersCooked: Int {
-        let today = Calendar.current.startOfDay(for: .now)
-        return dinners.filter { $0.cookedAt != nil || $0.date < today }.count
+    private var dinnerMetrics: HouseholdDinnerMetrics {
+        HouseholdDinnerMetrics(local: meals, shared: PlanLedger.shared.all)
     }
-
-    /// Dinners on the plan, which is the different question the first badge
-    /// asks: "put a night on the plan".
-    private var dinners: [PlannedMeal] {
-        meals.filter { !$0.isDeleted && $0.slotValue == .dinner }
-    }
-
     private var liveRecipes: [Recipe] { recipes.filter { !$0.isDeleted } }
-
-    /// The most nights ever planned inside one calendar week — the badge
-    /// says "a week, plated", so counting every dinner ever would be a
-    /// different claim entirely.
-    private var bestWeek: Int {
-        let calendar = Calendar.current
-        let weeks = Dictionary(grouping: dinners) { meal in
-            calendar.dateInterval(of: .weekOfYear, for: meal.date)?.start ?? meal.date
-        }
-        return weeks.values.map(\.count).max() ?? 0
-    }
 
     private var badges: [Badge] {
         [
             Badge(id: "first-dinner", title: "First dinner",
                   detail: "Put a night on the plan.",
-                  mark: .symbol("fork.knife"), have: dinners.count, need: 1),
+                  mark: .symbol("fork.knife"), have: dinnerMetrics.plannedDates.count, need: 1),
             Badge(id: "first-recipe", title: "First recipe",
                   detail: "Add a dish to the cookbook.",
                   mark: .symbol("text.book.closed"), have: liveRecipes.count, need: 1),
@@ -145,10 +121,10 @@ struct HouseholdStatsView: View {
             Badge(id: "first-kiss", title: "First chef's kiss",
                   detail: "Everyone at the table plated the same dish.",
                   mark: .symbol("sparkles"), have: kissCount, need: 1),
-            Badge(id: "first-save", title: "Saved elsewhere",
-                  detail: "Someone saved your dish to their cookbook.",
+            Badge(id: "first-save", title: "Saved here",
+                  detail: "Save a Table dish to the cookbook on this device.",
                   mark: .symbol("bookmark"),
-                  have: members.reduce(0) { $0 + Awards.savesReceived(by: $1.name) }, need: 1),
+                  have: Awards.totalSavesRecorded, need: 1),
             Badge(id: "full-table", title: "Full table",
                   detail: "Three people in your household.",
                   mark: .symbol("person.3"), have: members.readable.peopleCount, need: 3),
@@ -160,7 +136,7 @@ struct HouseholdStatsView: View {
                   mark: .plate, have: platesEarned, need: 10),
             Badge(id: "week-planned", title: "A week, plated",
                   detail: "Seven nights planned inside one week.",
-                  mark: .symbol("calendar"), have: bestWeek, need: 7)
+                  mark: .symbol("calendar"), have: dinnerMetrics.bestWeek, need: 7)
         ]
     }
 
@@ -248,11 +224,13 @@ struct HouseholdStatsView: View {
     private var numbers: some View {
         VStack(alignment: .leading, spacing: 14) {
             MicroLabel("The count")
+            Text("Cooked dinners in the available household history. Saves are recorded on this device.")
+                .plType(.caption).foregroundStyle(Color.inkSecondary).fixedSize(horizontal: false, vertical: true)
             LazyVGrid(
                 columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: columns),
                 spacing: 22
             ) {
-                countCell("Dinners", dinnersCooked, .symbol("fork.knife"))
+                countCell("Cooked dinners", dinnerMetrics.cookedCount, .symbol("fork.knife"))
                 countCell("Happy plates", platesEarned, .plate)
                 countCell("Chef's kisses", kissCount, .symbol("sparkles"), accent: kissCount > 0)
                 countCell("Recipes", liveRecipes.count, .symbol("text.book.closed"))
@@ -261,7 +239,7 @@ struct HouseholdStatsView: View {
                 // phone saved, keyed by author — never saves other households
                 // made of ours (docs/open-decisions.md §3).
                 countCell("Dishes you saved",
-                          members.reduce(0) { $0 + Awards.savesReceived(by: $1.name) },
+                          Awards.totalSavesRecorded,
                           .symbol("bookmark"))
             }
         }

@@ -40,6 +40,7 @@ struct RemotePlanRow: View {
     enum Place { case week, day }
     var place: Place = .week
 
+    @Environment(\.dynamicTypeSize) private var typeSize
     private var ledger: PlanLedger { PlanLedger.shared }
     private var today: Bool { Calendar.current.isDateInToday(date) }
 
@@ -55,7 +56,8 @@ struct RemotePlanRow: View {
         let who = ledger.whoLine(for: entry)
         let line = honestyLine ?? who
         let eatingOut = PlanRowVoice.isEatingOut(title: entry.title, hasRecipe: entry.hasRecipe)
-        HStack(spacing: 10) {
+        let layout = typeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 10)) : AnyLayout(HStackLayout(spacing: 10))
+        layout {
             if place == .week { PlanDateColumn(date: date) }
 
             PlanFilledMealStack(

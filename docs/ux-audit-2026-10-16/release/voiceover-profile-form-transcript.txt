@@ -1,0 +1,45 @@
+SCREEN -plated-open-profile -plated-open-edit-profile -plated-review-fail-save save profile
+Plated Sheet Grabber Expanded Button Double tap to dismiss sheet
+Plated Sheet Grabber Expanded Button Double tap to dismiss sheet
+Cancel Button
+Edit profile Heading
+No photo yet , Add your photo Button
+Add banner photo Button
+YOUR NAME
+Nate Text field Double tap to edit.
+BIO
+A short line about you Text field Double tap to edit. Use the ro
+t
+Cancel Button
+Edit profile Heading
+No photo yet , Add your photo Button
+Add banner photo Button
+YOUR NAME
+Nate Text field Double tap to edit.
+BIO
+Release accessibility draft Text field Double tap to edit. Use t
+INGREDIENTS TO AVOID
+For example: peanuts, sesame Text field Double tap to edit. Use
+Separate with commas. Plated skips matching recipes in suggestio
+Apple doesn't share your Apple ID photo with apps.
+Save Button
+That didn’t save. Your draft is still here.
+That didn’t save. Your draft is still here.
+That didn’t save. Your draft is still here.
+That didn’t save. Your draft is still here.
+Save Button
+Save That didn’t save. Your draft is still here. Button
+Save That didn’t save. Your draft is still here. Button
+Save That didn’t save. Your draft is still here. Button
+Apple doesn't share your Apple ID photo with apps.
+Separate with commas. Plated skips matching recipes in suggestio
+For example: peanuts, sesame Text field Double tap to edit. Use
+INGREDIENTS TO AVOID
+Release accessibility draft Text field Double tap to edit. Use t
+BIO
+Nate Text field Double tap to edit.
+YOUR NAME
+Add banner photo Button
+No photo yet , Add your photo Button
+Edit profile Heading
+Cancel Button

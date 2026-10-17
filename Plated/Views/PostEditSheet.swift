@@ -145,7 +145,13 @@ struct PostEditSheet: View {
         failed = false
         post.dishTitle = newTitle
         post.caption = newCaption
-        Persist.save(context, "edit table post")
+        guard Persist.save(context, "edit table post") else {
+            post.dishTitle = oldTitle
+            post.caption = oldCaption
+            saving = false
+            failed = true
+            return
+        }
 
         Task {
             // A post that never published has nothing to republish, and its

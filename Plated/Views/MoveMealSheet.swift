@@ -30,6 +30,9 @@ struct MoveMealSheet: View {
     private var occupant: PlannedMeal? {
         meals.first { $0.persistentModelID != meal.persistentModelID && $0.slot == meal.slot && Calendar.current.isDate($0.date, inSameDayAs: target) }
     }
+    private var sharedOccupant: PlanLedger.Entry? {
+        PlanOccupancy.shared(on: target, slot: meal.slotValue)
+    }
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
@@ -45,7 +48,10 @@ struct MoveMealSheet: View {
                 .fixedSize(horizontal: false, vertical: true)
             DatePicker("New date", selection: $target, in: Date.now.startOfDay..., displayedComponents: .date)
                 .datePickerStyle(.graphical).tint(Color.ink).plChrome()
-            if let occupant {
+            if let sharedOccupant {
+                Text("\(sharedOccupant.title) is planned by your household. Choose another date, or open that night to change it.")
+                    .plType(.footnote).foregroundStyle(Color.inkSecondary)
+            } else if let occupant {
                 Text(occupant.isCooked
                      ? "This meal has already been cooked. Choose another date."
                      : "\(occupant.title) is already planned here. The two meals will swap dates.")
@@ -53,7 +59,7 @@ struct MoveMealSheet: View {
             }
             if let failure { Text(failure).plType(.footnote).foregroundStyle(Color.ink) }
             SecondaryActionButton(title: occupant == nil ? "Move meal" : "Swap meals") { move() }
-                .disabled(Calendar.current.isDate(target, inSameDayAs: meal.date) || occupant?.isCooked == true)
+                .disabled(Calendar.current.isDate(target, inSameDayAs: meal.date) || occupant?.isCooked == true || sharedOccupant != nil)
         }
         .foregroundStyle(Color.ink)
         .padding(24).plFitsOrScrolls()
@@ -65,7 +71,10 @@ struct MoveMealSheet: View {
             failure = "This meal has changed. Close this sheet and check the plan."
             return
         }
-        guard target.startOfDay >= Date.now.startOfDay, occupant?.isCooked != true else { return }
+        guard target.startOfDay >= Date.now.startOfDay, occupant?.isCooked != true, sharedOccupant == nil else {
+            failure = "That night has changed. Choose another date."
+            return
+        }
         let other = occupant, oldDate = meal.date, otherDate = occupant?.date
         meal.date = target.startOfDay
         other?.date = oldDate

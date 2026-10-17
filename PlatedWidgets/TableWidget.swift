@@ -27,7 +27,7 @@ struct TableWidgetView: View {
                 empty
             }
         }
-        .widgetURL(PlatedLink.table)
+        .widgetURL(PlatedLink.item("post", id: card?.recordID, fallback: PlatedLink.table))
         .containerBackground(Plate.canvas, for: .widget)
     }
 

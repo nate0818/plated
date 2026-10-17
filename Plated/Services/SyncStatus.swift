@@ -41,6 +41,14 @@ enum Persist {
     @discardableResult
     @MainActor
     static func save(_ context: ModelContext, _ what: StaticString = "") -> Bool {
+        #if DEBUG
+        let arguments = ProcessInfo.processInfo.arguments
+        if PlatedApp.usesPreviewContainer,
+           let flag = arguments.firstIndex(of: "-plated-review-fail-save"),
+           arguments.indices.contains(flag + 1), arguments[flag + 1] == String(describing: what) {
+            return false
+        }
+        #endif
         guard context.hasChanges else { return true }
         let planChanged = context.insertedModelsArray.contains { $0 is PlannedMeal }
             || context.changedModelsArray.contains { $0 is PlannedMeal }

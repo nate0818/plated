@@ -1075,7 +1075,7 @@ struct PlanNightSheet: View {
             // return the wrong one. The title is the fallback, and a
             // home-written recipe with no key falls to it by design.
             let origin = RemovedNights.addBackOrigin(on: date, slot: slot) ?? ""
-            let recipe = (origin.isEmpty ? nil : recipes.first { $0.originID == origin })
+            let recipe = (origin.isEmpty ? nil : recipes.first { $0.planningKey == origin })
                 ?? recipes.first { $0.title == title }
             if let recipe {
                 meal.recipe = recipe
@@ -1107,7 +1107,7 @@ struct PlanNightSheet: View {
             edit.servings = PlanReplacement.servings(current: remote.servings, defaultValue: recipe.servings)
             edit.hasRecipe = true
             edit.recipeMinutes = recipe.totalMinutes
-            edit.recipeOriginKey = recipe.originID
+            edit.recipeOriginKey = recipe.planningKey
             edit.photo = recipe.photoData == nil ? .clear : .send
             // No bell row here. A local plate posts one about the night this
             // phone planned; this is the reader's own action on somebody
@@ -1656,6 +1656,12 @@ struct GatheringSheet: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
 
+    @Environment(\.dynamicTypeSize) private var typeSize
+    private enum Field: Hashable { case title, location }
+    @FocusState private var focusedField: Field?
+    @State private var saving = false
+    @State private var closeAsked = false
+    @State private var loaded = false
     @State private var title = ""
     @State private var location = ""
     @State private var guests = 4
@@ -1678,11 +1684,23 @@ struct GatheringSheet: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            HStack {
+                Button("Close") { if hasDraft { closeAsked = true } else { dismiss() } }
+                    .plType(.body, .semibold).foregroundStyle(Color.inkSecondary).plTapTarget().disabled(saving)
+                Spacer()
+                if focusedField != nil {
+                    Button("Done") { focusedField = nil }
+                        .plType(.body, .semibold).foregroundStyle(Color.ink).plTapTarget()
+                        .accessibilityLabel("Done editing gathering")
+                }
+            }.plChrome().padding(.horizontal, 24)
             VStack(spacing: 2) {
                 MicroLabel("Plan a gathering")
                 Text(dayLabel)
                     .plType(.title)
                     .foregroundStyle(Color.ink)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .multilineTextAlignment(.center)
             }
             .padding(.top, 22)
             .padding(.bottom, 12)
@@ -1693,15 +1711,21 @@ struct GatheringSheet: View {
                         .plType(.body)
                         .padding(14)
                         .overlay(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous).strokeBorder(Color.hairline))
-                        .plTappableField()
+                        .focused($focusedField, equals: .title)
+                        .plTapToFocus { focusedField = .title }
+                        .submitLabel(.next)
+                        .onSubmit { focusedField = .location }
 
                     TextField("Our place", text: $location)
                         .plType(.body, .medium)
                         .padding(14)
                         .overlay(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous).strokeBorder(Color.hairline))
-                        .plTappableField()
+                        .focused($focusedField, equals: .location)
+                        .plTapToFocus { focusedField = .location }
+                        .submitLabel(.done)
+                        .onSubmit { focusedField = nil }
 
-                    HStack {
+                    (typeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8)) : AnyLayout(HStackLayout())) {
                         Text("Guests")
                             .plType(.body, .bold)
                             .foregroundStyle(Color.ink)
@@ -1720,62 +1744,62 @@ struct GatheringSheet: View {
                     .padding(.vertical, 10)
                     .overlay(RoundedRectangle(cornerRadius: Radius.card, style: .continuous).strokeBorder(Color.hairline))
 
-                    DatePicker("Starts at", selection: $startTime, displayedComponents: .hourAndMinute)
-                        .plType(.body, .bold)
-                        .tint(Color.olive)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 10)
-                        .overlay(RoundedRectangle(cornerRadius: Radius.card, style: .continuous).strokeBorder(Color.hairline))
-
-                    Toggle(isOn: $syncToCalendar) {
-                        HStack(spacing: 12) {
-                            Circle()
-                                .fill(Color.fill)
-                                .frame(width: 40, height: 40)
-                                .overlay {
-                                    Image(systemName: "calendar.badge.plus")
-                                        .font(.system(size: 15, weight: .medium))
-                                        .foregroundStyle(Color.ink)
-                                }
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Add to Apple Calendar")
-                                    .plType(.body, .bold)
-                                    .foregroundStyle(Color.ink)
-                                Text("Saves the event to your calendar. Add guests there.")
-                                    .plType(.caption)
-                                    .foregroundStyle(Color.inkSecondary)
-                            }
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Starts at").plType(.body, .bold)
+                        DatePicker("Starts at", selection: $startTime, displayedComponents: .hourAndMinute)
+                            .labelsHidden().plChrome().tint(Color.olive)
                     }
-                    .toggleStyle(.switch)
-                    .accessibilityLabel("Add to Apple Calendar")
-                    .accessibilityHint("Adds an event you can invite guests from")
-                    .sensoryFeedback(.selection, trigger: syncToCalendar)
-                    .tint(Color.basil)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
-                    .overlay(RoundedRectangle(cornerRadius: Radius.card, style: .continuous).strokeBorder(Color.hairline))
+                    .padding(16)
+                    .overlay(RoundedRectangle(cornerRadius: Radius.card).strokeBorder(Color.hairline))
 
-                    if let syncResult {
-                        Text(syncResult)
-                            .plType(.caption, .semibold)
-                            .foregroundStyle(Color.inkSecondary)
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Apple Calendar").plType(.body, .bold)
+                        Text("Save an event to your calendar. Add guests there.")
+                            .plType(.caption).foregroundStyle(Color.inkSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Toggle("Add event", isOn: $syncToCalendar).plChrome().tint(Color.basil)
+                            .accessibilityLabel("Add to Apple Calendar")
                     }
+                    .padding(16)
+                    .overlay(RoundedRectangle(cornerRadius: Radius.card).strokeBorder(Color.hairline))
+
                 }
+                .disabled(saving)
                 .padding(.horizontal, 24)
                 .padding(.bottom, 16)
             }
+            .scrollDismissesKeyboard(.interactively)
+
+            // A failed Calendar permission request must be visible at the
+            // retry action, even when the form is scrolled to its beginning.
+            if let syncResult {
+                Text(syncResult)
+                    .plType(.caption, .semibold)
+                    .foregroundStyle(Color.inkSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 8)
+            }
 
             PrimaryActionButton(
-                title: savedGathering == nil ? "Save gathering" : "Add to calendar",
+                title: saving ? "Saving…" : (savedGathering == nil ? "Save gathering" : "Save changes"),
                 systemImage: savedGathering == nil ? "party.popper" : "calendar.badge.plus"
             ) {
                 save()
             }
-            .disabled(title.trimmingCharacters(in: .whitespaces).isEmpty)
+            .disabled(saving || title.trimmingCharacters(in: .whitespaces).isEmpty)
+            .plChrome()
             .padding(.horizontal, 24)
             .padding(.bottom, 14)
+        }
+        .onAppear(perform: restoreDraft)
+        .interactiveDismissDisabled(saving || hasDraft)
+        .confirmationDialog("Keep this gathering draft?", isPresented: $closeAsked, titleVisibility: .visible) {
+            Button("Save draft") { keepDraft(); dismiss() }
+            Button("Discard draft", role: .destructive) { UserDefaults.standard.removeObject(forKey: draftKey); dismiss() }
+            Button("Keep editing", role: .cancel) {}
+        } message: {
+            Text(savedGathering == nil ? "You can finish it when you reopen this night." : "The gathering already saved to your plan will stay there.")
         }
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
@@ -1810,57 +1834,102 @@ struct GatheringSheet: View {
         return formatter.string(from: date)
     }
 
+    private var draftKey: String { "gatheringDraft.\(PlanDay.string(date)).\(slot.rawValue)" }
+    private var hasDraft: Bool {
+        let initial = Calendar.current.date(bySettingHour: 18, minute: 0, second: 0, of: date) ?? date
+        return !title.isEmpty || !location.isEmpty || guests != 4 || savedGathering != nil
+            || startTime != initial || !syncToCalendar
+    }
+
+    private func keepDraft() {
+        UserDefaults.standard.set(["title": title, "location": location, "guests": guests,
+            "start": startTime.timeIntervalSince1970, "calendar": syncToCalendar,
+            "saved": savedGathering?.shareRecordName ?? ""], forKey: draftKey)
+    }
+    private func restoreDraft() {
+        guard !loaded else { return }; loaded = true
+        guard let draft = UserDefaults.standard.dictionary(forKey: draftKey) else { return }
+        title = draft["title"] as? String ?? ""; location = draft["location"] as? String ?? ""
+        guests = draft["guests"] as? Int ?? 4
+        if let time = draft["start"] as? Double { startTime = Date(timeIntervalSince1970: time) }
+        syncToCalendar = draft["calendar"] as? Bool ?? true
+        if let key = draft["saved"] as? String, !key.isEmpty {
+            savedGathering = (try? context.fetch(FetchDescriptor<Gathering>()))?.first { $0.shareRecordName == key }
+        }
+    }
+
     private func save() {
-        Haptic.plate()
-        let gathering: Gathering
-        if let existing = savedGathering {
-            // Second pass only ever means "the calendar didn't take" — the
-            // party itself is already saved and on the plan.
-            gathering = existing
-        } else {
-            gathering = Gathering(
-                title: title.trimmingCharacters(in: .whitespaces),
-                startDate: startTime,
-                guestCount: guests,
-                location: location.trimmingCharacters(in: .whitespaces)
-            )
+        guard !saving else { return }
+        let isNew = savedGathering == nil
+        if isNew, attachedMeal == nil {
+            let meals = (try? context.fetch(FetchDescriptor<PlannedMeal>())) ?? []
+            guard !PlanOccupancy.isOccupied(on: date, slot: slot, local: meals) else {
+                syncResult = "This night has just been planned. Close this draft and open the night to add your gathering."
+                keepDraft()
+                return
+            }
+        }
+        saving = true
+        let gathering = savedGathering ?? Gathering()
+        let old = (gathering.title, gathering.location, gathering.startDate, gathering.endDate, gathering.guestCount)
+        let previousGathering = attachedMeal?.gathering
+        let oldMealTitles = gathering.meals.map { ($0, $0.customTitle, $0.tagline) }
+        var insertedMeal: PlannedMeal?
+        var notice: PlatedNotification?
+        gathering.title = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        gathering.location = location.trimmingCharacters(in: .whitespacesAndNewlines)
+        gathering.startDate = startTime; gathering.endDate = startTime.addingTimeInterval(3 * 3600)
+        gathering.guestCount = guests
+        if isNew {
             context.insert(gathering)
-            if let attachedMeal {
-                attachedMeal.gathering = gathering
-            } else {
-                // A gathering planned on an open night used to save into a
-                // record no screen shows — the plate haptic fired, the bell
-                // rang, and the night still read "Nothing plated" everywhere.
-                // The party occupies the night it's on.
+            if let attachedMeal { attachedMeal.gathering = gathering }
+            else {
                 let meal = PlannedMeal(date: date, slot: slot, customTitle: gathering.title)
-                meal.gathering = gathering
-                meal.tagline = "Cooking for \(guests)"
-                context.insert(meal)
-            }
-            Notifier.post(
-                .mealPlanned, actor: "",
-                body: "\(gathering.title), \(dayLabel). Cooking for \(guests).",
-                into: context
-            )
-            savedGathering = gathering
-        }
-        if syncToCalendar {
-            Task {
-                do {
-                    try await CalendarSync.shared.sync(gathering)
-                    syncResult = "Added to your calendar"
-                    try? await Task.sleep(for: .seconds(1))
-                    dismiss()
-                    onDone()
-                } catch {
-                    // The raw EventKit error read like the save failed.
-                    // It didn't — say what's true, in our voice.
-                    syncResult = "The gathering is saved. Your calendar wasn't updated."
-                }
+                meal.gathering = gathering; meal.tagline = "Cooking for \(guests)"
+                context.insert(meal); insertedMeal = meal
             }
         } else {
-            dismiss()
-            onDone()
+            for meal in gathering.meals where meal.recipe == nil {
+                meal.customTitle = gathering.title; meal.tagline = "Cooking for \(guests)"
+            }
         }
+        if isNew {
+            let activity = PlatedNotification(kind: .mealPlanned, actorName: "",
+                body: "\(gathering.title), \(dayLabel). Cooking for \(guests).")
+            context.insert(activity); notice = activity
+        }
+        guard Persist.save(context, "save gathering") else {
+            gathering.title = old.0; gathering.location = old.1; gathering.startDate = old.2
+            gathering.endDate = old.3; gathering.guestCount = old.4
+            attachedMeal?.gathering = previousGathering
+            for (meal, title, tagline) in oldMealTitles { meal.customTitle = title; meal.tagline = tagline }
+            if let insertedMeal { context.delete(insertedMeal) }
+            if isNew { context.delete(gathering) }
+            if let notice { context.delete(notice) }
+            saving = false; syncResult = "Couldn't save the gathering. Your draft is still here."
+            keepDraft(); return
+        }
+        savedGathering = gathering
+        keepDraft()
+        guard syncToCalendar else { complete(); return }
+        Task {
+            do {
+                try await CalendarSync.shared.sync(gathering)
+                guard Persist.save(context, "save calendar event reference") else {
+                    saving = false
+                    syncResult = "The calendar event was added, but its link couldn't be saved. Keep this screen open and try Save changes again."
+                    return
+                }
+                complete()
+            } catch {
+                saving = false
+                syncResult = "Saved to your plan. Calendar wasn’t updated. \(error.localizedDescription)"
+            }
+        }
+    }
+    private func complete() {
+        saving = false
+        UserDefaults.standard.removeObject(forKey: draftKey)
+        Haptic.plate(); dismiss(); onDone()
     }
 }
