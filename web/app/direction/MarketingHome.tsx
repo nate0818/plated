@@ -38,7 +38,7 @@ export default function MarketingHome() {
           </div>
         </div>
         <figure className={styles.heroPhoto}>
-          <Image src="/hero-kitchen-plated.webp" alt="Plated’s landscape iPad meal plan on a sunlit kitchen island" width={1536} height={1024} sizes="(max-width: 760px) 180vw, 960px" priority />
+          <Image src="/hero-kitchen-plated-818.webp" alt="Plated’s landscape iPad meal plan on a sunlit kitchen island" width={1536} height={1024} sizes="(max-width: 760px) 180vw, 960px" priority />
         </figure>
         <ul className={styles.principles} aria-label="What your household shares" data-reveal="stagger">{benefits.map(benefit => <li key={benefit.title}><svg viewBox="0 0 30 30" width="30" height="30" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden="true">{benefit.icon}</svg><h3>{benefit.title}</h3><p>{benefit.detail}</p></li>)}</ul>
       </section>
