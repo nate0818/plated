@@ -123,4 +123,21 @@ privacy answers and the public privacy URL must match before a public App Store
 release; see `app-store-privacy-disclosures.md`. Website edits outside the privacy
 page belong to another task and are excluded from this notification commit.
 
-TestFlight upload/distribution status is recorded below after Apple processing.
+## Release artifact
+
+- App version 1.0.1, build 41; code commit `e6371a4`, pushed to `origin/main`.
+- Archive/export succeeded. Exported IPA has `aps-environment=production`,
+  CloudKit `Production`, and `UIBackgroundModes=[remote-notification]`.
+- IPA SHA-256: `fdd2bd4777f6bffeae5c719a1c309994c7591cb7966ae606a911670f7e0c1e35`.
+- Apple upload succeeded at 07:56 UTC, delivery
+  `52c8e7e6-e32f-43cd-9cf8-fb14a19be99d`. Apple processing is VALID; both
+  Internal and External are IN_BETA_TESTING. The External group explicitly
+  includes build 41; Internal has all-build access. Automatic tester
+  notifications are enabled. English testing instructions were saved and read
+  back through App Store Connect.
+- External link: https://testflight.apple.com/join/2exAQgYs.
+- Public privacy page verified at `https://plated.food/privacy`: October 18 date
+  and Shared activity notifications section. Vercel production deployment
+  `dpl_8AfkHf7XM3LDozp7NGA8n12jVdtZ` is READY for commit `e6371a4` (42 seconds).
+  This was the existing Git deployment triggered by the authorized push.
+  Runtime log/drain monitoring was not audited as part of this static policy edit.

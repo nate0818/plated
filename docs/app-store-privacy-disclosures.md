@@ -1,4 +1,4 @@
-# App Store privacy disclosures for Plated 1.0.0
+# App Store privacy disclosures for Plated 1.0.1
 
 Updated: October 18, 2026 — build 41
 
@@ -9,7 +9,7 @@ or legal review where required.
 
 ## Summary
 
-**Proceed with conditions.** For the current 1.0.0 binary, answer **Yes, we
+**Proceed with conditions.** For the current 1.0.1 binary, answer **Yes, we
 collect data from this app**, then declare these eight types:
 
 | App Store category | Data type | Purpose | Linked to the user | Used for tracking |
@@ -74,7 +74,7 @@ The bundled manifest is updated. App Store Connect labels must be updated before
 public App Store release; editing this file does not publish those answers.
 Definitions: [Apple collected data types](https://developer.apple.com/documentation/bundleresources/app-privacy-configuration/nsprivacycollecteddatatypes/nsprivacycollecteddatatype).
 
-## Data intentionally not selected for 1.0.0
+## Data intentionally not selected for 1.0.1
 
 | Data or feature | Why it is not another App Store data type in this binary |
 |---|---|
@@ -122,7 +122,7 @@ Required role: Account Holder, Admin or App Manager.
 |---|---|---|
 | The deployed `/register` source is missing from this repository | High | Restore and audit the exact production source before publishing the label or changing the Sign in with Apple protocol. |
 | Automatic Sign in with Apple token revocation is not implemented | High | Complete and live-test the server exchange/encrypted refresh-token/revocation flow in `docs/sign-in-with-apple-deletion.md`. |
-| Production privacy page is older than the candidate policy | High | Deploy and verify `plated.food/privacy` before publishing disclosures or submitting. |
+| Public privacy page | Complete | October 18 policy verified live at `plated.food/privacy`; keep it aligned with future changes. |
 | Notification server now processes selected shared activity | High | Publish the updated policy and eight-type App Store disclosure before public release. Real device authentication and delivery still require verification. |
 | A future report service may store message text, media or reporter details | Medium | Re-evaluate Customer Support and Other User Content; update the policy, manifest and App Store answers first. |
 | Instacart is later enabled | Medium | Audit the production partner's retention and privacy terms, disclose any transmitted grocery content, and update policy/label before flipping the feature flag. |
@@ -134,7 +134,7 @@ Required role: Account Holder, Admin or App Manager.
 | Code/data-flow review | Engineering | Complete for current source; production `/register` remains unverified |
 | Privacy/legal review | Release owner / qualified reviewer | Pending |
 | App Store Connect entry and Product Page Preview | Account Holder, Admin or App Manager | Pending; UI authentication required |
-| Published production privacy URL verification | Release owner | Pending Vercel deployment |
+| Published production privacy URL verification | Engineering | October 18 policy verified live from commit e6371a4 |
 
 Any change to server fields, integrated partners, analytics, reporting payloads,
 CloudKit access, or enabled feature flags requires this disclosure map to be
