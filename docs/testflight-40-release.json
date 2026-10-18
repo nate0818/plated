@@ -1,0 +1,171 @@
+{
+  "version": "1.0.1",
+  "build": "40",
+  "archive": "build/releases/40/Plated.xcarchive",
+  "ipa": "build/releases/40/export/Plated.ipa",
+  "ipaSHA256": "4749fff5e62051df1fbf6e9f1832fe8e616658cc259c091569d6e7e255918c59",
+  "binaryAndDSYMUUID": "7925536A-02AA-3329-BA0E-41F3273C61AF",
+  "sourceUnchangedDuringArchive": true,
+  "signatureVerification": "passed",
+  "privacyManifestValidation": "passed",
+  "targets": [
+    {
+      "bundle": "com.natemeadows.plated",
+      "version": "1.0.1",
+      "build": "40",
+      "entitlements": {
+        "application-identifier": "JA9M6TYXYL.com.natemeadows.plated",
+        "aps-environment": "production",
+        "beta-reports-active": true,
+        "com.apple.developer.applesignin": [
+          "Default"
+        ],
+        "com.apple.developer.associated-domains": [
+          "applinks:plated.food"
+        ],
+        "com.apple.developer.icloud-container-environment": "Production",
+        "com.apple.developer.icloud-container-identifiers": [
+          "iCloud.com.natemeadows.plated"
+        ],
+        "com.apple.developer.icloud-services": [
+          "CloudKit"
+        ],
+        "com.apple.developer.team-identifier": "JA9M6TYXYL",
+        "com.apple.developer.ubiquity-kvstore-identifier": "JA9M6TYXYL.com.natemeadows.plated",
+        "com.apple.developer.usernotifications.communication": true,
+        "com.apple.developer.usernotifications.time-sensitive": true,
+        "com.apple.developer.weatherkit": true,
+        "com.apple.security.application-groups": [
+          "group.com.natemeadows.plated"
+        ],
+        "get-task-allow": false
+      }
+    },
+    {
+      "bundle": "com.natemeadows.plated.widgets",
+      "version": "1.0.1",
+      "build": "40",
+      "entitlements": {
+        "application-identifier": "JA9M6TYXYL.com.natemeadows.plated.widgets",
+        "beta-reports-active": true,
+        "com.apple.developer.team-identifier": "JA9M6TYXYL",
+        "com.apple.security.application-groups": [
+          "group.com.natemeadows.plated"
+        ],
+        "get-task-allow": false
+      }
+    }
+  ],
+  "uploadState": "VALID",
+  "sourceCommit": "bab8b62b18099a70f03c8c5cee39d55705b71622",
+  "nativeTests": {
+    "passed": 481,
+    "skipped": 4,
+    "failed": 0
+  },
+  "uiTests": {
+    "passed": 22,
+    "skipped": 0,
+    "failed": 0
+  },
+  "liveMultiAccountVerified": false,
+  "deliveryID": "d7d16e59-d8fa-45c0-b724-b2a41b787a38",
+  "uploadBytes": 17539071,
+  "appStoreConnectBuildID": "d7d16e59-d8fa-45c0-b724-b2a41b787a38",
+  "beta": {
+    "autoNotifyEnabled": true,
+    "internalBuildState": "IN_BETA_TESTING",
+    "externalBuildState": "IN_BETA_TESTING"
+  },
+  "groups": [
+    {
+      "id": "d4ceeaaa-518a-439b-8df8-7a2bbd795d69",
+      "name": "Internal",
+      "internal": true,
+      "all_builds": true,
+      "public_link": null,
+      "builds": [
+        "1",
+        "2",
+        "3",
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "11",
+        "12",
+        "13",
+        "14",
+        "15",
+        "16",
+        "17",
+        "18",
+        "19",
+        "20",
+        "21",
+        "24",
+        "25",
+        "26",
+        "27",
+        "28",
+        "29",
+        "30",
+        "31",
+        "32",
+        "33",
+        "34",
+        "35",
+        "36",
+        "37",
+        "38",
+        "39",
+        "40"
+      ]
+    },
+    {
+      "id": "21ee2218-8e43-49da-b27f-dbc543824a80",
+      "name": "External",
+      "internal": false,
+      "all_builds": false,
+      "public_link": "https://testflight.apple.com/join/2exAQgYs",
+      "builds": [
+        "2",
+        "10",
+        "11",
+        "12",
+        "13",
+        "14",
+        "15",
+        "16",
+        "17",
+        "18",
+        "19",
+        "20",
+        "21",
+        "24",
+        "25",
+        "26",
+        "27",
+        "28",
+        "29",
+        "30",
+        "31",
+        "32",
+        "33",
+        "34",
+        "35",
+        "36",
+        "37",
+        "38",
+        "39",
+        "40"
+      ]
+    }
+  ],
+  "distributionCheckedAt": "2026-10-18T00:37:37.195217+00:00",
+  "testerNotesVerified": true,
+  "individualTestersCarriedForward": 0
+}

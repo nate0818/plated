@@ -11,3 +11,9 @@ Detailed findings, screenshot evidence, test matrix, and limitations: [header-co
 Plated suite: 485 total; 481 passed, four optional Calendar tests skipped, zero failures (`build/header-controls-40-unit.xcresult`). Design, native/widget/web tokens, and 159 recorded deployed CloudKit fields pass their checks.
 
 Header UI matrix: 22/22 passed across compact iPhone, iPhone 17 Pro, and iPad, including VoiceOver speech. Light/dark and largest-text captures were reviewed. Physical activation and live two-account delivery were not repeated. Distribution is recorded in testflight-40-release.json after Apple processing.
+
+## Distribution
+
+Source commit: bab8b62b18099a70f03c8c5cee39d55705b71622. Apple accepted the 17,539,071-byte upload without errors. Signature, production entitlement, privacy-manifest, dSYM and unchanged-source checks passed. At 2026-10-18T00:37:37.195217+00:00, build 40 was VALID with both internal and external states IN_BETA_TESTING. Internal and External both include build 40, automatic tester notifications are enabled, and the tester notes were read back successfully. Build 39 had no individual testers to carry forward. Older builds remain available. The package is retained in build/releases/40; the full receipt is testflight-40-release.json.
+
+TestFlight: https://testflight.apple.com/join/2exAQgYs
