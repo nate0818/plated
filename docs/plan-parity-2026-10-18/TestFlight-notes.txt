@@ -1,0 +1,10 @@
+Plan is now more consistent across your own meals and shared household dinners.
+
+• A quieter greeting, compact date row, and month control make today easier to scan.
+• Dinner puts the cook, preparation time, servings, and next action together.
+• Eating out has a clear place action and an easy way to change the plan.
+• Weather, household dinner history, recent activity, and tomorrow’s preview use less space and clearer hierarchy.
+• Recent planning activity credits the person who planned or changed the meal.
+• iPad keeps its horizontal, two-column layout.
+
+Please update to build 44 on both household phones. Check Plan with a shared dinner, an unplanned day, eating out, and a completed meal. Phone notification delivery and live two-account sync still need testing on real devices.

@@ -234,4 +234,19 @@ final class ApprovedPolishTests: XCTestCase {
         XCTAssertFalse(app.buttons["Start cooking"].exists)
         capture("plan-parity-future")
     }
+
+    func testNextDayPreviewAtLargestTextOpensTheCorrectDinner() {
+        launch(["-plated-fake-weather", "-plated-review-household-activity"], light: true, large: true)
+        let next = app.buttons["plan-next-day"]
+        for _ in 0..<10 {
+            if next.isHittable && next.frame.maxY < app.buttons["tray-week"].frame.minY { break }
+            app.scrollViews["plan-selected-day-content"].swipeUp()
+        }
+        XCTAssertTrue(next.isHittable)
+        XCTAssertLessThanOrEqual(next.frame.maxX, app.frame.maxX)
+        capture("plan-parity-next-day-AX5")
+        next.tap()
+        XCTAssertTrue(app.buttons["View recipe"].waitForExistence(timeout: 8))
+        XCTAssertEqual(app.buttons["featured-dinner-card"].label, "Pizza Night")
+    }
 }

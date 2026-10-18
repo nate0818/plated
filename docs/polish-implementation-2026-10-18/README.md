@@ -1,5 +1,10 @@
 # Approved polish implementation
 
+**Correction:** build 43 only partially implemented the approved Plan proposal.
+The checked implementation list below records that release's scope, not complete
+visual parity. See [the Plan correction and verification record](../plan-parity-2026-10-18/README.md)
+for the missing states and subsequent fixes.
+
 Nate approved all 15 comparison screens in `docs/design-polish-review-2026-10-18` on October 18 and requested launch. This authorizes implementing the proposed design and releasing to the existing internal/external TestFlight audience. It does not turn illustrative people, counts, weather or notification examples into production data.
 
 Experience contract: standard SwiftUI profile; Plan answers dinner/cook/next action, Table prioritizes people and content, Recipes supports selection and cooking, Groceries prioritizes shopping. Preserve current native navigation, data ownership, frozen cooking sessions, household permissions, draft persistence, attribution and existing tested sync behavior. Adapt to narrow iPhone, horizontal iPad windows and accessibility text. Nate subsequently requested landscape-only iPad; both landscape orientations are declared while iPhone orientation support is unchanged. No new decorative motion; use existing reduced-motion-aware transitions and opaque semantic surfaces.
