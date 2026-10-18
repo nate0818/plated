@@ -33,7 +33,21 @@ from the push payload, which carries no truth of its own.
 A silent push is not delivered to an app the person has force-quit, and
 is deferred in Low Power Mode. Plated does not work around that with an
 extension (see `docs/open-decisions.md` §16). The bell catches up on the
-next open: every return to the front pulls, at most once a minute.
+next open. `ForegroundSync` starts a read when the app becomes active,
+then waits five seconds between completed reads while the Table, a thread,
+Activity, or household screen is visible, and fifteen seconds elsewhere.
+Failures back off to sixty seconds. It stops scheduling on inactivity or
+background; CloudKit push hints still trigger immediate reads through the
+same serialization gate. These intervals are scheduling intervals, not
+end-to-end delivery guarantees.
+
+**October 17 release blocker:** this fallback addresses refresh-dependent
+foreground activity, but social lock-screen alerts still depend on the
+silent CloudKit wake-up. The deployed directory endpoint sends invitations,
+not comments, reactions, or invitation acceptance. Reliable visible social
+push delivery remains unfinished; see
+[the delivery audit](social-delivery-2026-10-17.md). A simulator run does not
+verify phone delivery.
 
 Every pull, from the push, the feed, an accepted share, a tapped notice or
 the front door, goes through `TablePull`, one at a time. A pull that lands

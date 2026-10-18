@@ -60,10 +60,10 @@ final class ShareAcceptor: NSObject, UIApplicationDelegate {
             forName: .CKAccountChanged, object: nil, queue: .main
         ) { _ in
             Task { @MainActor in
-                let before = TableIdentity.cached
-                guard let now = await TableIdentity.confirm() else { return }
-                guard now != before, !before.hasPrefix("local-") else { return }
-                TableIdentity.reset(becoming: now)
+                guard await TableIdentity.confirmAndReattribute(in: PlatedStore.shared.mainContext) != nil
+                else { return }
+                await TableShare.subscribe(force: true)
+                await TablePull.pull(reason: "account-change")
             }
         }
         return true
@@ -108,28 +108,13 @@ final class ShareAcceptor: NSObject, UIApplicationDelegate {
         // pushes, so a CloudKit round trip that hangs must not take the
         // completion handler down with it. The work carries on; only the
         // answer is given up on.
-        Task {
-            let finished = await withTaskGroup(of: Bool.self) { group -> Bool in
-                group.addTask {
-                    // One pull at a time: a push landing mid-refresh joins
-                    // the refresh and runs once more after it, rather than
-                    // racing it for the same change token.
-                    await TablePull.pull(reason: "push")
-                    return true
-                }
-                group.addTask {
-                    try? await Task.sleep(for: .seconds(24))
-                    return false
-                }
-                let first = await group.next() ?? false
-                group.cancelAll()
-                return first
+        Task { @MainActor in
+            let reply = BackgroundFetchCompletion { succeeded in
+                if !succeeded { print("[Push] fetch failed or exceeded the background budget") }
+                completion(succeeded ? (TablePull.lastReadHadChanges ? .newData : .noData) : .failed)
             }
-            await MainActor.run {
-                NotificationCenter.default.post(name: Self.didChangeRemotely, object: nil)
-            }
-            if !finished { print("[Push] fetch overran the background budget") }
-            completion(finished ? .newData : .failed)
+            await TablePull.pull(reason: "push")
+            reply.finish(TablePull.lastReadSucceeded)
         }
     }
 

@@ -810,20 +810,45 @@ enum TableShare {
     /// moment to fetch — which is right here, because the notification a
     /// person should see is the one the app decides to raise after it knows
     /// what actually arrived, not "something changed in a database".
-    static func subscribe() async {
+    @MainActor private static var subscriptionCheckRunning = false
+    @MainActor private static var subscriptionCheckIdentity = ""
+    @MainActor private static var subscriptionRetryAt = Date.distantPast
+
+    @MainActor
+    static func subscribe(force: Bool = false) async {
+        guard !subscriptionCheckRunning else { return }
+        let identity = TableIdentity.cached
+        guard force || identity != subscriptionCheckIdentity || Date.now >= subscriptionRetryAt else { return }
+        subscriptionCheckRunning = true
+        defer { subscriptionCheckRunning = false }
+        var succeeded = true
         for (db, id) in [(container.privateCloudDatabase, "plated-private-v1"),
                          (container.sharedCloudDatabase, "plated-shared-v1")] {
             // Already there is the common case, and CKError.serverRejectedRequest
             // is what a duplicate looks like. Asking every launch is cheap
             // and means a subscription lost to a signed-out account comes
             // back on its own.
-            if (try? await db.subscription(for: id)) != nil { continue }
-            let subscription = CKDatabaseSubscription(subscriptionID: id)
-            let info = CKSubscription.NotificationInfo()
-            info.shouldSendContentAvailable = true
-            subscription.notificationInfo = info
-            _ = try? await db.save(subscription)
+            do {
+                do {
+                    _ = try await db.subscription(for: id)
+                    continue
+                } catch let error as CKError where error.code == .unknownItem {
+                    // Only a confirmed missing subscription needs creating.
+                }
+                let subscription = CKDatabaseSubscription(subscriptionID: id)
+                let info = CKSubscription.NotificationInfo()
+                info.shouldSendContentAvailable = true
+                subscription.notificationInfo = info
+                _ = try await db.save(subscription)
+                print("[Push] installed \(id)")
+            } catch {
+                succeeded = false
+                print("[Push] subscription \(id) failed; will retry: \(error.localizedDescription)")
+            }
         }
+        subscriptionCheckIdentity = identity
+        subscriptionRetryAt = Date.now.addingTimeInterval(succeeded ? 6 * 3600 : 60)
+        if succeeded { print("[Push] both CloudKit subscriptions verified") }
     }
 
     // MARK: Reactions on the wire
@@ -1212,10 +1237,19 @@ enum TableShare {
         /// or a change token CloudKit refused. The news treats such a
         /// delta as history to be windowed, not as a day's events.
         var replayed = false
+        /// Failure is not an empty, successful Table. The foreground reader
+        /// uses it to back off and the feed can report a connection problem.
+        var failed = false
+
+        var hasEvents: Bool {
+            !posts.isEmpty || !reactions.isEmpty || !notes.isEmpty || !plans.isEmpty
+                || !claims.isEmpty || !deleted.isEmpty || sharesChanged
+                || householdShareChanged || replayed || !replayedOwners.isEmpty
+        }
     }
 
     static func fetchChanges() async -> Changes {
-        guard await TableSync.accountAvailable() else { return Changes() }
+        guard await TableSync.accountAvailable() else { return Changes(failed: true) }
         var all = Changes()
         for (db, isPrivate) in [(container.privateCloudDatabase, true),
                                 (container.sharedCloudDatabase, false)] {
@@ -1235,6 +1269,7 @@ enum TableShare {
             all.sharesChanged = all.sharesChanged || part.sharesChanged
             all.householdShareChanged = all.householdShareChanged || part.householdShareChanged
             all.replayed = all.replayed || part.replayed
+            all.failed = all.failed || part.failed
         }
         return all
     }
@@ -1247,7 +1282,13 @@ enum TableShare {
     /// own table from the beginning on every pull.
     private static func postChanges(in db: CKDatabase, isPrivate: Bool) async -> Changes {
         var found = Changes()
-        guard let zones = try? await db.allRecordZones() else { return found }
+        let zones: [CKRecordZone]
+        do { zones = try await db.allRecordZones() }
+        catch {
+            found.failed = true
+            print("[TableSync] \(isPrivate ? "private" : "shared") zone listing failed: \(error.localizedDescription)")
+            return found
+        }
         // The Table's zones, and only those. The household zone sits in the
         // same private database and carries the plan, but a zone has exactly
         // one reader of its change token and the household's is
@@ -1321,15 +1362,20 @@ enum TableShare {
                 found.householdShareChanged = found.householdShareChanged || part.householdShareChanged
                 found.replayed = found.replayed || part.replayed
             } catch {
-                // A stale token after a zone is re-shared is the common
-                // case. Forget this zone's and the next pull re-reads it
-                // whole; the other zone's token survives, and so does
-                // what this zone had already delivered: none of it, so
-                // nothing partial is folded anywhere.
-                forgetToken(for: zone.zoneID)
+                found.failed = true
+                // A timeout is not an expired cursor. Keeping it preserves
+                // incremental delivery and avoids downloading every photo
+                // again after a brief loss of Wi-Fi.
+                if shouldResetCursor(after: error) { forgetToken(for: zone.zoneID) }
+                print("[TableSync] zone read failed: \(error.localizedDescription)")
             }
         }
         return found
+    }
+
+    static func shouldResetCursor(after error: Error) -> Bool {
+        guard let cloud = error as? CKError else { return false }
+        return [.changeTokenExpired, .zoneNotFound, .userDeletedZone].contains(cloud.code)
     }
 
     // MARK: Who is at the table
@@ -2447,9 +2493,13 @@ enum TableShare {
                      var claims: [Claim] = []
                      var deleted: Set<String> = []
                      var sharesChanged = false; var replayed = false
-                     var replayedOwners: Set<String> = []; var householdShareChanged = false }
+                     var replayedOwners: Set<String> = []; var householdShareChanged = false
+                     var failed = false
+                     var hasEvents: Bool { !posts.isEmpty || !reactions.isEmpty || !notes.isEmpty
+                         || !plans.isEmpty || !claims.isEmpty || !deleted.isEmpty || sharesChanged
+                         || householdShareChanged || replayed || !replayedOwners.isEmpty } }
     static func pushNote(_ comment: TableComment, post: String, zoneOwner: String) async -> Bool { false }
-    static func subscribe() async {}
+    static func subscribe(force: Bool = false) async {}
     static func pushPlate(post: String, zoneOwner: String, author: String,
                           authorName: String, active: Bool, at: Date) async -> Bool { false }
     static func pushBallot(post: String, zoneOwner: String, author: String,

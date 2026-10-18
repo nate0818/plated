@@ -31,9 +31,15 @@ final class TableOutbox {
         /// Failed attempts. A write that keeps being refused backs off
         /// rather than hammering the network on every pull.
         var tries: Int = 0
+        var retryAfter: Date?
+
+        func isReady(at now: Date = .now) -> Bool {
+            retryAfter.map { $0 <= now } ?? true
+        }
     }
 
     private var entries: [Entry] = []
+    private var sending: Set<String> = []
     /// One short-lived sender for a burst of plate / ballot taps.
     ///
     /// Reactions used to sit in the durable queue until an unrelated pull
@@ -164,6 +170,10 @@ final class TableOutbox {
         let work = entries.sorted { $0.at < $1.at }
         for entry in work {
             guard !entry.author.hasPrefix("local-") else { continue }
+            guard entry.isReady(), !sending.contains(entry.id),
+                  entries.contains(entry) else { continue }
+            sending.insert(entry.id)
+            defer { sending.remove(entry.id) }
             let ok: Bool
             switch entry.work {
             case let .plate(post, owner, active):
@@ -211,6 +221,10 @@ final class TableOutbox {
         }
         for entry in work {
             guard !entry.author.hasPrefix("local-") else { continue }
+            guard entry.isReady(), !sending.contains(entry.id),
+                  entries.contains(entry) else { continue }
+            sending.insert(entry.id)
+            defer { sending.remove(entry.id) }
             let ok: Bool
             switch entry.work {
             case let .plate(post, owner, active):
@@ -231,12 +245,13 @@ final class TableOutbox {
     }
 
     private func recordFailure(at index: Int) {
-        entries[index].tries += 1
-        // Twenty refusals is not a network blip, it is a write that will
-        // never land — a post deleted at the far end, most likely. Dropping
-        // it is honest; retrying forever is a queue that never drains and a
-        // battery that never rests.
-        if entries[index].tries > 20 { entries.remove(at: index) }
+        entries[index].tries = min(100, entries[index].tries + 1)
+        // The transport returns Bool, so a refusal cannot distinguish an
+        // offline phone from a deleted post. Never discard someone's words
+        // on that guess. Back off; a newer edit replaces the queued intent.
+        entries[index].retryAfter = Date.now.addingTimeInterval(
+            min(300, 5 * pow(2, Double(min(entries[index].tries, 6))))
+        )
         save()
     }
 

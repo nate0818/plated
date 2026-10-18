@@ -182,7 +182,8 @@ enum TableNews {
         _ changes: TableShare.Changes,
         newSeats: [HouseholdMember] = [],
         plans: PlanLedger.Delta = PlanLedger.Delta(),
-        context: ModelContext
+        context: ModelContext,
+        save: @MainActor (ModelContext) -> Bool = { Persist.save($0, "table news") }
     ) async {
         // Even a delta that raises nothing teaches who is who.
         learnNames(from: changes)
@@ -207,9 +208,9 @@ enum TableNews {
         for n in notices where n.writesRow {
             writeRow(n, context: context)
         }
-        remember(notices.map(\.key))
         dedupeRows(context)
-        Persist.save(context, "table news")
+        guard save(context) else { return }
+        remember(notices.map(\.key))
         AppBadge.sync(context)
         print("[TableNews] \(notices.count) notice(s): \(notices.map(\.kind.rawValue))")
         await show(notices)

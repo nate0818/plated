@@ -16,9 +16,10 @@ import SwiftData
 /// push that lands mid-refresh: the second pass picks up what the first
 /// fetch was too early for.
 ///
-/// The household zone (docs/household.md) goes through the same gate: both
-/// outboxes drain first, so a push that just happened is not read back as
-/// somebody else's change, then the Table zone, then the household zone.
+/// The household zone goes through the same gate. Social writes drain
+/// before the reads; bulk household publication follows them so a cookbook
+/// upload cannot delay the next incoming comment. Digests exclude our own
+/// identity regardless of which side of the read a write lands on.
 ///
 /// One reader owns the household zone's cursor, and it is
 /// `HouseholdShare.fetchChanges`. What it walks past is two different
@@ -32,19 +33,14 @@ import SwiftData
 enum TablePull {
     private static var inFlight: Task<Void, Never>?
     private static var again = false
-    private static var lastPull: Date?
+    private static var maintenanceRequested = false
+    private static var lastMaintenance: Date?
     private(set) static var lastHouseholdReadSucceeded = false
-
-    /// Foreground pulls are throttled: `.active` fires after every
-    /// permission sheet and every tab flip, and a table does not change
-    /// that often. An accept or a join is a moment, never throttled.
-    private static let foregroundGap: TimeInterval = 60
+    private(set) static var lastReadSucceeded = false
+    private(set) static var lastReadHadChanges = false
 
     static func pull(reason: String) async {
-        if reason == "foreground", let last = lastPull,
-           Date.now.timeIntervalSince(last) < foregroundGap {
-            return
-        }
+        maintenanceRequested = maintenanceRequested || reason != "automatic"
         if let running = inFlight {
             again = true
             print("[Pull] \(reason) joined an in-flight pull")
@@ -52,14 +48,23 @@ enum TablePull {
             return
         }
         let task = Task { @MainActor in
+            lastReadHadChanges = false
             repeat {
                 again = false
                 let context = PlatedStore.shared.mainContext
-                // Which household this phone is in, asked before anything
-                // pushes or merges. The cache is per device and can lag a
-                // join made on another one; on a failed listing this returns
-                // the cache unchanged, so it is safe to ask every pass.
-                _ = await HouseholdShare.refreshMembership()
+                // Keep the visible feed current without repeating account,
+                // subscription and full publication maintenance every tick.
+                let maintenance = maintenanceRequested
+                    || (lastMaintenance.map { Date.now.timeIntervalSince($0) >= 60 } ?? true)
+                maintenanceRequested = false
+                // Recheck membership before maintenance writes. Incremental
+                // reads in between still process share changes and removal.
+                if maintenance {
+                    _ = await HouseholdShare.refreshMembership()
+                    lastMaintenance = .now
+                    Task { await TableShare.subscribe() }
+                    Task { await Directory.retryDeviceRegistration() }
+                }
                 // The Table outbox looks a queued comment up by name at send
                 // time; without a resolver it reads "no such comment" as
                 // "deleted before it went" and discards it. The feed and the
@@ -71,21 +76,29 @@ enum TablePull {
                 await TableOutbox.shared.drain(authorName: Seats.all(in: context).me?.name ?? "")
                 // Claims that failed on accept get another try here, so an
                 // Invited row on the host does not stick after a seated join.
-                await TableClaimOutbox.drain()
-                await HouseholdOutbox.shared.drain(context: context)
+                if maintenance {
+                    await TableClaimOutbox.drain()
+                }
 
                 let changes = await TableShare.fetchChanges()
-                await ShareAcceptor.absorb(changes)
+                if maintenance || changes.hasEvents { await ShareAcceptor.absorb(changes) }
                 // Main cleaned these after every merge. Every merge is here now.
-                await TableShare.removeSchemaProbes(from: context)
+                if maintenance { await TableShare.removeSchemaProbes(from: context) }
 
                 let household = await HouseholdShare.fetchChanges()
                 lastHouseholdReadSucceeded = !household.failed && !household.zoneGone
-                await HouseholdSync.absorb(household, context: context)
+                lastReadSucceeded = !changes.failed && !household.failed
+                lastReadHadChanges = lastReadHadChanges || changes.hasEvents
+                    || !household.isEmpty || household.sharesChanged || household.zoneGone
+                    || household.plan.hasEvents
+                if maintenance || !household.isEmpty || household.sharesChanged
+                    || household.zoneGone || household.replayed {
+                    await HouseholdSync.absorb(household, context: context)
+                }
                 // The merge can repair an older overwritten profile or
                 // consume a fresh reinvitation. Publish that repair now.
-                await HouseholdOutbox.shared.drain(context: context)
-                if case .hosting = HouseholdShare.membership {
+                if maintenance { await HouseholdOutbox.shared.drain(context: context) }
+                if maintenance, case .hosting = HouseholdShare.membership {
                     await Seats.settleStuckInvites(in: context)
                 }
                 // The nights the same walk collected, handed to the pipe
@@ -102,14 +115,14 @@ enum TablePull {
                 // A member whose Table accept failed at join is seated at
                 // the household's Table the next time iCloud answers
                 // (docs/household.md section 7, step 1).
-                await HouseholdSync.ensureTableJoined()
+                if maintenance { await HouseholdSync.ensureTableJoined() }
 
-                lastPull = .now
                 print("[Pull] \(reason): \(changes.posts.count) posts, \(changes.notes.count) notes, \(changes.reactions.count) reactions\(changes.sharesChanged ? ", seats" : ""); household \(household.seats.count) seats, \(household.recipes.count) recipes, \(plan.plans.count) plans\(household.zoneGone ? ", zone gone" : "")")
                 // This phone's own nights go out AFTER both folds, and not
                 // awaited: a publish pass is CloudKit round trips of its
                 // own, and a silent push's budget is spent on the fetch.
-                PlanShare.schedule(reason: "pull")
+                if maintenance { PlanShare.schedule(reason: "pull") }
+                NotificationCenter.default.post(name: ShareAcceptor.didChangeRemotely, object: nil)
             } while again
             // Cleared here, as the task's last act, and not after the
             // await below resumes: a pull landing in that gap would join

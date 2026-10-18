@@ -220,8 +220,8 @@ struct TableFeedView: View {
         guard !Task.isCancelled else { return }
         switch outcome {
         case .arrived, .quiet:
-            reach = .reached
-            Haptic.tap()
+            reach = TablePull.lastReadSucceeded ? .reached : .unreachable
+            if TablePull.lastReadSucceeded { Haptic.tap() } else { Haptic.warn() }
         case .failed:
             reach = .unreachable
             Haptic.warn()
@@ -531,7 +531,10 @@ struct TableFeedView: View {
                 .onReceive(NotificationCenter.default.publisher(
                     for: ShareAcceptor.didChangeRemotely
                 )) { _ in
-                    Task { await refreshFeed() }
+                    // The central reader has already merged the change.
+                    // Starting another pull here creates a refresh loop and
+                    // plays pull-to-refresh haptics for background activity.
+                    reach = TablePull.lastReadSucceeded ? .reached : .unreachable
                 }
                 // A notice about one dish opens that dish. The request is
                 // parked by the shell; the feed collects it here, or on

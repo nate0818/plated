@@ -43,6 +43,20 @@ final class TableNewsTests: XCTestCase {
 
     // MARK: Preferences and mute
 
+    func testFailedPersistenceDoesNotConsumeANotificationBeforeItsRetry() async {
+        UserDefaults.standard.set(false, forKey: TableNews.tableOnKey)
+        var changes = TableShare.Changes()
+        changes.posts = [remoteDish(by: "riley", id: "save-retry")]
+        let expected = TableNews.digest(changes, newSeats: [], context: context)
+        XCTAssertEqual(expected.count, 1)
+        await TableNews.deliver(changes, context: context, save: { _ in false })
+        XCTAssertFalse(TableNews.seenKeys().contains(expected[0].key))
+        XCTAssertEqual(TableNews.digest(changes, newSeats: [], context: context).count, 1)
+        await TableNews.deliver(changes, context: context)
+        XCTAssertTrue(TableNews.seenKeys().contains(expected[0].key))
+        XCTAssertTrue(TableNews.digest(changes, newSeats: [], context: context).isEmpty)
+    }
+
     func testACategorySwitchedOffKeepsTheNoticeToTheList() {
         var changes = TableShare.Changes()
         changes.posts = [remoteDish(by: "riley", id: "1")]

@@ -269,6 +269,10 @@ struct PlatedApp: App {
                     Self.applyRoomLighting(appearance)
                 }
                 .onAppear { Self.applyRoomLighting(appearance) }
+                .onChange(of: scenePhase, initial: true) { _, phase in
+                    guard !Self.usesPreviewContainer else { return }
+                    ForegroundSync.shared.setActive(phase == .active)
+                }
                 .task {
                     guard !Self.usesPreviewContainer else { return }
                     await SyncStatus.shared.refresh()
@@ -512,7 +516,8 @@ struct PlatedApp: App {
                         // A silent push is not delivered to an app that was
                         // force-quit, and is deferred in Low Power Mode. The
                         // next time the app is in front, it asks.
-                        await TablePull.pull(reason: "foreground")
+                        // ForegroundSync owns the immediate read and ongoing
+                        // catch-up, including a launch that starts active.
                     }
                 }
             }

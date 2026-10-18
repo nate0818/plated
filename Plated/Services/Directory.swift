@@ -1,5 +1,6 @@
 import Foundation
 import Contacts
+import CryptoKit
 
 /// Who else is on Plated.
 ///
@@ -39,6 +40,8 @@ enum Directory {
     static func clearSession() {
         token = nil
         UserDefaults.standard.removeObject(forKey: deletionRequestKey)
+        let store = UserDefaults(suiteName: WidgetBridge.appGroupID) ?? .standard
+        store.removeObject(forKey: "plated.apns.registrationBinding")
     }
 
     private static var token: String? {
@@ -93,6 +96,16 @@ enum Directory {
     /// is an invitation from a person whose table this phone is not at yet,
     /// which no CloudKit subscription can carry because the share does not
     /// exist on this side until it is accepted.
+    @MainActor private static var deviceRegistrationRunning = false
+
+    @MainActor
+    static func retryDeviceRegistration() async {
+        let store = UserDefaults(suiteName: WidgetBridge.appGroupID) ?? .standard
+        guard let latest = store.string(forKey: "plated.apns.latest"), !latest.isEmpty else { return }
+        await registerDevice(apnsToken: latest)
+    }
+
+    @MainActor
     static func registerDevice(apnsToken: String) async {
         let store = UserDefaults(suiteName: WidgetBridge.appGroupID) ?? .standard
         // Kept whether or not there is a session yet. APNs hands the token
@@ -100,21 +113,36 @@ enum Directory {
         // without this the first registration never carried a token.
         store.set(apnsToken, forKey: "plated.apns.latest")
         guard let token else { return }
+        guard !deviceRegistrationRunning else { return }
+        deviceRegistrationRunning = true
+        defer { deviceRegistrationRunning = false }
         let last = store.string(forKey: "plated.apns.registered") ?? ""
         let when = store.double(forKey: "plated.apns.registeredAt")
-        let stale = Date.now.timeIntervalSince1970 - when > 7 * 24 * 3600
-        guard apnsToken != last || stale else { return }
         #if DEBUG
         let sandbox = true
         #else
         let sandbox = false
         #endif
+        // A token previously registered by another signed-in person (or a
+        // different APNs environment) does not register this session. Keep
+        // only the digest here; the directory credential stays in Keychain.
+        let binding = registrationBinding(session: token, sandbox: sandbox)
+        let oldBinding = store.string(forKey: "plated.apns.registrationBinding")
+        let stale = Date.now.timeIntervalSince1970 - when > 7 * 24 * 3600
+        guard apnsToken != last || stale || oldBinding != binding else { return }
         let body: [String: Any] = [
             "api_token": token, "apns_token": apnsToken, "sandbox": sandbox
         ]
         guard await post("device", body: body) != nil else { return }
         store.set(apnsToken, forKey: "plated.apns.registered")
         store.set(Date.now.timeIntervalSince1970, forKey: "plated.apns.registeredAt")
+        store.set(binding, forKey: "plated.apns.registrationBinding")
+        print("[Push] device registered for \(sandbox ? "sandbox" : "production")")
+    }
+
+    static func registrationBinding(session: String, sandbox: Bool) -> String {
+        SHA256.hash(data: Data("\(session)|\(sandbox)".utf8))
+            .map { String(format: "%02x", $0) }.joined()
     }
 
     /// Nudge somebody already on Plated that a seat is waiting.
