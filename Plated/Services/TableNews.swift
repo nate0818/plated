@@ -1035,7 +1035,7 @@ enum TableNews {
                 authorName: $0.actor
             )
         }
-        let heard = unblocked.filter(NewsPreferences.allows)
+        let heard = await SocialPush.localFallback(unblocked.filter(NewsPreferences.allows))
         if unblocked.count != notices.count {
             print("[TableNews] \(notices.count - unblocked.count) notice(s) hidden by a local Table block")
         }
@@ -1285,15 +1285,31 @@ enum TableNews {
         // on the iPad sat in Notification Centre on the iPhone until the
         // person swiped it away by hand.
         let unreadKeys = Set(unread.map { idPrefix + $0.eventKey })
+        let readRows = (try? context.fetch(FetchDescriptor<PlatedNotification>(
+            predicate: #Predicate { $0.isRead }
+        ))) ?? []
+        let readEventKeys = Set(readRows.flatMap { $0.eventKey.split(separator: "|").map(String.init) })
+        let unreadEventKeys = Set(unread.flatMap { $0.eventKey.split(separator: "|").map(String.init) })
         let center = UNUserNotificationCenter.current()
-        let delivered = await center.deliveredNotifications()
+        let notifications = await center.deliveredNotifications()
+        let delivered = notifications
             .filter { $0.request.identifier.hasPrefix(idPrefix) }
             .map { (id: $0.request.identifier,
                     post: $0.request.content.userInfo[NotificationRouter.Key.post] as? String ?? "") }
-        let stale = staleDelivered(
+        var stale = staleDelivered(
             delivered: delivered, unreadPosts: unreadPosts, unreadKeys: unreadKeys
         )
+        stale += notifications.filter {
+            let info = $0.request.content.userInfo
+            return info["source"] as? String == "social-v1" && staleRemoteNotice(
+                key: info["noticeKey"] as? String ?? "", readKeys: readEventKeys, unreadKeys: unreadEventKeys)
+        }.map(\.request.identifier)
         if !stale.isEmpty { center.removeDeliveredNotifications(withIdentifiers: stale) }
+    }
+
+    static func staleRemoteNotice(key: String, readKeys: Set<String>, unreadKeys: Set<String>) -> Bool {
+        // APNs can arrive before CloudKit. Absence of a local row is not a read receipt.
+        !key.isEmpty && readKeys.contains(key) && !unreadKeys.contains(key)
     }
 
     /// Which delivered notices no longer have an unread row behind them.
@@ -1337,7 +1353,7 @@ enum TableNews {
 
     /// "Reply" from a comment notice: the same comment `PostThreadView`
     /// would have written, addressed to the person who wrote to you.
-    static func reply(post record: String, to actor: String, text: String, context: ModelContext) async {
+    static func reply(post record: String, to actor: String, text: String, parent: String? = nil, context: ModelContext) async {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, let post = find(record, in: context) else { return }
         let typed = UserDefaults.standard.string(forKey: "userFirstName") ?? ""
@@ -1347,9 +1363,15 @@ enum TableNews {
             replyToName: actor,
             authorID: TableIdentity.cached
         )
+        if let parent,
+           let original = (try? context.fetch(FetchDescriptor<TableComment>()))?.first(where: {
+               $0.shareRecordName == parent && $0.post?.shareRecordName == record
+           }) {
+            comment.parentCommentID = original.shareRecordName
+        }
         comment.post = post
         context.insert(comment)
-        Persist.save(context, "reply from notice")
+        guard Persist.save(context, "reply from notice") else { return }
         if await TableShare.pushNote(comment, post: record, zoneOwner: post.shareZoneOwner) == false {
             TableOutbox.shared.enqueue(
                 .note(post: record, zoneOwner: post.shareZoneOwner, id: comment.shareRecordName),

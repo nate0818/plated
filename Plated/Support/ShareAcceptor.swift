@@ -87,15 +87,16 @@ final class ShareAcceptor: NSObject, UIApplicationDelegate {
     ) {
         // Only ours. A notification for another container is not a reason to
         // spend somebody's battery on a fetch.
-        guard let note = CKNotification(fromRemoteNotificationDictionary: info),
-              note.subscriptionID?.hasPrefix("plated-") == true else {
+        let note = CKNotification(fromRemoteNotificationDictionary: info)
+        let social = info["source"] as? String == "social-v1"
+        guard social || note?.subscriptionID?.hasPrefix("plated-") == true else {
             // Printed rather than dropped: an empty console after a push
             // is indistinguishable from the push never arriving.
             print("[Push] ignored a remote notification: \(info.keys.map { "\($0)" })")
             completion(.noData)
             return
         }
-        print("[Push] silent push from \(note.subscriptionID ?? "?")")
+        print("[Push] refresh hint from \(social ? "social delivery" : (note?.subscriptionID ?? "?"))")
         // Fetch here, in the delegate, rather than leaving it to whichever
         // view happens to be alive. With the app in the background no view
         // is, and a silent push that nobody fetched for is a push that

@@ -928,9 +928,11 @@ enum TableShare {
         )
         record.setParent(CKRecord.ID(recordName: "table-root", zoneID: zoneID))
         fill(record)
-        return await saveReaction(record,
+        let ok = await saveReaction(record,
             fetch: { try await db.record(for: $0) },
             save: { try await db.save($0) })
+        if ok { await SocialPush.confirmed(record) }
+        return ok
     }
 
     /// A delayed offline write must not replace a newer reaction on the server.
@@ -1016,6 +1018,7 @@ enum TableShare {
         record["parent"] = CKRecord.Reference(recordID: rootID, action: .deleteSelf)
         record.setParent(rootID)
         let ok = await saveChangedKeys(record, in: db)
+        if ok { await SocialPush.confirmed(record) }
         print("PLATED SHARE: claim for invitation \(inviteID) \(ok ? "written" : "refused")")
         return ok
     }
@@ -1083,7 +1086,8 @@ enum TableShare {
         defer { if let temp { try? FileManager.default.removeItem(at: temp) } }
 
         do {
-            _ = try await db.save(record)
+            let saved = try await db.save(record)
+            await SocialPush.confirmed(saved)
             return true
         } catch { return false }
     }

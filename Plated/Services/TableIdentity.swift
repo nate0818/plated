@@ -150,6 +150,7 @@ enum TableIdentity {
     /// old account and go; the answer to "who am I" was just established and
     /// does not.
     static func reset(becoming newIdentity: String? = nil) {
+        SocialPush.reset()
         store.removeObject(forKey: key)
         TableOutbox.shared.clear()
         TableLedger.shared.clear()

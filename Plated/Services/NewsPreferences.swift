@@ -82,7 +82,10 @@ enum NewsPreferences {
     /// Table lights the screen and the icon stops counting.
     static var tableOn: Bool {
         get { UserDefaults.standard.object(forKey: TableNews.tableOnKey) as? Bool ?? true }
-        set { UserDefaults.standard.set(newValue, forKey: TableNews.tableOnKey) }
+        set {
+            UserDefaults.standard.set(newValue, forKey: TableNews.tableOnKey)
+            SocialPush.requestSync()
+        }
     }
 
     // MARK: Categories
@@ -95,6 +98,7 @@ enum NewsPreferences {
 
     static func set(_ category: Category, on: Bool) {
         UserDefaults.standard.set(on, forKey: category.key)
+        SocialPush.requestSync()
     }
 
     /// Which switch governs a notice. A dish you were tagged in, and a
@@ -177,6 +181,7 @@ enum NewsPreferences {
         var all = mutedPosts()
         if muted { all.insert(record) } else { all.remove(record) }
         store.set(Array(all).sorted(), forKey: mutedKey)
+        SocialPush.requestSync()
         print("[News] \(muted ? "muted" : "unmuted") \(record)")
     }
 

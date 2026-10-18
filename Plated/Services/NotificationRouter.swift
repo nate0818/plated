@@ -123,6 +123,9 @@ final class NotificationRouter: NSObject, UNUserNotificationCenterDelegate {
         willPresent notification: UNNotification
     ) async -> UNNotificationPresentationOptions {
         let info = notification.request.content.userInfo
+        if info["source"] as? String == "social-v1" {
+            Task { @MainActor in await TablePull.pull(reason: "social-push") }
+        }
         let post = info[Key.post] as? String ?? ""
         let kind = info[Key.kind] as? String ?? ""
         let actor = info[Key.actor] as? String ?? ""
@@ -152,6 +155,7 @@ final class NotificationRouter: NSObject, UNUserNotificationCenterDelegate {
         } else {
             print("[Notify] presenting \(kind.isEmpty ? "a reminder" : kind) in front")
         }
+        if notification.request.content.interruptionLevel == .passive { return [.list] }
         return options
     }
 
@@ -189,6 +193,9 @@ final class NotificationRouter: NSObject, UNUserNotificationCenterDelegate {
         didReceive response: UNNotificationResponse
     ) async {
         let info = response.notification.request.content.userInfo
+        if info["source"] as? String == "social-v1" {
+            await TablePull.pull(reason: "social-notification-opened")
+        }
         let post = info[Key.post] as? String ?? ""
         let kind = info[Key.kind] as? String ?? ""
         let actor = info[Key.actor] as? String ?? ""
@@ -207,7 +214,7 @@ final class NotificationRouter: NSObject, UNUserNotificationCenterDelegate {
             await plateNotificationPost(post)
         case Action.reply:
             let text = (response as? UNTextInputNotificationResponse)?.userText ?? ""
-            await replyToNotificationPost(post, actor: actor, text: text)
+            await replyToNotificationPost(post, actor: actor, text: text, parent: info["comment"] as? String)
         case Action.grocery:
             await MainActor.run { LinkRelay.open(DeepLink.url(.grocery)) }
         default:
@@ -230,9 +237,9 @@ final class NotificationRouter: NSObject, UNUserNotificationCenterDelegate {
     }
 
     @MainActor
-    private func replyToNotificationPost(_ post: String, actor: String, text: String) async {
+    private func replyToNotificationPost(_ post: String, actor: String, text: String, parent: String?) async {
         await TableNews.reply(
-            post: post, to: actor, text: text,
+            post: post, to: actor, text: text, parent: parent,
             context: PlatedStore.shared.mainContext
         )
     }

@@ -25,6 +25,7 @@ export interface Push {
   link: string;
   thread?: string;
   sound?: boolean;
+  contentAvailable?: boolean;
   category?: string;
   level?: "passive" | "active";
   priority?: 5 | 10;
@@ -199,12 +200,13 @@ async function tokenDiagnostic(token: string): Promise<string> {
   ).join("");
 }
 
-function payload(push: Push): string {
+export function notificationPayload(push: Push): string {
   const aps: Record<string, unknown> = {
     alert: { title: push.title, body: push.body },
     "thread-id": push.thread ?? "table",
   };
   if (push.sound !== false) aps.sound = "default";
+  if (push.contentAvailable) aps["content-available"] = 1;
   if (push.level) aps["interruption-level"] = push.level;
   if (push.category) aps.category = push.category;
   return JSON.stringify({ aps, link: push.link, ...(push.extra ?? {}) });
@@ -230,7 +232,7 @@ export async function sendOne(device: APNsDevice, push: Push): Promise<PushResul
   }
   const home: APNSEnvironment = device.apns_environment ?? (device.sandbox ? "sandbox" : "production");
   const diagnostic = await tokenDiagnostic(device.apns_token);
-  const first = await post(home, device.apns_token, providerJWT, push, payload(push));
+  const first = await post(home, device.apns_token, providerJWT, push, notificationPayload(push));
   const firstClass = classifyAPNsResponse(first.status, first.reason);
   if (firstClass.invalidateProviderToken) cachedProviderToken = null;
   if (firstClass.kind === "accepted") {
@@ -248,7 +250,7 @@ export async function sendOne(device: APNsDevice, push: Push): Promise<PushResul
   // stale. The other gateway gets one attempt. A transient second response can
   // never delete the token.
   const other = alternate(home);
-  const second = await post(other, device.apns_token, providerJWT, push, payload(push));
+  const second = await post(other, device.apns_token, providerJWT, push, notificationPayload(push));
   const secondClass = classifyAPNsResponse(second.status, second.reason);
   if (secondClass.invalidateProviderToken) cachedProviderToken = null;
   if (secondClass.kind === "accepted") {

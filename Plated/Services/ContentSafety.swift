@@ -285,6 +285,7 @@ final class ContentSafety {
     private func save() {
         guard let data = try? JSONEncoder().encode(blockedAuthors) else { return }
         defaults.set(data, forKey: Self.blockedKey)
+        SocialPush.requestSync()
     }
 
     private static func isSelf(

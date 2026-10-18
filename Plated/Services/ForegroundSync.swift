@@ -5,7 +5,10 @@ import Foundation
 @MainActor
 final class ForegroundSync {
     static let shared = ForegroundSync(
-        pull: { await TablePull.pull(reason: "automatic") },
+        pull: {
+            await TablePull.pull(reason: "automatic")
+            SocialPush.requestSync()
+        },
         succeeded: { TablePull.lastReadSucceeded },
         engaged: {
             let screen = Presence.shared

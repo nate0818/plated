@@ -97,6 +97,7 @@ enum ShareParticipantRemoval {
                 let result = try await database.modifyRecords(saving: [share], deleting: [])
                 guard let saved = result.saveResults[share.recordID] else { return false }
                 _ = try saved.get()
+                await SocialPush.roomChanged(rootID)
                 return true
             } catch let error as CKError where error.code == .unknownItem || error.code == .zoneNotFound {
                 return true

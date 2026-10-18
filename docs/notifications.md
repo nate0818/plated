@@ -1,6 +1,6 @@
 # Notifications
 
-How Plated reaches a person who is not holding it. Three mechanisms, one
+How Plated reaches a person who is not holding it. Four mechanisms, one
 voice, and a set of rules that decide when to say nothing, which is most of
 the time.
 
@@ -12,6 +12,7 @@ the time.
 | CloudKit silent push, then a local banner | Everything at the Table: dishes, asks, comments, plates, votes, seats | `ShareAcceptor` fetches, `TableNews` decides | notification permission |
 | CloudKit silent push, then a local banner | Everything in the household: a seat joined or left, a night another phone planned, a recipe added, an edit that lost | `TablePull` drives it, `HouseholdShare` reads the zone, `ShareAcceptor.absorb` folds the nights into `PlanLedger` and hands the rest to `HouseholdSync`, `TableNews` decides | notification permission |
 | APNs through the directory | An invitation to somebody already on Plated, to their Table or their household | `supabase/functions/invite` | APNs key on the server |
+| Verified social APNs (build 41) | Comments/replies on your posts or comments, reactions, votes, accepted invitations | `SocialPush` submits a confirmed record; `supabase/functions/social` verifies CloudKit and queues delivery | upgraded sender and recipient, directory session, native CloudKit proof, notification permission |
 
 The middle two rows are one mechanism over two shared zones, and each zone
 has exactly one reader. The nights do **not** ride the Table zone: a Table
@@ -41,13 +42,13 @@ background; CloudKit push hints still trigger immediate reads through the
 same serialization gate. These intervals are scheduling intervals, not
 end-to-end delivery guarantees.
 
-**October 17 release blocker:** this fallback addresses refresh-dependent
-foreground activity, but social lock-screen alerts still depend on the
-silent CloudKit wake-up. The deployed directory endpoint sends invitations,
-not comments, reactions, or invitation acceptance. Reliable visible social
-push delivery remains unfinished; see
-[the delivery audit](social-delivery-2026-10-17.md). A simulator run does not
-verify phone delivery.
+**October 18 implementation:** build 41 adds the visible social APNs path;
+the silent-push/local path remains for older clients and other activity.
+An atomic per-device event route prevents both paths from claiming the same
+alert. Both phones must open the new build to register before testing new
+activity. Server retry processing is deployed, but real native CloudKit
+authentication and lock-screen delivery remain unverified without the phones.
+See [implementation and phone checks](social-notifications-2026-10-18.md).
 
 Every pull, from the push, the feed, an accepted share, a tapped notice or
 the front door, goes through `TablePull`, one at a time. A pull that lands

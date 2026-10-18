@@ -16,6 +16,7 @@ enum AppleIdentity {
     /// directory. The token exists only here and only for minutes, so this
     /// is the one moment registration can happen. A false return means
     /// Keychain never got the id: sharing and invites stay dark.
+    @MainActor
     @discardableResult
     static func accept(_ credential: ASAuthorizationAppleIDCredential, displayName: String) -> Bool {
         let saved = save(credential.user)
@@ -33,6 +34,7 @@ enum AppleIdentity {
     /// True when the identifier is durably stored. A false return means
     /// revocation checking is dark until the next successful sign-in —
     /// callers should at least leave a trace in the console.
+    @MainActor
     @discardableResult
     static func save(_ userID: String) -> Bool {
         if load() != userID { Directory.clearSession() }

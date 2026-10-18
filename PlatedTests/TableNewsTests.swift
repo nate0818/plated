@@ -43,6 +43,16 @@ final class TableNewsTests: XCTestCase {
 
     // MARK: Preferences and mute
 
+    func testRemoteAlertWaitsForCloudKitBeforeReadReconciliation() {
+        XCTAssertFalse(TableNews.staleRemoteNotice(key: "note:reply", readKeys: [], unreadKeys: []))
+        XCTAssertFalse(TableNews.staleRemoteNotice(key: "", readKeys: [""], unreadKeys: []))
+    }
+
+    func testRemoteAlertIsWithdrawnOnlyAfterItsRowIsRead() {
+        XCTAssertTrue(TableNews.staleRemoteNotice(key: "note:reply", readKeys: ["note:reply"], unreadKeys: []))
+        XCTAssertFalse(TableNews.staleRemoteNotice(key: "note:reply", readKeys: ["note:reply"], unreadKeys: ["note:reply"]))
+    }
+
     func testFailedPersistenceDoesNotConsumeANotificationBeforeItsRetry() async {
         UserDefaults.standard.set(false, forKey: TableNews.tableOnKey)
         var changes = TableShare.Changes()

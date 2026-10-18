@@ -2560,6 +2560,7 @@ enum HouseholdShare {
                 guard let candidate = byName[name] else { continue }
                 switch results[record.recordID] {
                 case .success(let saved):
+                    await SocialPush.confirmed(saved)
                     let at = saved["modifiedAt"] as? Date ?? candidate.entry.at
                     candidate.saved(at)
                     outcomes[name] = .saved(modifiedAt: at)
@@ -2622,6 +2623,7 @@ enum HouseholdShare {
             switch answer.saved[rootID] {
             case .success:
                 acknowledgeAccessEdits(accessEdits, server: outgoing.removedIDs)
+                if !accessEdits.isEmpty { SocialPush.roomChanged(rootID) }
                 groupDefaults.set(root.name, forKey: Keys.lastSyncedName)
                 groupDefaults.set(root.name, forKey: Keys.name)
                 print("PLATED HOUSEHOLD: root pushed")

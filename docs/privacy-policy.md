@@ -1,18 +1,18 @@
 # Plated privacy policy
 
-**Last updated: 23 September 2026**
+**Last updated: 18 October 2026**
 
 Plated is a meal planner for a household. Your recipes, plans, photos and
-household stay in your own iCloud account. Plated runs one small server, a
-directory, and this page says exactly what it holds. The developer cannot see
-your recipes, your plans, your household, or your photos.
+household are stored in your iCloud account. Plated also runs a directory and
+notification service, described below. Notification delivery temporarily
+processes selected shared records; it does not copy your cookbook or photos.
 
 ## In your iCloud
 
 Your recipes, meal plans, grocery lists, household members, gatherings, photos,
 posts to your Table and cooking history are saved on your device and synced
-through **your** private iCloud database using Apple's CloudKit. No copy is sent
-to the developer or to any other company.
+through **your** private iCloud database using Apple's CloudKit. The notification
+service processes the limited shared activity described below.
 
 If you join a household, the plan, the grocery list, the cookbook and the
 people list are shared with the other members of that household through
@@ -36,7 +36,7 @@ or remove their access, and can be undone from the Table's People screen.
 
 Plated keeps a directory so the app can answer one question: which of your
 contacts already use Plated. iOS no longer offers a way to answer that on the
-device, so the directory is the one part of Plated that is not in your iCloud.
+device. The directory and notification service are hosted outside your iCloud.
 It holds a salted hash of your phone number, never the number itself (the salt
 lives only on the server, so the table cannot be turned back into a phone
 book), the first name you already show your household, your Apple account
@@ -44,8 +44,8 @@ identifier, and a token that lets your phone ask the directory questions. It
 also holds the opaque push-notification token issued by Apple, the app version
 and build, its release channel, whether iOS currently permits notifications,
 your Plated News preference, and the last registration refresh time. Plated
-uses these details only to deliver invitations and rare service notices and to
-diagnose delivery failures.
+uses these details to deliver invitations, shared activity and rare service
+notices, and to diagnose delivery failures.
 
 The directory is used for two things. When you look for contacts already on
 Plated, the phone numbers from your address book are sent to the server over
@@ -64,6 +64,28 @@ the invited number already belongs to a Plated account, its private CloudKit
 share link is sent to the server only to compose that immediate notification
 and is not stored. The remaining invitation metadata is retained for 30 days
 for abuse limits and operational troubleshooting, then deleted.
+
+## Shared activity notifications
+
+To deliver phone alerts without waiting for the recipient to open Plated, the
+app sends a short-lived Apple authorization token and a reference to a confirmed
+comment, reaction or accepted invitation to Plated's Supabase notification
+service in the United States. The service uses that token to verify the sender,
+read the referenced shared record and its related post or comment, and check
+current share membership. The authorization token is used only during that
+request and is never stored. Photos and recipe contents are not fetched.
+
+The service keeps verified iCloud account identifiers, a device identifier,
+Apple push tokens, notification preferences, muted thread and blocked account
+identifiers, and a time-zone name. Notification text can include the sender's
+name, a post title and a short comment excerpt. That text and delivery status
+are retained for at most three days for delivery retries and troubleshooting;
+duplicate-prevention identifiers are retained for at most eight days. Apple
+receives the notification payload to deliver it to the intended device.
+
+Notification preferences control phone alerts. Muting or blocking is private;
+the other person is not informed. The in-app activity list remains in iCloud.
+Account deletion removes device registrations and related delivery records.
 
 ## Information Plated never collects
 
@@ -86,8 +108,8 @@ SDKs of any kind. Nothing you do in the app is measured, profiled, or sold.
   your own Reminders list.
 - **Photos**: photos you add to a recipe are stored with that recipe in your own
   iCloud account.
-- **Notifications**: let Plated tell you about a seat shared with you or a rare
-  service notice. Your choice is optional. Plated stores the delivery details
+- **Notifications**: let Plated tell you about invitations, household joins,
+  comments, replies, reactions and rare service notices. Your choice is optional. Plated stores the delivery details
   described above and removes a device token when Apple reports that it is no
   longer valid.
 

@@ -37,7 +37,9 @@ enum Directory {
     private static let deletionRequestKey = "plated.directory.deletion-request"
 
     static var isRegistered: Bool { token != nil }
+    @MainActor
     static func clearSession() {
+        SocialPush.reset()
         token = nil
         UserDefaults.standard.removeObject(forKey: deletionRequestKey)
         let store = UserDefaults(suiteName: WidgetBridge.appGroupID) ?? .standard
@@ -103,6 +105,7 @@ enum Directory {
         let store = UserDefaults(suiteName: WidgetBridge.appGroupID) ?? .standard
         guard let latest = store.string(forKey: "plated.apns.latest"), !latest.isEmpty else { return }
         await registerDevice(apnsToken: latest)
+        SocialPush.requestSync()
     }
 
     @MainActor
@@ -287,7 +290,7 @@ enum Directory {
             throw AccountDeletionError.invalidResponse
         }
         try accountDeletionSucceeded(statusCode: http.statusCode, data: data)
-        clearSession()
+        await clearSession()
     }
 
     /// Kept separate from transport so the destructive-success boundary can be
