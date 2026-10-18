@@ -150,4 +150,14 @@ final class ProfileIdentityTests: XCTestCase {
         let local = PlannedMeal(customTitle: "New local title"); local.shoppingID = "test"; context.insert(local)
         XCTAssertNil(PlanMemberEvent.latest(member: sam, roster: [sam], meals: [local], remote: [entry], recorded: nil, now: now))
     }
+
+    func testPrivateUnstampedPlanBelongsToTheCurrentAccountNotTheCook() {
+        let owner = person("Nate", id: TableIdentity.cached, role: "owner")
+        let sam = person("Sam", id: "sam-id")
+        let now = Date.now
+        let meal = PlannedMeal(customTitle: "Pizza", cook: sam)
+        meal.createdAt = now.addingTimeInterval(-60); context.insert(meal)
+        XCTAssertEqual(PlanMemberEvent.latest(member: owner, roster: [owner, sam], meals: [meal], remote: [], recorded: nil, now: now)?.line, "Planned Pizza")
+        XCTAssertNil(PlanMemberEvent.latest(member: sam, roster: [owner, sam], meals: [meal], remote: [], recorded: nil, now: now))
+    }
 }

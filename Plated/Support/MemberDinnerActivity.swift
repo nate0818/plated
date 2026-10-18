@@ -75,9 +75,12 @@ struct PlanMemberEvent {
         var events: [Self] = recorded.map { [Self(line: $0.line, date: $0.date, dinnerDate: nil)] } ?? []
         let localIDs = Set(meals.filter { !$0.isDeleted }.compactMap(\.shoppingID))
         for meal in meals where !meal.isDeleted && meal.hasDish && !meal.isCooked
-            && meal.createdAt >= start && meal.createdAt <= now && !meal.authorID.isEmpty {
-            guard ProfileIdentity.matches(authorID: meal.authorID, authorName: "", member: member,
-                profileName: member.name, roster: roster) else { continue }
+            && meal.createdAt >= start && meal.createdAt <= now {
+            // Like PlanRowVoice, an unstamped private meal belongs to the
+            // current account. Its assigned cook may be someone else.
+            let isAuthor = meal.authorID.isEmpty ? member.isMe : ProfileIdentity.matches(authorID: meal.authorID, authorName: "", member: member,
+                profileName: member.name, roster: roster)
+            guard isAuthor else { continue }
             events.append(Self(line: "Planned \(meal.title)", date: meal.createdAt, dinnerDate: meal.date))
         }
         for entry in remote where entry.hasDish && !entry.cooked && entry.pendingSince == nil
