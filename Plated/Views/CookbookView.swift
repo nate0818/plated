@@ -281,7 +281,7 @@ struct CookbookView: View {
                         ActivityBellButton(size: 44) { activityShown = true }
                         AccountButton()
                     }
-                }.padding(.horizontal, 24)
+                }.padding(.horizontal, Spacing.page)
                 HStack(spacing: 10) {
                     Image(systemName: "magnifyingglass").font(.system(size: 18)).foregroundStyle(Color.inkSecondary)
                     TextField("Find a dish or ingredient", text: $filter.searchText).plType(.body)
@@ -297,7 +297,8 @@ struct CookbookView: View {
                 }
                 .padding(.leading, 16).padding(.trailing, 5).frame(minHeight: 52)
                 .background(Color.fill, in: Radius.shape(Radius.chip))
-                .padding(.horizontal, 24).padding(.top, 16)
+                .padding(.horizontal, Spacing.page).padding(.top, 16)
+                libraryCollections.padding(.horizontal, Spacing.page).padding(.top, 8)
                 }
                 ScrollViewReader { scroll in
                 ScrollView {
@@ -311,7 +312,7 @@ struct CookbookView: View {
                             .foregroundStyle(Color.inkSecondary)
                             .fixedSize(horizontal: false, vertical: true)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal, 24)
+                            .padding(.horizontal, Spacing.page)
                             .padding(.top, 16)
                             .transition(.plUnfold)
                     }
@@ -349,7 +350,7 @@ struct CookbookView: View {
                         pinned: recipes.reduce(0) { $0 + ($1.isPinned ? 1 : 0) },
                         favorites: recipes.reduce(0) { $0 + ($1.isFavorite ? 1 : 0) }
                     ))
-                    .padding(.horizontal, 24)
+                    .padding(.horizontal, Spacing.page)
                     .padding(.top, 20)
                     .padding(.bottom, shown.isEmpty ? 0 : Layout.floatingChromeInset)
 
@@ -595,7 +596,7 @@ struct CookbookView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.top, 40)
-        .padding(.horizontal, 24)
+        .padding(.horizontal, Spacing.page)
     }
 
     /// The one household line the shelf can carry (docs/household.md §7
@@ -725,6 +726,33 @@ struct CookbookView: View {
         ]
     }
 
+    private var libraryCollections: some View {
+        let layout = typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 0))
+            : AnyLayout(HStackLayout(spacing: 20))
+        return layout {
+            ForEach([RecipeFilter.Collection.all, .favorites], id: \.self) { collection in
+                Button { Haptic.select(); filter.collection = collection } label: {
+                    Text(collection.rawValue).plType(.caption, filter.collection == collection ? .semibold : .regular)
+                        .foregroundStyle(filter.collection == collection ? Color.ink : Color.inkSecondary)
+                        .frame(minHeight: 44)
+                        .overlay(alignment: .bottom) {
+                            Color.olive.opacity(filter.collection == collection ? 1 : 0).frame(height: 2)
+                        }
+                }.buttonStyle(.plain).accessibilityAddTraits(filter.collection == collection ? .isSelected : [])
+            }
+            Menu {
+                ForEach(RecipeFilter.Collection.allCases) { collection in
+                    Button(collection.rawValue) { filter.collection = collection }
+                }
+            } label: {
+                Text("Collections").plType(.caption).foregroundStyle(Color.inkSecondary).frame(minHeight: 44)
+            }.accessibilityLabel("Recipe collections")
+            if !typeSize.isAccessibilitySize { Spacer(minLength: 0) }
+        }
+        .overlay(alignment: .bottom) { Color.hairline.frame(height: 0.5) }
+    }
+
     private func recipeTile(_ recipe: Recipe) -> some View {
         Button {
             Haptic.tap()
@@ -732,11 +760,10 @@ struct CookbookView: View {
         } label: {
             VStack(alignment: .leading, spacing: 10) {
                 RecipeArtwork(data: recipe.photoData, title: recipe.title, ratio: 1.15, radius: Radius.card)
-                Text(recipe.title).plType(.body, .semibold).foregroundStyle(Color.ink)
+                Text(recipe.title).plType(.tileTitle).foregroundStyle(Color.ink)
                     .multilineTextAlignment(.leading).lineLimit(typeSize.isAccessibilitySize ? nil : 2)
                     .fixedSize(horizontal: false, vertical: true)
-                Text(recipeMetaLine(recipe)).plType(.caption).foregroundStyle(Color.inkSecondary)
-                Text(recipeAttributionLine(recipe, members: members))
+                Text((recipe.totalMinutes > 0 ? recipe.timeText + " · " : "") + recipeAttributionLine(recipe, members: members))
                     .plType(.caption)
                     .foregroundStyle(Color.inkSecondary)
                     .lineLimit(2)
@@ -909,7 +936,7 @@ struct RecipeFilterSheet: View {
                         }
                     }
                 }
-                .padding(.horizontal, 24)
+                .padding(.horizontal, Spacing.page)
                 .padding(.bottom, 16)
                 // The scroll content is the only thing here whose height is
                 // not already decided by the detent, so it is the only honest
@@ -935,7 +962,7 @@ struct RecipeFilterSheet: View {
                     .buttonStyle(.pressable)
                 }
             }
-            .padding(.horizontal, 24)
+            .padding(.horizontal, Spacing.page)
             .padding(.bottom, 14)
             .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { footerHeight = $0 }
         }
@@ -1077,6 +1104,7 @@ struct RecipeDetailView: View {
     @State private var assignShown = false
     @State private var swapShown = false
     @State private var ingredientsShown = false
+    @State private var checkedIngredients: Set<PersistentIdentifier> = []
     @State private var shownPhoto: Data?
     @Environment(\.scenePhase) private var scenePhase
     /// Tonight's ticks, cursor and timer. Not in the mirror, deliberately —
@@ -1126,15 +1154,8 @@ struct RecipeDetailView: View {
 
                 VStack(alignment: .leading, spacing: 6) {
                     Text(recipe.title)
-                        .plType(.title)
+                        .plType(.pageTitle)
                         .foregroundStyle(Color.ink)
-                    Text(byline)
-                        .plType(.caption, .bold)
-                        .foregroundStyle(Color.inkSecondary)
-                    Text(recipeAttributionLine(recipe, members: members))
-                        .plType(.caption)
-                        .foregroundStyle(Color.inkSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
                     // Its own line, not a sixth clause on the byline: the
                     // byline already joins up to five, and the fact row is
                     // three things about the dish while this is a thing
@@ -1157,13 +1178,6 @@ struct RecipeDetailView: View {
                 }
                 .plType(.footnote).foregroundStyle(Color.inkSecondary)
 
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 20) {
-                        if !ingredientRows.isEmpty { sectionJump("Ingredients", to: "recipe-ingredients", proxy: proxy) }
-                        if !recipe.steps.isEmpty || !recipe.instructions.isEmpty { sectionJump("Directions", to: "recipe-directions", proxy: proxy) }
-                        if meal?.isCooked == true || !recipe.cookNotes.isEmpty { sectionJump("Notes", to: "recipe-notes", proxy: proxy) }
-                    }
-                }
 
                 if justSaved {
                     VStack(alignment: .leading, spacing: Spacing.compact) {
@@ -1190,6 +1204,24 @@ struct RecipeDetailView: View {
                         .plType(.footnote)
                         .foregroundStyle(Color.inkSecondary)
                 }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(byline)
+                        .plType(.caption, .bold)
+                        .foregroundStyle(Color.inkSecondary)
+                    Text(recipeAttributionLine(recipe, members: members))
+                        .plType(.caption)
+                        .foregroundStyle(Color.inkSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 20) {
+                        if !ingredientRows.isEmpty { sectionJump("Ingredients", to: "recipe-ingredients", proxy: proxy) }
+                        if !recipe.steps.isEmpty || !recipe.instructions.isEmpty { sectionJump("Directions", to: "recipe-directions", proxy: proxy) }
+                        if meal?.isCooked == true || !recipe.cookNotes.isEmpty { sectionJump("Notes", to: "recipe-notes", proxy: proxy) }
+                    }
+                }
+                .overlay(alignment: .bottom) { Color.hairline.frame(height: 0.5) }
 
                 if !recipe.dietaryLabels.isEmpty || !recipe.knownAllergens.isEmpty
                     || !recipe.equipment.isEmpty || (!recipe.nutritionSource.isEmpty && recipe.caloriesPerServing > 0) {
@@ -1222,14 +1254,11 @@ struct RecipeDetailView: View {
 
                 if !ingredientRows.isEmpty {
                     VStack(alignment: .leading, spacing: 10) {
-                        HStack {
-                            MicroLabel(ingredientsLabel)
-                            Spacer()
-                            servesChip
-                        }
+                        if ingredientsLabel != "Ingredients" { MicroLabel(ingredientsLabel) }
                         ForEach(ingredientRows, id: \.ingredient.persistentModelID) { row in
                             ingredientRow(row.ingredient, quantity: row.quantity)
                         }
+                        servesChip
                         if !justSaved {
                         Button(action: addIngredientsToGroceries) {
                             Label("Add to groceries", systemImage: "basket")
@@ -1333,7 +1362,7 @@ struct RecipeDetailView: View {
                 .foregroundStyle(Color.inkSecondary)
                 .padding(.top, 6)
             }
-            .padding(.horizontal, 24)
+            .padding(.horizontal, Spacing.page)
             .padding(.top, 8)
             .padding(.bottom, 24)
         }
@@ -1361,7 +1390,7 @@ struct RecipeDetailView: View {
         .safeAreaInset(edge: .bottom) {
             // Flush to the bottom, every screen size, never scrolled away.
             dockedCTA
-                .padding(.horizontal, 24)
+                .padding(.horizontal, Spacing.page)
                 .padding(.top, 8)
                 .padding(.bottom, 10)
                 .background(Color.canvas.opacity(0.94))
@@ -1420,7 +1449,7 @@ struct RecipeDetailView: View {
                             PrimaryActionButton(title: "Add to groceries", systemImage: "basket") {
                                 addIngredientsToGroceries()
                             }
-                            .padding(.horizontal, 24)
+                            .padding(.horizontal, Spacing.page)
                             .padding(.top, 10)
                             .padding(.bottom, 10)
                             .background(Color.canvas)
@@ -1533,7 +1562,8 @@ struct RecipeDetailView: View {
             IconDiscButton(systemName: "arrow.left", label: "Back") {
                 dismiss()
             }
-            Spacer()
+            Text("Recipe").plType(.pageTitle).foregroundStyle(Color.ink)
+            Spacer(minLength: 0)
 
             Button {
                 Haptic.tap()
@@ -1562,42 +1592,13 @@ struct RecipeDetailView: View {
                 sharePresented = true
             }
 
-            // Labelled, not a lone pencil in a circle. A household member only
-            // sees it when the creator left collaboration enabled.
-            //
-            // It sat fourth in a row of four identical discs, so the only
-            // thing distinguishing "change this recipe" from "share this
-            // recipe" was a 14pt glyph, and a bare pencil is read as
-            // "draw", "annotate" or "write a note" at least as often as
-            // "edit". The other three are back, favourite and share, which
-            // every phone has taught everybody. Edit had not earned the
-            // same shorthand, so it says the word.
             if recipe.isEditableByCurrentDevice {
-                Button {
-                    Haptic.tap()
-                    editorShown = true
+                Menu {
+                    Button("Edit recipe", systemImage: "pencil") { Haptic.tap(); editorShown = true }
                 } label: {
-                    HStack(spacing: 5) {
-                        Image(systemName: "pencil")
-                            .font(.system(size: 13, weight: .semibold))
-                        Text("Edit")
-                            .plType(.footnote, .bold)
-                            .plActionLabel()
-                    }
-                    .foregroundStyle(Color.ink)
-                    .padding(.horizontal, 14)
-                    // A floor. A hard 38 drew the capsule smaller than the label
-                    // inside it once footnote outgrew it.
-                    .frame(minHeight: 38)
-                    .overlay(Radius.shape(Radius.chip).strokeBorder(Color.hairline, lineWidth: 1.5))
-                    .frame(minHeight: 44)
-                    .contentShape(Radius.shape(Radius.chip))
-                }
-                .buttonStyle(.pressable)
-                .accessibilityLabel("Edit recipe")
+                    Image(systemName: "ellipsis").foregroundStyle(Color.ink).plTapTarget()
+                }.accessibilityLabel("Recipe options")
             }
-
-            AccountButton()
 
         }
         // A masthead's icon cluster is furniture with nowhere to reflow, the
@@ -1605,7 +1606,7 @@ struct RecipeDetailView: View {
         // for exactly this reason. It changes what is drawn, never what
         // VoiceOver reads, and every control here already has a label.
         .plChrome()
-        .padding(.horizontal, 24)
+        .padding(.horizontal, Spacing.page)
         .padding(.vertical, 4)
         .background(Color.canvas.opacity(0.94))
     }
@@ -1643,7 +1644,7 @@ struct RecipeDetailView: View {
         Group {
             let data = heroData
             if let data, let image = UIImage(data: data) {
-                PhotoWell(image: image, height: 190, cornerRadius: Radius.hero)
+                PhotoWell(image: image, height: 203, cornerRadius: Radius.chip)
                     .plCardShadow()
             } else {
                 Button {
@@ -2024,20 +2025,33 @@ struct RecipeDetailView: View {
     /// its own frozen ingredient list and idle timer.
     @ViewBuilder
     private func ingredientRow(_ ingredient: Ingredient, quantity: Double) -> some View {
-        HStack {
-            Text(ingredient.name)
-                .plType(.body)
-                .foregroundStyle(Color.ink)
-            Spacer()
-            Text(quantityText(ingredient, quantity: quantity))
-                .plType(.footnote)
-                .foregroundStyle(Color.inkSecondary)
+        let checked = checkedIngredients.contains(ingredient.persistentModelID)
+        return Button {
+            Haptic.select()
+            if checked { checkedIngredients.remove(ingredient.persistentModelID) }
+            else { checkedIngredients.insert(ingredient.persistentModelID) }
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: checked ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 21, weight: .light))
+                    .foregroundStyle(checked ? Color.completion : Color.inkSecondary)
+                Text(ingredient.name).plType(.body)
+                    .foregroundStyle(checked ? Color.inkSecondary : Color.ink)
+                    .strikethrough(checked)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Text(quantityText(ingredient, quantity: quantity))
+                    .plType(.footnote).foregroundStyle(Color.inkSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(minHeight: 44).padding(.vertical, 4)
+            .contentShape(Rectangle())
+            .overlay(alignment: .bottom) { Color.hairlineSoft.frame(height: 0.5) }
         }
-        .padding(.vertical, 4)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(
-            Ingredient.line(quantity: quantity, unit: ingredient.unit, name: ingredient.name)
-        )
+        .buttonStyle(.plain)
+        .accessibilityLabel(Ingredient.line(quantity: quantity, unit: ingredient.unit, name: ingredient.name))
+        .accessibilityValue(checked ? "Checked" : "Not checked")
+        .accessibilityHint("Checks this ingredient for this viewing session")
+        .accessibilityIdentifier("recipe-ingredient-\(ingredient.name)")
     }
 
     /// The complete method remains readable before entering cooking.
@@ -2159,7 +2173,7 @@ struct PlateAssignSheet: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             // A single line never reached the edges; a wrapped one does.
-            .padding(.horizontal, 24)
+            .padding(.horizontal, Spacing.page)
             .padding(.top, 22)
             .padding(.bottom, 12)
 
@@ -2206,7 +2220,7 @@ struct PlateAssignSheet: View {
                         .scrollClipDisabled()
                     }
                 }
-                .padding(.horizontal, 24)
+                .padding(.horizontal, Spacing.page)
                 .padding(.bottom, 16)
             }
 
@@ -2224,7 +2238,7 @@ struct PlateAssignSheet: View {
             // spanned "Plan for Tuesday" → "Plated for Tuesday" and morphs
             // nothing that is not a numeral.)
             if let saveFailure {
-                Text(saveFailure).plType(.footnote).foregroundStyle(Color.dangerText).padding(.horizontal, 24)
+                Text(saveFailure).plType(.footnote).foregroundStyle(Color.dangerText).padding(.horizontal, Spacing.page)
             }
             Group {
                 if let confirmation {
@@ -2248,7 +2262,7 @@ struct PlateAssignSheet: View {
             }
             .animation(.plSnap, value: confirmation)
             .animation(.plSnap, value: chosenDate == nil)
-            .padding(.horizontal, 24)
+            .padding(.horizontal, Spacing.page)
             .padding(.bottom, 14)
         }
         .presentationDetents([.large])
@@ -2510,7 +2524,7 @@ struct RecipePickerSheet: View {
                 .frame(minHeight: 46)
                 .overlay(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous).strokeBorder(Color.hairline))
                 .plTapToFocus { searchFocused = true }
-                .padding(.horizontal, 24)
+                .padding(.horizontal, Spacing.page)
                 .padding(.bottom, 12)
             }
 

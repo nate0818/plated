@@ -13,9 +13,11 @@ struct MemberDinnerActivity {
     let latest: Event?
 
     init(member: HouseholdMember, roster: [HouseholdMember], meals: [PlannedMeal],
-         remote: [PlanLedger.Entry], posts: [TablePost], now: Date = .now, calendar: Calendar = .current) {
+         remote: [PlanLedger.Entry], posts: [TablePost], now: Date = .now, calendar: Calendar = .current,
+         lookbackDays: Int? = 7) {
         let today = calendar.startOfDay(for: now)
-        let start = calendar.date(byAdding: .day, value: -6, to: today) ?? today
+        let start = lookbackDays.map { calendar.date(byAdding: .day, value: -(max(1, $0) - 1), to: today) ?? today }
+            ?? Date.distantPast
         let end = calendar.date(byAdding: .day, value: 1, to: today) ?? now
         var dinners: [String: Bool] = [:]
         var events: [String: Event] = [:]

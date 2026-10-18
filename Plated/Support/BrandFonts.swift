@@ -46,10 +46,10 @@ extension Font {
 }
 
 enum TypeScale {
-    case micro, caption, footnote, body, callout, heading, title, display, hero
+    case micro, caption, footnote, body, callout, tileTitle, heading, cardTitle, title, pageTitle, featureTitle, display, hero
     var isDisplay: Bool {
         switch self {
-        case .heading, .title, .display, .hero: true
+        case .tileTitle, .heading, .cardTitle, .title, .pageTitle, .featureTitle, .display, .hero: true
         default: false
         }
     }
@@ -60,8 +60,12 @@ enum TypeScale {
         case .footnote: 13
         case .body: 15
         case .callout: 16
+        case .tileTitle: 20
         case .heading: 23
+        case .cardTitle: 27
         case .title: 29
+        case .pageTitle: 32
+        case .featureTitle: 33
         case .display: 34
         case .hero: 40
         }
@@ -72,8 +76,8 @@ enum TypeScale {
         case .micro: 0.08
         case .caption, .footnote, .body: 0
         case .callout: -0.005
-        case .heading: -0.012
-        case .title, .display: -0.018
+        case .tileTitle, .heading: -0.012
+        case .cardTitle, .title, .pageTitle, .featureTitle, .display: -0.018
         case .hero: -0.025
         }
     }
@@ -85,7 +89,7 @@ enum TypeScale {
 #if DEBUG
 extension TypeScale {
     static func assertMonotone() {
-        let ordered: [TypeScale] = [.micro, .caption, .footnote, .body, .callout, .heading, .title, .display, .hero]
+        let ordered: [TypeScale] = [.micro, .caption, .footnote, .body, .callout, .tileTitle, .heading, .cardTitle, .title, .pageTitle, .featureTitle, .display, .hero]
         let categories: [UIContentSizeCategory] = [.extraSmall, .small, .medium, .large, .extraLarge, .extraExtraLarge, .extraExtraExtraLarge, .accessibilityMedium, .accessibilityLarge, .accessibilityExtraLarge, .accessibilityExtraExtraLarge, .accessibilityExtraExtraExtraLarge]
         for category in categories {
             let traits = UITraitCollection(preferredContentSizeCategory: category)

@@ -46,6 +46,19 @@ final class CookLedger {
         /// Optional for compatibility with cooking sessions written before
         /// per-timer alert preferences existed.
         var timerMuted: Bool?
+        /// An explicit pause freezes time; backgrounding alone never does.
+        var timerPausedRemaining: TimeInterval?
+        var checkedIngredients: [Int]?
+
+        mutating func pauseTimer(at now: Date) {
+            guard timerPausedRemaining == nil, let end = timerEndsAt, end > now else { return }
+            timerPausedRemaining = end.timeIntervalSince(now)
+        }
+        mutating func resumeTimer(at now: Date) {
+            guard let remaining = timerPausedRemaining else { return }
+            timerEndsAt = now.addingTimeInterval(remaining)
+            timerPausedRemaining = nil
+        }
         var stepsSnapshot: [String]?
         var ingredientsSnapshot: [String]?
         var titleSnapshot: String?
@@ -141,6 +154,7 @@ final class CookLedger {
         if s.stepsSnapshot == nil, s.stepCount != recipe.steps.count {
             s.step = nil
             s.timerEndsAt = nil
+            s.timerPausedRemaining = nil
             s.timerStep = nil
         }
         return s
@@ -210,10 +224,22 @@ final class CookLedger {
     func startTimer(endingAt date: Date, step: Int, in recipe: Recipe) {
         mutate(recipe) { s in
             s.timerEndsAt = date
+            s.timerPausedRemaining = nil
             s.timerStep = step
             s.timerDuration = max(0, date.timeIntervalSinceNow)
         }
         print("[CookLedger] timer ends \(date) for step \(step)")
+    }
+
+    func pauseTimer(in recipe: Recipe, at now: Date = .now) { mutate(recipe) { $0.pauseTimer(at: now) } }
+    func resumeTimer(in recipe: Recipe, at now: Date = .now) { mutate(recipe) { $0.resumeTimer(at: now) } }
+    func toggleIngredient(_ index: Int, in recipe: Recipe) {
+        mutate(recipe) { session in
+            guard (session.ingredientsSnapshot ?? []).indices.contains(index) else { return }
+            var checked = Set(session.checkedIngredients ?? [])
+            if !checked.insert(index).inserted { checked.remove(index) }
+            session.checkedIngredients = checked.sorted()
+        }
     }
 
     func timerDuration(for recipe: Recipe) -> TimeInterval? {
@@ -231,6 +257,7 @@ final class CookLedger {
     func clearTimer(in recipe: Recipe) {
         mutate(recipe) { s in
             s.timerEndsAt = nil
+            s.timerPausedRemaining = nil
             s.timerStep = nil
             s.timerDuration = nil
             s.timerMuted = nil
@@ -273,6 +300,7 @@ final class CookLedger {
         if s.stepsSnapshot == nil, s.stepCount != recipe.steps.count, s.step != nil {
             s.step = nil
             s.timerEndsAt = nil
+            s.timerPausedRemaining = nil
             s.timerStep = nil
         }
         body(&s)

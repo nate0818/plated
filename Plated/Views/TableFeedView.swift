@@ -272,7 +272,7 @@ struct TableFeedView: View {
                     .plType(.body, .bold)
                     .plActionLabel()
                     .foregroundStyle(Color.onPrimary)
-                    .padding(.horizontal, 24)
+                    .padding(.horizontal, Spacing.page)
                     .frame(minHeight: 44)
                     .background(Color.primaryAction, in: Radius.shape(Radius.chip))
             }
@@ -330,7 +330,7 @@ struct TableFeedView: View {
                     .plType(.callout)
                     .plActionLabel()
                     .foregroundStyle(Color.ink)
-                    .padding(.horizontal, 24)
+                    .padding(.horizontal, Spacing.page)
                     .frame(minHeight: 44)
                     .overlay(Radius.shape(Radius.chip).strokeBorder(Color.hairline, lineWidth: 1.5))
                     .contentShape(Radius.shape(Radius.chip))
@@ -425,24 +425,24 @@ struct TableFeedView: View {
                 ScrollView {
                     LazyVStack(spacing: 0) {
                 header.id("table-top")
-                    .padding(.horizontal, 24)
+                    .padding(.horizontal, Spacing.page)
                     .padding(.top, 6)
                     .padding(.bottom, 10)
 
                 tableContextBar
-                    .padding(.horizontal, 24)
+                    .padding(.horizontal, Spacing.page)
                     .padding(.bottom, scopeIsMeaningful ? 10 : 12)
 
                 if scopeIsMeaningful {
                     scopePicker
-                        .padding(.horizontal, 24)
+                        .padding(.horizontal, Spacing.page)
                         .padding(.bottom, 12)
                         .transition(.plUnfold)
                 }
 
                 if reach == .unreachable, !shownPosts.isEmpty {
                     refreshProblemBar
-                        .padding(.horizontal, 24)
+                        .padding(.horizontal, Spacing.page)
                         .padding(.bottom, 10)
                         .transition(.plUnfold)
                 }
@@ -876,9 +876,26 @@ struct TableFeedView: View {
     /// The raised pill SLIDES between options (one shared identity), it
     /// doesn't blink out and reappear.
     private var scopePicker: some View {
-        EditorialSegments(options: FeedScope.allCases, selection: $scope,
-                          label: { $0.rawValue }, stacked: typeSize.isAccessibilitySize)
-            .accessibilityElement(children: .contain)
+        let layout = typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 0))
+            : AnyLayout(HStackLayout(spacing: 20))
+        return layout {
+            ForEach(FeedScope.allCases, id: \.self) { value in
+                Button { Haptic.select(); scope = value } label: {
+                    Text(value.rawValue).plType(.caption, scope == value ? .semibold : .regular)
+                        .foregroundStyle(scope == value ? Color.ink : Color.inkSecondary)
+                        .frame(minHeight: 44)
+                        .frame(maxWidth: typeSize.isAccessibilitySize ? .infinity : nil, alignment: .leading)
+                        .overlay(alignment: .bottom) {
+                            Rectangle().fill(scope == value ? Color.olive : Color.clear).frame(height: 2)
+                        }
+                        .contentShape(Rectangle())
+                }.buttonStyle(.plain).accessibilityAddTraits(scope == value ? .isSelected : [])
+            }
+            if !typeSize.isAccessibilitySize { Spacer(minLength: 0) }
+        }
+        .overlay(alignment: .bottom) { Color.hairline.frame(height: 0.5) }
+        .accessibilityElement(children: .contain)
     }
 
     // MARK: Cards
@@ -1101,7 +1118,7 @@ struct TableFeedView: View {
             .buttonStyle(.pressable)
             .padding(.top, 2)
         }
-        .padding(.horizontal, 24)
+        .padding(.horizontal, Spacing.page)
         .padding(.top, 16)
         .padding(.bottom, 18)
         .animation(.plPop, value: post.hasChefsKiss(seats: seatCount))
@@ -1392,7 +1409,7 @@ struct TableFeedView: View {
             }
             .buttonStyle(.pressable)
         }
-        .padding(.horizontal, 24)
+        .padding(.horizontal, Spacing.page)
         .padding(.vertical, 16)
         .contextMenu { postMenu(post, canSave: false) }
     }
@@ -1479,12 +1496,13 @@ struct TableFeedView: View {
                 Image(systemName: saved ? "bookmark.fill" : "bookmark")
                     .font(.system(size: 20, weight: .semibold))
                     .contentTransition(.symbolEffect(.replace.magic(fallback: .replace.downUp)))
-                Text(saved ? "In cookbook" : "Save to cookbook")
-                    .plType(.footnote, .bold)
-                    .plActionLabel()
+                if typeSize.isAccessibilitySize {
+                    Text(saved ? "In cookbook" : "Save to cookbook")
+                        .plType(.footnote).plActionLabel()
+                }
             }
             .foregroundStyle(Color.inkSecondary)
-            .frame(minHeight: 44)
+            .frame(minWidth: 44, minHeight: 44)
             .contentShape(Rectangle())
         }
         .buttonStyle(.pressable)

@@ -53,7 +53,7 @@ ARCHIVE=build/Plated.xcarchive
 EXPORT=build/export
 
 # Same gate as scripts/phone: the widget's copied palette must match.
-"$(dirname "${BASH_SOURCE[0]}")/check-tokens" >/dev/null || {
+"$(dirname "${BASH_SOURCE[0]}")/check-tokens" --native-only >/dev/null || {
   echo "✗ Design tokens have drifted. Run scripts/check-tokens." >&2; exit 1; }
 "$(dirname "${BASH_SOURCE[0]}")/check-design" >/dev/null || {
   echo "✗ A DESIGN.md rule is broken. Run scripts/check-design." >&2; exit 1; }

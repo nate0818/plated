@@ -950,7 +950,7 @@ struct PlateTabBar: View {
             VStack(spacing: 5) {
                 Image(systemName: symbol)
                     .font(.system(size: 20, weight: active ? .medium : .regular))
-                Text(label).plType(.micro, active ? .semibold : .regular).lineLimit(1)
+                Text(label).plType(.footnote, active ? .semibold : .regular).lineLimit(1)
             }
             .foregroundStyle(active ? Color.accentText : Color.inkSecondary)
             .frame(maxWidth: .infinity, minHeight: 54)
@@ -977,6 +977,7 @@ struct PlateTabBar: View {
 /// paint, on a row nobody had selected, with the side effect of erasing
 /// its own border. Two choices that are peers look like peers.
 struct CreateMenuSheet: View {
+    @Environment(\.dismiss) private var dismiss
     let onChoose: (CreateKind) -> Void
 
     /// The sheet's height, measured rather than typed.
@@ -992,26 +993,38 @@ struct CreateMenuSheet: View {
     /// content has a natural height that owes the detent nothing.
     @State private var measured: CGFloat = 210
 
+    private func createOption(icon: String, title: String, detail: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 16) {
+                Image(systemName: icon).font(.system(size: 24, weight: .regular)).frame(width: 26)
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(title).plType(.cardTitle).foregroundStyle(Color.ink)
+                    Text(detail).plType(.caption).foregroundStyle(Color.inkSecondary)
+                }.frame(maxWidth: .infinity, alignment: .leading)
+                Image(systemName: "chevron.right").font(.system(size: 14)) // design-ok(generic-chevron): approved Create rows use a trailing navigation affordance.
+            }.padding(.vertical, 22).contentShape(Rectangle())
+                .overlay(alignment: .bottom) { Color.hairlineSoft.frame(height: 0.5) }
+        }.buttonStyle(.pressable)
+    }
+
     var body: some View {
         // Large type outgrows the sheet — the content scrolls, and the
         // grabber offers the full-height detent as a way out.
         ScrollView(showsIndicators: false) {
             VStack(spacing: 0) {
-                Text("Create")
-                    .plType(.title)
-                    .foregroundStyle(Color.ink)
-                    // 22, the top padding every other sheet masthead uses.
-                    // These were 18, 20, 22 and 26 across four sheets.
-                    .padding(.top, 22)
-                    .padding(.bottom, 18)
+                HStack {
+                    Text("Create").plType(.cardTitle).foregroundStyle(Color.ink)
+                    Spacer()
+                    IconDiscButton(systemName: "xmark", label: "Close create") { dismiss() }
+                }.padding(.top, 20).padding(.bottom, 8)
 
                 VStack(spacing: 10) {
-                    OptionRow(
+                    createOption(
                         icon: "bubble.left",
                         title: "Post to the Table",
                         detail: "Photos, food finds, places, and questions"
                     ) { onChoose(.tablePost) }
-                    OptionRow(
+                    createOption(
                         icon: "book.closed",
                         title: "Add a recipe",
                         detail: "Paste it, scan it, or write it out"
@@ -1023,12 +1036,12 @@ struct CreateMenuSheet: View {
                 }
             }
             .frame(maxWidth: .infinity)
-            .padding(.horizontal, 24)
+            .padding(.horizontal, 22)
             .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { measured = $0 }
         }
         .presentationDetents([.height(measured), .large])
         .presentationDragIndicator(.visible)
-        .presentationBackground(Color.canvas)
+        .presentationBackground(Color.fill)
         .presentationCornerRadius(Radius.sheet)
     }
 }

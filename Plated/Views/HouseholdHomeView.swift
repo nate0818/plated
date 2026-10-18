@@ -209,7 +209,7 @@ private struct HouseholdHomeContent: View {
                 cooksSection
                 statsStrip
             }
-            .padding(.horizontal, 24)
+            .padding(.horizontal, Spacing.page)
             .padding(.top, 6)
             .padding(.bottom, Layout.focusedPageBottom)
         }
@@ -396,21 +396,18 @@ private struct HouseholdHomeContent: View {
 
     @ViewBuilder
     private var masthead: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 8) {
-                if embedded { backButton }
-                MicroLabel("Household")
-                Spacer(minLength: 6)
-                mastheadControls
-            }
-            .plChrome()
+        let layout = hugeType ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+                              : AnyLayout(HStackLayout(spacing: 8))
+        layout {
+            if embedded { backButton }
             mastheadTitle
+            HStack(spacing: 4) { mastheadControls }.plChrome()
         }
     }
 
     private var mastheadTitle: some View {
         Text(householdDisplayName)
-            .plType(hugeType ? .heading : .title)
+            .plType(hugeType ? .heading : .pageTitle)
             .foregroundStyle(Color.ink)
             .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -684,7 +681,7 @@ private struct HouseholdHomeContent: View {
                 ZStack(alignment: .bottomTrailing) {
                     if let data = profiles.first?.bannerPhotoData, let image = UIImage(data: data) {
                         Color.clear
-                            .frame(height: 148)
+                            .frame(height: 104)
                             .overlay {
                                 Image(uiImage: image)
                                     .resizable()
@@ -823,8 +820,10 @@ private struct HouseholdHomeContent: View {
     private var peopleSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 8) {
-                MicroLabel("People")
+                Text("People").plType(.heading)
+                Text("\(roster.listed.count) people").plType(.caption).foregroundStyle(Color.inkSecondary)
                 Spacer()
+                addSomeoneButton
                 if roster.me?.isOwner == true {
                     Menu {
                         Button {
@@ -863,11 +862,7 @@ private struct HouseholdHomeContent: View {
                     }
                 }
             }
-            .padding(.horizontal, 18)
             .background(Color.canvas)
-            .clipShape(RoundedRectangle(cornerRadius: Radius.hero, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: Radius.hero, style: .continuous).strokeBorder(Color.hairline))
-            .plCardShadow()
             .animation(.plSnap, value: roster.count)
             .disabled(removingName != nil)
 
@@ -912,7 +907,6 @@ private struct HouseholdHomeContent: View {
                 .transition(.plUnfold)
             }
 
-            addSomeoneButton
         }
     }
 
@@ -973,10 +967,14 @@ private struct HouseholdHomeContent: View {
         let isMe = member.isMe
             || (reader != nil && reader!.persistentModelID == member.persistentModelID)
         let seat = member.seat
-        let cooks = member.cooks
-        let weekdays = member.cookWeekdays.filter { (1...7).contains($0) }
         let tone = member.tone
-        let subtitle = drawn.subtitle
+        let recorded = MemberDinnerActivity(member: member, roster: people, meals: meals,
+            remote: PlanLedger.shared.all, posts: posts)
+        let latest = PlanMemberEvent.latest(member: member, roster: people, meals: meals,
+            remote: PlanLedger.shared.all, recorded: recorded.latest)
+        let subtitle = !isMe && member.seat.canPost
+            ? latest.map { "\($0.line) · \($0.date.formatted(.relative(presentation: .numeric)))" } ?? drawn.subtitle
+            : drawn.subtitle
         let photo = drawn.photo
         let firstInitial = name.first.map(String.init)?.uppercased() ?? member.firstInitial
         let showsColor = member.showsColor
@@ -991,16 +989,17 @@ private struct HouseholdHomeContent: View {
                     AvatarCircle(
                         initials: firstInitial,
                         tone: (isMe || !showsColor) ? .neutralPair : tone,
-                        size: 46,
+                        size: 36,
                         photo: photo
                     )
                     VStack(alignment: .leading, spacing: 1) {
                         Text(name)
                             .plName()
-                            .plType(.body, .bold)
+                            .plType(.body, .medium)
                             .foregroundStyle(Color.ink)
                         Text(subtitle)
-                            .plType(.caption, .semibold)
+                            .plType(.caption)
+                            .fixedSize(horizontal: false, vertical: true)
                             .foregroundStyle(Color.inkSecondary)
                     }
                     Spacer(minLength: 4)
@@ -1037,20 +1036,6 @@ private struct HouseholdHomeContent: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityHint("Marks them as joined in your household.")
-            } else if !isMe, cooks, !weekdays.isEmpty {
-                Text(dayChipLabel(weekdays))
-                    .plType(.caption, .bold)
-                    .foregroundStyle(Color.ink)
-                    // One line. A status chip squeezed between a name and a
-                    // chevron has nowhere to reflow, and at accessibility
-                    // sizes "Sun + Mon" came apart into "Sun / + / Mo / n".
-                    // Same reason the cook grid beside it holds.
-                    .lineLimit(1)
-                    .fixedSize()
-                    .plChrome()
-                    .padding(.horizontal, 12)
-                    .frame(minHeight: 30)
-                    .background(tone.tint, in: Radius.shape(Radius.chip))
             }
 
             if !isOwner {
@@ -1184,36 +1169,13 @@ private struct HouseholdHomeContent: View {
                 paywallPresented = true
             }
         } label: {
-            HStack(spacing: 13) {
-                Image(systemName: "person.badge.plus")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(Color.completion)
-                    .frame(width: 40, height: 40)
-                    .background(Color.basilTint, in: Circle())
-                    .plChrome()
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(roster.me?.isOwner == true ? "Invite someone" : "Add someone by name")
-                        .plType(.body, .bold)
-                        .foregroundStyle(Color.ink)
-                    Text(roster.me?.isOwner == true
-                         ? "Share the plan, groceries and cookbook"
-                         : "Keep a place for someone without the app")
-                        .plType(.caption)
-                        .foregroundStyle(Color.inkSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                Spacer(minLength: 6)
-            }
-            .padding(.horizontal, 15)
-            .padding(.vertical, 12)
-            .frame(maxWidth: .infinity, minHeight: 68, alignment: .leading)
-            .background(Color.raisedFill, in: Radius.shape(Radius.card))
-            .overlay(Radius.shape(Radius.card).strokeBorder(Color.hairline))
-            .contentShape(Radius.shape(Radius.card))
+            Text(roster.me?.isOwner == true ? "Invite" : "Add person")
+                .plType(.footnote, .semibold).foregroundStyle(Color.accentText)
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.pressable)
+        .accessibilityLabel(roster.me?.isOwner == true ? "Invite someone" : "Add someone by name")
         .accessibilityHint("Opens household invitation options.")
     }
 
@@ -1223,7 +1185,7 @@ private struct HouseholdHomeContent: View {
     private var cooksSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 6) {
-                MicroLabel("Who cooks when")
+                Text("Who cooks when").plType(.heading)
                 Button {
                     Haptic.tap()
                     withAnimation(.plSnap) { turnsTipShown.toggle() }
@@ -1535,7 +1497,7 @@ struct AddMemberSheet: View {
 
                 byNameDoor
             }
-            .padding(.horizontal, 24)
+            .padding(.horizontal, Spacing.page)
             .padding(.bottom, 30)
         }
         .presentationDetents([.large])

@@ -104,6 +104,65 @@ final class ApprovedPolishTests: XCTestCase {
         capture("polish-cooking-finished")
     }
 
+    func testApprovedProfileCollectionsAndCookingPause() {
+        launch(["-plated-open-profile", "-plated-review-household-activity"])
+        XCTAssertTrue(app.buttons["Edit profile"].waitForExistence(timeout: 20))
+        XCTAssertTrue(element("profile-contributions").exists)
+        app.buttons["Recipes"].tap()
+        XCTAssertFalse(app.buttons["Questions"].exists)
+        app.buttons["Saved"].tap()
+        XCTAssertFalse(app.buttons["Favorites"].exists)
+        capture("polish-profile-saved")
+        launch(["-plated-review-cooking-timer"])
+        let pause = app.buttons["cooking-timer-pause"]
+        XCTAssertTrue(pause.waitForExistence(timeout: 20))
+        XCTAssertEqual(pause.label, "Pause")
+        pause.tap()
+        XCTAssertTrue(app.staticTexts["Timer paused"].waitForExistence(timeout: 5))
+        XCTAssertEqual(pause.label, "Resume")
+        capture("polish-cooking-paused")
+        pause.tap()
+        XCTAssertTrue(app.staticTexts["Timer running"].waitForExistence(timeout: 5))
+    }
+
+    func testGroceryQuickAddUndoAndRecipeCollections() {
+        launch(["-plated-tab", "groceries"])
+        XCTAssertTrue(app.buttons["Shopping and export options"].waitForExistence(timeout: 20))
+        let field = app.textFields["Add an item or amount"]
+        field.tap(); field.typeText("Codex grocery check\n")
+        let item = app.buttons.matching(NSPredicate(format: "label CONTAINS[c] %@", "Codex grocery check")).firstMatch
+        reveal(item)
+        XCTAssertEqual(item.value as? String, "To buy")
+        item.tap()
+        XCTAssertEqual(item.value as? String, "Purchased")
+        app.buttons["Undo last check"].tap()
+        XCTAssertEqual(item.value as? String, "To buy")
+        launch(["-plated-tab", "cookbook"])
+        XCTAssertTrue(app.buttons["Favorites"].waitForExistence(timeout: 20))
+        let poke = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Poke Night,")).firstMatch
+        XCTAssertTrue(poke.exists)
+        app.buttons["Favorites"].tap()
+        XCTAssertFalse(poke.exists)
+        app.buttons["All recipes"].tap()
+        XCTAssertTrue(poke.exists)
+        app.buttons["Recipe collections"].tap()
+        XCTAssertTrue(app.buttons["Weeknight"].waitForExistence(timeout: 5))
+        app.buttons["Weeknight"].tap()
+        XCTAssertTrue(poke.exists)
+    }
+
+    func testRecipeIngredientsCanBeCheckedWithoutChangingTheRecipe() {
+        launch(["-plated-open-recipe-detail"])
+        let flour = element("recipe-ingredient-Flour")
+        XCTAssertTrue(flour.waitForExistence(timeout: 20))
+        reveal(flour)
+        XCTAssertEqual(flour.value as? String, "Not checked")
+        flour.tap()
+        XCTAssertEqual(flour.value as? String, "Checked")
+        flour.tap()
+        XCTAssertEqual(flour.value as? String, "Not checked")
+    }
+
     func testNativeScreenMatrix() {
         let cases: [(String, [String], String)] = [
             ("plan", ["-plated-fake-weather", "-plated-review-household-activity"], "plan-selected-day-content"),

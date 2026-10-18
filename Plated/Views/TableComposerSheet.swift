@@ -68,7 +68,7 @@ struct TableComposerSheet: View {
         VStack(spacing: 0) {
             HStack(spacing: 12) {
                 Text("New post")
-                    .plType(typeSize.isAccessibilitySize ? .heading : .title,
+                    .plType(typeSize.isAccessibilitySize ? .heading : .pageTitle,
                             typeSize.isAccessibilitySize ? .semibold : .regular)
                     .foregroundStyle(Color.ink)
                     .accessibilityAddTraits(.isHeader)
@@ -83,7 +83,7 @@ struct TableComposerSheet: View {
                     Button("Keep writing", role: .cancel) {}
                 }
             }
-            .padding(.horizontal, 24)
+            .padding(.horizontal, Spacing.page)
             .padding(.top, 20)
             .padding(.bottom, 16)
 
@@ -92,10 +92,11 @@ struct TableComposerSheet: View {
                     authorAndAudience
                     VStack(alignment: .leading, spacing: 8) {
                         TextField("", text: $caption,
-                                  prompt: Text("What’s on your mind?").foregroundStyle(Color.inkSecondary), axis: .vertical)
-                            .plType(.body)
+                                  prompt: Text("What’s worth sharing?").foregroundStyle(Color.inkSecondary), axis: .vertical)
+                            .plType(.heading)
                             .foregroundStyle(Color.ink)
-                            .lineLimit((photoData == nil ? 3 : 2)...10)
+                            .lineLimit(3...10)
+                            .frame(minHeight: 140, alignment: .topLeading)
                             .focused($focusedField, equals: .caption)
                             .accessibilityLabel("Post text")
                             .accessibilityHint("Share an ingredient, a place, a meal, or a question")
@@ -133,7 +134,7 @@ struct TableComposerSheet: View {
                     }
                     attachmentActions
                 }
-                .padding(.horizontal, 24)
+                .padding(.horizontal, Spacing.page)
                 .padding(.bottom, 20)
             }
             .scrollDismissesKeyboard(.interactively)
@@ -155,7 +156,7 @@ struct TableComposerSheet: View {
                     .disabled(!canPost)
                     .accessibilityIdentifier("table-post-submit")
             }
-            .padding(.horizontal, 24)
+            .padding(.horizontal, Spacing.page)
             .padding(.top, 12)
             .padding(.bottom, 14)
         }
@@ -251,8 +252,10 @@ struct TableComposerSheet: View {
 
     private var attachmentActions: some View {
         VStack(alignment: .leading, spacing: 4) {
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), alignment: .leading),
-                                     count: typeSize.isAccessibilitySize ? 1 : 4), alignment: .leading, spacing: 8) {
+            let layout = typeSize.isAccessibilitySize
+                ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+                : AnyLayout(HStackLayout(spacing: 8))
+            layout {
                 if photoData == nil && !photoLoading && photoLoadMessage == nil {
                     attachmentButton("Photo", icon: "photo") { choosePhoto() }
                 }
@@ -268,10 +271,12 @@ struct TableComposerSheet: View {
                         focusedField = .title
                     }
                 } label: {
-                    Label("More", systemImage: "ellipsis")
+                    Image(systemName: "ellipsis")
                         .plType(.footnote)
-                        .foregroundStyle(Color.inkSecondary)
-                        .frame(minHeight: 44)
+                        .foregroundStyle(Color.accentText)
+                        .frame(width: typeSize.isAccessibilitySize ? nil : 44, height: 44)
+                        .frame(maxWidth: typeSize.isAccessibilitySize ? .infinity : nil)
+                        .background(Color.raisedFill, in: Capsule())
                 }
                 .accessibilityLabel("More post options")
             }
@@ -283,16 +288,18 @@ struct TableComposerSheet: View {
             }
         }
         .padding(.top, 12)
-        .overlay(alignment: .top) { Color.hairline.frame(height: 1) }
+
     }
 
     private func attachmentButton(_ title: String, icon: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Label(title, systemImage: icon)
-                .plType(.footnote, .semibold).foregroundStyle(Color.inkSecondary)
+                .plType(.caption, .medium).foregroundStyle(Color.accentText)
                 .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                .contentShape(Rectangle())
+                .padding(.horizontal, 12)
+                .frame(maxWidth: typeSize.isAccessibilitySize ? .infinity : nil, minHeight: 44)
+                .background(Color.raisedFill, in: Capsule())
+                .contentShape(Capsule())
         }.buttonStyle(.pressable)
     }
 

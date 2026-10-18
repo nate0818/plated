@@ -97,6 +97,13 @@ struct PostThreadView: View {
                         }
                     }
 
+                    if !post.caption.isEmpty || post.dishTitle.isEmpty {
+                        Text(post.caption)
+                            .plType(.body, .regular)
+                            .foregroundStyle(Color.ink)
+                            .lineSpacing(3)
+                    }
+
                     HStack(spacing: 14) {
                         PlateReactionButton(post: post, bounce: $bounce)
                         // The same rule as the feed card: the line arrives
@@ -110,12 +117,6 @@ struct PostThreadView: View {
                         Spacer()
                     }
 
-                    if !post.caption.isEmpty || post.dishTitle.isEmpty {
-                        Text(post.caption)
-                            .plType(.body, .regular)
-                            .foregroundStyle(Color.ink)
-                            .lineSpacing(3)
-                    }
 
                     if !post.taggedNames.isEmpty {
                         ScrollView(.horizontal, showsIndicators: false) {
@@ -149,10 +150,14 @@ struct PostThreadView: View {
                     // The count only once there is one. "COMMENTS · 0"
                     // sitting directly above "No comments yet" says the same
                     // nothing twice.
-                    MicroLabel(visibleComments.filter { $0.deletedAt == nil }.isEmpty
-                               ? "Comments"
-                               : "Comments · \(visibleComments.filter { $0.deletedAt == nil }.count)")
-                        .padding(.top, 8)
+                    Divider().overlay(Color.hairlineSoft)
+                    HStack {
+                        Text(visibleComments.filter { $0.deletedAt == nil }.isEmpty ? "Comments"
+                             : "Comments \(visibleComments.filter { $0.deletedAt == nil }.count)")
+                            .plType(.body, .semibold)
+                        Spacer()
+                        Text("Oldest first").plType(.caption).foregroundStyle(Color.inkSecondary)
+                    }.padding(.top, 8)
 
                     if visibleComments.isEmpty {
                         Text(post.kind == "ask"
@@ -166,7 +171,7 @@ struct PostThreadView: View {
                         VStack(alignment: .leading, spacing: 0) {
                             threadComment(row.comment)
                             let children = descendantCount(row.comment.shareRecordName)
-                            if children > 0 {
+                            if children > 2 || collapsedReplies.contains(row.comment.shareRecordName) {
                                 Button(collapsedReplies.contains(row.comment.shareRecordName)
                                        ? (children == 1 ? "Show 1 reply" : "Show \(children) replies") : "Hide replies") {
                                     Haptic.select()
@@ -177,7 +182,7 @@ struct PostThreadView: View {
                                 }.plType(.caption, .bold).foregroundStyle(Color.inkSecondary).plTapTarget()
                             }
                         }
-                        .padding(.leading, row.depth > 0 ? 16 : 0)
+                        .padding(.leading, row.depth > 0 ? 36 : 0)
                         .overlay(alignment: .leading) {
                             if row.depth > 0 { Rectangle().fill(Color.hairline).frame(width: 1) }
                         }
@@ -188,7 +193,7 @@ struct PostThreadView: View {
                     }
                 }
                 .animation(.plSnap, value: visibleComments.count)
-                .padding(.horizontal, 24)
+                .padding(.horizontal, Spacing.page)
                 .padding(.top, 16)
                 .padding(.bottom, 20)
             }
@@ -207,7 +212,7 @@ struct PostThreadView: View {
             }
             }
 
-            if let sendProblem { Text(sendProblem).plType(.caption).foregroundStyle(Color.dangerText).padding(.horizontal, 24) }
+            if let sendProblem { Text(sendProblem).plType(.caption).foregroundStyle(Color.dangerText).padding(.horizontal, Spacing.page) }
             composer
         }
         .background(Color.canvas)
@@ -334,7 +339,7 @@ struct PostThreadView: View {
             IconDiscButton(systemName: "arrow.left", label: "Back") {
                 dismiss()
             }
-            Text("Post").plType(.heading).foregroundStyle(Color.ink)
+            Text("Post").plType(.pageTitle).foregroundStyle(Color.ink)
             Spacer()
             if canSaveToCookbook || canReport(postAuthor, knownToBeSelf: postIsMine) || canBlock(postAuthor) {
                 Menu {
@@ -381,12 +386,15 @@ struct PostThreadView: View {
                     AvatarCircle(initials: post.initials, tone: PersonTone.from(hex: post.authorColorHex), size: 38,
                                  photo: members.photo(forAuthor: post.authorName, authorID: post.authorID))
                         .matchedTransitionSource(id: ZoomID.author(post.persistentModelID), in: zoom)
-                    Text(post.authorName).plType(.footnote, .semibold).foregroundStyle(Color.ink)
-                        .fixedSize(horizontal: false, vertical: true)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(post.authorName).plType(.body, .semibold).foregroundStyle(Color.ink)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Text("\(Stamp.day(post.createdAt)) · Your Table").plType(.caption).foregroundStyle(Color.inkSecondary)
+                    }
                 }.contentShape(Rectangle())
             }.buttonStyle(.pressable)
             Text(post.dishTitle.isEmpty ? (post.kind == "ask" ? "Question" : "Post") : post.dishTitle)
-                .plType(.heading).foregroundStyle(Color.ink)
+                .plType(.cardTitle).foregroundStyle(Color.ink)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityAddTraits(.isHeader)
         }.frame(maxWidth: .infinity, alignment: .leading)
@@ -599,7 +607,7 @@ struct PostThreadView: View {
     /// Linearized tree with bounded indentation. Missing parents and cycles
     /// remain visible; stale sync data can never hide someone's comment.
     private var threadRows: [(comment: TableComment, depth: Int)] {
-        let comments = visibleComments
+        let comments = visibleComments.filter { $0.deletedAt == nil || descendantCount(commentKey($0)) > 0 }
         let ids = Set(comments.map(commentKey))
         var visited = Set<String>()
         var rows: [(comment: TableComment, depth: Int)] = []
@@ -650,29 +658,12 @@ struct PostThreadView: View {
                     .plTapTarget()
             }
             .buttonStyle(.pressable)
-            // The adjacent name is the one VoiceOver door. Keeping the face
-            // visually tappable without announcing the same profile twice
-            // makes a long thread much faster to traverse.
-            .accessibilityHidden(true)
+            // The avatar is the profile action; the adjacent name is text.
+            // Avoid two separate focus stops for the same destination.
+            .accessibilityLabel("Open \(comment.authorName)’s profile")
             VStack(alignment: .leading, spacing: 3) {
-                let headingLayout = typeSize.isAccessibilitySize
-                    ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4))
-                    : AnyLayout(HStackLayout(spacing: 6))
-                headingLayout {
-                    Button {
-                        openProfile(comment.authorName, authorID: comment.authorID, door: .author(comment.persistentModelID))
-                    } label: {
-                        Text(comment.authorName)
-                            .plType(.footnote, .bold)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .foregroundStyle(Color.ink)
-                    }
-                    .buttonStyle(.pressable)
-                    .plTapTarget()
-                    Text(relativeWhen(comment.createdAt))
-                        .plType(.micro, .medium)
-                        .foregroundStyle(Color.inkSecondary)
-                }
+                Text(comment.authorName).plType(.footnote, .semibold).foregroundStyle(Color.ink)
+                    .fixedSize(horizontal: false, vertical: true)
                 if !comment.replyToName.isEmpty && !post.sortedComments.contains(where: { $0.shareRecordName == comment.parentCommentID }) {
                     Label("Replying to \(comment.replyToName)", systemImage: "arrowshape.turn.up.left")
                         .plType(.micro)
@@ -722,7 +713,8 @@ struct PostThreadView: View {
                 }
                 if comment.deletedAt == nil {
                     if typeSize.isAccessibilitySize { CommentReactionButton(comment: comment) }
-                    HStack(spacing: 16) {
+                    HStack(spacing: 12) {
+                        Text(relativeWhen(comment.createdAt)).plType(.caption).foregroundStyle(Color.inkSecondary)
                         Button {
                             Haptic.tap()
                             withAnimation(.plSnap) {
@@ -934,7 +926,7 @@ struct PostThreadView: View {
                     }
                     .buttonStyle(.pressable)
                 }
-                .padding(.horizontal, 24)
+                .padding(.horizontal, Spacing.page)
                 .transition(arrival)
             }
 
@@ -962,7 +954,7 @@ struct PostThreadView: View {
                             .buttonStyle(.pressable)
                         }
                     }
-                    .padding(.horizontal, 24)
+                    .padding(.horizontal, Spacing.page)
                 }
                 .transition(arrival)
             }
@@ -979,7 +971,7 @@ struct PostThreadView: View {
                     .padding(.horizontal, 14)
                     .frame(minHeight: 44)
                     .overlay(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous).strokeBorder(Color.hairline))
-                    .padding(.horizontal, 24)
+                    .padding(.horizontal, Spacing.page)
                     .plTappableField()
             }
 
@@ -1010,7 +1002,7 @@ struct PostThreadView: View {
                         }
                     Spacer()
                 }
-                .padding(.horizontal, 24)
+                .padding(.horizontal, Spacing.page)
             }
 
             if attachmentsExpanded {
@@ -1065,7 +1057,7 @@ struct PostThreadView: View {
                     .focused($composerFocused)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 10)
-                    .overlay(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous).strokeBorder(Color.hairline))
+                    .overlay(RoundedRectangle(cornerRadius: 23, style: .continuous).strokeBorder(Color.hairline))
                     .plTapToFocus { composerFocused = true }
                     // The padding is part of the pill but not of the text
                     // field — without this, taps on it go nowhere.

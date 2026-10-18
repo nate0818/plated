@@ -25,7 +25,7 @@ struct PlanCookLabel: View {
             }
             VStack(alignment: .leading, spacing: 3) {
                 MicroLabel(heading)
-                Text(name).plType(.body, .semibold).foregroundStyle(Color.ink)
+                Text(name).plType(.footnote, .semibold).foregroundStyle(Color.ink)
                     .fixedSize(horizontal: false, vertical: true)
             }
             if !typeSize.isAccessibilitySize { Spacer(minLength: 4) }

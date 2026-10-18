@@ -23,6 +23,8 @@ enum NotificationScheduler {
         case denied
     }
 
+    private static let cookTimerWork = NotificationOperationQueue()
+
     private static let ritualID = "plated.ritual.week"
     private static let turnPrefix = "plated.turn."
     /// A night another phone planned with this person as the cook. Under
@@ -107,38 +109,45 @@ enum NotificationScheduler {
     /// limit, and re-adding the same identifier is how UNUserNotificationCenter
     /// spells "replace".
     static func scheduleCookTimer(in seconds: TimeInterval, title: String, body: String, soundEnabled: Bool = true) async {
-        guard seconds > 0, await authorized() else {
-            print("[CookTimer] not scheduling: seconds=\(seconds) authorized=\(await authorized())")
-            return
+        guard seconds > 0 else { return }
+        let deadline = Date.now.addingTimeInterval(seconds)
+        let operation = cookTimerWork.enqueue {
+            guard await authorized() else { return }
+            let remaining = deadline.timeIntervalSinceNow
+            guard remaining > 0 else { return }
+            let content = UNMutableNotificationContent()
+            content.title = title
+            content.body = body
+            content.sound = soundEnabled ? .default : nil
+            // Its own category, so a locked screen still says what rang.
+            content.categoryIdentifier = NotificationRouter.Category.cook
+            content.userInfo = [
+                NotificationRouter.Key.link: DeepLink.url(.cook).absoluteString
+            ]
+            // A pan on the stove is the one thing in this app that cannot wait
+            // for a Focus to end. Needs the Time Sensitive capability on the
+            // App ID; without it iOS delivers this as active, which is what it
+            // was before, so nothing is lost by asking.
+            content.interruptionLevel = .timeSensitive
+            content.relevanceScore = 1
+            let request = UNNotificationRequest(
+                identifier: cookTimerID,
+                content: content,
+                trigger: UNTimeIntervalNotificationTrigger(timeInterval: remaining, repeats: false)
+            )
+            try? await UNUserNotificationCenter.current().add(request)
+            print("[CookTimer] scheduled in \(Int(seconds))s")
         }
-        let content = UNMutableNotificationContent()
-        content.title = title
-        content.body = body
-        content.sound = soundEnabled ? .default : nil
-        // Its own category, so a locked screen still says what rang.
-        content.categoryIdentifier = NotificationRouter.Category.cook
-        content.userInfo = [
-            NotificationRouter.Key.link: DeepLink.url(.cook).absoluteString
-        ]
-        // A pan on the stove is the one thing in this app that cannot wait
-        // for a Focus to end. Needs the Time Sensitive capability on the
-        // App ID; without it iOS delivers this as active, which is what it
-        // was before, so nothing is lost by asking.
-        content.interruptionLevel = .timeSensitive
-        content.relevanceScore = 1
-        let request = UNNotificationRequest(
-            identifier: cookTimerID,
-            content: content,
-            trigger: UNTimeIntervalNotificationTrigger(timeInterval: seconds, repeats: false)
-        )
-        try? await UNUserNotificationCenter.current().add(request)
-        print("[CookTimer] scheduled in \(Int(seconds))s")
+        await operation.value
     }
 
     static func cancelCookTimer() {
-        UNUserNotificationCenter.current()
-            .removePendingNotificationRequests(withIdentifiers: [cookTimerID])
-        print("[CookTimer] cancelled")
+        // Clear immediately, then again in order after any in-flight async add.
+        // Pausing during Apple's authorization/add callback cannot resurrect an alarm.
+        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [cookTimerID])
+        cookTimerWork.enqueue {
+            UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [cookTimerID])
+        }
     }
 
     /// Whether the user has opted in, as far as the system is concerned.
@@ -511,4 +520,19 @@ enum NotificationScheduler {
         try? await center.add(request)
     }
 
+}
+
+/// Notification-center callbacks can complete after the next user action.
+/// Serialize timer writes so Pause/Clear always wins over an earlier async add,
+/// and a subsequent Resume is scheduled only after that cancellation completes.
+@MainActor
+final class NotificationOperationQueue {
+    private var previous: Task<Void, Never>?
+    @discardableResult
+    func enqueue(_ action: @escaping @MainActor () async -> Void) -> Task<Void, Never> {
+        let predecessor = previous
+        let task = Task { await predecessor?.value; await action() }
+        previous = task
+        return task
+    }
 }

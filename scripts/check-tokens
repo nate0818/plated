@@ -12,7 +12,11 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-python3 - "$ROOT" <<'PY'
+# Marketing's approved palette is now independent of the native product.
+# Native delivery still checks every app/widget token and shared activity type.
+SCOPE="${1:---all}"
+case "$SCOPE" in --all|--native-only) ;; *) echo "usage: scripts/check-tokens [--all|--native-only]" >&2; exit 2 ;; esac
+python3 - "$ROOT" "$SCOPE" <<'PY'
 import re, sys, pathlib
 root = pathlib.Path(sys.argv[1])
 app = (root / "Plated/Support/Theme.swift").read_text()
@@ -38,6 +42,10 @@ if drift:
     print("\n  Theme.swift is the source. Copy its values across.")
     sys.exit(1)
 print("\033[32m✓\033[0m no drift")
+
+if sys.argv[2] == '--native-only':
+    print("Website palette is outside this native app/widget check")
+    sys.exit(0)
 
 # The website uses the same two palettes. Resolve CSS aliases so selection
 # roles cannot silently diverge while app and website work happen together.

@@ -161,10 +161,10 @@ extension Collection where Element == HouseholdMember {
 
 enum Radius {
     static let small: CGFloat = 4
-    static let chip: CGFloat = 6
+    static let chip: CGFloat = 8
     static let row: CGFloat = 6
-    static let card: CGFloat = 8
-    static let hero: CGFloat = 4
+    static let card: CGFloat = 12
+    static let hero: CGFloat = 12
     static let sheet: CGFloat = 18
 
     static func shape(_ radius: CGFloat) -> RoundedRectangle {
@@ -182,7 +182,7 @@ enum Spacing {
     static let inline: CGFloat = 8
     static let compact: CGFloat = 12
     static let content: CGFloat = 16
-    static let page: CGFloat = 24
+    static let page: CGFloat = 20
     static let section: CGFloat = 28
 }
 
@@ -925,7 +925,7 @@ struct PrimaryActionButton: View {
                     Image(systemName: systemImage).font(.system(size: 16, weight: .semibold))
                 }
                 Text(title)
-                    .plType(.callout)
+                    .plType(.body, .semibold)
                     .lineLimit(typeSize.isAccessibilitySize ? nil : 1)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
@@ -960,7 +960,7 @@ struct SecondaryActionButton: View {
                     Image(systemName: systemImage).font(.system(size: 16, weight: .semibold))
                 }
                 Text(title)
-                    .plType(.callout)
+                    .plType(.body, .semibold)
                     .lineLimit(typeSize.isAccessibilitySize ? nil : 1)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)

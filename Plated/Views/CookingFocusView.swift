@@ -90,7 +90,7 @@ struct CookingFocusView: View {
                     if finished { finishDone() } else { dismiss() }
                 }
                 Text(finished ? "Finished" : "Cooking")
-                    .plType(.body, .semibold)
+                    .plType(.pageTitle)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 if !finished {
                     Menu {
@@ -100,7 +100,7 @@ struct CookingFocusView: View {
                     }
                     .accessibilityLabel("Cooking options")
                 }
-            }.disabled(finishing).plChrome().padding(.horizontal, 24).padding(.vertical, 8)
+            }.disabled(finishing).plChrome().padding(.horizontal, Spacing.page).padding(.vertical, 8)
             if finished {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 20) {
@@ -129,28 +129,34 @@ struct CookingFocusView: View {
             } else {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 18) {
-                        Text(session?.titleSnapshot ?? recipe.title)
-                            .plType(.heading).fixedSize(horizontal: false, vertical: true)
-                            .accessibilityAddTraits(.isHeader)
+                        MicroLabel((session?.titleSnapshot ?? recipe.title) + " · Serves \(session?.servings ?? servings)")
                         let controls = typeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 12)) : AnyLayout(HStackLayout(spacing: 12))
-                        controls {
-                            MicroLabel(steps.isEmpty ? "Your recipe" : "Step \(index + 1) of \(steps.count)")
-                            if !typeSize.isAccessibilitySize { Spacer() }
-                            Text("Serves \(session?.servings ?? servings)").plType(.footnote).foregroundStyle(Color.inkSecondary)
-                        }
                         if steps.isEmpty {
-                            Text("Ingredients").plType(.heading).accessibilityAddTraits(.isHeader)
+                            Text("Cook your own way.").plType(.pageTitle).accessibilityAddTraits(.isHeader)
+                            Text("No written steps. Keep your ingredients handy.").plType(.footnote).foregroundStyle(Color.inkSecondary)
                             if (session?.ingredientsSnapshot ?? []).isEmpty {
                                 Text("No ingredients or directions have been added to this recipe.")
                                     .plType(.body).foregroundStyle(Color.inkSecondary)
                             }
-                            ForEach(Array((session?.ingredientsSnapshot ?? []).enumerated()), id: \.offset) { _, line in
-                                Text(line).plType(.body).frame(maxWidth: .infinity, alignment: .leading)
+                            VStack(spacing: 0) {
+                            ForEach(Array((session?.ingredientsSnapshot ?? []).enumerated()), id: \.offset) { offset, line in
+                                let checked = session?.checkedIngredients?.contains(offset) == true
+                                Button { Haptic.select(); ledger.toggleIngredient(offset, in: recipe) } label: {
+                                    HStack(spacing: 12) {
+                                        Image(systemName: checked ? "checkmark.circle.fill" : "circle")
+                                            .font(.system(size: 21)).foregroundStyle(Color.olive)
+                                        Text(line).plType(.body).foregroundStyle(Color.ink)
+                                            .frame(maxWidth: .infinity, alignment: .leading)
+                                    }.frame(minHeight: 44).contentShape(Rectangle())
+                                }.buttonStyle(.plain).accessibilityLabel(line)
+                                    .accessibilityValue(checked ? "Prepared" : "Not prepared")
                                 Divider()
                             }
+                            }
                         } else {
+                            MicroLabel("Step \(index + 1) of \(steps.count)")
                             ProgressView(value: Double(index + 1), total: Double(steps.count)).tint(Color.olive)
-                            Text(steps[index]).plType(.body, .medium).foregroundStyle(Color.ink)
+                            Text(steps[index]).plType(.title).foregroundStyle(Color.ink)
                                 .fixedSize(horizontal: false, vertical: true).id(index)
                         }
                         if !stepIngredientLines.isEmpty || suggestedTimerMinutes != nil {
@@ -200,22 +206,33 @@ struct CookingFocusView: View {
                         }
                         if let timer = ledger.timer(for: recipe) {
                             TimelineView(.periodic(from: .now, by: 1)) { tick in
-                                HStack(spacing: 12) {
+                                let timerLayout = typeSize.isAccessibilitySize
+                                    ? AnyLayout(VStackLayout(alignment: .leading, spacing: 12))
+                                    : AnyLayout(HStackLayout(spacing: 12))
+                                timerLayout {
                                     Image(systemName: ledger.isTimerMuted(for: recipe) ? "bell.slash" : "timer")
                                         .accessibilityHidden(true)
                                     VStack(alignment: .leading, spacing: 2) {
-                                        if timer.endsAt > tick.date {
-                                            Text(timer.endsAt, style: .timer).monospacedDigit().plType(.heading)
-                                        } else { Text("0:00").monospacedDigit().plType(.heading) }
-                                        Text(timer.endsAt <= tick.date ? "Timer finished" : ledger.isTimerMuted(for: recipe) ? "Alert muted" : "Timer running")
+                                        if let remaining = session?.timerPausedRemaining {
+                                            Text(String(format: "%d:%02d", Int(ceil(remaining)) / 60, Int(ceil(remaining)) % 60))
+                                                .monospacedDigit().plType(.pageTitle)
+                                        } else if timer.endsAt > tick.date {
+                                            Text(timer.endsAt, style: .timer).monospacedDigit().plType(.pageTitle)
+                                        } else { Text("0:00").monospacedDigit().plType(.pageTitle) }
+                                        Text(session?.timerPausedRemaining != nil ? "Timer paused" : timer.endsAt <= tick.date ? "Timer finished" : ledger.isTimerMuted(for: recipe) ? "Alert muted" : "Timer running")
                                             .plType(.caption).foregroundStyle(Color.inkSecondary)
                                     }.frame(maxWidth: .infinity, alignment: .leading)
+                                    if session?.timerPausedRemaining != nil || timer.endsAt > tick.date {
+                                        Button(session?.timerPausedRemaining == nil ? "Pause" : "Resume") { toggleTimerPause() }
+                                            .plType(.footnote, .semibold).foregroundStyle(Color.accentText).plTapTarget()
+                                            .accessibilityIdentifier("cooking-timer-pause")
+                                    }
                                     Menu {
                                         Button {
                                             let muted = !ledger.isTimerMuted(for: recipe)
                                             ledger.setTimerMuted(muted, in: recipe)
                                             if muted { NotificationScheduler.cancelCookTimer() }
-                                            else { scheduleTimerAlert(until: timer.endsAt) }
+                                            else if session?.timerPausedRemaining == nil { scheduleTimerAlert(until: timer.endsAt) }
                                         } label: {
                                             Label(ledger.isTimerMuted(for: recipe) ? "Unmute alert" : "Mute alert",
                                                   systemImage: ledger.isTimerMuted(for: recipe) ? "bell.slash" : "bell")
@@ -247,7 +264,7 @@ struct CookingFocusView: View {
                     PrimaryActionButton(title: index < steps.count - 1 ? "Next step" : "Finish cooking", systemImage: index < steps.count - 1 ? "arrow.right" : "checkmark") {
                         if index < steps.count - 1 { move(1) } else { finish() }
                     }
-                }.disabled(finishing).plChrome().padding(.horizontal, 24).padding(.vertical, 12).background(Color.canvas)
+                }.disabled(finishing).plChrome().padding(.horizontal, Spacing.page).padding(.vertical, 12).background(Color.canvas)
             }
         }
         .background(Color.canvas).foregroundStyle(Color.ink)
@@ -256,7 +273,7 @@ struct CookingFocusView: View {
             UIApplication.shared.isIdleTimerDisabled = true
             // A finished or cleared timer's activity comes down here; the
             // system cannot be told to end one at the moment it rings.
-            CookTimerLive.reconcile(endsAt: ledger.timer(for: recipe)?.0)
+            CookTimerLive.reconcile(endsAt: session?.timerPausedRemaining == nil ? ledger.timer(for: recipe)?.0 : nil)
         }
         .interactiveDismissDisabled(finishing || (finished && !completionNote.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty))
         .onDisappear { UIApplication.shared.isIdleTimerDisabled = false }
@@ -321,8 +338,23 @@ struct CookingFocusView: View {
         CookTimerLive.start(dish: recipe.title, step: steps.isEmpty ? 0 : index + 1, endsAt: endsAt)
         Task {
             let authorized = await NotificationScheduler.askOnce()
+            guard session?.timerEndsAt == endsAt, session?.timerPausedRemaining == nil else { return }
             await NotificationScheduler.scheduleCookTimer(in: seconds, title: "Plated timer", body: "\(recipe.title): your \(minutes) minute timer is ready.", soundEnabled: !ledger.isTimerMuted(for: recipe))
             timerHint = authorized ? "The timer can alert you while Plated is in the background." : "Notifications are off. The timer stays visible here."
+        }
+    }
+
+    private func toggleTimerPause() {
+        if session?.timerPausedRemaining == nil {
+            ledger.pauseTimer(in: recipe)
+            NotificationScheduler.cancelCookTimer()
+            CookTimerLive.end()
+        } else {
+            ledger.resumeTimer(in: recipe)
+            if let timer = ledger.timer(for: recipe) {
+                CookTimerLive.start(dish: recipe.title, step: steps.isEmpty ? 0 : index + 1, endsAt: timer.endsAt)
+                scheduleTimerAlert(until: timer.endsAt)
+            }
         }
     }
 
@@ -337,6 +369,7 @@ struct CookingFocusView: View {
         let seconds = date.timeIntervalSinceNow
         guard seconds > 0 else { return }
         Task {
+            guard session?.timerEndsAt == date, session?.timerPausedRemaining == nil else { return }
             let muted = ledger.isTimerMuted(for: recipe)
             await NotificationScheduler.scheduleCookTimer(
                 in: seconds,

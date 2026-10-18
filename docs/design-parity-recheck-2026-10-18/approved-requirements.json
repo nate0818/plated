@@ -1,0 +1,812 @@
+[
+  {
+    "id": "plan-open",
+    "group": "Everyday planning",
+    "label": "Plan · open dinner",
+    "title": "Make tonight the clear starting point.",
+    "summary": "A quieter frame gives the dinner decision, cook, and next action a stronger hierarchy.",
+    "states": [
+      [
+        "open",
+        "Unplanned dinner"
+      ],
+      [
+        "out",
+        "Eating out"
+      ]
+    ],
+    "keep": "Keep the selected-day model, personal greeting, explicit cook identity, and quick eating-out option.",
+    "notes": [
+      [
+        "Spend less space on the frame",
+        "The brand masthead, greeting, and tall date strip repeat orientation before the decision.",
+        "Use one compact Plan header, a quieter greeting, and smaller day tiles.",
+        "Hierarchy · Put the task earlier.",
+        48,
+        18
+      ],
+      [
+        "One dominant next step",
+        "Two large side-by-side actions have almost equal visual weight.",
+        "Make Choose a meal primary. Keep Eating out directly beneath as an obvious secondary action.",
+        "Choice clarity · Preserve both paths.",
+        50,
+        50
+      ],
+      [
+        "Suggested is not assigned",
+        "The suggestion is correctly labelled, but Change can imply that someone is already assigned.",
+        "Pair the suggested person with Assign. Use Change only after a cook is assigned.",
+        "Honest status · Avoid implied commitment.",
+        50,
+        43
+      ],
+      [
+        "Useful context, less ceremony",
+        "Weather and a large zero-count log consume substantial space in the open state.",
+        "Keep weather compact. Use a small explanatory empty history rather than prominent zeros.",
+        "Proximity · Keep the dinner decision dominant.",
+        50,
+        68
+      ]
+    ]
+  },
+  {
+    "id": "plan-meal",
+    "group": "Everyday planning",
+    "label": "Plan · planned dinner",
+    "title": "Food, person, action—in one glance.",
+    "summary": "Bound the photo and bring the cooking responsibility and primary action into one coherent block.",
+    "states": [
+      [
+        "today",
+        "Tonight"
+      ],
+      [
+        "future",
+        "Future dinner"
+      ],
+      [
+        "cooked",
+        "Cooked dinner"
+      ]
+    ],
+    "keep": "Keep food photography, the assigned cook, serving count, and date-specific actions.",
+    "notes": [
+      [
+        "Keep the day selector compact",
+        "The tall opening stack consumes space before a planned meal appears.",
+        "Retain seven visible days in a shorter, quieter row; clearly distinguish selected and today.",
+        "Orientation · Selection stays explicit.",
+        50,
+        26
+      ],
+      [
+        "Give the photo a job",
+        "The photo and separate title consume much of the card, especially on smaller phones.",
+        "Cap the image height and keep title, date, and image tightly grouped.",
+        "Balance · Food still leads.",
+        50,
+        51
+      ],
+      [
+        "Group practical facts",
+        "Cook identity and servings occupy separate vertical bands.",
+        "Keep the assigned person near time and servings, immediately above the action.",
+        "Proximity · Know who, how long, and how much.",
+        48,
+        68
+      ],
+      [
+        "Match the action to the moment",
+        "Today, future, and completed dinners need different emphasis.",
+        "Use Start cooking, View recipe, or a cooked confirmation with Share as the next step. Try the state selector.",
+        "Feedback · Completion changes the interface.",
+        50,
+        76
+      ]
+    ]
+  },
+  {
+    "id": "plan-context",
+    "group": "Everyday planning",
+    "label": "Weather & household",
+    "title": "Context that earns its place.",
+    "summary": "Weather, dinner history, and household activity should be compact, specific, and honest about what is recorded.",
+    "states": [
+      [
+        "recorded",
+        "Recorded dinners"
+      ],
+      [
+        "empty",
+        "New household"
+      ],
+      [
+        "weather",
+        "Forecast unavailable"
+      ]
+    ],
+    "archived": true,
+    "sourceDate": "October 17",
+    "keep": "Keep the corrected, contrasting Apple Weather attribution. The older reference image predates that fix; the proposal preserves it.",
+    "notes": [
+      [
+        "Treat weather as one small unit",
+        "The weather region uses a large title, separate values, and a generous attribution gap.",
+        "Group condition, high/low, and rain chance. Retain readable official attribution and its link. The logo here is a layout placeholder.",
+        "Density · Weather supports the plan.",
+        50,
+        23
+      ],
+      [
+        "Name whose history this is",
+        "Your dinner log can sound personal when the counts represent shared household dinners.",
+        "Label it Household dinners and state the period and recorded total. Never infer unlogged meals.",
+        "Trust · Explain the scope of numbers.",
+        50,
+        40
+      ],
+      [
+        "Give activity a human subject",
+        "Household activity needs to connect a face, person, action, and relevant meal without becoming a dashboard.",
+        "Use compact actor-and-action rows, with a secondary time and day. Use real photos when available; initials here are sample fallbacks.",
+        "Recognition · Show what changed and who did it.",
+        50,
+        72
+      ],
+      [
+        "End with useful continuity",
+        "Supporting modules can become a long sequence of headings and empty space.",
+        "Use a quiet tomorrow preview and a clear caught-up ending. Keep all other days outside today’s dinner area.",
+        "Closure · Make the end of the screen intentional.",
+        50,
+        84
+      ]
+    ]
+  },
+  {
+    "id": "table",
+    "group": "Sharing & conversation",
+    "label": "The Table",
+    "title": "Let the people and posts lead.",
+    "summary": "Reduce the introduction above the feed, bound the media, and make post actions familiar.",
+    "states": [
+      [
+        "feed",
+        "Normal feed"
+      ],
+      [
+        "pending",
+        "Pending post"
+      ]
+    ],
+    "keep": "Keep the private audience, household filter when meaningful, media, comments, and chronological context.",
+    "notes": [
+      [
+        "Quiet the privacy explanation",
+        "A large privacy card, title, and filter occupy much of the first viewport.",
+        "Use one compact audience line with People. Treat the filter as a view of posts, not as a change of recipient.",
+        "Hierarchy · Reach the first post sooner.",
+        50,
+        26
+      ],
+      [
+        "Create a repeatable post anatomy",
+        "The first large image takes nearly the remainder of the screen; caption and actions are below it.",
+        "Use author, bounded media, actions, then caption. Respect media aspect ratios within a sensible height limit.",
+        "Rhythm · Make the feed easy to scan.",
+        50,
+        59
+      ],
+      [
+        "Use one reaction language",
+        "Posts use a plate metaphor while comment reactions use a heart.",
+        "Use hearts for post and comment reactions. Keep bookmarking distinct from liking.",
+        "Familiarity · Less decoding.",
+        50,
+        79
+      ],
+      [
+        "Make posting status legible",
+        "A visual mockup alone cannot prove that other people have received a post.",
+        "Distinguish waiting, sending, sent, and retry states; retain the draft while offline. Show new content without pull-to-refresh.",
+        "Feedback · Delivery must be honest.",
+        50,
+        85
+      ]
+    ]
+  },
+  {
+    "id": "create",
+    "group": "Sharing & conversation",
+    "label": "Create menu",
+    "title": "Two clear doors into creation.",
+    "summary": "A post can already contain a question or poll. The creation menu should reflect that model.",
+    "states": [
+      [
+        "default",
+        "Creation choices"
+      ]
+    ],
+    "keep": "Keep a global entry for creation, recipe import routes, and questions/polls within the Table.",
+    "notes": [
+      [
+        "Stop splitting one intention",
+        "Post to the Table and Ask the Table overlap, since posts can already include questions.",
+        "Offer one Post to the Table entry for food, places, ingredients, photos, and questions.",
+        "Choice clarity · Remove an unnecessary decision.",
+        50,
+        75
+      ],
+      [
+        "Keep recipes a distinct object",
+        "Recipes have structure and import tools that differ from social posts.",
+        "Give Add a recipe its own clear entry with a short description of import methods.",
+        "Mental model · Different tools for different objects.",
+        50,
+        84
+      ],
+      [
+        "Make a poll a post tool",
+        "The Ask route duplicates the generic composer while suggesting a separate content system.",
+        "Place Add poll inside the composer. Mention it here only as a quiet hint.",
+        "Progressive disclosure · Complexity when needed.",
+        50,
+        91
+      ],
+      [
+        "Make contextual creation direct",
+        "A global + forces the same menu regardless of where the user is.",
+        "On the Table, open a new post. In Recipes, add a recipe. Keep the global menu where intent is ambiguous.",
+        "Efficiency · Respect the current task.",
+        63,
+        10
+      ]
+    ]
+  },
+  {
+    "id": "composer",
+    "group": "Sharing & conversation",
+    "label": "New post",
+    "title": "Give the thought more room than the form.",
+    "summary": "The current freeform model is right. Refine its hierarchy, attachment controls, and draft feedback.",
+    "states": [
+      [
+        "writing",
+        "Empty draft"
+      ],
+      [
+        "photo",
+        "Photo attached"
+      ],
+      [
+        "saved",
+        "Draft saved"
+      ]
+    ],
+    "keep": "Keep generic posts, optional photos/titles/tags/polls, private audience, and persistent drafts. The old Share dish restriction is already gone.",
+    "notes": [
+      [
+        "Compress repeated context",
+        "Author, audience, and the privacy sentence form three separate lines before writing begins.",
+        "Use a compact author-and-audience row. Explain privacy once near posting.",
+        "Hierarchy · Begin with expression.",
+        50,
+        21
+      ],
+      [
+        "Let the writing breathe",
+        "A placeholder and a separate multi-line explanation compete for attention.",
+        "Use one inviting prompt. Keep examples as quiet help instead of another required-looking section.",
+        "Focus · The story is the main event.",
+        50,
+        32
+      ],
+      [
+        "Attach tools to the content",
+        "Large two-column tool rows read like additional form steps.",
+        "Use a compact attachment strip. Put photo edit/remove controls on the photo itself. Keep title in More.",
+        "Proximity · Controls belong to what they affect.",
+        50,
+        46
+      ],
+      [
+        "Show drafts and posting deliberately",
+        "The long empty sheet can make the bottom action feel disconnected from the work.",
+        "Keep a stable posting action and explicit draft status; preserve content when closing. The preview demonstrates local states only.",
+        "Confidence · No lost writing.",
+        50,
+        92
+      ]
+    ]
+  },
+  {
+    "id": "comments",
+    "group": "Sharing & conversation",
+    "label": "Post & comments",
+    "title": "A conversation that reads naturally.",
+    "summary": "Reduce the scaffolding around each reply while keeping attribution, reactions, and delivery status clear.",
+    "states": [
+      [
+        "reading",
+        "Reading a new comment"
+      ],
+      [
+        "replying",
+        "Replying"
+      ],
+      [
+        "sending",
+        "Sending a reply"
+      ]
+    ],
+    "keep": "Keep comment reactions, replies, deleted-parent context where needed, and the thread overflow. The misplaced top-level Save button is already removed.",
+    "notes": [
+      [
+        "Bring the conversation closer",
+        "A large post title and isolated plate reaction separate the text from the comments.",
+        "Use a compact post summary and a familiar reaction row before the thread.",
+        "Reading flow · Less intervening chrome.",
+        50,
+        28
+      ],
+      [
+        "Anchor reactions to comments",
+        "Name, time, reply, heart, and overflow create multiple horizontal bands.",
+        "Group author and text; keep time/reply subdued and the reaction beside its comment. Highlight a notification’s target briefly.",
+        "Proximity · Easier attribution.",
+        50,
+        58
+      ],
+      [
+        "Use nesting instead of repetition",
+        "Each nested reply repeats a long Replying to name line.",
+        "Indent one level with a subtle thread line. Collapse longer branches behind View replies. Retain deleted context only when replies need it.",
+        "Density · More conversation, less labelling.",
+        50,
+        76
+      ],
+      [
+        "Make the reply target unmistakable",
+        "The bottom composer does not visually explain the distinction between a new comment and a targeted reply.",
+        "Show Replying to Alessandra directly above the field with Cancel. Keep sending/retry status on the affected reply.",
+        "Error prevention · Know who receives the reply.",
+        50,
+        92
+      ]
+    ]
+  },
+  {
+    "id": "activity",
+    "group": "Sharing & conversation",
+    "label": "Activity & notifications",
+    "title": "Timely, contextual, and trustworthy.",
+    "summary": "A notification should explain who did what, open the right place, and retain a meaningful unread state.",
+    "states": [
+      [
+        "unread",
+        "Unread activity"
+      ],
+      [
+        "read",
+        "Marked read"
+      ],
+      [
+        "push",
+        "Phone notification concept"
+      ]
+    ],
+    "keep": "Keep actor identity, unread markers, event time, and deep links. Phone delivery and multi-account sync still require real-device verification.",
+    "notes": [
+      [
+        "Separate read from cleared",
+        "Clear all is the prominent header action. Current exit handling marks the filtered list read, including unseen rows.",
+        "Offer Mark all read; put clearing in overflow. Opening or actually viewing an item should determine individual read status.",
+        "User control · Do not erase attention silently.",
+        84,
+        11
+      ],
+      [
+        "Add the object and useful context",
+        "Rows rely heavily on full bold sentences and often omit the content being referenced.",
+        "Use actor + action + object, a short comment excerpt, and a specific household-joined event. Open the exact post/comment.",
+        "Recognition · No guessing what changed.",
+        50,
+        23
+      ],
+      [
+        "Group low-urgency reactions",
+        "Independent reactions can turn activity into noisy repeated events.",
+        "Group related reactions while keeping comments, replies, and joins distinct. Use thumbnails where they help recognition.",
+        "Signal · Preserve meaningful events.",
+        50,
+        62
+      ],
+      [
+        "Design delivery as a full journey",
+        "Your reported updates appeared only after refreshing; a better list alone does not solve that.",
+        "Require automatic foreground updates, deduplicated push, accurate badges, and correct deep links. The lock-screen state illustrates copy, not a delivery guarantee.",
+        "Reliability · This needs implementation and device evidence.",
+        50,
+        79
+      ]
+    ]
+  },
+  {
+    "id": "household",
+    "group": "People & belonging",
+    "label": "Household",
+    "title": "Make belonging and responsibility obvious.",
+    "summary": "Put people and cooking responsibilities before decoration, with explicit membership and invitation states.",
+    "states": [
+      [
+        "overview",
+        "Household overview"
+      ],
+      [
+        "assign",
+        "Choose a cook"
+      ],
+      [
+        "invite",
+        "New invitation pending"
+      ]
+    ],
+    "archived": true,
+    "sourceDate": "October 17",
+    "keep": "Keep the separated header controls from the recent fix, household identity, member management, and cook rotation.",
+    "notes": [
+      [
+        "Use an unmistakable settings control",
+        "The header is improved, but the sliders symbol still reads as a filter or adjustment control.",
+        "Use a gear with a labelled accessibility action. Keep the household title and control separate. Bound the cover photo.",
+        "Familiarity · Settings should look like settings.",
+        80,
+        10
+      ],
+      [
+        "Let membership carry the screen",
+        "A large cover can delay the people list; initials may mask a missing-photo problem.",
+        "Prioritize name, role, real synced avatar, and meaningful recent activity. Initials here are explicit sample fallbacks, not evidence that photo sync is fixed.",
+        "Identity · A shared household must feel shared.",
+        50,
+        55
+      ],
+      [
+        "Choose instead of cycling",
+        "The current rotation changes the cook immediately when a day is tapped.",
+        "Open an explicit picker with every member and Unassigned, then save. Avoid accidental changes while exploring.",
+        "Error prevention · Make responsibility intentional.",
+        50,
+        81
+      ],
+      [
+        "Make the invitation state singular",
+        "Earlier removal and re-invitation messaging contradicted itself in your screenshots.",
+        "Treat pending, joined, removed, and new invitation as distinct states. A new invitation must explain that it can restore access.",
+        "Trust · One coherent message per state.",
+        50,
+        70
+      ]
+    ]
+  },
+  {
+    "id": "profile",
+    "group": "People & belonging",
+    "label": "Profile",
+    "title": "A person before a scoreboard.",
+    "summary": "Bring identity and real contribution forward, and let milestones remain a quieter layer.",
+    "states": [
+      [
+        "self",
+        "Your profile"
+      ],
+      [
+        "member",
+        "Household member"
+      ]
+    ],
+    "keep": "Keep the photo/name, household association, privacy rules, editable self-profile, and Posts label.",
+    "notes": [
+      [
+        "Scale identity to the task",
+        "The large banner, overlapping avatar, edit action, and name take substantial height.",
+        "Use a strong but compact avatar/name/role group. Keep editing obvious on your own profile only.",
+        "Hierarchy · Recognize the person quickly.",
+        50,
+        29
+      ],
+      [
+        "Make recent contribution specific",
+        "An activity section can read as an empty report instead of a useful sign of participation.",
+        "Show the latest verified action, date, and a small set of plain-language counts. Do not imply online presence without evidence.",
+        "Meaning · Activity should tell a story.",
+        50,
+        57
+      ],
+      [
+        "Keep milestones secondary",
+        "Large awards interrupt the route from identity to posts.",
+        "Summarize earned milestones in one quiet row with a separate detail destination.",
+        "Restraint · Celebration without obstruction.",
+        50,
+        70
+      ],
+      [
+        "Bring their content upward",
+        "The content tabs begin near the bottom of the first screen.",
+        "Move posts and recipes higher. Keep saved/private collections visible only to the appropriate person.",
+        "Utility · See what they shared.",
+        50,
+        81
+      ]
+    ]
+  },
+  {
+    "id": "recipes",
+    "group": "Cooking & shopping",
+    "label": "Recipe library",
+    "title": "An inviting library, with less visual noise.",
+    "summary": "Keep the editorial food photography while making titles, metadata, and controls more consistent.",
+    "states": [
+      [
+        "library",
+        "Recipe library"
+      ],
+      [
+        "missing",
+        "Recipe without a photo"
+      ],
+      [
+        "filter",
+        "Under 30 minutes filter"
+      ]
+    ],
+    "keep": "Keep the serif identity, two-column library at standard sizes, search, favorites, and source attribution.",
+    "notes": [
+      [
+        "Get to the collection sooner",
+        "The masthead and large Recipe book title take two substantial rows.",
+        "Use one compact Recipes header and bring search directly beneath it.",
+        "Efficiency · The collection is the destination.",
+        50,
+        18
+      ],
+      [
+        "Tighten title and metadata rhythm",
+        "Different title lengths, category lines, and Added by lines create uneven cards.",
+        "Use a consistent title scale and concise time/source line. Allow wrapping, then align each row deliberately.",
+        "Rhythm · Easier scanning.",
+        50,
+        60
+      ],
+      [
+        "Quiet the favorite affordance",
+        "Large opaque circular favorite controls dominate the photo corners.",
+        "Keep a full touch target, but use a smaller glyph and quieter backing; preserve clear selected state.",
+        "Restraint · Controls support the food.",
+        40,
+        35
+      ],
+      [
+        "Design the missing-photo state",
+        "A no-photo recipe should not look broken or repeat the title inside a large placeholder.",
+        "Use a deliberate, restrained placeholder or compact text treatment. Do not invent a photo. Try the no-photo state and scroll.",
+        "Completeness · Empty assets deserve a design.",
+        50,
+        80
+      ]
+    ]
+  },
+  {
+    "id": "recipe-detail",
+    "group": "Cooking & shopping",
+    "label": "Recipe detail",
+    "title": "Make the recipe useful before it gets long.",
+    "summary": "Balance the hero image with the facts and ingredients someone needs to decide or cook.",
+    "states": [
+      [
+        "planning",
+        "Not planned"
+      ],
+      [
+        "tonight",
+        "Planned for tonight"
+      ]
+    ],
+    "keep": "Keep serving adjustment, ingredients, source/author, favorites, and a contextual primary action.",
+    "notes": [
+      [
+        "Bound the hero",
+        "The large photo delays the title, facts, and ingredients.",
+        "Use a shorter hero, then a clear title with time and servings immediately below.",
+        "Hierarchy · Beauty and utility together.",
+        50,
+        29
+      ],
+      [
+        "Remove empty metadata",
+        "A large Effort: Not set field consumes space without helping the decision.",
+        "Omit unset optional values. Keep source, authorship, and edit/share actions secondary but accessible.",
+        "Signal · Every prominent detail earns its place.",
+        76,
+        59
+      ],
+      [
+        "Support quick jumps",
+        "Ingredients and later sections require scrolling through the full document.",
+        "Add clear ingredients/directions/notes anchors; keep serving changes near ingredients. Maintain readable quantities.",
+        "Navigation · Reduce searching while cooking.",
+        50,
+        74
+      ],
+      [
+        "Use the right primary action",
+        "Planning, viewing tonight’s recipe, and cooking are different contexts.",
+        "Show Plan a night for an unplanned recipe and Start cooking for tonight. Keep the action reachable without hiding content.",
+        "Context · No generic action everywhere.",
+        50,
+        92
+      ]
+    ]
+  },
+  {
+    "id": "groceries",
+    "group": "Cooking & shopping",
+    "label": "Groceries",
+    "title": "Make more of the shopping list visible.",
+    "summary": "The shopping task should dominate; date settings and export are supporting tools.",
+    "states": [
+      [
+        "shopping",
+        "Shopping"
+      ],
+      [
+        "checked",
+        "Item checked · Undo"
+      ]
+    ],
+    "keep": "Keep the already-collapsed shopping options, ingredient provenance, category grouping, and export capability.",
+    "notes": [
+      [
+        "Compress the shopping window",
+        "A large date card and tall title delay the first shopping row.",
+        "Use one compact date range with Change, followed by a quick add field.",
+        "Hierarchy · Start shopping sooner.",
+        50,
+        30
+      ],
+      [
+        "Keep row hierarchy simple",
+        "Rows already include useful meal provenance, but strong type and trailing information icons add weight.",
+        "Lead with item and quantity; keep provenance on a quiet second line and details accessible on demand.",
+        "Scannability · Name first, explanation second.",
+        50,
+        49
+      ],
+      [
+        "Move export out of the main task",
+        "The fixed footer gives Reminders almost as much prominence as the shopping state.",
+        "Place export and shopping options in overflow. Keep direct addition and checking as the primary tasks.",
+        "Focus · Export is optional, shopping is central.",
+        78,
+        81
+      ],
+      [
+        "Use a smaller progress surface",
+        "The large fixed panel repeats an icon, count, instruction, and progress bar while covering rows.",
+        "Use a compact count/progress strip and contextual Undo after a check. Never make a checked item vanish without recovery.",
+        "Space + recovery · More list, less panel.",
+        50,
+        81
+      ]
+    ]
+  },
+  {
+    "id": "cooking",
+    "group": "Cooking & shopping",
+    "label": "Cooking mode",
+    "title": "Designed for hands that are busy.",
+    "summary": "Give the active cooking task priority and move reflection to the end.",
+    "states": [
+      [
+        "ingredients",
+        "No written instructions"
+      ],
+      [
+        "step",
+        "Active step concept"
+      ],
+      [
+        "finished",
+        "Finished cooking"
+      ]
+    ],
+    "keep": "Keep ingredient access, timers, completion logging, and optional notes. The step state uses illustrative text, not a recipe edit.",
+    "notes": [
+      [
+        "Clarify the top controls",
+        "A bare minus and prominent End action create ambiguity during an active session.",
+        "Use a clear minimize affordance and put secondary session options in overflow. Give the recipe name and serving context a stable home.",
+        "Error prevention · Avoid accidental endings.",
+        50,
+        11
+      ],
+      [
+        "Show what helps when steps are missing",
+        "The empty-steps explanation sends the user through another All ingredients button.",
+        "Display ingredients directly when there are no instructions. For recipes with steps, use a focused step view.",
+        "Adaptation · An incomplete recipe stays useful.",
+        50,
+        33
+      ],
+      [
+        "Keep timers practical",
+        "A large timer panel and note form compete with the active cooking task.",
+        "Use a readable timer with clear pause/options; defer reflection until completion. Keep alerts and timer state explicit.",
+        "Focus · Support the task in progress.",
+        50,
+        50
+      ],
+      [
+        "Finish, then reflect",
+        "A note-for-next-time field appears before the user finishes cooking.",
+        "Confirm the saved dinner first, then offer a note and optional sharing. Make Undo available in the completed Plan state.",
+        "Closure · A clear and recoverable finish.",
+        50,
+        70
+      ]
+    ]
+  },
+  {
+    "id": "ipad",
+    "group": "Larger screens",
+    "label": "iPad layout",
+    "title": "Use the width to reduce the work.",
+    "summary": "A tablet deserves a composed layout, not a stretched phone screen.",
+    "states": [
+      [
+        "default",
+        "Two-column Plan"
+      ]
+    ],
+    "archived": true,
+    "sourceDate": "October 17",
+    "keep": "Keep the same navigation, selected day, meal model, and brand. This is an adaptive layout, not a separate product.",
+    "notes": [
+      [
+        "Keep navigation human-sized",
+        "The phone composition expands across the tablet’s available width.",
+        "Keep the date rail at a comfortable width and use restrained page margins.",
+        "Scale · Control reading and reach.",
+        50,
+        16
+      ],
+      [
+        "Give dinner a main column",
+        "A wide hero can become the dominant use of the screen.",
+        "Constrain the meal card and image to a main column with cook and action immediately below.",
+        "Composition · A clear visual anchor.",
+        50,
+        28
+      ],
+      [
+        "Place context beside the task",
+        "Supporting weather and history continue vertically below the meal.",
+        "Use a second column for compact weather and household history. Keep related facts together.",
+        "Space · More useful information in view.",
+        50,
+        43
+      ],
+      [
+        "Adapt instead of shrinking",
+        "A fixed two-column layout would be inappropriate in Split View or large accessibility text.",
+        "Collapse to one column at narrow widths and larger type sizes; keep touch targets and reading order intact. Native reflow testing remains required.",
+        "Accessibility · Layout follows available space.",
+        50,
+        88
+      ]
+    ]
+  }
+]

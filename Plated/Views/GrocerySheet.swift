@@ -150,33 +150,33 @@ struct GrocerySheet: View {
                     Color.clear.frame(height: 0).id("groceries-top")
                     if shortWindow {
                         HStack(spacing: 12) {
-                            Text("Groceries").plType(.title).accessibilityAddTraits(.isHeader)
+                            Text("Groceries").plType(.pageTitle).accessibilityAddTraits(.isHeader)
                             Spacer()
                             if embedded {
+                                shoppingMenu
                                 ActivityBellButton(size: 44) { activityShown = true }
-                                AccountButton()
                             } else { DesignIconButton(symbol: "xmark", label: "Close groceries") { dismiss() } }
-                        }.plChrome().padding(.horizontal, 24).padding(.top, 4)
+                        }.plChrome().padding(.horizontal, Spacing.page).padding(.top, 4)
                     } else {
-                    PlatedMasthead(title: "Groceries") {
+                    PlatedMasthead(title: "Groceries", showsCreate: false) {
                         if embedded {
                             HStack(spacing: 8) {
+                                shoppingMenu
                                 ActivityBellButton(size: 44) { activityShown = true }
-                                AccountButton()
                             }
                         } else {
                             DesignIconButton(symbol: "xmark", label: "Close groceries") { dismiss() }
                         }
                     }
-                    .padding(.horizontal, 24)
+                    .padding(.horizontal, Spacing.page)
                     // The embedded grocery destination is hosted inside the
                     // shell's tab stack; keep its masthead clear of the status
                     // bar while allowing it to scroll in compact windows.
-                    .padding(.top, embedded ? 20 : 0)
+                    .padding(.top, embedded ? 4 : 0)
                     }
 
                     shoppingControls
-                    if !currentItems.isEmpty { addRow.padding(.horizontal, 24) }
+                    if !currentItems.isEmpty { addRow.padding(.horizontal, Spacing.page) }
 
                     if currentItems.isEmpty {
                         if !removedItems.isEmpty {
@@ -185,18 +185,22 @@ struct GrocerySheet: View {
                                     Button("Restore \(item.name)") { restore(item) }
                                         .plType(.footnote).plActionLabel().plTapTarget()
                                 }
-                            }.plType(.footnote).padding(.horizontal, 24)
+                            }.plType(.footnote).padding(.horizontal, Spacing.page)
                         }
                         emptyContent
                             .frame(maxWidth: .infinity)
-                            .padding(.horizontal, 24)
+                            .padding(.horizontal, Spacing.page)
                             .padding(.top, 36)
                             .padding(.bottom, 40)
                     } else {
                         VStack(alignment: .leading, spacing: 18) {
                             ForEach(grouped, id: \.0) { aisle, aisleItems in
                                 VStack(alignment: .leading, spacing: 4) {
-                                    MicroLabel(aisle.rawValue)
+                                    HStack {
+                                        MicroLabel(aisle.rawValue)
+                                        Spacer()
+                                        Text("\(aisleItems.count) items").plType(.caption).foregroundStyle(Color.inkSecondary)
+                                    }.padding(.bottom, 6)
                                     ForEach(aisleItems, id: \.persistentModelID) { item in
                                         itemRow(item)
                                     }
@@ -211,7 +215,7 @@ struct GrocerySheet: View {
                                 }.plType(.footnote)
                             }
                         }
-                        .padding(.horizontal, 24)
+                        .padding(.horizontal, Spacing.page)
                         .padding(.top, 18)
                         .padding(.bottom, 16)
                     }
@@ -231,7 +235,7 @@ struct GrocerySheet: View {
             }
             if !currentItems.isEmpty {
                 shoppingFooter.plChrome()
-                    .padding(.horizontal, 24)
+                    .padding(.horizontal, Spacing.page)
                     .padding(.bottom, shortWindow ? 4 : 16)
             }
         }
@@ -396,7 +400,7 @@ struct GrocerySheet: View {
                 ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4))
                 : AnyLayout(HStackLayout(spacing: 12))
             layout {
-                Text(unchecked.isEmpty ? "Everything checked off" : "\(completed) of \(currentItems.count) checked")
+                Text(unchecked.isEmpty ? "Everything checked off" : "\(unchecked.count) items left · \(completed) of \(currentItems.count) checked")
                     .plType(.footnote).foregroundStyle(Color.inkSecondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 if undoCheck != nil {
@@ -411,7 +415,18 @@ struct GrocerySheet: View {
                     .plType(.footnote, .semibold).foregroundStyle(Color.accentText).plTapTarget()
                     .accessibilityLabel("Undo last check")
                 }
-                Menu {
+
+            }
+            if let exportResult {
+                Text(exportResult).plType(.caption).foregroundStyle(Color.inkSecondary)
+            }
+        }
+        .padding(.top, 8)
+        .background(Color.canvas)
+    }
+
+    private var shoppingMenu: some View {
+        Menu {
                     Button("Shopping options", systemImage: "slider.horizontal.3") { shoppingOptionsExpanded = true }
                     Button("Send to Reminders", systemImage: "checklist") { exportToReminders() }
                         .disabled(unchecked.isEmpty || exporting)
@@ -423,13 +438,6 @@ struct GrocerySheet: View {
                     Image(systemName: "ellipsis").foregroundStyle(Color.ink).plTapTarget()
                 }
                 .accessibilityLabel("Shopping and export options")
-            }
-            if let exportResult {
-                Text(exportResult).plType(.caption).foregroundStyle(Color.inkSecondary)
-            }
-        }
-        .padding(.top, 8)
-        .background(Color.canvas)
     }
 
     private func compactUtilityLabel(title: String, symbol: String) -> some View {
@@ -467,7 +475,7 @@ struct GrocerySheet: View {
         .frame(minHeight: 46)
         .overlay {
             RoundedRectangle(cornerRadius: Radius.chip, style: .continuous)
-                .strokeBorder(Color.hairlineDashed, style: StrokeStyle(lineWidth: 1.5, dash: [5, 5]))
+                .strokeBorder(Color.hairline, lineWidth: 1)
         }
         .contentShape(Rectangle())
         .onTapGesture { addFieldFocused = true }
@@ -501,6 +509,14 @@ struct GrocerySheet: View {
     private func itemRow(_ item: GroceryItem) -> some View {
         SwipeRow(isOpen: swipeBinding(item), actions: [.remove { remove(item) }]) {
             checkRow(item)
+                .padding(.vertical, 10)
+                .overlay(alignment: .bottom) { Color.hairlineSoft.frame(height: 0.5) }
+        }
+        .contextMenu {
+            if !item.sources.isEmpty {
+                Button("Meal details", systemImage: "info.circle") { sourceShown = item }
+            }
+            Button("Remove item", systemImage: "trash", role: .destructive) { remove(item) }
         }
     }
 
@@ -556,7 +572,7 @@ struct GrocerySheet: View {
             } label: {
                 HStack(alignment: .top, spacing: 12) {
                     Image(systemName: isChecked ? "checkmark.circle.fill" : "circle")
-                        .font(.system(size: 24, weight: .regular))
+                        .font(.system(size: 21, weight: .regular))
                         .foregroundStyle(isChecked ? Color.basil : Color.inkSecondary)
                         .contentTransition(.symbolEffect(.replace))
                     VStack(alignment: .leading, spacing: 4) {
@@ -582,20 +598,17 @@ struct GrocerySheet: View {
                         Text(measure).plType(.footnote, .semibold).foregroundStyle(Color.inkSecondary)
                             .fixedSize(horizontal: true, vertical: false)
                     }
-                }.frame(minHeight: 56).contentShape(Rectangle())
+                }.frame(minHeight: 44).contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel(item.name + ", " + GroceryMeasure.shopping(selectedQuantity(item), item.unit).text)
             .accessibilityValue(isChecked ? "Purchased" : "To buy")
-            if !item.sources.isEmpty {
-                Button { sourceShown = item } label: {
-                    if typeSize.isAccessibilitySize {
-                        Label("Meal details", systemImage: "info.circle").plType(.caption).plTapTarget()
-                    } else { Image(systemName: "info.circle").plTapTarget() }
+            .accessibilityActions {
+                if !item.sources.isEmpty {
+                    Button("Meals that need " + item.name) { sourceShown = item }
                 }
-                    .foregroundStyle(Color.inkSecondary)
-                    .accessibilityLabel("Meals that need " + item.name)
             }
+
         }
     }
 
@@ -666,10 +679,10 @@ struct GrocerySheet: View {
                         ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4))
                         : AnyLayout(HStackLayout(spacing: 12))
                     layout {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(shoppingRangeText).plType(.footnote, .semibold).foregroundStyle(Color.ink)
-                            Text(byMeal ? "Selected meals" : "Next 7 days").plType(.caption).foregroundStyle(Color.inkSecondary)
-                        }.frame(maxWidth: .infinity, alignment: .leading)
+                        Text(shoppingRangeText + " · " + (byMeal ? "Selected meals" : "Next 7 days"))
+                            .plType(.footnote).foregroundStyle(Color.inkSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                         Text("Change").plType(.footnote, .semibold).foregroundStyle(Color.accentText)
                     }
                     .frame(minHeight: 44).contentShape(Rectangle())
@@ -852,7 +865,7 @@ struct GrocerySheet: View {
                 DisclosureGroup("Prices and budget") { estimateCard }
                     .plType(.footnote)
             }
-        }.foregroundStyle(Color.ink).padding(.horizontal, 24).padding(.top, shortWindow ? 4 : 16)
+        }.foregroundStyle(Color.ink).padding(.horizontal, Spacing.page).padding(.top, shortWindow ? 4 : 16)
     }
 
     private var groceryScopePicker: some View {
@@ -1057,7 +1070,7 @@ struct GrocerySheet: View {
                                 .tint(Color.completion)
                                 .padding(.vertical, 20)
                         }
-                    }.padding(.horizontal, 24)
+                    }.padding(.horizontal, Spacing.page)
                 }
             }.background(Color.canvas).navigationTitle("Pick meals").navigationBarTitleDisplayMode(.inline)
                 .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { mealPickerShown = false } } }

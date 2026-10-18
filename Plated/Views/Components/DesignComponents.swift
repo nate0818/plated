@@ -6,7 +6,7 @@ struct RecipeArtwork: View {
     var data: Data?
     var title: String
     var ratio: CGFloat = 1.45
-    var radius: CGFloat = Radius.hero
+    var radius: CGFloat = Radius.chip
     var maxHeight: CGFloat? = nil
     var body: some View {
         Color.fill
@@ -41,6 +41,7 @@ struct PlatedMasthead<Tools: View>: View {
     var wordmarkSize: CGFloat = 25
     var titleBelowTools = false
     var compact = false
+    var showsCreate = true
     @ViewBuilder var tools: Tools
     @Environment(\.dynamicTypeSize) private var typeSize
 
@@ -55,12 +56,12 @@ struct PlatedMasthead<Tools: View>: View {
     var body: some View {
         ViewThatFits(in: .horizontal) {
             HStack(alignment: .center, spacing: 8) {
-                Text(accessibleTitle).plType(.title, .regular)
+                Text(accessibleTitle).plType(.pageTitle, .regular)
                     .foregroundStyle(Color.ink)
                     .fixedSize(horizontal: true, vertical: false)
                     .accessibilityAddTraits(.isHeader)
                 Spacer(minLength: 8)
-                EditorialAddButton()
+                if showsCreate { EditorialAddButton() }
                 tools.plChrome()
             }
             VStack(alignment: .leading, spacing: 8) {
@@ -71,7 +72,7 @@ struct PlatedMasthead<Tools: View>: View {
                         .accessibilityAddTraits(.isHeader)
                     Spacer(minLength: 0)
                 }
-                HStack { EditorialAddButton(); Spacer(minLength: 8); tools.plChrome() }
+                HStack { if showsCreate { EditorialAddButton() }; Spacer(minLength: 8); tools.plChrome() }
             }
         }
         .padding(.top, 6)

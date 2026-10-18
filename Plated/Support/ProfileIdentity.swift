@@ -30,4 +30,15 @@ enum ProfileIdentity {
         }
         return authorName == profileName
     }
+
+    /// Unstamped legacy recipes belong to this account. A same-name household
+    /// member must never inherit another account's recipes or private collection.
+    static func owns(recipe: Recipe, member: HouseholdMember?, profileID: String,
+                     profileName: String, roster: [HouseholdMember], isMe: Bool) -> Bool {
+        guard !recipe.isDeleted, isMe || recipe.visibility != "private" else { return false }
+        if recipe.authorID.isEmpty { return isMe }
+        return matches(authorID: recipe.authorID, authorName: "", member: member,
+                       profileID: profileID, profileName: profileName, roster: roster)
+    }
+
 }

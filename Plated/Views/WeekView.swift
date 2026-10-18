@@ -343,7 +343,7 @@ struct WeekView: View {
                         .id(Self.timelineAnchor)
                         .frame(maxWidth: 1100)
                         .frame(maxWidth: .infinity)
-                        .padding(.horizontal, 24).padding(.top, 12)
+                        .padding(.horizontal, Spacing.page).padding(.top, 12)
                     LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
                         Section {
                             let wide = geometry.size.width >= 800 && !typeSize.isAccessibilitySize
@@ -380,14 +380,14 @@ struct WeekView: View {
                             }
                             .frame(maxWidth: 1100)
                             .frame(maxWidth: .infinity)
-                            .padding(.horizontal, 24)
+                            .padding(.horizontal, Spacing.page)
                             .padding(.bottom, Layout.floatingChromeInset)
                         } header: {
                             dateNavigation
                                 .frame(maxWidth: 500, alignment: .leading)
                                 .frame(maxWidth: 1100, alignment: .leading)
                                 .frame(maxWidth: .infinity)
-                                .padding(.horizontal, 24).padding(.vertical, 8)
+                                .padding(.horizontal, Spacing.page).padding(.vertical, 8)
                                 .background(Color.canvas)
                         }
                     }
@@ -471,7 +471,7 @@ struct WeekView: View {
     private var tonightHeader: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
-                Text("Plan").plType(.title).foregroundStyle(Color.ink).accessibilityAddTraits(.isHeader)
+                Text("Plan").plType(.pageTitle).foregroundStyle(Color.ink).accessibilityAddTraits(.isHeader)
                 Spacer(minLength: 8)
                 EditorialAddButton()
                 ActivityBellButton(size: 44) { pushed = .activity }
@@ -615,12 +615,12 @@ struct WeekView: View {
                 let who = whoCaption(for: meal)
                 let eatingOut = PlanRowVoice.isEatingOut(title: meal.title, hasRecipe: meal.recipe != nil)
                 Button { Haptic.tap(); pushed = .day(weekAnchor) } label: {
-                    VStack(alignment: .leading, spacing: 16) {
-                        Text(eatingOut && meal.title == "Eating out" ? "A night out." : meal.title).plType(.title, .semibold).foregroundStyle(Color.ink)
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text(eatingOut && meal.title == "Eating out" ? "A night out." : meal.title).plType(eatingOut ? .featureTitle : .cardTitle).foregroundStyle(Color.ink)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .fixedSize(horizontal: false, vertical: true)
                         if !PlanRowVoice.isEatingOut(title: meal.title, hasRecipe: meal.recipe != nil) {
-                            RecipeArtwork(data: meal.recipe?.photoData, title: meal.title, ratio: 2.5, maxHeight: 180)
+                            RecipeArtwork(data: meal.recipe?.photoData, title: meal.title, ratio: 2, radius: Radius.chip, maxHeight: 252)
                         }
                     }
                     .contentShape(Rectangle())
@@ -695,7 +695,7 @@ struct WeekView: View {
                         // Slice 2 hard empties — EDIT-PROFILE-AND-PLAN-EMPTY copy stamp.
                         // Kill soft ambient posters; dense title + useful subcopy.
                         Text(Calendar.current.isDateInToday(weekAnchor) ? "What sounds good tonight?" : PlanEmptyCopy.heroTitle(past: isPast(weekAnchor)))
-                            .plType(.title, .medium).foregroundStyle(Color.ink)
+                            .plType(.featureTitle).foregroundStyle(Color.ink)
                             .accessibilityAddTraits(.isHeader)
                         if isPast(weekAnchor) {
                             Text(PlanEmptyCopy.detailBody).plType(.footnote).foregroundStyle(Color.inkSecondary)
@@ -797,12 +797,12 @@ struct WeekView: View {
         let eatingOut = PlanRowVoice.isEatingOut(title: entry.title, hasRecipe: entry.hasRecipe)
         let title = entry.hasDish ? entry.title : Calendar.current.isDateInToday(weekAnchor) ? "What sounds good tonight?" : PlanEmptyCopy.heroTitle(past: isPast(weekAnchor))
         Button { Haptic.tap(); pushed = .day(weekAnchor) } label: {
-            VStack(alignment: .leading, spacing: 16) {
-                Text(eatingOut && title == "Eating out" ? "A night out." : title).plType(.title, .semibold).foregroundStyle(Color.ink)
+            VStack(alignment: .leading, spacing: 12) {
+                Text(eatingOut && title == "Eating out" ? "A night out." : title).plType(!entry.hasDish || eatingOut ? .featureTitle : .cardTitle).foregroundStyle(Color.ink)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .fixedSize(horizontal: false, vertical: true)
                 if entry.hasDish && !PlanRowVoice.isEatingOut(title: entry.title, hasRecipe: entry.hasRecipe) {
-                    RecipeArtwork(data: ledger.photo(for: entry.recordName) ?? cookbookRecipe(for: entry)?.photoData, title: entry.title, ratio: 2.5, maxHeight: 180)
+                    RecipeArtwork(data: ledger.photo(for: entry.recordName) ?? cookbookRecipe(for: entry)?.photoData, title: entry.title, ratio: 2, radius: Radius.chip, maxHeight: 252)
                 }
                 if honesty {
                     Text(RemotePlanRow.caption(for: entry))

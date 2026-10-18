@@ -160,4 +160,43 @@ final class ProfileIdentityTests: XCTestCase {
         XCTAssertEqual(PlanMemberEvent.latest(member: owner, roster: [owner, sam], meals: [meal], remote: [], recorded: nil, now: now)?.line, "Planned Pizza")
         XCTAssertNil(PlanMemberEvent.latest(member: sam, roster: [owner, sam], meals: [meal], remote: [], recorded: nil, now: now))
     }
+    func testRecipeContributionsUseAccountIdentityAndProtectPrivateRecipes() {
+        let owner = person("Nate", id: TableIdentity.cached, role: "owner")
+        let sam = person("Sam Rivera", id: "sam-id")
+        let recipe = Recipe(title: "Pasta"); context.insert(recipe)
+        func owns(_ member: HouseholdMember) -> Bool {
+            ProfileIdentity.owns(recipe: recipe, member: member, profileID: "",
+                profileName: member.name, roster: [owner, sam], isMe: member.isMe)
+        }
+        XCTAssertTrue(owns(owner), "Legacy unstamped recipe belongs only to this account")
+        XCTAssertFalse(owns(sam))
+        recipe.authorID = "sam-id"
+        XCTAssertTrue(owns(sam))
+        XCTAssertFalse(owns(owner))
+        sam.name = "Sam Newname"
+        XCTAssertTrue(owns(sam), "Renaming cannot move recipe ownership")
+        recipe.visibility = "private"
+        XCTAssertFalse(owns(sam), "Another member's private recipe must not appear on their profile")
+        recipe.authorID = TableIdentity.cached
+        XCTAssertTrue(owns(owner), "Own private recipes remain available on own profile")
+    }
+
+    func testProfileLifetimeDinnerCountKeepsWeeklyHistoryAndSharedEchoRules() {
+        let sam = person("Sam", id: "sam-id")
+        let now = Date.now, old = now.addingTimeInterval(-30 * 86400)
+        let meal = PlannedMeal(date: old, customTitle: "Pasta", cook: sam)
+        meal.cookedAt = old; context.insert(meal)
+        var shared = TableShare.RemotePlan()
+        shared.shoppingID = meal.shoppingID!; shared.recordName = "plan-" + shared.shoppingID
+        shared.day = PlanDay.string(old); shared.slot = "dinner"; shared.cooked = true; shared.cookID = "sam-id"
+        let remote = [PlanLedger.Entry(shared)]
+        XCTAssertEqual(MemberDinnerActivity(member: sam, roster: [sam], meals: [meal], remote: remote,
+            posts: [], now: now).cooked, 0)
+        XCTAssertEqual(MemberDinnerActivity(member: sam, roster: [sam], meals: [meal], remote: remote,
+            posts: [], now: now, lookbackDays: nil).cooked, 1)
+        meal.cookedAt = nil
+        XCTAssertEqual(MemberDinnerActivity(member: sam, roster: [sam], meals: [meal], remote: remote,
+            posts: [], now: now, lookbackDays: nil).cooked, 0)
+    }
+
 }

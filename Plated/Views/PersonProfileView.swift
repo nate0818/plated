@@ -142,13 +142,18 @@ private struct PersonProfileContent: View {
     }
 
     private var dishes: [TablePost] { posts.filter { $0.kind != "ask" } }
-    private var conversations: [TablePost] { posts.filter { $0.kind == "ask" } }
 
-    private var kissCount: Int {
-        let seats = TableKiss.seating(members: roster, dishAuthors: dishes.map(\.authorName))
-        return dishes.filter { $0.hasChefsKiss(seats: seats) }.count
+    private var contributedRecipes: [Recipe] {
+        recipes.filter {
+            ProfileIdentity.owns(recipe: $0, member: member, profileID: authorID,
+                                 profileName: name, roster: roster, isMe: isMe)
+        }.sorted { $0.createdAt > $1.createdAt }
     }
-    private var plateCount: Int { dishes.reduce(0) { $0 + $1.totalPlates } }
+    private var recordedDinners: Int {
+        guard let member else { return 0 }
+        return MemberDinnerActivity(member: member, roster: roster, meals: plannedMeals,
+            remote: PlanLedger.shared.all, posts: allPosts, lookbackDays: nil).cooked
+    }
 
     var body: some View {
         ScrollView(showsIndicators: false) {
@@ -165,49 +170,33 @@ private struct PersonProfileContent: View {
                                 Button("Add your name") { editShown = true }
                                     .plType(.heading).foregroundStyle(Color.ink).plTapTarget()
                             } else {
-                                Text(displayName).plType(.heading).foregroundStyle(Color.ink)
+                                Text(displayName).plType(.cardTitle).foregroundStyle(Color.ink)
                                     .fixedSize(horizontal: false, vertical: true)
                             }
                             if let roleLine { Text(roleLine).plType(.caption).foregroundStyle(Color.inkSecondary) }
                         }.frame(maxWidth: .infinity, alignment: .leading)
-                        if isMe { outlineAction("Edit") { editShown = true }.accessibilityLabel("Edit profile") }
-                        else if let url = member?.messageURL { outlineAction("Message") { openURL(url) } }
+                        if !isMe, let url = member?.messageURL { outlineAction("Message") { openURL(url) } }
                     }.padding(.top, 12)
                     if !bioLine.isEmpty {
                         Text(bioLine).plType(.footnote).foregroundStyle(Color.inkSecondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
 
-                    // Same count, same words, same lack of a box as Home
-                    // and the stats shelf — a person's numbers and their
-                    // household's numbers shouldn't be two dialects.
-                    // Four across truncates from AX3 and collides at AX5
-                    // ("On theHappy", "Chef's Saved", dividers no longer
-                    // between columns). HouseholdStatsView already drops
-                    // 3 columns to 2 at .accessibility1; this is the
-                    // sibling that didn't, so it wraps to 2×2 instead.
-                    if !dishes.isEmpty || plateCount > 0 || kissCount > 0 {
-                        LazyVGrid(
-                            columns: Array(
-                                repeating: GridItem(.flexible(), spacing: 0),
-                                count: typeSize >= .accessibility1 ? 2 : 3
-                            ),
-                            spacing: typeSize >= .accessibility1 ? 16 : 0
-                        ) {
-                            CountBlock(value: "\(dishes.count)", label: "Posts")
-                            CountBlock(value: "\(plateCount)", label: "Likes")
-                            CountBlock(value: "\(kissCount)", label: "Chef's kisses", accent: kissCount > 0)
-                        }
-                        .padding(.vertical, 12)
-                    }
-
-                    if member?.profileBannerPhotoData != nil || (isMe && !localProfileBannerPhoto.isEmpty) {
-                        banner.clipShape(Radius.shape(Radius.card))
-                    }
                     if isMe {
-                        householdCard
-                            .padding(.top, 4)
+                        Button("Edit profile") { editShown = true }
+                            .plType(.footnote, .semibold).foregroundStyle(Color.accentText)
+                            .frame(maxWidth: .infinity, minHeight: 44)
+                            .background(Color.raisedFill, in: Radius.shape(Radius.chip))
+                            .buttonStyle(.pressable)
                     }
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), alignment: .leading),
+                                            count: typeSize.isAccessibilitySize ? 2 : 3), spacing: 16) {
+                        contributionCount(posts.count, label: "Posts")
+                        contributionCount(recordedDinners, label: "Dinners cooked")
+                        contributionCount(contributedRecipes.count, label: "Recipes added")
+                    }
+                    .padding(.vertical, 8)
+                    .accessibilityIdentifier("profile-contributions")
 
                     if let member {
                         let activity = MemberDinnerActivity(member: member, roster: roster,
@@ -227,12 +216,12 @@ private struct PersonProfileContent: View {
                         .accessibilityIdentifier("profile-recent-activity")
                     }
 
-                    if awards.contains(where: { $0.current > 0 }) {
+                    if awards.contains(where: \.isEarned) {
                         Button { awardsShown = true } label: {
                             HStack {
-                                Label("Milestones", systemImage: "rosette")
+                                Text("\(awards.filter(\.isEarned).count) household milestones earned")
                                 Spacer()
-                                Image(systemName: "arrow.right")
+                                Text("View").foregroundStyle(Color.accentText)
                             }
                             .plType(.footnote)
                             .foregroundStyle(Color.inkSecondary)
@@ -241,11 +230,11 @@ private struct PersonProfileContent: View {
                         }.buttonStyle(.pressable)
                     }
                 }
-                .padding(.horizontal, 24)
+                .padding(.horizontal, Spacing.page)
 
                 let tabsLayout = typeSize.isAccessibilitySize ? AnyLayout(VStackLayout(spacing: 4)) : AnyLayout(HStackLayout(spacing: 0))
                 tabsLayout {
-                    ForEach(isMe ? ["Posts", "Questions", "Favorites"] : ["Posts", "Questions"], id: \.self) { tab in
+                    ForEach(isMe ? ["Posts", "Recipes", "Saved"] : ["Posts", "Recipes"], id: \.self) { tab in
                         Button { Haptic.select(); withAnimation(.plSnap) { profileTab = tab } } label: {
                             Text(tab)
                                 .plType(.footnote, profileTab == tab ? .semibold : .regular)
@@ -256,53 +245,44 @@ private struct PersonProfileContent: View {
                                 .contentShape(Rectangle())
                         }.buttonStyle(.plain).accessibilityAddTraits(profileTab == tab ? .isSelected : [])
                     }
-                }.padding(.horizontal, 24).padding(.top, 6).padding(.bottom, 16)
-                if profileTab == "Favorites", isMe {
-                    let favorites = recipes.filter(\.isFavorite)
-                    if favorites.isEmpty {
-                        profileEmpty("No favorites yet", detail: "Recipes you heart in your cookbook appear here.")
+                }.padding(.horizontal, Spacing.page).padding(.top, 6).padding(.bottom, 16)
+                if profileTab == "Recipes" || (profileTab == "Saved" && isMe) {
+                    let collection = profileTab == "Recipes" ? contributedRecipes
+                        : recipes.filter { !$0.isDeleted && ($0.isFavorite || !$0.originID.isEmpty) }
+                    if collection.isEmpty {
+                        profileEmpty(profileTab == "Recipes" ? "No recipes yet" : "No saved recipes yet",
+                            detail: profileTab == "Recipes"
+                                ? (isMe ? "Recipes you add will appear here." : "Recipes \(firstName) adds for the household will appear here.")
+                                : "Recipes you save from the Table or favorite in your cookbook appear here. Only you can see this collection.")
                     } else {
-                        LazyVGrid(
-                            columns: Array(
-                                repeating: GridItem(.flexible()),
-                                count: typeSize >= .accessibility1 ? 1 : 2
-                            ),
-                            spacing: 20
-                        ) {
-                            ForEach(favorites) { recipe in
+                        LazyVGrid(columns: Array(repeating: GridItem(.flexible()),
+                                                 count: typeSize.isAccessibilitySize ? 1 : 2), spacing: 20) {
+                            ForEach(collection) { recipe in
                                 Button { savedRecipe = recipe } label: {
                                     VStack(alignment: .leading, spacing: 8) {
                                         RecipeArtwork(data: recipe.photoData, title: recipe.title, ratio: 1)
-                                        Text(recipe.title).plType(.body, .semibold).foregroundStyle(Color.ink)
+                                        Text(recipe.title).plType(.body, .medium).foregroundStyle(Color.ink)
                                     }
                                 }.buttonStyle(.pressable)
                             }
-                        }.padding(.horizontal, 24)
-                    }
-                } else if profileTab == "Questions" {
-                    if conversations.isEmpty {
-                        profileEmpty("No questions yet", detail: isMe ? "Questions you ask at the Table will live here." : "Questions \(firstName) asks at the Table will live here.")
-                    } else {
-                        VStack(spacing: 0) {
-                            ForEach(conversations) { post in
-                                Button { openedPost = post } label: {
-                                    VStack(alignment: .leading, spacing: 8) {
-                                        Text(post.dishTitle.isEmpty ? post.caption : post.dishTitle).plType(.heading, .semibold).foregroundStyle(Color.ink)
-                                        Text(post.createdAt.formatted(.dateTime.month(.abbreviated).day())).plType(.caption).foregroundStyle(Color.inkSecondary)
-                                    }.frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 18).contentShape(Rectangle())
-                                }.buttonStyle(.pressable)
-                                Divider()
-                            }
-                        }.padding(.horizontal, 24)
+                        }.padding(.horizontal, Spacing.page)
                     }
                 } else {
-                    if dishes.isEmpty { profileEmpty(isMe ? "Your first post starts here" : "No posts yet", detail: emptyLine) }
+                    if posts.isEmpty { profileEmpty(isMe ? "Your first post starts here" : "No posts yet", detail: emptyLine) }
                     else {
-                        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 3), count: typeSize.isAccessibilitySize ? 1 : 2), spacing: 3) {
-                            ForEach(dishes, id: \.persistentModelID) { post in postCell(post) }
+                        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 3), count: typeSize.isAccessibilitySize ? 1 : 3), spacing: 3) {
+                            ForEach(posts, id: \.persistentModelID) { post in postCell(post) }
                         }
                     }
                 }
+                // Keep the household destination and any chosen personal cover,
+                // without delaying the person's contributions and content.
+                if isMe { householdCard.padding(.horizontal, Spacing.page).padding(.top, 24) }
+                if member?.profileBannerPhotoData != nil || (isMe && !localProfileBannerPhoto.isEmpty) {
+                    banner.clipShape(Radius.shape(Radius.card))
+                        .padding(.horizontal, Spacing.page).padding(.top, 20)
+                }
+
             }
             .padding(.bottom, Layout.focusedPageBottom)
         }
@@ -346,9 +326,20 @@ private struct PersonProfileContent: View {
         #endif
     }
 
+    private func contributionCount(_ value: Int, label: String) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(value.formatted()).plType(.callout, .semibold).foregroundStyle(Color.ink)
+            Text(label).plType(.caption).foregroundStyle(Color.inkSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(value) \(label)")
+    }
+
     private func profileEmpty(_ title: String, detail: String) -> some View {
         VStack(spacing: 10) {
-            Image(systemName: profileTab == "Favorites" ? "heart" : profileTab == "Questions" ? "bubble.left.and.bubble.right" : "fork.knife")
+            Image(systemName: profileTab == "Saved" ? "bookmark" : profileTab == "Recipes" ? "book" : "bubble.left")
                 .font(.system(size: 24, weight: .light))
                 .foregroundStyle(Color.inkSecondary)
             Text(title).plType(.heading, .semibold).foregroundStyle(Color.ink)
@@ -360,56 +351,18 @@ private struct PersonProfileContent: View {
 
     private var topBar: some View {
         HStack(spacing: 12) {
-            Button {
-                Haptic.tap()
-                dismiss()
-            } label: {
-                Circle()
-                    .fill(Color.canvas.opacity(0.9))
-                    .overlay(Circle().strokeBorder(Color.hairline, lineWidth: 1.5))
-                    .frame(width: 38, height: 38)
-                    .overlay {
-                        Image(systemName: "arrow.left")
-                            .accessibilityLabel("Back")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(Color.ink)
-                    }
-                    .frame(minWidth: 44, minHeight: 44)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.pressable)
-
+            DesignIconButton(symbol: "arrow.left", label: "Back") { dismiss() }
             Text(isMe ? "Profile" : firstName)
-                .plType(.body, .semibold)
-                .foregroundStyle(Color.ink)
+                .plType(.pageTitle).foregroundStyle(Color.ink)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
-
-            Spacer(minLength: 8)
             if isMe {
-                Button {
-                    Haptic.tap()
-                    settingsShown = true
-                } label: {
-                    Circle()
-                        .fill(Color.canvas.opacity(0.9))
-                        .overlay(Circle().strokeBorder(Color.hairline, lineWidth: 1.5))
-                        .frame(width: 38, height: 38)
-                        .overlay {
-                            Image(systemName: "gearshape")
-                                .accessibilityLabel("Settings")
-                                .font(.system(size: 14, weight: .semibold))
-                                .foregroundStyle(Color.ink)
-                        }
-                        .frame(minWidth: 44, minHeight: 44)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.pressable)
+                DesignIconButton(symbol: "gearshape", label: "Settings") { settingsShown = true }
             }
         }
-        .padding(.horizontal, 20)
+        .padding(.horizontal, Spacing.page)
         .padding(.vertical, 4)
-        .background(.ultraThinMaterial)
+        .background(Color.canvas)
     }
 
     /// A profile is a person, not the household photo over Home. The old
@@ -592,12 +545,13 @@ private struct PersonProfileContent: View {
         return name
     }
 
-    /// Own page has no role. Host is only for the other person when they
-    /// host this household. Partner, kid, guest, and a name with no seat
-    /// get nothing: roleTitle and "At your table" are not this path's voice.
+    /// A verified household relationship anchors identity without inventing a role.
     private var roleLine: String? {
-        guard !isMe, member?.isOwner == true else { return nil }
-        return "Household organizer"
+        guard let member else { return nil }
+        let household = householdName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let role = member.isOwner ? "Organizer" : member.seat == .joined ? "Member" : ""
+        let parts = [household, role].filter { !$0.isEmpty }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 
     private var awardActivitySignature: String {
@@ -881,7 +835,7 @@ struct EditProfileSheet: View {
             kept["bannerPhotoWasSet"] = true
             UserDefaults.standard.set(kept, forKey: draftKey)
         }
-        .padding(.horizontal, 24)
+        .padding(.horizontal, Spacing.page)
         .plFitsOrScrolls()
         .scrollDismissesKeyboard(.immediately)
         .safeAreaInset(edge: .bottom) {
@@ -890,7 +844,7 @@ struct EditProfileSheet: View {
                     Spacer()
                     Button("Done") { profileField = nil }
                         .plType(.footnote, .semibold).foregroundStyle(Color.ink).plTapTarget()
-                }.plChrome().padding(.horizontal, 24).background(Color.canvas)
+                }.plChrome().padding(.horizontal, Spacing.page).background(Color.canvas)
             }
         }
         .presentationDetents([.large])
@@ -1186,7 +1140,7 @@ struct PaywallSheet: View {
                         .multilineTextAlignment(.center)
                 }
             }
-            .padding(.horizontal, 24)
+            .padding(.horizontal, Spacing.page)
             .padding(.bottom, 20)
         }
         // The buy button was the last thing in a VStack that does not

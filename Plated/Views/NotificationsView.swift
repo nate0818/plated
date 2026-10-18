@@ -65,9 +65,8 @@ struct NotificationsView: View {
                     dismiss()
                 }
                 VStack(alignment: .leading, spacing: 2) {
-                    MicroLabel(unreadCount == 0 ? "Your Table" : unreadCount.things("new update"))
                     Text("Activity")
-                        .plType(.title)
+                        .plType(.pageTitle)
                         .foregroundStyle(Color.ink)
                 }
                 Spacer()
@@ -84,18 +83,20 @@ struct NotificationsView: View {
                     .accessibilityLabel("Activity options")
                 }
             }
-            .padding(.horizontal, 24)
+            .padding(.horizontal, Spacing.page)
             .padding(.top, 6)
             .padding(.bottom, 12)
-            if unreadCount > 0 {
-                Button("Mark all read", action: markAllRead)
-                    .plType(.footnote, .semibold)
-                    .foregroundStyle(Color.accentText)
-                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .trailing)
-                    .padding(.horizontal, 24)
-                    .buttonStyle(.pressable)
-                    .accessibilityIdentifier("activity-mark-all-read")
-            }
+            HStack {
+                Text(unreadCount == 0 ? "You’re up to date" : "\(unreadCount) unread")
+                    .plType(.caption).foregroundStyle(Color.inkSecondary)
+                Spacer()
+                if unreadCount > 0 {
+                    Button("Mark all read", action: markAllRead)
+                        .plType(.footnote, .semibold).foregroundStyle(Color.accentText)
+                        .frame(minHeight: 44).buttonStyle(.pressable)
+                        .accessibilityIdentifier("activity-mark-all-read")
+                }
+            }.padding(.horizontal, Spacing.page)
             Divider().overlay(Color.hairlineSoft)
 
             if visibleNotifications.isEmpty {
@@ -118,11 +119,10 @@ struct NotificationsView: View {
                 ScrollView(showsIndicators: false) {
                     LazyVStack(alignment: .leading, spacing: 0) {
                         ForEach(groups) { group in
-                            MicroLabel(group.title)
-                                .padding(.horizontal, 24)
-                                .padding(.top, 18)
-                                .padding(.bottom, 6)
-                                .accessibilityAddTraits(.isHeader)
+                            if group.title != "New" {
+                                MicroLabel(group.title).padding(.horizontal, Spacing.page)
+                                    .padding(.top, 18).padding(.bottom, 6).accessibilityAddTraits(.isHeader)
+                            }
                             ForEach(group.rows, id: \.persistentModelID) { note in
                                 row(note)
                                     .onScrollVisibilityChange(threshold: 0.5) { visible in
@@ -370,7 +370,7 @@ struct NotificationsView: View {
                     .accessibilityHidden(true)
             }
         }
-        .padding(.horizontal, 24)
+        .padding(.horizontal, Spacing.page)
         .padding(.vertical, 12)
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)

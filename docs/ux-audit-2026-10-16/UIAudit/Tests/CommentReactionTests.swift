@@ -72,7 +72,7 @@ final class CommentReactionTests: XCTestCase {
         let hiddenPlan = app.scrollViews["plan-selected-day-content"]
         XCTAssertEqual(hiddenPlan.buttons.count, 0, "inactive Plan actions must not be exposed")
         XCTAssertEqual(hiddenPlan.staticTexts.count, 0, "inactive Plan text must not be exposed")
-        XCTAssertTrue(app.staticTexts["COMMENTS · 2"].exists)
+        XCTAssertTrue(app.staticTexts["Comments 2"].exists)
         XCTAssertEqual(parent.value as? String, "2 likes")
         XCTAssertGreaterThanOrEqual(parent.frame.width, 44)
         XCTAssertGreaterThanOrEqual(parent.frame.height, 44)
@@ -91,9 +91,7 @@ final class CommentReactionTests: XCTestCase {
         XCTAssertEqual(parent.value as? String, "2 likes")
         XCTAssertFalse(app.buttons["comment-like-note-review-deleted"].exists)
         capture("reply-liked-dark")
-        app.buttons["Hide replies"].tap()
-        XCTAssertFalse(reply.exists)
-        app.buttons["Show 1 reply"].tap()
+        XCTAssertFalse(app.buttons["Hide replies"].exists, "A single reply stays visible without an unnecessary collapse row")
         XCTAssertTrue(reply.exists)
         XCTAssertEqual(reply.value as? String, "1 like")
     }
