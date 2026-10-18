@@ -517,7 +517,10 @@ struct WeekView: View {
             let cook = local.map { PlanRowVoice.whoLine(for: $0, members: members) }
                 ?? shared.flatMap { PlanLedger.shared.cookLine(for: $0) }
             Button { weekAnchor = next.startOfDay; dateNavigationRevision += 1 } label: {
-                HStack(spacing: 12) {
+                let layout = typeSize.isAccessibilitySize
+                    ? AnyLayout(VStackLayout(alignment: .leading, spacing: 12))
+                    : AnyLayout(HStackLayout(spacing: 12))
+                layout {
                     VStack(alignment: .leading, spacing: 6) {
                         Text(Calendar.current.isDateInToday(weekAnchor) ? "Tomorrow" : next.formatted(.dateTime.weekday(.wide)))
                             .plType(.heading).foregroundStyle(Color.ink)

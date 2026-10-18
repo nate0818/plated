@@ -12,7 +12,10 @@ final class PlanContextTests: XCTestCase {
     func element(_ id: String) -> XCUIElement { app.descendants(matching: .any).matching(identifier: id).firstMatch }
     func reveal(_ item: XCUIElement) {
         for _ in 0..<8 {
-            if item.isHittable { return }
+            // A partly visible tall row can report hittable while its default
+            // tap point sits underneath the app's bottom navigation.
+            let bottom = app.buttons["tray-week"].frame.minY
+            if item.isHittable && item.frame.midY < bottom - 12 { return }
             app.scrollViews["plan-selected-day-content"].swipeUp()
         }
         XCTAssertTrue(item.isHittable, app.debugDescription)
@@ -228,6 +231,7 @@ final class PlanContextTests: XCTestCase {
         XCTAssertTrue(sam.label.contains("Shared") || sam.label.contains("Cooked"), "An actor row names a recorded action")
         capture("plan-household-ax")
         sam.tap()
+        XCTAssertTrue(app.staticTexts["Sam Rivera"].waitForExistence(timeout: 8))
         let activity = element("profile-recent-activity")
         for _ in 0..<8 where !activity.isHittable { app.swipeUp() }
         XCTAssertTrue(activity.isHittable)

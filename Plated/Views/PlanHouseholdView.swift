@@ -49,13 +49,14 @@ struct PlanHouseholdView: View {
                             Text(member.isMe ? "You" : display.name).plType(.body, .semibold).foregroundStyle(Color.ink)
                             Text(detail).plType(.footnote).foregroundStyle(Color.inkSecondary)
                             if member.seat != .invited, let event {
-                                HStack(spacing: 4) {
+                                Group {
                                     if let day = event.dinnerDate {
-                                        Text(Stamp.day(day) + " ·")
+                                        Text("\(Stamp.day(day)) · \(event.date, style: .relative) ago")
+                                    } else {
+                                        Text("\(event.date, style: .relative) ago")
                                     }
-                                    Text(event.date, style: .relative)
-                                    Text("ago")
                                 }.plType(.caption).foregroundStyle(Color.inkSecondary)
+                                    .fixedSize(horizontal: false, vertical: true)
                             }
                         }.fixedSize(horizontal: false, vertical: true).frame(maxWidth: .infinity, alignment: .leading)
 

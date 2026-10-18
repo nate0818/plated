@@ -173,6 +173,8 @@ private struct PlanDinnerHistoryView: View {
             }
             Text(history.cooked + history.eatingOut == 0
                  ? "Your first dinner is a good place to start. Mark a meal cooked to build your household’s history."
+                 : history.cooked + history.eatingOut == 1
+                 ? "Based on 1 recorded dinner."
                  : "Based on \(history.cooked + history.eatingOut) recorded dinners.")
                 .plType(.footnote).foregroundStyle(Color.inkSecondary)
                 .fixedSize(horizontal: false, vertical: true)
