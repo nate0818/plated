@@ -107,14 +107,18 @@ private struct PlanWeatherView: View {
     private var attribution: some View {
         if forecast.isPreview {
             Text("Preview weather").plType(.micro).foregroundStyle(Color.inkSecondary)
-        } else if let credit = forecast.attribution {
+        }
+        if let credit = forecast.attribution {
             Link(destination: credit.legalPageURL) {
                 let layout = typeSize.isAccessibilitySize
                     ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
                     : AnyLayout(HStackLayout(spacing: 8))
                 layout {
-                    AsyncImage(url: colorScheme == .dark ? credit.combinedMarkLightURL : credit.combinedMarkDarkURL) { image in
-                        image.resizable().scaledToFit().frame(width: 100, height: 20)
+                    // WeatherKit names variants for the background appearance,
+                    // not the ink: Dark is white artwork; Light is black artwork.
+                    AsyncImage(url: colorScheme == .dark ? credit.combinedMarkDarkURL : credit.combinedMarkLightURL) { image in
+                        image.renderingMode(.original).resizable().scaledToFit().frame(width: 100, height: 20)
+                            .accessibilityIdentifier("plan-weather-attribution-mark")
                     } placeholder: {
                         Label("Weather", systemImage: "apple.logo").plType(.footnote)
                     }
@@ -123,6 +127,7 @@ private struct PlanWeatherView: View {
                 }.foregroundStyle(Color.inkSecondary).frame(minHeight: 44)
             }
             .accessibilityLabel("Apple Weather. Weather data sources")
+            .accessibilityIdentifier("plan-weather-attribution")
         }
     }
 

@@ -22,6 +22,24 @@ final class PlanContextTests: XCTestCase {
         let tree = XCTAttachment(string: app.debugDescription); tree.name = name + "-tree"; tree.lifetime = .keepAlways; add(tree)
     }
 
+    // Exercise the real Apple artwork: ordinary fake-weather previews only
+    // showed "Preview weather" and concealed the reversed appearance variants.
+    func testLiveWeatherAttributionOnGreen() { reviewWeatherAttribution(light: false) }
+    func testLiveWeatherAttributionOnCream() { reviewWeatherAttribution(light: true) }
+    func testLiveWeatherAttributionAtAccessibilitySize() { reviewWeatherAttribution(light: true, accessible: true) }
+
+    private func reviewWeatherAttribution(light: Bool, accessible: Bool = false) {
+        launch(["-plated-fake-weather", "-plated-review-weather-attribution"],
+               size: accessible ? "UICTContentSizeCategoryAccessibilityXXXL" : "UICTContentSizeCategoryL", light: light)
+        let credit = element("plan-weather-attribution")
+        XCTAssertTrue(credit.waitForExistence(timeout: 20), "Apple's live attribution metadata must load")
+        reveal(credit)
+        XCTAssertTrue(element("plan-weather-attribution-mark").waitForExistence(timeout: 15),
+                      "Review Apple's downloaded artwork, not the loading fallback")
+        XCTAssertEqual(credit.label, "Apple Weather. Weather data sources")
+        capture("weather-attribution-\(light ? "cream" : "green")\(accessible ? "-AX5" : "")")
+    }
+
     func testEmptyDinnerForecastAndHistoryAreUsefulAndDateSpecific() {
         launch(["-plated-review-dinner-history", "-plated-fake-weather"])
         XCTAssertTrue(app.buttons["Eating out"].isHittable)

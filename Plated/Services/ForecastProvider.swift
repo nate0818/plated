@@ -68,6 +68,11 @@ final class ForecastProvider: NSObject {
         // day column is simply blank in the simulator. This seeds a plausible
         // week so the layout can be seen and reviewed without a device.
         if ProcessInfo.processInfo.arguments.contains("-plated-fake-weather") {
+            // Review the real provider artwork too; preview-only text previously
+            // hid appearance bugs in the production attribution row.
+            if arguments.contains("-plated-review-weather-attribution") {
+                attribution = try? await weather.attribution
+            }
             dailyForecasts = Self.sampleWeek(days: days)
             lastError = nil
             isPreview = true
