@@ -2,7 +2,7 @@
 
 The user correctly reported that build 44 did not fully implement the approved proposal. Earlier verification established that actions existed; it did not establish faithful visual implementation. This pass compares native output against the original artifact without changing that artifact to match the code.
 
-Open [the interactive comparison](Design-Implementation-Comparison.html). Choose **Build 44** or **Revised working build**, a screen, and an appearance. The right panel is the original approved renderer. The left is an unmodified simulator screenshot. Single-state captures identify their appearance and coverage. Changing the proposal state does not silently substitute an unrelated native state.
+Open [the interactive comparison](Design-Implementation-Comparison.html). Choose **Build 44** or **Build 45**, a screen, and an appearance. The right panel is the original approved renderer. The left is an unmodified simulator screenshot. Single-state captures identify their appearance and coverage. Changing the proposal state does not silently substitute an unrelated native state.
 
 ## What was actually missing
 
@@ -19,7 +19,7 @@ Open [the interactive comparison](Design-Implementation-Comparison.html). Choose
 | Household | Single-row title and gear, bounded cover, smaller unframed people list, compact Invite, verified recent activity | Rotation selection/cancel/save, standard/largest-type captures |
 | Profile | Posts / dinners cooked / recipes added; Posts / Recipes / Saved; own-only private collection; smaller milestones, household link below content, household/role identity | Attribution/privacy/count tests; collection navigation and native captures |
 | Recipes | Editorial tile titles, compact source/time line, underline tabs and Collections | Library screenshots and filter interaction |
-| Recipe detail | Recipe header, bounded hero, grouped facts and available anchors, checkable ingredients | Ingredient toggle and native captures |
+| Recipe detail | Recipe header, bounded hero, grouped facts and available anchors, checkable ingredients and solid bottom action area | Ingredient toggle and native captures |
 | Groceries | Compact date range, solid quick-add field, simpler item/quantity/provenance rows, export in overflow, compact progress and Undo | Quick add/check/Undo test and standard/largest-type captures |
 | Cooking | Checkable frozen ingredient list, direct Pause/Resume, persisted paused duration, serialized alert cancellation, completion notes after finishing | Timer/state tests, finish flow, native screenshots |
 | iPad | Bounded meal beside context, landscape-only | Both landscape orientations and attempted portrait rotations; typed draft survives |
@@ -41,7 +41,12 @@ Open [the interactive comparison](Design-Implementation-Comparison.html). Choose
 - Revised interaction/state matrix: `build/DesignRecheck-After.xcresult` — 11 passed, 1 expected iPad-only skip on iPhone, 0 failures.
 - Regression tests: `build/DesignRecheck-Unit.xcresult` — 50 passed, 0 failures. Includes persisted timer pause, legacy decoding, delayed alarm add/cancel ordering, profile account identity/private recipes, lifetime dinner counts, dinner history, grocery writing, reactions and activity reads.
 - iPad: `build/DesignRecheck-iPad.xcresult` — landscape composition and rotation/draft preservation passed.
-- Final UI recheck and release status are recorded below when complete.
+- Final screen/interactions: `build/DesignRecheck-FinalUI.xcresult` — 10 passed, 1 stale test expectation failed. The failure expected the superseded “Hi, Nate” greeting; the tab-visibility test now checks the actual dinner card and is rerun in the release UI bundle. Comment likes/unlikes, replies, cookbook-save routing, largest-type reactions, grocery Undo and ingredient toggling passed.
+- The comment accessibility audit returned no issues for contrast, hit region, sufficient description and text clipping. Its raw report is `comment-accessibility-audit.txt`; this is not a physical VoiceOver result.
+- Visual inspection of largest-type Household found words wrapping vertically despite the earlier navigation test passing. People/count and Invite/options now reflow separately. New assertions check the control and heading proportions and exercise Invite.
+- Final targeted release UI recheck: `build/DesignRecheck-ReleaseUI.xcresult` — 7 passed, 0 failures. Includes the corrected tab-visibility assertion, largest-type Household/Invite and cooking Pause/Resume, Profile collections, completion notes, Plan eating-out/cook assignment, and selected-day context. Native screenshots were inspected after the tests.
+- Final recipe screen: `build/DesignRecheck-RecipeFinal.xcresult` — passed both appearances using a clean simulator build from release source `aea845b`. Visual inspection confirmed that content no longer shows beneath the bottom action area.
+- Final iPad recheck: `build/DesignRecheck-iPad-Final.xcresult` — passed both landscape orientations, attempted portrait rotations and draft preservation.
 - `scripts/check-design`, `scripts/check-tokens --native-only`, and `scripts/check-schema` passed. Schema check compares source fields with the recorded deployment manifest; it is not a live CloudKit transaction.
 - Native release commands now explicitly check app/widget token consistency. The separately redesigned marketing website has its own palette; default `check-tokens --all` still checks it and has not been weakened.
 
@@ -51,4 +56,8 @@ These are isolated simulator records, not Nate or Alessandra’s live account da
 
 ## Release
 
-Build 45 is prepared locally. Upload/distribution is not yet confirmed.
+Build 45 has been archived and exported from clean source `aea845b75ec14978a522ecd682dc9c2722467c28`. The exported app and widget are signed, non-debuggable and both build 45; APNs and CloudKit use Production. The app binary UUID matches its preserved dSYM. Apple accepted the upload with no errors. App Store Connect reports VALID, with Internal and External both IN_BETA_TESTING. Both existing groups include build 45, automatic tester notification is enabled, and the previous build has no individually assigned testers to carry forward. Tester notes were saved and read back successfully. See `release-verification.json` for the exact receipt and check time.
+
+Install/update through [TestFlight](https://testflight.apple.com/join/2exAQgYs); confirm version **1.0.1 (45)**.
+
+Exact archive, export, logs and verification are preserved in `build/release-design-45/`. IPA SHA-256: `b0b0a063bf02b753f69f7a6c8294396cca56250617787f64c7e4e8a71a77da03`.

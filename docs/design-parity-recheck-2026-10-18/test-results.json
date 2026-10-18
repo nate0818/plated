@@ -1,0 +1,73 @@
+{
+  "Before": {
+    "title": "Test - UIAudit",
+    "totalTestCount": 4,
+    "passedTests": 4,
+    "failedTests": 0,
+    "skippedTests": 0,
+    "testFailures": []
+  },
+  "After": {
+    "title": "Test - UIAudit",
+    "totalTestCount": 12,
+    "passedTests": 11,
+    "failedTests": 0,
+    "skippedTests": 1,
+    "testFailures": []
+  },
+  "Unit": {
+    "title": "Test - Plated",
+    "totalTestCount": 50,
+    "passedTests": 50,
+    "failedTests": 0,
+    "skippedTests": 0,
+    "testFailures": []
+  },
+  "iPad-Final": {
+    "title": "Test - UIAudit",
+    "totalTestCount": 1,
+    "passedTests": 1,
+    "failedTests": 0,
+    "skippedTests": 0,
+    "testFailures": []
+  },
+  "FinalUI": {
+    "title": "Test - UIAudit",
+    "totalTestCount": 11,
+    "passedTests": 10,
+    "failedTests": 1,
+    "skippedTests": 0,
+    "testFailures": [
+      {
+        "failureText": "XCTAssertTrue failed",
+        "targetName": "UIAudit",
+        "testIdentifier": 10,
+        "testIdentifierString": "CommentReactionTests/testPlanAccessibilityReturnsWhenItsTabIsSelected()",
+        "testIdentifierURL": "test://com.apple.xcode/Probe/UIAudit/CommentReactionTests/testPlanAccessibilityReturnsWhenItsTabIsSelected",
+        "testName": "testPlanAccessibilityReturnsWhenItsTabIsSelected()"
+      }
+    ],
+    "resolvedBy": {
+      "bundle": "ReleaseUI",
+      "test": "CommentReactionTests/testPlanAccessibilityReturnsWhenItsTabIsSelected()",
+      "reason": "Obsolete greeting assertion updated to check the actual dinner card and preserved hidden-tab accessibility assertion.",
+      "result": "passed"
+    }
+  },
+  "ReleaseUI": {
+    "title": "Test - UIAudit",
+    "totalTestCount": 7,
+    "passedTests": 7,
+    "failedTests": 0,
+    "skippedTests": 0,
+    "testFailures": []
+  },
+  "RecipeFinal": {
+    "title": "Test - UIAudit",
+    "totalTestCount": 1,
+    "passedTests": 1,
+    "failedTests": 0,
+    "skippedTests": 0,
+    "testFailures": []
+  }
+}

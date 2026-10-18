@@ -1,0 +1,7 @@
+Build 45 completes missing details from the approved design review.
+
+Plan has refined dinner typography, card proportions, photos and cook identity. Profile now separates Posts, Recipes and Saved, with contribution counts. Table, comments, the post composer, Activity, Household, recipes and groceries use the updated hierarchy and controls. Recipe ingredients can be checked while viewing; cooking ingredients and paused timers persist. Cooking now has direct Pause/Resume. iPad remains landscape-only.
+
+Please try both appearances and larger text sizes. Check choosing a meal versus eating out, assigning a cook, draft recovery, comment reactions/replies, grocery checking and Undo, and pausing/resuming cooking timers.
+
+Simulator interactions, visual comparisons and regression checks passed. This build does not claim new live two-account sync or lock-screen push-delivery verification.
