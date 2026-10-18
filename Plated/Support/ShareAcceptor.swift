@@ -15,6 +15,11 @@ import SwiftData
 /// the Table's own refresh rather than blocked on here.
 final class ShareAcceptor: NSObject, UIApplicationDelegate {
 
+    func application(_ application: UIApplication, supportedInterfaceOrientationsFor window: UIWindow?) -> UIInterfaceOrientationMask {
+        let idiom = window?.traitCollection.userInterfaceIdiom ?? UIDevice.current.userInterfaceIdiom
+        return idiom == .pad ? .landscape : [.portrait, .landscapeLeft, .landscapeRight]
+    }
+
     /// Set when a share has just been accepted, so the Table knows to pull
     /// even if it is already on screen and would otherwise sit still.
     @MainActor static let didAccept = Notification.Name("plated.share.accepted")

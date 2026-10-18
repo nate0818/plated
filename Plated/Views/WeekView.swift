@@ -592,8 +592,7 @@ struct WeekView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .fixedSize(horizontal: false, vertical: true)
                         if !PlanRowVoice.isEatingOut(title: meal.title, hasRecipe: meal.recipe != nil) {
-                            RecipeArtwork(data: meal.recipe?.photoData, title: meal.title, ratio: 2.5)
-                                .frame(maxHeight: 180).clipped()
+                            RecipeArtwork(data: meal.recipe?.photoData, title: meal.title, ratio: 2.5, maxHeight: 180)
                         }
                     }
                     .contentShape(Rectangle())
@@ -751,8 +750,7 @@ struct WeekView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .fixedSize(horizontal: false, vertical: true)
                 if entry.hasDish && !PlanRowVoice.isEatingOut(title: entry.title, hasRecipe: entry.hasRecipe) {
-                    RecipeArtwork(data: ledger.photo(for: entry.recordName), title: entry.title, ratio: 2.5)
-                        .frame(maxHeight: 180).clipped()
+                    RecipeArtwork(data: ledger.photo(for: entry.recordName), title: entry.title, ratio: 2.5, maxHeight: 180)
                 }
                 if honesty || entry.cooked {
                     Text(honesty ? RemotePlanRow.caption(for: entry) : "Dinner made")

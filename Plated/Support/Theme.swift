@@ -806,6 +806,7 @@ struct PhotoWell: View {
                     .frame(height: height ?? 240)
             }
         }
+        .frame(maxWidth: .infinity)
         .overlay {
             Image(uiImage: image)
                 .resizable()

@@ -135,6 +135,14 @@ final class ApprovedPolishTests: XCTestCase {
             launch(flags, light: true, large: true)
             XCTAssertTrue(element(marker).waitForExistence(timeout: 20))
             capture("polish-\(name)-AX5")
+            if name == "composer" {
+                let people = app.buttons["People"]
+                reveal(people)
+                XCTAssertGreaterThan(people.frame.width, 300, "Accessibility attachment controls use the full row")
+                capture("polish-composer-AX5-attachments")
+                people.tap()
+                XCTAssertTrue(app.buttons["Tag Sam"].waitForExistence(timeout: 5))
+            }
         }
     }
 
@@ -146,21 +154,39 @@ final class ApprovedPolishTests: XCTestCase {
         XCUIDevice.shared.orientation = .portrait
         for orientation in [UIDeviceOrientation.landscapeLeft, .portrait, .landscapeRight, .portraitUpsideDown] {
             XCUIDevice.shared.orientation = orientation
-            if orientation.isLandscape {
-                let filled = NSPredicate { _, _ in self.app.windows.firstMatch.frame.minY < 50 }
-                XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: filled, object: app)], timeout: 10), .completed,
-                    "Landscape must use the display height, without portrait letterboxing")
-            }
-            let window = app.windows.firstMatch
-            XCTAssertGreaterThan(window.frame.width, window.frame.height, "iPad must retain a horizontal interface")
+            // XCTest frames are in physical display coordinates. When the
+            // device is upright, a landscape-locked app's horizontal CTA
+            // is vertical in those coordinates; window.width alone lies.
+            let action = app.buttons["Start cooking"]
+            XCTAssertTrue(action.waitForExistence(timeout: 10))
             let meal = app.buttons["featured-dinner-card"]
             let weather = app.staticTexts["Today’s weather"].firstMatch
-            XCTAssertTrue(meal.exists)
+            XCTAssertTrue(meal.isHittable)
             XCTAssertTrue(weather.exists)
-            XCTAssertGreaterThan(weather.frame.minX, meal.frame.midX, "Weather belongs beside the meal on iPad")
+            if orientation.isLandscape {
+                XCTAssertGreaterThan(action.frame.width, action.frame.height)
+                XCTAssertGreaterThan(weather.frame.minX, meal.frame.midX, "Weather belongs beside the meal on iPad")
+                XCTAssertLessThan(app.windows.firstMatch.frame.minY, 50, "Landscape fills the display")
+            } else {
+                XCTAssertGreaterThan(action.frame.height, action.frame.width,
+                    "The horizontal interface must stay rotated when the device is held upright")
+            }
             let shot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
             shot.name = "polish-ipad-display-\(orientation.rawValue)"; shot.lifetime = .keepAlways; add(shot)
             capture("polish-ipad-orientation-\(orientation.rawValue)")
         }
+        XCUIDevice.shared.orientation = .landscapeLeft
+        launch(["-plated-open-table-post", "-plated-review-post-reset"])
+        let field = element("table-post-text")
+        XCTAssertTrue(field.waitForExistence(timeout: 20))
+        field.tap(); field.typeText("Keep this draft while rotating.")
+        XCUIDevice.shared.orientation = .portrait
+        XCTAssertTrue(field.isHittable, "The sheet stays available in the locked landscape interface")
+        capture("polish-ipad-portrait-draft")
+        XCUIDevice.shared.orientation = .landscapeRight
+        XCTAssertTrue(field.waitForExistence(timeout: 10))
+        XCTAssertTrue(field.isHittable)
+        XCTAssertEqual(field.value as? String, "Keep this draft while rotating.")
+        capture("polish-ipad-restored-draft")
     }
 }

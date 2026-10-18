@@ -7,9 +7,12 @@ struct RecipeArtwork: View {
     var title: String
     var ratio: CGFloat = 1.45
     var radius: CGFloat = Radius.hero
+    var maxHeight: CGFloat? = nil
     var body: some View {
         Color.fill
             .aspectRatio(ratio, contentMode: .fit)
+            .frame(maxHeight: maxHeight)
+            .frame(maxWidth: .infinity)
             .overlay {
                 GeometryReader { geometry in
                     if let data, let image = UIImage(data: data) {

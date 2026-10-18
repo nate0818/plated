@@ -252,7 +252,7 @@ struct TableComposerSheet: View {
     private var attachmentActions: some View {
         VStack(alignment: .leading, spacing: 4) {
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), alignment: .leading),
-                                     count: typeSize.isAccessibilitySize ? 2 : 4), alignment: .leading, spacing: 8) {
+                                     count: typeSize.isAccessibilitySize ? 1 : 4), alignment: .leading, spacing: 8) {
                 if photoData == nil && !photoLoading && photoLoadMessage == nil {
                     attachmentButton("Photo", icon: "photo") { choosePhoto() }
                 }
