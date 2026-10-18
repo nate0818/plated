@@ -1,19 +1,24 @@
-/* Editorial defaults mirror Theme.swift throughout the public site and console. */
+@import "lenis/dist/lenis.css";
+
+/* Shared website palette. Product captures retain their native appearance. */
 :root {
-  --canvas: #191C17;
-  --ink: #EDF0E6;
-  --ink-secondary: #B0B8A8;
-  --ink-faint: #727D68;
-  --hairline: #3A4434;
-  --hairline-soft: #2B3226;
-  --hairline-dashed: #4C5844;
-  --nav-hairline: #3A4434;
-  --fill: #242720;
-  --chip-fill: #22261F;
-  --raised-fill: #2C3127;
-  --card-fill: #1E211B;
-  --olive: #B2C9A5;
-  --on-olive: #182219;
+  --paper: #F7F6F0;
+  --forest: #25362A;
+  --soft-green: #E7ECDC;
+  --canvas: var(--paper);
+  --ink: var(--forest);
+  --ink-secondary: #626C5E;
+  --ink-faint: #8B9683;
+  --hairline: #DDE1D5;
+  --hairline-soft: #E9ECE2;
+  --hairline-dashed: #BFC8B7;
+  --nav-hairline: var(--hairline);
+  --fill: #EDEFE5;
+  --chip-fill: #F0F2E9;
+  --raised-fill: #FFFFFF;
+  --card-fill: #FFFFFF;
+  --olive: #355941;
+  --on-olive: #FFFFFF;
   --selection-fill: var(--ink);
   --on-selection: var(--canvas);
   --accent-text: var(--olive);
@@ -22,48 +27,48 @@
   --primary-pressed: #F36A4F;
   --scrim-ink: #172018;
   --on-scrim: #FFFFFF;
-  --danger-text: #F0A595;
+  --danger-text: #A33D2D;
   --completion: var(--olive);
-  --basil: #55BE76;
-  --basil-tint: #303B29;
-  --mango: #FFB63A;
-  --mango-tint: #332A15;
-  --grape: #C98BF7;
-  --grape-tint: #2E2138;
-  --shadow-ink: 0 0 0;
+  --basil: #3DA35D;
+  --basil-tint: #E8EDE1;
+  --mango: #946610;
+  --mango-tint: #FFF4DC;
+  --grape: #7952A0;
+  --grape-tint: #F2EAF8;
+  --shadow-ink: 37 54 42;
 
-  --radius-small: 4px;
-  --radius-chip: 6px;
-  --radius-row: 6px;
-  --radius-card: 8px;
-  --radius-hero: 4px;
+  --radius-small: 5px;
+  --radius-chip: 5px;
+  --radius-row: 8px;
+  --radius-card: 12px;
+  --radius-hero: 14px;
   --radius-sheet: 18px;
   --space-inline: 8px;
   --space-compact: 12px;
   --space-content: 16px;
   --space-page: 24px;
   --space-section: 28px;
-  --control-height: 48px;
+  --control-height: 52px;
   --target-minimum: 44px;
   --shadow-card: none;
   --shadow-float: none;
   --shadow-tile: none;
   --ease-pop: cubic-bezier(0.2, 0, 0, 1);
 
-  /* Compatibility for utility components; these resolve to Editorial roles. */
+  /* Compatibility names for shared controls and the console. */
   --tomato: var(--primary-action);
   --on-tomato: var(--on-primary);
   --tomato-pressed: var(--primary-pressed);
-  --tomato-tint: var(--fill);
-  --font-gabarito: var(--font-editorial);
+  --tomato-tint: #FFF0E9;
+  --font-gabarito: var(--font-sans);
   --font-jakarta: var(--font-sans);
-  color-scheme: dark;
+  color-scheme: light;
 }
 
 [data-theme="paper"] {
-  --canvas: #FAF9F4;
-  --ink: #27362A;
-  --ink-secondary: #606958;
+  --canvas: #F7F6F0;
+  --ink: #25362A;
+  --ink-secondary: #626C5E;
   --ink-faint: #A5AD9A;
   --hairline: #DFE2D7;
   --hairline-soft: #ECEEE5;
@@ -91,7 +96,9 @@
 }
 
 *, *::before, *::after { box-sizing: border-box; }
-html { -webkit-text-size-adjust: 100%; }
+html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; scrollbar-gutter: stable; }
+/* One scroll controller at a time. Native smooth anchors remain the fallback. */
+html.lenis { scroll-behavior: auto !important; }
 html:has(dialog[open]) { overflow: hidden; }
 body {
   margin: 0;
@@ -106,16 +113,18 @@ body {
 }
 h1, h2, h3, .display {
   margin: 0;
-  font-family: var(--font-editorial), Georgia, serif;
+  font-family: var(--font-sans), sans-serif;
   font-optical-sizing: auto;
-  font-weight: 400;
-  letter-spacing: -0.025em;
+  font-weight: 500;
+  letter-spacing: -0.035em;
   line-height: 1.05;
-  text-wrap: balance;
+  text-wrap: pretty;
 }
 p { margin: 0; }
 a { color: inherit; }
-button, input { font: inherit; color: inherit; }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { touch-action: manipulation; }
+a, button { -webkit-tap-highlight-color: transparent; }
 button { font-weight: 600; }
 img { display: block; max-width: 100%; }
 .secondary { color: var(--ink-secondary); }

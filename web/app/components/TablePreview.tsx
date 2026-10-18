@@ -19,7 +19,7 @@ export default function TablePreview() {
       <div className={styles.photo}><Image src="/editorial/pancakes.webp" width={800} height={900} sizes="(max-width: 760px) calc(100vw - 48px), 440px" alt="Sam’s pancake dinner, topped with berries and maple syrup" onLoad={() => setLoaded(true)} /></div>
       <div className={styles.recipe}>
         <h3>Pancake Dinner</h3>
-        <p>Breakfast for dinner. Zero regrets, full syrup.</p>
+        <p>Pancakes for dinner sounded like a good idea.</p>
         <div className={styles.actions} aria-hidden="true">
           <span><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.4"><path d="M4 4h16v12H9l-5 4Z" /></svg>3 comments</span>
           <span className={styles.bookmark} data-saved={active === 2}><svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" strokeWidth="1.4"><path d="M6 3h12v18l-6-4-6 4Z" /></svg>{active === 2 ? "Saved" : "Save recipe"}</span>
@@ -28,13 +28,13 @@ export default function TablePreview() {
       <div className={styles.conversation}>
         <div className={styles.comment} data-visible={active >= 1} aria-hidden={active < 1}>
           <span className={styles.friend} aria-hidden="true">R</span>
-          <p><strong>Riley</strong>Best dinner of the week and it isn’t close</p>
+          <p><strong>Riley</strong>Making these tomorrow</p>
         </div>
         <div className={styles.saved} data-visible={active === 2} aria-hidden={active !== 2}>
-          <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m4 10 4 4 8-8" /></svg> A new favorite in your recipe book
+          <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m4 10 4 4 8-8" /></svg> Saved to your recipe book
         </div>
       </div>
     </div>
-    <figcaption className={styles.caption}><span>An example from your Table</span><button onClick={toggle} aria-label={running ? "Pause Table preview" : "Play Table preview"}><svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden="true">{running ? <path d="M7 4v12m6-12v12" /> : <path d="m7 4 8 6-8 6Z" />}</svg>{running ? "Pause" : "Play"}</button></figcaption>
+    <figcaption className={styles.caption}><span>Sample Table post</span><button onClick={toggle} aria-label={running ? "Pause Table preview" : "Play Table preview"}><svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden="true">{running ? <path d="M7 4v12m6-12v12" /> : <path d="m7 4 8 6-8 6Z" />}</svg>{running ? "Pause" : "Play"}</button></figcaption>
   </figure>;
 }

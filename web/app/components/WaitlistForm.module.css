@@ -1,15 +1,19 @@
 .form { display: grid; gap: var(--space-compact); width: 100%; max-width: 34rem; }
 .row { display: flex; gap: var(--space-inline); }
-.input { flex: 1; min-width: 0; min-height: var(--control-height); padding: 12px 16px; border: 1px solid var(--hairline-dashed); border-radius: var(--radius-chip); background: var(--canvas); color: var(--ink); font-size: 16px; }
+.input { flex: 1; min-width: 0; min-height: var(--control-height); padding: 12px 16px; border: 1px solid var(--hairline-dashed); border-radius: var(--radius-chip); background: var(--raised-fill); color: var(--ink); font-size: 16px; transition: border-color 220ms ease, box-shadow 220ms ease; }
+.input:focus { border-color: var(--olive); box-shadow: 0 0 0 3px rgb(103 124 84 / .09); }
 .input::placeholder { color: var(--ink-secondary); opacity: 1; }
 .input[aria-invalid="true"] { border-color: var(--danger-text); }
-.button { flex: none; min-height: var(--control-height); padding: 12px 20px; border: 0; border-radius: var(--radius-chip); background: var(--primary-action); color: var(--on-primary); font-size: 13px; font-weight: 600; cursor: pointer; transition: background 150ms ease; }
+.button { flex: none; min-height: var(--control-height); padding: 12px 20px; border: 0; border-radius: var(--radius-chip); background: var(--primary-action); color: var(--on-primary); font-size: 13px; font-weight: 600; cursor: pointer; transition: background 200ms ease, transform 220ms var(--ease-pop), box-shadow 220ms ease; }
 .button:hover { background: var(--primary-pressed); }
 .button:disabled { cursor: wait; }
+.button:not(:disabled):active { transform: scale(.98); }
+@media (hover: hover) and (pointer: fine) { .button:not(:disabled):hover { box-shadow: 0 5px 12px rgb(37 54 42 / .12); } }
+@media (prefers-reduced-motion: reduce) { .button:not(:disabled):active { transform: none; } }
 .note { color: var(--ink-secondary); font-size: 12px; }
 .error { color: var(--danger-text); font-size: 14px; }
 .done { border-top: 1px solid var(--olive); padding-top: var(--space-content); color: var(--ink-secondary); font-size: 14px; }
-.successTitle { margin-bottom: 8px; color: var(--ink); font-family: var(--font-editorial), Georgia, serif; font-size: 30px; }
+.successTitle { margin-bottom: 8px; color: var(--ink); font-family: var(--font-sans), sans-serif; font-size: 30px; font-weight: 500; letter-spacing: -.03em; }
 .compact .row { max-width: 30rem; }
 .srOnly { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 @media (max-width: 520px) { .row { flex-direction: column; } .button { width: 100%; } }

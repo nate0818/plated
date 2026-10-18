@@ -9,6 +9,7 @@ export default function usePreviewMotion(target: RefObject<HTMLElement | null>, 
   const [ready, setReady] = useState(false);
   const intent = useRef<"auto" | "play" | "pause">("auto");
   const update = useRef<() => void>(() => {});
+  const reset = useRef<() => void>(() => {});
 
   useEffect(() => {
     const element = target.current;
@@ -44,6 +45,7 @@ export default function usePreviewMotion(target: RefObject<HTMLElement | null>, 
       }
     }
     update.current = sync;
+    reset.current = () => { stop(); remaining = duration; };
     const observer = new IntersectionObserver(([entry]) => {
       visible = entry.isIntersecting && entry.intersectionRatio >= .15;
       sync();
@@ -54,6 +56,7 @@ export default function usePreviewMotion(target: RefObject<HTMLElement | null>, 
     document.addEventListener("visibilitychange", sync);
     return () => {
       update.current = () => {};
+      reset.current = () => {};
       stop();
       observer.disconnect();
       motion.removeEventListener("change", sync);
@@ -66,5 +69,14 @@ export default function usePreviewMotion(target: RefObject<HTMLElement | null>, 
     intent.current = running ? "pause" : "play";
     update.current();
   }
-  return { active, running, ready, toggle };
+  function select(index: number) {
+    if (!Number.isInteger(index) || index < 0 || index >= count) return;
+    // A deliberate choice stays put until the visitor presses Play.
+    intent.current = "pause";
+    reset.current();
+    setReady(true);
+    setActive(index);
+    update.current();
+  }
+  return { active, running, ready, toggle, select };
 }

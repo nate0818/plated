@@ -11,4 +11,8 @@ https://tools.applemediaservices.com/api/badges/download-on-the-app-store/black/
 
 The configured listing returned HTTP 404 on October 16, 2026. The website places
 the badge beneath an explicit coming-soon label and does not link it until the
-listing is available. The working early-access action remains TestFlight.
+listing is available. Marketing actions collect requests at `/early-access`; existing invitation links keep their TestFlight installation path.
+
+The current website uses a paper canvas, forest text, coral actions, and DM Sans
+headings. Newsreader is reserved for the wordmark. SiteFrame shares navigation
+and the footer across all public routes; globals.css supplies the design roles.

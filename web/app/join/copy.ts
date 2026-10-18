@@ -24,44 +24,44 @@ export interface Copy {
 
 export const COPY: Record<Kind, Copy> = {
   table: {
-    titleAfterName: ["kept", "you a seat."],
-    titleAnonymous: ["Someone kept", "you a seat."],
+    titleAfterName: ["invited you", "to their Table"],
+    titleAnonymous: ["You’re invited", "to a Table"],
     // "What they cook", never "the week ahead": a seat at the Table does not
     // come with the plan, and this page must not promise it.
     lede: (host) =>
-      `${host || "Someone"} is sharing what they cook on Plated. Your place at their table is set.`,
+      `Share recipes, food finds, and dinner ideas with ${host || "a friend"} on Plated.`,
     facts: [
       {
-        lead: "Invite only.",
-        rest: "Nothing here is public, and nobody sees a table they weren’t given a seat at.",
+        lead: "Share with friends",
+        rest: "at your invite-only Table.",
       },
       {
-        lead: "Your seat is held.",
-        rest: "Install Plated, tap this link again, and you’re in.",
+        lead: "Install Plated,",
+        rest: "then open this invitation again to join.",
       },
       {
-        lead: "No account to make.",
-        rest: "Sign in with Apple, and that’s the whole setup.",
+        lead: "Sign in with Apple",
+        rest: "to get started.",
       },
     ],
   },
   household: {
-    titleAfterName: ["invited you", "to their household."],
-    titleAnonymous: ["Someone invited you", "to their household."],
+    titleAfterName: ["invited you", "to their household"],
+    titleAnonymous: ["You’re invited", "to a household"],
     lede: () =>
-      "Plan the week together on Plated: one plan, one grocery list, one cookbook, on everyone’s phone.",
+      "Plan meals, take turns cooking, and share a grocery list. Keep everyone at home in the dinner plan.",
     facts: [
       {
-        lead: "Invite only.",
-        rest: "Nobody sees a household they weren’t invited to.",
+        lead: "Plan meals together",
+        rest: "with a shared recipe book and grocery list.",
       },
       {
-        lead: "Your seat is held.",
-        rest: "Install Plated, then open this link again.",
+        lead: "Install Plated,",
+        rest: "then open this invitation again to join.",
       },
       {
-        lead: "No account to make.",
-        rest: "Sign in with Apple, and that’s the whole setup.",
+        lead: "Sign in with Apple",
+        rest: "to get started.",
       },
     ],
   },

@@ -1,0 +1,10 @@
+.preview { display: grid; justify-items: center; gap: 25px; padding: 32px 24px 22px; border-radius: 14px; background: var(--soft-green); min-width: 0; }
+.heading { display: flex; align-items: center; gap: 12px; width: min(100%, 292px); }
+.avatar { flex: none; display: grid; place-items: center; width: 38px; height: 38px; border-radius: 50%; background: #BDCFB2; color: var(--forest); font-size: 15px; }
+.heading p { font-size: 14px; font-weight: 500; line-height: 1.4; }
+.heading div > span { display: block; margin-top: 3px; font-size: 12px; color: var(--ink-secondary); }
+.phone { width: min(100%, 238px); }
+.phone > div { width: 100%; }
+.caption { font-size: 10px; color: var(--ink-secondary); text-align: center; }
+@media (max-width: 760px) { .preview { padding: 28px 24px 20px; gap: 22px; } .phone { width: 218px; } }
+@media (max-width: 380px) { .preview { padding-inline: 18px; } .heading { gap: 9px; } .heading p { font-size: 13px; } .heading div > span { font-size: 11px; } }

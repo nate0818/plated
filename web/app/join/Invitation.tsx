@@ -8,7 +8,7 @@ import { COPY, appLink, recordName, type Kind } from "./copy";
 
 // ?h= is the host's first name, ?s= the share URL, ?seat= the household seat
 // the link was minted for, ?i= the Table invitation's id. Read on the client
-// so the page can be statically served and still say "Nate kept you a seat."
+// so the page can be statically served and still name the person inviting you.
 export default function Invitation({ kind }: { kind: Kind }) {
   const params = useSearchParams();
   const host = (params.get("h") ?? "").trim().slice(0, 40);
@@ -48,7 +48,7 @@ export default function Invitation({ kind }: { kind: Kind }) {
         </a>
         {rawOK && (
           <a className={styles.quiet} href={appLink(kind, share, { seat, invite, host })}>
-            Already have it? Open the invitation
+            Already have Plated? Open your invitation
           </a>
         )}
       </div>

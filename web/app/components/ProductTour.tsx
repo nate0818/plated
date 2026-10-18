@@ -7,9 +7,9 @@ import { type AppScreen } from "./PhoneScreenshot";
 import styles from "./ProductTour.module.css";
 
 const steps: { screen: AppScreen; label: string; title: string; description: string; caption: string }[] = [
-  { screen: "plan", label: "Plan", title: "What’s for dinner and who’s cooking", description: "Choose a meal and assign a cook. Your whole household sees who’s making what, so organizing dinner doesn’t always fall to the same person.", caption: "The meal, the night, and the person cooking" },
-  { screen: "recipes", label: "Recipes", title: "Keep your favorites close", description: "Add your own recipes, save one from a link, or keep a dish a friend shares at your Table. Your household’s recipe book grows with you.", caption: "Your household’s recipe book" },
-  { screen: "groceries", label: "Groceries", title: "Share the shopping, too", description: "Bring ingredients from your planned meals into one shared grocery list. Everyone knows what’s left to pick up.", caption: "Groceries for your planned meals" },
+  { screen: "plan", label: "Plan", title: "See what’s for dinner and who’s cooking", description: "Choose a meal, pick a night, and assign a cook. Everyone can see the plan, so you can share the work of dinner.", caption: "Your household’s meal plan" },
+  { screen: "recipes", label: "Recipes", title: "Keep your favorites close", description: "Add a recipe yourself, save one from a link, or save one a friend shares at your Table. Keep them all in your household’s recipe book.", caption: "Your household’s recipe book" },
+  { screen: "groceries", label: "Groceries", title: "One grocery list for everyone", description: "Add ingredients from planned meals to a shared list. Anyone in your household can see what’s still needed.", caption: "A grocery list everyone can use" },
 ];
 
 export default function ProductTour() {
@@ -51,7 +51,7 @@ export default function ProductTour() {
       <div className={styles.frame}>
         {steps.map((step, index) => <div key={step.screen} className={styles.screen} data-active={index === selected} aria-hidden={index !== selected} inert={index !== selected}><AppShowcase screen={step.screen} appearance="light" compact eager={preload} capture={step.screen === "plan" ? { src: "/app/plan-sam-light-818.png", alt: "Plated’s Plan screen showing Sam’s avatar, Pizza Night, and Sam is cooking" } : undefined} /></div>)}
       </div>
-      <p className={styles.caption}>{steps[selected].screen === "plan" ? "Sam’s cooking Pizza Night tomorrow" : steps[selected].caption}</p>
+      <p className={styles.caption}>{steps[selected].screen === "plan" ? "Sam’s making pizza tomorrow" : steps[selected].caption}</p>
     </div>
     <div className={styles.story}>
       {steps.map((step, index) => <section key={step.screen} id={`tour-${step.screen}`} ref={element => { sections.current[index] = element; }} className={styles.step} data-active={selected === index} aria-labelledby={`tour-${step.screen}-title`}>

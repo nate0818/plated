@@ -2,11 +2,11 @@ import type { Metadata } from "next";
 import JoinPage from "../JoinPage";
 
 export const metadata: Metadata = {
-  title: "An invitation to a household",
-  description: "Someone invited you to their household on Plated.",
+  title: "Join a household",
+  description: "Plan meals, see who’s cooking, and share a grocery list with your household on Plated.",
   openGraph: {
-    title: "An invitation to a household",
-    description: "Someone invited you to their household on Plated.",
+    title: "Join a household",
+    description: "Plan meals, see who’s cooking, and share a grocery list with your household on Plated.",
   },
   // An invitation is addressed to one person. Search engines are not invited.
   robots: { index: false, follow: false },

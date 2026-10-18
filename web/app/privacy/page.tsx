@@ -1,51 +1,48 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import Wordmark from "../components/Wordmark";
+import SiteFrame from "../components/SiteFrame";
 import styles from "./page.module.css";
 
 export const metadata: Metadata = {
   title: "Privacy",
-  description: "What Plated keeps, where it keeps it, and what it never collects.",
+  description: "What Plated stores, where it lives, and how to manage your data.",
   alternates: { canonical: "/privacy" },
 };
 
-// Every sentence here is a claim about the running system, so it is written
-// from Directory.swift and the Supabase schema, not from what the app used to
-// be. The old "Plated has no server" line was true until the directory shipped.
+const sections = [
+  ["icloud", "Your data in iCloud"],
+  ["server", "Directory and notifications"],
+  ["website", "This website"],
+  ["permissions", "Permissions"],
+  ["deletion", "Deleting your data"],
+  ["contact", "Contact"],
+] as const;
+
+// Data handling and retention details are preserved from the existing policy.
 export default function Privacy() {
-  return (
-    <>
-      <header className={`${styles.header} wrap`}>
-        <Link href="/" aria-label="Plated home" className={styles.home}>
-          <Wordmark size={26} />
-        </Link>
+  return <SiteFrame>
+    <main id="main" className={styles.main}>
+      <header className={styles.intro} data-reveal="stagger">
+        <p className={styles.eyebrow}>Privacy</p>
+        <h1>Your data<br />and your privacy</h1>
+        <p className={styles.lede}>Your recipes, plans, and photos are stored in your iCloud account. Plated also runs directory and notification services, explained below.</p>
+        <time className={styles.updated} dateTime="2026-10-18">Updated October 18, 2026</time>
       </header>
-
-      <main className={`${styles.article} wrap`}>
-        <nav className={styles.crumbs} aria-label="Breadcrumb">
-          <Link href="/">Home</Link>
-          <span aria-hidden="true">/</span>
-          <span aria-current="page">Privacy</span>
+      <div className={styles.document}>
+        <nav className={styles.contents} aria-label="On this page">
+          <p>On this page</p>
+          <ul>{sections.map(([id, label]) => <li key={id}><a href={`#${id}`}>{label}</a></li>)}</ul>
         </nav>
-        <h1 className={styles.title}>What Plated keeps, and where.</h1>
-        <p className={`${styles.updated} secondary`}>Last updated 18 October 2026</p>
-
-        <p className={styles.lede}>
-          Plated is a dinner planner for a household. Your recipes, plans,
-          photographs and household are stored in your iCloud account. Plated
-          also runs a directory and notification service, described here.
-        </p>
-
-        <h2>In your iCloud</h2>
+        <article className={styles.policy} aria-label="Privacy policy">
+        <h2 id="icloud">Your data in iCloud</h2>
         <p>
           Recipes, meal plans, grocery lists, household members, gatherings,
-          photographs, posts to your Table and cooking history are saved on your
+          photos, posts to your Table and cooking history are saved on your
           device and synced through your private iCloud database using
           Apple&rsquo;s CloudKit. The notification service processes the limited
-          shared activity described below; it does not copy your cookbook or photos.
+          shared activity described below; it does not copy your recipe book or photos.
         </p>
         <p>
-          If you join a household, the plan, the grocery list, the cookbook and
+          If you join a household, the plan, the grocery list, the recipe book and
           the people list are shared with the other members of that household
           through iCloud, and each member&rsquo;s own iCloud keeps a copy.
           Leaving takes your recipes with you and removes the rest from your
@@ -55,10 +52,10 @@ export default function Privacy() {
         <p>
           When you share a Table, CloudKit shares your posts with the people
           you invited and nobody else. A Table guest never sees the plan, the
-          grocery list or the cookbook.
+          grocery list or the recipe book.
         </p>
 
-        <h2>On Plated&rsquo;s server</h2>
+        <h2 id="server">Directory and notification services</h2>
         <p>
           Plated keeps a directory so the app can answer one question: which of
           your contacts already use Plated. iOS no longer offers a way to answer
@@ -99,7 +96,7 @@ export default function Privacy() {
           list. The server is hosted by Supabase in the United States.
         </p>
 
-        <h2>When somebody shares a seat</h2>
+        <h2 id="invitations">When someone invites you</h2>
         <p>
           Plated records the inviter, a salted hash of the invited phone number,
           the inviter&rsquo;s first name, the delivery result and the time of the
@@ -110,7 +107,7 @@ export default function Privacy() {
           operational troubleshooting, then deleted.
         </p>
 
-        <h2>Shared activity notifications</h2>
+        <h2 id="notifications">Shared activity notifications</h2>
         <p>
           To deliver phone alerts without waiting for the recipient to open Plated,
           the app sends a short-lived Apple authorization token and a reference to
@@ -138,7 +135,7 @@ export default function Privacy() {
           remains in iCloud.
         </p>
 
-        <h2>On this website</h2>
+        <h2 id="website">On this website</h2>
         <p>
           If you request early access or join the launch list, plated.food stores
           your email address, the time you submitted it and which list you
@@ -149,14 +146,14 @@ export default function Privacy() {
           Write to the address at the bottom of this page to be removed.
         </p>
 
-        <h2>What Plated never collects</h2>
+        <h2 id="collection">What Plated doesn’t collect</h2>
         <p>
           Plated contains no analytics, no advertising, no tracking and no
           third-party SDKs. Nothing you do in the app is measured, profiled or
           sold.
         </p>
 
-        <h2>Permissions Plated asks for, and why</h2>
+        <h2 id="permissions">Permissions and what they’re for</h2>
         <ul>
           <li>
             <strong>Sign in with Apple</strong> establishes who owns the table
@@ -202,13 +199,13 @@ export default function Privacy() {
           than nagging you.
         </p>
 
-        <h2>Children</h2>
+        <h2 id="children">Children</h2>
         <p>
           Plated is rated 4+ and does not knowingly collect information from
           children.
         </p>
 
-        <h2>Deleting your data</h2>
+        <h2 id="deletion">Deleting your data</h2>
         <p>
           Your Plated data lives in your iCloud account. Deleting the app removes
           the local copy. To remove the synced copy, delete Plated&rsquo;s data
@@ -222,7 +219,7 @@ export default function Privacy() {
           registered devices, directory sessions and personal notification
           delivery records, then signs this iPhone out. It does not delete
           recipes, plans, grocery lists, household data, Table posts,
-          photographs or any other content in your private iCloud. If this
+          photos or any other content in your private iCloud. If this
           iPhone no longer has a verified directory session, write to the
           address below for help removing an earlier registration. Waitlist
           email removal also remains available by email. This version does not
@@ -231,27 +228,21 @@ export default function Privacy() {
           Settings: your name, Sign in with Apple, Plated, then Delete.
         </p>
 
-        <h2>Changes to this policy</h2>
+        <h2 id="changes">Changes to this policy</h2>
         <p>
           If this policy changes, the revised version will be posted at this
           address with a new date at the top.
         </p>
 
         <hr className={styles.rule} />
-        <p className="secondary">
+        <p id="contact" className="secondary">
           Questions about privacy in Plated:{" "}
           <a href="mailto:privacy@getplated.food" className={styles.link}>
             privacy@getplated.food
           </a>
         </p>
-      </main>
-
-      <footer className={`${styles.footer} wrap`}>
-        <Wordmark size={20} />
-        <Link href="/" className={styles.footerLink}>
-          Home
-        </Link>
-      </footer>
-    </>
-  );
+        </article>
+      </div>
+    </main>
+  </SiteFrame>;
 }

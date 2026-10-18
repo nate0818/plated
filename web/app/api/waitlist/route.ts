@@ -22,11 +22,11 @@ export async function POST(req: Request) {
     email = typeof body.email === "string" ? body.email.trim() : "";
     intent = body.intent === "early-access" ? "early-access" : "launch";
   } catch {
-    return NextResponse.json({ error: "That didn't look like an email address." }, { status: 400 });
+    return NextResponse.json({ error: "Enter a valid email address, like you@example.com." }, { status: 400 });
   }
 
   if (!looksLikeEmail(email)) {
-    return NextResponse.json({ error: "That didn't look like an email address." }, { status: 400 });
+    return NextResponse.json({ error: "Enter a valid email address, like you@example.com." }, { status: 400 });
   }
 
   // Honesty over optimism: if the address could not be stored, say so rather
@@ -45,11 +45,11 @@ export async function POST(req: Request) {
     if (!res.ok) {
       const text = await res.text().catch(() => "");
       console.error("waitlist function failed:", res.status, text.slice(0, 200));
-      return NextResponse.json({ error: "That didn't save. Try again." }, { status: 502 });
+      return NextResponse.json({ error: "We couldn’t send your request. Please try again." }, { status: 502 });
     }
   } catch (err) {
     console.error("waitlist function unreachable:", err);
-    return NextResponse.json({ error: "Couldn't reach the server. Try again." }, { status: 502 });
+    return NextResponse.json({ error: "We couldn’t send your request. Please try again." }, { status: 502 });
   }
 
   return NextResponse.json({ ok: true });

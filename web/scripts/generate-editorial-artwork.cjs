@@ -30,9 +30,13 @@ async function main() {
     fs.readFile(path.join(root, "public/app/plan-light-818.png")),
     fs.readFile(path.join(root, "public/brand/plated-mark.png")),
   ]);
-  const token = name => {
-    const value = css.match(new RegExp(`--${name}:\\s*(#[0-9A-Fa-f]{6})`))?.[1];
-    if (!value) throw new Error(`Missing Editorial token: ${name}`);
+  const token = (name, seen = new Set()) => {
+    if (seen.has(name)) throw new Error(`Circular website token: ${name}`);
+    seen.add(name);
+    const value = css.match(new RegExp(`--${name}:\\s*([^;]+)`))?.[1].trim();
+    const alias = value?.match(/^var\(--([\w-]+)\)$/)?.[1];
+    if (alias) return token(alias, seen);
+    if (!value?.match(/^#[0-9A-Fa-f]{6}$/)) throw new Error(`Missing website color: ${name}`);
     return value;
   };
   const fonts = [
@@ -55,9 +59,9 @@ async function main() {
   } },
     el("div", { style: { display: "flex", flexDirection: "column", width: 650 } },
       el("div", { style: { display: "flex", fontFamily: "Editorial", fontSize: 42 } }, "Plated"),
-      el("div", { style: { display: "flex", flexDirection: "column", marginTop: 65, fontFamily: "Editorial", fontSize: 86, lineHeight: 1 } },
-        el("div", null, "Dinner plans"), el("div", null, "made together")),
-      el("div", { style: { marginTop: 34, fontSize: 24, color: token("ink-secondary") } }, "A shared meal plan, recipe book, and grocery list for your household."),
+      el("div", { style: { display: "flex", flexDirection: "column", marginTop: 65, fontFamily: "Sans", fontSize: 68, letterSpacing: -2.5, lineHeight: 1.06 } },
+        el("div", null, "Dinner shouldn’t be"), el("div", null, "one person’s job")),
+      el("div", { style: { marginTop: 34, fontSize: 24, color: token("ink-secondary") } }, "Plan meals, take turns cooking, and share a grocery list."),
       el("div", { style: { marginTop: "auto", fontSize: 18, color: token("olive") } }, "plated.food")),
     el("img", { src: `data:image/png;base64,${screenPng.toString("base64")}`, width: 240, height: 522, style: { borderRadius: 12, border: `1px solid ${token("hairline")}` } })), 1200, 630);
   await Promise.all([
@@ -66,7 +70,7 @@ async function main() {
     fs.writeFile(path.join(root, "app/favicon.ico"), Buffer.concat([ico, small])),
     fs.writeFile(path.join(root, "app/opengraph-image.png"), artwork),
   ]);
-  console.log("Generated Editorial browser and sharing artwork.");
+  console.log("Generated Plated browser and sharing artwork.");
 }
 
 main().catch(error => { console.error(error); process.exitCode = 1; });
