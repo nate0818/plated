@@ -152,6 +152,11 @@ final class ApprovedPolishTests: XCTestCase {
     }
 
     func testHouseholdPeopleAndInviteRemainReadableAtLargestText() {
+        for light in [false, true] {
+            launch(["-plated-open-household"], light: light)
+            XCTAssertTrue(app.buttons["household-settings"].waitForExistence(timeout: 20))
+            capture("polish-household-\(light ? "light" : "dark")")
+        }
         launch(["-plated-open-household"], light: true, large: true)
         XCTAssertTrue(app.buttons["household-settings"].waitForExistence(timeout: 20))
         let invite = app.buttons["Invite someone"]
@@ -161,7 +166,7 @@ final class ApprovedPolishTests: XCTestCase {
         XCTAssertGreaterThan(people.frame.width, people.frame.height, "People should remain a readable horizontal heading")
         capture("polish-household-AX5-people")
         invite.tap()
-        XCTAssertTrue(app.buttons["Close"].waitForExistence(timeout: 5) || app.staticTexts["Invite someone"].exists)
+        XCTAssertTrue(app.staticTexts["Add to your household"].waitForExistence(timeout: 5))
     }
 
     func testCookingTimerRemainsOperableAtLargestText() {

@@ -339,7 +339,7 @@ struct CookingFocusView: View {
         Task {
             let authorized = await NotificationScheduler.askOnce()
             guard session?.timerEndsAt == endsAt, session?.timerPausedRemaining == nil else { return }
-            await NotificationScheduler.scheduleCookTimer(in: seconds, title: "Plated timer", body: "\(recipe.title): your \(minutes) minute timer is ready.", soundEnabled: !ledger.isTimerMuted(for: recipe))
+            await NotificationScheduler.scheduleCookTimer(in: endsAt.timeIntervalSinceNow, title: "Plated timer", body: "\(recipe.title): your \(minutes) minute timer is ready.", soundEnabled: !ledger.isTimerMuted(for: recipe))
             timerHint = authorized ? "The timer can alert you while Plated is in the background." : "Notifications are off. The timer stays visible here."
         }
     }
@@ -366,10 +366,9 @@ struct CookingFocusView: View {
     }
 
     private func scheduleTimerAlert(until date: Date) {
-        let seconds = date.timeIntervalSinceNow
-        guard seconds > 0 else { return }
         Task {
-            guard session?.timerEndsAt == date, session?.timerPausedRemaining == nil else { return }
+            let seconds = date.timeIntervalSinceNow
+            guard seconds > 0, session?.timerEndsAt == date, session?.timerPausedRemaining == nil else { return }
             let muted = ledger.isTimerMuted(for: recipe)
             await NotificationScheduler.scheduleCookTimer(
                 in: seconds,
