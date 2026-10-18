@@ -180,6 +180,14 @@ final class ApprovedPolishTests: XCTestCase {
         capture("polish-cooking-AX5-paused")
     }
 
+    func testRecipeDetailFinalCaptures() {
+        for light in [false, true] {
+            launch(["-plated-open-recipe-detail"], light: light)
+            XCTAssertTrue(element("recipe-plan").waitForExistence(timeout: 20))
+            capture("polish-detail-\(light ? "light" : "dark")")
+        }
+    }
+
     func testRecipeIngredientsCanBeCheckedWithoutChangingTheRecipe() {
         launch(["-plated-open-recipe-detail"])
         let flour = element("recipe-ingredient-Flour")

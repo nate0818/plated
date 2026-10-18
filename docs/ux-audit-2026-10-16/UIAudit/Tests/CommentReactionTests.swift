@@ -138,10 +138,10 @@ final class CommentReactionTests: XCTestCase {
         let plan = app.scrollViews["plan-selected-day-content"]
         XCTAssertEqual(plan.staticTexts.count, 0)
         app.buttons["tray-week"].tap()
-        XCTAssertTrue(plan.staticTexts["Hi, Nate"].waitForExistence(timeout: 5))
+        XCTAssertTrue(plan.buttons["featured-dinner-card"].waitForExistence(timeout: 5))
         XCTAssertGreaterThan(plan.buttons.count, 0)
         app.buttons["tray-table"].tap()
-        XCTAssertTrue(plan.staticTexts["Hi, Nate"].waitForNonExistence(timeout: 5))
+        XCTAssertTrue(plan.buttons["featured-dinner-card"].waitForNonExistence(timeout: 5))
         XCTAssertEqual(plan.buttons.count, 0)
         XCTAssertTrue(parent.exists)
     }

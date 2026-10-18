@@ -1393,7 +1393,7 @@ struct RecipeDetailView: View {
                 .padding(.horizontal, Spacing.page)
                 .padding(.top, 8)
                 .padding(.bottom, 10)
-                .background(Color.canvas.opacity(0.94))
+                .background(Color.canvas.ignoresSafeArea(edges: .bottom))
         }
         // This is a focused page with its own committing action. Root chrome
         // retires until Back returns to the cookbook.
