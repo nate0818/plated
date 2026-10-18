@@ -17,7 +17,7 @@ Implementation checklist:
 - [x] Profile hierarchy and secondary milestones
 - [x] Cooking ingredients/steps, timer and completion notes
 - [x] Native build/tests/design/token/schema checks and screenshot/interaction matrix
-- [ ] Commit, push, archive, upload and verify all TestFlight groups
+- [x] Commit, push, archive, upload and verify all TestFlight groups
 
 Existing web edits are unrelated work and are excluded from this change. Physical-device and two-account checks remain unverified until actually exercised; user previously requested continuation without the phone. Release evidence will distinguish TestFlight distribution from those remaining live checks.
 
@@ -46,3 +46,14 @@ Existing web edits are unrelated work and are excluded from this change. Physica
 The user requested continuation without a connected phone or second test account. This release must not be described as proving physical VoiceOver behavior, lock-screen APNs delivery/inline replies, two-account profile-photo/activity synchronization, or household invitation acceptance on two real phones. Previous device evidence remains in the release-check documentation; simulator fixtures are not replacement proof for those account and device boundaries.
 
 Apple documents that iPad windowing controls scene resizing even when a restricted orientation is declared; this app retains native adaptive layouts for those available sizes. See [UIRequiresFullScreen](https://developer.apple.com/documentation/bundleresources/information-property-list/uirequiresfullscreen) and [TN3192](https://developer.apple.com/documentation/technotes/tn3192-migrating-your-app-from-the-deprecated-uirequiresfullscreen-key).
+
+## Release
+
+**TestFlight 1.0.1 (43) is available to all current Internal and External testers.** Apple processing is `VALID`; both beta states are `IN_BETA_TESTING`. Internal retains access to all builds, and build 43 is explicitly assigned to External. Automatic tester notifications are enabled and the en-US release notes were read back and verified. See `results/distribution.json` for the timestamped Apple API evidence and `TestFlight-notes.txt` for the published notes.
+
+- TestFlight: https://testflight.apple.com/join/2exAQgYs
+- Native source: `cf9a663`, follow-up sizing/orientation/accessibility corrections: `192cae5`; build 43 and verification record: `30bac2f`. All are pushed to `origin/main`.
+- Preserved signed archive, debug symbols and IPA: `build/release-polish-43/`. The IPA fingerprint in `results/archive.json` matches the uploaded file.
+- The temporary release worktree was archived after preserving the signed artifacts. Unrelated website work was left unchanged. No public App Store release was submitted.
+
+This distribution does not change the remaining live-check limitations above.

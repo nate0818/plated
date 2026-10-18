@@ -1,0 +1,32 @@
+{
+  "verifiedAt": "2026-10-18T10:06:58.678486+00:00",
+  "buildID": "6e5c1e23-8879-4a9f-a25a-f9bcfcc8ebad",
+  "build": {
+    "version": "43",
+    "uploadedDate": "2026-10-18T03:04:56-07:00",
+    "expired": false,
+    "processingState": "VALID"
+  },
+  "beta": {
+    "autoNotifyEnabled": true,
+    "internalBuildState": "IN_BETA_TESTING",
+    "externalBuildState": "IN_BETA_TESTING"
+  },
+  "notesVerified": true,
+  "groups": [
+    {
+      "name": "Internal",
+      "internal": true,
+      "accessToAllBuilds": true,
+      "build43Assigned": true,
+      "publicLink": null
+    },
+    {
+      "name": "External",
+      "internal": false,
+      "accessToAllBuilds": false,
+      "build43Assigned": true,
+      "publicLink": "https://testflight.apple.com/join/2exAQgYs"
+    }
+  ]
+}
