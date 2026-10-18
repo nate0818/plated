@@ -7,6 +7,7 @@ struct PlanCookLabel: View {
     let heading: String
     let name: String
     var member: HouseholdMember?
+    var actionTitle: String = "Change"
     var fallbackName: String?
 
     var body: some View {
@@ -28,7 +29,7 @@ struct PlanCookLabel: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             if !typeSize.isAccessibilitySize { Spacer(minLength: 4) }
-            Text("Change").plType(.footnote, .semibold).foregroundStyle(Color.accentText)
+            Text(actionTitle).plType(.footnote, .semibold).foregroundStyle(Color.accentText)
         }
         .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
         .contentShape(Rectangle())

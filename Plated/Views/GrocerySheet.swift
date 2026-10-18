@@ -176,6 +176,7 @@ struct GrocerySheet: View {
                     }
 
                     shoppingControls
+                    if !currentItems.isEmpty { addRow.padding(.horizontal, 24) }
 
                     if currentItems.isEmpty {
                         if !removedItems.isEmpty {
@@ -201,7 +202,6 @@ struct GrocerySheet: View {
                                     }
                                 }
                             }
-                            addRow
                             if !removedItems.isEmpty {
                                 DisclosureGroup("Removed items") {
                                     ForEach(removedItems) { item in
@@ -389,94 +389,47 @@ struct GrocerySheet: View {
     /// to the thumb without competing with the check rows above it.
     private var shoppingFooter: some View {
         let completed = max(0, currentItems.count - unchecked.count)
-        return VStack(spacing: 8) {
-            if undoCheck != nil {
-                Button("Undo last check") {
-                    guard let (item, data, checked) = undoCheck else { return }
-                    item.purchasesData = data
-                    item.isChecked = checked
-                    item.recordMark()
-                    undoCheck = nil
-                    Persist.save(context)
-                }
-                .plType(.footnote, .bold)
-                .plActionLabel()
-                .foregroundStyle(Color.accentText)
-                .plTapTarget()
-            }
-
-            VStack(spacing: 10) {
-                if !shortWindow {
-                    ProgressView(value: Double(completed), total: Double(max(1, currentItems.count)))
-                        .tint(unchecked.isEmpty ? Color.completion : Color.olive)
-                }
-
-                HStack(spacing: 12) {
-                    HStack(spacing: 10) {
-                        Image(systemName: unchecked.isEmpty ? "checkmark.circle.fill" : "basket")
-                            .font(.system(size: 18, weight: .semibold))
-                            .foregroundStyle(unchecked.isEmpty ? Color.completion : Color.inkSecondary)
-                            .contentTransition(.symbolEffect(.replace))
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text(unchecked.isEmpty
-                                 ? "List complete"
-                                 : typeSize >= .accessibility1
-                                    ? "\(unchecked.count) left"
-                                    : unchecked.count.things("item") + " left")
-                                .plType(.footnote, .bold)
-                                .foregroundStyle(Color.ink)
-                            if typeSize < .accessibility1 && !shortWindow {
-                                Text(unchecked.isEmpty ? "Everything is checked off" : "Tap to check off")
-                                    .plType(.caption)
-                                    .foregroundStyle(Color.inkSecondary)
-                                    .lineLimit(1)
-                            }
-                        }
-                    }
+        return VStack(spacing: 4) {
+            ProgressView(value: Double(completed), total: Double(max(1, currentItems.count)))
+                .tint(unchecked.isEmpty ? Color.completion : Color.olive)
+            let layout = typeSize.isAccessibilitySize
+                ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4))
+                : AnyLayout(HStackLayout(spacing: 12))
+            layout {
+                Text(unchecked.isEmpty ? "Everything checked off" : "\(completed) of \(currentItems.count) checked")
+                    .plType(.footnote).foregroundStyle(Color.inkSecondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
-
-                    if !unchecked.isEmpty {
-                        if InstacartService.isOffered {
-                            Menu {
-                                Button { orderWithInstacart() } label: {
-                                    Label("Shop with Instacart", systemImage: "cart")
-                                }
-                                Button { exportToReminders() } label: {
-                                    Label("Send to Reminders", systemImage: "checklist")
-                                }
-                            } label: {
-                                compactUtilityLabel(title: "Shop", symbol: "arrow.up.right")
-                            }
-                            .disabled(exporting || openingInstacart)
-                            .accessibilityHint("Choose Instacart or Reminders")
-                        } else {
-                            Button { exportToReminders() } label: {
-                                compactUtilityLabel(
-                                    title: exporting ? "Sending…" : "Reminders",
-                                    symbol: exporting ? "arrow.triangle.2.circlepath" : "checklist"
-                                )
-                            }
-                            .buttonStyle(.pressable)
-                            .disabled(exporting)
-                            .accessibilityLabel(exporting
-                                                ? "Sending to Reminders"
-                                                : "Send \(unchecked.count.things("item")) to Reminders")
-                        }
+                if undoCheck != nil {
+                    Button("Undo") {
+                        guard let (item, data, checked) = undoCheck else { return }
+                        item.purchasesData = data
+                        item.isChecked = checked
+                        item.recordMark()
+                        undoCheck = nil
+                        Persist.save(context)
                     }
+                    .plType(.footnote, .semibold).foregroundStyle(Color.accentText).plTapTarget()
+                    .accessibilityLabel("Undo last check")
                 }
+                Menu {
+                    Button("Shopping options", systemImage: "slider.horizontal.3") { shoppingOptionsExpanded = true }
+                    Button("Send to Reminders", systemImage: "checklist") { exportToReminders() }
+                        .disabled(unchecked.isEmpty || exporting)
+                    if InstacartService.isOffered {
+                        Button("Shop with Instacart", systemImage: "cart") { orderWithInstacart() }
+                            .disabled(unchecked.isEmpty || openingInstacart)
+                    }
+                } label: {
+                    Image(systemName: "ellipsis").foregroundStyle(Color.ink).plTapTarget()
+                }
+                .accessibilityLabel("Shopping and export options")
             }
-            .padding(shortWindow ? 4 : 14)
-            .background(Color.raisedFill, in: Radius.shape(Radius.card))
-            .overlay(Radius.shape(Radius.card).strokeBorder(Color.hairline))
-            .plCardShadow()
-
             if let exportResult {
-                Text(exportResult)
-                    .plType(.caption, .semibold)
-                    .foregroundStyle(Color.inkSecondary)
-                    .multilineTextAlignment(.center)
+                Text(exportResult).plType(.caption).foregroundStyle(Color.inkSecondary)
             }
         }
+        .padding(.top, 8)
+        .background(Color.canvas)
     }
 
     private func compactUtilityLabel(title: String, symbol: String) -> some View {
@@ -607,7 +560,7 @@ struct GrocerySheet: View {
                         .foregroundStyle(isChecked ? Color.basil : Color.inkSecondary)
                         .contentTransition(.symbolEffect(.replace))
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(item.name).plType(.body, .semibold)
+                        Text(item.name).plType(.body, .medium)
                             .strikethrough(isChecked).foregroundStyle(isChecked ? Color.inkSecondary : Color.ink)
                         if let origin = groceryOriginLine(item) {
                             Text(origin)
@@ -709,72 +662,20 @@ struct GrocerySheet: View {
                     Haptic.tap()
                     withAnimation(.plSnap) { shoppingOptionsExpanded = true }
                 } label: {
-                    Group {
-                        if shortWindow {
-                            HStack(spacing: 10) {
-                                Image(systemName: "calendar")
-                                Text(shoppingRangeText).plType(.footnote, .semibold)
-                                Text(byMeal ? "Selected meals" : "Next 7 days").plType(.caption)
-                                Spacer()
-                                Text("Edit").plType(.footnote, .semibold)
-                            }.foregroundStyle(Color.ink).frame(minHeight: 44)
-                        } else if typeSize >= .accessibility3 {
-                            VStack(alignment: .leading, spacing: 8) {
-                                HStack(spacing: 10) {
-                                    Image(systemName: "calendar")
-                                        .font(.system(size: 16, weight: .semibold))
-                                        .foregroundStyle(Color.accentText)
-                                        .frame(width: 38, height: 38)
-                                        .background(Color.canvas, in: Circle())
-                                    Text("Shopping window")
-                                        .plType(.footnote, .bold)
-                                        .foregroundStyle(Color.inkSecondary)
-                                        .fixedSize(horizontal: false, vertical: true)
-                                }
-                                Text(shoppingRangeText)
-                                    .plType(.body, .bold)
-                                    .foregroundStyle(Color.ink)
-                                HStack(alignment: .firstTextBaseline, spacing: 12) {
-                                    Text(byMeal ? "Selected meals" : "Next 7 days")
-                                        .plType(.caption)
-                                        .foregroundStyle(Color.inkSecondary)
-                                    Spacer(minLength: 8)
-                                    Text("Edit")
-                                        .plType(.footnote, .bold)
-                                        .plActionLabel()
-                                        .foregroundStyle(Color.ink)
-                                }
-                            }
-                        } else {
-                            HStack(spacing: 12) {
-                                Image(systemName: "calendar")
-                                    .font(.system(size: 16, weight: .semibold))
-                                    .foregroundStyle(Color.accentText)
-                                    .frame(width: 38, height: 38)
-                                    .background(Color.canvas, in: Circle())
-                                VStack(alignment: .leading, spacing: 3) {
-                                    MicroLabel("Shopping window")
-                                    Text(shoppingRangeText)
-                                        .plType(.body, .bold)
-                                        .foregroundStyle(Color.ink)
-                                    Text(byMeal ? "Selected meals" : "Next 7 days")
-                                        .plType(.caption)
-                                        .foregroundStyle(Color.inkSecondary)
-                                }
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                Text("Edit")
-                                    .plType(.footnote, .bold)
-                                    .plActionLabel()
-                                    .foregroundStyle(Color.ink)
-                            }
-                        }
+                    let layout = typeSize.isAccessibilitySize
+                        ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4))
+                        : AnyLayout(HStackLayout(spacing: 12))
+                    layout {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(shoppingRangeText).plType(.footnote, .semibold).foregroundStyle(Color.ink)
+                            Text(byMeal ? "Selected meals" : "Next 7 days").plType(.caption).foregroundStyle(Color.inkSecondary)
+                        }.frame(maxWidth: .infinity, alignment: .leading)
+                        Text("Change").plType(.footnote, .semibold).foregroundStyle(Color.accentText)
                     }
-                    .padding(shortWindow ? 4 : 14)
-                    .background(Color.fill, in: Radius.shape(Radius.card))
-                    .contentShape(Radius.shape(Radius.card))
+                    .frame(minHeight: 44).contentShape(Rectangle())
                 }
                 .buttonStyle(.pressable)
-                .accessibilityLabel("Shopping window, \(shoppingRangeText), edit options")
+                .accessibilityLabel("Shopping window, \(shoppingRangeText), change options")
             } else {
                 VStack(alignment: .leading, spacing: 12) {
                 MicroLabel("Shopping window")

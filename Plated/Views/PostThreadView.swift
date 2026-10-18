@@ -15,6 +15,9 @@ struct PostThreadView: View {
     /// the field ready. Entering through the photo or the card body does not
     /// set this, because there the intent was "read the thread".
     var startWriting = false
+    var targetComment: String?
+    @State private var focusedComment: String?
+    @State private var lastFocusedComment: String?
     /// Provided by the feed (which owns its toast); when nil — a thread
     /// opened from a profile page — the thread runs the save flow itself.
     var onSave: ((TablePost) -> Void)?
@@ -29,6 +32,8 @@ struct PostThreadView: View {
     @Query private var recipes: [Recipe]
 
     @State private var draft = ""
+    @State private var sendProblem: String?
+    @State private var retryingComments: Set<String> = []
     /// Which face this profile was opened from. A thread offers four
     /// doors to the same person — a tagged chip, the author's row, a
     /// comment's avatar and that comment's name — and two sources may not
@@ -78,12 +83,13 @@ struct PostThreadView: View {
             topBar
             Divider().overlay(Color.hairlineSoft)
 
+            ScrollViewReader { scroll in
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 14) {
                     postHeading
                     if let data = post.photoData, let image = UIImage(data: data) {
                         ZStack(alignment: .topTrailing) {
-                            PhotoWell(image: image, clamped: true)
+                            PhotoWell(image: image, height: 180)
                                 .plCardShadow()
                             if post.hasChefsKiss(seats: TableKiss.seating(members: members, dishAuthors: [post.authorName])) {
                                 chefsKissPill.offset(x: 6, y: -10)
@@ -97,7 +103,7 @@ struct PostThreadView: View {
                         // with the first plate. "0 plates" under somebody's
                         // dinner is a sentence no social product writes.
                         if post.totalPlates > 0 {
-                            Text(post.totalPlates == 1 ? "1 plate" : "\(post.totalPlates) plates")
+                            Text(post.totalPlates.things("like"))
                                 .plType(.footnote, .semibold)
                                 .foregroundStyle(Color.inkSecondary)
                         }
@@ -171,7 +177,13 @@ struct PostThreadView: View {
                                 }.plType(.caption, .bold).foregroundStyle(Color.inkSecondary).plTapTarget()
                             }
                         }
-                        .padding(.leading, CGFloat(min(row.depth, 2)) * 16)
+                        .padding(.leading, row.depth > 0 ? 16 : 0)
+                        .overlay(alignment: .leading) {
+                            if row.depth > 0 { Rectangle().fill(Color.hairline).frame(width: 1) }
+                        }
+                        .background(focusedComment == row.comment.shareRecordName ? Color.oliveTint : Color.clear,
+                                    in: Radius.shape(Radius.chip))
+                        .id(row.comment.shareRecordName)
                         .transition(arrival)
                     }
                 }
@@ -181,7 +193,21 @@ struct PostThreadView: View {
                 .padding(.bottom, 20)
             }
             .accessibilityIdentifier("table-post-thread")
+            .task(id: (targetComment ?? "") + visibleComments.map(\.shareRecordName).joined()) {
+                guard let targetComment, targetComment != lastFocusedComment,
+                      visibleComments.contains(where: { $0.shareRecordName == targetComment }) else { return }
+                collapsedReplies.removeAll()
+                do { try await Task.sleep(for: .milliseconds(250)) } catch { return }
+                withAnimation(.plSnap) { scroll.scrollTo(targetComment, anchor: .center) }
+                lastFocusedComment = targetComment
+                focusedComment = targetComment
+                defer { focusedComment = nil }
+                do { try await Task.sleep(for: .seconds(3)) } catch { return }
+                withAnimation(.plSnap) { focusedComment = nil }
+            }
+            }
 
+            if let sendProblem { Text(sendProblem).plType(.caption).foregroundStyle(Color.dangerText).padding(.horizontal, 24) }
             composer
         }
         .background(Color.canvas)
@@ -308,7 +334,7 @@ struct PostThreadView: View {
             IconDiscButton(systemName: "arrow.left", label: "Back") {
                 dismiss()
             }
-
+            Text("Post").plType(.heading).foregroundStyle(Color.ink)
             Spacer()
             if canSaveToCookbook || canReport(postAuthor, knownToBeSelf: postIsMine) || canBlock(postAuthor) {
                 Menu {
@@ -336,7 +362,6 @@ struct PostThreadView: View {
                 .accessibilityLabel("Post options")
                 .accessibilityIdentifier("table-thread-options")
             }
-            AccountButton()
         }
         .padding(.horizontal, 20)
         .padding(.top, 6)
@@ -361,7 +386,7 @@ struct PostThreadView: View {
                 }.contentShape(Rectangle())
             }.buttonStyle(.pressable)
             Text(post.dishTitle.isEmpty ? (post.kind == "ask" ? "Question" : "Post") : post.dishTitle)
-                .plType(.title, .semibold).foregroundStyle(Color.ink)
+                .plType(.heading).foregroundStyle(Color.ink)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityAddTraits(.isHeader)
         }.frame(maxWidth: .infinity, alignment: .leading)
@@ -648,7 +673,7 @@ struct PostThreadView: View {
                         .plType(.micro, .medium)
                         .foregroundStyle(Color.inkSecondary)
                 }
-                if !comment.replyToName.isEmpty {
+                if !comment.replyToName.isEmpty && !post.sortedComments.contains(where: { $0.shareRecordName == comment.parentCommentID }) {
                     Label("Replying to \(comment.replyToName)", systemImage: "arrowshape.turn.up.left")
                         .plType(.micro)
                         .foregroundStyle(Color.inkSecondary)
@@ -657,12 +682,25 @@ struct PostThreadView: View {
                 if comment.deletedAt != nil {
                     Text("Comment deleted").plType(.body).foregroundStyle(Color.inkSecondary)
                 } else { mentionedText(comment).lineSpacing(2) }
-                if let data = comment.photoData, let image = UIImage(data: data) {
-                    Image(uiImage: image)
-                        .resizable()
-                        .scaledToFill()
-                        .frame(maxWidth: 200, maxHeight: 150)
-                        .clipShape(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous))
+                if let pending = TableOutbox.shared.pending.first(where: {
+                    if case .note(_, _, let id) = $0.work { return id == comment.shareRecordName }
+                    return false
+                }) {
+                    HStack(spacing: 8) {
+                        Text(pending.tries == 0 ? "Sending…" : "Saved on this phone · waiting to sync")
+                            .plType(.caption).foregroundStyle(Color.inkSecondary)
+                        if pending.tries > 0 {
+                            Button("Retry") { retryComment(comment, entry: pending) }
+                                .plType(.caption, .semibold).plTapTarget()
+                                .disabled(retryingComments.contains(comment.shareRecordName))
+                        }
+                    }
+                }
+                if let data = comment.photoData {
+                    RecipeArtwork(data: data, title: "Comment photo", ratio: 4.0 / 3.0, radius: Radius.chip)
+                        .frame(maxWidth: 200)
+                        .accessibilityHidden(false)
+                        .accessibilityLabel("Attached photo")
                         .padding(.top, 2)
                 }
                 if let url = URL.webLink(comment.linkURL) {
@@ -683,6 +721,7 @@ struct PostThreadView: View {
                     }
                 }
                 if comment.deletedAt == nil {
+                    if typeSize.isAccessibilitySize { CommentReactionButton(comment: comment) }
                     HStack(spacing: 16) {
                         Button {
                             Haptic.tap()
@@ -700,7 +739,6 @@ struct PostThreadView: View {
                                 .contentShape(Rectangle())
                         }
                         .buttonStyle(.pressable)
-                        CommentReactionButton(comment: comment)
                         Spacer(minLength: 0)
                         if removable || reportAllowed || blockAllowed {
                             Menu {
@@ -729,6 +767,9 @@ struct PostThreadView: View {
                         }
                     }
                 }
+            }
+            if comment.deletedAt == nil && !typeSize.isAccessibilitySize {
+                CommentReactionButton(comment: comment).padding(.top, 4)
             }
         }
         .padding(.vertical, 4)
@@ -1132,6 +1173,16 @@ struct PostThreadView: View {
         }
     }
 
+    private func retryComment(_ comment: TableComment, entry: TableOutbox.Entry) {
+        guard !retryingComments.contains(comment.shareRecordName) else { return }
+        retryingComments.insert(comment.shareRecordName)
+        Task {
+            let sent = await TableShare.pushNote(comment, post: post.shareRecordName, zoneOwner: post.shareZoneOwner)
+            TableOutbox.shared.finish(entry, succeeded: sent)
+            retryingComments.remove(comment.shareRecordName)
+        }
+    }
+
     private func send() {
         let author = currentAuthorName.isEmpty ? "Me" : currentAuthorName
         let cleanDraft = draft.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1156,6 +1207,7 @@ struct PostThreadView: View {
         comment.parentCommentID = replyToID
         comment.post = post
         context.insert(comment)
+        let activityBefore = Set(context.insertedModelsArray.compactMap { ($0 as? PlatedNotification)?.persistentModelID })
         if post.authorName != author && post.firstName != author {
             Notifier.post(
                 .commentAdded, actor: author,
@@ -1170,7 +1222,15 @@ struct PostThreadView: View {
         // written first and removed only after CloudKit confirms the exact
         // version that was sent, so a force-quit or a quick delete cannot
         // lose the latest intent.
-        Persist.save(context, "post comment")
+        guard Persist.save(context, "post comment") else {
+            let insertedActivity = context.insertedModelsArray.compactMap { $0 as? PlatedNotification }
+                .filter { !activityBefore.contains($0.persistentModelID) }
+            for note in insertedActivity { context.delete(note) }
+            context.delete(comment)
+            sendProblem = "Couldn't save your comment. Your writing is still here. Try sending again."
+            return
+        }
+        sendProblem = nil
         let postRecord = post.shareRecordName
         let zoneOwner = post.shareZoneOwner
         let queued = TableOutbox.shared.enqueue(
@@ -1182,7 +1242,7 @@ struct PostThreadView: View {
             TableOutbox.shared.finish(queued, succeeded: sent)
         }
         Haptic.plate()
-        AccessibilityNotification.Announcement(replyTo == nil ? "Comment posted" : "Reply posted").post()
+        AccessibilityNotification.Announcement(replyTo == nil ? "Comment saved, sending to your Table" : "Reply saved, sending to your Table").post()
         draft = ""
         link = ""
         linkFieldShown = false

@@ -117,8 +117,8 @@ enum Awards {
         ),
         Definition(
             id: "crowd-pleaser", title: "Crowd pleaser",
-            story: "Ten happy plates landed on food you shared.",
-            howToEarn: "Receive 10 happy plates on your Table posts.", symbol: "hands.clap.fill",
+            story: "Ten likes landed on food you shared.",
+            howToEarn: "Receive 10 likes on your Table posts.", symbol: "hands.clap.fill",
             tone: .olive, tier: .silver, goal: 10, points: 250,
             value: { $0.happyPlates }
         ),

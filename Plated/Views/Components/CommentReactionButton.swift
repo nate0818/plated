@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 
 /// A comment has its own reaction target, even when it is a nested reply.
 struct CommentReactionButton: View {

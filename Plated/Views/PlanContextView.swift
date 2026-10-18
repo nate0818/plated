@@ -8,7 +8,7 @@ struct PlanContextView: View {
     let history: PlanDinnerHistory
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 24) {
+        VStack(alignment: .leading, spacing: 20) {
             PlanWeatherView(date: date, forecast: forecast)
             Rectangle().fill(Color.hairline).frame(height: 1).accessibilityHidden(true)
             PlanDinnerHistoryView(history: history)
@@ -36,8 +36,8 @@ private struct PlanWeatherView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(title).plType(.heading, .semibold).foregroundStyle(Color.ink)
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title).plType(.footnote, .medium).foregroundStyle(Color.ink)
                 .accessibilityAddTraits(.isHeader)
             if !inForecastRange {
                 Text(date.startOfDay < Date.now.startOfDay
@@ -152,7 +152,7 @@ private struct PlanDinnerHistoryView: View {
                 ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
                 : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: 8))
             headingLayout {
-                Text("Your dinner log").plType(.heading, .semibold).foregroundStyle(Color.ink)
+                Text("Household dinners").plType(.heading).foregroundStyle(Color.ink)
                     .accessibilityAddTraits(.isHeader)
                 if !typeSize.isAccessibilitySize { Spacer(minLength: 0) }
                 MicroLabel("Last 7 days")
@@ -160,13 +160,15 @@ private struct PlanDinnerHistoryView: View {
             let layout = typeSize.isAccessibilitySize
                 ? AnyLayout(VStackLayout(alignment: .leading, spacing: 16))
                 : AnyLayout(HStackLayout(alignment: .top, spacing: 24))
+            if history.cooked + history.eatingOut > 0 {
             layout {
-                count(history.cooked, label: "Cooked", symbol: "frying.pan", identifier: "plan-history-cooked")
-                count(history.eatingOut, label: "Eating out", symbol: "takeoutbag.and.cup.and.straw", identifier: "plan-history-eating-out")
+                count(history.cooked, label: "Cooked at home", symbol: "frying.pan", identifier: "plan-history-cooked")
+                count(history.eatingOut, label: "Ate out", symbol: "takeoutbag.and.cup.and.straw", identifier: "plan-history-eating-out")
+            }
             }
             Text(history.cooked + history.eatingOut == 0
-                 ? "Mark dinners cooked or eating out to start your household’s log."
-                 : "Your household’s cooked dinners and nights marked eating out.")
+                 ? "Your first dinner is a good place to start. Mark a meal cooked to build your household’s history."
+                 : "Based on \(history.cooked + history.eatingOut) recorded dinners.")
                 .plType(.footnote).foregroundStyle(Color.inkSecondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -177,7 +179,6 @@ private struct PlanDinnerHistoryView: View {
             HStack(alignment: .firstTextBaseline, spacing: 10) {
                 Text(value, format: .number).plType(.title, .medium).foregroundStyle(Color.ink)
                     .monospacedDigit()
-                Image(systemName: symbol).plType(.body).foregroundStyle(Color.olive).accessibilityHidden(true)
             }
             Text(label).plType(.footnote).foregroundStyle(Color.inkSecondary)
         }

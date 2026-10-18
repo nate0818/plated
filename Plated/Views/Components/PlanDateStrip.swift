@@ -210,7 +210,7 @@ struct PlanDateStrip: View {
             .overlay(alignment: .trailing) { edgeMark }
             }
         }
-        .frame(height: 76)
+        .frame(height: 66)
         .plChrome()
         .accessibilityHint("Swipe left or right to choose a date")
         .onKeyPress(.leftArrow) { adjustDay(-1); return .handled }

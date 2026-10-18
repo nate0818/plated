@@ -1,0 +1,22 @@
+{
+  "screens": 15,
+  "variants": 72,
+  "annotations": 60,
+  "errors": [],
+  "failures": [],
+  "responsiveChecks": [
+    {
+      "width": 390,
+      "overflow": false
+    },
+    {
+      "width": 768,
+      "overflow": false
+    },
+    {
+      "width": 1024,
+      "overflow": false
+    }
+  ],
+  "portableFileLoaded": true
+}

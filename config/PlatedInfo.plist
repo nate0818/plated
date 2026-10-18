@@ -2,6 +2,11 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<!-- iPad is a landscape workspace. Compatibility mode also keeps older
+	     iPadOS releases from opening it in a portrait Split View. The idiom
+	     suffix leaves iPhone windowing and orientation behavior unchanged. -->
+	<key>UIRequiresFullScreen~ipad</key>
+	<true/>
 	<!-- Editorial paper matches the readiness-driven launch lockup. -->
 	<key>UILaunchScreen</key>
 	<dict>

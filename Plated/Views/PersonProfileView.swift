@@ -153,68 +153,30 @@ private struct PersonProfileContent: View {
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(spacing: 0) {
-                banner
-                    .overlay(alignment: .bottomLeading) {
-                        AvatarCircle(
-                            initials: initials,
-                            tone: isMe ? .neutralPair : PersonTone.from(hex: colorHex),
-                            size: 86,
-                            photo: member?.photoData
-                        )
-                        .overlay(Circle().strokeBorder(Color.canvas, lineWidth: 4))
-                        .offset(x: 24, y: 43)
-                    }
-
                 VStack(alignment: .leading, spacing: 12) {
-                    HStack(alignment: .top) {
-                        Spacer()
-                        if isMe {
-                            outlineAction("Edit profile") { editShown = true }
-                        } else if let url = member?.messageURL {
-                            // Only where a message can actually go. This used
-                            // to open a thread that could never deliver.
-                            outlineAction("Message") { openURL(url) }
-                        }
-                    }
-                    .padding(.top, 8)
-
-                    VStack(alignment: .leading, spacing: 3) {
-                        // "Me" is what the bootstrap wrote when Apple gave
-                        // us nothing — it's a prompt, not a name.
-                        if isMe && HouseholdIdentity.isPlaceholder(name) {
-                            Button {
-                                Haptic.tap()
-                                editShown = true
-                            } label: {
-                                HStack(spacing: 6) {
-                                    Text("Add your name")
-                                        .plType(.title)
-                                        .foregroundStyle(Color.ink)
-                                    Image(systemName: "pencil")
-                                        .font(.system(size: 13, weight: .semibold))
-                                        .foregroundStyle(Color.inkFaint)
-                                }
-                                .contentShape(Rectangle())
+                    let identityLayout = typeSize.isAccessibilitySize
+                        ? AnyLayout(VStackLayout(alignment: .leading, spacing: 12))
+                        : AnyLayout(HStackLayout(alignment: .center, spacing: 16))
+                    identityLayout {
+                        AvatarCircle(initials: initials, tone: profileTone, size: 64, photo: member?.photoData)
+                            .accessibilityHidden(true)
+                        VStack(alignment: .leading, spacing: 4) {
+                            if isMe && HouseholdIdentity.isPlaceholder(name) {
+                                Button("Add your name") { editShown = true }
+                                    .plType(.heading).foregroundStyle(Color.ink).plTapTarget()
+                            } else {
+                                Text(displayName).plType(.heading).foregroundStyle(Color.ink)
+                                    .fixedSize(horizontal: false, vertical: true)
                             }
-                            .buttonStyle(.pressable)
-                            .accessibilityLabel("Add your name")
-                        } else {
-                            Text(displayName)
-                                .plName()
-                                .plType(.display)
-                                .foregroundStyle(Color.ink)
-                        }
-                        if let roleLine {
-                            MicroLabel(roleLine)
-                        }
-                        if !bioLine.isEmpty {
-                            Text(bioLine)
-                                .plType(.footnote)
-                                .foregroundStyle(Color.inkSecondary)
-                                .padding(.top, 3)
-                        }
+                            if let roleLine { Text(roleLine).plType(.caption).foregroundStyle(Color.inkSecondary) }
+                        }.frame(maxWidth: .infinity, alignment: .leading)
+                        if isMe { outlineAction("Edit") { editShown = true }.accessibilityLabel("Edit profile") }
+                        else if let url = member?.messageURL { outlineAction("Message") { openURL(url) } }
+                    }.padding(.top, 12)
+                    if !bioLine.isEmpty {
+                        Text(bioLine).plType(.footnote).foregroundStyle(Color.inkSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
-                    .padding(.top, 26)
 
                     // Same count, same words, same lack of a box as Home
                     // and the stats shelf — a person's numbers and their
@@ -233,12 +195,15 @@ private struct PersonProfileContent: View {
                             spacing: typeSize >= .accessibility1 ? 16 : 0
                         ) {
                             CountBlock(value: "\(dishes.count)", label: "Posts")
-                            CountBlock(value: "\(plateCount)", label: "Happy plates")
+                            CountBlock(value: "\(plateCount)", label: "Likes")
                             CountBlock(value: "\(kissCount)", label: "Chef's kisses", accent: kissCount > 0)
                         }
                         .padding(.vertical, 12)
                     }
 
+                    if member?.profileBannerPhotoData != nil || (isMe && !localProfileBannerPhoto.isEmpty) {
+                        banner.clipShape(Radius.shape(Radius.card))
+                    }
                     if isMe {
                         householdCard
                             .padding(.top, 4)
@@ -248,8 +213,13 @@ private struct PersonProfileContent: View {
                         let activity = MemberDinnerActivity(member: member, roster: roster,
                             meals: plannedMeals, remote: PlanLedger.shared.all, posts: allPosts)
                         VStack(alignment: .leading, spacing: 6) {
-                            MicroLabel("Activity · last 7 days")
-                            Text(activity.summary).plType(.body).foregroundStyle(Color.ink)
+                            Text("Last 7 days").plType(.caption).foregroundStyle(Color.inkSecondary)
+                            if let latest = activity.latest {
+                                Text("\(latest.line) · \(Stamp.day(latest.date))")
+                                    .plType(.footnote, .medium).foregroundStyle(Color.ink)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                            Text(activity.summary).plType(.footnote).foregroundStyle(Color.inkSecondary)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
                         .padding(.vertical, 12)
@@ -258,9 +228,17 @@ private struct PersonProfileContent: View {
                     }
 
                     if awards.contains(where: { $0.current > 0 }) {
-                        AwardsHighlightShelf(awards: awards, showsProgress: isMe) {
-                            awardsShown = true
-                        }
+                        Button { awardsShown = true } label: {
+                            HStack {
+                                Label("Milestones", systemImage: "rosette")
+                                Spacer()
+                                Image(systemName: "arrow.right")
+                            }
+                            .plType(.footnote)
+                            .foregroundStyle(Color.inkSecondary)
+                            .frame(minHeight: 44)
+                            .contentShape(Rectangle())
+                        }.buttonStyle(.pressable)
                     }
                 }
                 .padding(.horizontal, 24)

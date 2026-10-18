@@ -13,8 +13,13 @@ struct CookingFocusView: View {
     @Environment(\.modelContext) private var context
     @Environment(\.scenePhase) private var phase
     @State private var ledger = CookLedger.shared
-    @State private var ingredientsShown = false
+    private enum SessionSheet: String, Identifiable {
+        case ingredients, post
+        var id: String { rawValue }
+    }
+    @State private var sessionSheet: SessionSheet?
     @State private var finished = false
+    @State private var completionNote = ""
     @State private var finishing = false
     @State private var finishMessage = "Saved to your cooking history."
     @State private var endAsked = false
@@ -81,35 +86,46 @@ struct CookingFocusView: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 12) {
-                DesignIconButton(symbol: "minus", label: "Minimize cooking") { dismiss() }
+                DesignIconButton(symbol: "chevron.down", label: finished ? "Close cooking" : "Minimize cooking") { // design-ok(generic-chevron): approved downward control minimizes the cooking session.
+                    if finished { finishDone() } else { dismiss() }
+                }
                 Text(finished ? "Finished" : "Cooking")
                     .plType(.body, .semibold)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 if !finished {
-                    Button {
-                        Haptic.tap()
-                        endAsked = true
+                    Menu {
+                        Button("End cooking", systemImage: "xmark", role: .destructive) { endAsked = true }
                     } label: {
-                        Text("End")
-                            .plType(.footnote, .semibold)
-                            .plActionLabel()
-                            .foregroundStyle(Color.ink)
-                            .padding(.horizontal, 14)
-                            .frame(minHeight: 44)
-                            .background(Color.fill, in: Radius.shape(Radius.chip))
-                            .contentShape(Radius.shape(Radius.chip))
+                        Image(systemName: "ellipsis").foregroundStyle(Color.ink).plTapTarget()
                     }
-                    .buttonStyle(.pressable)
-                    .accessibilityLabel("End cooking")
+                    .accessibilityLabel("Cooking options")
                 }
             }.disabled(finishing).plChrome().padding(.horizontal, 24).padding(.vertical, 8)
             if finished {
-                Spacer()
-                Image(systemName: "checkmark.circle.fill").font(.system(size: 62, weight: .light)).foregroundStyle(Color.completion)
-                Text("Dinner, made.").plType(.title, .medium).padding(.top, 20)
-                Text(finishMessage).plType(.body).foregroundStyle(Color.inkSecondary).fixedSize(horizontal: false, vertical: true).padding(.horizontal, 24).padding(.top, 4)
-                Spacer()
-                PrimaryActionButton(title: "Done") { dismiss() }.padding(24)
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 20) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 44, weight: .light)).foregroundStyle(Color.completion)
+                            .accessibilityHidden(true)
+                        Text("Dinner, made.").plType(.title)
+                        Text(finishMessage).plType(.footnote).foregroundStyle(Color.inkSecondary)
+                        Text("A note for next time").plType(.heading)
+                        TextField("Anything you’d do differently? · optional", text: $completionNote, axis: .vertical)
+                            .plType(.body).lineLimit(3...6).padding(16)
+                            .background(Color.fill, in: Radius.shape(Radius.chip))
+                            .accessibilityLabel("Cooking note, optional")
+                        Button {
+                            guard saveCompletionNote() else { return }
+                            sessionSheet = .post
+                        } label: {
+                            Label("Share at the Table", systemImage: "square.and.arrow.up")
+                                .plType(.footnote, .semibold).frame(minHeight: 44)
+                        }.buttonStyle(.pressable)
+                    }.padding(24)
+                }
+                PrimaryActionButton(title: completionNote.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Done" : "Save note & done") {
+                    finishDone()
+                }.padding(24)
             } else {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 18) {
@@ -122,10 +138,21 @@ struct CookingFocusView: View {
                             if !typeSize.isAccessibilitySize { Spacer() }
                             Text("Serves \(session?.servings ?? servings)").plType(.footnote).foregroundStyle(Color.inkSecondary)
                         }
-                        ProgressView(value: steps.isEmpty ? 0 : Double(index + 1), total: Double(max(1, steps.count))).tint(Color.olive)
-                        Text(steps.isEmpty ? "This recipe has no written steps. Keep the ingredients close as you cook." : steps[index])
-                            .plType(.body, .medium).foregroundStyle(Color.ink)
-                            .fixedSize(horizontal: false, vertical: true).id(index)
+                        if steps.isEmpty {
+                            Text("Ingredients").plType(.heading).accessibilityAddTraits(.isHeader)
+                            if (session?.ingredientsSnapshot ?? []).isEmpty {
+                                Text("No ingredients or directions have been added to this recipe.")
+                                    .plType(.body).foregroundStyle(Color.inkSecondary)
+                            }
+                            ForEach(Array((session?.ingredientsSnapshot ?? []).enumerated()), id: \.offset) { _, line in
+                                Text(line).plType(.body).frame(maxWidth: .infinity, alignment: .leading)
+                                Divider()
+                            }
+                        } else {
+                            ProgressView(value: Double(index + 1), total: Double(steps.count)).tint(Color.olive)
+                            Text(steps[index]).plType(.body, .medium).foregroundStyle(Color.ink)
+                                .fixedSize(horizontal: false, vertical: true).id(index)
+                        }
                         if !stepIngredientLines.isEmpty || suggestedTimerMinutes != nil {
                             VStack(alignment: .leading, spacing: 10) {
                                 MicroLabel("For this step")
@@ -156,7 +183,9 @@ struct CookingFocusView: View {
                             .background(Color.fill, in: Radius.shape(Radius.card))
                         }
                         controls {
-                            DesignChip(title: "All ingredients", symbol: "list.bullet") { ingredientsShown = true }
+                            if !steps.isEmpty {
+                                DesignChip(title: "Ingredients", symbol: "list.bullet") { sessionSheet = .ingredients }
+                            }
                             Menu {
                                 ForEach([1, 5, 10, 15, 20, 30, 45, 60], id: \.self) { minutes in
                                     Button("\(minutes) min") { startTimer(minutes) }
@@ -171,55 +200,44 @@ struct CookingFocusView: View {
                         }
                         if let timer = ledger.timer(for: recipe) {
                             TimelineView(.periodic(from: .now, by: 1)) { tick in
-                                VStack(alignment: .leading, spacing: 12) {
-                                    controls {
-                                        if !typeSize.isAccessibilitySize { Image(systemName: "timer") }
-                                        if timer.endsAt > tick.date { Text(timer.endsAt, style: .timer).monospacedDigit().lineLimit(1).minimumScaleFactor(0.7) }
-                                        else { Text("0:00").monospacedDigit() }
-                                        if timer.endsAt <= tick.date { Text("Timer finished").plType(.footnote) }
-                                        if !typeSize.isAccessibilitySize { Spacer() }
-                                        Button("Clear") { ledger.clearTimer(in: recipe); NotificationScheduler.cancelCookTimer(); CookTimerLive.end() }
-                                            .plType(.footnote, .semibold).plTapTarget()
-                                    }.plType(.title).foregroundStyle(Color.ink)
-                                    controls {
+                                HStack(spacing: 12) {
+                                    Image(systemName: ledger.isTimerMuted(for: recipe) ? "bell.slash" : "timer")
+                                        .accessibilityHidden(true)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        if timer.endsAt > tick.date {
+                                            Text(timer.endsAt, style: .timer).monospacedDigit().plType(.heading)
+                                        } else { Text("0:00").monospacedDigit().plType(.heading) }
+                                        Text(timer.endsAt <= tick.date ? "Timer finished" : ledger.isTimerMuted(for: recipe) ? "Alert muted" : "Timer running")
+                                            .plType(.caption).foregroundStyle(Color.inkSecondary)
+                                    }.frame(maxWidth: .infinity, alignment: .leading)
+                                    Menu {
                                         Button {
                                             let muted = !ledger.isTimerMuted(for: recipe)
                                             ledger.setTimerMuted(muted, in: recipe)
-                                            if muted {
-                                                NotificationScheduler.cancelCookTimer()
-                                                timerHint = "This timer’s alert is muted."
-                                            } else {
-                                                scheduleTimerAlert(until: timer.endsAt)
-                                                timerHint = "This timer can sound when Plated is in the background."
-                                            }
+                                            if muted { NotificationScheduler.cancelCookTimer() }
+                                            else { scheduleTimerAlert(until: timer.endsAt) }
                                         } label: {
                                             Label(ledger.isTimerMuted(for: recipe) ? "Unmute alert" : "Mute alert",
                                                   systemImage: ledger.isTimerMuted(for: recipe) ? "bell.slash" : "bell")
                                         }
-                                        .accessibilityHint("Controls the sound for this timer only.")
-                                        .plType(.footnote, .semibold).plTapTarget()
                                         if let duration = ledger.timerDuration(for: recipe), duration > 0 {
-                                            Button {
-                                                restartTimer(duration)
-                                            } label: {
-                                                Label("Restart", systemImage: "arrow.counterclockwise")
-                                            }
-                                            .plType(.footnote, .semibold).plTapTarget()
+                                            Button("Restart timer", systemImage: "arrow.counterclockwise") { restartTimer(duration) }
                                         }
-                                    }.foregroundStyle(Color.ink)
+                                        Button("Clear timer", systemImage: "xmark", role: .destructive) {
+                                            ledger.clearTimer(in: recipe)
+                                            NotificationScheduler.cancelCookTimer()
+                                            CookTimerLive.end()
+                                        }
+                                    } label: {
+                                        Image(systemName: "ellipsis").plTapTarget()
+                                    }.accessibilityLabel("Timer options")
                                 }
+                                .foregroundStyle(Color.ink)
                                 .padding(16).background(Color.oliveTint, in: Radius.shape(Radius.chip))
                             }
                         }
                         if let timerHint { Text(timerHint).plType(.caption).foregroundStyle(Color.inkSecondary) }
-                        if index == steps.count - 1 || steps.isEmpty {
-                            VStack(alignment: .leading, spacing: 10) {
-                                Text("A note for next time").plType(.heading, .medium)
-                                TextField("What would you make your own?", text: note, axis: .vertical)
-                                    .plType(.body).lineLimit(3...6).padding(16)
-                                    .background(Color.fill, in: Radius.shape(Radius.chip))
-                            }
-                        }
+
                     }.padding(24)
                 }
                 HStack(spacing: 12) {
@@ -240,10 +258,14 @@ struct CookingFocusView: View {
             // system cannot be told to end one at the moment it rings.
             CookTimerLive.reconcile(endsAt: ledger.timer(for: recipe)?.0)
         }
-        .interactiveDismissDisabled(finishing)
+        .interactiveDismissDisabled(finishing || (finished && !completionNote.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty))
         .onDisappear { UIApplication.shared.isIdleTimerDisabled = false }
         .onChange(of: phase) { _, value in UIApplication.shared.isIdleTimerDisabled = value == .active && !finished }
-        .sheet(isPresented: $ingredientsShown) {
+        .sheet(item: $sessionSheet) { sheet in
+            switch sheet {
+            case .post:
+                TableComposerSheet(prefillRecipe: recipe)
+            case .ingredients:
             NavigationStack {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 18) {
@@ -254,10 +276,11 @@ struct CookingFocusView: View {
                         }
                     }.padding(24)
                 }.background(Color.canvas).navigationTitle("Ingredients").navigationBarTitleDisplayMode(.inline)
-                    .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { ingredientsShown = false } } }
+                    .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { sessionSheet = nil } } }
             }.presentationDetents([.medium, .large]).presentationDragIndicator(.visible).plTapOutsideToDismiss()
+            }
         }
-        .alert("Couldn't save dinner", isPresented: Binding(get: { error != nil }, set: { if !$0 { error = nil } })) {
+        .alert(finished ? "Couldn't save your note" : "Couldn't save dinner", isPresented: Binding(get: { error != nil }, set: { if !$0 { error = nil } })) {
             Button("OK") { error = nil }
         } message: { Text(error ?? "Try again.") }
         .confirmationDialog("End cooking?", isPresented: $endAsked, titleVisibility: .visible) {
@@ -331,6 +354,24 @@ struct CookingFocusView: View {
         Haptic.select()
         dismiss()
     }
+    private func finishDone() {
+        if saveCompletionNote() { dismiss() }
+    }
+
+    private func saveCompletionNote() -> Bool {
+        let text = completionNote.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return true }
+        let previous = recipe.cookNotes
+        recipe.cookNotes = [previous, text].filter { !$0.isEmpty }.joined(separator: "\n\n")
+        guard Persist.save(context, "cooking note saved") else {
+            recipe.cookNotes = previous
+            error = "Your note is still here. Please try saving it again."
+            return false
+        }
+        completionNote = ""
+        return true
+    }
+
     private func finish() {
         guard !finishing else { return }
         if let record = session?.remotePlanID {
@@ -389,11 +430,10 @@ struct CookingFocusView: View {
             let cooked = PlannedMeal(date: .now, slot: .dinner, recipe: recipe, servings: session?.servings ?? servings)
             cooked.cookedAt = .now; context.insert(cooked); inserted = cooked
         }
-        if !note.wrappedValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            recipe.cookNotes = [recipe.cookNotes, note.wrappedValue].filter { !$0.isEmpty }.joined(separator: "\n\n")
-        }
+        let draftNote = note.wrappedValue
         do {
             try context.save()
+            completionNote = draftNote
             ledger.forget(recipe)
             CookTimerLive.end()
             NotificationScheduler.cancelCookTimer()

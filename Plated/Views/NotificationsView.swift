@@ -17,11 +17,13 @@ struct NotificationsView: View {
     @Query(sort: \PlatedNotification.createdAt, order: .reverse)
     private var notifications: [PlatedNotification]
     @Query(sort: \HouseholdMember.createdAt) private var members: [HouseholdMember]
+    @Query private var comments: [TableComment]
     @State private var contentSafety = ContentSafety.shared
 
     /// One row open at a time, same contract as the week's plan rows.
     @State private var swipedNote: PersistentIdentifier?
     @State private var clearAllAsked = false
+    @State private var readSession = ActivityReadSession<PersistentIdentifier>()
     /// The dish photographs, by post record, loaded once per visit rather
     /// than fetched on every body pass.
     @State private var thumbnails: [String: Data] = [:]
@@ -65,28 +67,35 @@ struct NotificationsView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     MicroLabel(unreadCount == 0 ? "Your Table" : unreadCount.things("new update"))
                     Text("Activity")
-                        .plType(.display)
+                        .plType(.title)
                         .foregroundStyle(Color.ink)
                 }
                 Spacer()
-                // One tap empties the list; the plates and comments it
-                // described still happened, so this is clearing an inbox,
-                // not deleting anything. Asked once because there is no
-                // way back.
                 if !visibleNotifications.isEmpty {
-                    Button("Clear all") {
-                        Haptic.tap()
-                        clearAllAsked = true
+                    Menu {
+                        Button("Mark all read", systemImage: "checkmark") { markAllRead() }
+                            .disabled(unreadCount == 0)
+                        Button("Clear all activity", systemImage: "trash", role: .destructive) { clearAllAsked = true }
+                    } label: {
+                        Image(systemName: "ellipsis")
+                            .foregroundStyle(Color.ink)
+                            .plTapTarget()
                     }
-                    .plType(.caption, .semibold)
-                    .foregroundStyle(Color.inkSecondary)
-                    .plTapTarget()
-                    .accessibilityHint("Empties the activity list")
+                    .accessibilityLabel("Activity options")
                 }
             }
             .padding(.horizontal, 24)
             .padding(.top, 6)
             .padding(.bottom, 12)
+            if unreadCount > 0 {
+                Button("Mark all read", action: markAllRead)
+                    .plType(.footnote, .semibold)
+                    .foregroundStyle(Color.accentText)
+                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .trailing)
+                    .padding(.horizontal, 24)
+                    .buttonStyle(.pressable)
+                    .accessibilityIdentifier("activity-mark-all-read")
+            }
             Divider().overlay(Color.hairlineSoft)
 
             if visibleNotifications.isEmpty {
@@ -98,7 +107,7 @@ struct NotificationsView: View {
                     Text("All quiet at the Table")
                         .plType(.body, .bold)
                         .foregroundStyle(Color.ink)
-                    Text("New plates, replies, votes, and cook reminders will collect here.")
+                    Text("New likes, replies, votes, and cook reminders will collect here.")
                         .plType(.footnote)
                         .foregroundStyle(Color.inkSecondary)
                         .multilineTextAlignment(.center)
@@ -116,6 +125,9 @@ struct NotificationsView: View {
                                 .accessibilityAddTraits(.isHeader)
                             ForEach(group.rows, id: \.persistentModelID) { note in
                                 row(note)
+                                    .onScrollVisibilityChange(threshold: 0.5) { visible in
+                                        readSession.visibility(note.persistentModelID, isVisible: visible)
+                                    }
                                 Divider().overlay(Color.hairlineSoft)
                             }
                         }
@@ -141,11 +153,13 @@ struct NotificationsView: View {
             TableNews.dedupeRows(context)
             // Every row a banner would repeat is already on this screen.
             Presence.shared.activityVisible = activeAppTab == homeTab
+            if activeAppTab == homeTab { readSession.enter() }
             loadThumbnails()
         }
         .onChange(of: activeAppTab) { _, tab in
             if tab == homeTab {
                 Presence.shared.activityVisible = true
+                readSession.enter()
             } else {
                 finishReading()
             }
@@ -218,13 +232,20 @@ struct NotificationsView: View {
     /// Where the row goes, in words, because "Opens it" names nothing.
     private func hint(for url: URL) -> String {
         switch DeepLink.destination(for: url) {
-        case .post: return "Opens the dish"
+        case .post: return "Opens the post"
         case .home: return "Opens the household"
         case .plan, .grocery: return "Opens the plan"
         case .cookbook: return "Opens the cookbook"
         case .cook: return "Resumes cooking"
         default: return "Opens the Table"
         }
+    }
+
+    private func markAllRead() {
+        for note in visibleNotifications where !note.isRead { note.isRead = true }
+        Persist.save(context, "all activity read")
+        AppBadge.sync(context)
+        Task { await TableNews.reconcileDelivered(context: context) }
     }
 
     private func markRead(_ note: PlatedNotification) {
@@ -240,11 +261,11 @@ struct NotificationsView: View {
     /// as leaving the inbox too; the operation is idempotent for a later pop.
     private func finishReading() {
         Presence.shared.activityVisible = false
-        guard visibleNotifications.contains(where: { !$0.isRead }) else { return }
-        for note in visibleNotifications where !note.isRead {
-            note.isRead = true
-        }
-        Persist.save(context, "activity read")
+        let viewedIDs = readSession.leave()
+        let viewed = visibleNotifications.filter { !$0.isRead && viewedIDs.contains($0.persistentModelID) }
+        guard !viewed.isEmpty else { return }
+        for note in viewed { note.isRead = true }
+        Persist.save(context, "viewed activity read")
         AppBadge.sync(context)
         // Read here is read on the lock screen too.
         Task { await TableNews.reconcileDelivered(context: context) }
@@ -308,15 +329,30 @@ struct NotificationsView: View {
         thumbnails = found
     }
 
+    private func excerpt(for note: PlatedNotification) -> String? {
+        guard note.kindValue == .commentAdded || note.kindValue == .commentReaction else { return nil }
+        let id = note.linkURL.flatMap(DeepLink.commentID(in:))
+            ?? (note.eventKey.hasPrefix("note:") ? String(note.eventKey.dropFirst(5)) : nil)
+        guard let id, let comment = comments.first(where: { $0.shareRecordName == id }),
+              comment.deletedAt == nil,
+              !contentSafety.isBlocked(authorID: comment.authorID, authorName: comment.authorName) else { return nil }
+        if !comment.text.isEmpty { return String(comment.text.prefix(160)) }
+        if comment.photoData != nil { return "Sent a photo" }
+        return nil
+    }
+
     private func noteLine(_ note: PlatedNotification) -> some View {
         HStack(alignment: .center, spacing: 12) {
             face(for: note)
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 3) {
                 Text(note.line(members: members))
-                    .plType(.body, note.isRead ? TypeWeight.medium : .semibold)
+                    .plType(.footnote, note.isRead ? TypeWeight.regular : .medium)
                     .foregroundStyle(Color.ink)
                     .fixedSize(horizontal: false, vertical: true)
+                if let excerpt = excerpt(for: note) {
+                    Text(excerpt).plType(.footnote).foregroundStyle(Color.inkSecondary).lineLimit(2)
+                }
                 Text(when(note.createdAt))
                     .plType(.micro, .medium)
                     .foregroundStyle(Color.inkSecondary)

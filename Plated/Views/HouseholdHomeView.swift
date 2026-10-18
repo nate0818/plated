@@ -60,6 +60,8 @@ private struct HouseholdHomeContent: View {
     @State private var paywallPresented = false
     @State private var namingFromMasthead = false
     @State private var turnsTipShown = false
+    @State private var rotationDay: Int?
+    @State private var rotationPerson: String?
     @State private var bannerItem: PhotosPickerItem?
     /// Item-based, not two `isPresented` booleans: a binding set
     /// asynchronously (the launch harness does exactly that) pops an
@@ -240,6 +242,8 @@ private struct HouseholdHomeContent: View {
                 .ignoresSafeArea()
             case .paywall:
                 PaywallSheet()
+            case .rotation(let day):
+                rotationEditor(day)
             }
         }
         .confirmationDialog(
@@ -356,18 +360,20 @@ private struct HouseholdHomeContent: View {
     }
 
     private enum HomeSheet: Identifiable {
-        case add, resend(InviteTarget), paywall
+        case add, resend(InviteTarget), paywall, rotation(Int)
         var id: String {
             switch self {
             case .add: "add"
             case .resend(let target): "resend-\(target.id)"
             case .paywall: "paywall"
+            case .rotation(let day): "rotation-\(day)"
             }
         }
     }
     private var homeSheet: Binding<HomeSheet?> {
         Binding(
             get: {
+                if let rotationDay { return .rotation(rotationDay) }
                 if addPresented { return .add }
                 if let resendTarget { return .resend(resendTarget) }
                 if paywallPresented { return .paywall }
@@ -375,6 +381,7 @@ private struct HouseholdHomeContent: View {
             },
             set: {
                 if $0 == nil {
+                    rotationDay = nil
                     addPresented = false
                     resendTarget = nil
                     paywallPresented = false
@@ -403,7 +410,7 @@ private struct HouseholdHomeContent: View {
 
     private var mastheadTitle: some View {
         Text(householdDisplayName)
-            .plType(hugeType ? .heading : .display)
+            .plType(hugeType ? .heading : .title)
             .foregroundStyle(Color.ink)
             .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -436,7 +443,7 @@ private struct HouseholdHomeContent: View {
                 namingFromMasthead = !isNamed
                 pushed = .settings
             } label: {
-                Image(systemName: "slider.horizontal.3")
+                Image(systemName: "gearshape")
                     .font(.system(size: 18, weight: .semibold))
                     .foregroundStyle(Color.ink)
                     .plTapTarget()
@@ -677,14 +684,14 @@ private struct HouseholdHomeContent: View {
                 ZStack(alignment: .bottomTrailing) {
                     if let data = profiles.first?.bannerPhotoData, let image = UIImage(data: data) {
                         Color.clear
-                            .aspectRatio(BannerFocus.aspect, contentMode: .fit)
+                            .frame(height: 148)
                             .overlay {
                                 Image(uiImage: image)
                                     .resizable()
                                     .scaledToFill()
                             }
                             .clipShape(RoundedRectangle(cornerRadius: Radius.hero, style: .continuous))
-                            .plCardShadow()
+                            .contentShape(RoundedRectangle(cornerRadius: Radius.hero, style: .continuous))
 
                         HStack(spacing: 5) {
                             Image(systemName: "camera")
@@ -786,7 +793,7 @@ private struct HouseholdHomeContent: View {
                 HStack(spacing: 0) {
                     CountBlock(value: "\(nightsPlated)", label: "Dinners")
                     CountDivider()
-                    CountBlock(value: "\(platesEarned)", label: "Happy plates")
+                    CountBlock(value: "\(platesEarned)", label: "Likes")
                     CountDivider()
                     CountBlock(value: "\(kissCount)", label: "Chef's kisses", accent: kissCount > 0)
                 }
@@ -1234,7 +1241,7 @@ private struct HouseholdHomeContent: View {
 
             cookGrid
 
-            Text("Tap a day to hand it to someone else. Nobody is notified.")
+            Text("Choose a day to set its standing cook.")
                 .plType(.caption)
                 .foregroundStyle(Color.inkSecondary)
 
@@ -1306,7 +1313,8 @@ private struct HouseholdHomeContent: View {
         let cook = roster.first { $0.cookWeekdays.contains(weekday) }
         let dayName = Calendar.current.weekdaySymbols[weekday - 1]
         return Button {
-            cycleCook(weekday: weekday)
+            rotationPerson = cook?.shareRecordName
+            rotationDay = weekday
         } label: {
             VStack(spacing: 6) {
                 Text(shortDay(weekday).uppercased())
@@ -1353,9 +1361,9 @@ private struct HouseholdHomeContent: View {
         }
         .buttonStyle(.pressable)
         // A weekday abbreviation over an initial announces as neither.
-        .accessibilityElement(children: .ignore)
         .accessibilityLabel(cook.map { "\(dayName), \($0.name) cooks" } ?? "\(dayName), nobody yet")
-        .accessibilityHint("Passes this night to the next person")
+        .accessibilityHint("Choose a cook, then save this standing assignment")
+        .accessibilityIdentifier("household-rotation-\(weekday)")
     }
 
     /// The seven days in calendar order, starting where the user's week
@@ -1412,28 +1420,62 @@ private struct HouseholdHomeContent: View {
             .joined(separator: " + ")
     }
 
-    /// Tap a day: hand it to the next person around the table, or open it up.
-    private func cycleCook(weekday: Int) {
-        Haptic.tap()
-        // Ordered by record name, not by the query: `@Query` sorts on
-        // `createdAt`, and once seats arrive by merge that order differs per
-        // phone, so the same tap would hand Tuesday to different people in
-        // the same household.
-        let order = roster.sorted { $0.shareRecordName < $1.shareRecordName }
-        let current = order.firstIndex { $0.cookWeekdays.contains(weekday) }
-        withAnimation(.plPop) {
-            if let current {
-                order[current].cookWeekdays.removeAll { $0 == weekday }
-                let next = current + 1
-                if next < order.count {
-                    order[next].cookWeekdays.append(weekday)
+    private func rotationEditor(_ day: Int) -> some View {
+        NavigationStack {
+            List {
+                Section {
+                    Button { rotationPerson = nil } label: {
+                        HStack {
+                            Text("Unassigned")
+                            Spacer()
+                            if rotationPerson == nil { Image(systemName: "checkmark") }
+                        }.foregroundStyle(Color.ink).frame(minHeight: 44)
+                    }
+                    ForEach(roster.filter(\.cooks)) { member in
+                        Button { rotationPerson = member.shareRecordName } label: {
+                            HStack(spacing: 12) {
+                                AvatarCircle(member: member, size: 36)
+                                Text(member.name).foregroundStyle(Color.ink)
+                                Spacer()
+                                if rotationPerson == member.shareRecordName { Image(systemName: "checkmark") }
+                            }.frame(minHeight: 44)
+                        }
+                        .accessibilityAddTraits(rotationPerson == member.shareRecordName ? .isSelected : [])
+                    }
+                } footer: {
+                    Text("This sets the standing cook for \(Calendar.current.weekdaySymbols[day - 1])s. Existing meal assignments stay as planned.")
                 }
-                // Past the last member the day goes open.
-            } else if let first = order.first {
-                first.cookWeekdays.append(weekday)
+            }
+            .tint(Color.accentText)
+            .navigationTitle("Who cooks \(Calendar.current.weekdaySymbols[day - 1])?")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { rotationDay = nil } }
+                ToolbarItem(placement: .confirmationAction) { Button("Save") { saveRotation(day) } }
             }
         }
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
     }
+
+    private func saveRotation(_ day: Int) {
+        guard rotationPerson == nil || roster.contains(where: { $0.shareRecordName == rotationPerson && $0.cooks }) else {
+            problem = "That person is no longer available. Choose another cook."
+            rotationDay = nil
+            return
+        }
+        let previous = roster.map { ($0, $0.cookWeekdays) }
+        for member in roster {
+            member.cookWeekdays.removeAll { $0 == day }
+            if member.shareRecordName == rotationPerson { member.cookWeekdays.append(day) }
+        }
+        if !Persist.save(context, "standing cook changed") {
+            for (member, days) in previous { member.cookWeekdays = days }
+            problem = "Couldn't save this standing cook. Please try again."
+        } else { Haptic.select() }
+        rotationDay = nil
+    }
+
 }
 
 /// Adding somebody, with the invitation as the thing the sheet is for.

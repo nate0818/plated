@@ -236,7 +236,7 @@ struct MainShellView: View {
                 if let id = DeepLink.postID(in: url) {
                     Task { @MainActor in
                         await Task.yield()
-                        LinkRelay.request(post: id)
+                        LinkRelay.request(post: id, comment: DeepLink.commentID(in: url))
                     }
                 }
             case .activity:
@@ -275,6 +275,7 @@ struct MainShellView: View {
     /// nothing, which is worse than one that errors.
     private static let flagHomes: [(String, AppTab)] = [
         ("-plated-open-stats", .week),
+        ("-plated-open-household", .week),
         ("-plated-open-seats", .table),
         ("-plated-open-thread", .table),
         ("-plated-open-grocery", .week),
@@ -335,13 +336,15 @@ struct MainShellView: View {
                         case .groceries: NavigationStack { GrocerySheet(embedded: true) }
                         }
                     }
+                    .frame(maxWidth: horizontalSizeClass == .regular ? (tab == .week ? 1100 : Layout.readableMaxWidth) : .infinity,
+                           maxHeight: .infinity)
                     .opacity(selection == tab ? 1 : 0)
                     .allowsHitTesting(selection == tab)
                     .accessibilityHidden(selection != tab)
                 }
             }
             .frame(
-                maxWidth: horizontalSizeClass == .regular ? Layout.readableMaxWidth : .infinity,
+                maxWidth: .infinity,
                 maxHeight: .infinity
             )
             .padding(.bottom, activeRecipe == nil ? 0 : 60)
@@ -388,7 +391,7 @@ struct MainShellView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .platedCreateRequested)) { _ in
             guard !createPresented, !askPresented, householdInvitation == nil, activeShellSheetID == nil else { return }
-            createStart = nil
+            createStart = selection == .table ? .tablePost : selection == .cookbook ? .recipe : nil
             createPresented = true
         }
         .environment(\.activeAppTab, selection)
@@ -994,7 +997,7 @@ struct CreateMenuSheet: View {
         // grabber offers the full-height detent as a way out.
         ScrollView(showsIndicators: false) {
             VStack(spacing: 0) {
-                Text("Add")
+                Text("Create")
                     .plType(.title)
                     .foregroundStyle(Color.ink)
                     // 22, the top padding every other sheet masthead uses.
@@ -1004,7 +1007,7 @@ struct CreateMenuSheet: View {
 
                 VStack(spacing: 10) {
                     OptionRow(
-                        icon: "camera",
+                        icon: "bubble.left",
                         title: "Post to the Table",
                         detail: "Photos, food finds, places, and questions"
                     ) { onChoose(.tablePost) }
@@ -1013,17 +1016,10 @@ struct CreateMenuSheet: View {
                         title: "Add a recipe",
                         detail: "Paste it, scan it, or write it out"
                     ) { onChoose(.recipe) }
-                    // The Table's other kind of post, which had no door.
-                    // `askPresented` was set by a debug launch flag and by
-                    // nothing else, so in a shipped build an ask could only
-                    // be reached from inside the Plan tab's night sheet —
-                    // three taps away, on the other side of the app from the
-                    // Table it posts to.
-                    OptionRow(
-                        icon: "bubble.and.pencil",
-                        title: "Ask the Table",
-                        detail: "What should we eat, or put up a poll"
-                    ) { onChoose(.ask) }
+                    Text("Deciding together? Add a poll to your post.")
+                        .plType(.footnote).foregroundStyle(Color.inkSecondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.vertical, 12)
                 }
             }
             .frame(maxWidth: .infinity)

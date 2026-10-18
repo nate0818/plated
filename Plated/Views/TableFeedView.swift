@@ -46,6 +46,7 @@ struct TableFeedView: View {
     /// Set only when the door was the "Add a comment" line, so the thread
     /// opens with the field ready. Reading a thread should not raise a
     /// keyboard over it.
+    @State private var threadTargetComment: String?
     @State private var threadStartsWriting = false
     @State private var personShown: PersonRef?
     /// Which door this profile was opened through. The Table offers two —
@@ -102,6 +103,7 @@ struct TableFeedView: View {
     /// and the photo is a door — so the menu carries the rest.
     @State private var pendingDelete: TablePost?
     @State private var editingPost: TablePost?
+    @State private var retryingPosts: Set<PersistentIdentifier> = []
     @State private var contentSafety = ContentSafety.shared
     @State private var safetyDialog: SafetyDialog?
 
@@ -550,7 +552,7 @@ struct TableFeedView: View {
             .toolbar(.hidden, for: .navigationBar)
             .plSwipeBack()
             .navigationDestination(item: $threadPost) { post in
-                PostThreadView(post: post, startWriting: threadStartsWriting) { beginSave($0) }
+                PostThreadView(post: post, startWriting: threadStartsWriting, targetComment: threadTargetComment) { beginSave($0) }
                     .navigationTransition(.zoom(sourceID: post.persistentModelID, in: zoom))
             }
             .navigationDestination(item: $personShown) { person in
@@ -802,75 +804,26 @@ struct TableFeedView: View {
             Haptic.tap()
             seatsPresented = true
         } label: {
-            Group {
-                if typeSize.isAccessibilitySize {
-                    VStack(alignment: .leading, spacing: 12) {
-                        HStack(alignment: .top, spacing: 12) {
-                            tablePrivacyIcon
-                            tablePrivacySummary
-                        }
-                        tablePeopleLabel
-                            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                    }
-                    .padding(.vertical, 12)
-                } else {
-                    HStack(spacing: 12) {
-                        tablePrivacyIcon
-                        tablePrivacySummary
-                        tablePeopleLabel
-                    }
-                }
+            let layout = typeSize.isAccessibilitySize
+                ? AnyLayout(VStackLayout(alignment: .leading, spacing: 0))
+                : AnyLayout(HStackLayout(spacing: 12))
+            layout {
+                Label("Private to your Table", systemImage: "lock.fill")
+                    .plType(.footnote)
+                    .foregroundStyle(Color.inkSecondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Text("People")
+                    .plType(.footnote, .semibold)
+                    .foregroundStyle(Color.accentText)
+                    .frame(minHeight: 44)
             }
-            .padding(.horizontal, 12)
-            .frame(minHeight: 64)
-            .background(Color.fill, in: Radius.shape(Radius.card))
-            .contentShape(Radius.shape(Radius.card))
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.pressable)
-        // The reaction denominator includes past post authors and cannot
-        // establish who currently has access. People reads the share itself.
         .accessibilityLabel("Private to your Table. People and invitations.")
         .accessibilityHint("Shows who can see posts")
         .accessibilityIdentifier("table-people")
-    }
-
-    private var tablePrivacyIcon: some View {
-        Image(systemName: "lock.fill")
-            .font(.system(size: 13, weight: .bold))
-            .foregroundStyle(Color.basil)
-            .frame(width: 34, height: 34)
-            .background(Color.basilTint, in: Circle())
-            .accessibilityHidden(true)
-    }
-
-    private var tablePrivacySummary: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text("Private to your Table")
-                .plType(.footnote, .bold)
-                .foregroundStyle(Color.ink)
-            Text("See who can view posts")
-                .plType(.caption)
-                .foregroundStyle(Color.inkSecondary)
-        }
-        .fixedSize(horizontal: false, vertical: true)
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private var tablePeopleLabel: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "person.2")
-                .font(.system(size: 13, weight: .semibold))
-            Text("People")
-                .plType(.caption, .bold)
-                .plActionLabel()
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .foregroundStyle(Color.ink)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .frame(minHeight: ControlMetrics.minimumTarget)
-        .background(Color.raisedFill, in: Radius.shape(Radius.chip))
-        .overlay(Radius.shape(Radius.chip).strokeBorder(Color.navHairline))
     }
 
     private var refreshProblemBar: some View {
@@ -974,8 +927,8 @@ struct TableFeedView: View {
                                 // is written, so a marker with no delay
                                 // would flash on every single post; a minute
                                 // means it really has not gone.
-                                if stranded(post) {
-                                    Text("· Not sent yet")
+                                if !post.isRemote && !post.isPublished && !PlatedApp.usesPreviewContainer {
+                                    Text("· Waiting to sync")
                                         .plType(.micro, .semibold)
                                         .foregroundStyle(Color.inkSecondary)
                                 }
@@ -1058,21 +1011,10 @@ struct TableFeedView: View {
                 }
             }
 
-            // The dish and what was said about it come before the row of
-            // things you can do to them. They used to sit after, which is
-            // Instagram's order and works while there is a photograph for
-            // the actions to hang under. A post with no photo put a plate
-            // reaction and a Save above the dish's own name: you were asked
-            // what you thought of it before you were told what it was.
-            // The composer led with "Name the dish" and then the card never
-            // showed the name. What you named is what the table sees.
-            // The words are a door too, not just the photograph.
-            //
-            // A dish posted without a photo rendered no well, no placeholder
-            // and no outline, and its title and caption were plain Text, so
-            // the card had a hole where the image goes and no way into the
-            // thread at all. Threads solves it the same way: with no media
-            // the text becomes the tap target.
+            // Media gives the actions context; text-only posts introduce their words first.
+            if post.photoData != nil {
+                postActions(post).animation(.plSnap, value: isSaved(post))
+            }
             Button {
                 openThread(post)
             } label: {
@@ -1129,9 +1071,11 @@ struct TableFeedView: View {
                 }
                 .buttonStyle(.pressable)
             }
-            postActions(post)
-            .padding(.top, 10)
-            .animation(.plSnap, value: isSaved(post))
+            if post.photoData == nil {
+                postActions(post)
+                    .padding(.top, 4)
+                    .animation(.plSnap, value: isSaved(post))
+            }
             // The newest two, not the oldest two. `sortedComments` is
             // ascending, so `prefix(2)` pinned the preview to the first
             // two things ever said and it never changed again however
@@ -1166,6 +1110,21 @@ struct TableFeedView: View {
 
     @ViewBuilder
     private func postMenu(_ post: TablePost, canSave: Bool) -> some View {
+        if !post.isRemote && !post.isPublished && isMine(post) {
+            Button("Retry sending", systemImage: "arrow.clockwise") {
+                guard !retryingPosts.contains(post.persistentModelID) else { return }
+                retryingPosts.insert(post.persistentModelID)
+                Task {
+                    if let name = await TableShare.publish(post, hostName: members.me?.name ?? "") {
+                        post.shareRecordName = name
+                        post.isPublished = true
+                        Persist.save(context, "retry table post")
+                    } else { showToast("Saved on this phone. We'll keep trying to send it.") }
+                    retryingPosts.remove(post.persistentModelID)
+                }
+            }.disabled(retryingPosts.contains(post.persistentModelID))
+        }
+
         Button {
             openThread(post)
         } label: {
@@ -1540,7 +1499,7 @@ struct TableFeedView: View {
             HStack(spacing: 7) {
                 PlateReactionGlyph(filled: post.platedByMeNow)
                 if typeSize.isAccessibilitySize {
-                    Text(post.platedByMeNow ? "Plated" : "Plate")
+                    Text(post.platedByMeNow ? "Liked" : "Like")
                         .plType(.footnote, .bold)
                         .plActionLabel()
                         .foregroundStyle(post.platedByMeNow ? Color.accentText : Color.inkSecondary)
@@ -1564,7 +1523,7 @@ struct TableFeedView: View {
         }
         .buttonStyle(.pressable)
         .accessibilityLabel(post.platedByMeNow ? "Remove your reaction" : "Like this post")
-        .accessibilityValue(post.totalPlates.things("plate"))
+        .accessibilityValue(post.totalPlates.things("like"))
         .accessibilityAddTraits(post.platedByMeNow ? .isSelected : [])
     }
 
@@ -1745,14 +1704,16 @@ struct TableFeedView: View {
         }
         Haptic.tap()
         threadStartsWriting = writing
+        threadTargetComment = nil
         threadPost = post
     }
 
     /// The second leg of a tapped notice. Nothing to do is the common case.
     private func openRequestedPost() {
         guard let id = LinkRelay.takePost() else { return }
+        let comment = LinkRelay.takeComment()
         if let post = TableNews.find(id, in: context) {
-            open(post)
+            open(post, comment: comment)
             return
         }
         // Not here yet: a banner raised on the iPad about a dish this
@@ -1762,14 +1723,14 @@ struct TableFeedView: View {
         Task {
             await TablePull.pull(reason: "open")
             if let post = TableNews.find(id, in: context) {
-                open(post)
+                open(post, comment: comment)
             } else {
                 showToast("This post is no longer available at your Table.")
             }
         }
     }
 
-    private func open(_ post: TablePost) {
+    private func open(_ post: TablePost, comment: String? = nil) {
         // Notification and universal-link requests can outlive the visible
         // feed. They must honor the same local block as a card tap.
         guard !contentSafety.isBlocked(authorID: post.authorID, authorName: post.authorName) else {
@@ -1779,6 +1740,7 @@ struct TableFeedView: View {
         pushed = nil
         personShown = nil
         threadStartsWriting = false
+        threadTargetComment = comment
         threadPost = post
     }
 
@@ -1798,36 +1760,18 @@ struct TableFeedView: View {
     }
 }
 
-/// The plate reaction mark. At rest it is an actual plate — rim outside,
-/// well inside — so nobody mistakes it for an empty radio button; filled,
-/// it goes olive with the well knocked out in canvas.
+/// A familiar heart is shared by feed and thread reactions. The persisted
+/// reaction identity remains unchanged so existing likes retain their owners.
 struct PlateReactionGlyph: View {
     var filled: Bool
-    /// The count and badge shelves borrow this mark rather than reaching
-    /// for a stock symbol — the app already owns a plate, and `hands.clap`
-    /// standing in for one was the loudest wrong note on the stats page.
     var size: CGFloat = 26
-    /// The rim colour when empty, so the tone can travel with the size.
     var tone: Color = .inkSecondary
 
-    private var scale: CGFloat { size / 26 }
-
     var body: some View {
-        ZStack {
-            Circle()
-                .strokeBorder(filled ? Color.olive : tone, lineWidth: 2 * scale)
-                .background(Circle().fill(filled ? Color.olive : Color.clear))
-                .frame(width: size, height: size)
-            if filled {
-                Circle()
-                    .fill(Color.canvas)
-                    .frame(width: 9 * scale, height: 9 * scale)
-            } else {
-                Circle()
-                    .strokeBorder(tone, lineWidth: 1.5 * scale)
-                    .frame(width: 13 * scale, height: 13 * scale)
-            }
-        }
+        Image(systemName: filled ? "heart.fill" : "heart")
+            .font(.system(size: size, weight: .regular))
+            .foregroundStyle(filled ? Color.accentText : tone)
+            .accessibilityHidden(true)
     }
 }
 
@@ -1872,7 +1816,7 @@ struct PlateReactionButton: View {
         }
         .buttonStyle(.pressable)
         .accessibilityLabel(post.platedByMeNow ? "Remove your reaction" : "Like this post")
-        .accessibilityValue(post.totalPlates.things("plate"))
+        .accessibilityValue(post.totalPlates.things("like"))
         .accessibilityAddTraits(post.platedByMeNow ? .isSelected : [])
     }
 }

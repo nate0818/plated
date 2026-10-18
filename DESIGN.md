@@ -18,7 +18,38 @@ opens from the consistent account control. Household is a pushed shared workspac
 Settings is a pushed personal control center. Back pops within a destination.
 A root reselect returns to that destination's root. Add is a header action,
 not a tab. Tasks use sheets and preserve valuable drafts. Cooking uses a focused
-full-screen session with explicit Minimize and End actions.
+full-screen session with explicit Minimize and a confirmed End action in session options.
+
+## Approved polish, October 18
+
+The current/proposed review in `docs/design-polish-review-2026-10-18` was approved
+in full. Its native implementation supersedes older masthead and social layouts.
+Use one compact destination header. Table creation opens a post directly; Recipes
+creation opens recipe tools. The global Create menu has Post and Recipe choices,
+with polls inside posts. Post and comment reactions use hearts; persisted reaction
+identifiers remain compatible. Bookmarking is a separate action.
+
+Table uses a compact audience line, bounded media, actions then caption (text
+before actions when there is no photo). Author and audience precede the composer;
+attachment tools stay compact, titles live in More, and photo controls stay on the
+photo. Draft status is based on an actual local save. Comments show delivery state
+and preserve failed writing. Comment notifications land on the specific reply.
+Activity reads only opened or actually viewed items; Mark all read is explicit,
+while clearing lives in overflow. Related reactions remain grouped per object.
+
+Household uses a gear, a shallow cover, and explicit saved rotation choices.
+Profiles foreground identity and verified recent contribution; milestones are a
+secondary row. Recipe detail omits unknown optional metadata and offers section
+jumps. Groceries foregrounds quick addition and item/quantity, with compact
+progress and Undo; export lives in overflow. Cooking shows ingredients directly
+when directions are absent, and offers reflection after dinner is saved.
+
+The iPad app supports both landscape orientations only, as requested after approval.
+iPhone retains its existing orientation support. Wide Plan windows put the selected
+meal beside weather/history/household context.
+Narrow windows and accessibility text return to one column. A small next-day link
+is supporting navigation; other dates never become a vertical meal timeline.
+Official Apple Weather attribution and real household identity remain required.
 
 ## First arrival
 
@@ -90,8 +121,9 @@ Plan opens with a compact personal greeting, a horizontal date row and the selec
 search visible. Grocery rows preserve meal provenance. Table shows audience
 compactly before posts.
 
-An empty dinner uses a compact decision panel with Plan tonight and Eating out
-visible together (stacked at larger text sizes). Below the selected day's meals,
+An empty dinner uses a compact decision panel with Choose a meal as its primary
+action and Eating out directly below. Suggested cook pairs with Assign; assigned
+cooks pair with Change. Below the selected day's meals,
 show that day's local forecast and a clearly labeled Last 7 days household dinner
 log. Cooked means marked complete; Eating out counts marked nights through today,
 not future plans. Never substitute sample counts for missing history. Weather

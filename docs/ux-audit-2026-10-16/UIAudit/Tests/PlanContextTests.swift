@@ -7,7 +7,7 @@ final class PlanContextTests: XCTestCase {
         app.launchArguments = ["-plated-design-review", "-plated-tab", "week", "-plated-review-empty-tonight",
                                "-appearance", light ? "light" : "dark", "-UIPreferredContentSizeCategoryName", size] + flags
         app.launch()
-        XCTAssertTrue(app.buttons["Plan tonight"].waitForExistence(timeout: 20))
+        XCTAssertTrue(app.buttons["Choose a meal"].waitForExistence(timeout: 20))
     }
     func element(_ id: String) -> XCUIElement { app.descendants(matching: .any).matching(identifier: id).firstMatch }
     func reveal(_ item: XCUIElement) {
@@ -76,7 +76,7 @@ final class PlanContextTests: XCTestCase {
 
     func testPlanActionStillOpensMealChoices() {
         launch(["-plated-fake-weather"])
-        app.buttons["Plan tonight"].tap()
+        app.buttons["Choose a meal"].tap()
         XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Choose a recipe")).firstMatch.waitForExistence(timeout: 8))
     }
 
@@ -85,7 +85,7 @@ final class PlanContextTests: XCTestCase {
         app.buttons["Eating out"].tap()
         XCTAssertTrue(app.alerts["Dinner didn’t save"].waitForExistence(timeout: 8))
         app.alerts.buttons["OK"].tap()
-        XCTAssertTrue(app.buttons["Plan tonight"].waitForExistence(timeout: 8))
+        XCTAssertTrue(app.buttons["Choose a meal"].waitForExistence(timeout: 8))
         XCTAssertFalse(app.buttons["featured-dinner-card"].exists)
         let out = element("plan-history-eating-out"); reveal(out)
         XCTAssertEqual(out.label, "1 eating out in the last 7 days")
@@ -101,10 +101,10 @@ final class PlanContextTests: XCTestCase {
         XCTAssertTrue((cook.value as? String)?.contains("from your rotation") == true)
         cook.tap(); app.buttons["Sam"].tap()
         XCTAssertEqual(cook.value as? String, "Sam is cooking")
-        XCTAssertTrue(app.buttons["Plan tonight"].exists)
+        XCTAssertTrue(app.buttons["Choose a meal"].exists)
         XCTAssertFalse(app.buttons["featured-dinner-card"].exists)
         capture("plan-cook-assigned-before-dish")
-        app.buttons["Plan tonight"].tap()
+        app.buttons["Choose a meal"].tap()
         let pick = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Pick for me")).firstMatch
         XCTAssertTrue(pick.waitForExistence(timeout: 8)); pick.tap()
         XCTAssertTrue(app.buttons["featured-dinner-card"].waitForExistence(timeout: 8))
@@ -118,7 +118,7 @@ final class PlanContextTests: XCTestCase {
         let cook = app.buttons["plan-cook-assignment"]
         cook.tap(); app.buttons["No cook assigned"].tap()
         XCTAssertEqual(cook.value as? String, "No cook assigned")
-        app.buttons["Plan tonight"].tap()
+        app.buttons["Choose a meal"].tap()
         let pick = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Pick for me")).firstMatch
         XCTAssertTrue(pick.waitForExistence(timeout: 8)); pick.tap()
         XCTAssertTrue(app.buttons["featured-dinner-card"].waitForExistence(timeout: 8))
@@ -136,7 +136,7 @@ final class PlanContextTests: XCTestCase {
         app.alerts.buttons["OK"].tap()
         XCTAssertEqual(cook.value as? String, previous)
         XCTAssertEqual(cook.label, "Suggested dinner cook")
-        XCTAssertTrue(app.buttons["Plan tonight"].exists)
+        XCTAssertTrue(app.buttons["Choose a meal"].exists)
     }
 
     func testSharedDinnerNamesTheCookAndOpensAssignmentControls() {
@@ -153,12 +153,12 @@ final class PlanContextTests: XCTestCase {
     func testSharedCookOnlyReservationStillInvitesChoosingDinner() {
         app.launchArguments = ["-plated-design-review", "-plated-tab", "week", "-plated-fake-weather", "-plated-review-shared-tonight", "-plated-review-shared-cook-only", "-appearance", "dark"]
         app.launch()
-        XCTAssertTrue(app.buttons["Plan tonight"].waitForExistence(timeout: 20))
+        XCTAssertTrue(app.buttons["Choose a meal"].waitForExistence(timeout: 20))
         XCTAssertEqual(app.buttons["plan-cook-assignment"].value as? String, "Sam is cooking")
         XCTAssertEqual(app.buttons["featured-remote-dinner-card"].label, "What’s for dinner?")
         XCTAssertFalse(app.staticTexts["Unplanned"].exists)
         capture("plan-cook-shared-before-dish")
-        app.buttons["Plan tonight"].tap()
+        app.buttons["Choose a meal"].tap()
         XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Choose a recipe")).firstMatch.waitForExistence(timeout: 8))
     }
 
@@ -245,7 +245,7 @@ final class PlanContextVoiceOverTests: XCTestCase {
         if voice.isEnabled { try voice.disable() }
         app.launchArguments = ["-plated-design-review", "-plated-tab", "week", "-plated-review-empty-tonight",
                                "-plated-review-dinner-history", "-plated-fake-weather", "-appearance", "dark"]
-        app.launch(); XCTAssertTrue(app.buttons["Plan tonight"].waitForExistence(timeout: 20))
+        app.launch(); XCTAssertTrue(app.buttons["Choose a meal"].waitForExistence(timeout: 20))
         try voice.enable()
         var transcript = [try voice.currentSpeech().utterance]
         let targets = ["What’s for dinner", "Suggested dinner cook", "Plan tonight", "Eating out", "Mostly Clear", "2 cooked", "1 eating out", "Your household", "Manage household", "Riley"]

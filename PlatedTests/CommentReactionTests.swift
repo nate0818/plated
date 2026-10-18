@@ -134,7 +134,7 @@ final class CommentReactionTests: XCTestCase {
         XCTAssertEqual(rows.count, 1)
         XCTAssertEqual(row.kindValue, .commentReaction)
         XCTAssertEqual(row.body, "Alessandra liked your comment: “Try them with basil.”")
-        XCTAssertEqual(row.link, DeepLink.url(post: note.post!.shareRecordName).absoluteString)
+        XCTAssertEqual(row.link, DeepLink.url(post: note.post!.shareRecordName, comment: note.shareRecordName).absoluteString)
         XCTAssertTrue(TableNews.digest(first, newSeats: [], context: context).isEmpty)
         let second = delivery(note, author: "riley")
         TableShare.merge(second, into: context)

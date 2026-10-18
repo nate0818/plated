@@ -99,6 +99,8 @@ final class ProfileIdentityTests: XCTestCase {
             remote: [PlanLedger.Entry(echo), PlanLedger.Entry(shared)], posts: [own, wrong], now: now)
         XCTAssertEqual(activity.cooked, 2)
         XCTAssertEqual(activity.shared, 1)
+        XCTAssertNotNil(activity.latest)
+        XCTAssertFalse(activity.latest?.line.contains("Not Sam’s") ?? true)
         meal.cookedAt = nil
         XCTAssertEqual(MemberDinnerActivity(member: sam, roster: [sam, other], meals: [meal],
             remote: [PlanLedger.Entry(echo)], posts: [], now: now).cooked, 0)
@@ -117,5 +119,6 @@ final class ProfileIdentityTests: XCTestCase {
         let activity = MemberDinnerActivity(member: sam, roster: [sam, other], meals: meals, remote: [], posts: [], now: now)
         XCTAssertEqual(activity.cooked, 0)
         XCTAssertEqual(activity.shared, 0)
+        XCTAssertNil(activity.latest)
     }
 }

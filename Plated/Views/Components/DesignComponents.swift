@@ -18,7 +18,6 @@ struct RecipeArtwork: View {
                     } else {
                         VStack(spacing: 10) {
                             Image(systemName: "fork.knife").font(.system(size: 30, weight: .light))
-                            Text(title).plType(.footnote, .medium).multilineTextAlignment(.center).lineLimit(3)
                         }
                         .foregroundStyle(Color.inkSecondary)
                         .padding(18)
@@ -51,25 +50,35 @@ struct PlatedMasthead<Tools: View>: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: compact ? 12 : 20) {
-            HStack(spacing: 8) {
-                PlatedWordmark(size: max(24, wordmarkSize))
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .center, spacing: 8) {
+                Text(accessibleTitle).plType(.title, .regular)
+                    .foregroundStyle(Color.ink)
+                    .fixedSize(horizontal: true, vertical: false)
+                    .accessibilityAddTraits(.isHeader)
                 Spacer(minLength: 8)
                 EditorialAddButton()
                 tools.plChrome()
             }
-            .plChrome()
-            Text(typeSize.isAccessibilitySize ? accessibleTitle : title)
-                .plType(typeSize.isAccessibilitySize ? .heading : (compact ? .display : .hero), .regular)
-                .foregroundStyle(Color.ink)
-                .fixedSize(horizontal: false, vertical: true)
-                .accessibilityAddTraits(.isHeader)
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text(accessibleTitle).plType(.heading)
+                        .foregroundStyle(Color.ink)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityAddTraits(.isHeader)
+                    Spacer(minLength: 0)
+                }
+                HStack { EditorialAddButton(); Spacer(minLength: 8); tools.plChrome() }
+            }
         }
-        .padding(.top, 6).padding(.bottom, compact ? 0 : 10)
+        .padding(.top, 6)
+
     }
 }
 
 struct EditorialAddButton: View {
+    @Environment(\.activeAppTab) private var activeTab
+
     var body: some View {
         Button {
             Haptic.tap()
@@ -81,8 +90,8 @@ struct EditorialAddButton: View {
                 .plTapTarget()
         }
         .buttonStyle(.pressable)
-        .accessibilityLabel("Add")
-        .accessibilityHint("Add a recipe, Table post or question")
+        .accessibilityLabel(activeTab == .table ? "New post" : activeTab == .cookbook ? "Add a recipe" : "Add")
+        .accessibilityHint(activeTab == .table ? "Share a post with your Table" : activeTab == .cookbook ? "Import, scan or write a recipe" : "Add a recipe or Table post")
         .accessibilityIdentifier("tray-create")
     }
 }

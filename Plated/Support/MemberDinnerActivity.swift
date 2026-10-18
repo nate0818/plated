@@ -6,6 +6,11 @@ import Foundation
 struct MemberDinnerActivity {
     let cooked: Int
     let shared: Int
+    struct Event {
+        let line: String
+        let date: Date
+    }
+    let latest: Event?
 
     init(member: HouseholdMember, roster: [HouseholdMember], meals: [PlannedMeal],
          remote: [PlanLedger.Entry], posts: [TablePost], now: Date = .now, calendar: Calendar = .current) {
@@ -13,6 +18,7 @@ struct MemberDinnerActivity {
         let start = calendar.date(byAdding: .day, value: -6, to: today) ?? today
         let end = calendar.date(byAdding: .day, value: 1, to: today) ?? now
         var dinners: [String: Bool] = [:]
+        var events: [String: Event] = [:]
         for entry in remote where entry.slot == MealSlot.dinner.rawValue {
             let key = entry.shoppingID.isEmpty ? entry.recordName : "plan-" + entry.shoppingID
             let isCook = !entry.cookID.isEmpty && PlanRowVoice.member(id: entry.cookID, in: roster)?.persistentModelID == member.persistentModelID
@@ -20,6 +26,9 @@ struct MemberDinnerActivity {
             dinners[key] = isCook && entry.cooked && !entry.isGoing
                 && !PlanRowVoice.isEatingOut(title: entry.title, hasRecipe: entry.hasRecipe)
                 && date.map { $0 >= start && $0 < end } == true
+            if dinners[key] == true, let date {
+                events[key] = Event(line: "Cooked \(entry.title.isEmpty ? "dinner" : entry.title)", date: entry.cookedAt ?? date)
+            } else { events.removeValue(forKey: key) }
         }
         for meal in meals where !meal.isDeleted && meal.slotValue == .dinner {
             let key = meal.shoppingID.flatMap { $0.isEmpty ? nil : "plan-" + $0 }
@@ -27,6 +36,9 @@ struct MemberDinnerActivity {
             dinners[key] = meal.cook?.persistentModelID == member.persistentModelID && meal.isCooked
                 && !PlanRowVoice.isEatingOut(title: meal.title, hasRecipe: meal.recipe != nil)
                 && meal.date >= start && meal.date < end
+            if dinners[key] == true {
+                events[key] = Event(line: "Cooked \(meal.title)", date: meal.cookedAt ?? meal.date)
+            } else { events.removeValue(forKey: key) }
         }
         cooked = dinners.values.filter { $0 }.count
         var postIDs = Set<String>()
@@ -34,9 +46,12 @@ struct MemberDinnerActivity {
             && post.kind != "ask" && post.createdAt >= start && post.createdAt <= now {
             guard ProfileIdentity.matches(authorID: post.authorID, authorName: post.authorName,
                 member: member, profileName: member.name, roster: roster) else { continue }
-            postIDs.insert(post.shareRecordName.isEmpty ? String(describing: post.persistentModelID) : post.shareRecordName)
+            let key = post.shareRecordName.isEmpty ? String(describing: post.persistentModelID) : post.shareRecordName
+            postIDs.insert(key)
+            events["post-" + key] = Event(line: post.dishTitle.isEmpty ? "Shared a post at the Table" : "Shared \(post.dishTitle)", date: post.createdAt)
         }
         shared = postIDs.count
+        latest = events.values.filter { $0.date <= now }.max { $0.date < $1.date }
     }
 
     var summary: String {

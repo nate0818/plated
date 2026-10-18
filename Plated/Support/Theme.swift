@@ -799,6 +799,7 @@ struct PhotoWell: View {
             if clamped {
                 Color.clear
                     .aspectRatio(ratio, contentMode: .fit)
+                    .frame(maxHeight: 320)
             } else {
                 Color.clear
                     .frame(maxWidth: .infinity)
@@ -811,6 +812,7 @@ struct PhotoWell: View {
                 .scaledToFill()
         }
         .clipShape(Radius.shape(cornerRadius))
+        .contentShape(Radius.shape(cornerRadius))
     }
 }
 

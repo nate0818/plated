@@ -583,7 +583,7 @@ struct SettingsSheet: View {
                 symbol: tableNewsOn ? "fork.knife.circle.fill" : "fork.knife.circle",
                 title: "Household and Table activity",
                 detail: tableNewsOn
-                    ? "Dishes, replies, plates, new seats and changes to the plan"
+                    ? "Posts, replies, likes, new members and changes to the plan"
                     : "Off. The bell still keeps the list.",
                 tint: .oliveTint,
                 tone: .olive
@@ -600,7 +600,7 @@ struct SettingsSheet: View {
             SettingsControlRow(
                 symbol: "fork.knife.circle",
                 title: "Household and Table activity",
-                detail: "When someone plates, replies, takes a seat or changes the plan",
+                detail: "When someone posts, replies, joins or changes the plan",
                 tint: .oliveTint,
                 tone: .olive
             ) {

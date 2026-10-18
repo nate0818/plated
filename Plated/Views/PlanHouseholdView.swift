@@ -17,10 +17,10 @@ struct PlanHouseholdView: View {
                 ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4))
                 : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: 8))
             layout {
-                Text("Your household").plType(.heading, .semibold).foregroundStyle(Color.ink)
+                Text("At home").plType(.heading).foregroundStyle(Color.ink)
                     .accessibilityAddTraits(.isHeader)
                 if !typeSize.isAccessibilitySize { Spacer(minLength: 0) }
-                Button("Manage", action: openHousehold).plType(.footnote, .semibold)
+                Button("Household", action: openHousehold).plType(.footnote, .semibold)
                     .foregroundStyle(Color.accentText).plTapTarget()
                     .accessibilityLabel("Manage household")
             }
@@ -30,19 +30,16 @@ struct PlanHouseholdView: View {
                 let activity = MemberDinnerActivity(member: member, roster: roster, meals: meals,
                     remote: PlanLedger.shared.all,
                     posts: posts.filter { !ContentSafety.shared.isBlocked(authorID: $0.authorID, authorName: $0.authorName) })
-                let detail = member.seat == .invited ? "Invitation pending" : activity.summary
+                let detail = member.seat == .invited ? "Invitation pending" : activity.latest.map { "\($0.line) · \(Stamp.day($0.date))" } ?? activity.summary
                 Button { openPerson(member) } label: {
                     HStack(alignment: .top, spacing: 12) {
-                        AvatarCircle(initials: member.initials, tone: member.tone, size: 42, photo: display.photo)
+                        AvatarCircle(initials: member.initials, tone: member.tone, size: 36, photo: display.photo)
                             .accessibilityHidden(true)
                         VStack(alignment: .leading, spacing: 4) {
                             Text(member.isMe ? "You" : display.name).plType(.body, .semibold).foregroundStyle(Color.ink)
-                            Text(detail).plType(.footnote).foregroundStyle(Color.inkSecondary)
+                            Text(detail).plType(.caption).foregroundStyle(Color.inkSecondary)
                         }.fixedSize(horizontal: false, vertical: true).frame(maxWidth: .infinity, alignment: .leading)
-                        if !typeSize.isAccessibilitySize {
-                            Text("Profile").plType(.caption, .semibold).foregroundStyle(Color.accentText)
-                                .accessibilityHidden(true)
-                        }
+
                     }.frame(minHeight: 44).padding(.vertical, 6).contentShape(Rectangle())
                 }.buttonStyle(.pressable)
                     .accessibilityLabel("\(member.isMe ? "You" : display.name), \(detail)")

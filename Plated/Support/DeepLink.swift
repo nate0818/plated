@@ -96,11 +96,19 @@ enum DeepLink: String {
         return PlanDay.date(raw)
     }
 
-    static func url(post record: String) -> URL {
+    static func commentID(in url: URL) -> String? {
+        guard destination(for: url) == .post,
+              let value = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?
+                .first(where: { $0.name == "comment" })?.value, !value.isEmpty else { return nil }
+        return value
+    }
+
+    static func url(post record: String, comment: String? = nil) -> URL {
         var components = URLComponents()
         components.scheme = scheme
         components.host = DeepLink.post.rawValue
         components.queryItems = [URLQueryItem(name: "id", value: record)]
+        if let comment, !comment.isEmpty { components.queryItems?.append(URLQueryItem(name: "comment", value: comment)) }
         return components.url ?? url(.table)
     }
 }

@@ -35,6 +35,16 @@ struct TableComposerSheet: View {
     @State private var destinationsLoaded = false
     @State private var localSaveMessage: String?
     @State private var saving = false
+    @State private var draftRevision = 0
+    @State private var draftSaved = false
+    @State private var draftClosed = false
+    @State private var draftRecoveryBlocked = false
+
+    private var draftSnapshot: TableComposerDraft {
+        TableComposerDraft(title: dishTitle, caption: caption, kind: pollExpanded ? "Question" : "Post",
+            poll: pollOptions, pollEntry: pollEntry, tags: tagged.sorted(),
+            destination: selectedDestinationID, photo: photoData)
+    }
 
     private var postContent: TablePostContent {
         TablePostContent(title: dishTitle, caption: caption, hasPhoto: photoData != nil,
@@ -91,12 +101,6 @@ struct TableComposerSheet: View {
                             .accessibilityHint("Share an ingredient, a place, a meal, or a question")
                             .accessibilityIdentifier("table-post-text")
                             .plTapToFocus { focusedField = .caption }
-                        if caption.isEmpty && photoData == nil {
-                            Text("A great ingredient, a new spot, tonight’s dinner. Anything worth sharing.")
-                                .plType(.caption)
-                                .foregroundStyle(Color.inkSecondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
                     }
                     if photoData != nil || photoLoading || photoLoadMessage != nil { photoPreview }
                     if titleExpanded {
@@ -140,6 +144,13 @@ struct TableComposerSheet: View {
                         .foregroundStyle(Color.dangerText)
                         .fixedSize(horizontal: false, vertical: true)
                 }
+                HStack(spacing: 6) {
+                    Image(systemName: "lock.fill").accessibilityHidden(true)
+                    Text("Only people at this Table can see your post.")
+                }
+                .plType(.caption)
+                .foregroundStyle(Color.inkSecondary)
+                .fixedSize(horizontal: false, vertical: true)
                 PrimaryActionButton(title: saving ? "Saving post…" : "Post to Table", busy: saving, action: post)
                     .disabled(!canPost)
                     .accessibilityIdentifier("table-post-submit")
@@ -160,6 +171,17 @@ struct TableComposerSheet: View {
         .presentationCornerRadius(Radius.sheet)
         .interactiveDismissDisabled(hasContent || photoLoading || saving)
         .task { restoreDraft(); await loadDestinations() }
+        .onChange(of: draftSnapshot) { _, _ in
+            guard restored, !draftClosed else { return }
+            draftSaved = false
+            draftRevision += 1
+        }
+        .task(id: draftRevision) {
+            guard restored, draftRevision > 0, !draftClosed, !draftRecoveryBlocked else { return }
+            do { try await Task.sleep(for: .milliseconds(800)) } catch { return }
+            guard !Task.isCancelled, !saving, !draftClosed, !photoLoading, photoLoadMessage == nil else { return }
+            draftSaved = saveDraft(quietly: true)
+        }
         .confirmationDialog("Add a photo", isPresented: $sourceAsked, titleVisibility: .visible) {
             Button("Take a photo") { cameraShown = true }
             Button("Choose from library") { chooseLibrary() }
@@ -189,9 +211,6 @@ struct TableComposerSheet: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(members.me?.name ?? "You").plType(.body, .semibold).foregroundStyle(Color.ink)
                 destinationControl
-                Text("Private · only people at this Table")
-                    .plType(.caption).foregroundStyle(Color.inkSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 0)
         }
@@ -231,19 +250,36 @@ struct TableComposerSheet: View {
     }
 
     private var attachmentActions: some View {
-        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), alignment: .leading),
-                                 count: typeSize.isAccessibilitySize ? 1 : 2), alignment: .leading, spacing: 8) {
-            if photoData == nil && !photoLoading && photoLoadMessage == nil {
-                attachmentButton("Add photo", icon: "photo") { choosePhoto() }
+        VStack(alignment: .leading, spacing: 4) {
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), alignment: .leading),
+                                     count: typeSize.isAccessibilitySize ? 2 : 4), alignment: .leading, spacing: 8) {
+                if photoData == nil && !photoLoading && photoLoadMessage == nil {
+                    attachmentButton("Photo", icon: "photo") { choosePhoto() }
+                }
+                if !peopleExpanded && members.contains(where: { !$0.isMe }) {
+                    attachmentButton("People", icon: "person.crop.circle.badge.plus") { peopleExpanded = true }
+                }
+                if !pollExpanded {
+                    attachmentButton("Poll", icon: "chart.bar.xaxis") { pollExpanded = true }
+                }
+                Menu {
+                    Button(titleExpanded ? "Focus title" : "Add a title", systemImage: "textformat") {
+                        titleExpanded = true
+                        focusedField = .title
+                    }
+                } label: {
+                    Label("More", systemImage: "ellipsis")
+                        .plType(.footnote)
+                        .foregroundStyle(Color.inkSecondary)
+                        .frame(minHeight: 44)
+                }
+                .accessibilityLabel("More post options")
             }
-            if !titleExpanded {
-                attachmentButton("Add title", icon: "textformat") { titleExpanded = true }
-            }
-            if !peopleExpanded && members.contains(where: { !$0.isMe }) {
-                attachmentButton("Tag people", icon: "person.crop.circle.badge.plus") { peopleExpanded = true }
-            }
-            if !pollExpanded {
-                attachmentButton("Add poll", icon: "chart.bar.xaxis") { pollExpanded = true }
+            if hasContent {
+                Text(photoLoading ? "Adding photo…" : photoLoadMessage != nil ? "Resolve the photo to save this draft" : localSaveMessage != nil ? "Draft needs attention" : draftSaved ? "Draft saved on this device" : "Saving draft…")
+                    .plType(.caption)
+                    .foregroundStyle(Color.inkSecondary)
+                    .accessibilityIdentifier("table-post-draft-status")
             }
         }
         .padding(.top, 12)
@@ -293,6 +329,18 @@ struct TableComposerSheet: View {
                     .frame(maxWidth: .infinity, maxHeight: 240)
                     .clipShape(Radius.shape(Radius.hero))
                     .accessibilityLabel("Attached photo")
+                    .overlay(alignment: .topTrailing) {
+                        Menu {
+                            Button("Change photo", systemImage: "photo") { choosePhoto() }
+                            Button("Remove photo", systemImage: "trash", role: .destructive) { removePhoto() }
+                        } label: {
+                            Image(systemName: "ellipsis").foregroundStyle(Color.ink)
+                                .frame(width: 44, height: 44)
+                                .background(Color.canvas, in: Circle())
+                        }
+                        .padding(8)
+                        .accessibilityLabel("Photo options")
+                    }
             }
             if photoLoading {
                 HStack(spacing: 10) { ProgressView(); Text("Getting the photo…").plType(.footnote) }
@@ -306,9 +354,7 @@ struct TableComposerSheet: View {
                     attachmentButton("Retry photo", icon: "arrow.clockwise") { loadPhoto(photoItem) }
                 }
             }
-            let layout = typeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading)) : AnyLayout(HStackLayout())
-            layout {
-                attachmentButton("Change photo", icon: "photo") { choosePhoto() }
+            if photoData == nil {
                 attachmentButton("Remove photo", icon: "xmark") { removePhoto() }
             }
         }
@@ -434,17 +480,14 @@ struct TableComposerSheet: View {
             + (prefillRecipe.map { "recipe-" + $0.shareRecordName } ?? "table")
     }
 
-    private func saveDraft() -> Bool {
+    private func saveDraft(quietly: Bool = false) -> Bool {
         guard !photoLoading, photoLoadMessage == nil else {
             localSaveMessage = "Finish adding the photo or remove it before saving the draft."
             return false
         }
         do {
-            let draft = TableComposerDraft(title: dishTitle, caption: caption, kind: pollExpanded ? "Question" : "Post",
-                poll: pollOptions, pollEntry: pollEntry, tags: tagged.sorted(),
-                destination: selectedDestinationID, photo: photoData)
-            try draft.save(to: TableComposerDraft.url(for: draftKey))
-            Haptic.tap()
+            try draftSnapshot.save(to: TableComposerDraft.url(for: draftKey))
+            if !quietly { Haptic.tap() }
             return true
         } catch {
             localSaveMessage = "Couldn't save the draft. Your photo and writing are still here."
@@ -453,6 +496,7 @@ struct TableComposerSheet: View {
     }
 
     private func clearDraft() {
+        draftClosed = true
         if let url = try? TableComposerDraft.url(for: draftKey) { try? FileManager.default.removeItem(at: url) }
         guard prefillRecipe == nil, !PlatedApp.usesPreviewContainer else { return }
         draftTitle = ""
@@ -488,9 +532,11 @@ struct TableComposerSheet: View {
                 pollOptions = draft.poll; pollEntry = draft.pollEntry
                 tagged = Set(draft.tags); selectedDestinationID = draft.destination
                 photoData = draft.photo
+                draftSaved = true
                 return
             }
         } catch {
+            draftRecoveryBlocked = true
             localSaveMessage = "The saved draft couldn't be opened. It has been kept on this device."
             return
         }

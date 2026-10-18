@@ -81,7 +81,7 @@ final class NotificationRouter: NSObject, UNUserNotificationCenterDelegate {
         // Verbs that name outcomes, same as a button. The system draws
         // them; the copy is ours.
         let plate = UNNotificationAction(
-            identifier: Action.plate, title: "Plate it", options: []
+            identifier: Action.plate, title: "Like", options: []
         )
         let reply = UNTextInputNotificationAction(
             identifier: Action.reply, title: "Reply", options: [],
@@ -106,7 +106,7 @@ final class NotificationRouter: NSObject, UNUserNotificationCenterDelegate {
             category(Category.dish, [plate], "Open to see it."),
             category(Category.ask, [], "Open to answer."),
             category(Category.comment, [reply], "Open to read it."),
-            category(Category.plates, [], "Open the dish."),
+            category(Category.plates, [], "Open the post."),
             category(Category.turnMine, [grocery], "Open the plan."),
             category(Category.plan, [], "Open the plan."),
             category(Category.cook, [], "Time to check the pan."),
@@ -223,7 +223,10 @@ final class NotificationRouter: NSObject, UNUserNotificationCenterDelegate {
             guard response.actionIdentifier == UNNotificationDefaultActionIdentifier,
                   let raw = info[Key.link] as? String, let url = URL(string: raw)
             else { return }
-            await MainActor.run { LinkRelay.open(url) }
+            let target = DeepLink.postID(in: url).flatMap { record in
+                (info["comment"] as? String).flatMap { $0.isEmpty ? nil : DeepLink.url(post: record, comment: $0) }
+            } ?? url
+            await MainActor.run { LinkRelay.open(target) }
         }
     }
 
@@ -286,10 +289,17 @@ enum LinkRelay {
 
     static let postRequested = Notification.Name("plated.link.post")
     private static var pendingPost: String?
+    private static var pendingComment: String?
 
-    static func request(post record: String) {
+    static func request(post record: String, comment: String? = nil) {
         pendingPost = record
+        pendingComment = comment
         NotificationCenter.default.post(name: postRequested, object: nil)
+    }
+
+    static func takeComment() -> String? {
+        defer { pendingComment = nil }
+        return pendingComment
     }
 
     static func takePost() -> String? {

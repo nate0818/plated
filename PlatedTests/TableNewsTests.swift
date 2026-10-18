@@ -361,7 +361,7 @@ final class TableNewsTests: XCTestCase {
         XCTAssertEqual(notices[0].kind, .plates)
         XCTAssertEqual(notices[0].identifier, TableNews.idPrefix + "plates:\(post.shareRecordName)")
         XCTAssertEqual(notices[0].rowKey, "plates:\(post.shareRecordName)")
-        XCTAssertEqual(notices[0].title, "Riley and Sam plated your Ragù")
+        XCTAssertEqual(notices[0].title, "Riley and Sam liked your Ragù")
     }
 
     func testASecondPlateUpdatesTheSameLineWithEveryoneSoFar() {
@@ -371,7 +371,7 @@ final class TableNewsTests: XCTestCase {
         TableShare.merge(first, into: context)
         TableNews.learnNames(from: first)
         let one = TableNews.digest(first, newSeats: [], context: context)
-        XCTAssertEqual(one.first?.title, "Riley plated your Ragù")
+        XCTAssertEqual(one.first?.title, "Riley liked your Ragù")
         TableNews.remember(one.map(\.key))
 
         var second = TableShare.Changes()
@@ -379,7 +379,7 @@ final class TableNewsTests: XCTestCase {
         TableShare.merge(second, into: context)
         TableNews.learnNames(from: second)
         let two = TableNews.digest(second, newSeats: [], context: context)
-        XCTAssertEqual(two.first?.title, "Riley and Sam plated your Ragù")
+        XCTAssertEqual(two.first?.title, "Riley and Sam liked your Ragù")
         XCTAssertEqual(two.first?.identifier, one.first?.identifier)
     }
 
@@ -501,7 +501,7 @@ final class TableNewsTests: XCTestCase {
         TableNews.learnNames(from: everyone)
         let kiss = TableNews.digest(everyone, newSeats: [], context: context)
         XCTAssertEqual(kiss.first?.kind, .kiss)
-        XCTAssertEqual(kiss.first?.title, "Everyone plated your Ragù")
+        XCTAssertEqual(kiss.first?.title, "Everyone liked your Ragù")
         XCTAssertFalse(kiss.first?.passive ?? true)
         XCTAssertEqual(TableNews.content(for: kiss[0], at: Calendar.current.date(from: noon)!).interruptionLevel, .active)
     }
@@ -564,7 +564,7 @@ final class TableNewsTests: XCTestCase {
         TableShare.merge(first, into: context)
         await TableNews.deliver(first, context: context)
         let row = rows(eventKey: "plates:\(post.shareRecordName)").first
-        XCTAssertEqual(row?.body, "Riley and Sam plated your Ragù.")
+        XCTAssertEqual(row?.body, "Riley and Sam liked your Ragù.")
         row?.isRead = true
         let stamped = row?.createdAt
 
@@ -575,7 +575,7 @@ final class TableNewsTests: XCTestCase {
         TableShare.merge(back, into: context)
         await TableNews.deliver(back, context: context)
         let after = rows(eventKey: "plates:\(post.shareRecordName)").first
-        XCTAssertEqual(after?.body, "Sam plated your Ragù.")
+        XCTAssertEqual(after?.body, "Sam liked your Ragù.")
         XCTAssertEqual(after?.isRead, true)
         XCTAssertEqual(after?.createdAt, stamped)
     }
@@ -766,7 +766,7 @@ final class TableNewsTests: XCTestCase {
         TableNews.learnNames(from: one)
         let single = TableNews.digest(one, newSeats: [], context: context).first!
         XCTAssertEqual(TableNews.intent(for: single)?.sender?.displayName, "Riley")
-        XCTAssertEqual(single.deed, "Plated your Ragù.")
+        XCTAssertEqual(single.deed, "Liked your Ragù.")
         TableNews.remember([single.key])
 
         var two = TableShare.Changes()
@@ -774,7 +774,7 @@ final class TableNewsTests: XCTestCase {
         TableShare.merge(two, into: context)
         TableNews.learnNames(from: two)
         let pair = TableNews.digest(two, newSeats: [], context: context).first!
-        XCTAssertEqual(pair.title, "Riley and Sam plated your Ragù")
+        XCTAssertEqual(pair.title, "Riley and Sam liked your Ragù")
         XCTAssertNil(TableNews.intent(for: pair))
     }
 
@@ -849,7 +849,7 @@ final class TableNewsTests: XCTestCase {
         TableShare.merge(changes, into: context)
         TableNews.learnNames(from: changes)
         let pair = TableNews.digest(changes, newSeats: [], context: context).first!
-        XCTAssertEqual(pair.title, "Riley and Sam plated your Ragù")
+        XCTAssertEqual(pair.title, "Riley and Sam liked your Ragù")
         XCTAssertFalse(pair.actor.isEmpty)
         XCTAssertNil(TableNews.intent(for: pair))
     }

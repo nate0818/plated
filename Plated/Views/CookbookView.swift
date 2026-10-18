@@ -731,9 +731,9 @@ struct CookbookView: View {
             selected = recipe
         } label: {
             VStack(alignment: .leading, spacing: 10) {
-                RecipeArtwork(data: recipe.photoData, title: recipe.title, ratio: 0.96, radius: Radius.card)
-                Text(recipe.title).plType(.heading, .semibold).foregroundStyle(Color.ink)
-                    .multilineTextAlignment(.leading).lineLimit(typeSize.isAccessibilitySize ? nil : 3)
+                RecipeArtwork(data: recipe.photoData, title: recipe.title, ratio: 1.15, radius: Radius.card)
+                Text(recipe.title).plType(.body, .semibold).foregroundStyle(Color.ink)
+                    .multilineTextAlignment(.leading).lineLimit(typeSize.isAccessibilitySize ? nil : 2)
                     .fixedSize(horizontal: false, vertical: true)
                 Text(recipeMetaLine(recipe)).plType(.caption).foregroundStyle(Color.inkSecondary)
                 Text(recipeAttributionLine(recipe, members: members))
@@ -753,7 +753,7 @@ struct CookbookView: View {
                     .contentTransition(.symbolEffect(.replace))
                     .font(.system(size: 16, weight: .medium))
                     .foregroundStyle(recipe.isFavorite ? Color.accentText : Color.ink)
-                    .frame(width: 38, height: 38).background(Color.canvas.opacity(0.95), in: Circle())
+                    .frame(width: 30, height: 30).background(Color.canvas, in: Circle())
                     .frame(width: 44, height: 44).contentShape(Circle())
             }.buttonStyle(.pressable).padding(5)
                 .accessibilityLabel(recipe.isFavorite ? "Remove from favorites" : "Add to favorites")
@@ -1069,6 +1069,7 @@ struct RecipeDetailView: View {
 
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var typeSize
     @Query(sort: \HouseholdMember.createdAt) private var members: [HouseholdMember]
 
     @State private var editorShown = false
@@ -1089,6 +1090,15 @@ struct RecipeDetailView: View {
     @State private var replacingCook: Recipe?
     @State private var groceriesNotice: String?
     @Query private var allRecipes: [Recipe]
+
+    private func sectionJump(_ title: String, to anchor: String, proxy: ScrollViewProxy) -> some View {
+        Button(title) { withAnimation(.plSnap) { proxy.scrollTo(anchor, anchor: .top) } }
+            .plType(.footnote, .semibold)
+            .foregroundStyle(Color.accentText)
+            .frame(minHeight: 44)
+            .buttonStyle(.pressable)
+            .accessibilityHint("Jumps to \(title.lowercased())")
+    }
 
     private func metadataFact(_ label: String, value: String, symbol: String) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -1116,7 +1126,7 @@ struct RecipeDetailView: View {
 
                 VStack(alignment: .leading, spacing: 6) {
                     Text(recipe.title)
-                        .plType(.display)
+                        .plType(.title)
                         .foregroundStyle(Color.ink)
                     Text(byline)
                         .plType(.caption, .bold)
@@ -1137,23 +1147,22 @@ struct RecipeDetailView: View {
                     }
                 }
 
-                // The shared atoms, not a fourth dialect. A hairline box
-                // around a number reads as a button that isn't one, and the
-                // all-caps micro-type this used to wear is dashboard voice.
-                HStack(spacing: 0) {
-                    CountBlock(
-                        value: recipe.totalMinutes > 0 ? recipe.timeText : "Not set",
-                        label: "Time"
-                    )
-                    CountDivider()
-                    CountBlock(value: "\(meal?.servings ?? servesLens ?? recipe.servings)", label: "Serves")
-                    CountDivider()
-                    // Answers the same way "Time" does when the number
-                    // behind both of them is missing.
-                    CountBlock(
-                        value: recipe.difficultyIsKnown ? recipe.difficultyValue.rawValue : "Not set",
-                        label: "Effort"
-                    )
+                let factLayout = typeSize.isAccessibilitySize
+                    ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+                    : AnyLayout(HStackLayout(spacing: 16))
+                factLayout {
+                    if recipe.totalMinutes > 0 { Label(recipe.timeText, systemImage: "clock") }
+                    Label("Serves \(meal?.servings ?? servesLens ?? recipe.servings)", systemImage: "person.2")
+                    if recipe.difficultyIsKnown { Text(recipe.difficultyValue.rawValue) }
+                }
+                .plType(.footnote).foregroundStyle(Color.inkSecondary)
+
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 20) {
+                        if !ingredientRows.isEmpty { sectionJump("Ingredients", to: "recipe-ingredients", proxy: proxy) }
+                        if !recipe.steps.isEmpty || !recipe.instructions.isEmpty { sectionJump("Directions", to: "recipe-directions", proxy: proxy) }
+                        if meal?.isCooked == true || !recipe.cookNotes.isEmpty { sectionJump("Notes", to: "recipe-notes", proxy: proxy) }
+                    }
                 }
 
                 if justSaved {
@@ -1244,24 +1253,26 @@ struct RecipeDetailView: View {
                         }
                     }
                     .padding(.top, 4)
+                    .id("recipe-ingredients")
                 }
 
                 if !recipe.steps.isEmpty {
                     VStack(alignment: .leading, spacing: 12) {
-                        MicroLabel("Steps")
+                        MicroLabel("Directions")
                         ForEach(Array(recipe.steps.enumerated()), id: \.offset) { index, step in
                             stepRow(index: index, step: step)
                                 .id(Self.stepAnchor(index))
                         }
                     }
                     .padding(.top, 4)
+                    .id("recipe-directions")
                 } else if !recipe.instructions.isEmpty {
                     VStack(alignment: .leading, spacing: 8) {
-                        MicroLabel("Steps")
+                        MicroLabel("Directions")
                         Text(recipe.instructions)
                             .plType(.body, .medium)
                             .foregroundStyle(Color.ink)
-                    }
+                    }.id("recipe-directions")
                 }
 
                 // Asked once the cooking is over, which is the only moment a
@@ -1280,6 +1291,7 @@ struct RecipeDetailView: View {
                     }
                     .padding(.top, 4)
                     .transition(.plUnfold)
+                    .id("recipe-notes")
                 } else if !recipe.cookNotes.isEmpty {
                     VStack(alignment: .leading, spacing: 6) {
                         MicroLabel("Notes")
@@ -1294,6 +1306,7 @@ struct RecipeDetailView: View {
                             .background(Color.fill, in: Radius.shape(Radius.card))
                     }
                     .padding(.top, 4)
+                    .id("recipe-notes")
                 }
 
                 if let meal, meal.isCooked {
@@ -1476,11 +1489,11 @@ struct RecipeDetailView: View {
                 }
                 .buttonStyle(.pressable)
                 .accessibilityLabel("Marked cooked. Undo")
-            } else if meal.date > Calendar.current.startOfDay(for: .now) {
+            } else if meal.date.startOfDay > Date.now.startOfDay {
                 SecondaryActionButton(title: "Change this night", systemImage: "arrow.2.squarepath") {
                     swapShown = true
                 }
-            } else if meal.date < Calendar.current.startOfDay(for: .now) {
+            } else if meal.date.startOfDay < Date.now.startOfDay {
                 PrimaryActionButton(title: "Mark cooked", systemImage: "checkmark") {
                     markMealCooked(meal)
                 }
@@ -1630,7 +1643,7 @@ struct RecipeDetailView: View {
         Group {
             let data = heroData
             if let data, let image = UIImage(data: data) {
-                PhotoWell(image: image, height: 260, cornerRadius: Radius.hero)
+                PhotoWell(image: image, height: 190, cornerRadius: Radius.hero)
                     .plCardShadow()
             } else {
                 Button {

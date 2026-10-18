@@ -341,7 +341,7 @@ enum TableNews {
             notices.append(Notice(
                 kind: .comment, key: key, identifier: idPrefix + key,
                 title: title, body: body, line: line,
-                link: DeepLink.url(post: n.post), post: n.post,
+                link: DeepLink.url(post: n.post, comment: n.recordName), post: n.post,
                 direct: true, photo: post.photoData, feedKind: .commentAdded,
                 actor: n.authorName, at: n.createdAt, rowKey: key, relevance: 1.0,
                 actorID: n.authorID, deed: deed,
@@ -384,8 +384,8 @@ enum TableNews {
                 seats: TableKiss.seating(members: members, dishAuthors: posts.map(\.authorName))
             )
             let title = kiss
-                ? "Everyone plated your \(dish)"
-                : "\(list(named, of: platers.count)) plated your \(dish)"
+                ? "Everyone liked your \(dish)"
+                : "\(list(named, of: platers.count)) liked your \(dish)"
             let key = fresh.map { "plate:\(record):\($0.author)" }.joined(separator: "|")
             notices.append(Notice(
                 kind: kiss ? .kiss : .plates, key: key,
@@ -398,7 +398,7 @@ enum TableNews {
                 at: fresh.map(\.at).max() ?? .now,
                 rowKey: "plates:\(record)", passive: !kiss, relevance: kiss ? 0.9 : 0.3,
                 actorID: platers.count == 1 ? (platers.first ?? "") : "",
-                deed: "Plated your \(dish).", group: "Your \(dish)"
+                deed: "Liked your \(dish).", group: "Your \(dish)"
             ))
         }
 
@@ -492,7 +492,7 @@ enum TableNews {
                 identifier: idPrefix + "commentLikes:\(record)",
                 title: title, body: excerpt,
                 line: title + (excerpt.isEmpty ? "." : ": “\(excerpt)”"),
-                link: DeepLink.url(post: post.shareRecordName), post: post.shareRecordName,
+                link: DeepLink.url(post: post.shareRecordName, comment: record), post: post.shareRecordName,
                 direct: false, photo: comment.photoData, feedKind: .commentReaction,
                 actor: fresh.first?.authorName ?? "", at: fresh.map(\.at).max() ?? .now,
                 rowKey: "commentLikes:\(record)", passive: true, relevance: 0.3,
@@ -1153,7 +1153,7 @@ enum TableNews {
                 context.delete(row)
                 gone.append(idPrefix + key)
             } else {
-                row.body = "\(list(named, of: people.count)) \(r.isBallot ? "voted on" : "plated your") \(label(post))."
+                row.body = "\(list(named, of: people.count)) \(r.isBallot ? "voted on" : "liked your") \(label(post))."
             }
             touched = true
         }

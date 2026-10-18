@@ -131,8 +131,8 @@ struct HouseholdStatsView: View {
             Badge(id: "ten-recipes", title: "Ten dishes deep",
                   detail: "A cookbook worth cooking from.",
                   mark: .symbol("books.vertical"), have: liveRecipes.count, need: 10),
-            Badge(id: "ten-plates", title: "Ten happy plates",
-                  detail: "Ten plates across everything you've shared.",
+            Badge(id: "ten-plates", title: "Ten likes",
+                  detail: "Ten likes across everything you've shared.",
                   mark: .plate, have: platesEarned, need: 10),
             Badge(id: "week-planned", title: "A week, plated",
                   detail: "Seven nights planned inside one week.",
@@ -231,7 +231,7 @@ struct HouseholdStatsView: View {
                 spacing: 22
             ) {
                 countCell("Cooked dinners", dinnerMetrics.cookedCount, .symbol("fork.knife"))
-                countCell("Happy plates", platesEarned, .plate)
+                countCell("Likes", platesEarned, .plate)
                 countCell("Chef's kisses", kissCount, .symbol("sparkles"), accent: kissCount > 0)
                 countCell("Recipes", liveRecipes.count, .symbol("text.book.closed"))
                 countCell("Shared dishes", dishPosts.count, .symbol("table.furniture"))
