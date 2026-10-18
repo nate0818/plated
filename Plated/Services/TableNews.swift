@@ -282,21 +282,23 @@ enum TableNews {
                     objectTitle: question
                 ))
             } else {
-                let dish = r.dishTitle.isEmpty ? "a dish" : r.dishTitle
-                let deed = (tagged ? "Tagged you in \(dish)." : "Plated \(dish).")
+                let generalPost = r.kind == "post"
+                let dish = r.dishTitle.isEmpty ? (generalPost ? "a post" : "a dish") : r.dishTitle
+                let verb = generalPost ? "shared" : "plated"
+                let deed = (tagged ? "Tagged you in \(dish)." : "\(generalPost ? "Shared" : "Plated") \(dish).")
                     + (r.caption.isEmpty ? "" : " \(r.caption)")
                 notices.append(Notice(
                     kind: .dish, key: key, identifier: idPrefix + key,
-                    title: tagged ? "\(who) tagged you in \(dish)" : "\(who) plated \(dish)",
+                    title: tagged ? "\(who) tagged you in \(dish)" : "\(who) \(verb) \(dish)",
                     body: r.caption.isEmpty ? "On the Table now." : r.caption,
-                    line: tagged ? "\(who) tagged you in \(dish)." : "\(who) plated \(dish).",
+                    line: tagged ? "\(who) tagged you in \(dish)." : "\(who) \(verb) \(dish).",
                     link: DeepLink.url(post: r.recordName), post: r.recordName,
                     direct: tagged, photo: r.photoData, feedKind: .dishPosted,
                     actor: r.authorName, at: r.createdAt, rowKey: key,
                     relevance: tagged ? 0.9 : 0.6,
                     actorID: r.authorID, deed: deed, group: "The Table",
                     addressed: tagged,
-                    template: tagged ? "{actor} tagged you in {object}." : "{actor} plated {object}.",
+                    template: tagged ? "{actor} tagged you in {object}." : "{actor} \(verb) {object}.",
                     objectTitle: dish
                 ))
             }
@@ -1654,7 +1656,7 @@ enum TableNews {
                 ? String(post.caption.prefix(37)).trimmingCharacters(in: .whitespaces) + "..."
                 : post.caption
         }
-        return post.kind == "ask" ? "ask" : "dish"
+        return post.kind == "ask" ? "question" : (post.kind == "post" ? "post" : "dish")
     }
 
     #if DEBUG

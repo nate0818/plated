@@ -41,6 +41,6 @@ struct MemberDinnerActivity {
 
     var summary: String {
         if cooked == 0 && shared == 0 { return "No activity recorded in the last 7 days." }
-        return "\(cooked) \(cooked == 1 ? "dinner" : "dinners") cooked · \(shared) \(shared == 1 ? "dish" : "dishes") shared"
+        return "\(cooked) \(cooked == 1 ? "dinner" : "dinners") cooked · \(shared) \(shared == 1 ? "post" : "posts") shared"
     }
 }

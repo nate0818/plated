@@ -6,6 +6,21 @@ import SwiftData
 final class WidgetBridgeTests: XCTestCase {
     let day = Date(timeIntervalSince1970: 4_102_444_800).startOfDay
 
+    func testTableWidgetIncludesTextOnlyGeneralPosts() throws {
+        let container = try ModelContainer(for: PlatedStore.schema,
+            configurations: [ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)])
+        let context = container.mainContext
+        let post = TablePost(authorName: "Nate", caption: "Try the tomatoes at the market.", kind: "post")
+        context.insert(post); try context.save()
+        WidgetBridge.publish(from: context)
+        let group = try XCTUnwrap(FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: WidgetBridge.appGroupID))
+        let snapshot = try JSONDecoder().decode(WidgetBridge.Snapshot.self,
+            from: Data(contentsOf: group.appendingPathComponent("week-snapshot.json")))
+        XCTAssertEqual(snapshot.table?.recordID, post.shareRecordName)
+        XCTAssertEqual(snapshot.table?.caption, post.caption)
+        XCTAssertEqual(snapshot.table?.hasPhoto, false)
+    }
+
     func testCookOnlyReservationKeepsWidgetDinnerOpenWithoutInventedArtwork() throws {
         let container = try ModelContainer(for: PlatedStore.schema,
             configurations: [ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)])

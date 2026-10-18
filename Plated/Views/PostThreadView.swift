@@ -373,7 +373,7 @@ struct PostThreadView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }.contentShape(Rectangle())
             }.buttonStyle(.pressable)
-            Text(post.kind == "ask" ? "Question" : (post.dishTitle.isEmpty ? "Dish" : post.dishTitle))
+            Text(post.dishTitle.isEmpty ? (post.kind == "ask" ? "Question" : "Post") : post.dishTitle)
                 .plType(.title, .semibold).foregroundStyle(Color.ink)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityAddTraits(.isHeader)

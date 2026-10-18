@@ -229,6 +229,28 @@ final class TableNewsTests: XCTestCase {
         XCTAssertFalse(notices[0].direct)
     }
 
+    func testGeneralFoodFindIsSharedInsteadOfPlatedAndKeepsItsDeepLink() {
+        var post = remoteDish(by: "riley", id: "restaurant")
+        post.kind = "post"; post.dishTitle = "Cafe on Main"; post.caption = "Worth a visit."
+        var changes = TableShare.Changes(); changes.posts = [post]
+        let notice = TableNews.digest(changes, newSeats: [], context: context)[0]
+        XCTAssertEqual(notice.title, "Riley shared Cafe on Main")
+        XCTAssertEqual(notice.template, "{actor} shared {object}.")
+        XCTAssertEqual(notice.body, "Worth a visit.")
+        XCTAssertEqual(DeepLink.postID(in: notice.link), "post-restaurant")
+        post.dishTitle = ""; changes.posts = [post]
+        XCTAssertEqual(TableNews.digest(changes, newSeats: [], context: context)[0].title, "Riley shared a post")
+    }
+
+    func testCommentOnUntitledGeneralPostDoesNotCallItADish() {
+        let post = myPost(); post.kind = "post"; post.dishTitle = ""; post.caption = "Market tomatoes"
+        var changes = TableShare.Changes()
+        changes.notes = [note(on: post, by: "sam", text: "They look great")]
+        let notice = TableNews.digest(changes, newSeats: [], context: context)[0]
+        XCTAssertTrue(notice.title.contains("post"))
+        XCTAssertFalse(notice.title.contains("dish"))
+    }
+
     func testMyOwnDishFromAnotherDeviceIsNotNews() {
         var changes = TableShare.Changes()
         changes.posts = [remoteDish(by: me, id: "mine")]

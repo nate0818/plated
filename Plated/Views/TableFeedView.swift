@@ -255,7 +255,7 @@ struct TableFeedView: View {
                 .plType(.body, .bold)
                 .foregroundStyle(Color.ink)
             Text(scope == .household
-                 ? "Share a dish or ask a question to get the conversation going."
+                 ? "Share a photo, a food find, or a question to get the conversation going."
                  : "Share what you cooked, ask what sounds good, or invite someone you trust.")
                 .plType(.footnote)
                 .foregroundStyle(Color.inkSecondary)
@@ -1000,7 +1000,7 @@ struct TableFeedView: View {
                 // nobody is told about is not a feature most people have.
                 // The long press still works as an accelerator.
                 Menu {
-                    postMenu(post, canSave: true)
+                    postMenu(post, canSave: post.kind == "dish")
                 } label: {
                     Image(systemName: "ellipsis")
                         .font(.system(size: 15, weight: .semibold))
@@ -1022,7 +1022,7 @@ struct TableFeedView: View {
                     .buttonStyle(.pressable)
                     .accessibilityLabel(
                         post.dishTitle.isEmpty
-                            ? "Open dish by \(post.authorName)"
+                            ? "Open post by \(post.authorName)"
                             : "Open \(post.dishTitle) by \(post.authorName)"
                     )
                     .accessibilityHint("Opens the post")
@@ -1160,7 +1160,7 @@ struct TableFeedView: View {
         .padding(.top, 16)
         .padding(.bottom, 18)
         .animation(.plPop, value: post.hasChefsKiss(seats: seatCount))
-        .contextMenu { postMenu(post, canSave: true) }
+        .contextMenu { postMenu(post, canSave: post.kind == "dish") }
     }
 
     @ViewBuilder
@@ -1180,7 +1180,7 @@ struct TableFeedView: View {
                 muteVersion += 1
                 showToast(muted ? "Unmuted" : "Muted. Replies to you still get through")
             } label: {
-                Label(muted ? "Unmute this dish" : "Mute this dish", systemImage: muted ? "bell" : "bell.slash")
+                Label(muted ? "Unmute this post" : "Mute this post", systemImage: muted ? "bell" : "bell.slash")
             }
         }
         if canSave {
@@ -1381,6 +1381,13 @@ struct TableFeedView: View {
                 openThread(post)
             } label: {
                 VStack(alignment: .leading, spacing: 8) {
+                    if let data = post.photoData, let image = UIImage(data: data) {
+                        Image(uiImage: image).resizable().scaledToFit()
+                            .frame(maxHeight: 260).accessibilityLabel("Post photo")
+                    }
+                    if !post.dishTitle.isEmpty {
+                        Text(post.dishTitle).plType(.heading).foregroundStyle(Color.ink)
+                    }
                     Text(post.caption)
                         .plType(.body)
                         .foregroundStyle(Color.ink)
@@ -1458,15 +1465,16 @@ struct TableFeedView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 commentsButton(post)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                saveButton(post)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                if post.kind == "dish" {
+                    saveButton(post).frame(maxWidth: .infinity, alignment: .leading)
+                }
             }
         } else {
             HStack(spacing: 14) {
                 plateButton(post)
                 commentsButton(post)
                 Spacer()
-                saveButton(post)
+                if post.kind == "dish" { saveButton(post) }
             }
         }
     }
@@ -1553,7 +1561,7 @@ struct TableFeedView: View {
             .plTapTarget()
         }
         .buttonStyle(.pressable)
-        .accessibilityLabel(post.platedByMeNow ? "Remove your plate" : "Plate this dish")
+        .accessibilityLabel(post.platedByMeNow ? "Remove your reaction" : "Like this post")
         .accessibilityValue(post.totalPlates.things("plate"))
         .accessibilityAddTraits(post.platedByMeNow ? .isSelected : [])
     }
@@ -1855,7 +1863,7 @@ struct PlateReactionButton: View {
                 .plTapTarget()
         }
         .buttonStyle(.pressable)
-        .accessibilityLabel(post.platedByMeNow ? "Remove your plate" : "Plate this dish")
+        .accessibilityLabel(post.platedByMeNow ? "Remove your reaction" : "Like this post")
         .accessibilityValue(post.totalPlates.things("plate"))
         .accessibilityAddTraits(post.platedByMeNow ? .isSelected : [])
     }

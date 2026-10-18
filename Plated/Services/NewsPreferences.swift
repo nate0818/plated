@@ -36,7 +36,7 @@ enum NewsPreferences {
 
         var title: String {
             switch self {
-            case .dishes: return "Dishes and asks"
+            case .dishes: return "Posts and questions"
             case .replies: return "Replies and mentions"
             case .comments: return "Comments on yours"
             case .plates: return "Plates and votes on yours"
@@ -48,7 +48,7 @@ enum NewsPreferences {
         /// The row's caption when the switch is on.
         var detail: String {
             switch self {
-            case .dishes: return "When somebody plates a dish or asks the table"
+            case .dishes: return "When someone shares a post or asks the Table"
             case .replies: return "A reply to you, your name, or a tag. Gets through a muted dish."
             case .comments: return "When somebody writes on a dish you plated"
             case .plates: return "Quiet: in the list and on the icon, never a banner"

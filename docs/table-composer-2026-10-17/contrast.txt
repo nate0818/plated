@@ -1,0 +1,7 @@
+Composer semantic-token contrast, calculated from Theme.swift (sRGB WCAG luminance).
+ink / canvas: light 12.09:1, dark 14.93:1
+inkSecondary / canvas: light 5.44:1, dark 8.42:1
+accentText / canvas: light 7.50:1, dark 9.67:1
+onPrimary / primaryAction: light 5.49:1, dark 5.49:1
+inkSecondary / fill: light 4.96:1, dark 7.41:1
+dangerText / canvas: light 6.11:1, dark 8.63:1

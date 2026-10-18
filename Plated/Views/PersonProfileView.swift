@@ -73,7 +73,7 @@ private struct PersonProfileContent: View {
     @State private var settingsShown = false
     @State private var editShown = false
     @State private var householdShown = false
-    @State private var profileTab = "Dishes"
+    @State private var profileTab = "Posts"
     @State private var savedRecipe: Recipe?
     @State private var openedPost: TablePost?
     @State private var awardsShown = false
@@ -95,7 +95,7 @@ private struct PersonProfileContent: View {
     /// What "nothing here" means depends on who they are. A kid who will
     /// never post is not the same silence as somebody who joined last week.
     private var emptyLine: String {
-        if isMe { return "Dinner wins, weeknight experiments and favorite plates will collect here." }
+        if isMe { return "Photos, food finds, and moments you share will collect here." }
         switch member?.seat {
         case .invited:
             return "\(firstName) hasn't taken their seat yet."
@@ -104,7 +104,7 @@ private struct PersonProfileContent: View {
         case .left:
             return "\(firstName) left the household."
         default:
-            return "\(firstName) hasn't shared a plate yet."
+            return "\(firstName) hasn't shared a post yet."
         }
     }
 
@@ -232,7 +232,7 @@ private struct PersonProfileContent: View {
                             ),
                             spacing: typeSize >= .accessibility1 ? 16 : 0
                         ) {
-                            CountBlock(value: "\(dishes.count)", label: "Dishes")
+                            CountBlock(value: "\(dishes.count)", label: "Posts")
                             CountBlock(value: "\(plateCount)", label: "Happy plates")
                             CountBlock(value: "\(kissCount)", label: "Chef's kisses", accent: kissCount > 0)
                         }
@@ -267,7 +267,7 @@ private struct PersonProfileContent: View {
 
                 let tabsLayout = typeSize.isAccessibilitySize ? AnyLayout(VStackLayout(spacing: 4)) : AnyLayout(HStackLayout(spacing: 0))
                 tabsLayout {
-                    ForEach(isMe ? ["Dishes", "Questions", "Favorites"] : ["Dishes", "Questions"], id: \.self) { tab in
+                    ForEach(isMe ? ["Posts", "Questions", "Favorites"] : ["Posts", "Questions"], id: \.self) { tab in
                         Button { Haptic.select(); withAnimation(.plSnap) { profileTab = tab } } label: {
                             Text(tab)
                                 .plType(.footnote, profileTab == tab ? .semibold : .regular)
@@ -318,9 +318,9 @@ private struct PersonProfileContent: View {
                         }.padding(.horizontal, 24)
                     }
                 } else {
-                    if dishes.isEmpty { profileEmpty(isMe ? "Your first plate starts here" : "Nothing plated yet", detail: emptyLine) }
+                    if dishes.isEmpty { profileEmpty(isMe ? "Your first post starts here" : "No posts yet", detail: emptyLine) }
                     else {
-                        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 3), count: 3), spacing: 3) {
+                        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 3), count: typeSize.isAccessibilitySize ? 1 : 2), spacing: 3) {
                             ForEach(dishes, id: \.persistentModelID) { post in postCell(post) }
                         }
                     }
@@ -560,10 +560,14 @@ private struct PersonProfileContent: View {
                         .frame(width: proxy.size.width, height: proxy.size.width)
                         .clipped()
                 } else {
-                    Color.fill
-                        .overlay {
-                            PlateReactionGlyph(filled: false)
-                        }
+                    Text(post.dishTitle.isEmpty ? post.caption : post.dishTitle)
+                        .plType(.footnote, .medium)
+                        .foregroundStyle(Color.ink)
+                        .multilineTextAlignment(.leading)
+                        .lineLimit(typeSize.isAccessibilitySize ? 6 : 5)
+                        .padding(12)
+                        .frame(width: proxy.size.width, height: proxy.size.width, alignment: .topLeading)
+                        .background(Color.fill)
                 }
             }
             .aspectRatio(1, contentMode: .fit)

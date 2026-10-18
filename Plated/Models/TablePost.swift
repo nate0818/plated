@@ -1,16 +1,15 @@
 import Foundation
 import SwiftData
 
-/// One moment shared to the Table — a plated dish (photo + caption) or an
-/// open ask ("what should we plate Thursday?"). Feed mechanics are
-/// Instagram's, but the reaction is a plate and ten plates earn the kiss.
+/// A private Table post: writing, a photo, a food find, or a question/poll.
+/// Recipe-derived and legacy dish posts retain their cookbook semantics.
 @Model
 final class TablePost {
     var authorName: String = ""
     var authorColorHex: String = "FF5A3C"
     var dishTitle: String = ""
     var caption: String = ""
-    /// "dish" (photo moment) or "ask" (open request for ideas).
+    /// Existing wire field: "dish" (legacy/recipe), "post" (general), or "ask" (question/poll).
     var kind: String = "dish"
     /// True for posts from open tables shown in Discover, never in your feed.
     var isDiscover: Bool = false

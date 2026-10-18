@@ -1006,7 +1006,7 @@ struct CreateMenuSheet: View {
                     OptionRow(
                         icon: "camera",
                         title: "Post to the Table",
-                        detail: "A photo of what you just cooked"
+                        detail: "Photos, food finds, places, and questions"
                     ) { onChoose(.tablePost) }
                     OptionRow(
                         icon: "book.closed",

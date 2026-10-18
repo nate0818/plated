@@ -1,22 +1,7 @@
 import SwiftUI
 import SwiftData
 
-/// Change what you said about a dish you already posted.
-///
-/// A posted dish could not be edited at all: the only remedy for a typo, or
-/// for naming the wrong thing, was to delete the post and lose its plates and
-/// its comments with it. Every social product this one invites comparison
-/// with lets you fix the words — Instagram and Threads both edit the caption
-/// in place and leave the media alone, which is exactly the right split here
-/// too. The photograph is the dinner and it happened; the sentence about it
-/// is just a sentence.
-///
-/// The wire needs nothing new. `TableShare.publish` reuses a non-empty
-/// `shareRecordName` rather than minting one, so republishing overwrites the
-/// same record, and `TableShare.merge` already copies `caption` and
-/// `dishTitle` onto a matched post and deliberately leaves plates and
-/// comments alone. An edit therefore travels on the machinery that was
-/// already there.
+/// Edit a post in place while keeping its identity, comments, and reactions.
 struct PostEditSheet: View {
     let post: TablePost
 
@@ -39,8 +24,8 @@ struct PostEditSheet: View {
 
     /// Nothing to save is not an error, it is a reason to be quiet.
     private var changed: Bool {
-        dishTitle.trimmingCharacters(in: .whitespaces) != post.dishTitle
-            || caption.trimmingCharacters(in: .whitespaces) != post.caption
+        dishTitle.trimmingCharacters(in: .whitespacesAndNewlines) != post.dishTitle
+            || caption.trimmingCharacters(in: .whitespacesAndNewlines) != post.caption
     }
 
     private var valid: Bool {
@@ -68,8 +53,8 @@ struct PostEditSheet: View {
                     }
                 }
 
-                if post.kind != "ask" {
-                    TextField("Name the dish", text: $dishTitle)
+                if post.kind != "ask" || !post.dishTitle.isEmpty {
+                    TextField("Title · optional", text: $dishTitle)
                         .plType(.body)
                         .padding(.horizontal, 14)
                         .frame(minHeight: 48)
@@ -136,8 +121,8 @@ struct PostEditSheet: View {
     /// the local values back rather than leaving the table disagreeing with
     /// the phone about what was said.
     private func save() {
-        let newTitle = dishTitle.trimmingCharacters(in: .whitespaces)
-        let newCaption = caption.trimmingCharacters(in: .whitespaces)
+        let newTitle = dishTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        let newCaption = caption.trimmingCharacters(in: .whitespacesAndNewlines)
         let oldTitle = post.dishTitle
         let oldCaption = post.caption
 

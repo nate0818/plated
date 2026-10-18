@@ -1,0 +1,453 @@
+SwiftUI UI audit: 166 files, profile=standard, high=3 medium=442 low=7
+[HIGH  ] Services/TableInvites.swift:50 identity.no-transient-uuid — A transient UUID breaks view, collection, or transition identity.
+[HIGH  ] Support/HouseholdInviteLog.swift:47 identity.no-transient-uuid — A transient UUID breaks view, collection, or transition identity.
+[HIGH  ] Views/Components/DishView.swift:148 animation.scope-value — Verify this animation is value-scoped; unscoped animation causes unrelated changes to animate.
+[MEDIUM] PlatedApp.swift:348 animation.no-delay-state-machine — Delayed work near UI code can race rapid interaction; use explicit state, phases, or cancellable tasks.
+[MEDIUM] PlatedApp.swift:355 animation.no-delay-state-machine — Delayed work near UI code can race rapid interaction; use explicit state, phases, or cancellable tasks.
+[MEDIUM] PlatedApp.swift:368 animation.no-delay-state-machine — Delayed work near UI code can race rapid interaction; use explicit state, phases, or cancellable tasks.
+[MEDIUM] PlatedApp.swift:380 animation.no-delay-state-machine — Delayed work near UI code can race rapid interaction; use explicit state, phases, or cancellable tasks.
+[MEDIUM] PlatedApp.swift:431 animation.no-delay-state-machine — Delayed work near UI code can race rapid interaction; use explicit state, phases, or cancellable tasks.
+[MEDIUM] PlatedApp.swift:443 animation.no-delay-state-machine — Delayed work near UI code can race rapid interaction; use explicit state, phases, or cancellable tasks.
+[MEDIUM] PlatedApp.swift:449 animation.no-delay-state-machine — Delayed work near UI code can race rapid interaction; use explicit state, phases, or cancellable tasks.
+[MEDIUM] Services/CloudSync.swift:423 animation.no-delay-state-machine — Delayed work near UI code can race rapid interaction; use explicit state, phases, or cancellable tasks.
+[MEDIUM] Services/ForegroundSync.swift:28 animation.no-delay-state-machine — Delayed work near UI code can race rapid interaction; use explicit state, phases, or cancellable tasks.
+[MEDIUM] Services/ForegroundSync.swift:75 animation.no-delay-state-machine — Delayed work near UI code can race rapid interaction; use explicit state, phases, or cancellable tasks.
+[MEDIUM] Services/HouseholdOutbox.swift:201 animation.no-delay-state-machine — Delayed work near UI code can race rapid interaction; use explicit state, phases, or cancellable tasks.
+[MEDIUM] Services/HouseholdSync.swift:349 animation.no-delay-state-machine — Delayed work near UI code can race rapid interaction; use explicit state, phases, or cancellable tasks.
+[MEDIUM] Services/HouseholdSync.swift:361 animation.no-delay-state-machine — Delayed work near UI code can race rapid interaction; use explicit state, phases, or cancellable tasks.
+[MEDIUM] Services/NotificationScheduler.swift:87 animation.no-delay-state-machine — Delayed work near UI code can race rapid interaction; use explicit state, phases, or cancellable tasks.
+[MEDIUM] Services/PlanShare.swift:478 animation.no-delay-state-machine — Delayed work near UI code can race rapid interaction; use explicit state, phases, or cancellable tasks.
+[MEDIUM] Services/ProngsbyMind.swift:92 animation.no-delay-state-machine — Delayed work near UI code can race rapid interaction; use explicit state, phases, or cancellable tasks.
+[MEDIUM] Services/RecipeImporter.swift:284 animation.no-delay-state-machine — Delayed work near UI code can race rapid interaction; use explicit state, phases, or cancellable tasks.
+[MEDIUM] Services/TableNews.swift:1767 color.hardcoded-rgb — Verify this hardcoded color across light, dark, increased contrast, and material backgrounds.
+[MEDIUM] Services/TableOutbox.swift:140 animation.no-delay-state-machine — Delayed work near UI code can race rapid interaction; use explicit state, phases, or cancellable tasks.
+[MEDIUM] Support/EdgeBack.swift:32 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Support/SheetDismissal.swift:48 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Support/SwipeBack.swift:18 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Support/Theme.swift:123 interaction.semantic-control — Check whether this tap should be a Button, NavigationLink, Toggle, or another semantic control.
+[MEDIUM] Support/Theme.swift:134 interaction.semantic-control — Check whether this tap should be a Button, NavigationLink, Toggle, or another semantic control.
+[MEDIUM] Support/Theme.swift:376 layout.geometry-reader — GeometryReader is valid but often overused; verify it does not create unstable or greedy layout.
+[MEDIUM] Support/Theme.swift:493 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Support/Theme.swift:513 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Support/Theme.swift:521 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Support/Theme.swift:547 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Support/Theme.swift:553 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Support/Theme.swift:571 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Support/Theme.swift:653 interaction.semantic-control — Check whether this tap should be a Button, NavigationLink, Toggle, or another semantic control.
+[MEDIUM] Support/Theme.swift:701 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Support/Theme.swift:781 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Support/Theme.swift:922 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Support/Theme.swift:957 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/AwardsGalleryView.swift:108 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/AwardsGalleryView.swift:112 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/AwardsGalleryView.swift:129 layout.geometry-reader — GeometryReader is valid but often overused; verify it does not create unstable or greedy layout.
+[MEDIUM] Views/AwardsGalleryView.swift:137 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/AwardsGalleryView.swift:235 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/AwardsGalleryView.swift:412 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/AwardsGalleryView.swift:427 layout.geometry-reader — GeometryReader is valid but often overused; verify it does not create unstable or greedy layout.
+[MEDIUM] Views/AwardsGalleryView.swift:435 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/Components/ActivityBell.swift:71 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/Components/DesignComponents.swift:14 layout.geometry-reader — GeometryReader is valid but often overused; verify it does not create unstable or greedy layout.
+[MEDIUM] Views/Components/DesignComponents.swift:20 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/Components/DesignComponents.swift:79 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/Components/DesignComponents.swift:102 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/Components/DesignComponents.swift:124 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/Components/DesignComponents.swift:126 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/Components/DishView.swift:352 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/Components/PlanDateStrip.swift:93 layout.geometry-reader — GeometryReader is valid but often overused; verify it does not create unstable or greedy layout.
+[MEDIUM] Views/Components/PlanDateStrip.swift:213 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/Components/PlanDateStrip.swift:410 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/Components/PlanFilledMealStack.swift:62 layout.geometry-reader — GeometryReader is valid but often overused; verify it does not create unstable or greedy layout.
+[MEDIUM] Views/Components/PlanFilledMealStack.swift:66 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/Components/PlanFilledMealStack.swift:77 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/Components/PlannerDrag.swift:77 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/Components/PlannerDrag.swift:90 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/Components/PlannerDrag.swift:94 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/Components/ProngsbyPerch.swift:147 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/Components/RecipeShareSheet.swift:138 layout.ignores-safe-area — Verify that only decorative/background content crosses safe areas and controls remain reachable.
+[MEDIUM] Views/Components/RecipeShareSheet.swift:140 layout.ignores-safe-area — Verify that only decorative/background content crosses safe areas and controls remain reachable.
+[MEDIUM] Views/Components/RecipeShareSheet.swift:153 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/Components/RecipeShareSheet.swift:175 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/Components/RemotePlanRow.swift:86 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/Components/RemotePlanRow.swift:92 interaction.semantic-control — Check whether this tap should be a Button, NavigationLink, Toggle, or another semantic control.
+[MEDIUM] Views/Components/RemotePlanRow.swift:226 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/Components/RemotePlanRow.swift:230 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/Components/SwipeRow.swift:81 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/Components/SwipeRow.swift:85 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/Components/SwipeRow.swift:91 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/Components/SwipeRow.swift:94 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/Components/SwipeRow.swift:132 interaction.semantic-control — Check whether this tap should be a Button, NavigationLink, Toggle, or another semantic control.
+[MEDIUM] Views/Components/TonightCard.swift:65 interaction.semantic-control — Check whether this tap should be a Button, NavigationLink, Toggle, or another semantic control.
+[MEDIUM] Views/Components/TonightCard.swift:128 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/Components/TonightCard.swift:144 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/CookbookView.swift:286 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/CookbookView.swift:295 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/CookbookView.swift:304 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/CookbookView.swift:400 animation.no-delay-state-machine — Delayed work near UI code can race rapid interaction; use explicit state, phases, or cancellable tasks.
+[MEDIUM] Views/CookbookView.swift:529 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/CookbookView.swift:571 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/CookbookView.swift:665 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/CookbookView.swift:676 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/CookbookView.swift:754 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/CookbookView.swift:756 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/CookbookView.swift:757 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/CookbookView.swift:842 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/CookbookView.swift:1096 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/CookbookView.swift:1098 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/CookbookView.swift:1252 identity.foreach-indices — Index-derived identity can break state and transitions when content changes.
+[MEDIUM] Views/CookbookView.swift:1316 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/CookbookView.swift:1454 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/CookbookView.swift:1531 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/CookbookView.swift:1535 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/CookbookView.swift:1569 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/CookbookView.swift:1680 identity.foreach-indices — Index-derived identity can break state and transitions when content changes.
+[MEDIUM] Views/CookbookView.swift:1692 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/CookbookView.swift:1766 animation.no-delay-state-machine — Delayed work near UI code can race rapid interaction; use explicit state, phases, or cancellable tasks.
+[MEDIUM] Views/CookbookView.swift:1865 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/CookbookView.swift:1873 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/CookbookView.swift:1900 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/CookbookView.swift:2034 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/CookbookView.swift:2220 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/CookbookView.swift:2421 animation.no-delay-state-machine — Delayed work near UI code can race rapid interaction; use explicit state, phases, or cancellable tasks.
+[MEDIUM] Views/CookbookView.swift:2478 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/CookbookView.swift:2489 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/CookbookView.swift:2507 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/CookbookView.swift:2531 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/CookbookView.swift:2568 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/CookbookView.swift:2608 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/CookingFocusView.swift:108 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/CookingFocusView.swift:132 identity.foreach-indices — Index-derived identity can break state and transitions when content changes.
+[MEDIUM] Views/CookingFocusView.swift:134 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/CookingFocusView.swift:251 identity.foreach-indices — Index-derived identity can break state and transitions when content changes.
+[MEDIUM] Views/DayDetailView.swift:210 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/DayDetailView.swift:364 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/DayDetailView.swift:367 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/DayDetailView.swift:471 interaction.semantic-control — Check whether this tap should be a Button, NavigationLink, Toggle, or another semantic control.
+[MEDIUM] Views/DayDetailView.swift:502 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/DayDetailView.swift:509 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/DayDetailView.swift:512 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/DayDetailView.swift:529 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/DayDetailView.swift:532 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/DiscoverView.swift:51 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/DiscoverView.swift:65 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/DiscoverView.swift:73 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/DiscoverView.swift:96 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/DiscoverView.swift:123 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/DiscoverView.swift:134 layout.ignores-safe-area — Verify that only decorative/background content crosses safe areas and controls remain reachable.
+[MEDIUM] Views/DiscoverView.swift:150 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/DiscoverView.swift:204 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/DiscoverView.swift:270 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/DiscoverView.swift:307 animation.no-delay-state-machine — Delayed work near UI code can race rapid interaction; use explicit state, phases, or cancellable tasks.
+[MEDIUM] Views/GrocerySheet.swift:150 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/GrocerySheet.swift:239 layout.ignores-safe-area — Verify that only decorative/background content crosses safe areas and controls remain reachable.
+[MEDIUM] Views/GrocerySheet.swift:362 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/GrocerySheet.swift:417 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/GrocerySheet.swift:485 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/GrocerySheet.swift:505 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/GrocerySheet.swift:520 interaction.semantic-control — Check whether this tap should be a Button, NavigationLink, Toggle, or another semantic control.
+[MEDIUM] Views/GrocerySheet.swift:606 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/GrocerySheet.swift:725 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/GrocerySheet.swift:727 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/GrocerySheet.swift:751 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/GrocerySheet.swift:753 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/GrocerySheet.swift:790 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/GrocerySheet.swift:809 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/GrocerySheet.swift:909 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/GrocerySheet.swift:923 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/GrocerySheet.swift:929 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/GrocerySheet.swift:931 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/GrocerySheet.swift:944 layout.geometry-reader — GeometryReader is valid but often overused; verify it does not create unstable or greedy layout.
+[MEDIUM] Views/GrocerySheet.swift:949 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/GrocerySheet.swift:968 identity.foreach-indices — Index-derived identity can break state and transitions when content changes.
+[MEDIUM] Views/GrocerySheet.swift:972 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/GrocerySheet.swift:981 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/GrocerySheet.swift:992 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/GrocerySheet.swift:1033 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/GrocerySheet.swift:1054 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/GrocerySheet.swift:1101 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/GrocerySheet.swift:1139 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/GrocerySheet.swift:1146 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/HouseholdHomeView.swift:240 layout.ignores-safe-area — Verify that only decorative/background content crosses safe areas and controls remain reachable.
+[MEDIUM] Views/HouseholdHomeView.swift:284 animation.no-delay-state-machine — Delayed work near UI code can race rapid interaction; use explicit state, phases, or cancellable tasks.
+[MEDIUM] Views/HouseholdHomeView.swift:332 animation.no-delay-state-machine — Delayed work near UI code can race rapid interaction; use explicit state, phases, or cancellable tasks.
+[MEDIUM] Views/HouseholdHomeView.swift:420 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/HouseholdHomeView.swift:422 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/HouseholdHomeView.swift:440 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/HouseholdHomeView.swift:629 animation.no-delay-state-machine — Delayed work near UI code can race rapid interaction; use explicit state, phases, or cancellable tasks.
+[MEDIUM] Views/HouseholdHomeView.swift:691 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/HouseholdHomeView.swift:697 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/HouseholdHomeView.swift:703 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/HouseholdHomeView.swift:704 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/HouseholdHomeView.swift:796 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/HouseholdHomeView.swift:832 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/HouseholdHomeView.swift:834 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/HouseholdHomeView.swift:882 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/HouseholdHomeView.swift:1088 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/HouseholdHomeView.swift:1090 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/HouseholdHomeView.swift:1182 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/HouseholdHomeView.swift:1184 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/HouseholdHomeView.swift:1225 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/HouseholdHomeView.swift:1335 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/HouseholdHomeView.swift:1485 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/HouseholdHomeView.swift:1489 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/HouseholdHomeView.swift:1701 animation.no-delay-state-machine — Delayed work near UI code can race rapid interaction; use explicit state, phases, or cancellable tasks.
+[MEDIUM] Views/HouseholdStatsView.swift:22 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/HouseholdStatsView.swift:193 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/HouseholdStatsView.swift:196 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/HouseholdStatsView.swift:417 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/JoinHouseholdSheet.swift:74 layout.ignores-safe-area — Verify that only decorative/background content crosses safe areas and controls remain reachable.
+[MEDIUM] Views/JoinHouseholdSheet.swift:112 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/JoinHouseholdSheet.swift:114 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/JoinHouseholdSheet.swift:222 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/JoinHouseholdSheet.swift:224 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/JoinHouseholdSheet.swift:256 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/JoinHouseholdSheet.swift:305 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/JoinHouseholdSheet.swift:307 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/JoinHouseholdSheet.swift:562 layout.ignores-safe-area — Verify that only decorative/background content crosses safe areas and controls remain reachable.
+[MEDIUM] Views/JoinHouseholdSheet.swift:650 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/MainShellView.swift:326 layout.ignores-safe-area — Verify that only decorative/background content crosses safe areas and controls remain reachable.
+[MEDIUM] Views/MainShellView.swift:355 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/MainShellView.swift:362 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/MainShellView.swift:364 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/MainShellView.swift:483 animation.no-delay-state-machine — Delayed work near UI code can race rapid interaction; use explicit state, phases, or cancellable tasks.
+[MEDIUM] Views/MainShellView.swift:757 animation.no-delay-state-machine — Delayed work near UI code can race rapid interaction; use explicit state, phases, or cancellable tasks.
+[MEDIUM] Views/MainShellView.swift:830 animation.no-delay-state-machine — Delayed work near UI code can race rapid interaction; use explicit state, phases, or cancellable tasks.
+[MEDIUM] Views/MainShellView.swift:845 animation.no-delay-state-machine — Delayed work near UI code can race rapid interaction; use explicit state, phases, or cancellable tasks.
+[MEDIUM] Views/MainShellView.swift:901 animation.no-delay-state-machine — Delayed work near UI code can race rapid interaction; use explicit state, phases, or cancellable tasks.
+[MEDIUM] Views/MainShellView.swift:911 animation.no-delay-state-machine — Delayed work near UI code can race rapid interaction; use explicit state, phases, or cancellable tasks.
+[MEDIUM] Views/MainShellView.swift:916 animation.no-delay-state-machine — Delayed work near UI code can race rapid interaction; use explicit state, phases, or cancellable tasks.
+[MEDIUM] Views/MainShellView.swift:935 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/MainShellView.swift:937 layout.ignores-safe-area — Verify that only decorative/background content crosses safe areas and controls remain reachable.
+[MEDIUM] Views/MainShellView.swift:938 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/MainShellView.swift:949 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/MonthPlannerView.swift:99 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/MonthPlannerView.swift:253 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/MonthPlannerView.swift:256 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/NewRecipeView.swift:208 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/NewRecipeView.swift:217 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/NewRecipeView.swift:356 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/NewRecipeView.swift:602 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/NewRecipeView.swift:619 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/NewRecipeView.swift:622 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/NewRecipeView.swift:637 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/NewRecipeView.swift:857 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/NewRecipeView.swift:883 layout.geometry-reader — GeometryReader is valid but often overused; verify it does not create unstable or greedy layout.
+[MEDIUM] Views/NewRecipeView.swift:938 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/NewRecipeView.swift:944 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/NewRecipeView.swift:955 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/NewRecipeView.swift:975 identity.foreach-indices — Index-derived identity can break state and transitions when content changes.
+[MEDIUM] Views/NewRecipeView.swift:980 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/NewRecipeView.swift:991 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/NewRecipeView.swift:995 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/NewRecipeView.swift:998 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/NewRecipeView.swift:1009 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/NewRecipeView.swift:1013 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/NotificationsView.swift:96 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/NotificationsView.swift:206 interaction.semantic-control — Check whether this tap should be a Button, NavigationLink, Toggle, or another semantic control.
+[MEDIUM] Views/NotificationsView.swift:269 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/NotificationsView.swift:271 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/NotificationsView.swift:327 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/NotificationsView.swift:333 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/Onboarding/ContactsView.swift:178 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/Onboarding/ContactsView.swift:230 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/Onboarding/ContactsView.swift:246 layout.ignores-safe-area — Verify that only decorative/background content crosses safe areas and controls remain reachable.
+[MEDIUM] Views/Onboarding/ContactsView.swift:369 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/Onboarding/ContactsView.swift:374 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/Onboarding/ContactsView.swift:389 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/Onboarding/ContactsView.swift:404 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/Onboarding/LaunchOpenerView.swift:11 layout.ignores-safe-area — Verify that only decorative/background content crosses safe areas and controls remain reachable.
+[MEDIUM] Views/Onboarding/ProfileSetupView.swift:162 interaction.semantic-control — Check whether this tap should be a Button, NavigationLink, Toggle, or another semantic control.
+[MEDIUM] Views/Onboarding/ProfileSetupView.swift:187 layout.ignores-safe-area — Verify that only decorative/background content crosses safe areas and controls remain reachable.
+[MEDIUM] Views/Onboarding/ProfileSetupView.swift:218 layout.ignores-safe-area — Verify that only decorative/background content crosses safe areas and controls remain reachable.
+[MEDIUM] Views/Onboarding/ProfileSetupView.swift:331 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/Onboarding/ProfileSetupView.swift:334 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/Onboarding/SignInView.swift:34 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/Onboarding/SignInView.swift:36 layout.geometry-reader — GeometryReader is valid but often overused; verify it does not create unstable or greedy layout.
+[MEDIUM] Views/Onboarding/SignInView.swift:78 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/Onboarding/SignInView.swift:91 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/Onboarding/SignInView.swift:107 layout.ignores-safe-area — Verify that only decorative/background content crosses safe areas and controls remain reachable.
+[MEDIUM] Views/Onboarding/SignInView.swift:172 animation.no-delay-state-machine — Delayed work near UI code can race rapid interaction; use explicit state, phases, or cancellable tasks.
+[MEDIUM] Views/Onboarding/SignInView.swift:189 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/Onboarding/SignInView.swift:198 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/Onboarding/SignInView.swift:208 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/Onboarding/SignInView.swift:212 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/Onboarding/SignInView.swift:215 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/Onboarding/SignInView.swift:219 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/Onboarding/TourIllustrations.swift:63 identity.foreach-indices — Index-derived identity can break state and transitions when content changes.
+[MEDIUM] Views/Onboarding/TourIllustrations.swift:81 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/Onboarding/TourIllustrations.swift:133 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/Onboarding/TourIllustrations.swift:237 animation.no-delay-state-machine — Delayed work near UI code can race rapid interaction; use explicit state, phases, or cancellable tasks.
+[MEDIUM] Views/Onboarding/TourIllustrations.swift:312 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/Onboarding/TourIllustrations.swift:347 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/Onboarding/TourIllustrations.swift:435 animation.no-delay-state-machine — Delayed work near UI code can race rapid interaction; use explicit state, phases, or cancellable tasks.
+[MEDIUM] Views/Onboarding/TourIllustrations.swift:474 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/Onboarding/TourIllustrations.swift:489 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/Onboarding/TourIllustrations.swift:492 layout.geometry-reader — GeometryReader is valid but often overused; verify it does not create unstable or greedy layout.
+[MEDIUM] Views/Onboarding/TourIllustrations.swift:495 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/Onboarding/TourIllustrations.swift:498 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/Onboarding/TourIllustrations.swift:516 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/Onboarding/TourIllustrations.swift:596 animation.no-delay-state-machine — Delayed work near UI code can race rapid interaction; use explicit state, phases, or cancellable tasks.
+[MEDIUM] Views/Onboarding/TourIllustrations.swift:665 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/Onboarding/TourIllustrations.swift:673 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/Onboarding/TourIllustrations.swift:762 animation.no-delay-state-machine — Delayed work near UI code can race rapid interaction; use explicit state, phases, or cancellable tasks.
+[MEDIUM] Views/Onboarding/TourIllustrations.swift:789 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/Onboarding/TourView.swift:61 identity.foreach-indices — Index-derived identity can break state and transitions when content changes.
+[MEDIUM] Views/Onboarding/TourView.swift:87 layout.ignores-safe-area — Verify that only decorative/background content crosses safe areas and controls remain reachable.
+[MEDIUM] Views/Onboarding/TourView.swift:103 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/Onboarding/TourView.swift:158 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/PersonProfileView.swift:194 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/PersonProfileView.swift:374 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/PersonProfileView.swift:392 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/PersonProfileView.swift:396 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/PersonProfileView.swift:419 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/PersonProfileView.swift:423 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/PersonProfileView.swift:458 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/PersonProfileView.swift:459 motion.raw-blur — Confirm blur communicates depth/focus, remains legible, and has a reduced-motion alternative if animated.
+[MEDIUM] Views/PersonProfileView.swift:463 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/PersonProfileView.swift:464 motion.raw-blur — Confirm blur communicates depth/focus, remains legible, and has a reduced-motion alternative if animated.
+[MEDIUM] Views/PersonProfileView.swift:469 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/PersonProfileView.swift:527 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/PersonProfileView.swift:529 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/PersonProfileView.swift:555 layout.geometry-reader — GeometryReader is valid but often overused; verify it does not create unstable or greedy layout.
+[MEDIUM] Views/PersonProfileView.swift:722 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/PersonProfileView.swift:727 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/PersonProfileView.swift:776 interaction.semantic-control — Check whether this tap should be a Button, NavigationLink, Toggle, or another semantic control.
+[MEDIUM] Views/PersonProfileView.swift:1061 layout.geometry-reader — GeometryReader is valid but often overused; verify it does not create unstable or greedy layout.
+[MEDIUM] Views/PersonProfileView.swift:1158 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/PersonProfileView.swift:1160 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/PersonProfileView.swift:1201 animation.no-delay-state-machine — Delayed work near UI code can race rapid interaction; use explicit state, phases, or cancellable tasks.
+[MEDIUM] Views/PersonProfileView.swift:1227 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/PersonProfileView.swift:1229 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/PlanContextView.swift:13 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/PlanContextView.swift:81 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/PlanContextView.swift:84 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/PlanContextView.swift:117 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/PlanNightSheet.swift:471 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/PlanNightSheet.swift:478 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/PlanNightSheet.swift:481 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/PlanNightSheet.swift:503 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/PlanNightSheet.swift:531 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/PlanNightSheet.swift:575 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/PlanNightSheet.swift:980 animation.no-delay-state-machine — Delayed work near UI code can race rapid interaction; use explicit state, phases, or cancellable tasks.
+[MEDIUM] Views/PlanNightSheet.swift:989 animation.no-delay-state-machine — Delayed work near UI code can race rapid interaction; use explicit state, phases, or cancellable tasks.
+[MEDIUM] Views/PlanNightSheet.swift:1268 identity.foreach-indices — Index-derived identity can break state and transitions when content changes.
+[MEDIUM] Views/PlanNightSheet.swift:1271 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/PlanNightSheet.swift:1283 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/PlanNightSheet.swift:1306 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/PlanNightSheet.swift:1310 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/PlanNightSheet.swift:1369 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/PlanNightSheet.swift:1459 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/PlanNightSheet.swift:1467 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/PlanNightSheet.swift:1822 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/PlanNightSheet.swift:1826 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/PostThreadView.swift:206 animation.no-delay-state-machine — Delayed work near UI code can race rapid interaction; use explicit state, phases, or cancellable tasks.
+[MEDIUM] Views/PostThreadView.swift:314 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/PostThreadView.swift:350 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/PostThreadView.swift:388 identity.foreach-indices — Index-derived identity can break state and transitions when content changes.
+[MEDIUM] Views/PostThreadView.swift:417 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/PostThreadView.swift:434 layout.geometry-reader — GeometryReader is valid but often overused; verify it does not create unstable or greedy layout.
+[MEDIUM] Views/PostThreadView.swift:660 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/PostThreadView.swift:685 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/PostThreadView.swift:735 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/PostThreadView.swift:885 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/PostThreadView.swift:896 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/PostThreadView.swift:957 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/PostThreadView.swift:965 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/PostThreadView.swift:969 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/PostThreadView.swift:972 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/PostThreadView.swift:990 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/PostThreadView.swift:1000 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/PostThreadView.swift:1013 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/PostThreadView.swift:1039 interaction.semantic-control — Check whether this tap should be a Button, NavigationLink, Toggle, or another semantic control.
+[MEDIUM] Views/PostThreadView.swift:1051 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/PostThreadView.swift:1055 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/PostThreadView.swift:1086 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/PostThreadView.swift:1124 animation.no-delay-state-machine — Delayed work near UI code can race rapid interaction; use explicit state, phases, or cancellable tasks.
+[MEDIUM] Views/ProngsbyView.swift:25 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/ProngsbyView.swift:31 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/ProngsbyView.swift:35 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/ProngsbyView.swift:36 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/ProngsbyView.swift:40 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/ProngsbyView.swift:46 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/ProngsbyView.swift:238 interaction.semantic-control — Check whether this tap should be a Button, NavigationLink, Toggle, or another semantic control.
+[MEDIUM] Views/ProngsbyView.swift:244 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/ProngsbyView.swift:248 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/ProngsbyView.swift:286 animation.no-delay-state-machine — Delayed work near UI code can race rapid interaction; use explicit state, phases, or cancellable tasks.
+[MEDIUM] Views/ProngsbyView.swift:320 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/ProngsbyView.swift:323 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/ProngsbyView.swift:380 animation.no-delay-state-machine — Delayed work near UI code can race rapid interaction; use explicit state, phases, or cancellable tasks.
+[MEDIUM] Views/ProngsbyView.swift:432 animation.no-delay-state-machine — Delayed work near UI code can race rapid interaction; use explicit state, phases, or cancellable tasks.
+[MEDIUM] Views/RecipeImportSheet.swift:151 layout.ignores-safe-area — Verify that only decorative/background content crosses safe areas and controls remain reachable.
+[MEDIUM] Views/RecipeImportSheet.swift:277 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/RecipeImportSheet.swift:354 interaction.semantic-control — Check whether this tap should be a Button, NavigationLink, Toggle, or another semantic control.
+[MEDIUM] Views/RecipeImportSheet.swift:421 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/RecipeImportSheet.swift:423 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/RecipeImportSheet.swift:440 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/RecipeImportSheet.swift:568 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/RecipeImportSheet.swift:590 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/RecipeImportSheet.swift:649 identity.foreach-indices — Index-derived identity can break state and transitions when content changes.
+[MEDIUM] Views/RootView.swift:116 layout.ignores-safe-area — Verify that only decorative/background content crosses safe areas and controls remain reachable.
+[MEDIUM] Views/RootView.swift:192 animation.no-delay-state-machine — Delayed work near UI code can race rapid interaction; use explicit state, phases, or cancellable tasks.
+[MEDIUM] Views/SettingsSheet.swift:111 animation.no-delay-state-machine — Delayed work near UI code can race rapid interaction; use explicit state, phases, or cancellable tasks.
+[MEDIUM] Views/SettingsSheet.swift:272 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/SettingsSheet.swift:361 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/SettingsSheet.swift:363 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/SettingsSheet.swift:471 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/SettingsSheet.swift:474 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/SettingsSheet.swift:478 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/SettingsSheet.swift:483 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/SettingsSheet.swift:489 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/SettingsSheet.swift:497 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/SettingsSheet.swift:1091 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/SettingsSheet.swift:1093 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/SettingsSheet.swift:1182 animation.no-delay-state-machine — Delayed work near UI code can race rapid interaction; use explicit state, phases, or cancellable tasks.
+[MEDIUM] Views/SettingsSheet.swift:1274 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/SettingsSheet.swift:1276 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/TableComposerSheet.swift:174 layout.ignores-safe-area — Verify that only decorative/background content crosses safe areas and controls remain reachable.
+[MEDIUM] Views/TableComposerSheet.swift:250 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/TableComposerSheet.swift:348 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/TableComposerSheet.swift:359 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/TableComposerSheet.swift:384 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/TableComposerSheet.swift:386 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/TableFeedView.swift:306 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/TableFeedView.swift:448 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/TableFeedView.swift:449 identity.foreach-indices — Index-derived identity can break state and transitions when content changes.
+[MEDIUM] Views/TableFeedView.swift:838 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/TableFeedView.swift:840 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/TableFeedView.swift:861 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/TableFeedView.swift:898 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/TableFeedView.swift:967 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/TableFeedView.swift:1006 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/TableFeedView.swift:1352 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/TableFeedView.swift:1374 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/TableFeedView.swift:1398 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/TableFeedView.swift:1442 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/TableFeedView.swift:1489 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/TableFeedView.swift:1519 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/TableFeedView.swift:1587 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/TableFeedView.swift:1635 animation.no-delay-state-machine — Delayed work near UI code can race rapid interaction; use explicit state, phases, or cancellable tasks.
+[MEDIUM] Views/TableFeedView.swift:1683 animation.no-delay-state-machine — Delayed work near UI code can race rapid interaction; use explicit state, phases, or cancellable tasks.
+[MEDIUM] Views/TableFeedView.swift:1816 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/TableFeedView.swift:1820 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/TableFeedView.swift:1858 animation.no-delay-state-machine — Delayed work near UI code can race rapid interaction; use explicit state, phases, or cancellable tasks.
+[MEDIUM] Views/TableSeatsSheet.swift:418 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/TableSeatsSheet.swift:420 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/TableSeatsSheet.swift:669 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/WeekView.swift:252 animation.no-delay-state-machine — Delayed work near UI code can race rapid interaction; use explicit state, phases, or cancellable tasks.
+[MEDIUM] Views/WeekView.swift:828 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/WeekView.swift:832 interaction.semantic-control — Check whether this tap should be a Button, NavigationLink, Toggle, or another semantic control.
+[MEDIUM] Views/WeekView.swift:875 typography.hardcoded-size — Hardcoded font sizes need Dynamic Type scaling or a documented display-only reason.
+[MEDIUM] Views/WeekView.swift:877 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/WeekView.swift:915 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/WeekView.swift:919 interaction.semantic-control — Check whether this tap should be a Button, NavigationLink, Toggle, or another semantic control.
+[MEDIUM] Views/WeekView.swift:989 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/WeekView.swift:1012 layout.fixed-frame — Review this fixed dimension at small containers and accessibility text sizes.
+[MEDIUM] Views/WeekView.swift:1018 interaction.semantic-control — Check whether this tap should be a Button, NavigationLink, Toggle, or another semantic control.
+[MEDIUM] Views/WeekView.swift:1539 animation.no-delay-state-machine — Delayed work near UI code can race rapid interaction; use explicit state, phases, or cancellable tasks.
+[LOW   ] Views/Components/AccountButton.swift:25 interaction.custom-gesture — Document gesture priority, cancellation, scroll interaction, and accessibility alternative.
+[LOW   ] Views/Components/SwipeRow.swift:137 interaction.custom-gesture — Document gesture priority, cancellation, scroll interaction, and accessibility alternative.
+[LOW   ] Views/MonthPlannerView.swift:124 interaction.custom-gesture — Document gesture priority, cancellation, scroll interaction, and accessibility alternative.
+[LOW   ] Views/NewRecipeView.swift:865 interaction.custom-gesture — Document gesture priority, cancellation, scroll interaction, and accessibility alternative.
+[LOW   ] Views/PersonProfileView.swift:1073 interaction.custom-gesture — Document gesture priority, cancellation, scroll interaction, and accessibility alternative.
+[LOW   ] Views/PersonProfileView.swift:1085 interaction.custom-gesture — Document gesture priority, cancellation, scroll interaction, and accessibility alternative.
+[LOW   ] Views/TableFeedView.swift:1034 interaction.custom-gesture — Document gesture priority, cancellation, scroll interaction, and accessibility alternative.

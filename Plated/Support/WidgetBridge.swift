@@ -287,7 +287,7 @@ enum WidgetBridge {
     @MainActor
     private static func latestTablePost(from context: ModelContext) -> (Snapshot.TableCard?, Data?) {
         var descriptor = FetchDescriptor<TablePost>(
-            predicate: #Predicate { !$0.isDiscover && $0.kind == "dish" },
+            predicate: #Predicate { !$0.isDiscover && $0.kind != "ask" },
             sortBy: [SortDescriptor(\TablePost.createdAt, order: .reverse)]
         )
         // Not 1: the newest row can be a blank the mirror adopted (see
