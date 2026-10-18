@@ -48,8 +48,8 @@ final class PlanContextTests: XCTestCase {
         XCTAssertTrue(weather.label.contains("Mostly Clear"))
         let cooked = element("plan-history-cooked"), out = element("plan-history-eating-out")
         reveal(cooked)
-        XCTAssertEqual(cooked.label, "2 cooked in the last 7 days")
-        XCTAssertEqual(out.label, "1 eating out in the last 7 days")
+        XCTAssertEqual(cooked.label, "2 cooked at home in the last 7 days")
+        XCTAssertEqual(out.label, "1 ate out in the last 7 days")
         capture("plan-context-dark")
         let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: Date())!
         let c = Calendar.current.dateComponents([.year, .month, .day], from: tomorrow)
@@ -58,7 +58,7 @@ final class PlanContextTests: XCTestCase {
         reveal(weather)
         XCTAssertTrue(weather.label.contains("Partly Cloudy"))
         XCTAssertFalse(weather.label.contains("Mostly Clear"))
-        XCTAssertEqual(cooked.label, "2 cooked in the last 7 days", "The labeled history period stays seven days through today")
+        XCTAssertEqual(cooked.label, "2 cooked at home in the last 7 days", "The labeled history period stays seven days through today")
         capture("plan-context-next-date")
     }
 
@@ -69,8 +69,8 @@ final class PlanContextTests: XCTestCase {
         XCTAssertTrue(dinner.waitForExistence(timeout: 8)); XCTAssertEqual(dinner.label, "Eating out")
         let out = element("plan-history-eating-out")
         reveal(out)
-        XCTAssertEqual(out.label, "2 eating out in the last 7 days")
-        XCTAssertEqual(element("plan-history-cooked").label, "2 cooked in the last 7 days")
+        XCTAssertEqual(out.label, "2 ate out in the last 7 days")
+        XCTAssertEqual(element("plan-history-cooked").label, "2 cooked at home in the last 7 days")
         capture("plan-context-eating-out")
     }
 
@@ -88,8 +88,8 @@ final class PlanContextTests: XCTestCase {
         XCTAssertTrue(app.buttons["Choose a meal"].waitForExistence(timeout: 8))
         XCTAssertFalse(app.buttons["featured-dinner-card"].exists)
         let out = element("plan-history-eating-out"); reveal(out)
-        XCTAssertEqual(out.label, "1 eating out in the last 7 days")
-        XCTAssertEqual(element("plan-history-cooked").label, "2 cooked in the last 7 days")
+        XCTAssertEqual(out.label, "1 ate out in the last 7 days")
+        XCTAssertEqual(element("plan-history-cooked").label, "2 cooked at home in the last 7 days")
         capture("plan-context-eating-out-save-failure")
     }
 
@@ -155,7 +155,7 @@ final class PlanContextTests: XCTestCase {
         app.launch()
         XCTAssertTrue(app.buttons["Choose a meal"].waitForExistence(timeout: 20))
         XCTAssertEqual(app.buttons["plan-cook-assignment"].value as? String, "Sam is cooking")
-        XCTAssertEqual(app.buttons["featured-remote-dinner-card"].label, "What’s for dinner?")
+        XCTAssertEqual(app.buttons["featured-remote-dinner-card"].label, "What sounds good tonight?")
         XCTAssertFalse(app.staticTexts["Unplanned"].exists)
         capture("plan-cook-shared-before-dish")
         app.buttons["Choose a meal"].tap()
@@ -181,14 +181,17 @@ final class PlanContextTests: XCTestCase {
         capture("plan-context-ax-actions")
         reveal(element("plan-weather-conditions")); capture("plan-context-ax-weather")
         reveal(element("plan-history-eating-out"))
-        XCTAssertEqual(element("plan-history-cooked").label, "2 cooked in the last 7 days")
+        XCTAssertEqual(element("plan-history-cooked").label, "2 cooked at home in the last 7 days")
         capture("plan-context-ax-history")
     }
 
     func testEmptyHistoryAndPastWeatherDoNotInventData() {
         launch(["-plated-fake-weather"], light: true)
-        XCTAssertEqual(element("plan-history-cooked").label, "0 cooked in the last 7 days")
-        XCTAssertEqual(element("plan-history-eating-out").label, "0 eating out in the last 7 days")
+        XCTAssertFalse(element("plan-history-cooked").exists)
+        XCTAssertFalse(element("plan-history-eating-out").exists)
+        let explanation = app.staticTexts["Your first dinner is a good place to start. Mark a meal cooked to build your household’s history."]
+        reveal(explanation)
+        XCTAssertTrue(explanation.isHittable)
         capture("plan-context-light-empty")
         let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date())!
         let c = Calendar.current.dateComponents([.year, .month, .day], from: yesterday)
@@ -201,10 +204,10 @@ final class PlanContextTests: XCTestCase {
 
     func testHouseholdActivityOpensRenamedMembersPhotoAndPosts() {
         launch(["-plated-review-dinner-history", "-plated-fake-weather", "-plated-review-household-activity"])
-        let sam = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Sam Rivera,")).firstMatch
+        let sam = app.buttons["plan-household-seat-ux-sam"]
         reveal(sam)
         XCTAssertTrue(sam.label.contains("Sam Rivera"))
-        XCTAssertTrue(sam.label.contains("2 dinners cooked · 1 dish shared"))
+        XCTAssertTrue(sam.label.contains("Shared") || sam.label.contains("Cooked"), "An actor row names a recorded action")
         capture("plan-household-activity")
         sam.tap()
         XCTAssertTrue(app.staticTexts["Sam Rivera"].waitForExistence(timeout: 8))
@@ -220,9 +223,9 @@ final class PlanContextTests: XCTestCase {
     func testHouseholdActivityRemainsReachableAtLargestText() {
         launch(["-plated-review-dinner-history", "-plated-fake-weather", "-plated-review-household-activity"],
             size: "UICTContentSizeCategoryAccessibilityXXXL", light: true)
-        let sam = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Sam Rivera,")).firstMatch
+        let sam = app.buttons["plan-household-seat-ux-sam"]
         reveal(sam)
-        XCTAssertTrue(sam.label.contains("2 dinners cooked · 1 dish shared"))
+        XCTAssertTrue(sam.label.contains("Shared") || sam.label.contains("Cooked"), "An actor row names a recorded action")
         capture("plan-household-ax")
         sam.tap()
         let activity = element("profile-recent-activity")
@@ -248,7 +251,7 @@ final class PlanContextVoiceOverTests: XCTestCase {
         app.launch(); XCTAssertTrue(app.buttons["Choose a meal"].waitForExistence(timeout: 20))
         try voice.enable()
         var transcript = [try voice.currentSpeech().utterance]
-        let targets = ["What’s for dinner", "Suggested dinner cook", "Plan tonight", "Eating out", "Mostly Clear", "2 cooked", "1 eating out", "Your household", "Manage household", "Riley"]
+        let targets = ["What sounds good tonight", "Suggested dinner cook", "Choose a meal", "Eating out", "Mostly Clear", "2 cooked at home", "1 ate out", "At home", "Manage household", "Riley"]
         var next = 0
         for _ in 0..<45 {
             let spoken = try voice.moveForward().utterance

@@ -179,6 +179,11 @@ struct PlatedApp: App {
                     }
                     try? preview.mainContext.save()
                 }
+                if arguments.contains("-plated-review-cooked-tonight") {
+                    let meals = (try? preview.mainContext.fetch(FetchDescriptor<PlannedMeal>())) ?? []
+                    for meal in meals where Calendar.current.isDateInToday(meal.date) { meal.cookedAt = .now }
+                    try? preview.mainContext.save()
+                }
                 if arguments.contains("-plated-review-household-activity"),
                    let sam = (try? preview.mainContext.fetch(FetchDescriptor<HouseholdMember>()))?.first(where: { $0.name == "Sam" }) {
                     sam.name = "Sam Rivera"; sam.seat = .joined; sam.userRecordName = "ux-audit-sam"
@@ -202,6 +207,8 @@ struct PlatedApp: App {
                     night.day = PlanDay.string(.now); night.slot = MealSlot.dinner.rawValue
                     night.title = recipe.title; night.servings = 6; night.hasRecipe = true
                     night.recipeOriginKey = recipe.planningKey
+                    night.recipeMinutes = recipe.totalMinutes
+                    if arguments.contains("-plated-review-cooked-tonight") { night.cooked = true; night.cookedAt = .now }
                     if arguments.contains("-plated-review-shared-cook-only") {
                         night.title = "Unplanned"; night.hasRecipe = false; night.recipeOriginKey = ""
                     }

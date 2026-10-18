@@ -374,20 +374,7 @@ struct WeekView: View {
                                     } openHousehold: {
                                         pushed = .household
                                     }
-                                    if let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: weekAnchor) {
-                                        Button { weekAnchor = tomorrow.startOfDay; dateNavigationRevision += 1 } label: {
-                                            HStack(spacing: 12) {
-                                                VStack(alignment: .leading, spacing: 4) {
-                                                    Text(Calendar.current.isDateInToday(weekAnchor) ? "Tomorrow" : tomorrow.formatted(.dateTime.weekday(.wide)))
-                                                        .plType(.caption).foregroundStyle(Color.inkSecondary)
-                                                    Text(dinner(on: tomorrow)?.title ?? PlanLedger.shared.dinner(on: tomorrow)?.title ?? "No dinner planned")
-                                                        .plType(.footnote).foregroundStyle(Color.ink)
-                                                }.frame(maxWidth: .infinity, alignment: .leading)
-                                                Image(systemName: "arrow.right").foregroundStyle(Color.inkSecondary)
-                                            }.frame(minHeight: 44).contentShape(Rectangle())
-                                        }.buttonStyle(.pressable)
-                                            .accessibilityHint("Selects the next day in Plan")
-                                    }
+                                    nextDayPreview
                                 }
                                 .frame(width: wide ? min(340, geometry.size.width * 0.38) : nil)
                             }
@@ -482,7 +469,7 @@ struct WeekView: View {
     }
 
     private var tonightHeader: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
                 Text("Plan").plType(.title).foregroundStyle(Color.ink).accessibilityAddTraits(.isHeader)
                 Spacer(minLength: 8)
@@ -494,22 +481,59 @@ struct WeekView: View {
                 ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
                 : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: 12))
             layout {
-                Text(greeting).plType(.footnote).foregroundStyle(Color.inkSecondary)
+                TimelineView(.periodic(from: .now, by: 60)) { timeline in
+                    Text(greeting(at: timeline.date)).plType(.footnote).foregroundStyle(Color.inkSecondary)
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .accessibilityAddTraits(.isHeader)
+                }
                 Button { showMonth = true } label: {
-                    Label("Calendar", systemImage: "calendar")
-                        .plType(.footnote, .semibold).plActionLabel().plTapTarget()
+                    HStack(spacing: 6) {
+                        Text(weekAnchor.formatted(.dateTime.month(.wide).year()))
+                        Image(systemName: "calendar")
+                    }.plType(.footnote).plActionLabel().plTapTarget()
                 }.foregroundStyle(Color.inkSecondary)
+                    .accessibilityLabel("Calendar")
+                    .accessibilityValue(weekAnchor.formatted(.dateTime.month(.wide).year()))
+                    .accessibilityIdentifier("plan-calendar")
             }
         }
     }
 
-    private var greeting: String {
+    private func greeting(at date: Date) -> String {
         let name = members.me?.name.trimmingCharacters(in: .whitespacesAndNewlines).split(separator: " ").first.map(String.init)
         guard let name, !HouseholdIdentity.isPlaceholder(name) else { return "Welcome home" }
-        return "Hi, \(name)"
+        let hour = Calendar.current.component(.hour, from: date)
+        let salutation = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening"
+        return "\(salutation), \(name)"
+    }
+
+    @ViewBuilder private var nextDayPreview: some View {
+        if let next = Calendar.current.date(byAdding: .day, value: 1, to: weekAnchor) {
+            let local = dinner(on: next)
+            let shared = local == nil ? PlanLedger.shared.dinner(on: next) : nil
+            let hasDish = local?.hasDish ?? shared?.hasDish ?? false
+            let title = hasDish ? (local?.title ?? shared?.title ?? "") : "No dinner planned"
+            let photo = local?.recipe?.photoData ?? shared.flatMap { PlanLedger.shared.photo(for: $0.recordName) }
+            let cook = local.map { PlanRowVoice.whoLine(for: $0, members: members) }
+                ?? shared.flatMap { PlanLedger.shared.cookLine(for: $0) }
+            Button { weekAnchor = next.startOfDay; dateNavigationRevision += 1 } label: {
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(Calendar.current.isDateInToday(weekAnchor) ? "Tomorrow" : next.formatted(.dateTime.weekday(.wide)))
+                            .plType(.heading).foregroundStyle(Color.ink)
+                        Text(title).plType(.footnote).foregroundStyle(Color.inkSecondary)
+                        if let cook, hasDish { Text(cook).plType(.caption).foregroundStyle(Color.inkSecondary) }
+                    }.frame(maxWidth: .infinity, alignment: .leading)
+                    if let photo {
+                        RecipeArtwork(data: photo, title: title, ratio: 1, radius: Radius.chip).frame(width: 52, height: 52)
+                    } else {
+                        Image(systemName: "arrow.right").foregroundStyle(Color.inkSecondary)
+                    }
+                }.frame(minHeight: 52).contentShape(Rectangle())
+            }.buttonStyle(.pressable)
+                .accessibilityHint("Selects the next day in Plan")
+                .accessibilityIdentifier("plan-next-day")
+        }
     }
 
     private func returnToTonight() {
@@ -586,9 +610,10 @@ struct WeekView: View {
             }
             if let meal = dinner(on: weekAnchor), meal.hasDish {
                 let who = whoCaption(for: meal)
+                let eatingOut = PlanRowVoice.isEatingOut(title: meal.title, hasRecipe: meal.recipe != nil)
                 Button { Haptic.tap(); pushed = .day(weekAnchor) } label: {
                     VStack(alignment: .leading, spacing: 16) {
-                        Text(meal.title).plType(.title, .semibold).foregroundStyle(Color.ink)
+                        Text(eatingOut && meal.title == "Eating out" ? "A night out." : meal.title).plType(.title, .semibold).foregroundStyle(Color.ink)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .fixedSize(horizontal: false, vertical: true)
                         if !PlanRowVoice.isEatingOut(title: meal.title, hasRecipe: meal.recipe != nil) {
@@ -603,27 +628,16 @@ struct WeekView: View {
                     .accessibilityAddTraits(.isButton)
                     .accessibilityIdentifier("featured-dinner-card")
                     .accessibilityHint("Tap to open the day. Hold and drag to another date to move dinner.")
-                if who.line != PlanRowVoice.whoLine(for: meal, members: members) {
+                if !eatingOut && who.line != PlanRowVoice.whoLine(for: meal, members: members) {
                     Text(who.line).plType(.footnote).foregroundStyle(Color.inkSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                if PlanRowVoice.isEatingOut(title: meal.title, hasRecipe: meal.recipe != nil) {
-                    Text("No cooking needed").plType(.body, .medium).foregroundStyle(Color.inkSecondary)
-                    Button(meal.title == "Eating out" ? "Add a place" : "Change place") { diningPlaceDate = weekAnchor }
-                        .plType(.footnote, .semibold).frame(minHeight: 44).buttonStyle(.pressable)
+                if eatingOut {
+                    diningOutActions(title: meal.title)
                 } else {
-                    localCookPicker(for: meal)
-                    HStack(spacing: 16) {
-                    if let recipe = meal.recipe, recipe.totalMinutes > 0 {
-                        Label(recipe.timeText, systemImage: "clock").plType(.footnote).foregroundStyle(Color.inkSecondary)
-                    }
-                    Button { planDay = weekAnchor } label: {
-                        Label("Serves \(meal.servings)", systemImage: "person.2")
-                            .plType(.footnote)
-                            .plActionLabel()
-                            .foregroundStyle(Color.ink).padding(.horizontal, 12).frame(minHeight: 44)
-                            .background(Color.fill, in: Radius.shape(Radius.chip))
-                    }.buttonStyle(.pressable).accessibilityLabel("Change servings")
+                    VStack(alignment: .leading, spacing: 0) {
+                        localCookPicker(for: meal)
+                        dinnerFacts(minutes: meal.recipe?.totalMinutes ?? 0, servings: meal.servings)
                     }
                 }
                 if let recipe = meal.recipe {
@@ -641,11 +655,11 @@ struct WeekView: View {
                         SecondaryActionButton(title: "Share at the Table") { shareRecipe = recipe }
                     } else {
                         let future = weekAnchor.startOfDay > Date.now.startOfDay
-                        PrimaryActionButton(title: future ? "View recipe" : cookLedger.isCooking(recipe) ? "Resume cooking" : "Start cooking", systemImage: future ? "book" : "fork.knife") {
+                        PrimaryActionButton(title: future ? "View recipe" : cookLedger.isCooking(recipe) ? "Resume cooking" : "Start cooking") {
                             if future { pushed = .recipe(recipe) } else { startCooking(recipe, meal: meal) }
                         }
                     }
-                } else {
+                } else if !eatingOut {
                     Button("Edit dinner") { planDay = weekAnchor }.plType(.body, .semibold).foregroundStyle(Color.accentText).plTapTarget()
                 }
             } else if let remote = PlanLedger.shared.dinner(on: weekAnchor) {
@@ -715,12 +729,46 @@ struct WeekView: View {
                 Button(member.isMe ? "You" : member.name) { assignCook(member, on: weekAnchor) }
             }
         } label: {
-            PlanCookLabel(heading: suggested ? "Suggested cook" : meal?.isCooked == true ? "Dinner made" : "Cook", name: name, member: cook, actionTitle: suggested ? "Assign" : "Change")
+            PlanCookLabel(heading: suggested ? "Suggested cook" : meal?.isCooked == true ? "Dinner made" : cookHeading, name: name, member: cook, actionTitle: suggested || cook == nil ? "Assign" : "Change")
         }
         .accessibilityLabel(suggested ? "Suggested dinner cook" : "Dinner cook")
         .accessibilityValue(name)
         .accessibilityHint("Change who is cooking on the selected date")
         .accessibilityIdentifier("plan-cook-assignment")
+    }
+
+    private var cookHeading: String {
+        Calendar.current.isDateInToday(weekAnchor) ? "Cooking tonight" : "Cook"
+    }
+
+    private func dinnerFacts(minutes: Int, servings: Int) -> some View {
+        let layout = typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4))
+            : AnyLayout(HStackLayout(spacing: 20))
+        return layout {
+            if minutes > 0 {
+                Label("\(minutes) min", systemImage: "clock")
+                    .plType(.footnote).foregroundStyle(Color.inkSecondary)
+            }
+            Button { planDay = weekAnchor } label: {
+                Label("Serves \(servings)", systemImage: "person.2")
+                    .plType(.footnote).plActionLabel().foregroundStyle(Color.inkSecondary)
+                    .frame(minHeight: 44)
+            }.buttonStyle(.pressable).accessibilityLabel("Change servings")
+                .accessibilityValue("Serves \(servings)")
+        }.accessibilityIdentifier("plan-dinner-facts")
+    }
+
+    private func diningOutActions(title: String) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Dinner out is on the plan. No cooking needed.")
+                .plType(.footnote).foregroundStyle(Color.inkSecondary)
+            PrimaryActionButton(title: title == "Eating out" ? "Add a place" : "Change place") { diningPlaceDate = weekAnchor }
+            Button("Change dinner plan") { planDay = weekAnchor }
+                .plType(.footnote, .semibold).foregroundStyle(Color.accentText)
+                .plActionLabel().frame(maxWidth: .infinity, minHeight: 44)
+                .buttonStyle(.pressable)
+        }
     }
 
     private func assignCook(_ cook: HouseholdMember?, on date: Date) {
@@ -743,17 +791,18 @@ struct WeekView: View {
     private func remoteFeatured(_ entry: PlanLedger.Entry) -> some View {
         let ledger = PlanLedger.shared
         let honesty = entry.isGoing || entry.pendingLine != nil
-        let title = entry.hasDish ? entry.title : Calendar.current.isDateInToday(weekAnchor) ? "What’s for dinner?" : PlanEmptyCopy.heroTitle(past: isPast(weekAnchor))
+        let eatingOut = PlanRowVoice.isEatingOut(title: entry.title, hasRecipe: entry.hasRecipe)
+        let title = entry.hasDish ? entry.title : Calendar.current.isDateInToday(weekAnchor) ? "What sounds good tonight?" : PlanEmptyCopy.heroTitle(past: isPast(weekAnchor))
         Button { Haptic.tap(); pushed = .day(weekAnchor) } label: {
             VStack(alignment: .leading, spacing: 16) {
-                Text(title).plType(.title, .semibold).foregroundStyle(Color.ink)
+                Text(eatingOut && title == "Eating out" ? "A night out." : title).plType(.title, .semibold).foregroundStyle(Color.ink)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .fixedSize(horizontal: false, vertical: true)
                 if entry.hasDish && !PlanRowVoice.isEatingOut(title: entry.title, hasRecipe: entry.hasRecipe) {
-                    RecipeArtwork(data: ledger.photo(for: entry.recordName), title: entry.title, ratio: 2.5, maxHeight: 180)
+                    RecipeArtwork(data: ledger.photo(for: entry.recordName) ?? cookbookRecipe(for: entry)?.photoData, title: entry.title, ratio: 2.5, maxHeight: 180)
                 }
-                if honesty || entry.cooked {
-                    Text(honesty ? RemotePlanRow.caption(for: entry) : "Dinner made")
+                if honesty {
+                    Text(RemotePlanRow.caption(for: entry))
                         .plType(.footnote).foregroundStyle(Color.inkSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -781,29 +830,36 @@ struct WeekView: View {
                 .fixedSize(horizontal: false, vertical: true)
         }
         if !entry.isGoing {
-            if PlanRowVoice.isEatingOut(title: entry.title, hasRecipe: entry.hasRecipe) {
-                Text("No cooking needed").plType(.body, .medium).foregroundStyle(Color.inkSecondary)
-                    Button(entry.title == "Eating out" ? "Add a place" : "Change place") { diningPlaceDate = weekAnchor }
-                        .plType(.footnote, .semibold).frame(minHeight: 44).buttonStyle(.pressable)
+            if eatingOut {
+                diningOutActions(title: entry.title)
             } else {
                 let name = entry.cooked
                     ? (ledger.isMine(cook: entry) ? "Cooked by you" : entry.hasCook ? "Cooked by \(entry.cookName)" : "Cook not recorded")
                     : (ledger.cookLine(for: entry) ?? "No cook assigned")
+                VStack(alignment: .leading, spacing: 0) {
                 Button { planDay = weekAnchor } label: {
-                    PlanCookLabel(heading: "Cook", name: name, member: PlanRowVoice.member(id: entry.cookID, in: members.readable), fallbackName: entry.hasCook ? entry.cookName : nil)
+                    PlanCookLabel(heading: entry.cooked ? "Dinner made" : cookHeading, name: name, member: PlanRowVoice.member(id: entry.cookID, in: members.readable), actionTitle: entry.hasCook ? "Change" : "Assign", fallbackName: entry.hasCook ? entry.cookName : nil)
                 }
                 .buttonStyle(.pressable)
                 .accessibilityLabel("Dinner cook")
                 .accessibilityValue(name)
                 .accessibilityHint("Opens this household dinner to change its cook")
                 .accessibilityIdentifier("plan-cook-assignment")
+                if entry.hasDish {
+                    dinnerFacts(minutes: entry.recipeMinutes, servings: entry.servings)
+                }
+                }
             }
         }
         // No Let's cook on a night that is going. The pill is an invitation
         // to start a cook session on a dinner this phone has just taken off
         // the plan for everybody.
         if !entry.hasDish && !entry.isGoing {
-            PrimaryActionButton(title: Calendar.current.isDateInToday(weekAnchor) ? "Plan tonight" : PlanEmptyCopy.planNight) { planDay = weekAnchor }
+            PrimaryActionButton(title: Calendar.current.isDateInToday(weekAnchor) ? "Choose a meal" : PlanEmptyCopy.planNight) { planDay = weekAnchor }
+            Button("Eating out instead") { markEatingOut(on: weekAnchor) }
+                .plType(.footnote, .semibold).foregroundStyle(Color.accentText)
+                .plActionLabel().frame(maxWidth: .infinity, minHeight: 44)
+                .buttonStyle(.pressable)
         } else if let recipe = cookbookRecipe(for: entry), !entry.isGoing {
             if entry.cooked {
                 HStack {
@@ -814,11 +870,11 @@ struct WeekView: View {
                 SecondaryActionButton(title: "Share at the Table") { shareRecipe = recipe }
             } else {
                 let future = weekAnchor.startOfDay > Date.now.startOfDay
-                PrimaryActionButton(title: future ? "View recipe" : cookLedger.isCooking(recipe) ? "Resume cooking" : "Start cooking", systemImage: future ? "book" : "fork.knife") {
+                PrimaryActionButton(title: future ? "View recipe" : cookLedger.isCooking(recipe) ? "Resume cooking" : "Start cooking") {
                     if future { pushed = .recipe(recipe) } else { startCooking(recipe, remote: entry) }
                 }
             }
-        } else {
+        } else if !eatingOut {
             // "Not in your cookbook" is a fact about this cookbook, and on a
             // night that is going the pill is missing for a different reason
             // entirely. Saying it there would be false whenever the recipe
@@ -1277,6 +1333,26 @@ struct WeekView: View {
     private func markEatingOut(on date: Date) {
         Haptic.plate()
         let original = dinner(on: date)
+        // Shared nights must retain their existing authority and identity.
+        // Creating a local dinner here would leave two competing plans.
+        if original == nil, let entry = PlanLedger.shared.dinner(on: date) {
+            guard !entry.isGoing else { return }
+            var edit = PlanShare.Edit(changing: entry)
+            edit.title = "Eating out"; edit.tagline = "Night off the stove"
+            edit.cookID = ""; edit.cookName = ""; edit.cookColorHex = ""; edit.cookSeat = ""
+            edit.hasRecipe = false; edit.recipeMinutes = 0; edit.recipeOriginKey = ""; edit.photo = .clear
+            Task {
+                switch await PlanShare.write(edit) {
+                case .landed, .queued: break
+                case .theirs:
+                    dinnerSaveProblem = "Your household changed this dinner. Review the updated plan and try again."
+                    dinnerSaveFailed = true
+                case .refused(let reason):
+                    dinnerSaveProblem = reason; dinnerSaveFailed = true
+                }
+            }
+            return
+        }
         let previousRecipe = original?.recipe
         let previousTitle = original?.customTitle ?? ""
         let previousTagline = original?.tagline ?? ""

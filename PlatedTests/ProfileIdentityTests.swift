@@ -121,4 +121,33 @@ final class ProfileIdentityTests: XCTestCase {
         XCTAssertEqual(activity.shared, 0)
         XCTAssertNil(activity.latest)
     }
+
+    func testPlanEventNamesThePlannerWithoutCreditingTheAssignedCook() {
+        let sam = person("Sam Rivera", id: "sam-id")
+        let nate = person("Nate", id: "nate-id", role: "owner")
+        let now = Date.now
+        let meal = PlannedMeal(date: now.addingTimeInterval(86400), customTitle: "Pizza Night", cook: nate)
+        meal.authorID = "sam-id"; meal.createdAt = now.addingTimeInterval(-60); context.insert(meal)
+        let event = PlanMemberEvent.latest(member: sam, roster: [sam, nate], meals: [meal], remote: [], recorded: nil, now: now)
+        XCTAssertEqual(event?.line, "Planned Pizza Night")
+        XCTAssertEqual(event?.dinnerDate, meal.date)
+        XCTAssertNil(PlanMemberEvent.latest(member: nate, roster: [sam, nate], meals: [meal], remote: [], recorded: nil, now: now))
+        XCTAssertEqual(MemberDinnerActivity(member: sam, roster: [sam, nate], meals: [meal], remote: [], posts: [], now: now).cooked, 0)
+    }
+
+    func testPlanEventUsesEditorIdentityAndExcludesPendingOrEchoedChanges() {
+        let sam = person("Sam", id: "sam-id")
+        let now = Date.now
+        var plan = TableShare.RemotePlan()
+        plan.title = "Pasta"; plan.authorID = "someone-else"; plan.editorID = "sam-id"
+        plan.recordName = "plan-test"; plan.shoppingID = "test"; plan.day = PlanDay.string(now)
+        plan.createdAt = now.addingTimeInterval(-3600); plan.changedAt = now.addingTimeInterval(-60)
+        var entry = PlanLedger.Entry(plan)
+        XCTAssertEqual(PlanMemberEvent.latest(member: sam, roster: [sam], meals: [], remote: [entry], recorded: nil, now: now)?.line, "Updated Pasta")
+        entry.pendingSince = now
+        XCTAssertNil(PlanMemberEvent.latest(member: sam, roster: [sam], meals: [], remote: [entry], recorded: nil, now: now))
+        entry.pendingSince = nil
+        let local = PlannedMeal(customTitle: "New local title"); local.shoppingID = "test"; context.insert(local)
+        XCTAssertNil(PlanMemberEvent.latest(member: sam, roster: [sam], meals: [local], remote: [entry], recorded: nil, now: now))
+    }
 }

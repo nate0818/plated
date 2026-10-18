@@ -33,7 +33,7 @@ final class ApprovedPolishTests: XCTestCase {
         app.buttons["Eating out instead"].tap()
         XCTAssertTrue(app.buttons["featured-dinner-card"].waitForExistence(timeout: 8))
         XCTAssertEqual(app.buttons["featured-dinner-card"].label, "Eating out")
-        XCTAssertTrue(app.staticTexts["No cooking needed"].exists)
+        XCTAssertTrue(app.staticTexts["Dinner out is on the plan. No cooking needed."].exists)
         capture("polish-plan-eating-out")
         app.buttons["Add a place"].tap()
         let place = element("dining-place")
@@ -160,7 +160,7 @@ final class ApprovedPolishTests: XCTestCase {
             let action = app.buttons["Start cooking"]
             XCTAssertTrue(action.waitForExistence(timeout: 10))
             let meal = app.buttons["featured-dinner-card"]
-            let weather = app.staticTexts["Today’s weather"].firstMatch
+            let weather = element("plan-weather-conditions")
             XCTAssertTrue(meal.isHittable)
             XCTAssertTrue(weather.exists)
             if orientation.isLandscape {
@@ -195,5 +195,43 @@ final class ApprovedPolishTests: XCTestCase {
         XCTAssertTrue(field.isHittable)
         XCTAssertEqual(field.value as? String, "Keep this draft while rotating.")
         capture("polish-ipad-restored-draft")
+    }
+
+    func testPlanProposalParityForLocalSharedAndCompletedDinners() {
+        let states: [(String, [String], String)] = [
+            ("local", [], "Start cooking"),
+            ("shared", ["-plated-review-shared-tonight"], "Start cooking"),
+            ("shared-open", ["-plated-review-shared-tonight", "-plated-review-shared-cook-only"], "Choose a meal"),
+            ("cooked", ["-plated-review-cooked-tonight"], "Share at the Table"),
+            ("shared-cooked", ["-plated-review-shared-tonight", "-plated-review-cooked-tonight"], "Share at the Table")
+        ]
+        for light in [false, true] {
+            for (name, flags, action) in states {
+                launch(flags + ["-plated-fake-weather", "-plated-review-household-activity"], light: light)
+                XCTAssertTrue(app.buttons[action].waitForExistence(timeout: 20), "\(name) lacks the proposed next action")
+                XCTAssertTrue(element("plan-calendar").exists)
+                XCTAssertTrue(element("plan-cook-assignment").exists)
+                if name == "shared-open" {
+                    XCTAssertTrue(app.staticTexts["What sounds good tonight?"].exists || app.buttons["featured-remote-dinner-card"].label == "What sounds good tonight?")
+                    XCTAssertTrue(app.buttons["Eating out instead"].isHittable)
+                    XCTAssertFalse(app.buttons["Plan tonight"].exists)
+                } else {
+                    XCTAssertTrue(app.buttons["Change servings"].exists, "Shared and local meals must both show servings")
+                }
+                capture("plan-parity-\(name)-\(light ? "light" : "dark")")
+            }
+        }
+    }
+
+    func testPlanContextAndFutureDayFollowTheProposal() {
+        launch(["-plated-fake-weather", "-plated-review-household-activity", "-plated-review-dinner-history"])
+        XCTAssertTrue(app.buttons["Start cooking"].waitForExistence(timeout: 20))
+        reveal(element("plan-next-day"))
+        XCTAssertTrue(app.staticTexts["Household dinners"].exists)
+        capture("plan-parity-context")
+        element("plan-next-day").tap()
+        XCTAssertTrue(app.buttons["View recipe"].waitForExistence(timeout: 8))
+        XCTAssertFalse(app.buttons["Start cooking"].exists)
+        capture("plan-parity-future")
     }
 }

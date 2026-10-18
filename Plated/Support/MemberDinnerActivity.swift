@@ -59,3 +59,34 @@ struct MemberDinnerActivity {
         return "\(cooked) \(cooked == 1 ? "dinner" : "dinners") cooked · \(shared) \(shared == 1 ? "post" : "posts") shared"
     }
 }
+
+/// Plan's recent events can include planning, without counting a planned
+/// dinner as cooked or attributing its author’s action to the assigned cook.
+@MainActor
+struct PlanMemberEvent {
+    let line: String
+    let date: Date
+    let dinnerDate: Date?
+
+    static func latest(member: HouseholdMember, roster: [HouseholdMember], meals: [PlannedMeal],
+                       remote: [PlanLedger.Entry], recorded: MemberDinnerActivity.Event?,
+                       now: Date = .now, calendar: Calendar = .current) -> Self? {
+        let start = calendar.date(byAdding: .day, value: -6, to: calendar.startOfDay(for: now)) ?? now
+        var events: [Self] = recorded.map { [Self(line: $0.line, date: $0.date, dinnerDate: nil)] } ?? []
+        let localIDs = Set(meals.filter { !$0.isDeleted }.compactMap(\.shoppingID))
+        for meal in meals where !meal.isDeleted && meal.hasDish && !meal.isCooked
+            && meal.createdAt >= start && meal.createdAt <= now && !meal.authorID.isEmpty {
+            guard ProfileIdentity.matches(authorID: meal.authorID, authorName: "", member: member,
+                profileName: member.name, roster: roster) else { continue }
+            events.append(Self(line: "Planned \(meal.title)", date: meal.createdAt, dinnerDate: meal.date))
+        }
+        for entry in remote where entry.hasDish && !entry.cooked && entry.pendingSince == nil
+            && !localIDs.contains(entry.shoppingID) && entry.changedAt >= start && entry.changedAt <= now {
+            guard ProfileIdentity.matches(authorID: entry.changedByID, authorName: "", member: member,
+                profileName: member.name, roster: roster) else { continue }
+            let verb = entry.changedAt.timeIntervalSince(entry.createdAt) < 1 ? "Planned" : "Updated"
+            events.append(Self(line: "\(verb) \(entry.title)", date: entry.changedAt, dinnerDate: entry.date))
+        }
+        return events.max { $0.date < $1.date }
+    }
+}

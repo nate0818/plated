@@ -36,28 +36,12 @@ struct PlanDateStrip: View {
     @Environment(\.accessibilityVoiceOverEnabled) private var voiceOverEnabled
     @Environment(\.scenePhase) private var scenePhase
 
-    private let cellWidth: CGFloat = 46
     private let cellSpacing: CGFloat = 2
 
-    /// The sheet grabber turned on its side and stood at each end of the
-    /// strip. iOS has taught everyone that a short grey capsule means "this
-    /// surface moves in the direction I am thin"; on a sheet that is down,
-    /// here it is sideways. It is a stroke, not a glyph, so inkFaint is the
-    /// paint DESIGN.md allows it. It never moves: a grabber does not animate
-    /// on a sheet either, and the claim it makes, that there is more strip
-    /// in that direction, is kept true by the runway rebuild below, so there
-    /// is no state for it to perform.
-    private static let edgeMarkSize = CGSize(width: 3, height: 20)
-    private static let edgeMarkInset: CGFloat = 3
-
-    /// The scroll content dissolves under each mark rather than being cut
-    /// off beside it. A grabber sits on the sheet, not on the sheet's words;
-    /// on a 430pt phone the strip's hard edge otherwise lands on half a "Su".
+    /// Fade only the edges during a swipe; a settled row fits seven days.
     private static let edgeFade: CGFloat = 12
 
-    /// Rebuild the runway before a thumb can reach its end. A year each way
-    /// is generous, but the marks promise more strip in both directions and
-    /// a hard stop under one of them would make that a lie.
+    /// Rebuild before a thumb can reach the end of the date runway.
     private static let runwayMargin = 7
 
     init(
@@ -91,9 +75,9 @@ struct PlanDateStrip: View {
 
     var body: some View {
         GeometryReader { proxy in
+            let cellWidth = max(44, (proxy.size.width - 6 * cellSpacing) / 7)
             let centerInset = max(0, (proxy.size.width - cellWidth) / 2)
-            // Increase Contrast softens nothing a person reads: the marks
-            // stay, the dissolve goes.
+            // Increase Contrast keeps edge text fully opaque.
             let fadeWidth = contrast == .increased ? 0 : Self.edgeFade
 
             ScrollViewReader { reader in
@@ -150,8 +134,8 @@ struct PlanDateStrip: View {
                     // so the committed day rests exactly in the center.
                     reader.scrollTo(settled, anchor: .center)
 
-                    // Keep the edge marks honest: a thumb nearing either end
-                    // of the runway gets a fresh year on both sides of where
+                    // A thumb nearing either end of the runway gets a fresh
+                    // year on both sides of where
                     // it stopped. Only after a real scrub: the first idle
                     // callback arrives while the geometry still reads index
                     // zero, and rebuilding there put the selected day at the
@@ -206,11 +190,9 @@ struct PlanDateStrip: View {
             // is the same dissolve without touching the scroll view at all.
             .overlay(alignment: .leading) { edgeFade(fadeWidth) }
             .overlay(alignment: .trailing) { edgeFade(fadeWidth).scaleEffect(x: -1) }
-            .overlay(alignment: .leading) { edgeMark }
-            .overlay(alignment: .trailing) { edgeMark }
             }
         }
-        .frame(height: 66)
+        .frame(height: 62)
         .plChrome()
         .accessibilityHint("Swipe left or right to choose a date")
         .onKeyPress(.leftArrow) { adjustDay(-1); return .handled }
@@ -239,16 +221,10 @@ struct PlanDateStrip: View {
             .accessibilityHidden(true)
     }
 
-    /// One view drawn twice here, and a third time on the month grid, so it
-    /// lives in Theme.swift rather than in either screen.
-    private var edgeMark: some View {
-        PlanEdgeMark().padding(.horizontal, Self.edgeMarkInset)
-    }
-
     /// The jump the header arrows used to make, for readers who cannot
     /// swipe the strip: VoiceOver's actions rotor, Voice Control's "Show
     /// actions for Monday, September 7", Switch Control's actions menu.
-    /// The marks are silent and "Monday, September 14" alone does not tell
+    /// "Monday, September 14" alone does not tell
     /// a listener that a week moved, so the week is spoken as well.
     private func weekAction(_ delta: Int) {
         let calendar = Calendar.current
@@ -283,7 +259,7 @@ struct PlanDateStrip: View {
         return button
         .accessibilityAddTraits(selected ? .isSelected : [])
         .accessibilityLabel(date.formatted(.dateTime.weekday(.wide).month().day()))
-        .accessibilityValue(hasDinner(date) ? "Dinner planned" : "No dinner planned")
+        .accessibilityValue((Calendar.current.isDateInToday(date) ? "Today. " : "") + (hasDinner(date) ? "Dinner planned" : "No dinner planned"))
         // VoiceOver scrolling to an offscreen date used to turn the wheel
         // and change dinner merely while reading. Keep one adjustable date
         // in its reading order; explicit day/week actions still navigate.
@@ -401,7 +377,7 @@ private struct DateWheelDayLabel: View {
     private var background: Color { selected ? .selectionFill : hovering ? .oliveTint : .clear }
 
     var body: some View {
-        VStack(spacing: 5) {
+        VStack(spacing: 3) {
             Text(date.formattedWeekday()) // design-ok(action-wrap): weekday and date intentionally stack
                 .plType(.caption, .medium)
             Text(date.formattedDayNumber())
@@ -411,8 +387,13 @@ private struct DateWheelDayLabel: View {
         }
         .foregroundStyle(textColor)
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 8)
+        .padding(.vertical, 6)
         .background(background, in: Radius.shape(Radius.chip))
+        .overlay {
+            if Calendar.current.isDateInToday(date) && !selected {
+                Radius.shape(Radius.chip).strokeBorder(Color.inkSecondary, lineWidth: 1)
+            }
+        }
         .contentShape(Rectangle())
     }
 }

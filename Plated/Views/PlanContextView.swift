@@ -37,9 +37,8 @@ private struct PlanWeatherView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(title).plType(.footnote, .medium).foregroundStyle(Color.ink)
-                .accessibilityAddTraits(.isHeader)
             if !inForecastRange {
+                Text(title).plType(.footnote, .medium).foregroundStyle(Color.ink)
                 Text(date.startOfDay < Date.now.startOfDay
                      ? "Past weather isn’t available."
                      : "Check back closer to the day for a forecast.")
@@ -84,18 +83,24 @@ private struct PlanWeatherView: View {
                 .frame(width: 44, height: 44).accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 4) {
                 Text(day.conditionDescription).plType(.body, .medium).foregroundStyle(Color.ink)
-                Text("\(Int((day.precipitationChance * 100).rounded()))% chance of rain")
-                    .plType(.footnote).foregroundStyle(Color.inkSecondary)
+                Text("\(dayLabel) · \(Int((day.precipitationChance * 100).rounded()))% chance of rain")
+                    .plType(.caption).foregroundStyle(Color.inkSecondary)
             }
             if !typeSize.isAccessibilitySize { Spacer(minLength: 0) }
             VStack(alignment: typeSize.isAccessibilitySize ? .leading : .trailing, spacing: 4) {
-                Text("H \(temperature(day.highF))").plType(.heading, .medium).foregroundStyle(Color.ink)
-                Text("L \(temperature(day.lowF))").plType(.footnote).foregroundStyle(Color.inkSecondary)
+                Text("High \(temperature(day.highF))").plType(.heading).foregroundStyle(Color.ink)
+                Text("Low \(temperature(day.lowF))").plType(.caption).foregroundStyle(Color.inkSecondary)
             }
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(day.conditionDescription). High \(temperature(day.highF)), low \(temperature(day.lowF)). \(Int((day.precipitationChance * 100).rounded())) percent chance of rain.")
         .accessibilityIdentifier("plan-weather-conditions")
+    }
+
+    private var dayLabel: String {
+        if Calendar.current.isDateInToday(date) { return "Today" }
+        if Calendar.current.isDateInTomorrow(date) { return "Tomorrow" }
+        return date.formatted(.dateTime.month(.abbreviated).day())
     }
 
     private func temperature(_ fahrenheit: Double) -> String {

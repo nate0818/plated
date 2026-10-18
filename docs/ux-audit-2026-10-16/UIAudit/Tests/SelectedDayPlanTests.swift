@@ -46,7 +46,8 @@ final class SelectedDayPlanTests: XCTestCase {
         for _ in 0..<3 { content.swipeUp() }
         expectDinner("Salmon Night")
         XCTAssertTrue(dateButton(0).isSelected)
-        XCTAssertFalse(app.staticTexts["Pizza Night"].exists)
+        XCTAssertTrue(app.buttons["plan-next-day"].exists, "Other dates are a separate preview, never additional dinner cards")
+        XCTAssertEqual(app.buttons.matching(identifier: "featured-dinner-card").count, 1)
         select(1)
         expectDinner("Pizza Night")
         XCTAssertFalse(app.staticTexts["Salmon Night"].exists)
@@ -76,7 +77,7 @@ final class SelectedDayPlanTests: XCTestCase {
             content.swipeUp()
         }
         XCTAssertTrue(breakfast.isHittable)
-        XCTAssertFalse(app.staticTexts["Second dinner"].exists)
+        XCTAssertEqual(app.buttons["featured-dinner-card"].label, "Drag test dinner")
         XCTAssertTrue(dateButton(0).isHittable)
         capture("selected-day-largest-text-breakfast")
         select(1)
