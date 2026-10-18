@@ -1,0 +1,17 @@
+SCREEN -plated-tab home -householdName Meadows
+Plated Back Button
+HOUSEHOLD
+Household settings Button Shows household name, sharing and memb
+Notifications No unread notifications Button Shows activity at y
+Meadows Heading
+SCREEN -plated-tab table
+Plated Plan Button Open Plan
+Recipes Button Open Recipes
+Groceries Button Open Groceries
+selected Table Button Return to the top of Table
+Plated
+Add Button Add a recipe, Table post or question
+Notifications No unread notifications Button Shows activity at y
+Your profile Button Opens your profile, household and settings.
+The Table Heading
+Private to your Table. People and invitations. Button Shows who 

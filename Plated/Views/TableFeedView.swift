@@ -782,7 +782,7 @@ struct TableFeedView: View {
 
     @ViewBuilder
     private var header: some View {
-        PlatedMasthead(title: "The Table", titleBelowTools: true) {
+        PlatedMasthead(title: "The Table", titleBelowTools: true, compact: true) {
             HStack(spacing: 8) {
                 ActivityBellButton(size: 44, accessibilityID: "table-notifications-bell") { pushed = .activity }
                 AccountButton()
@@ -814,23 +814,20 @@ struct TableFeedView: View {
                         tablePrivacyIcon
                         tablePrivacySummary
                         tablePeopleLabel
-                            .frame(minHeight: 38)
                     }
                 }
             }
             .padding(.horizontal, 12)
             .frame(minHeight: 64)
+            .background(Color.fill, in: Radius.shape(Radius.card))
             .contentShape(Radius.shape(Radius.card))
         }
         .buttonStyle(.pressable)
-        .background(Color.fill, in: Radius.shape(Radius.card))
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(
-            seatCount == 1
-                ? "Private to your Table. Just you for now."
-                : "Private to your Table. Invite only. \(seatCount.things("person", "people"))."
-        )
+        // The reaction denominator includes past post authors and cannot
+        // establish who currently has access. People reads the share itself.
+        .accessibilityLabel("Private to your Table. People and invitations.")
         .accessibilityHint("Shows who can see posts")
+        .accessibilityIdentifier("table-people")
     }
 
     private var tablePrivacyIcon: some View {
@@ -847,9 +844,7 @@ struct TableFeedView: View {
             Text("Private to your Table")
                 .plType(.footnote, .bold)
                 .foregroundStyle(Color.ink)
-            Text(seatCount == 1
-                 ? "Just you for now"
-                 : "Invite only · \(seatCount.things("person", "people"))")
+            Text("See who can view posts")
                 .plType(.caption)
                 .foregroundStyle(Color.inkSecondary)
         }
@@ -868,6 +863,8 @@ struct TableFeedView: View {
         }
         .foregroundStyle(Color.ink)
         .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .frame(minHeight: ControlMetrics.minimumTarget)
         .background(Color.raisedFill, in: Radius.shape(Radius.chip))
         .overlay(Radius.shape(Radius.chip).strokeBorder(Color.navHairline))
     }

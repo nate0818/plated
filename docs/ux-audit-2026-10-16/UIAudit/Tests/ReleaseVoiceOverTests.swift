@@ -69,6 +69,21 @@ final class ReleaseVoiceOverTests: XCTestCase {
             try seek(target)
         }
     }
+
+    func testHouseholdAndTableHeaderControlsAreAnnouncedAsButtons() throws {
+        try launch(["-plated-tab", "home", "-householdName", "Meadows"])
+        let settings = try seek("Household settings")
+        XCTAssertTrue(settings.localizedCaseInsensitiveContains("button"))
+        let notifications = try seek("Notifications")
+        XCTAssertTrue(notifications.localizedCaseInsensitiveContains("button"))
+        try seek("Meadows")
+
+        try launch(["-plated-tab", "table"])
+        try seek("The Table")
+        let people = try seek("People and invitations")
+        XCTAssertTrue(people.localizedCaseInsensitiveContains("button"))
+    }
+
     func testFeaturedDinnerNameAndCookingReachability() throws {
         try launch(["-plated-tab", "week"])
         let dinner = try seek("Salmon Night")

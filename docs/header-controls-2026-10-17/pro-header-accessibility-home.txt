@@ -1,0 +1,98 @@
+Hit area is too small
+The size of this SwiftUI.AccessibilityNode is too small for user to interact.
+Attributes: StaticText, 0x10b5ea080, {{242.3, 462.2}, {53.7, 15.7}}, label: 'Sun + Sat'
+Element subtree:
+ →StaticText, 0x10b5ea080, {{242.3, 462.2}, {53.7, 15.7}}, label: 'Sun + Sat'
+Path to element:
+ →Application, 0x1073df340, pid: 37998, label: 'Plated'
+  ↳Window (Main), 0x1073df480, {{0.0, 0.0}, {402.0, 874.0}}
+   ↳Other, 0x1073df200, {{0.0, 0.0}, {402.0, 874.0}}
+    ↳Other, 0x1073df5c0, {{0.0, 0.0}, {402.0, 874.0}}
+     ↳Other, 0x1073df840, {{0.0, 0.0}, {402.0, 874.0}}
+      ↳Other, 0x1073df980, {{0.0, 0.0}, {402.0, 874.0}}
+       ↳Other, 0x1073df700, {{0.0, 0.0}, {402.0, 874.0}}
+        ↳Other, 0x1073dfac0, {{0.0, 0.0}, {402.0, 874.0}}
+         ↳Other, 0x1073dfc00, {{0.0, 0.0}, {402.0, 874.0}}
+          ↳Other, 0x1073dfe80, {{0.0, 0.0}, {402.0, 874.0}}
+           ↳Other, 0x1073dfd40, {{0.0, 0.0}, {402.0, 874.0}}
+            ↳ScrollView, 0x1073dc500, {{0.0, 0.0}, {402.0, 874.0}}
+             ↳Other, 0x10b5e8280, {{0.0, 62.0}, {402.0, 1004.0}}
+              ↳StaticText, 0x10b5ea080, {{242.3, 462.2}, {53.7, 15.7}}, label: 'Sun + Sat'
+Query chain:
+ →Find: Application 'com.natemeadows.plated'
+  Output: {
+    Application, 0x10b73e300, pid: 37998, label: 'Plated'
+  }
+  ↪︎Find: Descendant with identity binding to AX element pid: 37998, elementOrHash.elementID: 4643740064.33
+    Output: {
+      StaticText, 0x10b731180, {{242.3, 462.2}, {53.7, 15.7}}, label: 'Sun + Sat'
+    }
+
+
+Contrast failed
+Contrast failed for SwiftUI.AccessibilityNode
+Attributes: Button, 0x10b5f4f00, {{224.0, 738.3}, {44.0, 68.3}}, label: 'T'
+Element subtree:
+ →Button, 0x10b5f4f00, {{224.0, 738.3}, {44.0, 68.3}}, label: 'T'
+Path to element:
+ →Application, 0x1073ded00, pid: 37998, label: 'Plated'
+  ↳Window (Main), 0x1073def80, {{0.0, 0.0}, {402.0, 874.0}}
+   ↳Other, 0x1073debc0, {{0.0, 0.0}, {402.0, 874.0}}
+    ↳Other, 0x1073dea80, {{0.0, 0.0}, {402.0, 874.0}}
+     ↳Other, 0x1073de940, {{0.0, 0.0}, {402.0, 874.0}}
+      ↳Other, 0x1073de800, {{0.0, 0.0}, {402.0, 874.0}}
+       ↳Other, 0x1073de6c0, {{0.0, 0.0}, {402.0, 874.0}}
+        ↳Other, 0x1073de300, {{0.0, 0.0}, {402.0, 874.0}}
+         ↳Other, 0x1073de440, {{0.0, 0.0}, {402.0, 874.0}}
+          ↳Other, 0x1073ddcc0, {{0.0, 0.0}, {402.0, 874.0}}
+           ↳Other, 0x10b5e8000, {{0.0, 0.0}, {402.0, 874.0}}
+            ↳ScrollView, 0x10b5e8140, {{0.0, 0.0}, {402.0, 874.0}}
+             ↳Other, 0x10b5e8640, {{0.0, 62.0}, {402.0, 1004.0}}
+              ↳ScrollView, 0x10b5eb980, {{24.0, 738.3}, {354.0, 68.3}}
+               ↳Other, 0x10b5ebac0, {{24.0, 738.3}, {344.0, 68.3}}
+                ↳Other, 0x10b5f4dc0, {{224.0, 738.3}, {44.0, 68.3}}, label: 'Thursday, nobody yet'
+                 ↳Button, 0x10b5f4f00, {{224.0, 738.3}, {44.0, 68.3}}, label: 'T'
+Query chain:
+ →Find: Application 'com.natemeadows.plated'
+  Output: {
+    Application, 0x10b73e300, pid: 37998, label: 'Plated'
+  }
+  ↪︎Find: Descendant with identity binding to AX element pid: 37998, elementOrHash.elementID: 4643745184.103
+    Output: {
+      Button, 0x10b733c00, {{224.0, 738.3}, {44.0, 68.3}}, label: 'T'
+    }
+
+
+Contrast failed
+Contrast failed for SwiftUI.AccessibilityNode
+Attributes: StaticText, 0x10b5f4780, {{142.2, 748.3}, {7.7, 14.3}}, label: 'T'
+Element subtree:
+ →StaticText, 0x10b5f4780, {{142.2, 748.3}, {7.7, 14.3}}, label: 'T'
+Path to element:
+ →Application, 0x1073df0c0, pid: 37998, label: 'Plated'
+  ↳Window (Main), 0x1073dc8c0, {{0.0, 0.0}, {402.0, 874.0}}
+   ↳Other, 0x1073dfd40, {{0.0, 0.0}, {402.0, 874.0}}
+    ↳Other, 0x1073dc500, {{0.0, 0.0}, {402.0, 874.0}}
+     ↳Other, 0x1073dfe80, {{0.0, 0.0}, {402.0, 874.0}}
+      ↳Other, 0x1073dfc00, {{0.0, 0.0}, {402.0, 874.0}}
+       ↳Other, 0x1073dfac0, {{0.0, 0.0}, {402.0, 874.0}}
+        ↳Other, 0x1073df980, {{0.0, 0.0}, {402.0, 874.0}}
+         ↳Other, 0x1073df5c0, {{0.0, 0.0}, {402.0, 874.0}}
+          ↳Other, 0x10b5e8000, {{0.0, 0.0}, {402.0, 874.0}}
+           ↳Other, 0x10b5e8140, {{0.0, 0.0}, {402.0, 874.0}}
+            ↳ScrollView, 0x10b5e8280, {{0.0, 0.0}, {402.0, 874.0}}
+             ↳Other, 0x10b5e8780, {{0.0, 62.0}, {402.0, 1004.0}}
+              ↳ScrollView, 0x10b5ebac0, {{24.0, 738.3}, {354.0, 68.3}}
+               ↳Other, 0x10b5ebc00, {{24.0, 738.3}, {344.0, 68.3}}
+                ↳Other, 0x10b5f4500, {{124.0, 738.3}, {44.0, 68.3}}, label: 'Tuesday, Riley cooks'
+                 ↳Button, 0x10b5f4640, {{124.0, 738.3}, {44.0, 68.3}}, label: 'T, R'
+                  ↳StaticText, 0x10b5f4780, {{142.2, 748.3}, {7.7, 14.3}}, label: 'T'
+Query chain:
+ →Find: Application 'com.natemeadows.plated'
+  Output: {
+    Application, 0x10b73e300, pid: 37998, label: 'Plated'
+  }
+  ↪︎Find: Descendant with identity binding to AX element pid: 37998, elementOrHash.elementID: 4643743904.108
+    Output: {
+      StaticText, 0x10b733340, {{142.2, 748.3}, {7.7, 14.3}}, label: 'T'
+    }

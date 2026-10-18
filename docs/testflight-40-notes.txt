@@ -1,0 +1,8 @@
+Household and Table layout refinements:
+• Household settings now has a separate, full-size button beside Activity. Long household names wrap below the controls.
+• Notification bells use a consistent size across headers.
+• The Table has a more compact heading and a properly padded People control.
+• The audience card opens People to show access instead of guessing "Just you for now" from activity.
+• Household uses the same light and dark backgrounds as the rest of Plated.
+
+Please check Household settings, Activity, and Table → People with your preferred text size.

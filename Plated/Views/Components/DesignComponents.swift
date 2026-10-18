@@ -38,6 +38,7 @@ struct PlatedMasthead<Tools: View>: View {
     var title: String
     var wordmarkSize: CGFloat = 25
     var titleBelowTools = false
+    var compact = false
     @ViewBuilder var tools: Tools
     @Environment(\.dynamicTypeSize) private var typeSize
 
@@ -50,7 +51,7 @@ struct PlatedMasthead<Tools: View>: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
+        VStack(alignment: .leading, spacing: compact ? 12 : 20) {
             HStack(spacing: 8) {
                 PlatedWordmark(size: max(24, wordmarkSize))
                 Spacer(minLength: 8)
@@ -59,12 +60,12 @@ struct PlatedMasthead<Tools: View>: View {
             }
             .plChrome()
             Text(typeSize.isAccessibilitySize ? accessibleTitle : title)
-                .plType(typeSize.isAccessibilitySize ? .heading : .hero, .regular)
+                .plType(typeSize.isAccessibilitySize ? .heading : (compact ? .display : .hero), .regular)
                 .foregroundStyle(Color.ink)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityAddTraits(.isHeader)
         }
-        .padding(.top, 6).padding(.bottom, 10)
+        .padding(.top, 6).padding(.bottom, compact ? 0 : 10)
     }
 }
 

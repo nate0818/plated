@@ -48,7 +48,6 @@ private struct HouseholdHomeContent: View {
     // household's one true profile when a sync race left more than one.
     @Query(sort: \HouseholdProfile.createdAt) private var profiles: [HouseholdProfile]
 
-    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.dynamicTypeSize) private var typeSize
     @AppStorage("autoRotateOpenNights") private var autoRotate = true
     @AppStorage("userFamilyName") private var userFamilyName = ""
@@ -126,9 +125,8 @@ private struct HouseholdHomeContent: View {
         meals.filter { !$0.isDeleted && $0.slotValue == .dinner }.count
     }
 
-    /// Whether the house has a name at all, or is still "Your Household"
-    /// with the pencil beside it. A member always has one and cannot rename
-    /// it in any case: naming is the host's (§10, Settings).
+    /// An unnamed household opens settings with the name field focused.
+    /// Members cannot rename the shared household.
     private var isNamed: Bool {
         if HouseholdShare.membership.owner != nil { return true }
         return !HouseholdIdentity.familyName(
@@ -219,15 +217,7 @@ private struct HouseholdHomeContent: View {
                 withAnimation(.plSnap) { swipedMember = nil }
             }
         }
-        .background(alignment: .topTrailing) {
-            // After Dark lets the chrome sleep — no ambient glow in the dark room.
-            if colorScheme == .light {
-                RadialGradient(colors: [.basilTint, .basilTint.opacity(0)], center: .center, startRadius: 0, endRadius: 220)
-                    .frame(width: 440, height: 440)
-                    .offset(x: 140, y: -160)
-                    .ignoresSafeArea()
-            }
-        }
+        .background(Color.canvas)
         // Two `.sheet` modifiers on one view is undefined — see CLAUDE.md.
         .sheet(item: homeSheet, onDismiss: { namingFromMasthead = false }) { destination in
             switch destination {
@@ -395,69 +385,30 @@ private struct HouseholdHomeContent: View {
 
     // MARK: Masthead
 
-    /// Past this, the trailing cluster and a 26pt title cannot share a
-    /// line — the row becomes two.
     private var hugeType: Bool { typeSize >= .accessibility1 }
 
     @ViewBuilder
     private var masthead: some View {
-        if hugeType {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack(alignment: .top, spacing: 10) {
-                    if embedded { backButton }
-                    mastheadTitle
-                }
-                HStack(spacing: 10) {
-                    Spacer(minLength: 0)
-                    mastheadControls
-                }
-            }
-        } else {
-            HStack(alignment: .discCentre, spacing: 10) {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 8) {
                 if embedded { backButton }
-                mastheadTitle
+                MicroLabel("Household")
                 Spacer(minLength: 6)
                 mastheadControls
             }
+            .plChrome()
+            mastheadTitle
         }
     }
 
     private var mastheadTitle: some View {
-            // An unnamed house is a house Apple never told us the name of.
-            // The title is the way to fix that — tap it and go name it.
-            Button {
-                Haptic.tap()
-                namingFromMasthead = true
-                pushed = .settings
-            } label: {
-                VStack(alignment: .leading, spacing: 2) {
-                    MicroLabel("Household")
-                    HStack(spacing: 5) {
-                        Text(householdDisplayName)
-                            .plType(hugeType ? .heading : .display)
-                            .foregroundStyle(Color.ink)
-                            // One line at ordinary sizes — it wrapped
-                            // "Your / Household" the moment two were
-                            // allowed. Only huge type gets to wrap.
-                            .lineLimit(hugeType ? 2 : 1)
-                            // Shrinking is what stops a mid-word break, so
-                            // it has to apply at huge type too. It used to
-                            // be 1 there, which is the one setting under
-                            // which a long surname has no way to fit.
-                            .minimumScaleFactor(hugeType ? 0.7 : 0.6)
-                            .allowsTightening(true)
-                            .fixedSize(horizontal: false, vertical: hugeType)
-                        Image(systemName: isNamed ? "slider.horizontal.3" : "pencil")
-                            .font(.system(size: 11, weight: .bold))
-                            .foregroundStyle(Color.inkSecondary)
-                    }
-                }
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.pressable)
-            .accessibilityLabel(isNamed ? "\(householdDisplayName), household settings" : "Name your household")
-            .accessibilityHint("Shows household name, sharing and membership settings.")
-            .layoutPriority(1)
+        Text(householdDisplayName)
+            .plType(hugeType ? .heading : .display)
+            .foregroundStyle(Color.ink)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityAddTraits(.isHeader)
+            .accessibilityIdentifier("household-page-title")
     }
 
     private var backButton: some View {
@@ -480,7 +431,22 @@ private struct HouseholdHomeContent: View {
 
     @ViewBuilder
     private var mastheadControls: some View {
-            ActivityBellButton(size: 36) {
+            Button {
+                Haptic.tap()
+                namingFromMasthead = !isNamed
+                pushed = .settings
+            } label: {
+                Image(systemName: "slider.horizontal.3")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(Color.ink)
+                    .plTapTarget()
+            }
+            .buttonStyle(.pressable)
+            .accessibilityLabel("Household settings")
+            .accessibilityHint("Shows household name, sharing and membership settings.")
+            .accessibilityIdentifier("household-settings")
+
+            ActivityBellButton(size: 44, accessibilityID: "household-notifications-bell") {
                 pushed = .activity
             }
 

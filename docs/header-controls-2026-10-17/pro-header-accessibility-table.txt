@@ -1,0 +1,374 @@
+Contrast failed
+Contrast failed for SwiftUI.AccessibilityNode
+Attributes: StaticText, 0x10b5f6300, {{24.0, 731.8}, {149.7, 23.0}}, label: 'Today’s weather'
+Element subtree:
+ →StaticText, 0x10b5f6300, {{24.0, 731.8}, {149.7, 23.0}}, label: 'Today’s weather'
+Path to element:
+ →Application, 0x1073dee40, pid: 38073, label: 'Plated'
+  ↳Window (Main), 0x1073df340, {{0.0, 0.0}, {402.0, 874.0}}
+   ↳Other, 0x1073df840, {{0.0, 0.0}, {402.0, 874.0}}
+    ↳Other, 0x1073ddcc0, {{0.0, 0.0}, {402.0, 874.0}}
+     ↳Other, 0x1073de440, {{0.0, 0.0}, {402.0, 874.0}}
+      ↳Other, 0x1073de6c0, {{0.0, 0.0}, {402.0, 874.0}}
+       ↳Other, 0x1073de940, {{0.0, 0.0}, {402.0, 874.0}}
+        ↳Other, 0x107235040, {{0.0, 0.0}, {402.0, 874.0}}
+         ↳Other, 0x10b5e8000, {{0.0, 0.0}, {402.0, 874.0}}
+          ↳Other, 0x10b5e8140, {{0.0, 0.0}, {402.0, 874.0}}
+           ↳Other, 0x10b5e8280, {{0.0, 0.0}, {402.0, 874.0}}
+            ↳ScrollView, 0x10b5e83c0, {{0.0, 0.0}, {402.0, 874.0}}, identifier: 'plan-selected-day-content'
+             ↳Other, 0x10b5e8a00, {{0.0, 62.0}, {402.0, 1367.0}}
+              ↳Other, 0x10b5e9680, {{24.0, 186.0}, {662.0, 1162.7}}
+               ↳StaticText, 0x10b5f6300, {{24.0, 731.8}, {149.7, 23.0}}, label: 'Today’s weather'
+Query chain:
+ →Find: Application 'com.natemeadows.plated'
+  Output: {
+    Application, 0x113e6b200, pid: 38073, label: 'Plated'
+  }
+  ↪︎Find: Descendant with identity binding to AX element pid: 38073, elementOrHash.elementID: 4644505952.55
+    Output: {
+      StaticText, 0x10b75d7c0, {{24.0, 731.8}, {149.7, 23.0}}, label: 'Today’s weather'
+    }
+
+
+Contrast failed
+Contrast failed for SwiftUI.AccessibilityNode
+Attributes: StaticText, 0x10b5f5f40, {{53.7, 601.2}, {79.0, 17.0}}, label: 'Serves 4'
+Element subtree:
+ →StaticText, 0x10b5f5f40, {{53.7, 601.2}, {79.0, 17.0}}, label: 'Serves 4'
+Path to element:
+ →Application, 0x1073ded00, pid: 38073, label: 'Plated'
+  ↳Window (Main), 0x1073def80, {{0.0, 0.0}, {402.0, 874.0}}
+   ↳Other, 0x1073debc0, {{0.0, 0.0}, {402.0, 874.0}}
+    ↳Other, 0x1073df700, {{0.0, 0.0}, {402.0, 874.0}}
+     ↳Other, 0x1073df200, {{0.0, 0.0}, {402.0, 874.0}}
+      ↳Other, 0x1073de080, {{0.0, 0.0}, {402.0, 874.0}}
+       ↳Other, 0x1073dea80, {{0.0, 0.0}, {402.0, 874.0}}
+        ↳Other, 0x10b5e8000, {{0.0, 0.0}, {402.0, 874.0}}
+         ↳Other, 0x10b5e8140, {{0.0, 0.0}, {402.0, 874.0}}
+          ↳Other, 0x10b5e8280, {{0.0, 0.0}, {402.0, 874.0}}
+           ↳Other, 0x10b5e83c0, {{0.0, 0.0}, {402.0, 874.0}}
+            ↳ScrollView, 0x10b5e8500, {{0.0, 0.0}, {402.0, 874.0}}, identifier: 'plan-selected-day-content'
+             ↳Other, 0x10b5e8b40, {{0.0, 62.0}, {402.0, 1367.0}}
+              ↳Other, 0x10b5e97c0, {{24.0, 186.0}, {662.0, 1162.7}}
+               ↳Button, 0x10b5f5cc0, {{40.0, 587.7}, {104.7, 44.0}}, label: 'Change servings'
+                ↳StaticText, 0x10b5f5f40, {{53.7, 601.2}, {79.0, 17.0}}, label: 'Serves 4'
+Query chain:
+ →Find: Application 'com.natemeadows.plated'
+  Output: {
+    Application, 0x113e6b200, pid: 38073, label: 'Plated'
+  }
+  ↪︎Find: Descendant with identity binding to AX element pid: 38073, elementOrHash.elementID: 4644505152.76
+    Output: {
+      StaticText, 0x10b75d2c0, {{53.7, 601.2}, {79.0, 17.0}}, label: 'Serves 4'
+    }
+
+
+Contrast failed
+Contrast failed for SwiftUI.AccessibilityNode
+Attributes: StaticText, 0x10b5f6300, {{161.5, 657.2}, {102.7, 21.0}}, label: 'Start cooking'
+Element subtree:
+ →StaticText, 0x10b5f6300, {{161.5, 657.2}, {102.7, 21.0}}, label: 'Start cooking'
+Path to element:
+ →Application, 0x1073de940, pid: 38073, label: 'Plated'
+  ↳Window (Main), 0x1073de300, {{0.0, 0.0}, {402.0, 874.0}}
+   ↳Other, 0x1073df480, {{0.0, 0.0}, {402.0, 874.0}}
+    ↳Other, 0x1073de800, {{0.0, 0.0}, {402.0, 874.0}}
+     ↳Other, 0x1073df980, {{0.0, 0.0}, {402.0, 874.0}}
+      ↳Other, 0x1073df5c0, {{0.0, 0.0}, {402.0, 874.0}}
+       ↳Other, 0x1073dfc00, {{0.0, 0.0}, {402.0, 874.0}}
+        ↳Other, 0x10b5e8000, {{0.0, 0.0}, {402.0, 874.0}}
+         ↳Other, 0x10b5e8140, {{0.0, 0.0}, {402.0, 874.0}}
+          ↳Other, 0x10b5e8280, {{0.0, 0.0}, {402.0, 874.0}}
+           ↳Other, 0x10b5e83c0, {{0.0, 0.0}, {402.0, 874.0}}
+            ↳ScrollView, 0x10b5e8500, {{0.0, 0.0}, {402.0, 874.0}}, identifier: 'plan-selected-day-content'
+             ↳Other, 0x10b5e8b40, {{0.0, 62.0}, {402.0, 1367.0}}
+              ↳Other, 0x10b5e97c0, {{24.0, 186.0}, {662.0, 1162.7}}
+               ↳Button, 0x10b5f6080, {{40.0, 643.7}, {322.0, 48.0}}, label: 'Start cooking'
+                ↳StaticText, 0x10b5f6300, {{161.5, 657.2}, {102.7, 21.0}}, label: 'Start cooking'
+Query chain:
+ →Find: Application 'com.natemeadows.plated'
+  Output: {
+    Application, 0x113e6b200, pid: 38073, label: 'Plated'
+  }
+  ↪︎Find: Descendant with identity binding to AX element pid: 38073, elementOrHash.elementID: 4644505632.78
+    Output: {
+      StaticText, 0x10b75d680, {{161.5, 657.2}, {102.7, 21.0}}, label: 'Start cooking'
+    }
+
+
+Contrast failed
+Contrast failed for SwiftUI.AccessibilityNode
+Attributes: StaticText, 0x10b5f5400, {{40.0, 346.0}, {322.0, 173.7}}, label: 'Salmon Night'
+Element subtree:
+ →StaticText, 0x10b5f5400, {{40.0, 346.0}, {322.0, 173.7}}, label: 'Salmon Night'
+Path to element:
+ →Application, 0x1073dfac0, pid: 38073, label: 'Plated'
+  ↳Window (Main), 0x1073de1c0, {{0.0, 0.0}, {402.0, 874.0}}
+   ↳Other, 0x1073de440, {{0.0, 0.0}, {402.0, 874.0}}
+    ↳Other, 0x1073df840, {{0.0, 0.0}, {402.0, 874.0}}
+     ↳Other, 0x1073ddcc0, {{0.0, 0.0}, {402.0, 874.0}}
+      ↳Other, 0x1073dee40, {{0.0, 0.0}, {402.0, 874.0}}
+       ↳Other, 0x10b5e8000, {{0.0, 0.0}, {402.0, 874.0}}
+        ↳Other, 0x10b5e8140, {{0.0, 0.0}, {402.0, 874.0}}
+         ↳Other, 0x10b5e8280, {{0.0, 0.0}, {402.0, 874.0}}
+          ↳Other, 0x10b5e83c0, {{0.0, 0.0}, {402.0, 874.0}}
+           ↳Other, 0x10b5e8500, {{0.0, 0.0}, {402.0, 874.0}}
+            ↳ScrollView, 0x10b5e8640, {{0.0, 0.0}, {402.0, 874.0}}, identifier: 'plan-selected-day-content'
+             ↳Other, 0x10b5e8c80, {{0.0, 62.0}, {402.0, 1367.0}}
+              ↳Other, 0x10b5e9900, {{24.0, 186.0}, {662.0, 1162.7}}
+               ↳Button, 0x10b5f5180, {{40.0, 346.0}, {322.0, 173.7}}, identifier: 'featured-dinner-card', label: 'Salmon Night'
+                ↳Button, 0x10b5f52c0, {{40.0, 346.0}, {322.0, 173.7}}, label: 'Salmon Night'
+                 ↳StaticText, 0x10b5f5400, {{40.0, 346.0}, {322.0, 173.7}}, label: 'Salmon Night'
+Query chain:
+ →Find: Application 'com.natemeadows.plated'
+  Output: {
+    Application, 0x113e6b200, pid: 38073, label: 'Plated'
+  }
+  ↪︎Find: Descendant with identity binding to AX element pid: 38073, elementOrHash.elementID: 4391583360.100
+    Output: {
+      StaticText, 0x10b75c640, {{40.0, 346.0}, {322.0, 173.7}}, label: 'Salmon Night'
+    }
+
+
+Contrast failed
+Contrast failed for SwiftUI.AccessibilityNode
+Attributes: StaticText, 0x10b5f5900, {{40.0, 537.7}, {32.0, 32.0}}, label: 'N'
+Element subtree:
+ →StaticText, 0x10b5f5900, {{40.0, 537.7}, {32.0, 32.0}}, label: 'N'
+Path to element:
+ →Application, 0x1073de6c0, pid: 38073, label: 'Plated'
+  ↳Window (Main), 0x1073ded00, {{0.0, 0.0}, {402.0, 874.0}}
+   ↳Other, 0x1073de080, {{0.0, 0.0}, {402.0, 874.0}}
+    ↳Other, 0x1073df700, {{0.0, 0.0}, {402.0, 874.0}}
+     ↳Other, 0x1073df200, {{0.0, 0.0}, {402.0, 874.0}}
+      ↳Other, 0x1073def80, {{0.0, 0.0}, {402.0, 874.0}}
+       ↳Other, 0x10b5e8000, {{0.0, 0.0}, {402.0, 874.0}}
+        ↳Other, 0x10b5e8140, {{0.0, 0.0}, {402.0, 874.0}}
+         ↳Other, 0x10b5e8280, {{0.0, 0.0}, {402.0, 874.0}}
+          ↳Other, 0x10b5e83c0, {{0.0, 0.0}, {402.0, 874.0}}
+           ↳Other, 0x10b5e8500, {{0.0, 0.0}, {402.0, 874.0}}
+            ↳ScrollView, 0x10b5e8640, {{0.0, 0.0}, {402.0, 874.0}}, identifier: 'plan-selected-day-content'
+             ↳Other, 0x10b5e8c80, {{0.0, 62.0}, {402.0, 1367.0}}
+              ↳Other, 0x10b5e9900, {{24.0, 186.0}, {662.0, 1162.7}}
+               ↳Button, 0x10b5f5680, {{40.0, 531.7}, {322.0, 44.0}}, identifier: 'plan-cook-assignment', label: 'Dinner cook', value: You’re cooking
+                ↳Button, 0x10b5f57c0, {{40.0, 531.7}, {322.0, 44.0}}
+                 ↳StaticText, 0x10b5f5900, {{40.0, 537.7}, {32.0, 32.0}}, label: 'N'
+Query chain:
+ →Find: Application 'com.natemeadows.plated'
+  Output: {
+    Application, 0x113e6b200, pid: 38073, label: 'Plated'
+  }
+  ↪︎Find: Descendant with identity binding to AX element pid: 38073, elementOrHash.elementID: 4644504032.103
+    Output: {
+      StaticText, 0x10b75cb40, {{40.0, 537.7}, {32.0, 32.0}}, label: 'N'
+    }
+
+
+Contrast failed
+Contrast failed for SwiftUI.AccessibilityNode
+Attributes: StaticText, 0x10b5f5a40, {{82.0, 535.3}, {36.0, 14.3}}, label: 'COOK'
+Element subtree:
+ →StaticText, 0x10b5f5a40, {{82.0, 535.3}, {36.0, 14.3}}, label: 'COOK'
+Path to element:
+ →Application, 0x1073de940, pid: 38073, label: 'Plated'
+  ↳Window (Main), 0x1073de300, {{0.0, 0.0}, {402.0, 874.0}}
+   ↳Other, 0x1073dfc00, {{0.0, 0.0}, {402.0, 874.0}}
+    ↳Other, 0x1073df980, {{0.0, 0.0}, {402.0, 874.0}}
+     ↳Other, 0x1073df5c0, {{0.0, 0.0}, {402.0, 874.0}}
+      ↳Other, 0x1073df480, {{0.0, 0.0}, {402.0, 874.0}}
+       ↳Other, 0x10b5e8000, {{0.0, 0.0}, {402.0, 874.0}}
+        ↳Other, 0x10b5e8140, {{0.0, 0.0}, {402.0, 874.0}}
+         ↳Other, 0x10b5e8280, {{0.0, 0.0}, {402.0, 874.0}}
+          ↳Other, 0x10b5e83c0, {{0.0, 0.0}, {402.0, 874.0}}
+           ↳Other, 0x10b5e8500, {{0.0, 0.0}, {402.0, 874.0}}
+            ↳ScrollView, 0x10b5e8640, {{0.0, 0.0}, {402.0, 874.0}}, identifier: 'plan-selected-day-content'
+             ↳Other, 0x10b5e8c80, {{0.0, 62.0}, {402.0, 1367.0}}
+              ↳Other, 0x10b5e9900, {{24.0, 186.0}, {662.0, 1162.7}}
+               ↳Button, 0x10b5f5680, {{40.0, 531.7}, {322.0, 44.0}}, identifier: 'plan-cook-assignment', label: 'Dinner cook', value: You’re cooking
+                ↳Button, 0x10b5f57c0, {{40.0, 531.7}, {322.0, 44.0}}
+                 ↳StaticText, 0x10b5f5a40, {{82.0, 535.3}, {36.0, 14.3}}, label: 'COOK'
+Query chain:
+ →Find: Application 'com.natemeadows.plated'
+  Output: {
+    Application, 0x113e6b200, pid: 38073, label: 'Plated'
+  }
+  ↪︎Find: Descendant with identity binding to AX element pid: 38073, elementOrHash.elementID: 4644504192.104
+    Output: {
+      StaticText, 0x10b75cc80, {{82.0, 535.3}, {36.0, 14.3}}, label: 'COOK'
+    }
+
+
+Contrast failed
+Contrast failed for SwiftUI.AccessibilityNode
+Attributes: StaticText, 0x10b5f5b80, {{82.0, 552.6}, {105.3, 19.7}}, label: 'You’re cooking'
+Element subtree:
+ →StaticText, 0x10b5f5b80, {{82.0, 552.6}, {105.3, 19.7}}, label: 'You’re cooking'
+Path to element:
+ →Application, 0x1073dfac0, pid: 38073, label: 'Plated'
+  ↳Window (Main), 0x1073de1c0, {{0.0, 0.0}, {402.0, 874.0}}
+   ↳Other, 0x1073debc0, {{0.0, 0.0}, {402.0, 874.0}}
+    ↳Other, 0x1073ddcc0, {{0.0, 0.0}, {402.0, 874.0}}
+     ↳Other, 0x1073dee40, {{0.0, 0.0}, {402.0, 874.0}}
+      ↳Other, 0x1073de440, {{0.0, 0.0}, {402.0, 874.0}}
+       ↳Other, 0x10b5e8000, {{0.0, 0.0}, {402.0, 874.0}}
+        ↳Other, 0x10b5e8140, {{0.0, 0.0}, {402.0, 874.0}}
+         ↳Other, 0x10b5e8280, {{0.0, 0.0}, {402.0, 874.0}}
+          ↳Other, 0x10b5e83c0, {{0.0, 0.0}, {402.0, 874.0}}
+           ↳Other, 0x10b5e8500, {{0.0, 0.0}, {402.0, 874.0}}
+            ↳ScrollView, 0x10b5e8640, {{0.0, 0.0}, {402.0, 874.0}}, identifier: 'plan-selected-day-content'
+             ↳Other, 0x10b5e8c80, {{0.0, 62.0}, {402.0, 1367.0}}
+              ↳Other, 0x10b5e9900, {{24.0, 186.0}, {662.0, 1162.7}}
+               ↳Button, 0x10b5f5680, {{40.0, 531.7}, {322.0, 44.0}}, identifier: 'plan-cook-assignment', label: 'Dinner cook', value: You’re cooking
+                ↳Button, 0x10b5f57c0, {{40.0, 531.7}, {322.0, 44.0}}
+                 ↳StaticText, 0x10b5f5b80, {{82.0, 552.6}, {105.3, 19.7}}, label: 'You’re cooking'
+Query chain:
+ →Find: Application 'com.natemeadows.plated'
+  Output: {
+    Application, 0x113e6b200, pid: 38073, label: 'Plated'
+  }
+  ↪︎Find: Descendant with identity binding to AX element pid: 38073, elementOrHash.elementID: 4644504352.105
+    Output: {
+      StaticText, 0x10b75cdc0, {{82.0, 552.6}, {105.3, 19.7}}, label: 'You’re cooking'
+    }
+
+
+Contrast failed
+Contrast failed for SwiftUI.AccessibilityNode
+Attributes: StaticText, 0x10b5f5cc0, {{314.0, 545.3}, {48.0, 17.0}}, label: 'Change'
+Element subtree:
+ →StaticText, 0x10b5f5cc0, {{314.0, 545.3}, {48.0, 17.0}}, label: 'Change'
+Path to element:
+ →Application, 0x1073de6c0, pid: 38073, label: 'Plated'
+  ↳Window (Main), 0x1073ded00, {{0.0, 0.0}, {402.0, 874.0}}
+   ↳Other, 0x1073de800, {{0.0, 0.0}, {402.0, 874.0}}
+    ↳Other, 0x1073df200, {{0.0, 0.0}, {402.0, 874.0}}
+     ↳Other, 0x1073def80, {{0.0, 0.0}, {402.0, 874.0}}
+      ↳Other, 0x1073de080, {{0.0, 0.0}, {402.0, 874.0}}
+       ↳Other, 0x10b5e8000, {{0.0, 0.0}, {402.0, 874.0}}
+        ↳Other, 0x10b5e8140, {{0.0, 0.0}, {402.0, 874.0}}
+         ↳Other, 0x10b5e8280, {{0.0, 0.0}, {402.0, 874.0}}
+          ↳Other, 0x10b5e83c0, {{0.0, 0.0}, {402.0, 874.0}}
+           ↳Other, 0x10b5e8500, {{0.0, 0.0}, {402.0, 874.0}}
+            ↳ScrollView, 0x10b5e8640, {{0.0, 0.0}, {402.0, 874.0}}, identifier: 'plan-selected-day-content'
+             ↳Other, 0x10b5e8c80, {{0.0, 62.0}, {402.0, 1367.0}}
+              ↳Other, 0x10b5e9900, {{24.0, 186.0}, {662.0, 1162.7}}
+               ↳Button, 0x10b5f5680, {{40.0, 531.7}, {322.0, 44.0}}, identifier: 'plan-cook-assignment', label: 'Dinner cook', value: You’re cooking
+                ↳Button, 0x10b5f57c0, {{40.0, 531.7}, {322.0, 44.0}}
+                 ↳StaticText, 0x10b5f5cc0, {{314.0, 545.3}, {48.0, 17.0}}, label: 'Change'
+Query chain:
+ →Find: Application 'com.natemeadows.plated'
+  Output: {
+    Application, 0x113e6b200, pid: 38073, label: 'Plated'
+  }
+  ↪︎Find: Descendant with identity binding to AX element pid: 38073, elementOrHash.elementID: 4644504512.106
+    Output: {
+      StaticText, 0x10b75cf00, {{314.0, 545.3}, {48.0, 17.0}}, label: 'Change'
+    }
+
+
+Contrast failed
+Contrast failed for SwiftUI.AccessibilityNode
+Attributes: StaticText, 0x10b5eaa80, {{44.0, 197.7}, {26.0, 15.7}}, label: 'Wed'
+Element subtree:
+ →StaticText, 0x10b5eaa80, {{44.0, 197.7}, {26.0, 15.7}}, label: 'Wed'
+Path to element:
+ →Application, 0x1073df840, pid: 38073, label: 'Plated'
+  ↳Window (Main), 0x1073df5c0, {{0.0, 0.0}, {402.0, 874.0}}
+   ↳Other, 0x1073df480, {{0.0, 0.0}, {402.0, 874.0}}
+    ↳Other, 0x1073dfc00, {{0.0, 0.0}, {402.0, 874.0}}
+     ↳Other, 0x10b5e8000, {{0.0, 0.0}, {402.0, 874.0}}
+      ↳Other, 0x10b5e8140, {{0.0, 0.0}, {402.0, 874.0}}
+       ↳Other, 0x10b5e8280, {{0.0, 0.0}, {402.0, 874.0}}
+        ↳Other, 0x10b5e83c0, {{0.0, 0.0}, {402.0, 874.0}}
+         ↳Other, 0x10b5e8500, {{0.0, 0.0}, {402.0, 874.0}}
+          ↳Other, 0x10b5e8640, {{0.0, 0.0}, {402.0, 874.0}}
+           ↳Other, 0x10b5e8780, {{0.0, 0.0}, {402.0, 874.0}}
+            ↳ScrollView, 0x10b5e88c0, {{0.0, 0.0}, {402.0, 874.0}}, identifier: 'plan-selected-day-content'
+             ↳Other, 0x10b5e8f00, {{0.0, 62.0}, {402.0, 1367.0}}
+              ↳Other, 0x10b5e9b80, {{24.0, 186.0}, {662.0, 1162.7}}
+               ↳ScrollView, 0x10b5e9e00, {{24.0, 186.0}, {354.0, 76.0}}, identifier: 'plan-date-wheel'
+                ↳Other, 0x10b5e9f40, {{-17342.0, 186.0}, {35086.0, 76.0}}
+                 ↳Other, 0x10b5ea080, {{-62.0, 189.7}, {526.0, 68.7}}
+                  ↳Button, 0x10b5ea940, {{34.0, 189.7}, {46.0, 68.7}}, identifier: 'week-date-2026-10-14', label: 'Wednesday, Oct 14', value: No dinner planned
+                   ↳StaticText, 0x10b5eaa80, {{44.0, 197.7}, {26.0, 15.7}}, label: 'Wed'
+Query chain:
+ →Find: Application 'com.natemeadows.plated'
+  Output: {
+    Application, 0x113e6b200, pid: 38073, label: 'Plated'
+  }
+  ↪︎Find: Descendant with identity binding to AX element pid: 38073, elementOrHash.elementID: 4644512352.122
+    Output: {
+      StaticText, 0x10b753200, {{44.0, 197.7}, {26.0, 15.7}}, label: 'Wed'
+    }
+
+
+Contrast failed
+Contrast failed for SwiftUI.AccessibilityNode
+Attributes: StaticText, 0x10b5ebe80, {{284.0, 218.3}, {26.0, 23.0}}, label: '19'
+Element subtree:
+ →StaticText, 0x10b5ebe80, {{284.0, 218.3}, {26.0, 23.0}}, label: '19'
+Path to element:
+ →Application, 0x1073ded00, pid: 38073, label: 'Plated'
+  ↳Window (Main), 0x1073df200, {{0.0, 0.0}, {402.0, 874.0}}
+   ↳Other, 0x1073de800, {{0.0, 0.0}, {402.0, 874.0}}
+    ↳Other, 0x1073de6c0, {{0.0, 0.0}, {402.0, 874.0}}
+     ↳Other, 0x10b5e8000, {{0.0, 0.0}, {402.0, 874.0}}
+      ↳Other, 0x10b5e8140, {{0.0, 0.0}, {402.0, 874.0}}
+       ↳Other, 0x10b5e8280, {{0.0, 0.0}, {402.0, 874.0}}
+        ↳Other, 0x10b5e83c0, {{0.0, 0.0}, {402.0, 874.0}}
+         ↳Other, 0x10b5e8500, {{0.0, 0.0}, {402.0, 874.0}}
+          ↳Other, 0x10b5e8640, {{0.0, 0.0}, {402.0, 874.0}}
+           ↳Other, 0x10b5e8780, {{0.0, 0.0}, {402.0, 874.0}}
+            ↳ScrollView, 0x10b5e88c0, {{0.0, 0.0}, {402.0, 874.0}}, identifier: 'plan-selected-day-content'
+             ↳Other, 0x10b5e8f00, {{0.0, 62.0}, {402.0, 1367.0}}
+              ↳Other, 0x10b5e9b80, {{24.0, 186.0}, {662.0, 1162.7}}
+               ↳ScrollView, 0x10b5e9e00, {{24.0, 186.0}, {354.0, 76.0}}, identifier: 'plan-date-wheel'
+                ↳Other, 0x10b5e9f40, {{-17342.0, 186.0}, {35086.0, 76.0}}
+                 ↳Other, 0x10b5ea080, {{-62.0, 189.7}, {526.0, 68.7}}
+                  ↳Button, 0x10b5ebc00, {{274.0, 189.7}, {46.0, 68.7}}, identifier: 'week-date-2026-10-19', label: 'Monday, Oct 19', value: Dinner planned
+                   ↳StaticText, 0x10b5ebe80, {{284.0, 218.3}, {26.0, 23.0}}, label: '19'
+Query chain:
+ →Find: Application 'com.natemeadows.plated'
+  Output: {
+    Application, 0x113e6b200, pid: 38073, label: 'Plated'
+  }
+  ↪︎Find: Descendant with identity binding to AX element pid: 38073, elementOrHash.elementID: 4644514912.133
+    Output: {
+      StaticText, 0x1073dfc00, {{284.0, 218.3}, {26.0, 23.0}}, label: '19'
+    }
+
+
+Contrast failed
+Contrast failed for SwiftUI.AccessibilityNode
+Attributes: StaticText, 0x10b5f4280, {{332.0, 218.3}, {26.0, 23.0}}, label: '20'
+Element subtree:
+ →StaticText, 0x10b5f4280, {{332.0, 218.3}, {26.0, 23.0}}, label: '20'
+Path to element:
+ →Application, 0x1073df5c0, pid: 38073, label: 'Plated'
+  ↳Window (Main), 0x1073dfc00, {{0.0, 0.0}, {402.0, 874.0}}
+   ↳Other, 0x1073df480, {{0.0, 0.0}, {402.0, 874.0}}
+    ↳Other, 0x1073df840, {{0.0, 0.0}, {402.0, 874.0}}
+     ↳Other, 0x10b5e8000, {{0.0, 0.0}, {402.0, 874.0}}
+      ↳Other, 0x10b5e8140, {{0.0, 0.0}, {402.0, 874.0}}
+       ↳Other, 0x10b5e8280, {{0.0, 0.0}, {402.0, 874.0}}
+        ↳Other, 0x10b5e83c0, {{0.0, 0.0}, {402.0, 874.0}}
+         ↳Other, 0x10b5e8500, {{0.0, 0.0}, {402.0, 874.0}}
+          ↳Other, 0x10b5e8640, {{0.0, 0.0}, {402.0, 874.0}}
+           ↳Other, 0x10b5e8780, {{0.0, 0.0}, {402.0, 874.0}}
+            ↳ScrollView, 0x10b5e88c0, {{0.0, 0.0}, {402.0, 874.0}}, identifier: 'plan-selected-day-content'
+             ↳Other, 0x10b5e8f00, {{0.0, 62.0}, {402.0, 1367.0}}
+              ↳Other, 0x10b5e9b80, {{24.0, 186.0}, {662.0, 1162.7}}
+               ↳ScrollView, 0x10b5e9e00, {{24.0, 186.0}, {354.0, 76.0}}, identifier: 'plan-date-wheel'
+                ↳Other, 0x10b5e9f40, {{-17342.0, 186.0}, {35086.0, 76.0}}
+                 ↳Other, 0x10b5ea080, {{-62.0, 189.7}, {526.0, 68.7}}
+                  ↳Button, 0x10b5f4000, {{322.0, 189.7}, {46.0, 68.7}}, identifier: 'week-date-2026-10-20', label: 'Tuesday, Oct 20', value: No dinner planned
+                   ↳StaticText, 0x10b5f4280, {{332.0, 218.3}, {26.0, 23.0}}, label: '20'
+Query chain:
+ →Find: Application 'com.natemeadows.plated'
+  Output: {
+    Application, 0x113e6b200, pid: 38073, label: 'Plated'
+  }
+  ↪︎Find: Descendant with identity binding to AX element pid: 38073, elementOrHash.elementID: 4644515392.135
+    Output: {
+      StaticText, 0x1073def80, {{332.0, 218.3}, {26.0, 23.0}}, label: '20'
+    }

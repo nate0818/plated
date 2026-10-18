@@ -4,7 +4,7 @@ import SwiftData
 /// The bell. Activity is one tap away from every tab — the badge counts
 /// what's unread, and the same bell reads the same everywhere.
 struct ActivityBellButton: View {
-    var size: CGFloat = 38
+    var size: CGFloat = ControlMetrics.minimumTarget
     var accessibilityID = "notifications-bell"
     let action: () -> Void
 
