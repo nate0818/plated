@@ -1,34 +1,26 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import AppShowcase from "../components/AppShowcase";
 import WaitlistForm from "../components/WaitlistForm";
-import Wordmark from "../components/Wordmark";
+import SiteFrame from "../components/SiteFrame";
+import HouseholdPreview from "../components/HouseholdPreview";
 import styles from "./page.module.css";
 
 export const metadata: Metadata = {
   title: "Request early access",
-  description: "Request an invitation to try Plated with your household. Early access for iPhone and iPad.",
+  description: "Request early access to Plated for iPhone and iPad. Plan meals, take turns cooking, and share a grocery list with your household.",
   alternates: { canonical: "/early-access" },
 };
 
 export default function EarlyAccess() {
-  return <>
-    <header className={styles.header}>
-      <Link href="/#main" aria-label="Plated home"><Wordmark size={32} /></Link>
-      <Link href="/#main" className={styles.back}><span aria-hidden="true">←</span> Back to Plated</Link>
-    </header>
-    <main className={styles.main}>
-      <div className={styles.copy}>
+  return <SiteFrame action="home">
+    <main id="main" className={styles.main}>
+      <div className={styles.copy} data-reveal="stagger">
         <p className={styles.eyebrow}>Early access</p>
         <h1>Try Plated{" "}<br />together</h1>
-        <p className={styles.description}>Leave your email to request an invitation for your household. We’re inviting people in batches.</p>
+        <p className={styles.description}>Request an invitation for your household. We’re sending them a few at a time.</p>
         <div className={styles.form}><WaitlistForm intent="early-access" /></div>
-        <p className={styles.expectation}>If invited, you’ll install Plated through Apple’s TestFlight app. Available for iPhone and iPad.</p>
+        <p className={styles.expectation}>Available for iPhone and iPad. Your invitation will include instructions to install Plated with Apple TestFlight.</p>
       </div>
-      <aside className={styles.preview} aria-label="Inside Plated">
-        <AppShowcase screen="plan" appearance="light" compact capture={{ src: "/app/plan-sam-light-818.png", alt: "Plated’s shared dinner plan showing Pizza Night and Sam is cooking" }} />
-        <p>Sam’s cooking Pizza Night</p>
-      </aside>
+      <aside className={styles.preview} aria-label="A look at Plated" data-reveal><HouseholdPreview /></aside>
     </main>
-  </>;
+  </SiteFrame>;
 }

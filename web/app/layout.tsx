@@ -23,12 +23,12 @@ const sans = localFont({
 // the card when the link is pasted into Messages. Every claim here is one
 // the homepage also makes, so the snippet never promises more than the site.
 const DESCRIPTION =
-  "A shared meal plan, recipe book, and grocery list for your household. Decide what to cook, share the shopping, and see who’s cooking tonight. For iPhone and iPad.";
+  "Plan dinner, see who’s cooking, and share a grocery list. Keep your household’s meal plans and favorite recipes together in Plated. For iPhone and iPad.";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://plated.food"),
   title: {
-    default: "Plated: dinner plans, made together",
+    default: "Plated: Meal planning, together",
     template: "%s · Plated",
   },
   description: DESCRIPTION,
@@ -53,12 +53,12 @@ export const metadata: Metadata = {
     type: "website",
     locale: "en_US",
     url: "https://plated.food",
-    title: "Plated: dinner plans, made together",
+    title: "Plated: Meal planning, together",
     description: DESCRIPTION,
   },
   twitter: {
     card: "summary_large_image",
-    title: "Plated: dinner plans, made together",
+    title: "Plated: Meal planning, together",
     description: DESCRIPTION,
   },
   robots: {
@@ -70,7 +70,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#191C17",
+  themeColor: "#F7F6F0",
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
@@ -78,7 +78,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`${editorial.variable} ${sans.variable}`}>
+    <html lang="en" data-scroll-behavior="smooth" className={`${editorial.variable} ${sans.variable}`}>
       <body>
         {children}
         <AnalyticsGate />

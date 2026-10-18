@@ -35,9 +35,9 @@ export default function FoodGallery() {
     </div>
     <div className={styles.copy}>
       <p className={styles.eyebrow}>Your recipe book</p>
-      <h2 id="food-title">Your favorites{" "}<br />with room for theirs</h2>
-      <p className={styles.description}>Save your own recipes and the ones friends share at your Table. Keep them in one place, ready for dinner.</p>
-      <a href="#tour-recipes" className={styles.link}>Make the recipe book yours <span aria-hidden="true">↗</span></a>
+      <h2 id="food-title">Your favorites{" "}<br />in one recipe book</h2>
+      <p className={styles.description}>Save your own recipes, ones you find online, and favorites from friends. Keep them together in a recipe book your household can share.</p>
+      <a href="#tour-recipes" className={styles.link}>See the recipe book <span aria-hidden="true">↗</span></a>
     </div>
   </section>;
 }

@@ -2,26 +2,26 @@
   position: relative;
   isolation: isolate;
   overflow: hidden;
-  min-height: 100svh;
+  min-height: min(660px, 75svh);
   display: grid;
   place-items: center;
   padding: max(28px, env(safe-area-inset-top)) 20px max(28px, env(safe-area-inset-bottom));
   background: var(--canvas);
 }
 
-/* Editorial surfaces stay opaque and quiet on authentication screens too. */
+/* Authentication and operations use the same website colors and controls. */
 .authAtmosphere, .authGlow, .authGrain, .authVignette { display: none; }
 
 .authCard { position: relative; width: min(100%, 29rem); display: grid; gap: 28px; padding: clamp(26px, 5vw, 44px); border: 1px solid var(--hairline); border-radius: var(--radius-card); background: var(--card-fill); }
 .authBrand,.pageHeader,.panelHeader,.tableHeader,.releaseLine,.releaseHero,.historyTop,.auditTopline { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .authBrand a,.brandLink,.mobileBar a { text-decoration: none; display: inline-flex; }
-.status { display: inline-flex; align-items: center; width: fit-content; min-height: 25px; padding: 3px 9px; border-radius: 999px; font-size: .7rem; line-height: 1; font-weight: 700; letter-spacing: .055em; text-transform: uppercase; white-space: nowrap; }
+.status { display: inline-flex; align-items: center; width: fit-content; min-height: 25px; padding: 3px 9px; border-radius: 5px; font-size: .7rem; line-height: 1; font-weight: 700; letter-spacing: .055em; text-transform: uppercase; white-space: nowrap; }
 .authCopy { display: grid; gap: 8px; }
 .authTitle { font-size: clamp(2rem,7vw,2.8rem); font-weight: 500; }
 .bodyMuted,.smallMuted,.pageDescription,.panelDetail,.metricDetail,.tableHeader p,.tableFooter,.composerIntro>p { color: var(--ink-secondary); }
 .bodyMuted { font-size: .94rem; }
 .smallMuted { font-size: .82rem; line-height: 1.5; }
-.eyebrow,.label,.searchLabel,.metricLabel,.identityLabel { color: var(--ink-secondary); font-size: .72rem; line-height: 1.3; font-weight: 700; letter-spacing: .075em; text-transform: uppercase; }
+.eyebrow,.label,.searchLabel,.metricLabel,.identityLabel { color: var(--ink-secondary); font-size: .75rem; line-height: 1.4; font-weight: 500; letter-spacing: 0; }
 .authForm,.field,.composer,.historyPanel,.pageStack,.coverageSection { display: grid; }
 .authForm { gap: 16px; }
 .field { gap: 7px; position: relative; min-width: 0; }
@@ -43,9 +43,9 @@
   width: 100%;
   min-height: 58px;
   padding: 24px 14px 8px;
-  border: 1px solid transparent;
+  border: 1px solid var(--hairline);
   border-radius: var(--radius-small);
-  background: var(--fill);
+  background: var(--canvas);
   color: var(--ink);
   font: inherit;
   font-size: 1rem;
@@ -70,9 +70,8 @@
 .floatInput:focus + .floatLabel,
 .floatInput:not(:placeholder-shown) + .floatLabel {
   transform: translateY(-152%) scale(.72);
-  letter-spacing: .075em;
-  text-transform: uppercase;
-  font-weight: 700;
+  letter-spacing: 0;
+  font-weight: 500;
 }
 
 /* An example belongs to a focused field. Shown at rest it would sit under
@@ -91,9 +90,8 @@
 .floatSelect { appearance: none; cursor: pointer; }
 .floatFieldSelect .floatLabel {
   transform: translateY(-152%) scale(.72);
-  letter-spacing: .075em;
-  text-transform: uppercase;
-  font-weight: 700;
+  letter-spacing: 0;
+  font-weight: 500;
 }
 
 /* Counters and help live with the field they count. */
@@ -109,9 +107,9 @@
 }
 .textarea { resize: vertical; line-height: 1.5; }
 .codeInput { font-size: 1.45rem; letter-spacing: .35em; text-align: center; font-variant-numeric: tabular-nums; }
-.primaryButton,.secondaryButton,.smallButton,.textButton,.signOut,.primaryLink,.panelLink { font: inherit; font-weight: 700; cursor: pointer; }
-.primaryButton,.secondaryButton,.primaryLink { min-height: 44px; display: inline-flex; align-items: center; justify-content: center; padding: 9px 18px; border: 0; border-radius: 999px; text-decoration: none; }
-.primaryButton,.primaryLink { background: var(--tomato-pressed); color: var(--on-tomato); }
+.primaryButton,.secondaryButton,.smallButton,.textButton,.signOut,.primaryLink,.panelLink { font: inherit; font-weight: 500; cursor: pointer; }
+.primaryButton,.secondaryButton,.primaryLink { min-height: 44px; display: inline-flex; align-items: center; justify-content: center; padding: 9px 18px; border: 0; border-radius: 5px; text-decoration: none; }
+.primaryButton,.primaryLink { background: var(--primary-action); color: var(--on-primary); }
 .primaryButton:hover,.primaryLink:hover { outline: 2px solid var(--ink); outline-offset: 2px; }
 .primaryButton:disabled:hover { outline: none; }
 .secondaryButton { background: var(--ink); color: var(--canvas); }
@@ -123,20 +121,20 @@
 .callout code { overflow-wrap: anywhere; font-size: .79rem; }
 .calloutTitle,.serviceErrorTitle { font-weight: 700; }
 .dangerCallout,.serviceError,.result_bad { background: var(--tomato-tint); border: 1px solid var(--tomato); }
-.formError { color: var(--accent-text); font-size: .84rem; }
+.formError { color: var(--danger-text); font-size: .84rem; }
 .enrollment { display: grid; gap: 9px; justify-items: center; text-align: center; }
 .qrCode { width: 208px; height: 208px; border-radius: 12px; border: 8px solid #fff; box-shadow: 0 0 0 1px var(--hairline); }
 .secret { max-width: 100%; padding: 8px 10px; border-radius: 8px; background: var(--fill); overflow-wrap: anywhere; font-size: .76rem; user-select: all; }
-.console { min-height: 100svh; display: grid; grid-template-columns: 232px minmax(0,1fr); background: var(--chip-fill); }
-.skipLink { position: fixed; z-index: 100; left: 12px; top: -80px; padding: 9px 14px; border-radius: 999px; background: var(--selection-fill); color: var(--on-selection); }
+.console { min-height: 100svh; display: grid; grid-template-columns: 232px minmax(0,1fr); background: var(--canvas); }
+.skipLink { position: fixed; z-index: 100; left: 12px; top: -80px; padding: 9px 14px; border-radius: 5px; background: var(--selection-fill); color: var(--on-selection); }
 .skipLink:focus { top: 12px; }
 .sidebar { position: sticky; top: 0; height: 100svh; display: flex; flex-direction: column; padding: 26px 18px 20px; border-right: 1px solid var(--nav-hairline); background: var(--canvas); }
 .brandLink { align-items: baseline; gap: 10px; padding: 2px 10px 24px; }
 .founderWord { color: var(--ink-secondary); font-size: .71rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
 .nav { display: grid; gap: 4px; }
-.navLink { min-height: 43px; display: flex; align-items: center; gap: 11px; padding: 8px 11px; border-radius: 12px; color: var(--ink-secondary); text-decoration: none; font-size: .87rem; font-weight: 650; }
+.navLink { min-height: 43px; display: flex; align-items: center; gap: 11px; padding: 8px 11px; border-radius: 5px; color: var(--ink-secondary); text-decoration: none; font-size: .87rem; font-weight: 500; }
 .navLink:hover { background: var(--hairline-soft); color: var(--ink); }
-.navLinkCurrent { background: var(--fill); color: var(--ink); }
+.navLinkCurrent { background: var(--soft-green); color: var(--ink); }
 .navGlyph { width: 18px; color: var(--ink-secondary); text-align: center; font-size: 1rem; }
 .identity { margin-top: auto; display: grid; gap: 4px; padding: 16px 10px 0; border-top: 1px solid var(--hairline); }
 .identityEmail { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .8rem; }
@@ -153,9 +151,9 @@
 .metricGrid,.metricGridThree { display: grid; gap: 12px; }
 .metricGrid { grid-template-columns: repeat(4,minmax(0,1fr)); }
 .metricGridThree { grid-template-columns: repeat(3,minmax(0,1fr)); }
-.metric,.panel,.tablePanel,.composer,.historyPanel { border: 1px solid var(--hairline); background: var(--card-fill); border-radius: var(--radius-card); box-shadow: 0 5px 14px rgba(var(--shadow-ink)/.035); }
+.metric,.panel,.tablePanel,.composer,.historyPanel { border: 1px solid var(--hairline); background: var(--card-fill); border-radius: var(--radius-card); box-shadow: none; }
 .metric { min-height: 140px; display: grid; align-content: space-between; gap: 7px; padding: 18px; }
-.metricValue { font-family: var(--font-editorial),sans-serif; font-size: clamp(1.65rem,3vw,2.25rem); line-height: 1; letter-spacing: -.035em; font-variant-numeric: tabular-nums; }
+.metricValue { font-family: var(--font-sans),sans-serif; font-size: clamp(1.65rem,3vw,2.25rem); line-height: 1; letter-spacing: -.035em; font-variant-numeric: tabular-nums; }
 .metricDetail { align-self: end; font-size: .76rem; line-height: 1.4; }
 .twoColumn,.twoColumnWide { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px; align-items: start; }
 .twoColumnWide { grid-template-columns: minmax(0,2fr) minmax(15rem,.75fr); }
@@ -170,7 +168,7 @@
 .definitionGrid dt { color: var(--ink-secondary); font-size: .73rem; }
 .definitionGrid dd { margin: 0; font-size: 1.15rem; font-weight: 700; font-variant-numeric: tabular-nums; }
 .releaseLine,.releaseHero { align-items: flex-start; }
-.releaseBuild { font-family: var(--font-editorial),sans-serif; font-size: 1.45rem; font-weight: 600; letter-spacing: -.02em; }
+.releaseBuild { font-family: var(--font-sans),sans-serif; font-size: 1.45rem; font-weight: 600; letter-spacing: -.02em; }
 .releaseHero { padding: 8px 0; }
 .releaseCards { display: grid; grid-template-columns: repeat(auto-fit,minmax(12rem,1fr)); gap: 10px; }
 .releaseCard { display: grid; gap: 7px; padding: 15px; border: 1px solid var(--hairline-soft); border-radius: var(--radius-small); background: var(--hairline-soft); }
@@ -251,7 +249,7 @@
 .composerActions { display: flex; justify-content: flex-end; }
 .previewCard { display: grid; gap: 16px; padding: 18px; border: 1px solid var(--hairline); border-radius: var(--radius-row); background: var(--canvas); }
 .notificationPreview { display: grid; grid-template-columns: 40px 1fr; gap: 12px; padding: 13px; border-radius: 17px; background: var(--fill); box-shadow: 0 5px 16px rgba(var(--shadow-ink)/.07); font-size: .82rem; }
-.appTile { width: 40px; height: 40px; display: grid; place-items: center; border-radius: 10px; background: var(--primary-action); color: var(--on-primary); font-family: var(--font-editorial),sans-serif; font-size: .57rem; }
+.appTile { width: 40px; height: 40px; display: grid; place-items: center; border-radius: 10px; background: var(--primary-action); color: var(--on-primary); font-family: var(--font-sans),sans-serif; font-size: .57rem; }
 .notificationTitle { font-weight: 700; }
 .previewFacts { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 8px; }
 .previewFacts div { display: grid; gap: 2px; padding: 10px; border-radius: 10px; background: var(--card-fill); border: 1px solid var(--hairline-soft); }
@@ -266,7 +264,7 @@
 .historyRow:first-child { border-top: 0; }
 .historyId { color: var(--ink-secondary); font-size: .64rem; overflow-wrap: anywhere; user-select: all; }
 .historyActions { display: flex; gap: 7px; margin-top: 4px; }
-.smallButton { min-height: 44px; padding: 5px 10px; border: 1px solid var(--hairline); border-radius: 999px; background: var(--card-fill); color: var(--ink); font-size: .7rem; }
+.smallButton { min-height: 44px; padding: 5px 10px; border: 1px solid var(--hairline); border-radius: 5px; background: var(--card-fill); color: var(--ink); font-size: .7rem; }
 .smallButton:hover { border-color: var(--ink); }
 .loading { min-height: 50vh; display: flex; align-items: center; justify-content: center; gap: 9px; color: var(--ink-secondary); font-size: .84rem; }
 .loadingDot { width: 8px; height: 8px; border-radius: 50%; background: var(--tomato); animation: pulse 1s ease-in-out infinite alternate; }
@@ -274,7 +272,7 @@
 .visuallyHidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 @media (prefers-reduced-motion: reduce) { .loadingDot { animation: none; } .authAtmosphere span { animation: none; } .floatLabel { transition: none; } }
 @media (max-width:1180px) { .audienceGrid { grid-template-columns: repeat(3,minmax(0,1fr)); } .announcementGrid { grid-template-columns: 1fr; } .historyPanel { position: static; } .coverageGrid { grid-template-columns: repeat(2,minmax(0,1fr)); } }
-@media (max-width:900px) { .console { display: block; } .sidebar { display: none; } .mobileBar { min-height: 58px; display: flex; align-items: center; gap: 9px; padding: max(12px,env(safe-area-inset-top)) 18px 10px; border-bottom: 1px solid var(--hairline); background: var(--card-fill); } .mobileBar .signOut { margin-left: auto; } .mobileNav { display: flex; gap: 5px; padding: 8px 14px; overflow-x: auto; border-bottom: 1px solid var(--hairline); background: var(--card-fill); scrollbar-width: none; } .mobileNav::-webkit-scrollbar { display: none; } .mobileNavLink { flex: none; padding: 7px 10px; border-radius: 999px; color: var(--ink-secondary); text-decoration: none; font-size: .75rem; font-weight: 700; } .mobileNavCurrent { background: var(--fill); color: var(--ink); } .main { padding: 28px 18px 56px; } .metricGrid { grid-template-columns: repeat(2,minmax(0,1fr)); } }
+@media (max-width:900px) { .console { display: block; } .sidebar { display: none; } .mobileBar { min-height: 58px; display: flex; align-items: center; gap: 9px; padding: max(12px,env(safe-area-inset-top)) 18px 10px; border-bottom: 1px solid var(--hairline); background: var(--card-fill); } .mobileBar .signOut { margin-left: auto; } .mobileNav { display: flex; gap: 5px; padding: 8px 14px; overflow-x: auto; border-bottom: 1px solid var(--hairline); background: var(--card-fill); scrollbar-width: none; } .mobileNav::-webkit-scrollbar { display: none; } .mobileNavLink { flex: none; padding: 7px 10px; border-radius: 5px; color: var(--ink-secondary); text-decoration: none; font-size: .75rem; font-weight: 700; } .mobileNavCurrent { background: var(--fill); color: var(--ink); } .main { padding: 28px 18px 56px; } .metricGrid { grid-template-columns: repeat(2,minmax(0,1fr)); } }
 @media (max-width:680px) { .pageHeader { align-items: flex-start; flex-direction: column; } .pageAction { width: 100%; } .pageAction>* { width: 100%; } .twoColumn,.twoColumnWide,.metricGridThree,.coverageGrid,.proseGrid,.composerIntro,.formGrid { grid-template-columns: 1fr; } .fieldWide { grid-column: auto; } .audienceGrid { grid-template-columns: repeat(2,minmax(0,1fr)); } .tableFooter { align-items: flex-start; flex-direction: column; } }
 @media (max-width:430px) { .main { padding-inline: 13px; } .metricGrid { grid-template-columns: 1fr; } .metric { min-height: 118px; } .audienceGrid,.previewFacts,.definitionGrid { grid-template-columns: 1fr; } .authCard { padding: 24px 20px; } }
 

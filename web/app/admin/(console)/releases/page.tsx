@@ -15,7 +15,7 @@ export default async function ReleasesPage() {
         const channels = Object.entries(releases.deviceReported);
         return (
           <>
-            <Panel title="Authoritative release source" detail={`Snapshot ${formatWhen(result.data.generatedAt)}`}>
+            <Panel title="Release source" detail={`Snapshot ${formatWhen(result.data.generatedAt)}`}>
               <div className={styles.releaseHero}>
                 <div><p className={styles.releaseBuild}>{releases.authoritativeSource.provider}</p><p className={styles.bodyMuted}>{releases.authoritativeSource.reason}</p></div>
                 <StatusPill status={releases.authoritativeSource.status} label={releases.authoritativeSource.connected ? "Connected" : "Coverage gap"} />
@@ -38,7 +38,7 @@ export default async function ReleasesPage() {
             </Panel>
 
             <section className={styles.coverageSection} aria-labelledby="coverage-heading">
-              <div><p className={styles.eyebrow}>Coverage map</p><h2 id="coverage-heading" className={styles.sectionTitle}>Deliberate boundaries and missing sources</h2></div>
+              <div><p className={styles.eyebrow}>Coverage</p><h2 id="coverage-heading" className={styles.sectionTitle}>Data sources and availability</h2></div>
               <div className={styles.coverageGrid}>
                 <CoverageGap title="Product engagement" detail="No analytics source. No active people, retention or funnels." />
                 <CoverageGap title="Household content" detail="Recipes, plans, groceries, Table posts and photos stay in private iCloud." />

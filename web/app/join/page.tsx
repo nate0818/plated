@@ -2,11 +2,11 @@ import type { Metadata } from "next";
 import JoinPage from "./JoinPage";
 
 export const metadata: Metadata = {
-  title: "A seat at the table",
-  description: "Someone kept you a seat at their table on Plated.",
+  title: "Join a friend’s Table",
+  description: "Share recipes, food finds, and dinner ideas with friends on Plated.",
   openGraph: {
-    title: "A seat at the table",
-    description: "Someone kept you a seat at their table on Plated.",
+    title: "Join a friend’s Table",
+    description: "Share recipes, food finds, and dinner ideas with friends on Plated.",
   },
   // An invitation is addressed to one person. Search engines are not invited.
   robots: { index: false, follow: false },

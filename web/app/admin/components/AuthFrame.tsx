@@ -1,5 +1,4 @@
-import Link from "next/link";
-import Wordmark from "../../components/Wordmark";
+import SiteFrame from "../../components/SiteFrame";
 import styles from "../admin.module.css";
 
 /// The signed-out frame. It carries the wordmark, a plain title, and the form.
@@ -16,21 +15,9 @@ export default function AuthFrame({
   children: React.ReactNode;
 }) {
   return (
-    <main className={styles.authPage}>
-      <div className={styles.authAtmosphere} aria-hidden="true">
-        <span />
-        <span />
-        <span />
-      </div>
-      <div className={styles.authGlow} aria-hidden="true" />
-      <div className={styles.authGrain} aria-hidden="true" />
-      <div className={styles.authVignette} aria-hidden="true" />
+    <SiteFrame action="home" compactFooter>
+    <main id="main" className={styles.authPage}>
       <section className={styles.authCard}>
-        <header className={styles.authBrand}>
-          <Link href="/" aria-label="Plated home">
-            <Wordmark size={28} />
-          </Link>
-        </header>
         <div className={styles.authCopy}>
           <h1 className={styles.authTitle}>{title}</h1>
           {detail ? <p className={styles.bodyMuted}>{detail}</p> : null}
@@ -41,6 +28,7 @@ export default function AuthFrame({
         </p>
       </section>
     </main>
+    </SiteFrame>
   );
 }
 
@@ -52,7 +40,7 @@ export function AuthSetupState() {
     "Founder console is unconfigured: NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY must be set.",
   );
   return (
-    <AuthFrame title="Not available" detail="This page cannot be reached right now.">
+    <AuthFrame title="Unavailable right now" detail="Please try again later.">
       <></>
     </AuthFrame>
   );

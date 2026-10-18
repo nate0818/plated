@@ -1,6 +1,7 @@
 import { Suspense } from "react";
-import Link from "next/link";
-import Wordmark from "../components/Wordmark";
+import SiteFrame from "../components/SiteFrame";
+import HouseholdPreview from "../components/HouseholdPreview";
+import DirectionTable from "../direction/DirectionTable";
 import Invitation from "./Invitation";
 import Fallback from "./Fallback";
 import styles from "./page.module.css";
@@ -18,14 +19,10 @@ import { COPY, type Kind } from "./copy";
 // hairline or a whisper.
 export default function JoinPage({ kind }: { kind: Kind }) {
   return (
-    <div className={styles.page}>
-      <header className={styles.header}>
-        <Link href="/" aria-label="Plated home" className={styles.home}>
-          <Wordmark size={26} />
-        </Link>
-      </header>
-
-      <main className={styles.main}>
+    <SiteFrame action="home">
+      <main id="main" className={styles.main}>
+        <section className={styles.copy} data-reveal>
+        <p className={styles.eyebrow}>{kind === "household" ? "Your household" : "Your Table"}</p>
         <Suspense fallback={<Fallback kind={kind} />}>
           <Invitation kind={kind} />
         </Suspense>
@@ -40,11 +37,11 @@ export default function JoinPage({ kind }: { kind: Kind }) {
             </p>
           ))}
         </div>
+        </section>
+        <aside className={kind === "household" ? styles.preview : styles.tablePreview} aria-label={kind === "household" ? "An example household plan" : "An example shared at your Table"} data-reveal>
+          {kind === "household" ? <HouseholdPreview /> : <DirectionTable />}
+        </aside>
       </main>
-
-      <footer className={styles.footer}>
-        <Link href="/privacy">Privacy</Link>
-      </footer>
-    </div>
+    </SiteFrame>
   );
 }
