@@ -819,11 +819,19 @@ private struct HouseholdHomeContent: View {
 
     private var peopleSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 8) {
-                Text("People").plType(.heading)
-                Text("\(roster.listed.count) people").plType(.caption).foregroundStyle(Color.inkSecondary)
-                Spacer()
+            let headerLayout = hugeType ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+                                        : AnyLayout(HStackLayout(spacing: 8))
+            headerLayout {
+                let identityLayout = hugeType ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4))
+                                              : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: 8))
+                identityLayout {
+                    Text("People").plType(.heading).foregroundStyle(Color.ink)
+                    Text("\(roster.listed.count) people").plType(.caption).foregroundStyle(Color.inkSecondary)
+                }.fixedSize(horizontal: false, vertical: true)
+                if !hugeType { Spacer() }
+                HStack(spacing: 8) {
                 addSomeoneButton
+                if hugeType { Spacer() }
                 if roster.me?.isOwner == true {
                     Menu {
                         Button {
@@ -842,6 +850,7 @@ private struct HouseholdHomeContent: View {
                     }
                     .accessibilityLabel("People options")
                     .accessibilityHint("Includes iCloud recovery for a missing household member.")
+                }
                 }
             }
 

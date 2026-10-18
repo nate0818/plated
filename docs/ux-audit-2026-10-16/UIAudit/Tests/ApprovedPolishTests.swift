@@ -151,6 +151,30 @@ final class ApprovedPolishTests: XCTestCase {
         XCTAssertTrue(poke.exists)
     }
 
+    func testHouseholdPeopleAndInviteRemainReadableAtLargestText() {
+        launch(["-plated-open-household"], light: true, large: true)
+        XCTAssertTrue(app.buttons["household-settings"].waitForExistence(timeout: 20))
+        let invite = app.buttons["Invite someone"]
+        reveal(invite)
+        XCTAssertGreaterThan(invite.frame.width, invite.frame.height, "Invite should not split into a vertical word")
+        let people = app.staticTexts["People"]
+        XCTAssertGreaterThan(people.frame.width, people.frame.height, "People should remain a readable horizontal heading")
+        capture("polish-household-AX5-people")
+        invite.tap()
+        XCTAssertTrue(app.buttons["Close"].waitForExistence(timeout: 5) || app.staticTexts["Invite someone"].exists)
+    }
+
+    func testCookingTimerRemainsOperableAtLargestText() {
+        launch(["-plated-review-cooking-timer"], light: true, large: true)
+        XCTAssertTrue(app.buttons["Minimize cooking"].waitForExistence(timeout: 20))
+        let pause = app.buttons["cooking-timer-pause"]
+        reveal(pause)
+        XCTAssertLessThanOrEqual(pause.frame.maxX, app.frame.maxX)
+        pause.tap()
+        XCTAssertEqual(pause.label, "Resume")
+        capture("polish-cooking-AX5-paused")
+    }
+
     func testRecipeIngredientsCanBeCheckedWithoutChangingTheRecipe() {
         launch(["-plated-open-recipe-detail"])
         let flour = element("recipe-ingredient-Flour")
