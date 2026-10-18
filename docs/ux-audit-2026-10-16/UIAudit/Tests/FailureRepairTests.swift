@@ -79,7 +79,7 @@ final class FailureRepairTests: XCTestCase {
     }
     func testEmptySharedAndCompletedTonight() {
         launch(["-plated-tab","week","-plated-review-empty-tonight"])
-        XCTAssertTrue(app.buttons["Plan tonight"].waitForExistence(timeout:8));capture("state-empty-tonight")
+        XCTAssertTrue(app.buttons["Choose a meal"].waitForExistence(timeout:8));capture("state-empty-tonight")
         launch(["-plated-tab","week","-plated-review-shared-tonight"])
         tap(app.buttons["Start cooking"].firstMatch)
         XCTAssertTrue(app.staticTexts["Serves 6"].waitForExistence(timeout:8));capture("state-shared-cooking-six")

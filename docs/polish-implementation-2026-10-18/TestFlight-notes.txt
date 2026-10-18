@@ -1,0 +1,10 @@
+A more focused Plated, from planning dinner to sharing at the Table.
+
+• Plan: clearer dinner and cook assignments, useful weather and household context, and an easier way to name where you're eating out.
+• Table: a simpler post composer, automatic local drafts, clearer replies and reactions, and more useful Activity controls.
+• Recipes and cooking: clearer recipe details, compact timers, and notes after dinner is made.
+• Groceries and household: cleaner shopping controls and explicit Save/Cancel when assigning the weekly cook.
+• iPad: a horizontal workspace in both landscape orientations. iPhone orientation support is unchanged.
+• Refined light and Editorial appearances, photo sizing, and accessibility text layouts.
+
+Please try planning a meal, assigning a cook, posting and recovering a draft, replying/reacting, completing a cooking session, and rotating an iPad with a draft open. With two household accounts, also check new invitations, profile photos, comments, Activity, and phone notifications while the receiving app is closed.

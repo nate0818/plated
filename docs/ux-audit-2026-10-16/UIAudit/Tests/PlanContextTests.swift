@@ -42,7 +42,7 @@ final class PlanContextTests: XCTestCase {
 
     func testEmptyDinnerForecastAndHistoryAreUsefulAndDateSpecific() {
         launch(["-plated-review-dinner-history", "-plated-fake-weather"])
-        XCTAssertTrue(app.buttons["Eating out"].isHittable)
+        XCTAssertTrue(app.buttons["Eating out instead"].isHittable)
         let weather = element("plan-weather-conditions")
         XCTAssertTrue(weather.waitForExistence(timeout: 8))
         XCTAssertTrue(weather.label.contains("Mostly Clear"))
@@ -64,7 +64,7 @@ final class PlanContextTests: XCTestCase {
 
     func testEatingOutActionUpdatesDinnerAndHistoryWithoutCountingItAsCooking() {
         launch(["-plated-review-dinner-history", "-plated-fake-weather"])
-        app.buttons["Eating out"].tap()
+        app.buttons["Eating out instead"].tap()
         let dinner = app.buttons["featured-dinner-card"]
         XCTAssertTrue(dinner.waitForExistence(timeout: 8)); XCTAssertEqual(dinner.label, "Eating out")
         let out = element("plan-history-eating-out")
@@ -82,7 +82,7 @@ final class PlanContextTests: XCTestCase {
 
     func testEatingOutSaveFailureKeepsTheDayEmptyAndHistoryUnchanged() {
         launch(["-plated-review-dinner-history", "-plated-fake-weather", "-plated-review-fail-save", "plan eating out"])
-        app.buttons["Eating out"].tap()
+        app.buttons["Eating out instead"].tap()
         XCTAssertTrue(app.alerts["Dinner didn’t save"].waitForExistence(timeout: 8))
         app.alerts.buttons["OK"].tap()
         XCTAssertTrue(app.buttons["Choose a meal"].waitForExistence(timeout: 8))
@@ -176,8 +176,8 @@ final class PlanContextTests: XCTestCase {
 
     func testLargestTextLightAppearanceKeepsEverySectionReachable() {
         launch(["-plated-review-dinner-history", "-plated-fake-weather"], size: "UICTContentSizeCategoryAccessibilityXXXL", light: true)
-        reveal(app.buttons["Eating out"])
-        XCTAssertTrue(app.buttons["Eating out"].isHittable)
+        reveal(app.buttons["Eating out instead"])
+        XCTAssertTrue(app.buttons["Eating out instead"].isHittable)
         capture("plan-context-ax-actions")
         reveal(element("plan-weather-conditions")); capture("plan-context-ax-weather")
         reveal(element("plan-history-eating-out"))

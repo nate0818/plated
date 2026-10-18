@@ -167,9 +167,16 @@ final class ApprovedPolishTests: XCTestCase {
                 XCTAssertGreaterThan(action.frame.width, action.frame.height)
                 XCTAssertGreaterThan(weather.frame.minX, meal.frame.midX, "Weather belongs beside the meal on iPad")
                 XCTAssertLessThan(app.windows.firstMatch.frame.minY, 50, "Landscape fills the display")
-            } else {
+            } else if #available(iOS 27.0, *) {
                 XCTAssertGreaterThan(action.frame.height, action.frame.width,
                     "The horizontal interface must stay rotated when the device is held upright")
+            } else {
+                // iPadOS 26 compatibility mode centers a horizontal scene
+                // inside the upright display instead of rotating it sideways.
+                let window = app.windows.firstMatch
+                XCTAssertGreaterThan(window.frame.width, window.frame.height)
+                XCTAssertGreaterThan(weather.frame.minX, meal.frame.midX)
+                XCTAssertGreaterThan(action.frame.width, action.frame.height)
             }
             let shot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
             shot.name = "polish-ipad-display-\(orientation.rawValue)"; shot.lifetime = .keepAlways; add(shot)

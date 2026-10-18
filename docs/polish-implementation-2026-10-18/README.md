@@ -16,7 +16,7 @@ Implementation checklist:
 - [x] Grocery density, progress and undo
 - [x] Profile hierarchy and secondary milestones
 - [x] Cooking ingredients/steps, timer and completion notes
-- [ ] Native build/tests/design/token/schema checks and screenshot/interaction matrix
+- [x] Native build/tests/design/token/schema checks and screenshot/interaction matrix
 - [ ] Commit, push, archive, upload and verify all TestFlight groups
 
 Existing web edits are unrelated work and are excluded from this change. Physical-device and two-account checks remain unverified until actually exercised; user previously requested continuation without the phone. Release evidence will distinguish TestFlight distribution from those remaining live checks.
@@ -30,13 +30,16 @@ Existing web edits are unrelated work and are excluded from this change. Physica
 - Household rotation uses an explicit picker and Save/Cancel. Its accessibility label is attached to the actionable button rather than a separate wrapper.
 - Cooking preserves the existing frozen session and timer behavior. Timer options are compact; reflection and sharing follow the saved dinner. A failed note save keeps the text and reports the note failure separately.
 
-## Verification in progress
+## Verification
 
-- Native build succeeded, including simulator app and extensions.
-- Native regression suite: **527 tests, 4 opt-in Calendar skips, 0 failures** (`build/polish-unit-final.xcresult`). Tests cover identity, household merge, invitations, reactions, notification policy, draft persistence, ledger behavior and the new viewed-activity policy/deep-link parsing.
-- Design gate: 178 Swift files checked; passed. Schema gate: 159 production fields checked; passed. Native/widget tokens match. Unrelated uncommitted website palette edits make the combined website-token gate fail in this working directory; release gates will run from the clean committed native checkout.
-- Initial iPhone UI pass verified dark/light screen matrix, accessibility text, draft recovery, Activity read controls, cooking completion, comment interactions, and Apple Weather attribution in both themes. Two failures were addressed: a stale Eating out test label and the actual rotation accessibility wrapper. Final interaction/capture pass is pending.
-- iPad orientation/layout assertions passed on iPadOS 26.5. Full-display geometry is being rechecked because app-scoped screenshots can misrepresent a letterboxed scene after simulator rotation.
+- Native simulator build and signed release archive/export succeeded. Archive is **1.0.1 (43)**; app and widget carry the same build number. Its iPad orientation list contains only Landscape Left and Landscape Right; iPhone retains Portrait and both landscape directions.
+- Regression suite: **527 tests, 4 opt-in Calendar skips, 0 failures** (`build/polish-unit-final.xcresult`). Covers identity, household merge, invitations, reactions, notification policy, draft persistence, ledger behavior and the new viewed-activity/deep-link policies.
+- Final iPhone interaction suite: **8 passed, 0 failures** (`build/polish-ui-final.xcresult`). Includes both-theme native screen captures, accessibility text, Activity read/clear semantics, post draft recovery, explicit rotation Save/Cancel, dinner-place editing, cooking completion and comment reactions.
+- Follow-up visual checks: **3 passed, 0 failures** (`build/polish-final-visuals.xcresult`). Largest-text attachment actions now use the full row; People opens correctly. Official Apple Weather artwork loads and remains visible on green and cream. The full-width Table photo correction was visually checked in both appearances.
+- iPadOS 27: **1 passed, 0 failures** (`build/polish-ipad27-final.xcresult`). Both landscape directions, portrait and upside-down physical orientations retain the horizontal interface, and a typed post draft survives rotation with its sheet open. Full-display screenshots are authoritative: XCTest's app-scoped captures can crop incorrectly, and its element frames use physical-screen coordinates. An upright device therefore reports a vertical frame for a horizontal, landscape-locked button. Earlier tests that compared window width/height alone were corrected; no root-controller replacement or rotation overlay ships.
+- iPadOS 26.5: **1 passed, 0 failures** (`build/polish-ipad26-verified.xcresult`) on a fresh isolated simulator. Both landscape directions fill the display; holding the device upright centers the same horizontal two-column workspace in Apple’s compatibility mode. A typed draft survives the entire rotation sequence. The older review simulator retained a different windowing state, so it was not used as the final full-display baseline.
+- All release gates passed from the clean committed native checkout: design rules for 178 Swift files; 10 native/widget tokens; 31 website tokens in both themes; byte-identical copied timer activity model; 159 deployed CloudKit production fields. Unrelated uncommitted website work remains outside the release.
+- Machine-readable test summaries are in `results/`; unmodified native screenshots are in `captures/`. Fixture names, photos, counts and preview weather are test data, not claims about a live household. The interactive design artifact's illustrative states are not a claim that every native account/network combination was exercised.
 
 ## Remaining live checks
 

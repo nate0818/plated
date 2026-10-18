@@ -1,0 +1,18 @@
+{
+  "CFBundleIdentifier": "com.natemeadows.plated",
+  "CFBundleShortVersionString": "1.0.1",
+  "CFBundleVersion": "43",
+  "UISupportedInterfaceOrientations~ipad": [
+    "UIInterfaceOrientationLandscapeLeft",
+    "UIInterfaceOrientationLandscapeRight"
+  ],
+  "UISupportedInterfaceOrientations~iphone": [
+    "UIInterfaceOrientationPortrait",
+    "UIInterfaceOrientationLandscapeLeft",
+    "UIInterfaceOrientationLandscapeRight"
+  ],
+  "UIRequiresFullScreen": true,
+  "ITSAppUsesNonExemptEncryption": false,
+  "sha256": "afdde6d25c335a97be7221e83cac8e91d418cb44d12f96462ca27c7182b1b68b",
+  "bytes": 17900096
+}
