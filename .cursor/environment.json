@@ -1,0 +1,17 @@
+{
+  "name": "Plated web (plated.food)",
+  "install": "cd web && npm ci",
+  "terminals": [
+    {
+      "name": "web-dev-server",
+      "command": "cd web && npm run dev",
+      "description": "Next.js dev server for the plated.food marketing/admin site on http://localhost:3000"
+    }
+  ],
+  "ports": [
+    {
+      "name": "web",
+      "port": 3000
+    }
+  ]
+}
