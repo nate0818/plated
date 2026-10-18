@@ -39,4 +39,15 @@ not a score for the whole app.
 Primary sources: [Apple attribution metadata](https://weatherkit.apple.com/attribution/en),
 [Apple REST attribution definition](https://developer.apple.com/documentation/weatherkitrestapi/attribution).
 
-Release: build 42, with TestFlight processing/distribution recorded after upload.
+Release: version 1.0.1 (42), code commit `7b817bc`, uploaded successfully and
+verified in App Store Connect on October 18, 2026. Processing is `VALID`; internal
+and external build states are both `IN_BETA_TESTING`. The Internal group has
+access to all builds and the External group explicitly contains build 42.
+Automatic tester notifications are enabled, and the English “What to Test” notes
+were saved and read back successfully.
+
+[TestFlight](https://testflight.apple.com/join/2exAQgYs).
+Both the app and widget in the exported IPA report version 1.0.1, build 42.
+IPA SHA-256: `f31032ad70d4956cfebe9f9b540acacab8b5171848f0ead4008b14ef07cae4be`.
+This release does not change the outstanding two-phone notification validation
+documented in [the notification release evidence](../social-notifications-2026-10-18.md).
