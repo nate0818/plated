@@ -72,12 +72,35 @@ caption views.
 
 ## Release scope and remaining live checks
 
-Build 44 is being prepared from a separate clean native checkout. Unrelated
-website edits are excluded. Its release gates check the committed website token
+Build 44 was archived from a separate clean native checkout. Unrelated
+website edits were excluded. Its release gates checked the committed website token
 baseline; the working directory's unrelated website palette edits currently
 trigger the cross-platform token check and are not part of this native release.
 
 Physical VoiceOver, lock-screen notifications and two-account synchronization
 remain unverified in this pass. The user authorized proceeding without the phone.
 The simulator profile/photo tests verify local identity handling, not live
-CloudKit transport between two accounts. No public App Store release is authorized.
+CloudKit transport between two accounts. No public App Store release was submitted.
+
+## Released
+
+**TestFlight 1.0.1 (44) is available to all existing Internal and External testers.**
+Verified with Apple's API at 2026-10-18 10:36:42 UTC: processing `VALID`, internal
+and external states both `IN_BETA_TESTING`. Both groups include build 44; Internal
+also retains access to all builds. Automatic tester notifications are enabled.
+The published en-US notes were read back and exactly match `TestFlight-notes.txt`.
+
+- [Open TestFlight](https://testflight.apple.com/join/2exAQgYs) and install **44**.
+  Installation on the user's disconnected phone has not been verified.
+- Native implementation commits: `e8cd43a`, `61e08de`, `575f1f2`.
+  Build number, final follow-up test and evidence commit: `48c0ff8`.
+  All were pushed to `origin/main` before upload.
+- The clean release checkout's native files matched `48c0ff8` exactly. Signed
+  archive/export and all release gates succeeded. Both app and widget are build
+  44; the exported app declares only the two landscape iPad orientations.
+- Preserved archive, debug symbols, exact uploaded IPA and logs:
+  `build/release-plan-44/`. Fingerprint and delivery UUID are in
+  `results/archive.json`; Apple distribution evidence is in
+  `results/distribution.json`.
+- The temporary release checkout was archived after artifact preservation. The
+  isolated iPad simulator was shut down. Unrelated website edits remain untouched.

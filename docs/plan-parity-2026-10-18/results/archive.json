@@ -1,0 +1,19 @@
+{
+  "recordedAt": "2026-10-18T10:33:37.721786+00:00",
+  "version": "1.0.1",
+  "build": "44",
+  "sourceCommit": "48c0ff8",
+  "archiveCheckoutCommit": "0fb3f2d",
+  "nativeSourceComparison": "git diff --exit-code 48c0ff8 -- Plated PlatedWidgets PlatedNotificationService Plated.xcodeproj config passed",
+  "ipaSHA256": "f9690df55ac2bda4c9ec1b25a452201f7894e9503b2c347f2b26724a89f505af",
+  "ipaBytes": 17942836,
+  "preservedAt": "build/release-plan-44/",
+  "iPadOrientations": [
+    "UIInterfaceOrientationLandscapeLeft",
+    "UIInterfaceOrientationLandscapeRight"
+  ],
+  "archiveAndExport": "succeeded",
+  "releaseGates": "design, native/widget/committed-website tokens, copied activity model and production CloudKit schema passed before archive",
+  "upload": "succeeded",
+  "deliveryUUID": "8c8c2601-06e6-4dd0-8592-f762ac5efab0"
+}

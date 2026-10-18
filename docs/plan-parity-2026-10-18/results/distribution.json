@@ -1,0 +1,134 @@
+{
+  "checkedAt": "2026-10-18T10:36:42.779392+00:00",
+  "build": {
+    "type": "builds",
+    "id": "8c8c2601-06e6-4dd0-8592-f762ac5efab0",
+    "attributes": {
+      "version": "44",
+      "uploadedDate": "2026-10-18T03:35:27-07:00",
+      "expired": false,
+      "processingState": "VALID"
+    },
+    "links": {
+      "self": "https://api.appstoreconnect.apple.com/v1/builds/8c8c2601-06e6-4dd0-8592-f762ac5efab0"
+    }
+  },
+  "betaDetail": {
+    "type": "buildBetaDetails",
+    "id": "8c8c2601-06e6-4dd0-8592-f762ac5efab0",
+    "attributes": {
+      "autoNotifyEnabled": true,
+      "internalBuildState": "IN_BETA_TESTING",
+      "externalBuildState": "IN_BETA_TESTING"
+    },
+    "relationships": {
+      "build": {
+        "links": {
+          "self": "https://api.appstoreconnect.apple.com/v1/buildBetaDetails/8c8c2601-06e6-4dd0-8592-f762ac5efab0/relationships/build",
+          "related": "https://api.appstoreconnect.apple.com/v1/buildBetaDetails/8c8c2601-06e6-4dd0-8592-f762ac5efab0/build"
+        }
+      }
+    },
+    "links": {
+      "self": "https://api.appstoreconnect.apple.com/v1/buildBetaDetails/8c8c2601-06e6-4dd0-8592-f762ac5efab0"
+    }
+  },
+  "groups": [
+    {
+      "id": "d4ceeaaa-518a-439b-8df8-7a2bbd795d69",
+      "name": "Internal",
+      "internal": true,
+      "all_builds": true,
+      "public_link": null,
+      "builds": [
+        "1",
+        "2",
+        "3",
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "11",
+        "12",
+        "13",
+        "14",
+        "15",
+        "16",
+        "17",
+        "18",
+        "19",
+        "20",
+        "21",
+        "24",
+        "25",
+        "26",
+        "27",
+        "28",
+        "29",
+        "30",
+        "31",
+        "32",
+        "33",
+        "34",
+        "35",
+        "36",
+        "37",
+        "38",
+        "39",
+        "40",
+        "41",
+        "42",
+        "43",
+        "44"
+      ]
+    },
+    {
+      "id": "21ee2218-8e43-49da-b27f-dbc543824a80",
+      "name": "External",
+      "internal": false,
+      "all_builds": false,
+      "public_link": "https://testflight.apple.com/join/2exAQgYs",
+      "builds": [
+        "2",
+        "10",
+        "11",
+        "12",
+        "13",
+        "14",
+        "15",
+        "16",
+        "17",
+        "18",
+        "19",
+        "20",
+        "21",
+        "24",
+        "25",
+        "26",
+        "27",
+        "28",
+        "29",
+        "30",
+        "31",
+        "32",
+        "33",
+        "34",
+        "35",
+        "36",
+        "37",
+        "38",
+        "39",
+        "40",
+        "41",
+        "42",
+        "43",
+        "44"
+      ]
+    }
+  ],
+  "notesVerified": true,
+  "notesFile": "TestFlight-notes.txt"
+}
