@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Image from "next/image";
+import HouseholdCooks from "./HouseholdCooks";
 import AppShowcase from "./AppShowcase";
 import { type AppScreen } from "./PhoneScreenshot";
 import styles from "./ProductTour.module.css";
@@ -12,19 +12,13 @@ const steps: { screen: AppScreen; label: string; title: string; description: str
   { screen: "groceries", label: "Groceries", title: "Share the shopping, too", description: "Bring ingredients from your planned meals into one shared grocery list. Everyone knows what’s left to pick up.", caption: "Groceries for your planned meals" },
 ];
 
-const cooks = [
-  { name: "You", initial: "N", meal: "Salmon", night: "Tonight", image: "salmon", tone: "oat" },
-  { name: "Sam", initial: "S", meal: "Pizza", night: "Tomorrow", image: "pizza", tone: "basil" },
-  { name: "Riley", initial: "R", meal: "Steak", night: "Tuesday", image: "steak", tone: "mango" },
-];
-
 export default function ProductTour() {
   const [selected, setSelected] = useState(0);
   const [preload, setPreload] = useState(false);
   const sections = useRef<(HTMLElement | null)[]>([]);
 
   useEffect(() => {
-    const desktop = window.matchMedia("(min-width: 761px)");
+    const desktop = window.matchMedia("(min-width: 1024px) and (min-height: 720px)");
     let observer: IntersectionObserver | undefined;
     function observe() {
       observer?.disconnect();
@@ -37,7 +31,7 @@ export default function ProductTour() {
             if (index !== -1) setSelected(index);
           }
         }
-      }, { rootMargin: "-30% 0px -40% 0px", threshold: 0 });
+      }, { rootMargin: "-35% 0px -50% 0px", threshold: 0 });
       sections.current.forEach(section => { if (section) observer?.observe(section); });
     }
     observe();
@@ -46,8 +40,7 @@ export default function ProductTour() {
   }, []);
 
   function goTo(index: number) {
-    setSelected(index);
-    sections.current[index]?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth", block: "center" });
+    sections.current[index]?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth", block: "start" });
   }
 
   return <div className={styles.tour}>
@@ -66,16 +59,7 @@ export default function ProductTour() {
           <p className={styles.stepLabel}><span>{String(index + 1).padStart(2, "0")}</span>{step.label}</p>
           <h3 id={`tour-${step.screen}-title`}>{step.title}</h3>
           <p className={styles.description}>{step.description}</p>
-          {step.screen === "plan" && <ul className={styles.cooks} aria-label="Example household cooking nights">
-            {cooks.map(cook => <li key={cook.name} className={styles.cook}>
-              <span className={styles.avatar} data-theme="paper" data-tone={cook.tone} aria-hidden="true">
-                {cook.initial}
-                <span className={styles.mealBadge}><Image src={`/editorial/${cook.image}.webp`} alt="" width={40} height={40} sizes="40px" /></span>
-              </span>
-              <span className={styles.cookName}>{cook.name}</span>
-              <span className={styles.cookMeal}>{cook.meal}<span>{cook.night}</span></span>
-            </li>)}
-          </ul>}
+          {step.screen === "plan" && <HouseholdCooks compact /> }
         </div>
         <div className={styles.mobileVisual}><AppShowcase screen={step.screen} appearance="light" compact capture={step.screen === "plan" ? { src: "/app/plan-sam-light-818.png", alt: "Plated’s Plan screen showing Sam’s avatar, Pizza Night, and Sam is cooking" } : undefined} /></div>
       </section>)}

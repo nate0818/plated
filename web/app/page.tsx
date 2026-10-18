@@ -1,5 +1,5 @@
 import Link from "next/link";
-import AppShowcase from "./components/AppShowcase";
+import TablePreview from "./components/TablePreview";
 import AppStoreBadge from "./components/AppStoreBadge";
 import FoodGallery from "./components/FoodGallery";
 import HeroCollaboration from "./components/HeroCollaboration";
@@ -36,7 +36,7 @@ export default function Home() {
     <a className={styles.skip} href="#main">Skip to content</a>
     <header className={styles.header}>
       <div className={styles.headerInner}>
-        <Link className={styles.homeLink} href="#main" aria-label="Plated home"><Wordmark size={34} /></Link>
+        <a className={styles.homeLink} href="#main" aria-label="Plated home"><Wordmark size={34} /></a>
         <nav className={styles.navigation} aria-label="Main navigation">
           <a href="#recipes">The food</a>
           <a href="#how-it-works">How it works</a>
@@ -73,7 +73,7 @@ export default function Home() {
       <section className={styles.tableSection} aria-labelledby="table-title">
         <div className={styles.tableCopy}>
           <p className={styles.category}>Your Table</p>
-          <h2 id="table-title">Good meals are{" "}<br />worth sharing</h2>
+          <h2 id="table-title"><span>Good meals</span>{" "}<span>are worth sharing</span></h2>
           <p>From an old family recipe to pancakes for dinner, share what you&rsquo;ve cooked with the friends you invite to your Table.</p>
           <div className={styles.privateNote}>
             <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.3" aria-hidden="true"><rect x="5" y="10" width="14" height="11" rx="2" /><path d="M8 10V7a4 4 0 0 1 8 0v3m-4 5v2" /></svg>
@@ -81,10 +81,7 @@ export default function Home() {
           </div>
           <Link className={styles.textLink} href="/privacy">How Plated keeps things private <Arrow /></Link>
         </div>
-        <figure className={styles.tableVisual}>
-          <AppShowcase screen="table" compact />
-          <figcaption>Share a dish with your Table</figcaption>
-        </figure>
+        <div className={styles.tableVisual}><TablePreview /></div>
       </section>
 
       <section className={styles.closing} aria-labelledby="closing-title">
@@ -107,7 +104,7 @@ export default function Home() {
     </main>
 
     <footer className={styles.footer}>
-      <div className={styles.footerBrand}><Link href="#main" aria-label="Plated home"><Wordmark size={34} /></Link><p>A shared plan for the food<br />and people you love</p></div>
+      <div className={styles.footerBrand}><a href="#main" aria-label="Plated home"><Wordmark size={34} /></a><p>A shared plan for the food<br />and people you love</p></div>
       <nav aria-label="Footer navigation"><a href="#recipes">The food</a><a href="#how-it-works">How it works</a><a href="#questions">Questions</a><Link href="/privacy">Privacy</Link></nav>
       <div className={styles.footerNote}><AppStoreBadge /><span>© {new Date().getFullYear()} Plated</span></div>
     </footer>

@@ -45,3 +45,23 @@ native recording, prepared with AVFoundation for the homepage collaboration
 story. Playback starts with your Plan, opens Recipes, then holds the existing
 `plan-sam-light-818.png` capture to show Sam cooking tomorrow. The household
 avatars reflect those captures; the phone UI is not reconstructed or edited.
+
+## Consistent cooking preview — October 17
+
+The hero now cycles through the three native Plan captures (You, Sam, Riley)
+with a 700 ms crossfade and six seconds to read each night. It no longer
+switches between the recording (which included the device island) and a still
+(which did not). A permanent decorative device island belongs to the website
+frame, outside the unchanged capture pixels, and is also used on the tour.
+`plan-riley-light-818.png` is the previously retained, unaltered capture from
+`docs/website-household-preview-2026-10-16/`.
+
+The marketing avatar for You is a person outline, while Sam and Riley retain
+their name initials. The app captures retain the actual signed-in QA profile.
+Table is now a labeled, animated web illustration of sharing, commenting and
+saving, based on the native demonstration household’s Pancake Dinner post and
+Riley’s existing comment. It is not a recording or live user activity.
+
+Both previews pause offscreen, in background tabs, with Reduce Motion or Save
+Data, and via a visible Play/Pause button. No simulator settings or household
+data were changed for this revision.

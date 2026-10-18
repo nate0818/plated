@@ -29,7 +29,7 @@ export default function AppShowcase({ screen = "plan", priority = false, eager =
     <div className={`${styles.preview} ${compact ? styles.compact : ""}`}>
       <button className={styles.screenButton} onClick={() => open(screens.findIndex(item => item.screen === screen))} aria-label={`Enlarge Plated’s ${screens.find(item => item.screen === screen)?.label} screen`} aria-haspopup="dialog">
         <span className={styles.capture}>
-          <Image src={imageFor(screen)} alt={descriptionFor(screen)} width={1206} height={2622} sizes="(max-width: 760px) 280px, 320px" priority={priority} loading={priority || eager ? "eager" : "lazy"} />
+          <span className={styles.deviceScreen}><Image src={imageFor(screen)} alt={descriptionFor(screen)} width={1206} height={2622} sizes="(max-width: 760px) 280px, 320px" priority={priority} loading={priority || eager ? "eager" : "lazy"} /><span className={styles.island} aria-hidden="true" /></span>
         </span>
       </button>
     </div>
@@ -55,7 +55,7 @@ export default function AppShowcase({ screen = "plan", priority = false, eager =
           {screens.map((item, index) => <button key={item.screen} aria-pressed={index === selected} onClick={() => setSelected(index)}>{item.label}</button>)}
         </div>
         <div className={styles.fullScreen}>
-          <Image src={imageFor(current.screen)} alt={descriptionFor(current.screen)} width={1206} height={2622} sizes="300px" />
+          <Image src={imageFor(current.screen)} alt={descriptionFor(current.screen)} width={1206} height={2622} sizes="300px" /><span className={styles.island} aria-hidden="true" />
         </div>
         <p className={styles.dialogNote} aria-live="polite">{current.label} screen, {selected + 1} of {screens.length}</p>
       </div>
