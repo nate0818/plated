@@ -15,7 +15,18 @@ of them.
 
 ---
 
-## Status
+## Quality and current release evidence
+
+Read [AGENTS.md](AGENTS.md) and the [release quality standard](docs/release-quality-standard.md)
+before implementing or releasing changes. Every release needs fresh visual,
+interaction, regression and device/account evidence; passing a build or screenshot
+survey does not establish that the experience is complete.
+
+The latest recorded native delivery is [TestFlight 1.0.1 (45)](docs/design-parity-recheck-2026-10-18/README.md).
+Consult its dated evidence and remaining limits. Historical audit and release notes
+below are not current verification or current App Store Connect status.
+
+## Historical release-candidate status — September 2026
 
 **1.0 release candidate.** The four core rooms (Plan, Recipes, Groceries and
 Table), household sharing, onboarding, widgets, App Intents, Cook Mode and the
