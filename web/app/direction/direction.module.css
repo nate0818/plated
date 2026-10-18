@@ -8,20 +8,22 @@ html:has(.direction) { scroll-behavior: smooth; }
 .direction :where(.cta, .darkCta) svg { transition: transform 220ms cubic-bezier(.2,.7,.2,1); }
 @media (hover: hover) { .direction :where(.cta, .darkCta):hover svg { transform: translateX(3px); } }
 .direction h1, .direction h2, .direction h3 { font-family: var(--font-sans), sans-serif; font-weight: 500; letter-spacing: -.035em; text-wrap: pretty; }
-.hero, .sharedPlan, .product, .tableInner, .invitation, .questions { width: min(1168px, calc(100% - 96px)); margin-inline: auto; }
-.hero { display: grid; grid-template-columns: minmax(0, .95fr) minmax(0, 1.05fr); align-items: center; column-gap: clamp(28px, 4vw, 64px); padding-top: 32px; }
-.heroIntro { min-width: 0; }
-.heroPhoto { height: min(640px, calc(100svh - 140px)); min-height: 380px; margin: 0; overflow: hidden; border-radius: 14px; background: #5C523A; }
-.heroPhoto > img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: 23% 55%; }
+.heroBenefits, .sharedPlan, .product, .tableInner, .invitation, .questions { width: min(1168px, calc(100% - 96px)); margin-inline: auto; }
+.hero { position: relative; isolation: isolate; display: flex; align-items: center; justify-content: flex-end; min-height: min(860px, calc(100svh - 76px)); padding: 56px max(48px, calc((100vw - 1168px) / 2)); overflow: hidden; background: #172319; color: #F7F6F0; }
+.hero::after { content: ""; position: absolute; z-index: 1; inset: 0; pointer-events: none; background: linear-gradient(90deg, rgb(14 23 16 / .04) 22%, rgb(14 23 16 / .74) 52%, rgb(14 23 16 / .88) 100%); }
+.heroIntro { position: relative; z-index: 2; width: min(47%, 550px); min-width: 0; }
+.heroPhoto { position: absolute; z-index: 0; inset: 0; overflow: hidden; }
+.heroPhoto > img { position: absolute; inset: 0; display: block; width: 100%; height: 100%; object-fit: cover; object-position: 50% 60%; }
+.hero :where(a, button):focus-visible { outline-color: #F7F6F0; }
 .sharedPlan { padding-top: 6px; }
 .eyebrow { font-size: 13px; font-weight: 500; letter-spacing: -.01em; }
 .hero h1 { font-size: clamp(34px, 4.4vw, 62px); line-height: 1.04; margin-top: 18px; letter-spacing: -.04em; }
 .hero h1 > span { display: block; white-space: nowrap; }
 .heroBottom { margin-top: 26px; }
-.heroBottom > p { font-size: 17px; line-height: 1.7; max-width: 430px; color: var(--ink-secondary); letter-spacing: -.015em; }
+.heroBottom > p { font-size: 17px; line-height: 1.7; max-width: 430px; color: #EFEEE4; letter-spacing: -.015em; }
 .heroBottom .desktopBreak { display: none; }
 .heroConversion { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; margin-top: 28px; }
-.heroConversion > span { font-size: 11px; color: var(--ink-secondary); }
+.heroConversion > span { font-size: 11px; color: #EFEEE4; }
 .cta { display: inline-flex; justify-content: space-between; align-items: center; gap: 32px; min-height: 52px; padding: 13px 20px; color: #221B14; background: #FF5A3C; border-radius: 5px; text-decoration: none; font-size: 14px; font-weight: 550; }
 .cta:hover { background: #F36A4F; }
 .demo { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr); align-items: center; column-gap: 76px; position: relative; padding: 42px 72px 18px; margin-top: 36px; border-radius: 14px; background: var(--soft-green); overflow: hidden; }
@@ -152,7 +154,8 @@ html:has(.direction) { scroll-behavior: smooth; }
 .answer > div { min-height: 0; overflow: hidden; }
 .answer p { padding: 0 24px 22px 0; font-size: 13px; color: var(--ink-secondary); line-height: 1.8; }
 @media (max-width: 1100px) {
-  .hero, .sharedPlan, .product, .tableInner, .invitation, .questions { width: calc(100% - 64px); }
+  .heroBenefits, .sharedPlan, .product, .tableInner, .invitation, .questions { width: calc(100% - 64px); }
+  .hero { padding: 40px 32px; }
   .hero h1 { font-size: 4.4vw; }
   .heroBottom > p { font-size: 16px; }
   .demo { padding: 36px 40px 18px; column-gap: 44px; }
@@ -165,16 +168,17 @@ html:has(.direction) { scroll-behavior: smooth; }
   .invitation { padding-inline: 40px; gap: 20px 44px; }
 }
 @media (max-width: 760px) {
-  .hero, .sharedPlan, .product, .tableInner, .invitation, .questions { width: calc(100% - 40px); }
-  .hero { display: block; padding-top: 40px; }
-  .heroPhoto { height: auto; min-height: 0; aspect-ratio: 4 / 5; margin-top: 30px; border-radius: 10px; }
-  .heroPhoto > img { object-position: 23% 55%; }
+  .heroBenefits, .sharedPlan, .product, .tableInner, .invitation, .questions { width: calc(100% - 40px); }
+  .hero { display: block; min-height: clamp(700px, calc(100svh - 68px), 820px); padding: 32px 20px; }
+  .hero::after { background: linear-gradient(180deg, #172319 0%, #172319 26%, rgb(23 35 25 / .8) 45%, rgb(23 35 25 / .12) 64%, transparent 80%); }
+  .heroIntro { width: 100%; max-width: 510px; margin-inline: auto; }
+  .heroPhoto > img { inset: auto; left: -15%; bottom: 0; width: 200%; height: auto; max-width: none; mask-image: linear-gradient(180deg, transparent, #000 24%); }
   .eyebrow { font-size: 12px; }
-  .hero h1 { font-size: clamp(34px, 9.5vw, 58px); letter-spacing: -.035em; line-height: 1.06; margin-top: 17px; }
-  .heroBottom { display: block; margin-top: 22px; }
-  .heroBottom > p { flex: 1; font-size: 15px; line-height: 1.75; max-width: 510px; }
+  .hero h1 { font-size: clamp(32px, 8.8vw, 42px); letter-spacing: -.035em; line-height: 1.06; margin-top: 14px; }
+  .heroBottom { display: block; margin-top: 18px; }
+  .heroBottom > p { font-size: 14px; line-height: 1.6; max-width: 440px; }
   .desktopBreak { display: none; }
-  .heroConversion { margin-top: 23px; gap: 9px; }
+  .heroConversion { margin-top: 20px; gap: 9px; }
   .cta { min-height: 50px; font-size: 13px; }
   .demo { margin-top: 30px; display: flex; flex-direction: column; gap: 28px; padding: 24px 24px 14px; border-radius: 10px; }
   .demoPlan { max-width: 100%; padding-top: 0; }
@@ -228,8 +232,9 @@ html:has(.direction) { scroll-behavior: smooth; }
   .question h3 button { font-size: 14px; }
 }
 @media (max-width: 380px) {
-  .hero, .sharedPlan, .product, .tableInner, .invitation, .questions { width: calc(100% - 32px); }
-  .hero h1 { font-size: 34px; }
+  .heroBenefits, .sharedPlan, .product, .tableInner, .invitation, .questions { width: calc(100% - 32px); }
+  .hero { padding-inline: 16px; }
+  .hero h1 { font-size: 32px; }
   .demo { padding-inline: 16px; }
   .demoPlan h2 { font-size: 28px; }
   .demoLabel { font-size: 10px; }
