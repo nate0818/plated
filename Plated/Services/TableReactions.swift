@@ -41,6 +41,39 @@ enum TableReactions {
         return now
     }
 
+    /// Comments use the deployed binary reaction wire format. A note's stable
+    /// record name is the target, so its likes cannot change its post's plates.
+    /// `postRef` then cascades from the note; the share parent remains table-root.
+    @discardableResult
+    static func toggleLike(
+        _ comment: TableComment,
+        context: ModelContext,
+        authorName: String? = nil
+    ) -> Bool {
+        guard comment.deletedAt == nil, !comment.shareRecordName.isEmpty,
+              let post = comment.post else { return false }
+        guard Persist.save(context, "comment before reaction") else { return comment.likedByMeNow }
+        let me = TableIdentity.cached
+        let active = !comment.likedByMeNow
+        let at = Date.now
+        TableLedger.shared.setPlate(comment.shareRecordName, author: me, active: active, at: at)
+        // Review fixtures must never become writes to a real shared zone.
+        guard !PlatedApp.usesPreviewContainer else { return active }
+        TableOutbox.shared.enqueue(
+            .plate(post: comment.shareRecordName, zoneOwner: post.shareZoneOwner, active: active),
+            author: me, at: at
+        )
+        TableOutbox.shared.kickReactionDrain(authorName: resolvedName(authorName))
+        return active
+    }
+
+    static func forgetComments(_ records: Set<String>) {
+        for record in records {
+            TableLedger.shared.forget(post: record)
+            TableOutbox.shared.remove("plate:\(record)")
+        }
+    }
+
     /// Cast, change or withdraw a vote. Passing the option already chosen
     /// withdraws it, which is how the poll behaved before and is the only
     /// way to un-vote without a second control.

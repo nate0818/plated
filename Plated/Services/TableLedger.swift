@@ -37,7 +37,7 @@ final class TableLedger {
     }
 
     private struct Book: Codable {
-        /// post record name -> author id -> plate
+        /// Reaction target (post-… or note-…) -> author id -> binary reaction.
         var plates: [String: [String: Plate]] = [:]
         var ballots: [String: [String: Ballot]] = [:]
     }
@@ -128,6 +128,7 @@ final class TableLedger {
     /// would have noticed never runs because the post is not there to fold
     /// against.
     func forget(post: String) {
+        guard book.plates[post] != nil || book.ballots[post] != nil else { return }
         book.plates[post] = nil
         book.ballots[post] = nil
         save()

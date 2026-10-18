@@ -123,6 +123,34 @@ struct PlatedApp: App {
                 try? preview.mainContext.save()
             }
             if arguments.contains("-plated-design-review") {
+                if arguments.contains("-plated-review-comment-reactions") {
+                    let post = TablePost(authorName: "Sam Meadows", dishTitle: "A market find", caption: "These tomatoes are worth a trip.", kind: "post")
+                    post.shareRecordName = "post-review-comment-reactions"
+                    post.authorID = "review-sam"
+                    if arguments.contains("-plated-review-recipe-post") { post.kind = "dish" }
+                    preview.mainContext.insert(post)
+                    if arguments.contains("-plated-review-recipe-saved") {
+                        let recipe = Recipe(title: post.dishTitle)
+                        recipe.originID = post.originKey
+                        preview.mainContext.insert(recipe)
+                    }
+                    for (id, name, text, offset) in [
+                        ("deleted", "Sam Meadows", "", -120.0),
+                        ("parent", "Alessandra Schembari", "Try them with basil and a little olive oil.", -80.0),
+                        ("reply", "Nate Meadows", "Perfect. Let's pick some up this weekend!", -60.0)
+                    ] {
+                        let comment = TableComment(authorName: name, text: text, createdAt: .now.addingTimeInterval(offset), authorID: "review-" + id)
+                        comment.shareRecordName = "note-review-" + id
+                        comment.post = post
+                        if id == "reply" { comment.parentCommentID = "note-review-parent"; comment.replyToName = "Alessandra Schembari" }
+                        if id == "deleted" { comment.deletedAt = .now }
+                        preview.mainContext.insert(comment)
+                        TableReactions.forgetComments([comment.shareRecordName])
+                    }
+                    TableLedger.shared.setPlate("note-review-parent", author: "review-riley", active: true)
+                    TableLedger.shared.setPlate("note-review-parent", author: "review-sam", active: true)
+                    try? preview.mainContext.save()
+                }
                 if arguments.contains("-plated-review-removal-unlinked"),
                    let sam = (try? preview.mainContext.fetch(FetchDescriptor<HouseholdMember>()))?.first(where: { $0.name == "Sam" }) {
                     sam.seat = .joined

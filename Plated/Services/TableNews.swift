@@ -92,7 +92,7 @@ enum TableNews {
 
     struct Notice {
         enum Kind: String {
-            case dish, ask, comment, plates, kiss, votes, seat, more
+            case dish, ask, comment, plates, commentLikes, kiss, votes, seat, more
             /// A night another phone planned, read from `PlanLedger`
             /// (docs/plan-share.md).
             case plan
@@ -454,9 +454,51 @@ enum TableNews {
             ))
         }
 
+        notices.append(contentsOf: commentReactionNotices(changes, me: me, cutoff: cutoff, seen: seen, context: context))
+
         notices.append(contentsOf: planNotices(plans, me: me, cutoff: cutoff, seen: seen, context: context, now: now))
 
         return notices.map { dress($0, members: members) }
+    }
+
+    /// Comment authors receive likes on their own words, including replies on
+    /// somebody else's post. One row per comment, never one per tap or liker.
+    private static func commentReactionNotices(
+        _ changes: TableShare.Changes, me: String, cutoff: Date,
+        seen: Set<String>, context: ModelContext
+    ) -> [Notice] {
+        guard !changes.reactions.isEmpty else { return [] }
+        let comments = (try? context.fetch(FetchDescriptor<TableComment>())) ?? []
+        let byID = Dictionary(comments.map { ($0.shareRecordName, $0) }, uniquingKeysWith: { first, _ in first })
+        let deleted = changes.deleted.union(changes.notes.filter { $0.deletedAt != nil }.map(\.recordName))
+        let reactions = changes.reactions.filter {
+            !$0.isBallot && $0.value == 1 && !$0.author.isEmpty && $0.author != me && $0.at > cutoff
+                && !deleted.contains($0.post)
+                && TableLedger.shared.platedByMe($0.post, me: $0.author)
+        }
+        return Dictionary(grouping: reactions, by: \.post).compactMap { record, likes in
+            guard let comment = byID[record], comment.deletedAt == nil,
+                  comment.authorID == me, let post = comment.post else { return nil }
+            let fresh = likes.filter { !seen.contains("commentLike:\(record):\($0.author)") }
+            guard !fresh.isEmpty else { return nil }
+            let people = TableLedger.shared.platers(record).filter { $0 != me }
+            let named = people.compactMap { name(for: $0) }.map(firstName)
+            guard !named.isEmpty else { return nil }
+            let title = "\(list(named, of: people.count)) liked your comment"
+            let excerpt = String(comment.text.prefix(160))
+            return Notice(
+                kind: .commentLikes,
+                key: fresh.map { "commentLike:\(record):\($0.author)" }.joined(separator: "|"),
+                identifier: idPrefix + "commentLikes:\(record)",
+                title: title, body: excerpt,
+                line: title + (excerpt.isEmpty ? "." : ": “\(excerpt)”"),
+                link: DeepLink.url(post: post.shareRecordName), post: post.shareRecordName,
+                direct: false, photo: comment.photoData, feedKind: .commentReaction,
+                actor: fresh.first?.authorName ?? "", at: fresh.map(\.at).max() ?? .now,
+                rowKey: "commentLikes:\(record)", passive: true, relevance: 0.3,
+                actorID: people.count == 1 ? (people.first ?? "") : ""
+            )
+        }
     }
 
     // MARK: The week
@@ -1077,6 +1119,28 @@ enum TableNews {
         var gone: [String] = []
         for r in changes.reactions where !r.author.isEmpty && r.author != me {
             let withdrawn = r.isBallot ? r.value < 0 : r.value == 0
+            if !r.isBallot, withdrawn, r.post.hasPrefix("note-") {
+                let key = "commentLikes:\(r.post)"
+                let people = TableLedger.shared.platers(r.post).filter { $0 != me }
+                let named = people.compactMap { name(for: $0) }.map(firstName)
+                let comment = (try? context.fetch(FetchDescriptor<TableComment>()))?
+                    .first { $0.shareRecordName == r.post && $0.deletedAt == nil }
+                for row in rows(eventKey: key, context: context) {
+                    if named.isEmpty || comment == nil {
+                        context.delete(row)
+                        gone.append(idPrefix + key)
+                    } else {
+                        let remaining = people.last ?? ""
+                        row.actorID = remaining
+                        row.actorName = name(for: remaining) ?? ""
+                        let excerpt = String((comment?.text ?? "").prefix(160))
+                        row.body = "\(list(named, of: people.count)) liked your comment"
+                            + (excerpt.isEmpty ? "." : ": “\(excerpt)”")
+                    }
+                    touched = true
+                }
+                continue
+            }
             guard withdrawn, let post = find(r.post, in: context) else { continue }
             let mine = post.authorID.isEmpty ? !post.isRemote : post.authorID == me
             guard mine else { continue }
@@ -1093,12 +1157,16 @@ enum TableNews {
             }
             touched = true
         }
-        for name in changes.deleted where name.hasPrefix("note-") {
-            for row in rows(eventKey: "note:\(name)", context: context) {
-                context.delete(row)
-                touched = true
+        let removedNotes = changes.deleted.filter { $0.hasPrefix("note-") }
+            .union(changes.notes.filter { $0.deletedAt != nil }.map(\.recordName))
+        for name in removedNotes {
+            for key in ["note:\(name)", "commentLikes:\(name)"] {
+                for row in rows(eventKey: key, context: context) {
+                    context.delete(row)
+                    touched = true
+                }
+                gone.append(idPrefix + key)
             }
-            gone.append(idPrefix + "note:\(name)")
         }
         if touched {
             Persist.save(context, "retracted notices")

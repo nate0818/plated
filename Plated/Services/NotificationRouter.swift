@@ -63,7 +63,7 @@ final class NotificationRouter: NSObject, UNUserNotificationCenterDelegate {
         case .dish: return Category.dish
         case .ask: return Category.ask
         case .comment: return Category.comment
-        case .plates, .kiss, .votes, .seat, .more: return Category.plates
+        case .plates, .commentLikes, .kiss, .votes, .seat, .more: return Category.plates
         // The same category the cook reminders wear: a tap lands on the
         // plan, and there is nothing to plate or answer about a night.
         case .plan: return Category.plan

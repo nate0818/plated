@@ -853,7 +853,8 @@ enum TableShare {
 
     // MARK: Reactions on the wire
 
-    /// One person's plate on one dish.
+    /// One person's binary reaction on a post or comment. `post` is the
+    /// deployed field name; note record names address comment likes.
     ///
     /// The record name is **deterministic** — `plate-<post>-<author>` — and
     /// that is what makes the whole thing idempotent. A retry after a lost
@@ -927,7 +928,40 @@ enum TableShare {
         )
         record.setParent(CKRecord.ID(recordName: "table-root", zoneID: zoneID))
         fill(record)
-        return await saveChangedKeys(record, in: db)
+        return await saveReaction(record,
+            fetch: { try await db.record(for: $0) },
+            save: { try await db.save($0) })
+    }
+
+    /// A delayed offline write must not replace a newer reaction on the server.
+    /// Preserve the fetched change tag and re-read on conflict. `.changedKeys`
+    /// bypasses that comparison and can leave every fresh install with an old
+    /// like even though existing devices correctly reject its old timestamp.
+    static func saveReaction(
+        _ incoming: CKRecord,
+        fetch: (CKRecord.ID) async throws -> CKRecord,
+        save: (CKRecord) async throws -> CKRecord
+    ) async -> Bool {
+        for _ in 0..<3 {
+            do {
+                let record: CKRecord
+                do { record = try await fetch(incoming.recordID) }
+                catch let error as CKError where error.code == .unknownItem { record = incoming }
+                if let existingDate = record["changedAt"] as? Date,
+                   let incomingDate = incoming["changedAt"] as? Date,
+                   existingDate > incomingDate { return true }
+                for key in incoming.allKeys() { record[key] = incoming[key] }
+                _ = try await save(record)
+                return true
+            } catch let error as CKError where error.code == .serverRecordChanged {
+                continue
+            } catch {
+                print("[TableSync] reaction write failed; kept for retry: \(error.localizedDescription)")
+                return false
+            }
+        }
+        print("[TableSync] reaction conflict persisted; kept for retry")
+        return false
     }
 
     /// Save a fresh record over whatever the zone holds under its name.
@@ -2570,6 +2604,23 @@ enum TableShare {
         // and the plate ledger has nothing to forget about one.
         let deletedPosts = changes.deleted.filter { !$0.hasPrefix("plan-") }
 
+        let comments = (try? context.fetch(FetchDescriptor<TableComment>())) ?? []
+        var deletedComments = Set(changes.notes.filter { $0.deletedAt != nil }.map(\.recordName))
+        deletedComments.formUnion(changes.deleted.filter { $0.hasPrefix("note-") })
+        for comment in comments {
+            if comment.deletedAt != nil || comment.post.map({ deletedPosts.contains($0.shareRecordName) }) == true {
+                deletedComments.insert(comment.shareRecordName)
+            }
+            if changes.deleted.contains(comment.shareRecordName) {
+                // Keep the thread's anchor so its surviving replies stay attached.
+                comment.deletedAt = comment.deletedAt ?? .now
+                comment.text = ""
+                comment.linkURL = ""
+                comment.photoData = nil
+                comment.mentions = []
+            }
+        }
+
         // Taken off the table by whoever wrote it. Dropping these on the
         // floor meant a post its author had deleted stayed on every other
         // phone until that phone was reinstalled — the same lie as a delete
@@ -2584,7 +2635,7 @@ enum TableShare {
         // Fold what other people did into the ledger. Last-writer-wins on
         // `changedAt` is applied inside `setPlate`/`setBallot`, so a page
         // that arrives late cannot undo a newer tap.
-        for r in changes.reactions where !r.post.isEmpty && !r.author.isEmpty {
+        for r in changes.reactions where !r.post.isEmpty && !r.author.isEmpty && !deletedComments.contains(r.post) {
             if r.isBallot {
                 TableLedger.shared.setBallot(r.post, author: r.author,
                                              choice: r.value, at: r.at)
@@ -2593,6 +2644,8 @@ enum TableShare {
                                             active: r.value == 1, at: r.at)
             }
         }
+
+        TableReactions.forgetComments(deletedComments)
 
         // A post that is gone takes its reactions with it. The cascade
         // removes the child records on the server, but the fold that would
@@ -2661,6 +2714,8 @@ enum TableShare {
                 guard let parent = postByRecord[n.post] else { continue }
                 if let existing = byRecord[n.recordName] {
                     guard existing.deletedAt == nil || n.deletedAt != nil else { continue }
+                    if !n.authorID.isEmpty { existing.authorID = n.authorID }
+                    if !n.authorName.isEmpty { existing.authorName = n.authorName }
                     existing.text = n.text
                     existing.linkURL = n.linkURL
                     existing.mentions = n.mentions

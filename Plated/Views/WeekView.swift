@@ -172,6 +172,9 @@ struct WeekView: View {
                     portraitPlan
                 }
             }
+            // NavigationStack hosts its content separately from the shell's
+            // opacity-hidden tabs. Hide the actual content from accessibility.
+            .accessibilityHidden(activeAppTab != .week)
             .background(Color.canvas)
             .toolbar(.hidden, for: .navigationBar)
             .plSwipeBack()

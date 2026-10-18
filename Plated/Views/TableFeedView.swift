@@ -640,7 +640,8 @@ struct TableFeedView: View {
                 seatsPresented = true
             }
             if LaunchFlags.consume("-plated-open-thread") {
-                threadPost = visiblePosts.first { $0.kind == "dish" }
+                threadPost = visiblePosts.first { $0.shareRecordName == "post-review-comment-reactions" }
+                    ?? visiblePosts.first { $0.kind == "dish" }
             }
             #endif
         }
@@ -746,7 +747,7 @@ struct TableFeedView: View {
 
     private func visibleComments(for post: TablePost) -> [TableComment] {
         post.sortedComments.filter {
-            !contentSafety.isBlocked(authorID: $0.authorID, authorName: $0.authorName)
+            $0.deletedAt == nil && !contentSafety.isBlocked(authorID: $0.authorID, authorName: $0.authorName)
         }
     }
 
@@ -1309,6 +1310,7 @@ struct TableFeedView: View {
             // touching the local store for the same stale-account reason.
             guard isMine(post) else { return }
             Haptic.plate()
+            TableReactions.forgetComments(Set((post.comments ?? []).map(\.shareRecordName)))
             withAnimation(.plSnap) { context.delete(post) }
             Persist.save(context, "delete table post")
         }
@@ -1518,7 +1520,7 @@ struct TableFeedView: View {
                 Image(systemName: saved ? "bookmark.fill" : "bookmark")
                     .font(.system(size: 20, weight: .semibold))
                     .contentTransition(.symbolEffect(.replace.magic(fallback: .replace.downUp)))
-                Text(saved ? "Saved" : "Save")
+                Text(saved ? "In cookbook" : "Save to cookbook")
                     .plType(.footnote, .bold)
                     .plActionLabel()
             }
@@ -1527,8 +1529,8 @@ struct TableFeedView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.pressable)
-        .accessibilityLabel(saved ? "Saved to your cookbook" : "Save")
-        .accessibilityHint(saved ? "" : "Opens the recipe so you can make it yours")
+        .accessibilityLabel(saved ? "Saved to your cookbook" : "Save to cookbook")
+        .accessibilityHint(saved ? "" : "Opens a recipe draft using this post")
     }
 
     private func plateButton(_ post: TablePost) -> some View {
@@ -1567,35 +1569,41 @@ struct TableFeedView: View {
     }
 
     private func commentLine(_ comment: TableComment) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            (Text(comment.authorName)
-                .font(.custom(Font.SansWeight.bold.rawValue,
-                              size: TypeScale.footnote.size, relativeTo: .body))
-                .foregroundStyle(Color.ink)
-             + Text("  ")
-                .font(.custom(Font.SansWeight.regular.rawValue,
-                              size: TypeScale.footnote.size, relativeTo: .body))
-             + Text(comment.text)
-                .font(.custom(Font.SansWeight.regular.rawValue,
-                              size: TypeScale.footnote.size, relativeTo: .body))
-                .foregroundStyle(Color.inkSecondary))
-                .lineSpacing(2)
-            if let url = URL.webLink(comment.linkURL) {
-                Link(destination: url) {
-                    HStack(spacing: 6) {
-                        Image(systemName: "link")
-                            .font(.system(size: 11, weight: .bold))
-                        Text(comment.linkLabel)
-                            .plType(.micro)
+        HStack(alignment: .top, spacing: 8) {
+            VStack(alignment: .leading, spacing: 4) {
+                (Text(comment.authorName)
+                    .font(.custom(Font.SansWeight.bold.rawValue,
+                                  size: TypeScale.footnote.size, relativeTo: .body))
+                    .foregroundStyle(Color.ink)
+                 + Text("  ")
+                    .font(.custom(Font.SansWeight.regular.rawValue,
+                                  size: TypeScale.footnote.size, relativeTo: .body))
+                 + Text(comment.text)
+                    .font(.custom(Font.SansWeight.regular.rawValue,
+                                  size: TypeScale.footnote.size, relativeTo: .body))
+                    .foregroundStyle(Color.inkSecondary))
+                    .lineSpacing(2)
+                if let url = URL.webLink(comment.linkURL) {
+                    Link(destination: url) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "link")
+                                .font(.system(size: 11, weight: .bold))
+                            Text(comment.linkLabel)
+                                .plType(.micro)
+                        }
+                        .foregroundStyle(Color.accentText)
+                        .padding(.horizontal, 12)
+                        .frame(minHeight: 30)
+                        .background(Color.chipFill, in: Radius.shape(Radius.chip))
+                        .overlay(Radius.shape(Radius.chip).strokeBorder(Color.navHairline))
+                        .frame(minHeight: 44)
+                        .contentShape(Rectangle())
                     }
-                    .foregroundStyle(Color.accentText)
-                    .padding(.horizontal, 12)
-                    .frame(minHeight: 30)
-                    .background(Color.chipFill, in: Radius.shape(Radius.chip))
-                    .overlay(Radius.shape(Radius.chip).strokeBorder(Color.navHairline))
-                    .frame(minHeight: 44)
-                    .contentShape(Rectangle())
                 }
+            }
+            Spacer(minLength: 0)
+            if comment.deletedAt == nil {
+                CommentReactionButton(comment: comment)
             }
         }
         .padding(.top, 4)

@@ -94,6 +94,7 @@ enum PlatedNotificationKind: String, Codable, CaseIterable {
     case turnReminder     // it's your night and nothing is plated
     case groceriesAdded   // items landed on the list
     case groceriesOrdered // someone kicked off a delivery
+    case commentReaction  // someone liked your comment or reply
     case plateReaction    // someone plated your post
     case saveReceived     // someone saved your dish to their cookbook
     case commentAdded     // comment or reply on a post
@@ -115,7 +116,7 @@ enum PlatedNotificationKind: String, Codable, CaseIterable {
     /// Whether the row's actor is a person to show, rather than a thing.
     var isAboutSomebody: Bool {
         switch self {
-        case .plateReaction, .commentAdded, .askPosted, .dishPosted, .voteCast, .seatJoined,
+        case .plateReaction, .commentReaction, .commentAdded, .askPosted, .dishPosted, .voteCast, .seatJoined,
              .planShared, .householdJoined, .householdLeft, .editConflict:
             return true
         default:
@@ -132,6 +133,7 @@ enum PlatedNotificationKind: String, Codable, CaseIterable {
         // it is stored, but the icon does not have to keep overstating it.
         case .groceriesOrdered: return "list.clipboard"
         case .plateReaction: return "circle.circle"
+        case .commentReaction: return "heart.fill"
         case .saveReceived: return "arrow.down.heart"
         case .prongsbyReplied: return "fork.knife"
         case .commentAdded: return "bubble.right"

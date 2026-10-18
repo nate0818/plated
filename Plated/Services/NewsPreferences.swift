@@ -39,7 +39,7 @@ enum NewsPreferences {
             case .dishes: return "Posts and questions"
             case .replies: return "Replies and mentions"
             case .comments: return "Comments on yours"
-            case .plates: return "Plates and votes on yours"
+            case .plates: return "Reactions and votes on yours"
             case .seats: return "New seats"
             case .planning: return "Planning"
             }
@@ -109,7 +109,7 @@ enum NewsPreferences {
         switch kind {
         case .dish, .ask, .more: return .dishes
         case .comment: return .comments
-        case .plates, .kiss, .votes: return .plates
+        case .plates, .commentLikes, .kiss, .votes: return .plates
         case .seat: return .seats
         case .plan: return .planning
         // The household's own notices (docs/household.md section 10) answer
@@ -134,7 +134,7 @@ enum NewsPreferences {
         switch kind {
         case .dishPosted, .askPosted: return .dishes
         case .commentAdded: return .comments
-        case .plateReaction, .voteCast: return .plates
+        case .plateReaction, .commentReaction, .voteCast: return .plates
         case .seatJoined: return .seats
         case .planShared: return .planning
         // The household's four, answering to the same switches their

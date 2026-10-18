@@ -143,9 +143,9 @@ struct PostThreadView: View {
                     // The count only once there is one. "COMMENTS · 0"
                     // sitting directly above "No comments yet" says the same
                     // nothing twice.
-                    MicroLabel(visibleComments.isEmpty
+                    MicroLabel(visibleComments.filter { $0.deletedAt == nil }.isEmpty
                                ? "Comments"
-                               : "Comments · \(visibleComments.count)")
+                               : "Comments · \(visibleComments.filter { $0.deletedAt == nil }.count)")
                         .padding(.top, 8)
 
                     if visibleComments.isEmpty {
@@ -161,7 +161,8 @@ struct PostThreadView: View {
                             threadComment(row.comment)
                             let children = descendantCount(row.comment.shareRecordName)
                             if children > 0 {
-                                Button(collapsedReplies.contains(row.comment.shareRecordName) ? "Show \(children) replies" : "Hide replies") {
+                                Button(collapsedReplies.contains(row.comment.shareRecordName)
+                                       ? (children == 1 ? "Show 1 reply" : "Show \(children) replies") : "Hide replies") {
                                     Haptic.select()
                                     withAnimation(.plSnap) {
                                         if collapsedReplies.contains(row.comment.shareRecordName) { collapsedReplies.remove(row.comment.shareRecordName) }
@@ -179,6 +180,7 @@ struct PostThreadView: View {
                 .padding(.top, 16)
                 .padding(.bottom, 20)
             }
+            .accessibilityIdentifier("table-post-thread")
 
             composer
         }
@@ -236,16 +238,18 @@ struct PostThreadView: View {
                 photo: post.photoData,
                 originID: post.originKey
             )) { _ in
-                Awards.recordSaveReceived(by: post.authorName)
-                let dish = post.dishTitle.isEmpty ? "dish" : post.dishTitle
-                Notifier.post(
-                    .saveReceived, actor: post.authorName,
-                    body: "You saved \(post.firstName)'s \(dish). They get the credit.",
-                    into: context,
-                    template: "You saved {actor}'s {object}. They get the credit.",
-                    actorID: post.authorID, objectTitle: dish
-                )
-                showSaveToast("Saved. \(post.firstName) gets the credit")
+                if !postIsMine {
+                    Awards.recordSaveReceived(by: post.authorName)
+                    let dish = post.dishTitle.isEmpty ? "dish" : post.dishTitle
+                    Notifier.post(
+                        .saveReceived, actor: post.authorName,
+                        body: "You saved \(post.firstName)'s \(dish).",
+                        into: context,
+                        template: "You saved {actor}'s {object}.",
+                        actorID: post.authorID, objectTitle: dish
+                    )
+                }
+                showSaveToast("Saved to your cookbook")
             }
         }
         .confirmationDialog(
@@ -306,58 +310,41 @@ struct PostThreadView: View {
             }
 
             Spacer()
-            if post.kind == "dish" {
-                if recipes.contains(where: { $0.originID == post.originKey }) {
-                    // A receipt, not a button — same state the feed shows.
-                    HStack(spacing: 4) {
-                        Image(systemName: "checkmark")
-                            .font(.system(size: 11, weight: .bold))
-                        Text("Saved")
-                            .plType(.footnote, .bold)
-                    }
-                    .foregroundStyle(Color.inkSecondary)
-                    .frame(minHeight: 44)
-                    .accessibilityLabel("Already in your cookbook")
-                } else {
-                    Button {
-                        save()
-                    } label: {
-                        Text("Save")
-                            .plType(.footnote, .bold)
-                            .plActionLabel()
-                            .foregroundStyle(Color.ink)
-                            .padding(.horizontal, 14)
-                            .frame(minHeight: 36)
-                            .overlay(Radius.shape(Radius.chip).strokeBorder(Color.hairline, lineWidth: 1.5))
-                            .frame(minHeight: 44)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.pressable)
-                }
-            }
-            if canReport(postAuthor, knownToBeSelf: postIsMine) || canBlock(postAuthor) {
+            if canSaveToCookbook || canReport(postAuthor, knownToBeSelf: postIsMine) || canBlock(postAuthor) {
                 Menu {
-                    safetyActions(
-                        target: .post(post),
-                        author: postAuthor,
-                        contentLabel: "post",
-                        dismissThreadOnBlock: true,
-                        reportAllowed: canReport(postAuthor, knownToBeSelf: postIsMine),
-                        blockAllowed: canBlock(postAuthor)
-                    )
+                    if canSaveToCookbook {
+                        Button(action: save) {
+                            Label("Save to cookbook", systemImage: "book")
+                        }
+                    }
+                    Section {
+                        safetyActions(
+                            target: .post(post),
+                            author: postAuthor,
+                            contentLabel: "post",
+                            dismissThreadOnBlock: true,
+                            reportAllowed: canReport(postAuthor, knownToBeSelf: postIsMine),
+                            blockAllowed: canBlock(postAuthor)
+                        )
+                    }
                 } label: {
                     Image(systemName: "ellipsis")
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundStyle(Color.inkSecondary)
                         .plTapTarget()
                 }
-                .accessibilityLabel("Safety options for this post")
+                .accessibilityLabel("Post options")
+                .accessibilityIdentifier("table-thread-options")
             }
             AccountButton()
         }
         .padding(.horizontal, 20)
         .padding(.top, 6)
         .padding(.bottom, 10)
+    }
+
+    private var canSaveToCookbook: Bool {
+        post.kind == "dish" && !recipes.contains { $0.originID == post.originKey }
     }
 
     private var postHeading: some View {
@@ -643,29 +630,29 @@ struct PostThreadView: View {
             // makes a long thread much faster to traverse.
             .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 6) {
+                let headingLayout = typeSize.isAccessibilitySize
+                    ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4))
+                    : AnyLayout(HStackLayout(spacing: 6))
+                headingLayout {
                     Button {
                         openProfile(comment.authorName, authorID: comment.authorID, door: .author(comment.persistentModelID))
                     } label: {
                         Text(comment.authorName)
-                            .plName()
                             .plType(.footnote, .bold)
+                            .fixedSize(horizontal: false, vertical: true)
                             .foregroundStyle(Color.ink)
                     }
                     .buttonStyle(.pressable)
                     .plTapTarget()
-                    if !comment.replyToName.isEmpty {
-                        HStack(spacing: 3) {
-                            Image(systemName: "arrowshape.turn.up.left.fill")
-                                .font(.system(size: 8))
-                            Text(comment.replyToName)
-                                .plType(.micro)
-                        }
-                        .foregroundStyle(Color.inkSecondary)
-                    }
                     Text(relativeWhen(comment.createdAt))
                         .plType(.micro, .medium)
                         .foregroundStyle(Color.inkSecondary)
+                }
+                if !comment.replyToName.isEmpty {
+                    Label("Replying to \(comment.replyToName)", systemImage: "arrowshape.turn.up.left")
+                        .plType(.micro)
+                        .foregroundStyle(Color.inkSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 if comment.deletedAt != nil {
                     Text("Comment deleted").plType(.body).foregroundStyle(Color.inkSecondary)
@@ -695,48 +682,53 @@ struct PostThreadView: View {
                         .contentShape(Rectangle())
                     }
                 }
-                Button {
-                    Haptic.tap()
-                    withAnimation(.plSnap) {
-                        replyTo = comment.authorName
-                        replyToID = comment.shareRecordName
-                        composerFocused = true
-                    }
-                } label: {
-                    Text("Reply")
-                        .plType(.micro)
-                        .plActionLabel()
-                        .foregroundStyle(Color.inkSecondary)
-                        .frame(minWidth: 44, minHeight: 44, alignment: .leading)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.pressable)
-            }
-            Spacer(minLength: 0)
-            if removable || reportAllowed || blockAllowed {
-                Menu {
-                    if removable {
-                        Button(role: .destructive) { remove(comment) } label: {
-                            Label("Delete comment", systemImage: "trash")
+                if comment.deletedAt == nil {
+                    HStack(spacing: 16) {
+                        Button {
+                            Haptic.tap()
+                            withAnimation(.plSnap) {
+                                replyTo = comment.authorName
+                                replyToID = comment.shareRecordName
+                                composerFocused = true
+                            }
+                        } label: {
+                            Text("Reply")
+                                .plType(.micro)
+                                .plActionLabel()
+                                .foregroundStyle(Color.inkSecondary)
+                                .frame(minWidth: 44, minHeight: 44, alignment: .leading)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.pressable)
+                        CommentReactionButton(comment: comment)
+                        Spacer(minLength: 0)
+                        if removable || reportAllowed || blockAllowed {
+                            Menu {
+                                if removable {
+                                    Button(role: .destructive) { remove(comment) } label: {
+                                        Label("Delete comment", systemImage: "trash")
+                                    }
+                                }
+                                if reportAllowed || blockAllowed {
+                                    safetyActions(
+                                        target: .comment(comment, on: post),
+                                        author: commentAuthor,
+                                        contentLabel: "comment",
+                                        dismissThreadOnBlock: false,
+                                        reportAllowed: reportAllowed,
+                                        blockAllowed: blockAllowed
+                                    )
+                                }
+                            } label: {
+                                Image(systemName: "ellipsis")
+                                    .font(.system(size: 14, weight: .bold))
+                                    .foregroundStyle(Color.inkSecondary)
+                                    .plTapTarget()
+                            }
+                            .accessibilityLabel("More options for \(commentAuthor.label)'s comment")
                         }
                     }
-                    if reportAllowed || blockAllowed {
-                        safetyActions(
-                            target: .comment(comment, on: post),
-                            author: commentAuthor,
-                            contentLabel: "comment",
-                            dismissThreadOnBlock: false,
-                            reportAllowed: reportAllowed,
-                            blockAllowed: blockAllowed
-                        )
-                    }
-                } label: {
-                    Image(systemName: "ellipsis")
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundStyle(Color.inkSecondary)
-                        .plTapTarget()
                 }
-                .accessibilityLabel("More options for \(commentAuthor.label)'s comment")
             }
         }
         .padding(.vertical, 4)
@@ -798,6 +790,7 @@ struct PostThreadView: View {
             comment.photoData = nil
             comment.mentions = []
         }
+        TableReactions.forgetComments([comment.shareRecordName])
         Persist.save(context, "delete comment")
         let queued = TableOutbox.shared.enqueue(
             .note(post: post.shareRecordName, zoneOwner: post.shareZoneOwner, id: comment.shareRecordName),

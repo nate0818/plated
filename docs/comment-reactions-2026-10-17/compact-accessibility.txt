@@ -1,0 +1,93 @@
+Thread viewport: (0.0, 80.5, 375.0, 524.0)
+
+Contrast failed
+Contrast failed for SwiftUI.AccessibilityNode
+Attributes: Button, 0x114709b80, {{94.0, 587.0}, {93.0, 44.0}}, label: 'Nate Meadows'
+Element subtree:
+ →Button, 0x114709b80, {{94.0, 587.0}, {93.0, 44.0}}, label: 'Nate Meadows'
+Path to element:
+ →Application, 0x11440bd40, pid: 65445, label: 'Plated'
+  ↳Window (Main), 0x11440bc00, {{0.0, 0.0}, {375.0, 667.0}}
+   ↳Other, 0x11440bac0, {{0.0, 0.0}, {375.0, 667.0}}
+    ↳Other, 0x11440b980, {{0.0, 0.0}, {375.0, 667.0}}
+     ↳Other, 0x11440b840, {{0.0, 0.0}, {375.0, 667.0}}
+      ↳Other, 0x11440b700, {{0.0, 0.0}, {375.0, 667.0}}
+       ↳Other, 0x1144092c0, {{0.0, 0.0}, {375.0, 667.0}}
+        ↳Other, 0x114409cc0, {{0.0, 0.0}, {375.0, 667.0}}
+         ↳Other, 0x114409f40, {{0.0, 0.0}, {375.0, 667.0}}
+          ↳Other, 0x114409e00, {{0.0, 0.0}, {375.0, 667.0}}
+           ↳Other, 0x114409400, {{0.0, 0.0}, {375.0, 667.0}}
+            ↳ScrollView, 0x10563f480, {{0.0, 80.5}, {375.0, 493.0}}, identifier: 'table-post-thread'
+             ↳Other, 0x114708000, {{0.0, 80.5}, {375.0, 683.5}}
+              ↳Button, 0x114709b80, {{94.0, 587.0}, {93.0, 44.0}}, label: 'Nate Meadows'
+Query chain:
+ →Find: Application 'com.natemeadows.plated'
+  Output: {
+    Application, 0x114763200, pid: 65445, label: 'Plated'
+  }
+  ↪︎Find: Descendant with identity binding to AX element pid: 65445, elementOrHash.elementID: 4368048448.55
+    Output: {
+      Button, 0x114761e00, {{94.0, 587.0}, {93.0, 44.0}}, label: 'Nate Meadows'
+    }
+
+
+Contrast failed
+Contrast failed for SwiftUI.AccessibilityNode
+Attributes: StaticText, 0x114709e00, {{95.0, 634.0}, {231.0, 14.5}}, label: 'Replying to Alessandra Schembari'
+Element subtree:
+ →StaticText, 0x114709e00, {{95.0, 634.0}, {231.0, 14.5}}, label: 'Replying to Alessandra Schembari'
+Path to element:
+ →Application, 0x11440be80, pid: 65445, label: 'Plated'
+  ↳Window (Main), 0x11440bd40, {{0.0, 0.0}, {375.0, 667.0}}
+   ↳Other, 0x11440bc00, {{0.0, 0.0}, {375.0, 667.0}}
+    ↳Other, 0x11440bac0, {{0.0, 0.0}, {375.0, 667.0}}
+     ↳Other, 0x11440b980, {{0.0, 0.0}, {375.0, 667.0}}
+      ↳Other, 0x11440b840, {{0.0, 0.0}, {375.0, 667.0}}
+       ↳Other, 0x114409540, {{0.0, 0.0}, {375.0, 667.0}}
+        ↳Other, 0x11440b5c0, {{0.0, 0.0}, {375.0, 667.0}}
+         ↳Other, 0x11440abc0, {{0.0, 0.0}, {375.0, 667.0}}
+          ↳Other, 0x11440a6c0, {{0.0, 0.0}, {375.0, 667.0}}
+           ↳Other, 0x11440a800, {{0.0, 0.0}, {375.0, 667.0}}
+            ↳ScrollView, 0x11440ad00, {{0.0, 80.5}, {375.0, 493.0}}, identifier: 'table-post-thread'
+             ↳Other, 0x114708000, {{0.0, 80.5}, {375.0, 683.5}}
+              ↳StaticText, 0x114709e00, {{95.0, 634.0}, {231.0, 14.5}}, label: 'Replying to Alessandra Schembari'
+Query chain:
+ →Find: Application 'com.natemeadows.plated'
+  Output: {
+    Application, 0x114763200, pid: 65445, label: 'Plated'
+  }
+  ↪︎Find: Descendant with identity binding to AX element pid: 65445, elementOrHash.elementID: 4368049792.57
+    Output: {
+      StaticText, 0x114762080, {{95.0, 634.0}, {231.0, 14.5}}, label: 'Replying to Alessandra Schembari'
+    }
+
+
+Contrast failed
+Contrast failed for SwiftUI.AccessibilityNode
+Attributes: StaticText, 0x114709f40, {{94.0, 651.5}, {190.0, 41.5}}, label: 'Perfect. Let's pick some up this weekend!'
+Element subtree:
+ →StaticText, 0x114709f40, {{94.0, 651.5}, {190.0, 41.5}}, label: 'Perfect. Let's pick some up this weekend!'
+Path to element:
+ →Application, 0x11440be80, pid: 65445, label: 'Plated'
+  ↳Window (Main), 0x11440bd40, {{0.0, 0.0}, {375.0, 667.0}}
+   ↳Other, 0x11440bc00, {{0.0, 0.0}, {375.0, 667.0}}
+    ↳Other, 0x11440bac0, {{0.0, 0.0}, {375.0, 667.0}}
+     ↳Other, 0x11440b980, {{0.0, 0.0}, {375.0, 667.0}}
+      ↳Other, 0x11440b840, {{0.0, 0.0}, {375.0, 667.0}}
+       ↳Other, 0x11440b480, {{0.0, 0.0}, {375.0, 667.0}}
+        ↳Other, 0x11440b700, {{0.0, 0.0}, {375.0, 667.0}}
+         ↳Other, 0x114409a40, {{0.0, 0.0}, {375.0, 667.0}}
+          ↳Other, 0x114409680, {{0.0, 0.0}, {375.0, 667.0}}
+           ↳Other, 0x114409b80, {{0.0, 0.0}, {375.0, 667.0}}
+            ↳ScrollView, 0x114409400, {{0.0, 80.5}, {375.0, 493.0}}, identifier: 'table-post-thread'
+             ↳Other, 0x114708000, {{0.0, 80.5}, {375.0, 683.5}}
+              ↳StaticText, 0x114709f40, {{94.0, 651.5}, {190.0, 41.5}}, label: 'Perfect. Let's pick some up this weekend!'
+Query chain:
+ →Find: Application 'com.natemeadows.plated'
+  Output: {
+    Application, 0x114763200, pid: 65445, label: 'Plated'
+  }
+  ↪︎Find: Descendant with identity binding to AX element pid: 65445, elementOrHash.elementID: 4368050240.58
+    Output: {
+      StaticText, 0x1147621c0, {{94.0, 651.5}, {190.0, 41.5}}, label: 'Perfect. Let's pick some up this weekend!'
+    }

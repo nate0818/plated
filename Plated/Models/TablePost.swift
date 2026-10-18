@@ -250,6 +250,16 @@ final class TableComment {
         self.photoData = photoData
     }
 
+    @MainActor
+    var totalLikes: Int {
+        deletedAt == nil ? TableLedger.shared.plateCount(shareRecordName, me: TableIdentity.cached) : 0
+    }
+
+    @MainActor
+    var likedByMeNow: Bool {
+        deletedAt == nil && TableLedger.shared.platedByMe(shareRecordName, me: TableIdentity.cached)
+    }
+
     /// Host shown in the link chip: "cooking.nytimes.com".
     var linkLabel: String {
         guard !linkURL.isEmpty, let url = URL(string: linkURL) else { return "" }

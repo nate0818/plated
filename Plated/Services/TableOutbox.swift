@@ -1,4 +1,5 @@
 import Foundation
+import Observation
 
 /// Writes that have not reached the table yet.
 ///
@@ -14,6 +15,7 @@ import Foundation
 /// written by the previous account must never be replayed into the new one's
 /// zone — `TableIdentity.reset()` empties this for exactly that reason.
 @MainActor
+@Observable
 final class TableOutbox {
     static let shared = TableOutbox()
 
@@ -79,6 +81,7 @@ final class TableOutbox {
     }
 
     func remove(_ id: String) {
+        guard entries.contains(where: { $0.id == id }) else { return }
         entries.removeAll { $0.id == id }
         save()
     }

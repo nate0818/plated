@@ -185,7 +185,7 @@ final class ContentSafety {
     /// not: blocking somebody at the Table cannot hide shared-plan changes.
     func hidesTableActivity(_ notification: PlatedNotification) -> Bool {
         switch notification.kindValue {
-        case .plateReaction, .saveReceived, .commentAdded, .askPosted, .dishPosted, .voteCast:
+        case .plateReaction, .commentReaction, .saveReceived, .commentAdded, .askPosted, .dishPosted, .voteCast:
             return isBlocked(authorID: notification.actorID, authorName: notification.actorName)
         default:
             return false
