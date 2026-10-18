@@ -1,0 +1,10 @@
+{
+  "ipad": {
+    "src": "/app/plan-ipad-landscape.png",
+    "width": 2420,
+    "height": 1668,
+    "orientation": "landscape",
+    "appearance": "editorial",
+    "alt": "Plated on iPad in landscape, with the dinner plan beside weather and household activity"
+  }
+}

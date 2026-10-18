@@ -1,5 +1,22 @@
 # Current app captures
 
+## iPad orientation correction — October 18
+
+The iPad app supports landscape only. The served iPad asset is
+`plan-ipad-landscape.png` (2420 × 1668), showing the native two-column Plan
+workspace from the build 44 verification fixture. Source:
+`docs/plan-parity-2026-10-18/captures/polish-ipad-display-2.png`.
+The full-display capture stored the landscape interface sideways in its PNG;
+the published file is a lossless 90-degree orientation normalization. It is not
+a portrait interface stretched or cropped to fit, and no app content was
+redrawn. Native sample activity and weather remain explicitly illustrative.
+
+The website's separate device-status layer displays 8:18, matching the iPhone
+preview. The obsolete portrait iPad recipe capture has been removed from the
+served folder. `productCaptures.json` supplies the image and intrinsic geometry;
+the product-capture tests compare those with the image and both native iPad
+build configurations to prevent this mismatch recurring.
+
 `editorial-{plan,recipes,groceries,table}-current.png` are unaltered native
 simulator captures from `docs/editorial-2026-10-16/{screen}-current.png`.
 They include the shared cream selection controls, darker neutral surfaces,

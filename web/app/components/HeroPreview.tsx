@@ -3,7 +3,10 @@
 import { useRef } from "react";
 import Image from "next/image";
 import { householdCooks } from "./household";
+import productCaptures from "./productCaptures.json";
 import styles from "./HeroPreview.module.css";
+
+const iPadCapture = productCaptures.ipad;
 
 export default function HeroPreview({ active, running, ready, onToggle, onReady }: { active: number; running: boolean; ready: boolean; onToggle: () => void; onReady: () => void }) {
   const loaded = useRef(new Set<number>());
@@ -11,7 +14,7 @@ export default function HeroPreview({ active, running, ready, onToggle, onReady 
     <div className={styles.devices} data-depth>
       <div className={styles.tablet} data-depth-item data-depth-travel="-28">
         <div className={styles.tabletScreen}>
-          <Image src="/app/recipes-ipad-light.png" alt="Plated on iPad: a recipe book with three columns of saved recipes" width={1668} height={2420} sizes="(max-width: 760px) 240px, 360px" />
+          <Image src={iPadCapture.src} alt={iPadCapture.alt} width={iPadCapture.width} height={iPadCapture.height} sizes="(max-width: 760px) 320px, (max-width: 1100px) 380px, 480px" />
           <span className={styles.tabletClock} aria-hidden="true">8:18</span>
         </div>
       </div>
