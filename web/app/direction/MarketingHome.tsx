@@ -30,7 +30,7 @@ export default function MarketingHome() {
     <main id="content">
       <section className={styles.hero} aria-labelledby="direction-title">
         <div className={styles.heroPhoto}>
-          <Image src="/hero-kitchen-plated-818.webp" alt="Plated’s landscape iPad meal plan on a sunlit kitchen island" width={1536} height={1024} sizes="(max-width: 500px) 200vw, (max-width: 760px) 1000px, (max-aspect-ratio: 3/2) 150vh, 100vw" priority />
+          <Image src="/hero-kitchen-plated-2026.webp" alt="Plated’s landscape iPad meal plan on a sunlit kitchen island" width={1536} height={1024} unoptimized priority />
         </div>
         <div className={styles.heroIntro}>
           <p className={styles.eyebrow} data-reveal>Meal planning for your household</p>
