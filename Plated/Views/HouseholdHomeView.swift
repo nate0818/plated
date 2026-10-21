@@ -790,7 +790,7 @@ private struct HouseholdHomeContent: View {
                 Text("Good food. Together.").plType(.cardTitle).foregroundStyle(Color.ink)
                     .fixedSize(horizontal: false, vertical: true)
                 if profiles.first?.bannerPhotoData == nil {
-                    Label("Add a household photo", systemImage: "camera")
+                    Label("Add photo", systemImage: "camera")
                         .plType(.caption).foregroundStyle(Color.inkSecondary)
                 }
             }

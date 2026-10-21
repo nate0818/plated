@@ -173,6 +173,7 @@ final class ApprovedPolishTests: XCTestCase {
         }
         launch(["-plated-open-household"], light: true, large: true)
         XCTAssertTrue(app.buttons["household-settings"].waitForExistence(timeout: 20))
+        capture("polish-household-AX5-cover")
         let invite = app.buttons["Invite someone"]
         reveal(invite)
         XCTAssertGreaterThan(invite.frame.width, invite.frame.height, "Invite should not split into a vertical word")
@@ -192,6 +193,11 @@ final class ApprovedPolishTests: XCTestCase {
         pause.tap()
         XCTAssertEqual(pause.label, "Resume")
         capture("polish-cooking-AX5-paused")
+        // The immediate capture can include SwiftUI's outgoing button text.
+        // Preserve a second settled frame to distinguish a transition from
+        // persistent overlap at accessibility sizes.
+        Thread.sleep(forTimeInterval: 1.2)
+        capture("polish-cooking-AX5-paused-settled")
     }
 
     func testRecipeDetailFinalCaptures() {
