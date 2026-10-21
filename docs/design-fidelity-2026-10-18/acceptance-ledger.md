@@ -8,7 +8,7 @@
 
 **Inventory: 15 screen families, all 60 original annotations, all 36 selectable original states.** This ledger reconciles the unchanged approval with the current isolated candidate. Source/test mapping was reconciled on October 20, 2026; subsequent native tests and captures are recorded in `continuation-status-2026-10-21.md`. It is not a visual sign-off, a complete app route inventory, or a release approval. The full inventory required by `docs/release-quality-standard.md` extends beyond these illustrative states.
 
-Candidate: uncommitted worktree `/Users/natemeadows/.codex/worktrees/plated-approved-fidelity/Plated`, based on `fc87ad199364019c1ed19c18c6ac24cc0d9b1eb5`. Project settings identify 1.0.1 (46); this modified source is **not** the already distributed TestFlight 45. A final commit/build/hash must replace this working-candidate description before distribution.
+Candidate: isolated branch `codex/approved-design-fidelity-46` at `/Users/natemeadows/.codex/worktrees/plated-approved-fidelity/Plated`; the approved-design implementation was pushed in `abd64872e107efa9cb0ce64653a6317dc72a3f7c`, with a subsequent compact-text photo-control correction awaiting its final commit and archive. Project settings identify 1.0.1 (46); this candidate is **not** the already distributed TestFlight 45. A final source commit and matching archive/hash must be recorded before distribution.
 
 Approval: original `docs/design-polish-review-2026-10-18/review.js` and `review.css`; annotations below reproduce the approved recommendation. SHA-256 at reconciliation:
 

@@ -405,9 +405,18 @@ struct TableComposerSheet: View {
             if let photoData, let image = UIImage(data: photoData) {
                 PhotoWell(image: image, height: 225, cornerRadius: 9)
                     .accessibilityLabel("Attached photo")
-                HStack(spacing: 8) {
-                    attachmentButton("Change photo", icon: "photo") { choosePhoto() }
-                    attachmentButton("Remove photo", icon: "xmark") { removePhoto() }
+                Group {
+                    if typeSize.isAccessibilitySize {
+                        VStack(spacing: 8) {
+                            attachmentButton("Change photo", icon: "photo") { choosePhoto() }
+                            attachmentButton("Remove photo", icon: "xmark") { removePhoto() }
+                        }
+                    } else {
+                        HStack(spacing: 8) {
+                            attachmentButton("Change photo", icon: "photo") { choosePhoto() }
+                            attachmentButton("Remove photo", icon: "xmark") { removePhoto() }
+                        }
+                    }
                 }
             }
             if photoLoading {

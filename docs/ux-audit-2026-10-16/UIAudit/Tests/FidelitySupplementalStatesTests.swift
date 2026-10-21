@@ -1,4 +1,5 @@
 import XCTest
+import UIKit
 
 /// Additional exact approval variants reachable through existing native paths.
 /// Source-only until executed; screenshots do not establish live delivery.
@@ -6,13 +7,14 @@ final class FidelitySupplementalStatesTests: XCTestCase {
     private let app = XCUIApplication(bundleIdentifier: "com.natemeadows.plated")
     override func setUp() { continueAfterFailure = false }
     private func element(_ id: String) -> XCUIElement { app.descendants(matching: .any).matching(identifier: id).firstMatch }
-    private func launch(_ flags: [String], light: Bool) {
+    private func launch(_ flags: [String], light: Bool, ax: Bool = false) {
         app.terminate()
         // The preceding iPad matrix intentionally rotates the shared runner.
         // These phone approval captures must start from a known portrait state.
         XCUIDevice.shared.orientation = .portrait
         app.launchArguments = ["-plated-design-review", "-householdName", "Meadows", "-userFirstName", "Nate",
-            "-appearance", light ? "light" : "dark", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryL"] + flags
+            "-appearance", light ? "light" : "dark", "-UIPreferredContentSizeCategoryName",
+            ax ? "UICTContentSizeCategoryAccessibilityXXXL" : "UICTContentSizeCategoryL"] + flags
         app.launch()
     }
     private func capture(_ name: String) {
@@ -127,6 +129,33 @@ final class FidelitySupplementalStatesTests: XCTestCase {
         XCTAssertTrue(remove.isHittable, "The attached photo must be removable in landscape")
         XCTAssertTrue(app.buttons["table-post-submit"].isEnabled)
         capture("fidelity-composer-photo-phone-landscape")
+        remove.tap()
+        XCTAssertTrue(remove.waitForNonExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["table-post-submit"].isEnabled)
+    }
+    func testAttachedPhotoControlsAtLargestTextOnCompactPhone() {
+        guard UIDevice.current.userInterfaceIdiom == .phone else { return }
+        launch(["-plated-open-table-post", "-plated-review-post-reset", "-plated-review-post-photo"],
+               light: true, ax: true)
+        let scroll = app.scrollViews["table-post-scroll"]
+        let remove = app.buttons["Remove photo"]
+        let change = app.buttons["Change photo"]
+        XCTAssertTrue(remove.waitForExistence(timeout: 20))
+        for _ in 0..<12 {
+            if remove.isHittable && change.isHittable { break }
+            scroll.swipeUp()
+        }
+        XCTAssertTrue(remove.isHittable && change.isHittable,
+                      "Both photo actions must remain reachable at the largest text size")
+        XCTAssertGreaterThanOrEqual(remove.frame.height, 44)
+        XCTAssertGreaterThanOrEqual(change.frame.height, 44)
+        XCTAssertGreaterThanOrEqual(change.frame.width, scroll.frame.width * 0.75,
+                                    "Photo action labels need full-row space at accessibility sizes")
+        XCTAssertGreaterThanOrEqual(remove.frame.width, scroll.frame.width * 0.75,
+                                    "Photo action labels need full-row space at accessibility sizes")
+        XCTAssertLessThanOrEqual(change.frame.maxY, remove.frame.minY,
+                                 "Photo actions should stack instead of splitting words at large text sizes")
+        capture("fidelity-composer-photo-compact-ax5")
         remove.tap()
         XCTAssertTrue(remove.waitForNonExistence(timeout: 5))
         XCTAssertFalse(app.buttons["table-post-submit"].isEnabled)

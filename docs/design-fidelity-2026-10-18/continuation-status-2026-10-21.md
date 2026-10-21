@@ -1,13 +1,16 @@
 # Approved-design candidate status — October 21, 2026
 
 This is a checkpoint for the isolated, **unreleased** candidate at
-`/Users/natemeadows/.codex/worktrees/plated-approved-fidelity/Plated`, based on
-`fc87ad199364019c1ed19c18c6ac24cc0d9b1eb5`. It supersedes the Xcode-setup
+`/Users/natemeadows/.codex/worktrees/plated-approved-fidelity/Plated` on
+`codex/approved-design-fidelity-46`. The approved-design implementation was
+committed as `abd64872e107efa9cb0ce64653a6317dc72a3f7c` and pushed; a
+subsequent compact-text photo-control correction is being verified. It supersedes the Xcode-setup
 blocker in `continuation-status-2026-10-20.md`, not the outstanding coverage in
 `acceptance-ledger.md` or `docs/release-quality-standard.md`. Project settings now
 say 1.0.1 (46) for the app and widget. A fresh signed archive and IPA export
-were created locally after the Plan scroll and Table photo corrections. They
-remain an uncommitted, **unreleased** candidate. Nothing has been uploaded,
+were created locally from `abd6487`, but the later photo-control correction makes
+that export obsolete. A matching archive is required after the final commit.
+Nothing has been uploaded,
 processed, or made available to testers.
 
 ## Fresh native evidence
@@ -30,7 +33,7 @@ processed, or made available to testers.
 | In-place local recipe upgrade | Passed for one persisted recipe | Exact distributed source `aea845b75ec14978a522ecd682dc9c2722467c28` was compiled as simulator build 45 and installed on a clean iOS 26.2 iPhone 16e. A recipe was created through the real local first-run path, confirmed after relaunch (`Upgrade45-Clean-Seed-20261021.xcresult`), and still opened after installing the candidate build 46 over the existing app without uninstall or erase (`Upgrade46-Clean-After-20261021.xcresult`). This narrow result does not cover other persisted models, drafts, settings, photos, queues or timers. |
 | Collect-only accessibility audit | Two concrete Table-thread naming findings corrected; contrast flags remain under manual review | Before: `Compact-Accessibility-Diagnostics-20261021.xcresult` reported an unlabeled post photo and a URL-only link name. After the new labels, `Compact-Accessibility-After-20261021.xcresult` reports neither. The audit still flags contrast for named Plan/Grocery/Thread nodes plus one unattributed comment node; those are not silently treated as passes. The visually inspected cream Plan and Editorial thread use high-contrast text/token pairs; complete pixel-level triage is pending. |
 | Static checks | Passed after the final Plan accessibility source change | `scripts/check-design` (183 Swift), `scripts/check-tokens --native-only` (10 shared tokens), `scripts/check-schema` (159 recorded fields), and `git diff --check`. The schema check is a manifest check, not a live CloudKit test. |
-| Local release archive/export | Fresh build 46 archive/export succeeded and signed correctly after the Plan/photo changes; **not distributed** | `build/Plated.xcarchive` and `build/export/Plated.ipa` in this checkout; IPA SHA-256 `1e9157348a0da6ac3e2518ca7d9280ddd21be16ee2fb774996c0cfbec955c2b7`. Exported app and widget both report 1.0.1 (46), minimum iOS 18.0 and `get-task-allow=false`. App entitlements include production APNs, Production CloudKit, WeatherKit, app group, associated domain, and communication/time-sensitive notifications; widget has the app group. iPad Info.plist allows only landscape and requires full screen. Strict `codesign --verify --deep` passed with access to the host trust store for both app and widget. App UUID `15EEB82D-522D-3A51-A705-3BA7780C2A93` and widget UUID `91128856-72B2-338D-8BB1-6A04AC21B7D9` each match their dSYM. Both privacy manifests are packaged. No upload or Apple processing receipt exists. |
+| Local release archive/export | Build 46 archive/export succeeded and signed correctly from `abd6487`, but is **obsolete after the compact-text photo correction** and not distributed | `build/Plated.xcarchive` and `build/export/Plated.ipa` in this checkout; latest pre-correction IPA SHA-256 `d533a36681d4af4511f774724d4a73880bb4001d216498d58c543ae7dc5eb206`. The previous export's app and widget both reported 1.0.1 (46), minimum iOS 18.0 and `get-task-allow=false`; production APNs/CloudKit, WeatherKit, app group, associated domain and notification entitlements; iPad landscape/fullscreen; matching dSYMs; and packaged privacy manifests. Those checks must be repeated on a new export matching final source. No upload or Apple processing receipt exists. |
 | Broad phone UI suite | Initial run: 174 executed, 2 skips, 32 failures; current full run found a real Plan scroll defect | `/Users/natemeadows/Plated/build/phone-ui-baseline-20261021.log` used the older runner/binary. In the newer full run at `/Users/natemeadows/Plated/build/phone-ui-current-20261021.log`, `DesignFidelityTests.testScrolledContextSummaryTracksTheSelectedDate` failed: the dinner name did not appear under pinned dates after the title/photo scrolled away. The correction moved the summary into the pinned header and measured the title/photo card in global coordinates. The exact failed case passed on the corrected build (`Plan-Context-Sticky-Fix2-20261021.xcresult`); screenshots were inspected. Connected date-selection and Tomorrow journeys passed (`Plan-Context-Connected-20261021.xcresult`). The broad run still uses the pre-fix binary and is in progress; it remains a defect-discovery run, not a final pass. |
 
 The broad run also exposed a shared simulator-orientation leak from an iPad
@@ -51,6 +54,17 @@ outside the window. The passing journey verifies the cooking screen, not just
 the button's existence; before/after captures are retained.
 `Phone-Cooking-Connected-Final-20261021.xcresult` is the final focused
 portrait recipe-detail and Start cooking rerun.
+
+The compact iPhone AX5 capture in `Photo-Controls-Compact-AX5-20261021.xcresult`
+exposed a genuine visual defect despite a passing touch test: side-by-side
+“Change photo” and “Remove photo” broke into letter fragments. The composer now
+stacks those controls at accessibility text sizes. The strengthened test asserts
+full-row widths, vertical ordering, both 44-point targets, removal, and disabled
+posting afterward; it passed in
+`Photo-Controls-Compact-AX5-After-Fix-20261021.xcresult`. Its new screenshot was
+visually inspected and shows complete, readable labels. Connected portrait and
+landscape checks are being rerun separately. This late source correction is why
+the preceding signed archive must be replaced.
 
 The app/widget debug binaries used for the final empty-widget capture had SHA-256
 `edd645c09b5b8c3cd4981864109c08ff51154cfdb67ec3806534b20b2d185117`
@@ -79,8 +93,8 @@ All are unsigned-for-distribution simulator products, not a release export.
    on this candidate. A second real account/device was unavailable, so both-way
    avatar/activity, invitation, Plan, grocery and Table sync is also unverified.
 5. Before any TestFlight distribution: finish the release ledger and commit the
-   intended source. Reconcile that committed tree against the locally archived
-   source, and rebuild if source changes. Then verify Apple upload, processing
+   final photo correction and evidence. Reconcile that committed tree against a
+   newly archived/exported binary. Then verify Apple upload, processing
    and access for each authorized internal and external tester group. No upload
    receipt or tester availability exists for this candidate.
 
