@@ -45,7 +45,7 @@ struct AccountButton: View {
         AvatarCircle(
             initials: me?.initials ?? "Me",
             tone: .neutralPair,
-            size: 32,
+            size: 36,
             photo: me?.photoData
         )
         .plTapTarget()

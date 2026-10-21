@@ -408,7 +408,7 @@ struct DayDetailView: View {
     /// marked dinner cooked every time you reached for Remove.
     private func actions(for meal: PlannedMeal, slot: MealSlot) -> [SwipeAction] {
         var actions: [SwipeAction] = []
-        if !isFuture {
+        if !isFuture, !meal.isLeftovers {
             actions.append(
                 SwipeAction(
                     symbol: meal.isCooked ? "arrow.uturn.backward" : "checkmark",
@@ -455,7 +455,7 @@ struct DayDetailView: View {
             // face beside it is the same fact twice on this day card. The
             // week list now puts every actor's face on the who-line; this
             // page still uses the trailing face for other people only.
-            if let cook = meal.cook, !cook.isMe {
+            if !meal.isLeftovers, let cook = meal.cook, !cook.isMe {
                 AvatarCircle(member: cook, size: 30)
             }
         }
@@ -503,12 +503,12 @@ struct DayDetailView: View {
                     .clipShape(Circle())
             } else if let recipe = meal.recipe {
                 DishView(recipe: recipe, diameter: 52)
-            } else if meal.customTitle.localizedCaseInsensitiveContains("eating out") {
+            } else if meal.isLeftovers || PlanRowVoice.isEatingOut(title: meal.title, hasRecipe: false) {
                 Circle()
                     .strokeBorder(Color.hairline, lineWidth: 2)
                     .frame(width: 52, height: 52)
                     .overlay {
-                        Image(systemName: "fork.knife.circle")
+                        Image(systemName: meal.isLeftovers ? "refrigerator" : "fork.knife.circle")
                             .font(.system(size: 22, weight: .medium))
                             .foregroundStyle(Color.inkSecondary)
                     }
@@ -517,13 +517,13 @@ struct DayDetailView: View {
             }
         }
         .plDishShadow()
-        .opacity(meal.isCooked ? 0.75 : 1)
+        .opacity(meal.isCooked && !meal.isLeftovers ? 0.75 : 1)
         .overlay(alignment: .bottomTrailing) {
             // Nothing wrote `cookedAt` before this screen existed, so
             // "times cooked" in Insights and the grocery list's skip of
             // already-cooked meals were both reading a field the app never
             // set. A plate that happened earns the basil tick.
-            if meal.isCooked {
+            if meal.isCooked, !meal.isLeftovers {
                 Circle()
                     .fill(Color.basil)
                     .frame(width: 20, height: 20)
@@ -539,6 +539,7 @@ struct DayDetailView: View {
     }
 
     private func toggleCooked(_ meal: PlannedMeal) {
+        guard !meal.isLeftovers else { return }
         Haptic.plate()
         withAnimation(.plSnap) {
             swipedSlot = nil
@@ -594,7 +595,7 @@ struct DayDetailView: View {
         }
         parts.append(PlanRowVoice.whoLine(for: meal, members: members))
         if meal.gathering != nil { parts.append("Gathering") }
-        if meal.isCooked { parts.append("Cooked") }
+        if meal.isCooked, !meal.isLeftovers { parts.append("Cooked") }
         return parts.joined(separator: " · ")
     }
 
@@ -630,6 +631,11 @@ struct DayDetailView: View {
     /// Whose night it is by the household's rota, when nobody has been named
     /// on the meal itself.
     private var cooksLine: String? {
+        let dinner = meal(in: .dinner)
+        if dinner?.isLeftovers == true { return nil }
+        if dinner == nil, remotePlans(in: .dinner).contains(where: {
+            PlanRowVoice.isLeftovers(title: $0.title, hasRecipe: $0.hasRecipe)
+        }) { return nil }
         let weekday = Calendar.current.component(.weekday, from: date)
         let rostered = members.filter { $0.cookWeekdays.contains(weekday) }
         guard !rostered.isEmpty else { return nil }

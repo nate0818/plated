@@ -257,8 +257,10 @@ enum NotificationScheduler {
         // finish before applying it. No SwiftData-backed object leaves this
         // synchronous main-actor pass.
         let local = meals.compactMap { meal -> MealSnapshot? in
+            // Leftovers fill the plan without a fresh cooking turn, even if
+            // an older freeform row still carries a cook assignment.
             guard !meal.isDeleted else { return nil }
-            let cook = meal.cook
+            let cook = meal.isLeftovers ? nil : meal.cook
             let readableCook = cook.flatMap { $0.isDeleted ? nil : $0 }
             return MealSnapshot(
                 date: meal.date,

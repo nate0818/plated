@@ -123,9 +123,34 @@ struct PlatedApp: App {
                 try? preview.mainContext.save()
             }
             if arguments.contains("-plated-design-review") {
+                // Visual-state fixtures only mutate the already isolated memory store.
+                // Missing media and written directions were absent from the prior evidence.
+                if arguments.contains("-plated-review-missing-recipe-photo") {
+                    let recipes = (try? preview.mainContext.fetch(FetchDescriptor<Recipe>())) ?? []
+                    recipes.first(where: { $0.title == "Pancake Dinner" })?.photoData = nil
+                }
+                if arguments.contains("-plated-review-recipe-directions") {
+                    let recipes = (try? preview.mainContext.fetch(FetchDescriptor<Recipe>())) ?? []
+                    for recipe in recipes {
+                        recipe.steps = ["Whisk the dry ingredients together in a large bowl.", "Add the eggs and milk, then stir until just combined.", "Cook on a warm pan until golden on both sides."]
+                        recipe.cookNotes = "Keep the heat moderate for a golden finish."
+                    }
+                }
+                if arguments.contains("-plated-review-own-posts") {
+                    let posts = (try? preview.mainContext.fetch(FetchDescriptor<TablePost>())) ?? []
+                    for post in posts {
+                        post.authorName = "Nate"
+                        post.authorID = TableIdentity.cached
+                    }
+                }
                 if arguments.contains("-plated-review-comment-reactions") {
                     let post = TablePost(authorName: "Sam Meadows", dishTitle: "A market find", caption: "These tomatoes are worth a trip.", kind: "post")
                     post.shareRecordName = "post-review-comment-reactions"
+                    if arguments.contains("-plated-review-comment-reset") {
+                        CommentReplyDraftStore.remove(scope: .init(
+                            account: TableIdentity.cached, zoneOwner: post.shareZoneOwner,
+                            postID: post.shareRecordName))
+                    }
                     post.authorID = "review-sam"
                     if arguments.contains("-plated-review-recipe-post") { post.kind = "dish" }
                     preview.mainContext.insert(post)
@@ -147,8 +172,71 @@ struct PlatedApp: App {
                         preview.mainContext.insert(comment)
                         TableReactions.forgetComments([comment.shareRecordName])
                     }
+                    if arguments.contains("-plated-review-long-replies") {
+                        // Only this optional memory fixture grows the branch;
+                        // the reaction fixture retains exactly two live comments.
+                        for (id, parent, text, offset) in [
+                            ("extra-one", "note-review-parent", "Fresh basil would be excellent.", -50.0),
+                            ("extra-two", "note-review-parent", "I can bring the olive oil.", -40.0),
+                            ("target", "note-review-extra-two", "Let's save a few tomatoes for lunch.", -30.0)
+                        ] {
+                            let comment = TableComment(authorName: "Riley Park", text: text,
+                                createdAt: .now.addingTimeInterval(offset), authorID: "review-riley")
+                            comment.shareRecordName = "note-review-" + id
+                            comment.parentCommentID = parent
+                            comment.post = post
+                            preview.mainContext.insert(comment)
+                            TableReactions.forgetComments([comment.shareRecordName])
+                        }
+                        if arguments.contains("-plated-review-target-reply") {
+                            // Exercise the same pending post/comment route as a
+                            // notification without contacting a remote service.
+                            LinkRelay.open(DeepLink.url(post: post.shareRecordName, comment: "note-review-target"))
+                        }
+                    }
+                    if arguments.contains("-plated-review-comment-pending") {
+                        TableOutbox.shared.setReviewPending([
+                            .init(id: "review-pending-note", work: .note(post: post.shareRecordName,
+                                zoneOwner: post.authorID, id: "note-review-reply"),
+                                author: TableIdentity.cached, at: .now)
+                        ])
+                    }
                     TableLedger.shared.setPlate("note-review-parent", author: "review-riley", active: true)
                     TableLedger.shared.setPlate("note-review-parent", author: "review-sam", active: true)
+                    try? preview.mainContext.save()
+                }
+                if arguments.contains("-plated-review-publication-states")
+                    || arguments.contains("-plated-review-publication-waiting") {
+                    // Presentation fixtures, never CloudKit receipts. The
+                    // memory-only rows and transient ledger exercise real UI.
+                    let ledger = TablePostPublication.shared
+                    ledger.clear()
+                    let existing = (try? preview.mainContext.fetch(FetchDescriptor<TablePost>())) ?? []
+                    let fixturePhoto = existing.first(where: { $0.photoData != nil })?.photoData
+                    for post in existing { preview.mainContext.delete(post) }
+                    let states = arguments.contains("-plated-review-publication-waiting")
+                        ? ["waiting"] : ["saved", "sending", "failed", "shared"]
+                    for (index, state) in states.enumerated() {
+                        let post = TablePost(authorName: "Nate", dishTitle: "Publication " + state,
+                            caption: "A local UI fixture for the " + state + " state.",
+                            kind: "post", createdAt: .now.addingTimeInterval(-Double(index)))
+                        if state == "waiting" {
+                            post.dishTitle = ""
+                            post.caption = "Breakfast for dinner. Zero regrets, full syrup."
+                            // Reuse fixture artwork only in the memory container;
+                            // this is a controlled presentation, not real offline proof.
+                            post.photoData = fixturePhoto
+                        }
+                        post.authorID = TableIdentity.cached
+                        post.shareRecordName = "post-review-publication-" + state
+                        post.shareZoneOwner = TableIdentity.cached
+                        post.isPublished = state == "shared"
+                        preview.mainContext.insert(post)
+                        let key = TablePostPublication.Key(account: TableIdentity.cached,
+                            owner: post.shareZoneOwner, recordName: post.shareRecordName)
+                        if state == "sending" { _ = ledger.begin(key) }
+                        if state == "failed" { ledger.finish(ledger.begin(key), succeeded: false) }
+                    }
                     try? preview.mainContext.save()
                 }
                 if arguments.contains("-plated-review-removal-unlinked"),
@@ -379,7 +467,7 @@ struct PlatedApp: App {
                         catch { print("PLATED PROBE CHECKS FAILED: \(error)"); exit(1) }
                     }
                     if LaunchFlags.consume("-plated-prime-share") {
-                        print(await TableShare.primeSchema())
+                        print(await TableShare.primeSchema(context: container.mainContext))
                         try? await Task.sleep(for: .seconds(20))
                         exit(0)
                     }
@@ -508,6 +596,9 @@ struct PlatedApp: App {
                ProcessInfo.processInfo.arguments.contains("-plated-review-widgets"),
                phase == .active || phase == .background {
                 WidgetBridge.publish(from: container.mainContext)
+                if ProcessInfo.processInfo.arguments.contains("-plated-review-widget-empty") {
+                    WidgetBridge.publishEmptyReviewState()
+                }
             }
             #endif
             // Re-assert the room's lighting on every activation — a push

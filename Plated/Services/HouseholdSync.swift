@@ -622,6 +622,7 @@ enum HouseholdSync {
         var hasGroceryState: Bool
         var broughtSeats: [String]
         var publishedAt: Date?
+        var reinvitation: HouseholdReinvitation.VerifiedInvitation? = nil
 
         enum State: Equatable {
             case ready
@@ -693,7 +694,10 @@ enum HouseholdSync {
             hostName: host, hostPhoto: root?.hostPhoto, householdName: root?.name ?? "",
             state: state, mealsFromToday: meals,
             hasGroceryState: lines || !GroceryMarks.shared.isEmpty,
-            broughtSeats: brought, publishedAt: root?.publishedAt
+            broughtSeats: brought, publishedAt: root?.publishedAt,
+            reinvitation: HouseholdReinvitation.verifiedInvitation(
+                for: me, seat: seat, fetchedEntries: root?.removedIDs
+            )
         )
     }
 

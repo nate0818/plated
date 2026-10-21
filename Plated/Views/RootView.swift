@@ -97,11 +97,19 @@ struct RootView: View {
             case "-plated-review-invitation-resume": .needsSeat(candidates: [.init(id: "seat-sam", name: "Sam", role: "partner")])
             default: .ready
             }
+            // Deterministic presentation only: construct the same verified proof
+            // as a freshly fetched grant, without reading or changing live shares.
+            let freshGrant = flag == "-plated-review-invitation-rejoin"
+                ? HouseholdReinvitation.verifiedInvitation(
+                    for: "review-alessandra", seat: "review-seat",
+                    fetchedEntries: HouseholdReinvitation.authorizing(
+                        seat: "review-seat", entries: ["review-alessandra"]))
+                : nil
             MainShellView()
                 .sheet(isPresented: .constant(true)) {
                     JoinHouseholdSheet(metadata: nil, root: nil, seat: "review-seat", linkHost: "",
                         reviewPreview: .init(hostName: "Nate Meadows", householdName: "Meadows", state: state,
-                            mealsFromToday: 0, hasGroceryState: false, broughtSeats: []))
+                            mealsFromToday: 0, hasGroceryState: false, broughtSeats: [], reinvitation: freshGrant))
                 }
         } else {
             MainShellView()

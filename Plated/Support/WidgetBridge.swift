@@ -82,6 +82,28 @@ enum WidgetBridge {
         FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupID)
     }
 
+    #if DEBUG && targetEnvironment(simulator)
+    /// Gallery QA needs a truly open week even when the shared preview fixture
+    /// contains planned dinners. This only rewrites the isolated simulator's
+    /// app-group snapshot after normal publishing; it never touches a live store.
+    static func publishEmptyReviewState() {
+        guard let url = containerURL?.appendingPathComponent("week-snapshot.json"),
+              let data = try? Data(contentsOf: url),
+              var snapshot = try? JSONDecoder().decode(Snapshot.self, from: data)
+        else { return }
+        snapshot.plannedCount = 0
+        snapshot.tonight = nil
+        snapshot.days = snapshot.days.map { day in
+            Snapshot.Day(day: day.day, planned: false, cookInitial: "", cookHex: "",
+                         cookName: nil, title: nil)
+        }
+        snapshot.grocery = Snapshot.Grocery(openCount: 0, totalCount: 0, sample: [])
+        guard let empty = try? JSONEncoder().encode(snapshot) else { return }
+        try? empty.write(to: url, options: .atomic)
+        WidgetCenter.shared.reloadAllTimelines()
+    }
+    #endif
+
     /// Fetches the rolling week and writes the snapshot. Cheap enough to call
     /// on every scene transition; no-ops when the app group is unavailable
     /// (e.g. a build without the entitlement wired).
@@ -120,22 +142,25 @@ enum WidgetBridge {
             // PlannedMeal, so it reaches the snapshot here and nowhere else.
             let remote = meal == nil ? ledger.dinner(on: date) : nil
             let remoteCook = remote.map { cook(for: $0, me: me) }
+            // A leftovers night is planned, but no one is assigned to cook
+            // it again. Ignore stale assignments from older freeform rows.
+            let localCook = meal?.isLeftovers == true ? nil : meal?.cook
             days.append(Snapshot.Day(
                 day: formatter.string(from: date).uppercased(),
                 planned: meal?.hasDish == true || remote?.hasDish == true,
-                cookInitial: meal?.cook?.firstInitial ?? remoteCook?.initial ?? "",
-                cookHex: meal?.cook?.colorHex ?? remoteCook?.hex ?? "",
-                cookName: meal?.cook?.name ?? remoteCook?.name,
+                cookInitial: localCook?.firstInitial ?? remoteCook?.initial ?? "",
+                cookHex: localCook?.colorHex ?? remoteCook?.hex ?? "",
+                cookName: localCook?.name ?? remoteCook?.name,
                 title: meal?.title ?? remote?.title
             ))
             if offset == 0, let meal {
                 tonight = Snapshot.Tonight(
                     title: meal.title,
-                    cookInitial: meal.cook?.firstInitial ?? "",
-                    cookHex: meal.cook?.colorHex ?? "",
+                    cookInitial: localCook?.firstInitial ?? "",
+                    cookHex: localCook?.colorHex ?? "",
                     minutes: meal.recipe?.totalMinutes ?? 0,
                     hasPhoto: meal.recipe?.photoData != nil,
-                    cookName: meal.cook?.name
+                    cookName: localCook?.name
                 )
                 tonightPhoto = meal.recipe?.photoData
                 // No photograph: the widget gets the same plate the app
@@ -143,23 +168,24 @@ enum WidgetBridge {
                 // a plated disc (DishView), and the home screen was the one
                 // place a dinner turned back into an icon. The plate's
                 // porcelain and shadow answer the room, so it is drawn twice.
-                if tonightPhoto == nil, meal.hasDish {
+                if tonightPhoto == nil, meal.hasDish, !meal.isLeftovers {
                     tonightPhoto = platedDish(for: meal, dark: false)
                     tonightPhotoDark = platedDish(for: meal, dark: true)
                 }
             } else if offset == 0, let remote, let remoteCook {
-                let photo = ledger.photo(for: remote.recordName)
+                let leftovers = PlanRowVoice.isLeftovers(title: remote.title, hasRecipe: remote.hasRecipe)
+                let photo = leftovers ? nil : ledger.photo(for: remote.recordName)
                 tonight = Snapshot.Tonight(
                     title: remote.hasDish ? remote.title : "Dinner to choose",
                     cookInitial: remoteCook.initial,
                     cookHex: remoteCook.hex,
-                    minutes: remote.recipeMinutes,
+                    minutes: leftovers ? 0 : remote.recipeMinutes,
                     hasPhoto: photo != nil,
                     cookName: remoteCook.name
                 )
                 tonightPhoto = photo
                 // Same fallback as a local night: the plate, not a glyph.
-                if tonightPhoto == nil {
+                if tonightPhoto == nil, !leftovers {
                     tonightPhoto = platedDish(title: remote.hasDish ? remote.title : "Dinner to choose", dark: false)
                     tonightPhotoDark = platedDish(title: remote.hasDish ? remote.title : "Dinner to choose", dark: true)
                 }
@@ -216,6 +242,9 @@ enum WidgetBridge {
     /// blanking the name.
     @MainActor
     private static func cook(for entry: PlanLedger.Entry, me: HouseholdMember?) -> (initial: String, hex: String, name: String?) {
+        guard !PlanRowVoice.isLeftovers(title: entry.title, hasRecipe: entry.hasRecipe) else {
+            return ("", "", nil)
+        }
         if PlanLedger.shared.isMine(cook: entry), let me {
             return (me.firstInitial, me.colorHex, me.name)
         }

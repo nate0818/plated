@@ -210,11 +210,13 @@ final class PlanContextTests: XCTestCase {
         let sam = app.buttons["plan-household-seat-ux-sam"]
         reveal(sam)
         XCTAssertTrue(sam.label.contains("Sam Rivera"))
-        XCTAssertTrue(sam.label.contains("Shared") || sam.label.contains("Cooked"), "An actor row names a recorded action")
+        XCTAssertTrue(sam.label.lowercased().contains("shared") || sam.label.lowercased().contains("cooked"), "An actor row names a recorded action")
         capture("plan-household-activity")
         sam.tap()
         XCTAssertTrue(app.staticTexts["Sam Rivera"].waitForExistence(timeout: 8))
-        XCTAssertTrue(element("profile-recent-activity").label.contains("2 dinners cooked"))
+        capture("profile-renamed-member-before-activity-assert")
+        XCTAssertTrue(element("profile-recent-activity").label.contains("Shared Profile identity dinner"), element("profile-recent-activity").label)
+        XCTAssertTrue(app.descendants(matching: .any).matching(NSPredicate(format: "label == %@", "2 Dinners cooked")).firstMatch.exists)
         let dish = app.buttons["Profile identity dinner, by Sam Meadows"]
         for _ in 0..<5 where !dish.isHittable { app.swipeUp() }
         XCTAssertTrue(dish.isHittable, "An account’s post survives its display-name change")
@@ -228,7 +230,7 @@ final class PlanContextTests: XCTestCase {
             size: "UICTContentSizeCategoryAccessibilityXXXL", light: true)
         let sam = app.buttons["plan-household-seat-ux-sam"]
         reveal(sam)
-        XCTAssertTrue(sam.label.contains("Shared") || sam.label.contains("Cooked"), "An actor row names a recorded action")
+        XCTAssertTrue(sam.label.lowercased().contains("shared") || sam.label.lowercased().contains("cooked"), "An actor row names a recorded action")
         capture("plan-household-ax")
         sam.tap()
         XCTAssertTrue(app.staticTexts["Sam Rivera"].waitForExistence(timeout: 8))
@@ -255,7 +257,7 @@ final class PlanContextVoiceOverTests: XCTestCase {
         app.launch(); XCTAssertTrue(app.buttons["Choose a meal"].waitForExistence(timeout: 20))
         try voice.enable()
         var transcript = [try voice.currentSpeech().utterance]
-        let targets = ["What sounds good tonight", "Suggested dinner cook", "Choose a meal", "Eating out", "Mostly Clear", "2 cooked at home", "1 ate out", "At home", "Manage household", "Riley"]
+        let targets = ["What sounds good tonight", "Suggested dinner cook", "Choose a meal", "Eating out", "Mostly Clear", "2 cooked at home", "1 ate out", "At home", "Manage household", "You planned Eating out"]
         var next = 0
         for _ in 0..<45 {
             let spoken = try voice.moveForward().utterance
@@ -265,6 +267,9 @@ final class PlanContextVoiceOverTests: XCTestCase {
         }
         let attachment = XCTAttachment(string: transcript.joined(separator: "\n"))
         attachment.name = "plan-context-voiceover"; attachment.lifetime = .keepAlways; add(attachment)
+        print("PLAN CONTEXT VOICEOVER:\n" + transcript.joined(separator: "\n"))
+        let tree = XCTAttachment(string: app.debugDescription)
+        tree.name = "plan-context-voiceover-tree"; tree.lifetime = .keepAlways; add(tree)
         XCTAssertEqual(next, targets.count, "Dinner actions, weather, counts and household profiles should be read in order")
     }
 }

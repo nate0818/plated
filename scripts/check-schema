@@ -39,11 +39,15 @@ MANIFEST="config/cloudkit-schema.txt"
 # field when the editor starts writing it. Keep the historical manifest
 # intact; it remains the record of the deployment, not a release bypass.
 canonical() {
-  sed 's/^record\./planRecord./' | sort -u
+  sed -e 's/^record\./planRecord./' -e 's/^publishRecord\./publish./' | sort -u
 }
 
-# This alias is valid only while these two writers share a record type.
-# Fail closed if either constructor is refactored; revisit the mapping then.
+# Writer names are historical manifest identities, not CloudKit type names.
+# The post implementation moved behind an observable publication wrapper;
+# publishRecord still writes exactly PlatedDish, historically named publish.
+# These aliases are valid only while their constructors retain those types.
+# Fail closed on a moved/ambiguous writer or changed constructor; do not turn
+# a different record type into an apparently deployed field via a name alias.
 python3 - <<'PY' || exit 1
 from pathlib import Path
 import re
@@ -56,6 +60,31 @@ if not (publisher and editor
         and 'recordType: planType,' in publisher.group()
         and 'recordType: TableShare.planType,' in editor.group()):
     raise SystemExit('✗ Shared-plan schema writer mapping changed; verify record types before shipping.')
+
+post_signature = (r'private static func publishRecord\(\s*'
+                  r'_ post: TablePost,\s*hostName: String,\s*account initialAccount: String,\s*'
+                  r'attempt: TablePostPublication\.Attempt\s*\) async -> String\?')
+post_writer = re.search(post_signature + r' \{[\s\S]*?\n    }', table)
+# The other declaration is the non-CloudKit nil stub. A new writer under this
+# alias, in any scanned file, requires its own explicit record-type review.
+post_headers = re.findall(r'\bfunc publishRecord\(', table)
+post_stub = re.search(r'private static func publishRecord\(\s*'
+                      r'_ post: TablePost, hostName: String, account: String,\s*'
+                      r'attempt: TablePostPublication\.Attempt\s*\) async -> String\? \{ nil }', table)
+other_sources = [edits, Path('Plated/Services/HouseholdShare.swift').read_text()]
+ambiguous = any(re.search(r'\bfunc publishRecord\(', text) for text in other_sources)
+if not (post_writer and post_stub and len(post_headers) == 2 and not ambiguous
+        and re.findall(r'private static let postType = "([^"]+)"', table) == ['PlatedDish']
+        and re.findall(r'CKRecord\(\s*recordType:\s*([^,]+),', post_writer.group()) == ['postType']):
+    raise SystemExit('✗ Post schema writer mapping changed; verify PlatedDish record type before shipping.')
+
+# The injected comment sender still constructs the same deployed note type.
+# Its nested account-check function must not become a new schema writer.
+note_writer = re.search(r'static func pushNote\(\s*_ comment: TableComment, post: String, zoneOwner: String,\s*expectedAccount: String, transport: NoteTransport\s*\) async -> Bool \{[\s\S]*?\n    }', table)
+if not (note_writer
+        and re.findall(r'private static let noteType = "([^"]+)"', table) == ['PlatedDishNote']
+        and re.findall(r'CKRecord\(\s*recordType:\s*([^,]+),', note_writer.group()) == ['noteType']):
+    raise SystemExit('✗ Comment schema writer mapping changed; verify PlatedDishNote record type before shipping.')
 PY
 
 # Every literal record key the household and table writers use. Grepped from
@@ -74,7 +103,10 @@ current() {
            k=substr($0,RSTART,RLENGTH); sub(/.*"/,"",k); sub(/"$/,"",k)
            match($0, /"[A-Za-z0-9_]+"/); key=substr($0,RSTART+1,RLENGTH-2)
            print fn "." key }' Plated/Services/HouseholdShare.swift 2>/dev/null
-    awk '/^ *(private )?(static )?func /{ fn=$0; sub(/^ *(private )?(static )?func /,"",fn); sub(/\(.*/,"",fn) }
+    # These two enums own their wire writes in static methods. Local
+    # authorization helpers are ordinary functions inside a writer; they
+    # must not rename the enclosing record's schema identity.
+    awk '/^ *(private )?static func /{ fn=$0; sub(/^ *(private )?static func /,"",fn); sub(/\(.*/,"",fn) }
          match($0, /record\["[A-Za-z0-9_]+"\] *=/) {
            s=substr($0,RSTART,RLENGTH); match(s, /"[A-Za-z0-9_]+"/)
            print fn "." substr(s,RSTART+1,RLENGTH-2) }' \

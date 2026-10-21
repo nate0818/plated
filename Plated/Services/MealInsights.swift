@@ -17,7 +17,7 @@ struct MealInsights {
     /// Restricts the window to meals cooked on or after `since`.
     func cookedMeals(since: Date? = nil) -> [PlannedMeal] {
         meals.filter { meal in
-            guard let cookedAt = meal.cookedAt else { return false }
+            guard !meal.isLeftovers, let cookedAt = meal.cookedAt else { return false }
             guard let since else { return true }
             return cookedAt >= since
         }

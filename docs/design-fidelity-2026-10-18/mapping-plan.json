@@ -1,0 +1,3589 @@
+{
+  "schemaVersion": 1,
+  "purpose": "Planned mapping of original approved states to emitted native XCTest attachment names. This is not a capture index or verification result.",
+  "approvalStateCount": 36,
+  "themeCount": 2,
+  "entryCount": 72,
+  "sourceReferences": [
+    {
+      "path": "docs/design-polish-review-2026-10-18/review.js",
+      "sha256": "cb45d1f300a0719674ad9ea87db7044789365d7b545133b377557ee156df5d6b"
+    },
+    {
+      "path": "docs/design-polish-review-2026-10-18/review.css",
+      "sha256": "1351c6e71ccf40ed992fbe38ace27d46e81aa65e7068d00f808e3a990e730407"
+    },
+    {
+      "path": "docs/design-fidelity-2026-10-18/approved-data.js",
+      "sha256": "b62e6b67525b7cc8b83fc3f7b3da7495327ab89d161466eb6491675d0e81cc22"
+    }
+  ],
+  "validation": {
+    "testMethodsCheckedInSource": true,
+    "captureFilesExistenceChecked": false,
+    "imagesInspectedForThisMapping": false,
+    "testPassClaimed": false,
+    "signedBuildIdentity": "Root must attach the exact candidate/run identity during export; do not reuse historical attachments automatically.",
+    "reconciledOn": "2026-10-20",
+    "currentCandidateExecutionClaimed": false
+  },
+  "globalRules": [
+    "Only adopt a candidate after locating the attachment in the intended test run, checking its actual theme, device, visible state and viewport, and inspecting the rendered image.",
+    "Filenames use the screenshot attachment name with .png; export tools may add prefixes. Match attachment metadata and originating test method before naming the verified export.",
+    "All mapped app fixtures use the design-review memory-only container. Sample people, dishes, counts, photos and forecasts are content differences; they are not live sync evidence.",
+    "No phone push, live multi-account avatar/activity, live invitation acceptance or WeatherKit delivery pass is inferred from an in-app screenshot.",
+    "Normal-size states cannot be replaced by AX captures or another appearance. Light/dark are explicit distinct entries.",
+    "Source approval remains unchanged. Later explicit iPad landscape-only approval applies to orientation; it does not waive two-column spacing, hierarchy or narrow-window behavior.",
+    "A null entry is intentional missing exact-state evidence. Related captures may aid diagnosis but must not fill that entry.",
+    "This file does not modify capture-index.js, the comparison HTML or native image files.",
+    "Supplemental-test mappings are source-only candidates; do not mistake an unexecuted test method for an exported native image.",
+    "October 20 adds exact waiting-post, pending-reply and inviter-sent test candidates plus light iPad. All remain unverified for the final current source; ongoing placeholder-identity recovery review/build must complete before adopting results."
+  ],
+  "summary": {
+    "entriesWithCandidates": 70,
+    "unsupportedEntries": 2,
+    "interpretation": "70 planned mappings and 2 missing push mappings describe source/test coverage only, not passes, captured states or visual sign-off."
+  },
+  "entries": [
+    {
+      "key": "plan-open/open/dark",
+      "screenId": "plan-open",
+      "screenLabel": "Plan \u00b7 open dinner",
+      "stateId": "open",
+      "stateLabel": "Unplanned dinner",
+      "theme": "dark",
+      "appearanceName": "Editorial green",
+      "deviceClass": "iPhone",
+      "nativeCaptures": [
+        {
+          "filename": "fidelity-plan-open-dark.png",
+          "attachmentName": "fidelity-plan-open-dark",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/DesignFidelityTests.swift",
+          "testMethod": "testPlanOpenAndEatingOutBothAppearances",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Open dinner header, date rail, suggested cook, primary/secondary actions and visible context.",
+          "launchFlags": [
+            "-plated-review-empty-tonight",
+            "-plated-fake-weather"
+          ],
+          "notes": []
+        }
+      ],
+      "unsupportedReason": null,
+      "mappingStatus": "planned-capture-candidates-unverified",
+      "coverageLimitations": []
+    },
+    {
+      "key": "plan-open/open/light",
+      "screenId": "plan-open",
+      "screenLabel": "Plan \u00b7 open dinner",
+      "stateId": "open",
+      "stateLabel": "Unplanned dinner",
+      "theme": "light",
+      "appearanceName": "Cream",
+      "deviceClass": "iPhone",
+      "nativeCaptures": [
+        {
+          "filename": "fidelity-plan-open-light.png",
+          "attachmentName": "fidelity-plan-open-light",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/DesignFidelityTests.swift",
+          "testMethod": "testPlanOpenAndEatingOutBothAppearances",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Open dinner header, date rail, suggested cook, primary/secondary actions and visible context.",
+          "launchFlags": [
+            "-plated-review-empty-tonight",
+            "-plated-fake-weather"
+          ],
+          "notes": []
+        }
+      ],
+      "unsupportedReason": null,
+      "mappingStatus": "planned-capture-candidates-unverified",
+      "coverageLimitations": []
+    },
+    {
+      "key": "plan-open/out/dark",
+      "screenId": "plan-open",
+      "screenLabel": "Plan \u00b7 open dinner",
+      "stateId": "out",
+      "stateLabel": "Eating out",
+      "theme": "dark",
+      "appearanceName": "Editorial green",
+      "deviceClass": "iPhone",
+      "nativeCaptures": [
+        {
+          "filename": "fidelity-plan-out-dark.png",
+          "attachmentName": "fidelity-plan-out-dark",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/DesignFidelityTests.swift",
+          "testMethod": "testPlanOpenAndEatingOutBothAppearances",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Eating-out state reached by tapping Eating out instead; compact copy and Add a place / Change dinner plan.",
+          "launchFlags": [
+            "-plated-review-empty-tonight",
+            "-plated-fake-weather"
+          ],
+          "notes": []
+        }
+      ],
+      "unsupportedReason": null,
+      "mappingStatus": "planned-capture-candidates-unverified",
+      "coverageLimitations": []
+    },
+    {
+      "key": "plan-open/out/light",
+      "screenId": "plan-open",
+      "screenLabel": "Plan \u00b7 open dinner",
+      "stateId": "out",
+      "stateLabel": "Eating out",
+      "theme": "light",
+      "appearanceName": "Cream",
+      "deviceClass": "iPhone",
+      "nativeCaptures": [
+        {
+          "filename": "fidelity-plan-out-light.png",
+          "attachmentName": "fidelity-plan-out-light",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/DesignFidelityTests.swift",
+          "testMethod": "testPlanOpenAndEatingOutBothAppearances",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Eating-out state reached by tapping Eating out instead; compact copy and Add a place / Change dinner plan.",
+          "launchFlags": [
+            "-plated-review-empty-tonight",
+            "-plated-fake-weather"
+          ],
+          "notes": []
+        }
+      ],
+      "unsupportedReason": null,
+      "mappingStatus": "planned-capture-candidates-unverified",
+      "coverageLimitations": []
+    },
+    {
+      "key": "plan-meal/today/dark",
+      "screenId": "plan-meal",
+      "screenLabel": "Plan \u00b7 planned dinner",
+      "stateId": "today",
+      "stateLabel": "Tonight",
+      "theme": "dark",
+      "appearanceName": "Editorial green",
+      "deviceClass": "iPhone",
+      "nativeCaptures": [
+        {
+          "filename": "plan-parity-local-dark.png",
+          "attachmentName": "plan-parity-local-dark",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/ApprovedPolishTests.swift",
+          "testMethod": "testPlanProposalParityForLocalSharedAndCompletedDinners",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Today local planned dinner, cook, facts and Start cooking.",
+          "launchFlags": [
+            "-plated-fake-weather",
+            "-plated-review-household-activity"
+          ],
+          "notes": []
+        }
+      ],
+      "unsupportedReason": null,
+      "mappingStatus": "planned-capture-candidates-unverified",
+      "coverageLimitations": []
+    },
+    {
+      "key": "plan-meal/today/light",
+      "screenId": "plan-meal",
+      "screenLabel": "Plan \u00b7 planned dinner",
+      "stateId": "today",
+      "stateLabel": "Tonight",
+      "theme": "light",
+      "appearanceName": "Cream",
+      "deviceClass": "iPhone",
+      "nativeCaptures": [
+        {
+          "filename": "plan-parity-local-light.png",
+          "attachmentName": "plan-parity-local-light",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/ApprovedPolishTests.swift",
+          "testMethod": "testPlanProposalParityForLocalSharedAndCompletedDinners",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Today local planned dinner, cook, facts and Start cooking.",
+          "launchFlags": [
+            "-plated-fake-weather",
+            "-plated-review-household-activity"
+          ],
+          "notes": []
+        }
+      ],
+      "unsupportedReason": null,
+      "mappingStatus": "planned-capture-candidates-unverified",
+      "coverageLimitations": []
+    },
+    {
+      "key": "plan-meal/future/dark",
+      "screenId": "plan-meal",
+      "screenLabel": "Plan \u00b7 planned dinner",
+      "stateId": "future",
+      "stateLabel": "Future dinner",
+      "theme": "dark",
+      "appearanceName": "Editorial green",
+      "deviceClass": "iPhone",
+      "nativeCaptures": [
+        {
+          "filename": "fidelity-plan-future-dark.png",
+          "attachmentName": "fidelity-plan-future-dark",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/FidelityAdditionalStatesTests.swift",
+          "testMethod": "testFuturePlanFromTomorrowPreviewBothAppearances",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Tomorrow selected through the actual preview; full title/photo/action must be in the viewport without corrective scrolling.",
+          "launchFlags": [
+            "-plated-fake-weather",
+            "-plated-review-household-activity"
+          ],
+          "notes": [
+            "Fixture tomorrow is Pizza Night, not the illustrative Salmon Night; comparison must retain the future-day action and hierarchy."
+          ]
+        }
+      ],
+      "unsupportedReason": null,
+      "mappingStatus": "planned-capture-candidates-unverified",
+      "coverageLimitations": []
+    },
+    {
+      "key": "plan-meal/future/light",
+      "screenId": "plan-meal",
+      "screenLabel": "Plan \u00b7 planned dinner",
+      "stateId": "future",
+      "stateLabel": "Future dinner",
+      "theme": "light",
+      "appearanceName": "Cream",
+      "deviceClass": "iPhone",
+      "nativeCaptures": [
+        {
+          "filename": "fidelity-plan-future-light.png",
+          "attachmentName": "fidelity-plan-future-light",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/FidelityAdditionalStatesTests.swift",
+          "testMethod": "testFuturePlanFromTomorrowPreviewBothAppearances",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Tomorrow selected through the actual preview; full title/photo/action must be in the viewport without corrective scrolling.",
+          "launchFlags": [
+            "-plated-fake-weather",
+            "-plated-review-household-activity"
+          ],
+          "notes": [
+            "Fixture tomorrow is Pizza Night, not the illustrative Salmon Night; comparison must retain the future-day action and hierarchy."
+          ]
+        }
+      ],
+      "unsupportedReason": null,
+      "mappingStatus": "planned-capture-candidates-unverified",
+      "coverageLimitations": []
+    },
+    {
+      "key": "plan-meal/cooked/dark",
+      "screenId": "plan-meal",
+      "screenLabel": "Plan \u00b7 planned dinner",
+      "stateId": "cooked",
+      "stateLabel": "Cooked dinner",
+      "theme": "dark",
+      "appearanceName": "Editorial green",
+      "deviceClass": "iPhone",
+      "nativeCaptures": [
+        {
+          "filename": "plan-parity-cooked-dark.png",
+          "attachmentName": "plan-parity-cooked-dark",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/ApprovedPolishTests.swift",
+          "testMethod": "testPlanProposalParityForLocalSharedAndCompletedDinners",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Cooked confirmation, Undo and Share at the Table for a local dinner.",
+          "launchFlags": [
+            "-plated-review-cooked-tonight",
+            "-plated-fake-weather",
+            "-plated-review-household-activity"
+          ],
+          "notes": []
+        }
+      ],
+      "unsupportedReason": null,
+      "mappingStatus": "planned-capture-candidates-unverified",
+      "coverageLimitations": []
+    },
+    {
+      "key": "plan-meal/cooked/light",
+      "screenId": "plan-meal",
+      "screenLabel": "Plan \u00b7 planned dinner",
+      "stateId": "cooked",
+      "stateLabel": "Cooked dinner",
+      "theme": "light",
+      "appearanceName": "Cream",
+      "deviceClass": "iPhone",
+      "nativeCaptures": [
+        {
+          "filename": "plan-parity-cooked-light.png",
+          "attachmentName": "plan-parity-cooked-light",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/ApprovedPolishTests.swift",
+          "testMethod": "testPlanProposalParityForLocalSharedAndCompletedDinners",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Cooked confirmation, Undo and Share at the Table for a local dinner.",
+          "launchFlags": [
+            "-plated-review-cooked-tonight",
+            "-plated-fake-weather",
+            "-plated-review-household-activity"
+          ],
+          "notes": []
+        }
+      ],
+      "unsupportedReason": null,
+      "mappingStatus": "planned-capture-candidates-unverified",
+      "coverageLimitations": []
+    },
+    {
+      "key": "plan-context/recorded/dark",
+      "screenId": "plan-context",
+      "screenLabel": "Weather & household",
+      "stateId": "recorded",
+      "stateLabel": "Recorded dinners",
+      "theme": "dark",
+      "appearanceName": "Editorial green",
+      "deviceClass": "iPhone",
+      "nativeCaptures": [
+        {
+          "filename": "fidelity-context-recorded-weather-dark.png",
+          "attachmentName": "fidelity-context-recorded-weather-dark",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/FidelitySupplementalStatesTests.swift",
+          "testMethod": "testRecordedContextBothAppearances",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Selected-day forecast module, before scrolling farther.",
+          "launchFlags": [
+            "-plated-fake-weather",
+            "-plated-review-household-activity",
+            "-plated-review-dinner-history"
+          ],
+          "notes": [
+            "New source-only supplemental test; requires UI-test rebuild and execution before this attachment can exist."
+          ]
+        },
+        {
+          "filename": "fidelity-context-recorded-history-dark.png",
+          "attachmentName": "fidelity-context-recorded-history-dark",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/FidelitySupplementalStatesTests.swift",
+          "testMethod": "testRecordedContextBothAppearances",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Recorded dinner counts with actual 2 cooked / 1 eating-out fixture and 3 recorded total.",
+          "launchFlags": [
+            "-plated-fake-weather",
+            "-plated-review-household-activity",
+            "-plated-review-dinner-history"
+          ],
+          "notes": [
+            "New source-only supplemental test; requires UI-test rebuild and execution before this attachment can exist."
+          ]
+        },
+        {
+          "filename": "fidelity-context-recorded-household-dark.png",
+          "attachmentName": "fidelity-context-recorded-household-dark",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/FidelitySupplementalStatesTests.swift",
+          "testMethod": "testRecordedContextBothAppearances",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Lower household activity / Tomorrow continuation and planned-summary pill.",
+          "launchFlags": [
+            "-plated-fake-weather",
+            "-plated-review-household-activity",
+            "-plated-review-dinner-history"
+          ],
+          "notes": [
+            "New source-only supplemental test; requires UI-test rebuild and execution before this attachment can exist."
+          ]
+        }
+      ],
+      "unsupportedReason": null,
+      "mappingStatus": "planned-supplemental-capture-candidates-unverified",
+      "coverageLimitations": [
+        "Caught-up wording lacks a reliable positive freshness signal; never infer it from these fixtures.",
+        "Real Apple Weather artwork and its readable attribution need the separate attribution captures.",
+        "Review both top and lower context images; no single screenshot is asserted to cover the full context."
+      ]
+    },
+    {
+      "key": "plan-context/recorded/light",
+      "screenId": "plan-context",
+      "screenLabel": "Weather & household",
+      "stateId": "recorded",
+      "stateLabel": "Recorded dinners",
+      "theme": "light",
+      "appearanceName": "Cream",
+      "deviceClass": "iPhone",
+      "nativeCaptures": [
+        {
+          "filename": "fidelity-context-recorded-weather-light.png",
+          "attachmentName": "fidelity-context-recorded-weather-light",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/FidelitySupplementalStatesTests.swift",
+          "testMethod": "testRecordedContextBothAppearances",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Selected-day forecast module, before scrolling farther.",
+          "launchFlags": [
+            "-plated-fake-weather",
+            "-plated-review-household-activity",
+            "-plated-review-dinner-history"
+          ],
+          "notes": [
+            "New source-only supplemental test; requires UI-test rebuild and execution before this attachment can exist."
+          ]
+        },
+        {
+          "filename": "fidelity-context-recorded-history-light.png",
+          "attachmentName": "fidelity-context-recorded-history-light",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/FidelitySupplementalStatesTests.swift",
+          "testMethod": "testRecordedContextBothAppearances",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Recorded dinner counts with actual 2 cooked / 1 eating-out fixture and 3 recorded total.",
+          "launchFlags": [
+            "-plated-fake-weather",
+            "-plated-review-household-activity",
+            "-plated-review-dinner-history"
+          ],
+          "notes": [
+            "New source-only supplemental test; requires UI-test rebuild and execution before this attachment can exist."
+          ]
+        },
+        {
+          "filename": "fidelity-context-recorded-household-light.png",
+          "attachmentName": "fidelity-context-recorded-household-light",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/FidelitySupplementalStatesTests.swift",
+          "testMethod": "testRecordedContextBothAppearances",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Lower household activity / Tomorrow continuation and planned-summary pill.",
+          "launchFlags": [
+            "-plated-fake-weather",
+            "-plated-review-household-activity",
+            "-plated-review-dinner-history"
+          ],
+          "notes": [
+            "New source-only supplemental test; requires UI-test rebuild and execution before this attachment can exist."
+          ]
+        }
+      ],
+      "unsupportedReason": null,
+      "mappingStatus": "planned-supplemental-capture-candidates-unverified",
+      "coverageLimitations": [
+        "Caught-up wording lacks a reliable positive freshness signal; never infer it from these fixtures.",
+        "Real Apple Weather artwork and its readable attribution need the separate attribution captures.",
+        "Review both top and lower context images; no single screenshot is asserted to cover the full context."
+      ]
+    },
+    {
+      "key": "plan-context/empty/dark",
+      "screenId": "plan-context",
+      "screenLabel": "Weather & household",
+      "stateId": "empty",
+      "stateLabel": "New household",
+      "theme": "dark",
+      "appearanceName": "Editorial green",
+      "deviceClass": "iPhone",
+      "nativeCaptures": [
+        {
+          "filename": "fidelity-context-empty-dark.png",
+          "attachmentName": "fidelity-context-empty-dark",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/FidelityAdditionalStatesTests.swift",
+          "testMethod": "testEmptyHouseholdHistoryBothAppearances",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Empty household dinner-history module, period, explanatory text and visible weather.",
+          "launchFlags": [
+            "-plated-review-empty-tonight",
+            "-plated-fake-weather"
+          ],
+          "notes": [
+            "This fixture also leaves tonight unplanned. It proves the empty-history module, not the proposal\u2019s planned-summary pill or all lower household content."
+          ]
+        }
+      ],
+      "unsupportedReason": null,
+      "mappingStatus": "planned-capture-candidates-unverified",
+      "coverageLimitations": [
+        "Partial-state evidence: approved context has a planned dinner pill above empty history; this capture\u2019s dinner is unplanned. Preserve this distinction in the review."
+      ]
+    },
+    {
+      "key": "plan-context/empty/light",
+      "screenId": "plan-context",
+      "screenLabel": "Weather & household",
+      "stateId": "empty",
+      "stateLabel": "New household",
+      "theme": "light",
+      "appearanceName": "Cream",
+      "deviceClass": "iPhone",
+      "nativeCaptures": [
+        {
+          "filename": "fidelity-context-empty-light.png",
+          "attachmentName": "fidelity-context-empty-light",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/FidelityAdditionalStatesTests.swift",
+          "testMethod": "testEmptyHouseholdHistoryBothAppearances",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Empty household dinner-history module, period, explanatory text and visible weather.",
+          "launchFlags": [
+            "-plated-review-empty-tonight",
+            "-plated-fake-weather"
+          ],
+          "notes": [
+            "This fixture also leaves tonight unplanned. It proves the empty-history module, not the proposal\u2019s planned-summary pill or all lower household content."
+          ]
+        }
+      ],
+      "unsupportedReason": null,
+      "mappingStatus": "planned-capture-candidates-unverified",
+      "coverageLimitations": [
+        "Partial-state evidence: approved context has a planned dinner pill above empty history; this capture\u2019s dinner is unplanned. Preserve this distinction in the review."
+      ]
+    },
+    {
+      "key": "plan-context/weather/dark",
+      "screenId": "plan-context",
+      "screenLabel": "Weather & household",
+      "stateId": "weather",
+      "stateLabel": "Forecast unavailable",
+      "theme": "dark",
+      "appearanceName": "Editorial green",
+      "deviceClass": "iPhone",
+      "nativeCaptures": [
+        {
+          "filename": "fidelity-context-forecast-unavailable-dark.png",
+          "attachmentName": "fidelity-context-forecast-unavailable-dark",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/FidelityAdditionalStatesTests.swift",
+          "testMethod": "testForecastUnavailableAndRetryKeepTheDinnerBothAppearances",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Forecast failure message and retry, with the dinner retained; fixture remains failed on retry.",
+          "launchFlags": [
+            "-plated-review-weather-failed",
+            "-plated-review-dinner-history"
+          ],
+          "notes": [
+            "This is controlled provider failure presentation. It does not verify a real WeatherKit outage, successful retry or current official attribution."
+          ]
+        }
+      ],
+      "unsupportedReason": null,
+      "mappingStatus": "planned-capture-candidates-unverified",
+      "coverageLimitations": []
+    },
+    {
+      "key": "plan-context/weather/light",
+      "screenId": "plan-context",
+      "screenLabel": "Weather & household",
+      "stateId": "weather",
+      "stateLabel": "Forecast unavailable",
+      "theme": "light",
+      "appearanceName": "Cream",
+      "deviceClass": "iPhone",
+      "nativeCaptures": [
+        {
+          "filename": "fidelity-context-forecast-unavailable-light.png",
+          "attachmentName": "fidelity-context-forecast-unavailable-light",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/FidelityAdditionalStatesTests.swift",
+          "testMethod": "testForecastUnavailableAndRetryKeepTheDinnerBothAppearances",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Forecast failure message and retry, with the dinner retained; fixture remains failed on retry.",
+          "launchFlags": [
+            "-plated-review-weather-failed",
+            "-plated-review-dinner-history"
+          ],
+          "notes": [
+            "This is controlled provider failure presentation. It does not verify a real WeatherKit outage, successful retry or current official attribution."
+          ]
+        }
+      ],
+      "unsupportedReason": null,
+      "mappingStatus": "planned-capture-candidates-unverified",
+      "coverageLimitations": []
+    },
+    {
+      "key": "table/feed/dark",
+      "screenId": "table",
+      "screenLabel": "The Table",
+      "stateId": "feed",
+      "stateLabel": "Normal feed",
+      "theme": "dark",
+      "appearanceName": "Editorial green",
+      "deviceClass": "iPhone",
+      "nativeCaptures": [
+        {
+          "filename": "polish-table-dark.png",
+          "attachmentName": "polish-table-dark",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/ApprovedPolishTests.swift",
+          "testMethod": "testNativeScreenMatrix",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Normal Table feed, audience, bounded media, reactions, caption and comments entry.",
+          "launchFlags": [
+            "-plated-tab",
+            "table"
+          ],
+          "notes": []
+        }
+      ],
+      "unsupportedReason": null,
+      "mappingStatus": "planned-capture-candidates-unverified",
+      "coverageLimitations": []
+    },
+    {
+      "key": "table/feed/light",
+      "screenId": "table",
+      "screenLabel": "The Table",
+      "stateId": "feed",
+      "stateLabel": "Normal feed",
+      "theme": "light",
+      "appearanceName": "Cream",
+      "deviceClass": "iPhone",
+      "nativeCaptures": [
+        {
+          "filename": "polish-table-light.png",
+          "attachmentName": "polish-table-light",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/ApprovedPolishTests.swift",
+          "testMethod": "testNativeScreenMatrix",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Normal Table feed, audience, bounded media, reactions, caption and comments entry.",
+          "launchFlags": [
+            "-plated-tab",
+            "table"
+          ],
+          "notes": []
+        }
+      ],
+      "unsupportedReason": null,
+      "mappingStatus": "planned-capture-candidates-unverified",
+      "coverageLimitations": []
+    },
+    {
+      "key": "table/pending/dark",
+      "screenId": "table",
+      "screenLabel": "The Table",
+      "stateId": "pending",
+      "stateLabel": "Pending post",
+      "theme": "dark",
+      "appearanceName": "Editorial green",
+      "deviceClass": "iPhone",
+      "nativeCaptures": [
+        {
+          "filename": "publication-waiting-dark.png",
+          "attachmentName": "publication-waiting-dark",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/SocialPublicationUITests.swift",
+          "testMethod": "testWaitingForConnectionInBothAppearances",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Actual waiting-for-connection publication label on the saved, unpublished own post; no false Retry action; horizontal and tab-bar containment assertions.",
+          "launchFlags": [
+            "-plated-design-review",
+            "-plated-review-publication-waiting",
+            "-plated-tab",
+            "table"
+          ],
+          "notes": [
+            "Source/test candidate added in the October 20 reconciliation; no completed current-candidate run or visual pass is claimed.",
+            "Preview overrides connection state to unavailable. This does not exercise a real outage, path recovery, CloudKit retry or peer visibility."
+          ]
+        }
+      ],
+      "unsupportedReason": null,
+      "mappingStatus": "planned-current-source-candidates-unverified",
+      "coverageLimitations": [
+        "No real network transition or durable relaunch/retry is proved by this frozen presentation fixture.",
+        "Placeholder-identity recovery changes are still under review/build; use only the final source manifest and fresh test results."
+      ],
+      "relatedCapturesNotSubstitutions": [
+        {
+          "filename": "publication-saved-dark.png",
+          "attachmentName": "publication-saved-dark",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/SocialPublicationUITests.swift",
+          "testMethod": "testPublicationStatesInEditorialAppearance",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Related publication presentation only; not the original offline-waiting state.",
+          "launchFlags": [
+            "-plated-review-publication-states",
+            "-plated-tab",
+            "table"
+          ],
+          "notes": [
+            "No CloudKit save or delivery occurs."
+          ]
+        },
+        {
+          "filename": "publication-sending-dark.png",
+          "attachmentName": "publication-sending-dark",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/SocialPublicationUITests.swift",
+          "testMethod": "testPublicationStatesInEditorialAppearance",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Related publication presentation only; not the original offline-waiting state.",
+          "launchFlags": [
+            "-plated-review-publication-states",
+            "-plated-tab",
+            "table"
+          ],
+          "notes": [
+            "No CloudKit save or delivery occurs."
+          ]
+        },
+        {
+          "filename": "publication-failed-dark.png",
+          "attachmentName": "publication-failed-dark",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/SocialPublicationUITests.swift",
+          "testMethod": "testPublicationStatesInEditorialAppearance",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Related publication presentation only; not the original offline-waiting state.",
+          "launchFlags": [
+            "-plated-review-publication-states",
+            "-plated-tab",
+            "table"
+          ],
+          "notes": [
+            "No CloudKit save or delivery occurs."
+          ]
+        },
+        {
+          "filename": "publication-shared-dark.png",
+          "attachmentName": "publication-shared-dark",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/SocialPublicationUITests.swift",
+          "testMethod": "testPublicationStatesInEditorialAppearance",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Related publication presentation only; not the original offline-waiting state.",
+          "launchFlags": [
+            "-plated-review-publication-states",
+            "-plated-tab",
+            "table"
+          ],
+          "notes": [
+            "No CloudKit save or delivery occurs."
+          ]
+        }
+      ]
+    },
+    {
+      "key": "table/pending/light",
+      "screenId": "table",
+      "screenLabel": "The Table",
+      "stateId": "pending",
+      "stateLabel": "Pending post",
+      "theme": "light",
+      "appearanceName": "Cream",
+      "deviceClass": "iPhone",
+      "nativeCaptures": [
+        {
+          "filename": "publication-waiting-light.png",
+          "attachmentName": "publication-waiting-light",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/SocialPublicationUITests.swift",
+          "testMethod": "testWaitingForConnectionInBothAppearances",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Actual waiting-for-connection publication label on the saved, unpublished own post; no false Retry action; horizontal and tab-bar containment assertions.",
+          "launchFlags": [
+            "-plated-design-review",
+            "-plated-review-publication-waiting",
+            "-plated-tab",
+            "table"
+          ],
+          "notes": [
+            "Source/test candidate added in the October 20 reconciliation; no completed current-candidate run or visual pass is claimed.",
+            "Preview overrides connection state to unavailable. This does not exercise a real outage, path recovery, CloudKit retry or peer visibility."
+          ]
+        }
+      ],
+      "unsupportedReason": null,
+      "mappingStatus": "planned-current-source-candidates-unverified",
+      "coverageLimitations": [
+        "No real network transition or durable relaunch/retry is proved by this frozen presentation fixture.",
+        "Placeholder-identity recovery changes are still under review/build; use only the final source manifest and fresh test results."
+      ],
+      "relatedCapturesNotSubstitutions": [
+        {
+          "filename": "publication-saved-light.png",
+          "attachmentName": "publication-saved-light",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/SocialPublicationUITests.swift",
+          "testMethod": "testPublicationStatesInLightAppearance",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Related publication presentation only; not the original offline-waiting state.",
+          "launchFlags": [
+            "-plated-review-publication-states",
+            "-plated-tab",
+            "table"
+          ],
+          "notes": [
+            "No CloudKit save or delivery occurs."
+          ]
+        },
+        {
+          "filename": "publication-sending-light.png",
+          "attachmentName": "publication-sending-light",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/SocialPublicationUITests.swift",
+          "testMethod": "testPublicationStatesInLightAppearance",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Related publication presentation only; not the original offline-waiting state.",
+          "launchFlags": [
+            "-plated-review-publication-states",
+            "-plated-tab",
+            "table"
+          ],
+          "notes": [
+            "No CloudKit save or delivery occurs."
+          ]
+        },
+        {
+          "filename": "publication-failed-light.png",
+          "attachmentName": "publication-failed-light",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/SocialPublicationUITests.swift",
+          "testMethod": "testPublicationStatesInLightAppearance",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Related publication presentation only; not the original offline-waiting state.",
+          "launchFlags": [
+            "-plated-review-publication-states",
+            "-plated-tab",
+            "table"
+          ],
+          "notes": [
+            "No CloudKit save or delivery occurs."
+          ]
+        },
+        {
+          "filename": "publication-shared-light.png",
+          "attachmentName": "publication-shared-light",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/SocialPublicationUITests.swift",
+          "testMethod": "testPublicationStatesInLightAppearance",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Related publication presentation only; not the original offline-waiting state.",
+          "launchFlags": [
+            "-plated-review-publication-states",
+            "-plated-tab",
+            "table"
+          ],
+          "notes": [
+            "No CloudKit save or delivery occurs."
+          ]
+        }
+      ]
+    },
+    {
+      "key": "create/default/dark",
+      "screenId": "create",
+      "screenLabel": "Create menu",
+      "stateId": "default",
+      "stateLabel": "Creation choices",
+      "theme": "dark",
+      "appearanceName": "Editorial green",
+      "deviceClass": "iPhone",
+      "nativeCaptures": [
+        {
+          "filename": "polish-create-dark.png",
+          "attachmentName": "polish-create-dark",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/ApprovedPolishTests.swift",
+          "testMethod": "testNativeScreenMatrix",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Create sheet with Post and Recipe choices.",
+          "launchFlags": [
+            "-plated-open-create"
+          ],
+          "notes": []
+        }
+      ],
+      "unsupportedReason": null,
+      "mappingStatus": "planned-capture-candidates-unverified",
+      "coverageLimitations": []
+    },
+    {
+      "key": "create/default/light",
+      "screenId": "create",
+      "screenLabel": "Create menu",
+      "stateId": "default",
+      "stateLabel": "Creation choices",
+      "theme": "light",
+      "appearanceName": "Cream",
+      "deviceClass": "iPhone",
+      "nativeCaptures": [
+        {
+          "filename": "polish-create-light.png",
+          "attachmentName": "polish-create-light",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/ApprovedPolishTests.swift",
+          "testMethod": "testNativeScreenMatrix",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Create sheet with Post and Recipe choices.",
+          "launchFlags": [
+            "-plated-open-create"
+          ],
+          "notes": []
+        }
+      ],
+      "unsupportedReason": null,
+      "mappingStatus": "planned-capture-candidates-unverified",
+      "coverageLimitations": []
+    },
+    {
+      "key": "composer/writing/dark",
+      "screenId": "composer",
+      "screenLabel": "New post",
+      "stateId": "writing",
+      "stateLabel": "Empty draft",
+      "theme": "dark",
+      "appearanceName": "Editorial green",
+      "deviceClass": "iPhone",
+      "nativeCaptures": [
+        {
+          "filename": "polish-composer-dark.png",
+          "attachmentName": "polish-composer-dark",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/ApprovedPolishTests.swift",
+          "testMethod": "testNativeScreenMatrix",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Empty New post composer with reset draft and attachment controls.",
+          "launchFlags": [
+            "-plated-open-table-post",
+            "-plated-review-post-reset"
+          ],
+          "notes": []
+        }
+      ],
+      "unsupportedReason": null,
+      "mappingStatus": "planned-capture-candidates-unverified",
+      "coverageLimitations": []
+    },
+    {
+      "key": "composer/writing/light",
+      "screenId": "composer",
+      "screenLabel": "New post",
+      "stateId": "writing",
+      "stateLabel": "Empty draft",
+      "theme": "light",
+      "appearanceName": "Cream",
+      "deviceClass": "iPhone",
+      "nativeCaptures": [
+        {
+          "filename": "polish-composer-light.png",
+          "attachmentName": "polish-composer-light",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/ApprovedPolishTests.swift",
+          "testMethod": "testNativeScreenMatrix",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Empty New post composer with reset draft and attachment controls.",
+          "launchFlags": [
+            "-plated-open-table-post",
+            "-plated-review-post-reset"
+          ],
+          "notes": []
+        }
+      ],
+      "unsupportedReason": null,
+      "mappingStatus": "planned-capture-candidates-unverified",
+      "coverageLimitations": []
+    },
+    {
+      "key": "composer/photo/dark",
+      "screenId": "composer",
+      "screenLabel": "New post",
+      "stateId": "photo",
+      "stateLabel": "Photo attached",
+      "theme": "dark",
+      "appearanceName": "Editorial green",
+      "deviceClass": "iPhone",
+      "nativeCaptures": [
+        {
+          "filename": "fidelity-composer-photo-dark.png",
+          "attachmentName": "fidelity-composer-photo-dark",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/FidelitySupplementalStatesTests.swift",
+          "testMethod": "testAttachedPhotoComposerBothAppearances",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Attached photo viewport before removal; Remove photo must be visible and submit enabled.",
+          "launchFlags": [
+            "-plated-open-table-post",
+            "-plated-review-post-reset",
+            "-plated-review-post-photo"
+          ],
+          "notes": [
+            "New source-only supplemental test; requires UI-test rebuild and execution before this attachment can exist."
+          ]
+        }
+      ],
+      "unsupportedReason": null,
+      "mappingStatus": "planned-supplemental-capture-candidates-unverified",
+      "coverageLimitations": []
+    },
+    {
+      "key": "composer/photo/light",
+      "screenId": "composer",
+      "screenLabel": "New post",
+      "stateId": "photo",
+      "stateLabel": "Photo attached",
+      "theme": "light",
+      "appearanceName": "Cream",
+      "deviceClass": "iPhone",
+      "nativeCaptures": [
+        {
+          "filename": "fidelity-composer-photo-light.png",
+          "attachmentName": "fidelity-composer-photo-light",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/FidelitySupplementalStatesTests.swift",
+          "testMethod": "testAttachedPhotoComposerBothAppearances",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Attached photo viewport before removal; Remove photo must be visible and submit enabled.",
+          "launchFlags": [
+            "-plated-open-table-post",
+            "-plated-review-post-reset",
+            "-plated-review-post-photo"
+          ],
+          "notes": [
+            "New source-only supplemental test; requires UI-test rebuild and execution before this attachment can exist."
+          ]
+        }
+      ],
+      "unsupportedReason": null,
+      "mappingStatus": "planned-supplemental-capture-candidates-unverified",
+      "coverageLimitations": []
+    },
+    {
+      "key": "composer/saved/dark",
+      "screenId": "composer",
+      "screenLabel": "New post",
+      "stateId": "saved",
+      "stateLabel": "Draft saved",
+      "theme": "dark",
+      "appearanceName": "Editorial green",
+      "deviceClass": "iPhone",
+      "nativeCaptures": [
+        {
+          "filename": "fidelity-composer-saved-dark.png",
+          "attachmentName": "fidelity-composer-saved-dark",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/FidelitySupplementalStatesTests.swift",
+          "testMethod": "testSavedTextComposerBothAppearances",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Exact saved text draft with keyboard dismissed and Draft saved status asserted.",
+          "launchFlags": [
+            "-plated-open-table-post",
+            "-plated-review-post-reset"
+          ],
+          "notes": [
+            "New source-only supplemental test; requires UI-test rebuild and execution before this attachment can exist."
+          ]
+        }
+      ],
+      "unsupportedReason": null,
+      "mappingStatus": "planned-supplemental-capture-candidates-unverified",
+      "coverageLimitations": []
+    },
+    {
+      "key": "composer/saved/light",
+      "screenId": "composer",
+      "screenLabel": "New post",
+      "stateId": "saved",
+      "stateLabel": "Draft saved",
+      "theme": "light",
+      "appearanceName": "Cream",
+      "deviceClass": "iPhone",
+      "nativeCaptures": [
+        {
+          "filename": "fidelity-composer-saved-light.png",
+          "attachmentName": "fidelity-composer-saved-light",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/FidelitySupplementalStatesTests.swift",
+          "testMethod": "testSavedTextComposerBothAppearances",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Exact saved text draft with keyboard dismissed and Draft saved status asserted.",
+          "launchFlags": [
+            "-plated-open-table-post",
+            "-plated-review-post-reset"
+          ],
+          "notes": [
+            "New source-only supplemental test; requires UI-test rebuild and execution before this attachment can exist."
+          ]
+        }
+      ],
+      "unsupportedReason": null,
+      "mappingStatus": "planned-supplemental-capture-candidates-unverified",
+      "coverageLimitations": []
+    },
+    {
+      "key": "comments/reading/dark",
+      "screenId": "comments",
+      "screenLabel": "Post & comments",
+      "stateId": "reading",
+      "stateLabel": "Reading a new comment",
+      "theme": "dark",
+      "appearanceName": "Editorial green",
+      "deviceClass": "iPhone",
+      "nativeCaptures": [
+        {
+          "filename": "polish-thread-dark.png",
+          "attachmentName": "polish-thread-dark",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/ApprovedPolishTests.swift",
+          "testMethod": "testNativeScreenMatrix",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Post with seeded parent/reply/deleted-comment fixture.",
+          "launchFlags": [
+            "-plated-review-comment-reactions",
+            "-plated-open-thread"
+          ],
+          "notes": [
+            "The fixture demonstrates reading and reactions, not live delivery of a new comment. Verify that the captured viewport includes the relevant comment before treating it as full-state coverage."
+          ]
+        }
+      ],
+      "unsupportedReason": null,
+      "mappingStatus": "planned-capture-candidates-unverified",
+      "coverageLimitations": []
+    },
+    {
+      "key": "comments/reading/light",
+      "screenId": "comments",
+      "screenLabel": "Post & comments",
+      "stateId": "reading",
+      "stateLabel": "Reading a new comment",
+      "theme": "light",
+      "appearanceName": "Cream",
+      "deviceClass": "iPhone",
+      "nativeCaptures": [
+        {
+          "filename": "polish-thread-light.png",
+          "attachmentName": "polish-thread-light",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/ApprovedPolishTests.swift",
+          "testMethod": "testNativeScreenMatrix",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Post with seeded parent/reply/deleted-comment fixture.",
+          "launchFlags": [
+            "-plated-review-comment-reactions",
+            "-plated-open-thread"
+          ],
+          "notes": [
+            "The fixture demonstrates reading and reactions, not live delivery of a new comment. Verify that the captured viewport includes the relevant comment before treating it as full-state coverage."
+          ]
+        }
+      ],
+      "unsupportedReason": null,
+      "mappingStatus": "planned-capture-candidates-unverified",
+      "coverageLimitations": []
+    },
+    {
+      "key": "comments/replying/dark",
+      "screenId": "comments",
+      "screenLabel": "Post & comments",
+      "stateId": "replying",
+      "stateLabel": "Replying",
+      "theme": "dark",
+      "appearanceName": "Editorial green",
+      "deviceClass": "iPhone",
+      "nativeCaptures": [
+        {
+          "filename": "fidelity-comments-replying-dark.png",
+          "attachmentName": "fidelity-comments-replying-dark",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/FidelitySupplementalStatesTests.swift",
+          "testMethod": "testReplyingToTheParentBothAppearances",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Parent-specific Replying to Alessandra banner, Cancel reply and focused reply field; native keyboard remains visible.",
+          "launchFlags": [
+            "-plated-review-comment-reactions",
+            "-plated-open-thread"
+          ],
+          "notes": [
+            "No comment is sent. This is reply composition, not sending or successful delivery.",
+            "New source-only supplemental test; requires UI-test rebuild and execution before this attachment can exist."
+          ]
+        }
+      ],
+      "unsupportedReason": null,
+      "mappingStatus": "planned-supplemental-capture-candidates-unverified",
+      "coverageLimitations": []
+    },
+    {
+      "key": "comments/replying/light",
+      "screenId": "comments",
+      "screenLabel": "Post & comments",
+      "stateId": "replying",
+      "stateLabel": "Replying",
+      "theme": "light",
+      "appearanceName": "Cream",
+      "deviceClass": "iPhone",
+      "nativeCaptures": [
+        {
+          "filename": "fidelity-comments-replying-light.png",
+          "attachmentName": "fidelity-comments-replying-light",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/FidelitySupplementalStatesTests.swift",
+          "testMethod": "testReplyingToTheParentBothAppearances",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Parent-specific Replying to Alessandra banner, Cancel reply and focused reply field; native keyboard remains visible.",
+          "launchFlags": [
+            "-plated-review-comment-reactions",
+            "-plated-open-thread"
+          ],
+          "notes": [
+            "No comment is sent. This is reply composition, not sending or successful delivery.",
+            "New source-only supplemental test; requires UI-test rebuild and execution before this attachment can exist."
+          ]
+        }
+      ],
+      "unsupportedReason": null,
+      "mappingStatus": "planned-supplemental-capture-candidates-unverified",
+      "coverageLimitations": []
+    },
+    {
+      "key": "comments/sending/dark",
+      "screenId": "comments",
+      "screenLabel": "Post & comments",
+      "stateId": "sending",
+      "stateLabel": "Sending a reply",
+      "theme": "dark",
+      "appearanceName": "Editorial green",
+      "deviceClass": "iPhone",
+      "nativeCaptures": [
+        {
+          "filename": "fidelity-comments-sending-dark.png",
+          "attachmentName": "fidelity-comments-sending-dark",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/FidelitySupplementalStatesTests.swift",
+          "testMethod": "testPendingReplyBothAppearances",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Sending status attached to the seeded pending reply in the actual post thread; input remains empty.",
+          "launchFlags": [
+            "-plated-design-review",
+            "-plated-tab",
+            "table",
+            "-plated-review-comment-reactions",
+            "-plated-open-thread",
+            "-plated-review-comment-pending",
+            "-plated-review-comment-reset"
+          ],
+          "notes": [
+            "Source/test candidate added in the October 20 reconciliation; no completed current-candidate run or visual pass is claimed.",
+            "The DEBUG outbox entry is memory-only and not drained. It freezes a reply presentation; it does not establish that a server write is actively executing or succeeded."
+          ]
+        }
+      ],
+      "unsupportedReason": null,
+      "mappingStatus": "planned-current-source-candidates-unverified",
+      "coverageLimitations": [
+        "Default text only in this capture test. AX5 pending-reply layout remains unverified.",
+        "Failure/waiting/retry/relaunch and eventual duplicate-free server acknowledgement need separate evidence."
+      ]
+    },
+    {
+      "key": "comments/sending/light",
+      "screenId": "comments",
+      "screenLabel": "Post & comments",
+      "stateId": "sending",
+      "stateLabel": "Sending a reply",
+      "theme": "light",
+      "appearanceName": "Cream",
+      "deviceClass": "iPhone",
+      "nativeCaptures": [
+        {
+          "filename": "fidelity-comments-sending-light.png",
+          "attachmentName": "fidelity-comments-sending-light",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/FidelitySupplementalStatesTests.swift",
+          "testMethod": "testPendingReplyBothAppearances",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Sending status attached to the seeded pending reply in the actual post thread; input remains empty.",
+          "launchFlags": [
+            "-plated-design-review",
+            "-plated-tab",
+            "table",
+            "-plated-review-comment-reactions",
+            "-plated-open-thread",
+            "-plated-review-comment-pending",
+            "-plated-review-comment-reset"
+          ],
+          "notes": [
+            "Source/test candidate added in the October 20 reconciliation; no completed current-candidate run or visual pass is claimed.",
+            "The DEBUG outbox entry is memory-only and not drained. It freezes a reply presentation; it does not establish that a server write is actively executing or succeeded."
+          ]
+        }
+      ],
+      "unsupportedReason": null,
+      "mappingStatus": "planned-current-source-candidates-unverified",
+      "coverageLimitations": [
+        "Default text only in this capture test. AX5 pending-reply layout remains unverified.",
+        "Failure/waiting/retry/relaunch and eventual duplicate-free server acknowledgement need separate evidence."
+      ]
+    },
+    {
+      "key": "activity/unread/dark",
+      "screenId": "activity",
+      "screenLabel": "Activity & notifications",
+      "stateId": "unread",
+      "stateLabel": "Unread activity",
+      "theme": "dark",
+      "appearanceName": "Editorial green",
+      "deviceClass": "iPhone",
+      "nativeCaptures": [
+        {
+          "filename": "fidelity-activity-unread-dark.png",
+          "attachmentName": "fidelity-activity-unread-dark",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/DesignFidelityTests.swift",
+          "testMethod": "testActivityBothAppearances",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Seeded unread activity list before Mark all read.",
+          "launchFlags": [
+            "-plated-open-activity",
+            "-plated-review-notifications"
+          ],
+          "notes": []
+        }
+      ],
+      "unsupportedReason": null,
+      "mappingStatus": "planned-capture-candidates-unverified",
+      "coverageLimitations": []
+    },
+    {
+      "key": "activity/unread/light",
+      "screenId": "activity",
+      "screenLabel": "Activity & notifications",
+      "stateId": "unread",
+      "stateLabel": "Unread activity",
+      "theme": "light",
+      "appearanceName": "Cream",
+      "deviceClass": "iPhone",
+      "nativeCaptures": [
+        {
+          "filename": "fidelity-activity-unread-light.png",
+          "attachmentName": "fidelity-activity-unread-light",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/DesignFidelityTests.swift",
+          "testMethod": "testActivityBothAppearances",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Seeded unread activity list before Mark all read.",
+          "launchFlags": [
+            "-plated-open-activity",
+            "-plated-review-notifications"
+          ],
+          "notes": []
+        }
+      ],
+      "unsupportedReason": null,
+      "mappingStatus": "planned-capture-candidates-unverified",
+      "coverageLimitations": []
+    },
+    {
+      "key": "activity/read/dark",
+      "screenId": "activity",
+      "screenLabel": "Activity & notifications",
+      "stateId": "read",
+      "stateLabel": "Marked read",
+      "theme": "dark",
+      "appearanceName": "Editorial green",
+      "deviceClass": "iPhone",
+      "nativeCaptures": [
+        {
+          "filename": "fidelity-activity-read-dark.png",
+          "attachmentName": "fidelity-activity-read-dark",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/DesignFidelityTests.swift",
+          "testMethod": "testActivityBothAppearances",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Same activity after actual Mark all read action; read control disappearance is asserted.",
+          "launchFlags": [
+            "-plated-open-activity",
+            "-plated-review-notifications"
+          ],
+          "notes": []
+        }
+      ],
+      "unsupportedReason": null,
+      "mappingStatus": "planned-capture-candidates-unverified",
+      "coverageLimitations": []
+    },
+    {
+      "key": "activity/read/light",
+      "screenId": "activity",
+      "screenLabel": "Activity & notifications",
+      "stateId": "read",
+      "stateLabel": "Marked read",
+      "theme": "light",
+      "appearanceName": "Cream",
+      "deviceClass": "iPhone",
+      "nativeCaptures": [
+        {
+          "filename": "fidelity-activity-read-light.png",
+          "attachmentName": "fidelity-activity-read-light",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/DesignFidelityTests.swift",
+          "testMethod": "testActivityBothAppearances",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Same activity after actual Mark all read action; read control disappearance is asserted.",
+          "launchFlags": [
+            "-plated-open-activity",
+            "-plated-review-notifications"
+          ],
+          "notes": []
+        }
+      ],
+      "unsupportedReason": null,
+      "mappingStatus": "planned-capture-candidates-unverified",
+      "coverageLimitations": []
+    },
+    {
+      "key": "activity/push/dark",
+      "screenId": "activity",
+      "screenLabel": "Activity & notifications",
+      "stateId": "push",
+      "stateLabel": "Phone notification concept",
+      "theme": "dark",
+      "appearanceName": "Editorial green",
+      "deviceClass": "iPhone",
+      "nativeCaptures": null,
+      "unsupportedReason": "No real-device phone notification capture for this candidate is emitted by the current UIAudit tests. The in-app Activity feed does not prove APNs delivery, timing, grouping, sound, lock-screen display or deep linking.",
+      "mappingStatus": "unsupported-exact-state",
+      "coverageLimitations": []
+    },
+    {
+      "key": "activity/push/light",
+      "screenId": "activity",
+      "screenLabel": "Activity & notifications",
+      "stateId": "push",
+      "stateLabel": "Phone notification concept",
+      "theme": "light",
+      "appearanceName": "Cream",
+      "deviceClass": "iPhone",
+      "nativeCaptures": null,
+      "unsupportedReason": "No real-device phone notification capture for this candidate is emitted by the current UIAudit tests. The in-app Activity feed does not prove APNs delivery, timing, grouping, sound, lock-screen display or deep linking.",
+      "mappingStatus": "unsupported-exact-state",
+      "coverageLimitations": []
+    },
+    {
+      "key": "household/overview/dark",
+      "screenId": "household",
+      "screenLabel": "Household",
+      "stateId": "overview",
+      "stateLabel": "Household overview",
+      "theme": "dark",
+      "appearanceName": "Editorial green",
+      "deviceClass": "iPhone",
+      "nativeCaptures": [
+        {
+          "filename": "polish-household-dark.png",
+          "attachmentName": "polish-household-dark",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/ApprovedPolishTests.swift",
+          "testMethod": "testHouseholdPeopleAndInviteRemainReadableAtLargestText",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Household overview and visible people/rotation, normal text in both appearances.",
+          "launchFlags": [
+            "-plated-open-household"
+          ],
+          "notes": [
+            "The light filename is also emitted by testHouseholdRotationRequiresExplicitSave. Preserve test-method provenance and choose the intended run rather than silently overwriting duplicate attachment names."
+          ]
+        }
+      ],
+      "unsupportedReason": null,
+      "mappingStatus": "planned-capture-candidates-unverified",
+      "coverageLimitations": []
+    },
+    {
+      "key": "household/overview/light",
+      "screenId": "household",
+      "screenLabel": "Household",
+      "stateId": "overview",
+      "stateLabel": "Household overview",
+      "theme": "light",
+      "appearanceName": "Cream",
+      "deviceClass": "iPhone",
+      "nativeCaptures": [
+        {
+          "filename": "polish-household-light.png",
+          "attachmentName": "polish-household-light",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/ApprovedPolishTests.swift",
+          "testMethod": "testHouseholdPeopleAndInviteRemainReadableAtLargestText",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Household overview and visible people/rotation, normal text in both appearances.",
+          "launchFlags": [
+            "-plated-open-household"
+          ],
+          "notes": [
+            "The light filename is also emitted by testHouseholdRotationRequiresExplicitSave. Preserve test-method provenance and choose the intended run rather than silently overwriting duplicate attachment names."
+          ]
+        }
+      ],
+      "unsupportedReason": null,
+      "mappingStatus": "planned-capture-candidates-unverified",
+      "coverageLimitations": []
+    },
+    {
+      "key": "household/assign/dark",
+      "screenId": "household",
+      "screenLabel": "Household",
+      "stateId": "assign",
+      "stateLabel": "Choose a cook",
+      "theme": "dark",
+      "appearanceName": "Editorial green",
+      "deviceClass": "iPhone",
+      "nativeCaptures": [
+        {
+          "filename": "fidelity-household-assign-dark.png",
+          "attachmentName": "fidelity-household-assign-dark",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/FidelitySupplementalStatesTests.swift",
+          "testMethod": "testDarkRotationPickerCancelsWithoutSaving",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Dark cook picker reached from saved rotation, with explicit Cancel preserving the existing assignment.",
+          "launchFlags": [
+            "-plated-open-household"
+          ],
+          "notes": [
+            "New source-only supplemental test; requires UI-test rebuild and execution before this attachment can exist."
+          ]
+        }
+      ],
+      "unsupportedReason": null,
+      "mappingStatus": "planned-supplemental-capture-candidates-unverified",
+      "coverageLimitations": []
+    },
+    {
+      "key": "household/assign/light",
+      "screenId": "household",
+      "screenLabel": "Household",
+      "stateId": "assign",
+      "stateLabel": "Choose a cook",
+      "theme": "light",
+      "appearanceName": "Cream",
+      "deviceClass": "iPhone",
+      "nativeCaptures": [
+        {
+          "filename": "polish-rotation-picker.png",
+          "attachmentName": "polish-rotation-picker",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/ApprovedPolishTests.swift",
+          "testMethod": "testHouseholdRotationRequiresExplicitSave",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Real cook-picker sheet opened from first weekday rotation; test continues through cancel and explicit save.",
+          "launchFlags": [
+            "-plated-open-household"
+          ],
+          "notes": [
+            "Weekday depends on Calendar.firstWeekday; picker title may differ from illustrative Monday."
+          ]
+        }
+      ],
+      "unsupportedReason": null,
+      "mappingStatus": "planned-capture-candidates-unverified",
+      "coverageLimitations": []
+    },
+    {
+      "key": "household/invite/dark",
+      "screenId": "household",
+      "screenLabel": "Household",
+      "stateId": "invite",
+      "stateLabel": "New invitation pending",
+      "theme": "dark",
+      "appearanceName": "Editorial green",
+      "deviceClass": "iPhone",
+      "nativeCaptures": [
+        {
+          "filename": "fidelity-household-inviter-sent-dark.png",
+          "attachmentName": "fidelity-household-inviter-sent-dark",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/FidelityInviterReceiptTests.swift",
+          "testMethod": "testSentInvitationReceiptBothAppearancesAndSizes",
+          "captureKind": "native-full-display-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Inviter-side Invitation sent, Waiting for Alessandra to join Meadows, Pending \u00b7 New invitation, Close and Done; fixture never sends a message.",
+          "launchFlags": [
+            "-plated-design-review",
+            "-plated-open-household",
+            "-plated-review-inviter-sent"
+          ],
+          "notes": [
+            "Source/test candidate added in the October 20 reconciliation; no completed current-candidate run or visual pass is claimed.",
+            "Use the default-size attachment for this original state; AX5 is supplemental.",
+            "Production receipt is gated on an actual Messages .sent callback; fixture construction does not verify that callback or sheet handoff on a phone."
+          ]
+        }
+      ],
+      "unsupportedReason": null,
+      "mappingStatus": "planned-current-source-candidates-unverified",
+      "coverageLimitations": [
+        "Generic sent receipts do not assert prior removal. The approved previous-access-ended sentence requires verified prior account/removal context and is not fabricated from a contact name. Recipient verified-grant Rejoin copy remains a separate journey.",
+        "Fresh sent preview uses an in-memory seat, not a real recipient join or notification.",
+        "Live Messages dismissal-to-receipt transition and an observed incoming join while the receipt is open remain unverified.",
+        "Only the exact invited seat yields Pending. A missing/deleted/non-invited seat now yields Invitation status unavailable / Membership not confirmed, not a waiting, joined or removed claim; this later correction requires the final rebuild and tests."
+      ],
+      "relatedCapturesNotSubstitutions": [
+        {
+          "filename": "fidelity-invitation-initial-dark.png",
+          "attachmentName": "fidelity-invitation-initial-dark",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/FidelityInvitationTests.swift",
+          "testMethod": "testInitialFreshAndRemovedInvitationsHaveOneConsistentMessage",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Related recipient-side invitation presentation; different role and state from inviter confirmation.",
+          "launchFlags": [
+            "-plated-review-invitation-initial"
+          ],
+          "notes": [
+            "No actual invite acceptance, recipient membership or push is proved."
+          ]
+        },
+        {
+          "filename": "fidelity-invitation-rejoin-dark.png",
+          "attachmentName": "fidelity-invitation-rejoin-dark",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/FidelityInvitationTests.swift",
+          "testMethod": "testInitialFreshAndRemovedInvitationsHaveOneConsistentMessage",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Related recipient-side invitation presentation; different role and state from inviter confirmation.",
+          "launchFlags": [
+            "-plated-review-invitation-rejoin"
+          ],
+          "notes": [
+            "No actual invite acceptance, recipient membership or push is proved."
+          ]
+        },
+        {
+          "filename": "fidelity-invitation-removed-dark.png",
+          "attachmentName": "fidelity-invitation-removed-dark",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/FidelityInvitationTests.swift",
+          "testMethod": "testInitialFreshAndRemovedInvitationsHaveOneConsistentMessage",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Related recipient-side invitation presentation; different role and state from inviter confirmation.",
+          "launchFlags": [
+            "-plated-review-invitation-removed"
+          ],
+          "notes": [
+            "No actual invite acceptance, recipient membership or push is proved."
+          ]
+        }
+      ]
+    },
+    {
+      "key": "household/invite/light",
+      "screenId": "household",
+      "screenLabel": "Household",
+      "stateId": "invite",
+      "stateLabel": "New invitation pending",
+      "theme": "light",
+      "appearanceName": "Cream",
+      "deviceClass": "iPhone",
+      "nativeCaptures": [
+        {
+          "filename": "fidelity-household-inviter-sent-light.png",
+          "attachmentName": "fidelity-household-inviter-sent-light",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/FidelityInviterReceiptTests.swift",
+          "testMethod": "testSentInvitationReceiptBothAppearancesAndSizes",
+          "captureKind": "native-full-display-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Inviter-side Invitation sent, Waiting for Alessandra to join Meadows, Pending \u00b7 New invitation, Close and Done; fixture never sends a message.",
+          "launchFlags": [
+            "-plated-design-review",
+            "-plated-open-household",
+            "-plated-review-inviter-sent"
+          ],
+          "notes": [
+            "Source/test candidate added in the October 20 reconciliation; no completed current-candidate run or visual pass is claimed.",
+            "Use the default-size attachment for this original state; AX5 is supplemental.",
+            "Production receipt is gated on an actual Messages .sent callback; fixture construction does not verify that callback or sheet handoff on a phone."
+          ]
+        }
+      ],
+      "unsupportedReason": null,
+      "mappingStatus": "planned-current-source-candidates-unverified",
+      "coverageLimitations": [
+        "Generic sent receipts do not assert prior removal. The approved previous-access-ended sentence requires verified prior account/removal context and is not fabricated from a contact name. Recipient verified-grant Rejoin copy remains a separate journey.",
+        "Fresh sent preview uses an in-memory seat, not a real recipient join or notification.",
+        "Live Messages dismissal-to-receipt transition and an observed incoming join while the receipt is open remain unverified.",
+        "Only the exact invited seat yields Pending. A missing/deleted/non-invited seat now yields Invitation status unavailable / Membership not confirmed, not a waiting, joined or removed claim; this later correction requires the final rebuild and tests."
+      ],
+      "relatedCapturesNotSubstitutions": [
+        {
+          "filename": "fidelity-invitation-initial-light.png",
+          "attachmentName": "fidelity-invitation-initial-light",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/FidelityInvitationTests.swift",
+          "testMethod": "testInitialFreshAndRemovedInvitationsHaveOneConsistentMessage",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Related recipient-side invitation presentation; different role and state from inviter confirmation.",
+          "launchFlags": [
+            "-plated-review-invitation-initial"
+          ],
+          "notes": [
+            "No actual invite acceptance, recipient membership or push is proved."
+          ]
+        },
+        {
+          "filename": "fidelity-invitation-rejoin-light.png",
+          "attachmentName": "fidelity-invitation-rejoin-light",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/FidelityInvitationTests.swift",
+          "testMethod": "testInitialFreshAndRemovedInvitationsHaveOneConsistentMessage",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Related recipient-side invitation presentation; different role and state from inviter confirmation.",
+          "launchFlags": [
+            "-plated-review-invitation-rejoin"
+          ],
+          "notes": [
+            "No actual invite acceptance, recipient membership or push is proved."
+          ]
+        },
+        {
+          "filename": "fidelity-invitation-removed-light.png",
+          "attachmentName": "fidelity-invitation-removed-light",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/FidelityInvitationTests.swift",
+          "testMethod": "testInitialFreshAndRemovedInvitationsHaveOneConsistentMessage",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Related recipient-side invitation presentation; different role and state from inviter confirmation.",
+          "launchFlags": [
+            "-plated-review-invitation-removed"
+          ],
+          "notes": [
+            "No actual invite acceptance, recipient membership or push is proved."
+          ]
+        }
+      ]
+    },
+    {
+      "key": "profile/self/dark",
+      "screenId": "profile",
+      "screenLabel": "Profile",
+      "stateId": "self",
+      "stateLabel": "Your profile",
+      "theme": "dark",
+      "appearanceName": "Editorial green",
+      "deviceClass": "iPhone",
+      "nativeCaptures": [
+        {
+          "filename": "fidelity-profile-posts-dark.png",
+          "attachmentName": "fidelity-profile-posts-dark",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/DesignFidelityTests.swift",
+          "testMethod": "testMissingMediaAndPopulatedProfilesBothAppearances",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Self profile with populated Posts fixture; identity and verified local contribution anatomy.",
+          "launchFlags": [
+            "-plated-open-profile",
+            "-plated-review-own-posts"
+          ],
+          "notes": [
+            "Counts, faces and posts are sample records, not proof of real household photo/activity transport."
+          ]
+        }
+      ],
+      "unsupportedReason": null,
+      "mappingStatus": "planned-capture-candidates-unverified",
+      "coverageLimitations": []
+    },
+    {
+      "key": "profile/self/light",
+      "screenId": "profile",
+      "screenLabel": "Profile",
+      "stateId": "self",
+      "stateLabel": "Your profile",
+      "theme": "light",
+      "appearanceName": "Cream",
+      "deviceClass": "iPhone",
+      "nativeCaptures": [
+        {
+          "filename": "fidelity-profile-posts-light.png",
+          "attachmentName": "fidelity-profile-posts-light",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/DesignFidelityTests.swift",
+          "testMethod": "testMissingMediaAndPopulatedProfilesBothAppearances",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Self profile with populated Posts fixture; identity and verified local contribution anatomy.",
+          "launchFlags": [
+            "-plated-open-profile",
+            "-plated-review-own-posts"
+          ],
+          "notes": [
+            "Counts, faces and posts are sample records, not proof of real household photo/activity transport."
+          ]
+        }
+      ],
+      "unsupportedReason": null,
+      "mappingStatus": "planned-capture-candidates-unverified",
+      "coverageLimitations": []
+    },
+    {
+      "key": "profile/member/dark",
+      "screenId": "profile",
+      "screenLabel": "Profile",
+      "stateId": "member",
+      "stateLabel": "Household member",
+      "theme": "dark",
+      "appearanceName": "Editorial green",
+      "deviceClass": "iPhone",
+      "nativeCaptures": [
+        {
+          "filename": "fidelity-profile-member-dark.png",
+          "attachmentName": "fidelity-profile-member-dark",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/FidelityAdditionalStatesTests.swift",
+          "testMethod": "testHouseholdMemberProfileAndReturnBothAppearances",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Joined member profile reached by tapping Sam Rivera in household; self-only Edit/Saved controls are absent.",
+          "launchFlags": [
+            "-plated-open-household",
+            "-plated-review-household-activity"
+          ],
+          "notes": [
+            "The existing fixture uses Sam Rivera and a sample image; original Alessandra identity/counts are illustrative. This does not verify Alessandra\u2019s live avatar or activity."
+          ]
+        }
+      ],
+      "unsupportedReason": null,
+      "mappingStatus": "planned-capture-candidates-unverified",
+      "coverageLimitations": []
+    },
+    {
+      "key": "profile/member/light",
+      "screenId": "profile",
+      "screenLabel": "Profile",
+      "stateId": "member",
+      "stateLabel": "Household member",
+      "theme": "light",
+      "appearanceName": "Cream",
+      "deviceClass": "iPhone",
+      "nativeCaptures": [
+        {
+          "filename": "fidelity-profile-member-light.png",
+          "attachmentName": "fidelity-profile-member-light",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/FidelityAdditionalStatesTests.swift",
+          "testMethod": "testHouseholdMemberProfileAndReturnBothAppearances",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Joined member profile reached by tapping Sam Rivera in household; self-only Edit/Saved controls are absent.",
+          "launchFlags": [
+            "-plated-open-household",
+            "-plated-review-household-activity"
+          ],
+          "notes": [
+            "The existing fixture uses Sam Rivera and a sample image; original Alessandra identity/counts are illustrative. This does not verify Alessandra\u2019s live avatar or activity."
+          ]
+        }
+      ],
+      "unsupportedReason": null,
+      "mappingStatus": "planned-capture-candidates-unverified",
+      "coverageLimitations": []
+    },
+    {
+      "key": "recipes/library/dark",
+      "screenId": "recipes",
+      "screenLabel": "Recipe library",
+      "stateId": "library",
+      "stateLabel": "Recipe library",
+      "theme": "dark",
+      "appearanceName": "Editorial green",
+      "deviceClass": "iPhone",
+      "nativeCaptures": [
+        {
+          "filename": "polish-recipes-dark.png",
+          "attachmentName": "polish-recipes-dark",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/ApprovedPolishTests.swift",
+          "testMethod": "testNativeScreenMatrix",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Default unfiltered native recipe library.",
+          "launchFlags": [
+            "-plated-tab",
+            "cookbook"
+          ],
+          "notes": []
+        }
+      ],
+      "unsupportedReason": null,
+      "mappingStatus": "planned-capture-candidates-unverified",
+      "coverageLimitations": []
+    },
+    {
+      "key": "recipes/library/light",
+      "screenId": "recipes",
+      "screenLabel": "Recipe library",
+      "stateId": "library",
+      "stateLabel": "Recipe library",
+      "theme": "light",
+      "appearanceName": "Cream",
+      "deviceClass": "iPhone",
+      "nativeCaptures": [
+        {
+          "filename": "polish-recipes-light.png",
+          "attachmentName": "polish-recipes-light",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/ApprovedPolishTests.swift",
+          "testMethod": "testNativeScreenMatrix",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Default unfiltered native recipe library.",
+          "launchFlags": [
+            "-plated-tab",
+            "cookbook"
+          ],
+          "notes": []
+        }
+      ],
+      "unsupportedReason": null,
+      "mappingStatus": "planned-capture-candidates-unverified",
+      "coverageLimitations": []
+    },
+    {
+      "key": "recipes/missing/dark",
+      "screenId": "recipes",
+      "screenLabel": "Recipe library",
+      "stateId": "missing",
+      "stateLabel": "Recipe without a photo",
+      "theme": "dark",
+      "appearanceName": "Editorial green",
+      "deviceClass": "iPhone",
+      "nativeCaptures": [
+        {
+          "filename": "fidelity-recipes-missing-dark.png",
+          "attachmentName": "fidelity-recipes-missing-dark",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/DesignFidelityTests.swift",
+          "testMethod": "testMissingMediaAndPopulatedProfilesBothAppearances",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Recipe library with the existing missing-photo fixture.",
+          "launchFlags": [
+            "-plated-tab",
+            "cookbook",
+            "-plated-review-missing-recipe-photo"
+          ],
+          "notes": [
+            "Confirm the missing-photo tile is actually visible before accepting this as full-state coverage. An offscreen missing tile is not visual proof."
+          ]
+        }
+      ],
+      "unsupportedReason": null,
+      "mappingStatus": "planned-capture-candidates-unverified",
+      "coverageLimitations": []
+    },
+    {
+      "key": "recipes/missing/light",
+      "screenId": "recipes",
+      "screenLabel": "Recipe library",
+      "stateId": "missing",
+      "stateLabel": "Recipe without a photo",
+      "theme": "light",
+      "appearanceName": "Cream",
+      "deviceClass": "iPhone",
+      "nativeCaptures": [
+        {
+          "filename": "fidelity-recipes-missing-light.png",
+          "attachmentName": "fidelity-recipes-missing-light",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/DesignFidelityTests.swift",
+          "testMethod": "testMissingMediaAndPopulatedProfilesBothAppearances",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Recipe library with the existing missing-photo fixture.",
+          "launchFlags": [
+            "-plated-tab",
+            "cookbook",
+            "-plated-review-missing-recipe-photo"
+          ],
+          "notes": [
+            "Confirm the missing-photo tile is actually visible before accepting this as full-state coverage. An offscreen missing tile is not visual proof."
+          ]
+        }
+      ],
+      "unsupportedReason": null,
+      "mappingStatus": "planned-capture-candidates-unverified",
+      "coverageLimitations": []
+    },
+    {
+      "key": "recipes/filter/dark",
+      "screenId": "recipes",
+      "screenLabel": "Recipe library",
+      "stateId": "filter",
+      "stateLabel": "Under 30 minutes filter",
+      "theme": "dark",
+      "appearanceName": "Editorial green",
+      "deviceClass": "iPhone",
+      "nativeCaptures": [
+        {
+          "filename": "fidelity-recipes-under-thirty-dark.png",
+          "attachmentName": "fidelity-recipes-under-thirty-dark",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/FidelityAdditionalStatesTests.swift",
+          "testMethod": "testUnderThirtyCollectionAndResetBothAppearances",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Under 30 min selected via Recipe collections; first viewport.",
+          "launchFlags": [
+            "-plated-tab",
+            "cookbook"
+          ],
+          "notes": [
+            "The strict filter excludes unknown duration and durations >=30. Existing seed data yields five matches; the illustration has three. Do not change actual count or recipe times to force the image."
+          ]
+        },
+        {
+          "filename": "fidelity-recipes-under-thirty-count-dark.png",
+          "attachmentName": "fidelity-recipes-under-thirty-count-dark",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/FidelityAdditionalStatesTests.swift",
+          "testMethod": "testUnderThirtyCollectionAndResetBothAppearances",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Scrolled filtered grid/footer asserting the actual five-recipe count before resetting through the active rail label.",
+          "launchFlags": [
+            "-plated-tab",
+            "cookbook"
+          ],
+          "notes": []
+        }
+      ],
+      "unsupportedReason": null,
+      "mappingStatus": "planned-capture-candidates-unverified",
+      "coverageLimitations": []
+    },
+    {
+      "key": "recipes/filter/light",
+      "screenId": "recipes",
+      "screenLabel": "Recipe library",
+      "stateId": "filter",
+      "stateLabel": "Under 30 minutes filter",
+      "theme": "light",
+      "appearanceName": "Cream",
+      "deviceClass": "iPhone",
+      "nativeCaptures": [
+        {
+          "filename": "fidelity-recipes-under-thirty-light.png",
+          "attachmentName": "fidelity-recipes-under-thirty-light",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/FidelityAdditionalStatesTests.swift",
+          "testMethod": "testUnderThirtyCollectionAndResetBothAppearances",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Under 30 min selected via Recipe collections; first viewport.",
+          "launchFlags": [
+            "-plated-tab",
+            "cookbook"
+          ],
+          "notes": [
+            "The strict filter excludes unknown duration and durations >=30. Existing seed data yields five matches; the illustration has three. Do not change actual count or recipe times to force the image."
+          ]
+        },
+        {
+          "filename": "fidelity-recipes-under-thirty-count-light.png",
+          "attachmentName": "fidelity-recipes-under-thirty-count-light",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/FidelityAdditionalStatesTests.swift",
+          "testMethod": "testUnderThirtyCollectionAndResetBothAppearances",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Scrolled filtered grid/footer asserting the actual five-recipe count before resetting through the active rail label.",
+          "launchFlags": [
+            "-plated-tab",
+            "cookbook"
+          ],
+          "notes": []
+        }
+      ],
+      "unsupportedReason": null,
+      "mappingStatus": "planned-capture-candidates-unverified",
+      "coverageLimitations": []
+    },
+    {
+      "key": "recipe-detail/planning/dark",
+      "screenId": "recipe-detail",
+      "screenLabel": "Recipe detail",
+      "stateId": "planning",
+      "stateLabel": "Not planned",
+      "theme": "dark",
+      "appearanceName": "Editorial green",
+      "deviceClass": "iPhone",
+      "nativeCaptures": [
+        {
+          "filename": "polish-detail-dark.png",
+          "attachmentName": "polish-detail-dark",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/ApprovedPolishTests.swift",
+          "testMethod": "testRecipeDetailFinalCaptures",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Unplanned Pancake Dinner detail with planning action.",
+          "launchFlags": [
+            "-plated-open-recipe-detail"
+          ],
+          "notes": []
+        },
+        {
+          "filename": "fidelity-detail-empty-directions-dark.png",
+          "attachmentName": "fidelity-detail-empty-directions-dark",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/DesignFidelityTests.swift",
+          "testMethod": "testEmptyRecipeDirectionsAreExplicitAndReachable",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Directions section reached through the actual jump control; explicitly empty written steps.",
+          "launchFlags": [
+            "-plated-open-recipe-detail"
+          ],
+          "notes": []
+        }
+      ],
+      "unsupportedReason": null,
+      "mappingStatus": "planned-capture-candidates-unverified",
+      "coverageLimitations": []
+    },
+    {
+      "key": "recipe-detail/planning/light",
+      "screenId": "recipe-detail",
+      "screenLabel": "Recipe detail",
+      "stateId": "planning",
+      "stateLabel": "Not planned",
+      "theme": "light",
+      "appearanceName": "Cream",
+      "deviceClass": "iPhone",
+      "nativeCaptures": [
+        {
+          "filename": "polish-detail-light.png",
+          "attachmentName": "polish-detail-light",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/ApprovedPolishTests.swift",
+          "testMethod": "testRecipeDetailFinalCaptures",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Unplanned Pancake Dinner detail with planning action.",
+          "launchFlags": [
+            "-plated-open-recipe-detail"
+          ],
+          "notes": []
+        },
+        {
+          "filename": "fidelity-detail-empty-directions-light.png",
+          "attachmentName": "fidelity-detail-empty-directions-light",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/DesignFidelityTests.swift",
+          "testMethod": "testEmptyRecipeDirectionsAreExplicitAndReachable",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Directions section reached through the actual jump control; explicitly empty written steps.",
+          "launchFlags": [
+            "-plated-open-recipe-detail"
+          ],
+          "notes": []
+        }
+      ],
+      "unsupportedReason": null,
+      "mappingStatus": "planned-capture-candidates-unverified",
+      "coverageLimitations": []
+    },
+    {
+      "key": "recipe-detail/tonight/dark",
+      "screenId": "recipe-detail",
+      "screenLabel": "Recipe detail",
+      "stateId": "tonight",
+      "stateLabel": "Planned for tonight",
+      "theme": "dark",
+      "appearanceName": "Editorial green",
+      "deviceClass": "iPhone",
+      "nativeCaptures": [
+        {
+          "filename": "fidelity-recipe-detail-tonight-dark.png",
+          "attachmentName": "fidelity-recipe-detail-tonight-dark",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/FidelitySupplementalStatesTests.swift",
+          "testMethod": "testTonightRecipeDetailThroughPlannedDayBothAppearances",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Plan meal to DayDetail dinner to RecipeDetail with the actual PlannedMeal; Start cooking present, unplanned recipe-plan control absent.",
+          "launchFlags": [],
+          "notes": [
+            "Fixture recipe is Lemon Butter Salmon, not illustrative Pancake Dinner. It is genuinely planned for today; a cooking-session screenshot is not substituted.",
+            "New source-only supplemental test; requires UI-test rebuild and execution before this attachment can exist."
+          ]
+        }
+      ],
+      "unsupportedReason": null,
+      "mappingStatus": "planned-supplemental-capture-candidates-unverified",
+      "coverageLimitations": []
+    },
+    {
+      "key": "recipe-detail/tonight/light",
+      "screenId": "recipe-detail",
+      "screenLabel": "Recipe detail",
+      "stateId": "tonight",
+      "stateLabel": "Planned for tonight",
+      "theme": "light",
+      "appearanceName": "Cream",
+      "deviceClass": "iPhone",
+      "nativeCaptures": [
+        {
+          "filename": "fidelity-recipe-detail-tonight-light.png",
+          "attachmentName": "fidelity-recipe-detail-tonight-light",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/FidelitySupplementalStatesTests.swift",
+          "testMethod": "testTonightRecipeDetailThroughPlannedDayBothAppearances",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Plan meal to DayDetail dinner to RecipeDetail with the actual PlannedMeal; Start cooking present, unplanned recipe-plan control absent.",
+          "launchFlags": [],
+          "notes": [
+            "Fixture recipe is Lemon Butter Salmon, not illustrative Pancake Dinner. It is genuinely planned for today; a cooking-session screenshot is not substituted.",
+            "New source-only supplemental test; requires UI-test rebuild and execution before this attachment can exist."
+          ]
+        }
+      ],
+      "unsupportedReason": null,
+      "mappingStatus": "planned-supplemental-capture-candidates-unverified",
+      "coverageLimitations": []
+    },
+    {
+      "key": "groceries/shopping/dark",
+      "screenId": "groceries",
+      "screenLabel": "Groceries",
+      "stateId": "shopping",
+      "stateLabel": "Shopping",
+      "theme": "dark",
+      "appearanceName": "Editorial green",
+      "deviceClass": "iPhone",
+      "nativeCaptures": [
+        {
+          "filename": "polish-groceries-dark.png",
+          "attachmentName": "polish-groceries-dark",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/ApprovedPolishTests.swift",
+          "testMethod": "testNativeScreenMatrix",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Default grocery shopping list and visible progress/footer.",
+          "launchFlags": [
+            "-plated-tab",
+            "groceries"
+          ],
+          "notes": []
+        }
+      ],
+      "unsupportedReason": null,
+      "mappingStatus": "planned-capture-candidates-unverified",
+      "coverageLimitations": []
+    },
+    {
+      "key": "groceries/shopping/light",
+      "screenId": "groceries",
+      "screenLabel": "Groceries",
+      "stateId": "shopping",
+      "stateLabel": "Shopping",
+      "theme": "light",
+      "appearanceName": "Cream",
+      "deviceClass": "iPhone",
+      "nativeCaptures": [
+        {
+          "filename": "polish-groceries-light.png",
+          "attachmentName": "polish-groceries-light",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/ApprovedPolishTests.swift",
+          "testMethod": "testNativeScreenMatrix",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Default grocery shopping list and visible progress/footer.",
+          "launchFlags": [
+            "-plated-tab",
+            "groceries"
+          ],
+          "notes": []
+        }
+      ],
+      "unsupportedReason": null,
+      "mappingStatus": "planned-capture-candidates-unverified",
+      "coverageLimitations": []
+    },
+    {
+      "key": "groceries/checked/dark",
+      "screenId": "groceries",
+      "screenLabel": "Groceries",
+      "stateId": "checked",
+      "stateLabel": "Item checked \u00b7 Undo",
+      "theme": "dark",
+      "appearanceName": "Editorial green",
+      "deviceClass": "iPhone",
+      "nativeCaptures": [
+        {
+          "filename": "fidelity-groceries-checked-dark.png",
+          "attachmentName": "fidelity-groceries-checked-dark",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/FidelityAdditionalStatesTests.swift",
+          "testMethod": "testCheckedGroceryAndUndoBothAppearances",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Actual Asparagus row check with Purchased value and actionable Undo footer.",
+          "launchFlags": [
+            "-plated-tab",
+            "groceries"
+          ],
+          "notes": [
+            "The test also emits fidelity-groceries-undone-<theme> after Undo; that recovery image is not the checked-state primary. Counts follow actual generated groceries."
+          ]
+        }
+      ],
+      "unsupportedReason": null,
+      "mappingStatus": "planned-capture-candidates-unverified",
+      "coverageLimitations": []
+    },
+    {
+      "key": "groceries/checked/light",
+      "screenId": "groceries",
+      "screenLabel": "Groceries",
+      "stateId": "checked",
+      "stateLabel": "Item checked \u00b7 Undo",
+      "theme": "light",
+      "appearanceName": "Cream",
+      "deviceClass": "iPhone",
+      "nativeCaptures": [
+        {
+          "filename": "fidelity-groceries-checked-light.png",
+          "attachmentName": "fidelity-groceries-checked-light",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/FidelityAdditionalStatesTests.swift",
+          "testMethod": "testCheckedGroceryAndUndoBothAppearances",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Actual Asparagus row check with Purchased value and actionable Undo footer.",
+          "launchFlags": [
+            "-plated-tab",
+            "groceries"
+          ],
+          "notes": [
+            "The test also emits fidelity-groceries-undone-<theme> after Undo; that recovery image is not the checked-state primary. Counts follow actual generated groceries."
+          ]
+        }
+      ],
+      "unsupportedReason": null,
+      "mappingStatus": "planned-capture-candidates-unverified",
+      "coverageLimitations": []
+    },
+    {
+      "key": "cooking/ingredients/dark",
+      "screenId": "cooking",
+      "screenLabel": "Cooking mode",
+      "stateId": "ingredients",
+      "stateLabel": "No written instructions",
+      "theme": "dark",
+      "appearanceName": "Editorial green",
+      "deviceClass": "iPhone",
+      "nativeCaptures": [
+        {
+          "filename": "fidelity-cooking-active-dark.png",
+          "attachmentName": "fidelity-cooking-active-dark",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/DesignFidelityTests.swift",
+          "testMethod": "testCookingStatesAndBackToPlanBothAppearances",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Active cooking with no written directions, ingredient list and running timer.",
+          "launchFlags": [
+            "-plated-review-cooking-timer"
+          ],
+          "notes": [
+            "Timer countdown at capture is dynamic; compare hierarchy and controls, not an exact remaining second."
+          ]
+        }
+      ],
+      "unsupportedReason": null,
+      "mappingStatus": "planned-capture-candidates-unverified",
+      "coverageLimitations": []
+    },
+    {
+      "key": "cooking/ingredients/light",
+      "screenId": "cooking",
+      "screenLabel": "Cooking mode",
+      "stateId": "ingredients",
+      "stateLabel": "No written instructions",
+      "theme": "light",
+      "appearanceName": "Cream",
+      "deviceClass": "iPhone",
+      "nativeCaptures": [
+        {
+          "filename": "fidelity-cooking-active-light.png",
+          "attachmentName": "fidelity-cooking-active-light",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/DesignFidelityTests.swift",
+          "testMethod": "testCookingStatesAndBackToPlanBothAppearances",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Active cooking with no written directions, ingredient list and running timer.",
+          "launchFlags": [
+            "-plated-review-cooking-timer"
+          ],
+          "notes": [
+            "Timer countdown at capture is dynamic; compare hierarchy and controls, not an exact remaining second."
+          ]
+        }
+      ],
+      "unsupportedReason": null,
+      "mappingStatus": "planned-capture-candidates-unverified",
+      "coverageLimitations": []
+    },
+    {
+      "key": "cooking/step/dark",
+      "screenId": "cooking",
+      "screenLabel": "Cooking mode",
+      "stateId": "step",
+      "stateLabel": "Active step concept",
+      "theme": "dark",
+      "appearanceName": "Editorial green",
+      "deviceClass": "iPhone",
+      "nativeCaptures": [
+        {
+          "filename": "fidelity-cooking-steps-dark.png",
+          "attachmentName": "fidelity-cooking-steps-dark",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/DesignFidelityTests.swift",
+          "testMethod": "testCookingStatesAndBackToPlanBothAppearances",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Cooking with three seeded directions and active-step presentation.",
+          "launchFlags": [
+            "-plated-review-cooking-timer",
+            "-plated-review-recipe-directions"
+          ],
+          "notes": [
+            "This explicit fixture adds illustrative recipe instructions in memory only. It is not a production recipe edit."
+          ]
+        }
+      ],
+      "unsupportedReason": null,
+      "mappingStatus": "planned-capture-candidates-unverified",
+      "coverageLimitations": []
+    },
+    {
+      "key": "cooking/step/light",
+      "screenId": "cooking",
+      "screenLabel": "Cooking mode",
+      "stateId": "step",
+      "stateLabel": "Active step concept",
+      "theme": "light",
+      "appearanceName": "Cream",
+      "deviceClass": "iPhone",
+      "nativeCaptures": [
+        {
+          "filename": "fidelity-cooking-steps-light.png",
+          "attachmentName": "fidelity-cooking-steps-light",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/DesignFidelityTests.swift",
+          "testMethod": "testCookingStatesAndBackToPlanBothAppearances",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Cooking with three seeded directions and active-step presentation.",
+          "launchFlags": [
+            "-plated-review-cooking-timer",
+            "-plated-review-recipe-directions"
+          ],
+          "notes": [
+            "This explicit fixture adds illustrative recipe instructions in memory only. It is not a production recipe edit."
+          ]
+        }
+      ],
+      "unsupportedReason": null,
+      "mappingStatus": "planned-capture-candidates-unverified",
+      "coverageLimitations": []
+    },
+    {
+      "key": "cooking/finished/dark",
+      "screenId": "cooking",
+      "screenLabel": "Cooking mode",
+      "stateId": "finished",
+      "stateLabel": "Finished cooking",
+      "theme": "dark",
+      "appearanceName": "Editorial green",
+      "deviceClass": "iPhone",
+      "nativeCaptures": [
+        {
+          "filename": "fidelity-cooking-finished-dark.png",
+          "attachmentName": "fidelity-cooking-finished-dark",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/DesignFidelityTests.swift",
+          "testMethod": "testCookingStatesAndBackToPlanBothAppearances",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Completion reached via Finish cooking with saved-dinner confirmation and Back to Plan.",
+          "launchFlags": [
+            "-plated-review-cooking-timer"
+          ],
+          "notes": [
+            "The continuation checks return to Plan; local fixture persistence is not cloud receipt evidence."
+          ]
+        }
+      ],
+      "unsupportedReason": null,
+      "mappingStatus": "planned-capture-candidates-unverified",
+      "coverageLimitations": []
+    },
+    {
+      "key": "cooking/finished/light",
+      "screenId": "cooking",
+      "screenLabel": "Cooking mode",
+      "stateId": "finished",
+      "stateLabel": "Finished cooking",
+      "theme": "light",
+      "appearanceName": "Cream",
+      "deviceClass": "iPhone",
+      "nativeCaptures": [
+        {
+          "filename": "fidelity-cooking-finished-light.png",
+          "attachmentName": "fidelity-cooking-finished-light",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/DesignFidelityTests.swift",
+          "testMethod": "testCookingStatesAndBackToPlanBothAppearances",
+          "captureKind": "native-app-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Completion reached via Finish cooking with saved-dinner confirmation and Back to Plan.",
+          "launchFlags": [
+            "-plated-review-cooking-timer"
+          ],
+          "notes": [
+            "The continuation checks return to Plan; local fixture persistence is not cloud receipt evidence."
+          ]
+        }
+      ],
+      "unsupportedReason": null,
+      "mappingStatus": "planned-capture-candidates-unverified",
+      "coverageLimitations": []
+    },
+    {
+      "key": "ipad/default/dark",
+      "screenId": "ipad",
+      "screenLabel": "iPad layout",
+      "stateId": "default",
+      "stateLabel": "Two-column Plan",
+      "theme": "dark",
+      "appearanceName": "Editorial green",
+      "deviceClass": "iPad landscape",
+      "nativeCaptures": [
+        {
+          "filename": "polish-ipad-display-3.png",
+          "attachmentName": "polish-ipad-display-3",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/ApprovedPolishTests.swift",
+          "testMethod": "testIPadStaysLandscapeAndUsesTwoColumns",
+          "captureKind": "native-full-display-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Physical-display landscape-left iPad Plan with meal and context columns.",
+          "launchFlags": [
+            "-plated-fake-weather",
+            "-plated-review-household-activity"
+          ],
+          "notes": [
+            "This attachment is emitted only when the test runs on iPad; phones skip the test. User\u2019s later landscape-only request supersedes only the original portrait orientation."
+          ]
+        },
+        {
+          "filename": "polish-ipad-display-4.png",
+          "attachmentName": "polish-ipad-display-4",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/ApprovedPolishTests.swift",
+          "testMethod": "testIPadStaysLandscapeAndUsesTwoColumns",
+          "captureKind": "native-full-display-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Physical-display landscape-right iPad Plan.",
+          "launchFlags": [
+            "-plated-fake-weather",
+            "-plated-review-household-activity"
+          ],
+          "notes": []
+        }
+      ],
+      "unsupportedReason": null,
+      "mappingStatus": "planned-capture-candidates-unverified",
+      "coverageLimitations": []
+    },
+    {
+      "key": "ipad/default/light",
+      "screenId": "ipad",
+      "screenLabel": "iPad layout",
+      "stateId": "default",
+      "stateLabel": "Two-column Plan",
+      "theme": "light",
+      "appearanceName": "Cream",
+      "deviceClass": "iPad landscape",
+      "nativeCaptures": [
+        {
+          "filename": "ipad-matrix-plan-light-default.png",
+          "attachmentName": "ipad-matrix-plan-light-default",
+          "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/FidelityIPadMatrixTests.swift",
+          "testMethod": "testLightDefault",
+          "captureKind": "native-full-display-screenshot",
+          "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+          "coverage": "Light iPad landscape-left Plan with meal and context columns, using XCUIScreen full-display capture.",
+          "launchFlags": [
+            "-plated-design-review",
+            "-plated-fake-weather",
+            "-plated-review-household-activity"
+          ],
+          "notes": [
+            "Source/test candidate added in the October 20 reconciliation; no completed current-candidate run or visual pass is claimed.",
+            "An attachment with this name exists in historical pass3. It must remain labelled pass3; later source changes require a new final-candidate capture.",
+            "Phone captures and AX single-column captures cannot substitute for this default-size two-column state."
+          ]
+        }
+      ],
+      "unsupportedReason": null,
+      "mappingStatus": "planned-current-source-candidates-unverified",
+      "coverageLimitations": [
+        "Historical pass3 existence is not current-candidate visual sign-off.",
+        "Landscape-right, narrow/resized windows, keyboard and retention are separate checks."
+      ]
+    }
+  ],
+  "supplementalEvidenceCandidates": [
+    {
+      "filename": "fidelity-household-inviter-sent-dark-AX5.png",
+      "attachmentName": "fidelity-household-inviter-sent-dark-AX5",
+      "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/FidelityInviterReceiptTests.swift",
+      "testMethod": "testSentInvitationReceiptBothAppearancesAndSizes",
+      "captureKind": "native-full-display-screenshot",
+      "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+      "coverage": "Supplemental AX5 sent receipt and reachable Done/Close actions.",
+      "launchFlags": [
+        "-plated-design-review",
+        "-plated-open-household",
+        "-plated-review-inviter-sent"
+      ],
+      "notes": [
+        "Source/test candidate added in the October 20 reconciliation; no completed current-candidate run or visual pass is claimed."
+      ]
+    },
+    {
+      "filename": "fidelity-household-inviter-sent-light-AX5.png",
+      "attachmentName": "fidelity-household-inviter-sent-light-AX5",
+      "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/FidelityInviterReceiptTests.swift",
+      "testMethod": "testSentInvitationReceiptBothAppearancesAndSizes",
+      "captureKind": "native-full-display-screenshot",
+      "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+      "coverage": "Supplemental AX5 sent receipt and reachable Done/Close actions.",
+      "launchFlags": [
+        "-plated-design-review",
+        "-plated-open-household",
+        "-plated-review-inviter-sent"
+      ],
+      "notes": [
+        "Source/test candidate added in the October 20 reconciliation; no completed current-candidate run or visual pass is claimed."
+      ]
+    },
+    {
+      "filename": "fidelity-household-inviter-resent-dark.png",
+      "attachmentName": "fidelity-household-inviter-resent-dark",
+      "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/FidelityInviterReceiptTests.swift",
+      "testMethod": "testResentAndJoinedReceiptsDoNotMisstateMembership",
+      "captureKind": "native-full-display-screenshot",
+      "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+      "coverage": "Distinct resent receipt; accepted/ended states cannot retain a waiting or sent headline.",
+      "launchFlags": [
+        "-plated-design-review",
+        "-plated-open-household",
+        "-plated-review-inviter-resent"
+      ],
+      "notes": [
+        "Source/test candidate added in the October 20 reconciliation; no completed current-candidate run or visual pass is claimed."
+      ]
+    },
+    {
+      "filename": "fidelity-household-inviter-joined-dark.png",
+      "attachmentName": "fidelity-household-inviter-joined-dark",
+      "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/FidelityInviterReceiptTests.swift",
+      "testMethod": "testResentAndJoinedReceiptsDoNotMisstateMembership",
+      "captureKind": "native-full-display-screenshot",
+      "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+      "coverage": "Distinct joined receipt; accepted/ended states cannot retain a waiting or sent headline.",
+      "launchFlags": [
+        "-plated-design-review",
+        "-plated-open-household",
+        "-plated-review-inviter-joined"
+      ],
+      "notes": [
+        "Source/test candidate added in the October 20 reconciliation; no completed current-candidate run or visual pass is claimed."
+      ]
+    },
+    {
+      "filename": "fidelity-household-inviter-ended-dark.png",
+      "attachmentName": "fidelity-household-inviter-ended-dark",
+      "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/FidelityInviterReceiptTests.swift",
+      "testMethod": "testResentAndJoinedReceiptsDoNotMisstateMembership",
+      "captureKind": "native-full-display-screenshot",
+      "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+      "coverage": "Distinct ended receipt; accepted/ended states cannot retain a waiting or sent headline.",
+      "launchFlags": [
+        "-plated-design-review",
+        "-plated-open-household",
+        "-plated-review-inviter-ended"
+      ],
+      "notes": [
+        "Source/test candidate added in the October 20 reconciliation; no completed current-candidate run or visual pass is claimed."
+      ]
+    },
+    {
+      "filename": "publication-waiting-AX5.png",
+      "attachmentName": "publication-waiting-AX5",
+      "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/SocialPublicationUITests.swift",
+      "testMethod": "testWaitingForConnectionAtLargestText",
+      "captureKind": "native-app-screenshot",
+      "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+      "coverage": "Supplemental cream AX5 waiting-post presentation, no Retry and tab-bar clearance.",
+      "launchFlags": [
+        "-plated-design-review",
+        "-plated-review-publication-waiting",
+        "-plated-tab",
+        "table"
+      ],
+      "notes": [
+        "Source/test candidate added in the October 20 reconciliation; no completed current-candidate run or visual pass is claimed."
+      ]
+    },
+    {
+      "filename": "fidelity-comment-four-lines-default-dark.png",
+      "attachmentName": "fidelity-comment-four-lines-default-dark",
+      "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/FidelityCommentInputTests.swift",
+      "testMethod": "testMultilineDraftGrowthAndRelaunchBothAppearances",
+      "captureKind": "native-app-screenshot",
+      "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+      "coverage": "Comment input four-lines; exact text/newlines, native 44pt minimum, relative four-versus-ten-line height cap, caret/keyboard/Send geometry and account/zone/post-scoped draft relaunch are asserted in this journey.",
+      "launchFlags": [
+        "-plated-design-review",
+        "-plated-review-comment-reactions",
+        "-plated-tab",
+        "table",
+        "-plated-open-thread"
+      ],
+      "notes": [
+        "Source/test candidate added in the October 20 reconciliation; no completed current-candidate run or visual pass is claimed.",
+        "Initial launch resets the fixture draft; restoration launch deliberately omits reset. No comment is sent.",
+        "Text size: default.",
+        "Current editor uses iOS 18 native selection binding; current-source native execution remains pending. A stable capped frame is not proof that four full text lines are visible."
+      ]
+    },
+    {
+      "filename": "fidelity-comment-scrolled-caret-default-dark.png",
+      "attachmentName": "fidelity-comment-scrolled-caret-default-dark",
+      "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/FidelityCommentInputTests.swift",
+      "testMethod": "testMultilineDraftGrowthAndRelaunchBothAppearances",
+      "captureKind": "native-app-screenshot",
+      "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+      "coverage": "Comment input scrolled-caret; exact text/newlines, native 44pt minimum, relative four-versus-ten-line height cap, caret/keyboard/Send geometry and account/zone/post-scoped draft relaunch are asserted in this journey.",
+      "launchFlags": [
+        "-plated-design-review",
+        "-plated-review-comment-reactions",
+        "-plated-tab",
+        "table",
+        "-plated-open-thread"
+      ],
+      "notes": [
+        "Source/test candidate added in the October 20 reconciliation; no completed current-candidate run or visual pass is claimed.",
+        "Initial launch resets the fixture draft; restoration launch deliberately omits reset. No comment is sent.",
+        "Text size: default.",
+        "Current editor uses iOS 18 native selection binding; current-source native execution remains pending. A stable capped frame is not proof that four full text lines are visible."
+      ]
+    },
+    {
+      "filename": "fidelity-comment-restored-draft-default-dark.png",
+      "attachmentName": "fidelity-comment-restored-draft-default-dark",
+      "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/FidelityCommentInputTests.swift",
+      "testMethod": "testMultilineDraftGrowthAndRelaunchBothAppearances",
+      "captureKind": "native-app-screenshot",
+      "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+      "coverage": "Comment input restored-draft; exact text/newlines, native 44pt minimum, relative four-versus-ten-line height cap, caret/keyboard/Send geometry and account/zone/post-scoped draft relaunch are asserted in this journey.",
+      "launchFlags": [
+        "-plated-design-review",
+        "-plated-review-comment-reactions",
+        "-plated-tab",
+        "table",
+        "-plated-open-thread"
+      ],
+      "notes": [
+        "Source/test candidate added in the October 20 reconciliation; no completed current-candidate run or visual pass is claimed.",
+        "Initial launch resets the fixture draft; restoration launch deliberately omits reset. No comment is sent.",
+        "Text size: default.",
+        "Current editor uses iOS 18 native selection binding; current-source native execution remains pending. A stable capped frame is not proof that four full text lines are visible."
+      ]
+    },
+    {
+      "filename": "fidelity-comment-restored-keyboard-default-dark.png",
+      "attachmentName": "fidelity-comment-restored-keyboard-default-dark",
+      "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/FidelityCommentInputTests.swift",
+      "testMethod": "testMultilineDraftGrowthAndRelaunchBothAppearances",
+      "captureKind": "native-app-screenshot",
+      "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+      "coverage": "Comment input restored-keyboard; exact text/newlines, native 44pt minimum, relative four-versus-ten-line height cap, caret/keyboard/Send geometry and account/zone/post-scoped draft relaunch are asserted in this journey.",
+      "launchFlags": [
+        "-plated-design-review",
+        "-plated-review-comment-reactions",
+        "-plated-tab",
+        "table",
+        "-plated-open-thread"
+      ],
+      "notes": [
+        "Source/test candidate added in the October 20 reconciliation; no completed current-candidate run or visual pass is claimed.",
+        "Initial launch resets the fixture draft; restoration launch deliberately omits reset. No comment is sent.",
+        "Text size: default.",
+        "Current editor uses iOS 18 native selection binding; current-source native execution remains pending. A stable capped frame is not proof that four full text lines are visible."
+      ]
+    },
+    {
+      "filename": "fidelity-comment-typed-mention-picker-default-dark.png",
+      "attachmentName": "fidelity-comment-typed-mention-picker-default-dark",
+      "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/FidelityCommentInputTests.swift",
+      "testMethod": "testTypedAndAttachmentMentionsBothAppearances",
+      "captureKind": "native-app-screenshot",
+      "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+      "coverage": "Comment input typed-mention-picker; typed @ and attachment-menu mention selection preserve insertion point, text, enabled Send and restored draft.",
+      "launchFlags": [
+        "-plated-design-review",
+        "-plated-review-comment-reactions",
+        "-plated-tab",
+        "table",
+        "-plated-open-thread"
+      ],
+      "notes": [
+        "Source/test candidate added in the October 20 reconciliation; no completed current-candidate run or visual pass is claimed.",
+        "Fixture roster includes Sam and Riley; Alessandra is a comment author, not a mention-picker member. No comment is sent.",
+        "Text size: default.",
+        "Current editor uses iOS 18 native selection binding; current-source native execution remains pending. A stable capped frame is not proof that four full text lines are visible."
+      ]
+    },
+    {
+      "filename": "fidelity-comment-attachment-mention-picker-default-dark.png",
+      "attachmentName": "fidelity-comment-attachment-mention-picker-default-dark",
+      "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/FidelityCommentInputTests.swift",
+      "testMethod": "testTypedAndAttachmentMentionsBothAppearances",
+      "captureKind": "native-app-screenshot",
+      "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+      "coverage": "Comment input attachment-mention-picker; typed @ and attachment-menu mention selection preserve insertion point, text, enabled Send and restored draft.",
+      "launchFlags": [
+        "-plated-design-review",
+        "-plated-review-comment-reactions",
+        "-plated-tab",
+        "table",
+        "-plated-open-thread"
+      ],
+      "notes": [
+        "Source/test candidate added in the October 20 reconciliation; no completed current-candidate run or visual pass is claimed.",
+        "Fixture roster includes Sam and Riley; Alessandra is a comment author, not a mention-picker member. No comment is sent.",
+        "Text size: default.",
+        "Current editor uses iOS 18 native selection binding; current-source native execution remains pending. A stable capped frame is not proof that four full text lines are visible."
+      ]
+    },
+    {
+      "filename": "fidelity-comment-mentions-inserted-default-dark.png",
+      "attachmentName": "fidelity-comment-mentions-inserted-default-dark",
+      "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/FidelityCommentInputTests.swift",
+      "testMethod": "testTypedAndAttachmentMentionsBothAppearances",
+      "captureKind": "native-app-screenshot",
+      "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+      "coverage": "Comment input mentions-inserted; typed @ and attachment-menu mention selection preserve insertion point, text, enabled Send and restored draft.",
+      "launchFlags": [
+        "-plated-design-review",
+        "-plated-review-comment-reactions",
+        "-plated-tab",
+        "table",
+        "-plated-open-thread"
+      ],
+      "notes": [
+        "Source/test candidate added in the October 20 reconciliation; no completed current-candidate run or visual pass is claimed.",
+        "Fixture roster includes Sam and Riley; Alessandra is a comment author, not a mention-picker member. No comment is sent.",
+        "Text size: default.",
+        "Current editor uses iOS 18 native selection binding; current-source native execution remains pending. A stable capped frame is not proof that four full text lines are visible."
+      ]
+    },
+    {
+      "filename": "fidelity-comment-mentions-restored-default-dark.png",
+      "attachmentName": "fidelity-comment-mentions-restored-default-dark",
+      "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/FidelityCommentInputTests.swift",
+      "testMethod": "testTypedAndAttachmentMentionsBothAppearances",
+      "captureKind": "native-app-screenshot",
+      "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+      "coverage": "Comment input mentions-restored; typed @ and attachment-menu mention selection preserve insertion point, text, enabled Send and restored draft.",
+      "launchFlags": [
+        "-plated-design-review",
+        "-plated-review-comment-reactions",
+        "-plated-tab",
+        "table",
+        "-plated-open-thread"
+      ],
+      "notes": [
+        "Source/test candidate added in the October 20 reconciliation; no completed current-candidate run or visual pass is claimed.",
+        "Fixture roster includes Sam and Riley; Alessandra is a comment author, not a mention-picker member. No comment is sent.",
+        "Text size: default.",
+        "Current editor uses iOS 18 native selection binding; current-source native execution remains pending. A stable capped frame is not proof that four full text lines are visible."
+      ]
+    },
+    {
+      "filename": "fidelity-comment-four-lines-default-light.png",
+      "attachmentName": "fidelity-comment-four-lines-default-light",
+      "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/FidelityCommentInputTests.swift",
+      "testMethod": "testMultilineDraftGrowthAndRelaunchBothAppearances",
+      "captureKind": "native-app-screenshot",
+      "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+      "coverage": "Comment input four-lines; exact text/newlines, native 44pt minimum, relative four-versus-ten-line height cap, caret/keyboard/Send geometry and account/zone/post-scoped draft relaunch are asserted in this journey.",
+      "launchFlags": [
+        "-plated-design-review",
+        "-plated-review-comment-reactions",
+        "-plated-tab",
+        "table",
+        "-plated-open-thread"
+      ],
+      "notes": [
+        "Source/test candidate added in the October 20 reconciliation; no completed current-candidate run or visual pass is claimed.",
+        "Initial launch resets the fixture draft; restoration launch deliberately omits reset. No comment is sent.",
+        "Text size: default.",
+        "Current editor uses iOS 18 native selection binding; current-source native execution remains pending. A stable capped frame is not proof that four full text lines are visible."
+      ]
+    },
+    {
+      "filename": "fidelity-comment-scrolled-caret-default-light.png",
+      "attachmentName": "fidelity-comment-scrolled-caret-default-light",
+      "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/FidelityCommentInputTests.swift",
+      "testMethod": "testMultilineDraftGrowthAndRelaunchBothAppearances",
+      "captureKind": "native-app-screenshot",
+      "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+      "coverage": "Comment input scrolled-caret; exact text/newlines, native 44pt minimum, relative four-versus-ten-line height cap, caret/keyboard/Send geometry and account/zone/post-scoped draft relaunch are asserted in this journey.",
+      "launchFlags": [
+        "-plated-design-review",
+        "-plated-review-comment-reactions",
+        "-plated-tab",
+        "table",
+        "-plated-open-thread"
+      ],
+      "notes": [
+        "Source/test candidate added in the October 20 reconciliation; no completed current-candidate run or visual pass is claimed.",
+        "Initial launch resets the fixture draft; restoration launch deliberately omits reset. No comment is sent.",
+        "Text size: default.",
+        "Current editor uses iOS 18 native selection binding; current-source native execution remains pending. A stable capped frame is not proof that four full text lines are visible."
+      ]
+    },
+    {
+      "filename": "fidelity-comment-restored-draft-default-light.png",
+      "attachmentName": "fidelity-comment-restored-draft-default-light",
+      "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/FidelityCommentInputTests.swift",
+      "testMethod": "testMultilineDraftGrowthAndRelaunchBothAppearances",
+      "captureKind": "native-app-screenshot",
+      "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+      "coverage": "Comment input restored-draft; exact text/newlines, native 44pt minimum, relative four-versus-ten-line height cap, caret/keyboard/Send geometry and account/zone/post-scoped draft relaunch are asserted in this journey.",
+      "launchFlags": [
+        "-plated-design-review",
+        "-plated-review-comment-reactions",
+        "-plated-tab",
+        "table",
+        "-plated-open-thread"
+      ],
+      "notes": [
+        "Source/test candidate added in the October 20 reconciliation; no completed current-candidate run or visual pass is claimed.",
+        "Initial launch resets the fixture draft; restoration launch deliberately omits reset. No comment is sent.",
+        "Text size: default.",
+        "Current editor uses iOS 18 native selection binding; current-source native execution remains pending. A stable capped frame is not proof that four full text lines are visible."
+      ]
+    },
+    {
+      "filename": "fidelity-comment-restored-keyboard-default-light.png",
+      "attachmentName": "fidelity-comment-restored-keyboard-default-light",
+      "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/FidelityCommentInputTests.swift",
+      "testMethod": "testMultilineDraftGrowthAndRelaunchBothAppearances",
+      "captureKind": "native-app-screenshot",
+      "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+      "coverage": "Comment input restored-keyboard; exact text/newlines, native 44pt minimum, relative four-versus-ten-line height cap, caret/keyboard/Send geometry and account/zone/post-scoped draft relaunch are asserted in this journey.",
+      "launchFlags": [
+        "-plated-design-review",
+        "-plated-review-comment-reactions",
+        "-plated-tab",
+        "table",
+        "-plated-open-thread"
+      ],
+      "notes": [
+        "Source/test candidate added in the October 20 reconciliation; no completed current-candidate run or visual pass is claimed.",
+        "Initial launch resets the fixture draft; restoration launch deliberately omits reset. No comment is sent.",
+        "Text size: default.",
+        "Current editor uses iOS 18 native selection binding; current-source native execution remains pending. A stable capped frame is not proof that four full text lines are visible."
+      ]
+    },
+    {
+      "filename": "fidelity-comment-typed-mention-picker-default-light.png",
+      "attachmentName": "fidelity-comment-typed-mention-picker-default-light",
+      "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/FidelityCommentInputTests.swift",
+      "testMethod": "testTypedAndAttachmentMentionsBothAppearances",
+      "captureKind": "native-app-screenshot",
+      "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+      "coverage": "Comment input typed-mention-picker; typed @ and attachment-menu mention selection preserve insertion point, text, enabled Send and restored draft.",
+      "launchFlags": [
+        "-plated-design-review",
+        "-plated-review-comment-reactions",
+        "-plated-tab",
+        "table",
+        "-plated-open-thread"
+      ],
+      "notes": [
+        "Source/test candidate added in the October 20 reconciliation; no completed current-candidate run or visual pass is claimed.",
+        "Fixture roster includes Sam and Riley; Alessandra is a comment author, not a mention-picker member. No comment is sent.",
+        "Text size: default.",
+        "Current editor uses iOS 18 native selection binding; current-source native execution remains pending. A stable capped frame is not proof that four full text lines are visible."
+      ]
+    },
+    {
+      "filename": "fidelity-comment-attachment-mention-picker-default-light.png",
+      "attachmentName": "fidelity-comment-attachment-mention-picker-default-light",
+      "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/FidelityCommentInputTests.swift",
+      "testMethod": "testTypedAndAttachmentMentionsBothAppearances",
+      "captureKind": "native-app-screenshot",
+      "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+      "coverage": "Comment input attachment-mention-picker; typed @ and attachment-menu mention selection preserve insertion point, text, enabled Send and restored draft.",
+      "launchFlags": [
+        "-plated-design-review",
+        "-plated-review-comment-reactions",
+        "-plated-tab",
+        "table",
+        "-plated-open-thread"
+      ],
+      "notes": [
+        "Source/test candidate added in the October 20 reconciliation; no completed current-candidate run or visual pass is claimed.",
+        "Fixture roster includes Sam and Riley; Alessandra is a comment author, not a mention-picker member. No comment is sent.",
+        "Text size: default.",
+        "Current editor uses iOS 18 native selection binding; current-source native execution remains pending. A stable capped frame is not proof that four full text lines are visible."
+      ]
+    },
+    {
+      "filename": "fidelity-comment-mentions-inserted-default-light.png",
+      "attachmentName": "fidelity-comment-mentions-inserted-default-light",
+      "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/FidelityCommentInputTests.swift",
+      "testMethod": "testTypedAndAttachmentMentionsBothAppearances",
+      "captureKind": "native-app-screenshot",
+      "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+      "coverage": "Comment input mentions-inserted; typed @ and attachment-menu mention selection preserve insertion point, text, enabled Send and restored draft.",
+      "launchFlags": [
+        "-plated-design-review",
+        "-plated-review-comment-reactions",
+        "-plated-tab",
+        "table",
+        "-plated-open-thread"
+      ],
+      "notes": [
+        "Source/test candidate added in the October 20 reconciliation; no completed current-candidate run or visual pass is claimed.",
+        "Fixture roster includes Sam and Riley; Alessandra is a comment author, not a mention-picker member. No comment is sent.",
+        "Text size: default.",
+        "Current editor uses iOS 18 native selection binding; current-source native execution remains pending. A stable capped frame is not proof that four full text lines are visible."
+      ]
+    },
+    {
+      "filename": "fidelity-comment-mentions-restored-default-light.png",
+      "attachmentName": "fidelity-comment-mentions-restored-default-light",
+      "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/FidelityCommentInputTests.swift",
+      "testMethod": "testTypedAndAttachmentMentionsBothAppearances",
+      "captureKind": "native-app-screenshot",
+      "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+      "coverage": "Comment input mentions-restored; typed @ and attachment-menu mention selection preserve insertion point, text, enabled Send and restored draft.",
+      "launchFlags": [
+        "-plated-design-review",
+        "-plated-review-comment-reactions",
+        "-plated-tab",
+        "table",
+        "-plated-open-thread"
+      ],
+      "notes": [
+        "Source/test candidate added in the October 20 reconciliation; no completed current-candidate run or visual pass is claimed.",
+        "Fixture roster includes Sam and Riley; Alessandra is a comment author, not a mention-picker member. No comment is sent.",
+        "Text size: default.",
+        "Current editor uses iOS 18 native selection binding; current-source native execution remains pending. A stable capped frame is not proof that four full text lines are visible."
+      ]
+    },
+    {
+      "filename": "fidelity-comment-four-lines-AX5-dark.png",
+      "attachmentName": "fidelity-comment-four-lines-AX5-dark",
+      "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/FidelityCommentInputTests.swift",
+      "testMethod": "testMultilineDraftGrowthAndRelaunchAtLargestTextBothAppearances",
+      "captureKind": "native-app-screenshot",
+      "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+      "coverage": "Comment input four-lines; exact text/newlines, native 44pt minimum, relative four-versus-ten-line height cap, caret/keyboard/Send geometry and account/zone/post-scoped draft relaunch are asserted in this journey.",
+      "launchFlags": [
+        "-plated-design-review",
+        "-plated-review-comment-reactions",
+        "-plated-tab",
+        "table",
+        "-plated-open-thread"
+      ],
+      "notes": [
+        "Source/test candidate added in the October 20 reconciliation; no completed current-candidate run or visual pass is claimed.",
+        "Initial launch resets the fixture draft; restoration launch deliberately omits reset. No comment is sent.",
+        "Text size: AX5.",
+        "Current editor uses iOS 18 native selection binding; current-source native execution remains pending. A stable capped frame is not proof that four full text lines are visible."
+      ]
+    },
+    {
+      "filename": "fidelity-comment-scrolled-caret-AX5-dark.png",
+      "attachmentName": "fidelity-comment-scrolled-caret-AX5-dark",
+      "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/FidelityCommentInputTests.swift",
+      "testMethod": "testMultilineDraftGrowthAndRelaunchAtLargestTextBothAppearances",
+      "captureKind": "native-app-screenshot",
+      "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+      "coverage": "Comment input scrolled-caret; exact text/newlines, native 44pt minimum, relative four-versus-ten-line height cap, caret/keyboard/Send geometry and account/zone/post-scoped draft relaunch are asserted in this journey.",
+      "launchFlags": [
+        "-plated-design-review",
+        "-plated-review-comment-reactions",
+        "-plated-tab",
+        "table",
+        "-plated-open-thread"
+      ],
+      "notes": [
+        "Source/test candidate added in the October 20 reconciliation; no completed current-candidate run or visual pass is claimed.",
+        "Initial launch resets the fixture draft; restoration launch deliberately omits reset. No comment is sent.",
+        "Text size: AX5.",
+        "Current editor uses iOS 18 native selection binding; current-source native execution remains pending. A stable capped frame is not proof that four full text lines are visible."
+      ]
+    },
+    {
+      "filename": "fidelity-comment-restored-draft-AX5-dark.png",
+      "attachmentName": "fidelity-comment-restored-draft-AX5-dark",
+      "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/FidelityCommentInputTests.swift",
+      "testMethod": "testMultilineDraftGrowthAndRelaunchAtLargestTextBothAppearances",
+      "captureKind": "native-app-screenshot",
+      "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+      "coverage": "Comment input restored-draft; exact text/newlines, native 44pt minimum, relative four-versus-ten-line height cap, caret/keyboard/Send geometry and account/zone/post-scoped draft relaunch are asserted in this journey.",
+      "launchFlags": [
+        "-plated-design-review",
+        "-plated-review-comment-reactions",
+        "-plated-tab",
+        "table",
+        "-plated-open-thread"
+      ],
+      "notes": [
+        "Source/test candidate added in the October 20 reconciliation; no completed current-candidate run or visual pass is claimed.",
+        "Initial launch resets the fixture draft; restoration launch deliberately omits reset. No comment is sent.",
+        "Text size: AX5.",
+        "Current editor uses iOS 18 native selection binding; current-source native execution remains pending. A stable capped frame is not proof that four full text lines are visible."
+      ]
+    },
+    {
+      "filename": "fidelity-comment-restored-keyboard-AX5-dark.png",
+      "attachmentName": "fidelity-comment-restored-keyboard-AX5-dark",
+      "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/FidelityCommentInputTests.swift",
+      "testMethod": "testMultilineDraftGrowthAndRelaunchAtLargestTextBothAppearances",
+      "captureKind": "native-app-screenshot",
+      "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+      "coverage": "Comment input restored-keyboard; exact text/newlines, native 44pt minimum, relative four-versus-ten-line height cap, caret/keyboard/Send geometry and account/zone/post-scoped draft relaunch are asserted in this journey.",
+      "launchFlags": [
+        "-plated-design-review",
+        "-plated-review-comment-reactions",
+        "-plated-tab",
+        "table",
+        "-plated-open-thread"
+      ],
+      "notes": [
+        "Source/test candidate added in the October 20 reconciliation; no completed current-candidate run or visual pass is claimed.",
+        "Initial launch resets the fixture draft; restoration launch deliberately omits reset. No comment is sent.",
+        "Text size: AX5.",
+        "Current editor uses iOS 18 native selection binding; current-source native execution remains pending. A stable capped frame is not proof that four full text lines are visible."
+      ]
+    },
+    {
+      "filename": "fidelity-comment-typed-mention-picker-AX5-dark.png",
+      "attachmentName": "fidelity-comment-typed-mention-picker-AX5-dark",
+      "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/FidelityCommentInputTests.swift",
+      "testMethod": "testTypedAndAttachmentMentionsAtLargestTextBothAppearances",
+      "captureKind": "native-app-screenshot",
+      "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+      "coverage": "Comment input typed-mention-picker; typed @ and attachment-menu mention selection preserve insertion point, text, enabled Send and restored draft.",
+      "launchFlags": [
+        "-plated-design-review",
+        "-plated-review-comment-reactions",
+        "-plated-tab",
+        "table",
+        "-plated-open-thread"
+      ],
+      "notes": [
+        "Source/test candidate added in the October 20 reconciliation; no completed current-candidate run or visual pass is claimed.",
+        "Fixture roster includes Sam and Riley; Alessandra is a comment author, not a mention-picker member. No comment is sent.",
+        "Text size: AX5.",
+        "Current editor uses iOS 18 native selection binding; current-source native execution remains pending. A stable capped frame is not proof that four full text lines are visible."
+      ]
+    },
+    {
+      "filename": "fidelity-comment-attachment-mention-picker-AX5-dark.png",
+      "attachmentName": "fidelity-comment-attachment-mention-picker-AX5-dark",
+      "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/FidelityCommentInputTests.swift",
+      "testMethod": "testTypedAndAttachmentMentionsAtLargestTextBothAppearances",
+      "captureKind": "native-app-screenshot",
+      "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+      "coverage": "Comment input attachment-mention-picker; typed @ and attachment-menu mention selection preserve insertion point, text, enabled Send and restored draft.",
+      "launchFlags": [
+        "-plated-design-review",
+        "-plated-review-comment-reactions",
+        "-plated-tab",
+        "table",
+        "-plated-open-thread"
+      ],
+      "notes": [
+        "Source/test candidate added in the October 20 reconciliation; no completed current-candidate run or visual pass is claimed.",
+        "Fixture roster includes Sam and Riley; Alessandra is a comment author, not a mention-picker member. No comment is sent.",
+        "Text size: AX5.",
+        "Current editor uses iOS 18 native selection binding; current-source native execution remains pending. A stable capped frame is not proof that four full text lines are visible."
+      ]
+    },
+    {
+      "filename": "fidelity-comment-mentions-inserted-AX5-dark.png",
+      "attachmentName": "fidelity-comment-mentions-inserted-AX5-dark",
+      "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/FidelityCommentInputTests.swift",
+      "testMethod": "testTypedAndAttachmentMentionsAtLargestTextBothAppearances",
+      "captureKind": "native-app-screenshot",
+      "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+      "coverage": "Comment input mentions-inserted; typed @ and attachment-menu mention selection preserve insertion point, text, enabled Send and restored draft.",
+      "launchFlags": [
+        "-plated-design-review",
+        "-plated-review-comment-reactions",
+        "-plated-tab",
+        "table",
+        "-plated-open-thread"
+      ],
+      "notes": [
+        "Source/test candidate added in the October 20 reconciliation; no completed current-candidate run or visual pass is claimed.",
+        "Fixture roster includes Sam and Riley; Alessandra is a comment author, not a mention-picker member. No comment is sent.",
+        "Text size: AX5.",
+        "Current editor uses iOS 18 native selection binding; current-source native execution remains pending. A stable capped frame is not proof that four full text lines are visible."
+      ]
+    },
+    {
+      "filename": "fidelity-comment-mentions-restored-AX5-dark.png",
+      "attachmentName": "fidelity-comment-mentions-restored-AX5-dark",
+      "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/FidelityCommentInputTests.swift",
+      "testMethod": "testTypedAndAttachmentMentionsAtLargestTextBothAppearances",
+      "captureKind": "native-app-screenshot",
+      "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+      "coverage": "Comment input mentions-restored; typed @ and attachment-menu mention selection preserve insertion point, text, enabled Send and restored draft.",
+      "launchFlags": [
+        "-plated-design-review",
+        "-plated-review-comment-reactions",
+        "-plated-tab",
+        "table",
+        "-plated-open-thread"
+      ],
+      "notes": [
+        "Source/test candidate added in the October 20 reconciliation; no completed current-candidate run or visual pass is claimed.",
+        "Fixture roster includes Sam and Riley; Alessandra is a comment author, not a mention-picker member. No comment is sent.",
+        "Text size: AX5.",
+        "Current editor uses iOS 18 native selection binding; current-source native execution remains pending. A stable capped frame is not proof that four full text lines are visible."
+      ]
+    },
+    {
+      "filename": "fidelity-comment-four-lines-AX5-light.png",
+      "attachmentName": "fidelity-comment-four-lines-AX5-light",
+      "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/FidelityCommentInputTests.swift",
+      "testMethod": "testMultilineDraftGrowthAndRelaunchAtLargestTextBothAppearances",
+      "captureKind": "native-app-screenshot",
+      "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+      "coverage": "Comment input four-lines; exact text/newlines, native 44pt minimum, relative four-versus-ten-line height cap, caret/keyboard/Send geometry and account/zone/post-scoped draft relaunch are asserted in this journey.",
+      "launchFlags": [
+        "-plated-design-review",
+        "-plated-review-comment-reactions",
+        "-plated-tab",
+        "table",
+        "-plated-open-thread"
+      ],
+      "notes": [
+        "Source/test candidate added in the October 20 reconciliation; no completed current-candidate run or visual pass is claimed.",
+        "Initial launch resets the fixture draft; restoration launch deliberately omits reset. No comment is sent.",
+        "Text size: AX5.",
+        "Current editor uses iOS 18 native selection binding; current-source native execution remains pending. A stable capped frame is not proof that four full text lines are visible."
+      ]
+    },
+    {
+      "filename": "fidelity-comment-scrolled-caret-AX5-light.png",
+      "attachmentName": "fidelity-comment-scrolled-caret-AX5-light",
+      "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/FidelityCommentInputTests.swift",
+      "testMethod": "testMultilineDraftGrowthAndRelaunchAtLargestTextBothAppearances",
+      "captureKind": "native-app-screenshot",
+      "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+      "coverage": "Comment input scrolled-caret; exact text/newlines, native 44pt minimum, relative four-versus-ten-line height cap, caret/keyboard/Send geometry and account/zone/post-scoped draft relaunch are asserted in this journey.",
+      "launchFlags": [
+        "-plated-design-review",
+        "-plated-review-comment-reactions",
+        "-plated-tab",
+        "table",
+        "-plated-open-thread"
+      ],
+      "notes": [
+        "Source/test candidate added in the October 20 reconciliation; no completed current-candidate run or visual pass is claimed.",
+        "Initial launch resets the fixture draft; restoration launch deliberately omits reset. No comment is sent.",
+        "Text size: AX5.",
+        "Current editor uses iOS 18 native selection binding; current-source native execution remains pending. A stable capped frame is not proof that four full text lines are visible."
+      ]
+    },
+    {
+      "filename": "fidelity-comment-restored-draft-AX5-light.png",
+      "attachmentName": "fidelity-comment-restored-draft-AX5-light",
+      "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/FidelityCommentInputTests.swift",
+      "testMethod": "testMultilineDraftGrowthAndRelaunchAtLargestTextBothAppearances",
+      "captureKind": "native-app-screenshot",
+      "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+      "coverage": "Comment input restored-draft; exact text/newlines, native 44pt minimum, relative four-versus-ten-line height cap, caret/keyboard/Send geometry and account/zone/post-scoped draft relaunch are asserted in this journey.",
+      "launchFlags": [
+        "-plated-design-review",
+        "-plated-review-comment-reactions",
+        "-plated-tab",
+        "table",
+        "-plated-open-thread"
+      ],
+      "notes": [
+        "Source/test candidate added in the October 20 reconciliation; no completed current-candidate run or visual pass is claimed.",
+        "Initial launch resets the fixture draft; restoration launch deliberately omits reset. No comment is sent.",
+        "Text size: AX5.",
+        "Current editor uses iOS 18 native selection binding; current-source native execution remains pending. A stable capped frame is not proof that four full text lines are visible."
+      ]
+    },
+    {
+      "filename": "fidelity-comment-restored-keyboard-AX5-light.png",
+      "attachmentName": "fidelity-comment-restored-keyboard-AX5-light",
+      "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/FidelityCommentInputTests.swift",
+      "testMethod": "testMultilineDraftGrowthAndRelaunchAtLargestTextBothAppearances",
+      "captureKind": "native-app-screenshot",
+      "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+      "coverage": "Comment input restored-keyboard; exact text/newlines, native 44pt minimum, relative four-versus-ten-line height cap, caret/keyboard/Send geometry and account/zone/post-scoped draft relaunch are asserted in this journey.",
+      "launchFlags": [
+        "-plated-design-review",
+        "-plated-review-comment-reactions",
+        "-plated-tab",
+        "table",
+        "-plated-open-thread"
+      ],
+      "notes": [
+        "Source/test candidate added in the October 20 reconciliation; no completed current-candidate run or visual pass is claimed.",
+        "Initial launch resets the fixture draft; restoration launch deliberately omits reset. No comment is sent.",
+        "Text size: AX5.",
+        "Current editor uses iOS 18 native selection binding; current-source native execution remains pending. A stable capped frame is not proof that four full text lines are visible."
+      ]
+    },
+    {
+      "filename": "fidelity-comment-typed-mention-picker-AX5-light.png",
+      "attachmentName": "fidelity-comment-typed-mention-picker-AX5-light",
+      "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/FidelityCommentInputTests.swift",
+      "testMethod": "testTypedAndAttachmentMentionsAtLargestTextBothAppearances",
+      "captureKind": "native-app-screenshot",
+      "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+      "coverage": "Comment input typed-mention-picker; typed @ and attachment-menu mention selection preserve insertion point, text, enabled Send and restored draft.",
+      "launchFlags": [
+        "-plated-design-review",
+        "-plated-review-comment-reactions",
+        "-plated-tab",
+        "table",
+        "-plated-open-thread"
+      ],
+      "notes": [
+        "Source/test candidate added in the October 20 reconciliation; no completed current-candidate run or visual pass is claimed.",
+        "Fixture roster includes Sam and Riley; Alessandra is a comment author, not a mention-picker member. No comment is sent.",
+        "Text size: AX5.",
+        "Current editor uses iOS 18 native selection binding; current-source native execution remains pending. A stable capped frame is not proof that four full text lines are visible."
+      ]
+    },
+    {
+      "filename": "fidelity-comment-attachment-mention-picker-AX5-light.png",
+      "attachmentName": "fidelity-comment-attachment-mention-picker-AX5-light",
+      "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/FidelityCommentInputTests.swift",
+      "testMethod": "testTypedAndAttachmentMentionsAtLargestTextBothAppearances",
+      "captureKind": "native-app-screenshot",
+      "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+      "coverage": "Comment input attachment-mention-picker; typed @ and attachment-menu mention selection preserve insertion point, text, enabled Send and restored draft.",
+      "launchFlags": [
+        "-plated-design-review",
+        "-plated-review-comment-reactions",
+        "-plated-tab",
+        "table",
+        "-plated-open-thread"
+      ],
+      "notes": [
+        "Source/test candidate added in the October 20 reconciliation; no completed current-candidate run or visual pass is claimed.",
+        "Fixture roster includes Sam and Riley; Alessandra is a comment author, not a mention-picker member. No comment is sent.",
+        "Text size: AX5.",
+        "Current editor uses iOS 18 native selection binding; current-source native execution remains pending. A stable capped frame is not proof that four full text lines are visible."
+      ]
+    },
+    {
+      "filename": "fidelity-comment-mentions-inserted-AX5-light.png",
+      "attachmentName": "fidelity-comment-mentions-inserted-AX5-light",
+      "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/FidelityCommentInputTests.swift",
+      "testMethod": "testTypedAndAttachmentMentionsAtLargestTextBothAppearances",
+      "captureKind": "native-app-screenshot",
+      "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+      "coverage": "Comment input mentions-inserted; typed @ and attachment-menu mention selection preserve insertion point, text, enabled Send and restored draft.",
+      "launchFlags": [
+        "-plated-design-review",
+        "-plated-review-comment-reactions",
+        "-plated-tab",
+        "table",
+        "-plated-open-thread"
+      ],
+      "notes": [
+        "Source/test candidate added in the October 20 reconciliation; no completed current-candidate run or visual pass is claimed.",
+        "Fixture roster includes Sam and Riley; Alessandra is a comment author, not a mention-picker member. No comment is sent.",
+        "Text size: AX5.",
+        "Current editor uses iOS 18 native selection binding; current-source native execution remains pending. A stable capped frame is not proof that four full text lines are visible."
+      ]
+    },
+    {
+      "filename": "fidelity-comment-mentions-restored-AX5-light.png",
+      "attachmentName": "fidelity-comment-mentions-restored-AX5-light",
+      "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/FidelityCommentInputTests.swift",
+      "testMethod": "testTypedAndAttachmentMentionsAtLargestTextBothAppearances",
+      "captureKind": "native-app-screenshot",
+      "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+      "coverage": "Comment input mentions-restored; typed @ and attachment-menu mention selection preserve insertion point, text, enabled Send and restored draft.",
+      "launchFlags": [
+        "-plated-design-review",
+        "-plated-review-comment-reactions",
+        "-plated-tab",
+        "table",
+        "-plated-open-thread"
+      ],
+      "notes": [
+        "Source/test candidate added in the October 20 reconciliation; no completed current-candidate run or visual pass is claimed.",
+        "Fixture roster includes Sam and Riley; Alessandra is a comment author, not a mention-picker member. No comment is sent.",
+        "Text size: AX5.",
+        "Current editor uses iOS 18 native selection binding; current-source native execution remains pending. A stable capped frame is not proof that four full text lines are visible."
+      ]
+    },
+    {
+      "filename": "fidelity-comment-input-edge-0.08.png",
+      "attachmentName": "fidelity-comment-input-edge-0.08",
+      "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/DesignFidelityTests.swift",
+      "testMethod": "testCommentInputPaddingAcceptsFocus",
+      "captureKind": "native-app-screenshot",
+      "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+      "coverage": "Cream default comment input top/bottom edge taps focus the real editor; actual typing/deleting and minimum native frame are asserted.",
+      "launchFlags": [
+        "-plated-design-review",
+        "-plated-review-comment-reactions",
+        "-plated-open-thread",
+        "-plated-review-comment-reset"
+      ],
+      "notes": [
+        "Source/test candidate added in the October 20 reconciliation; no completed current-candidate run or visual pass is claimed."
+      ]
+    },
+    {
+      "filename": "fidelity-comment-input-edge-0.92.png",
+      "attachmentName": "fidelity-comment-input-edge-0.92",
+      "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/DesignFidelityTests.swift",
+      "testMethod": "testCommentInputPaddingAcceptsFocus",
+      "captureKind": "native-app-screenshot",
+      "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+      "coverage": "Cream default comment input top/bottom edge taps focus the real editor; actual typing/deleting and minimum native frame are asserted.",
+      "launchFlags": [
+        "-plated-design-review",
+        "-plated-review-comment-reactions",
+        "-plated-open-thread",
+        "-plated-review-comment-reset"
+      ],
+      "notes": [
+        "Source/test candidate added in the October 20 reconciliation; no completed current-candidate run or visual pass is claimed."
+      ]
+    },
+    {
+      "filename": "fidelity-household-inviter-unavailable-dark.png",
+      "attachmentName": "fidelity-household-inviter-unavailable-dark",
+      "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/FidelityInviterReceiptTests.swift",
+      "testMethod": "testMissingMembershipDoesNotClaimWaitingJoinedOrRemoved",
+      "captureKind": "native-full-display-screenshot",
+      "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+      "coverage": "Missing exact membership shows Invitation status unavailable and Membership not confirmed, without sent, waiting, accepted or ended claims.",
+      "launchFlags": [
+        "-plated-design-review",
+        "-plated-open-household",
+        "-plated-review-inviter-unavailable"
+      ],
+      "notes": [
+        "Source/test candidate only; correction postdates the pass6 build and requires the final rebuild and native run.",
+        "Fixture absence does not prove real removal, joining, account change or message handoff."
+      ]
+    },
+    {
+      "filename": "fidelity-household-inviter-unavailable-light.png",
+      "attachmentName": "fidelity-household-inviter-unavailable-light",
+      "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/FidelityInviterReceiptTests.swift",
+      "testMethod": "testMissingMembershipDoesNotClaimWaitingJoinedOrRemoved",
+      "captureKind": "native-full-display-screenshot",
+      "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+      "coverage": "Missing exact membership shows Invitation status unavailable and Membership not confirmed, without sent, waiting, accepted or ended claims.",
+      "launchFlags": [
+        "-plated-design-review",
+        "-plated-open-household",
+        "-plated-review-inviter-unavailable"
+      ],
+      "notes": [
+        "Source/test candidate only; correction postdates the pass6 build and requires the final rebuild and native run.",
+        "Fixture absence does not prove real removal, joining, account change or message handoff."
+      ]
+    },
+    {
+      "filename": "fidelity-comment-middle-mention-dark.png",
+      "attachmentName": "fidelity-comment-middle-mention-dark",
+      "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/FidelityCommentInputTests.swift",
+      "testMethod": "testMentionQueriesAndMiddleInsertionBothAppearances",
+      "captureKind": "native-app-screenshot",
+      "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+      "coverage": "Typed @Sa becomes one @Sam mention; native arrow-key caret movement inserts Riley before the existing sentence suffix and preserves that insertion point. Relaunch restores the exact resulting draft.",
+      "launchFlags": [
+        "-plated-design-review",
+        "-plated-review-comment-reactions",
+        "-plated-tab",
+        "table",
+        "-plated-open-thread"
+      ],
+      "notes": [
+        "Source/test candidate only; no completed native run or visual pass is claimed.",
+        "Default text size only. Initial launch resets only the scoped fixture draft; restoration launch omits reset. No comment is sent."
+      ]
+    },
+    {
+      "filename": "fidelity-comment-middle-mention-light.png",
+      "attachmentName": "fidelity-comment-middle-mention-light",
+      "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/FidelityCommentInputTests.swift",
+      "testMethod": "testMentionQueriesAndMiddleInsertionBothAppearances",
+      "captureKind": "native-app-screenshot",
+      "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+      "coverage": "Typed @Sa becomes one @Sam mention; native arrow-key caret movement inserts Riley before the existing sentence suffix and preserves that insertion point. Relaunch restores the exact resulting draft.",
+      "launchFlags": [
+        "-plated-design-review",
+        "-plated-review-comment-reactions",
+        "-plated-tab",
+        "table",
+        "-plated-open-thread"
+      ],
+      "notes": [
+        "Source/test candidate only; no completed native run or visual pass is claimed.",
+        "Default text size only. Initial launch resets only the scoped fixture draft; restoration launch omits reset. No comment is sent."
+      ]
+    },
+    {
+      "filename": "fidelity-comment-link-draft-restored-dark.png",
+      "attachmentName": "fidelity-comment-link-draft-restored-dark",
+      "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/FidelityCommentInputTests.swift",
+      "testMethod": "testLinkOnlyDraftRestoresVisibleAttachmentBothAppearances",
+      "captureKind": "native-app-screenshot",
+      "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+      "coverage": "Link-only draft relaunch restores the exact visible URL field and expanded attachment controls; empty caption remains valid and Send is enabled. No comment is sent.",
+      "launchFlags": [
+        "-plated-design-review",
+        "-plated-review-comment-reactions",
+        "-plated-tab",
+        "table",
+        "-plated-open-thread"
+      ],
+      "notes": [
+        "Source/test candidate only; no completed native run or visual pass is claimed.",
+        "Default text size only. Initial launch resets only the scoped fixture draft; restoration launch omits reset. No comment is sent."
+      ]
+    },
+    {
+      "filename": "fidelity-comment-link-draft-restored-light.png",
+      "attachmentName": "fidelity-comment-link-draft-restored-light",
+      "testFile": "docs/ux-audit-2026-10-16/UIAudit/Tests/FidelityCommentInputTests.swift",
+      "testMethod": "testLinkOnlyDraftRestoresVisibleAttachmentBothAppearances",
+      "captureKind": "native-app-screenshot",
+      "evidenceScope": "controlled memory-only fixture; not live account/network proof",
+      "coverage": "Link-only draft relaunch restores the exact visible URL field and expanded attachment controls; empty caption remains valid and Send is enabled. No comment is sent.",
+      "launchFlags": [
+        "-plated-design-review",
+        "-plated-review-comment-reactions",
+        "-plated-tab",
+        "table",
+        "-plated-open-thread"
+      ],
+      "notes": [
+        "Source/test candidate only; no completed native run or visual pass is claimed.",
+        "Default text size only. Initial launch resets only the scoped fixture draft; restoration launch omits reset. No comment is sent."
+      ]
+    }
+  ],
+  "supplementalEvidenceNote": "46 planned supplemental captures do not increase the 72 original state/theme entries and cannot replace another theme, size, role or state. Six native input methods are authored: four cover both appearances/default/AX5; two additional query/caret and visible-link restoration methods cover both appearances/default only. Negative cancelled/failed receipt assertions emit no screenshot; retain their completed test results separately when available."
+}

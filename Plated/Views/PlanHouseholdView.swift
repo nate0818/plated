@@ -24,6 +24,11 @@ struct PlanHouseholdView: View {
             .sorted { (event(for: $0)?.date ?? .distantPast) > (event(for: $1)?.date ?? .distantPast) }
     }
 
+    private func sentenceContinuation(_ detail: String) -> String {
+        guard let first = detail.first else { return detail }
+        return first.lowercased() + detail.dropFirst()
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             let layout = typeSize.isAccessibilitySize
@@ -33,8 +38,12 @@ struct PlanHouseholdView: View {
                 Text("At home").plType(.heading).foregroundStyle(Color.ink)
                     .accessibilityAddTraits(.isHeader)
                 if !typeSize.isAccessibilitySize { Spacer(minLength: 0) }
-                Button("Household", action: openHousehold).plType(.footnote, .semibold)
-                    .foregroundStyle(Color.accentText).plTapTarget()
+                Button(action: openHousehold) {
+                    HStack(spacing: 4) {
+                        Text("Household")
+                        Image(systemName: "chevron.right").font(.system(size: 10, weight: .medium)).accessibilityHidden(true) // design-ok(generic-chevron): the approved Household link uses a small trailing navigation cue.
+                    }.plType(.footnote, .semibold).plTapTarget()
+                }.foregroundStyle(Color.accentText)
                     .accessibilityLabel("Manage household")
             }
             ForEach(activeMembers.prefix(3), id: \.persistentModelID) { member in
@@ -42,12 +51,15 @@ struct PlanHouseholdView: View {
                 let event = event(for: member)
                 let detail = member.seat == .invited ? "Invitation pending" : event?.line ?? ""
                 Button { openPerson(member) } label: {
-                    HStack(alignment: .top, spacing: 12) {
-                        AvatarCircle(initials: member.initials, tone: member.tone, size: 36, photo: display.photo)
+                    HStack(alignment: .center, spacing: 10) {
+                        AvatarCircle(initials: member.initials, tone: member.tone, size: 28, photo: display.photo)
                             .accessibilityHidden(true)
                         VStack(alignment: .leading, spacing: 4) {
-                            Text(member.isMe ? "You" : display.name).plType(.body, .semibold).foregroundStyle(Color.ink)
-                            Text(detail).plType(.footnote).foregroundStyle(Color.inkSecondary)
+                            (
+                                Text(member.isMe ? "You" : display.name).fontWeight(.semibold)
+                                + Text(" " + sentenceContinuation(detail))
+                            )
+                            .plType(.caption).foregroundStyle(Color.ink)
                             if member.seat != .invited, let event {
                                 Group {
                                     if let day = event.dinnerDate {
@@ -72,8 +84,6 @@ struct PlanHouseholdView: View {
                 Text("No recent household activity to show yet.")
                     .plType(.footnote).foregroundStyle(Color.inkSecondary)
             }
-            Text("Recent household activity · last 7 days")
-                .plType(.caption).foregroundStyle(Color.inkSecondary)
         }
     }
 }

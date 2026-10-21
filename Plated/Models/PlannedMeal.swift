@@ -87,7 +87,9 @@ final class PlannedMeal {
     /// The calendar day this meal is on, as the wire spells it.
     var day: String { HouseholdMember.day(date) }
 
-    var isCooked: Bool { cookedAt != nil }
+    var isLeftovers: Bool { PlanMealChoice.isLeftovers(title: title, hasRecipe: recipe != nil) }
+
+    var isCooked: Bool { cookedAt != nil && !isLeftovers }
 
     /// Assigning a cook can precede choosing dinner. That open slot should
     /// keep the dinner invitation rather than displaying an "Unplanned" dish.
@@ -98,5 +100,45 @@ final class PlannedMeal {
         guard let recipe, recipe.servings > 0 else { return [] }
         let factor = Double(servings) / Double(recipe.servings)
         return recipe.sortedIngredients.map { ($0, $0.quantity * factor) }
+    }
+}
+
+
+extension PlannedMeal {
+    /// Restore only the fields changed by this choice if persistence fails;
+    /// a context-wide rollback would also discard unrelated drafts.
+    struct MealChoiceSnapshot {
+        let recipe: Recipe?
+        let title: String
+        let tagline: String
+        let cook: HouseholdMember?
+        let cookedAt: Date?
+        let reaction: Int
+        let minutes: Int
+
+        func restore(on meal: PlannedMeal) {
+            meal.recipe = recipe
+            meal.customTitle = title
+            meal.tagline = tagline
+            meal.cook = cook
+            meal.cookedAt = cookedAt
+            meal.cookReaction = reaction
+            meal.actualMinutes = minutes
+        }
+    }
+
+    @discardableResult
+    func select(_ choice: PlanMealChoice) -> MealChoiceSnapshot {
+        let previous = MealChoiceSnapshot(recipe: recipe, title: customTitle,
+            tagline: tagline, cook: cook, cookedAt: cookedAt,
+            reaction: cookReaction, minutes: actualMinutes)
+        recipe = nil
+        customTitle = choice.title
+        tagline = choice.tagline
+        cook = nil
+        cookedAt = nil
+        cookReaction = 0
+        actualMinutes = 0
+        return previous
     }
 }

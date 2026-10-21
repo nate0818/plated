@@ -3,7 +3,11 @@ import XCTest
 final class ReleaseCalendarTests: XCTestCase {
     let app = XCUIApplication(bundleIdentifier: "com.natemeadows.plated")
     let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
-    override func setUp() { continueAfterFailure = false }
+    override func setUp() {
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+        app.resetAuthorizationStatus(for: .calendar)
+    }
     func capture(_ name: String) {
         let a = XCTAttachment(screenshot: XCUIScreen.main.screenshot()); a.name = name; a.lifetime = .keepAlways; add(a)
         let t = XCTAttachment(string: app.debugDescription + "\n" + springboard.debugDescription)

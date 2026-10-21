@@ -52,6 +52,22 @@ enum HouseholdReinvitation {
         return entries.contains { grant($0).map { $0.identity == identity && $0.hash == wanted } ?? false }
     }
 
+    /// Presentation proof from the fetched invitation root, never local access
+    /// cache, a contact name or a URL's host label. This does not authorize a
+    /// join; the existing join path independently checks the current grant.
+    struct VerifiedInvitation: Equatable {
+        fileprivate let identity: String
+        fileprivate let seatHash: String
+    }
+
+    static func verifiedInvitation(
+        for identity: String, seat: String?, fetchedEntries: [String]?
+    ) -> VerifiedInvitation? {
+        guard let fetchedEntries, let seat,
+              allows(identity, seat: seat, entries: fetchedEntries) else { return nil }
+        return VerifiedInvitation(identity: identity, seatHash: hash(seat))
+    }
+
     static func blocks(_ identity: String, seat: String?, entries: [String]) -> Bool {
         removedIdentities(in: entries).contains(identity) && !allows(identity, seat: seat, entries: entries)
     }
@@ -89,8 +105,18 @@ struct HouseholdInvitationCopy {
     let title: String
     let subtitle: String?
     let acceptsName: Bool
+    let restoresAccess: Bool
 
-    init(state: HouseholdSync.JoinPreview.State, host: String, household: String) {
+    init(
+        state: HouseholdSync.JoinPreview.State, host: String, household: String,
+        reinvitation: HouseholdReinvitation.VerifiedInvitation? = nil
+    ) {
+        // A failed join can change a previously verified preview to removed.
+        // Its current state wins over any older presentation proof.
+        switch state {
+        case .ready, .willLeave: restoresAccess = reinvitation != nil
+        default: restoresAccess = false
+        }
         switch state {
         case .removed:
             eyebrow = "Household access"
@@ -118,9 +144,11 @@ struct HouseholdInvitationCopy {
             subtitle = nil
             acceptsName = true
         case .ready, .willLeave:
-            eyebrow = "Household invitation"
-            title = "Join \(household)?"
-            subtitle = "\(host) invited you to plan, shop and cook together."
+            eyebrow = restoresAccess ? "New household invitation" : "Household invitation"
+            title = restoresAccess ? "Rejoin \(household)?" : "Join \(household)?"
+            subtitle = restoresAccess
+                ? "\(host) invited you back. Joining restores your access to this household’s plan, groceries and cookbook."
+                : "\(host) invited you to plan, shop and cook together."
             acceptsName = true
         }
     }

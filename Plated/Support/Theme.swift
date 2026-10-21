@@ -3,7 +3,7 @@ import UIKit
 import SwiftData
 
 // MARK: - Editorial palette
-// Deep green, cream ink and original orange primary actions; paper is optional.
+// Exact green/cream palette from the approved October 18 design review.
 // Values are mirrored in widgets.
 
 extension Color {
@@ -29,28 +29,28 @@ extension Color {
 
     // Chrome
     static let canvas         = Color(light: 0xFAF9F4, dark: 0x191C17)
-    static let ink            = Color(light: 0x27362A, dark: 0xEDF0E6)
-    static let inkSecondary   = Color(light: 0x606958, dark: 0xB0B8A8)
+    static let ink            = Color(light: 0x26382C, dark: 0xEFF0E6)
+    static let inkSecondary   = Color(light: 0x606A57, dark: 0xB4BEAA)
     static let inkFaint       = Color(light: 0xA5AD9A, dark: 0x727D68)
-    static let hairline       = Color(light: 0xDFE2D7, dark: 0x3A4434)   // card borders
-    static let hairlineSoft   = Color(light: 0xECEEE5, dark: 0x2B3226)   // row separators
+    static let hairline       = Color(light: 0xDCE0D2, dark: 0x384031)   // card borders
+    static let hairlineSoft   = Color(light: 0xDCE0D2, dark: 0x384031)   // row separators
     static let hairlineDashed = Color(light: 0xCCD2C2, dark: 0x4C5844)   // empty-state dashes
-    static let navHairline    = Color(light: 0xDFE2D7, dark: 0x3A4434)   // navigation rule
-    static let fill           = Color(light: 0xEFEFE6, dark: 0x242720)   // neutral avatar / wells
-    static let chipFill       = Color(light: 0xF1F2E9, dark: 0x22261F)   // link chips
-    static let raisedFill     = Color(light: 0xFFFFFF, dark: 0x2C3127)   // neutral raised surface
+    static let navHairline    = Color(light: 0xDCE0D2, dark: 0x384031)   // navigation rule
+    static let fill           = Color(light: 0xEEEEE4, dark: 0x24291F)   // neutral avatar / wells
+    static let chipFill       = Color(light: 0xE2E8D9, dark: 0x2B3327)   // link chips
+    static let raisedFill     = Color(light: 0xE2E8D9, dark: 0x2B3327)   // neutral raised surface
     static let selectionFill = ink
     static let onSelection = canvas
 
-    // Original orange stays exact in both appearances; supporting olive adapts.
-    static let primaryAction = Color(light: 0xFF5A3C, dark: 0xFF5A3C)
-    static let onPrimary = Color(light: 0x221B14, dark: 0x221B14)
+    // The approved polish retains orange, with its specified appearance variants.
+    static let primaryAction = Color(light: 0xF45132, dark: 0xFF5738)
+    static let onPrimary = Color(light: 0x241D14, dark: 0x241D14)
     static let primaryPressed = Color(light: 0xF36A4F, dark: 0xF36A4F)
-    static let olive         = Color(light: 0x355941, dark: 0xB2C9A5)   // supporting selection
+    static let olive         = Color(light: 0x365C43, dark: 0xB7CAA5)   // supporting selection
     static let onOlive = Color(light: 0xFFFFFF, dark: 0x182219)
-    static let accentText = Color(light: 0x355941, dark: 0xB2C9A5)
+    static let accentText = Color(light: 0x365C43, dark: 0xB7CAA5)
     static let dangerText = Color(light: 0xA33D2D, dark: 0xF0A595)
-    static let completion = Color(light: 0x355941, dark: 0xB2C9A5)
+    static let completion = Color(light: 0x365C43, dark: 0xB7CAA5)
     static let olivePressed  = Color(light: 0x284632, dark: 0x9BB98B)   // pressed always darkens
 
     static let scrim          = Color.scrimInk.opacity(0.7)
@@ -295,6 +295,9 @@ enum Layout {
 
     static let floatingChromeMaxWidth: CGFloat = 680
 
+    /// Content height; the system bottom safe area is painted separately.
+    static let tabBarHeight: CGFloat = 47
+
     static let tabBarInset: CGFloat = 72
 
     static let perchBottom: CGFloat = tabBarInset
@@ -485,14 +488,16 @@ struct MicroLabel: View {
 struct IconDiscButton: View {
     let systemName: String
     let label: String
-    var glyphSize: CGFloat = 17
+    var glyphSize: CGFloat = 22
+    var targetSize: CGFloat = ControlMetrics.minimumTarget
     let action: () -> Void
     var body: some View {
         Button { Haptic.tap(); action() } label: {
             Image(systemName: systemName)
                 .font(.system(size: glyphSize, weight: .regular))
-                .foregroundStyle(Color.accentText)
-                .plTapTarget()
+                .foregroundStyle(Color.ink)
+                .frame(minWidth: targetSize, minHeight: targetSize)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.pressable)
         .accessibilityLabel(label)
@@ -787,6 +792,7 @@ struct PhotoWell: View {
     let image: UIImage
     var height: CGFloat?
     var clamped = false
+    var maximumHeight: CGFloat = 320
     var cornerRadius: CGFloat = Radius.card
 
     private var ratio: CGFloat {
@@ -799,7 +805,7 @@ struct PhotoWell: View {
             if clamped {
                 Color.clear
                     .aspectRatio(ratio, contentMode: .fit)
-                    .frame(maxHeight: 320)
+                    .frame(maxHeight: maximumHeight)
             } else {
                 Color.clear
                     .frame(maxWidth: .infinity)
@@ -981,8 +987,7 @@ private struct SecondaryActionStyle: ButtonStyle {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .background(isEnabled ? Color.canvas : Color.fill, in: Radius.shape(Radius.chip))
-            .overlay(Radius.shape(Radius.chip).strokeBorder(isEnabled ? Color.accentText : Color.hairline))
+            .background(isEnabled ? Color.raisedFill : Color.fill, in: Radius.shape(Radius.chip))
             .scaleEffect(configuration.isPressed && isEnabled && !reduceMotion ? 0.98 : 1)
             .animation(.plSnap, value: configuration.isPressed)
     }

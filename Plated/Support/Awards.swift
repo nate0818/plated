@@ -205,7 +205,7 @@ enum Awards {
             authorID.isEmpty ? isMe : authorID == identity
         }
         let cooked = meals.filter { meal in
-            guard meal.cookedAt != nil else { return false }
+            guard !meal.isLeftovers, meal.cookedAt != nil else { return false }
             if let cook = meal.cook, !cook.isDeleted {
                 return normalize(cook.name) == personKey
             }

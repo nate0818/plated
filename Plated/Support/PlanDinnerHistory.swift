@@ -26,13 +26,14 @@ struct PlanDinnerHistory {
         for entry in shared where entry.slot == MealSlot.dinner.rawValue {
             guard !entry.isGoing, let date = PlanDay.date(entry.day) else { continue }
             let id = entry.shoppingID.isEmpty ? entry.recordName : "plan-" + entry.shoppingID
-            dinners[id] = Dinner(date: date, cooked: entry.cooked,
+            dinners[id] = Dinner(date: date, cooked: entry.cooked
+                && !PlanRowVoice.isLeftovers(title: entry.title, hasRecipe: entry.hasRecipe),
                 eatingOut: PlanRowVoice.isEatingOut(title: entry.title, hasRecipe: entry.hasRecipe))
         }
         for meal in local where !meal.isDeleted && meal.slotValue == .dinner {
             let id = meal.shoppingID.flatMap { $0.isEmpty ? nil : "plan-" + $0 }
                 ?? String(describing: meal.persistentModelID)
-            dinners[id] = Dinner(date: meal.date, cooked: meal.isCooked,
+            dinners[id] = Dinner(date: meal.date, cooked: meal.isCooked && !meal.isLeftovers,
                 eatingOut: PlanRowVoice.isEatingOut(title: meal.title, hasRecipe: meal.recipe != nil))
         }
         let recent = dinners.values.filter { $0.date >= firstDay && $0.date < exclusiveEnd }

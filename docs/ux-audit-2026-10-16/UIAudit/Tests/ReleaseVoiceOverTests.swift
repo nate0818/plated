@@ -18,6 +18,7 @@ final class ReleaseVoiceOverTests: XCTestCase {
     func launch(_ flags: [String] = []) throws {
         if voice.isEnabled { try voice.disable() }
         app.terminate()
+        XCUIDevice.shared.orientation = .portrait
         app.launchArguments = ["-plated-design-review", "-appearance", "dark"] + flags
         app.launch()
         XCTAssertTrue(app.buttons.firstMatch.waitForExistence(timeout: 20))
@@ -28,12 +29,20 @@ final class ReleaseVoiceOverTests: XCTestCase {
     }
     @discardableResult
     func seek(_ text: String, limit: Int = 40) throws -> String {
+        let focused = try voice.currentSpeech().utterance
+        if focused.localizedCaseInsensitiveContains(text) {
+            speech.append(focused)
+            return focused
+        }
+        var previous = "", repeated = 0
         for _ in 0..<limit {
-            let output = try voice.moveForward()
-            let utterance = output.utterance
+            let utterance = try voice.moveForward().utterance
             speech.append(utterance)
             print("VOICEOVER: " + utterance)
             if utterance.localizedCaseInsensitiveContains(text) { return utterance }
+            repeated = utterance == previous ? repeated + 1 : 0
+            previous = utterance
+            if repeated >= 2 { break }
         }
         XCTFail("VoiceOver could not reach \(text)")
         return ""
@@ -57,7 +66,7 @@ final class ReleaseVoiceOverTests: XCTestCase {
     func testRootAndSheetReadingOrder() throws {
         let screens: [(String, [String], String)] = [
             ("plan", ["-plated-tab", "week"], "Start cooking"),
-            ("recipes", ["-plated-tab", "cookbook"], "Find a dish"),
+            ("recipes", ["-plated-tab", "cookbook"], "Dish or ingredient"),
             ("groceries", ["-plated-tab", "groceries"], "Asparagus"),
             ("table", ["-plated-tab", "table"], "Pancake Dinner"),
             ("thread", ["-plated-open-thread"], "Add a comment"),
@@ -72,11 +81,11 @@ final class ReleaseVoiceOverTests: XCTestCase {
 
     func testHouseholdAndTableHeaderControlsAreAnnouncedAsButtons() throws {
         try launch(["-plated-tab", "home", "-householdName", "Meadows"])
+        try seek("Meadows")
         let settings = try seek("Household settings")
         XCTAssertTrue(settings.localizedCaseInsensitiveContains("button"))
         let notifications = try seek("Notifications")
         XCTAssertTrue(notifications.localizedCaseInsensitiveContains("button"))
-        try seek("Meadows")
 
         try launch(["-plated-tab", "table"])
         try seek("The Table")
@@ -90,11 +99,14 @@ final class ReleaseVoiceOverTests: XCTestCase {
         XCTAssertTrue(dinner.contains("Button"), "Dinner must be announced as its named control, not image-recognition objects")
         try seek("Start cooking")
         let date = Calendar.current.dateComponents([.year, .month, .day], from: Date())
-        let today = app.buttons["week-date-\(date.year!)-\(date.month!)-\(date.day!)"]
+        let today = app.sliders["week-date-\(date.year!)-\(date.month!)-\(date.day!)"]
         XCTAssertTrue(today.isSelected, "Reading through the date row must not change the selected day")
         let spokenDates = speech.filter { $0.localizedCaseInsensitiveContains("dinner planned") }
         XCTAssertEqual(spokenDates.count, 1, "VoiceOver reads only the selected date before continuing to dinner")
-        XCTAssertTrue(spokenDates.first?.localizedCaseInsensitiveContains("adjustable") == true)
+        // XCUIVoiceOverService truncates this date utterance after 80
+        // characters; the adjustable trait begins before that cutoff.
+        XCTAssertTrue(spokenDates.first?.localizedCaseInsensitiveContains("adjusta") == true)
+        // A physical up/down VoiceOver gesture is a separate device check.
     }
 
     @discardableResult
@@ -151,6 +163,8 @@ final class ReleaseVoiceOverTests: XCTestCase {
 
     func testRecipeFailureAndDiscardRetainOriginalRecipe() throws {
         try launch(["-plated-open-recipe-detail", "-plated-review-fail-save", "save recipe"])
+        try hear("Recipe options")
+        app.buttons["Recipe options"].doubleTap()
         try hear("Edit recipe")
         app.buttons["Edit recipe"].doubleTap()
         let field = app.textFields["Name the dish"]
@@ -161,6 +175,8 @@ final class ReleaseVoiceOverTests: XCTestCase {
         if app.buttons["Done"].exists { app.buttons["Done"].doubleTap() }
         try hear("Save changes", limit: 110)
         app.buttons["Save changes"].doubleTap()
+        captureJourney("voiceover-recipe-after-save-attempt")
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "Couldn't save the recipe")).firstMatch.waitForExistence(timeout: 8))
         try hear("Couldn't save the recipe", limit: 110)
         XCTAssertTrue((field.value as? String)?.contains("release accessibility") == true)
         captureJourney("voiceover-recipe-save-failure")
@@ -171,7 +187,9 @@ final class ReleaseVoiceOverTests: XCTestCase {
         app.buttons["Cancel"].doubleTap()
         try hear("Discard")
         app.buttons["Discard"].doubleTap()
-        XCTAssertTrue(app.buttons["Edit recipe"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["Recipe options"].waitForExistence(timeout: 10))
+        app.buttons["Recipe options"].doubleTap()
+        try hear("Edit recipe")
         app.buttons["Edit recipe"].doubleTap()
         XCTAssertEqual(field.value as? String, original)
         app.buttons["Cancel"].doubleTap()

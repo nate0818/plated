@@ -61,7 +61,15 @@ final class TableOutbox {
 
     private init() { load() }
 
+    #if DEBUG
+    // Memory-only presentation fixtures. Never enter the durable queue or
+    // sender; they exercise the actual pending UI without publishing a note.
+    private var reviewEntries: [Entry] = []
+    func setReviewPending(_ entries: [Entry]) { reviewEntries = entries }
+    var pending: [Entry] { entries + reviewEntries }
+    #else
     var pending: [Entry] { entries }
+    #endif
     var isEmpty: Bool { entries.isEmpty }
 
     /// Queue a write, replacing any earlier one for the same thing.
@@ -201,7 +209,7 @@ final class TableOutbox {
                     continue
                 }
                 if let comment = resolveNote(id) {
-                    ok = await TableShare.pushNote(comment, post: post, zoneOwner: owner)
+                    ok = await TableShare.pushNote(comment, post: post, zoneOwner: owner, expectedAccount: entry.author)
                 } else {
                     // Deleted before it ever went out. Nothing to send, and
                     // that is a success rather than a failure to retry.

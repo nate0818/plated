@@ -58,6 +58,18 @@ struct CookResumeIntent {
     }
 }
 
+private struct TabBarReservedHeightKey: EnvironmentKey {
+    static let defaultValue: CGFloat = Layout.tabBarHeight
+}
+
+extension EnvironmentValues {
+    /// The measured bar, excluding the system safe area already respected by content.
+    var tabBarReservedHeight: CGFloat {
+        get { self[TabBarReservedHeightKey.self] }
+        set { self[TabBarReservedHeightKey.self] = newValue }
+    }
+}
+
 private struct ActiveAppTabKey: EnvironmentKey {
     static let defaultValue: AppTab = .week
 }
@@ -267,6 +279,8 @@ struct MainShellView: View {
     /// Prongsby's draft and in-flight reply outlive the sheet he lives in.
     @State private var perchVisibility = PerchVisibility()
     @State private var floatingChromeVisibility = FloatingChromeVisibility()
+    @State private var tabBarReservedHeight = Layout.tabBarHeight
+    @State private var resumeStripHeight: CGFloat = 54
 
     #if DEBUG
     /// Which tab has to be on screen for a launch flag to be consumed.
@@ -347,7 +361,7 @@ struct MainShellView: View {
                 maxWidth: .infinity,
                 maxHeight: .infinity
             )
-            .padding(.bottom, activeRecipe == nil ? 0 : 60)
+            .padding(.bottom, activeRecipe == nil ? 0 : resumeStripHeight + 8)
 
 
             if !floatingChromeVisibility.isHidden {
@@ -369,10 +383,13 @@ struct MainShellView: View {
                             }.foregroundStyle(Color.ink).padding(.horizontal, 16).frame(minHeight: 54)
                                 .background(Color.canvas, in: Radius.shape(Radius.chip)).overlay(Radius.shape(Radius.chip).strokeBorder(Color.hairline))
                         }.buttonStyle(.pressable).accessibilityLabel("Resume cooking \(session.titleSnapshot ?? recipe.title)")
+                            .accessibilityIdentifier("cooking-resume-strip")
+                            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { resumeStripHeight = $0 }
                     }
                     PlateTabBar(selection: $selection, onReselect: { tab in
                         tabPop = TabPopRequest(tab: tab, count: tabPop.count + 1)
                     })
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { tabBarReservedHeight = $0 }
                 }
                 .padding(.bottom, 0)
                 .frame(
@@ -394,6 +411,7 @@ struct MainShellView: View {
             createStart = selection == .table ? .tablePost : selection == .cookbook ? .recipe : nil
             createPresented = true
         }
+        .environment(\.tabBarReservedHeight, tabBarReservedHeight)
         .environment(\.activeAppTab, selection)
         .environment(\.tabPop, tabPop)
         .environment(\.perchVisibility, perchVisibility)
@@ -935,7 +953,8 @@ struct PlateTabBar: View {
             tabItem(.table, label: "Table", symbol: "person.2")
         }
         .padding(.horizontal, 16)
-        .frame(height: 62)
+        .frame(minHeight: Layout.tabBarHeight)
+        .fixedSize(horizontal: false, vertical: true)
         .plChrome()
         .background(Color.canvas.ignoresSafeArea(edges: .bottom))
         .overlay(alignment: .top) { Rectangle().fill(Color.navHairline).frame(height: 1) }
@@ -947,13 +966,17 @@ struct PlateTabBar: View {
             Haptic.select()
             if active { onReselect(tab) } else { selection = tab }
         } label: {
-            VStack(spacing: 5) {
+            VStack(spacing: 3) {
                 Image(systemName: symbol)
-                    .font(.system(size: 20, weight: active ? .medium : .regular))
-                Text(label).plType(.footnote, active ? .semibold : .regular).lineLimit(1)
+                    .resizable()
+                    .scaledToFit()
+                    .fontWeight(active ? .medium : .regular)
+                    .frame(width: 23, height: 23)
+                Text(label).plType(.body, active ? .semibold : .regular)
+                    .lineLimit(1).minimumScaleFactor(0.75) // design-ok(chrome-label): fixed native tab chrome also exposes the large-content viewer and full accessibility label.
             }
             .foregroundStyle(active ? Color.accentText : Color.inkSecondary)
-            .frame(maxWidth: .infinity, minHeight: 54)
+            .frame(maxWidth: .infinity, minHeight: Layout.tabBarHeight)
             .contentShape(Rectangle())
         }
         .buttonStyle(.pressable)
@@ -996,13 +1019,13 @@ struct CreateMenuSheet: View {
     private func createOption(icon: String, title: String, detail: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             HStack(spacing: 16) {
-                Image(systemName: icon).font(.system(size: 24, weight: .regular)).frame(width: 26)
+                Image(systemName: icon).font(.system(size: 24, weight: .regular)).frame(width: 26).foregroundStyle(Color.ink)
                 VStack(alignment: .leading, spacing: 6) {
                     Text(title).plType(.cardTitle).foregroundStyle(Color.ink)
-                    Text(detail).plType(.caption).foregroundStyle(Color.inkSecondary)
+                    Text(detail).plType(.footnote).foregroundStyle(Color.inkSecondary)
                 }.frame(maxWidth: .infinity, alignment: .leading)
-                Image(systemName: "chevron.right").font(.system(size: 14)) // design-ok(generic-chevron): approved Create rows use a trailing navigation affordance.
-            }.padding(.vertical, 22).contentShape(Rectangle())
+                Image(systemName: "chevron.right").font(.system(size: 14)).foregroundStyle(Color.ink) // design-ok(generic-chevron): approved Create rows use a trailing navigation affordance.
+            }.padding(.vertical, 23).contentShape(Rectangle())
                 .overlay(alignment: .bottom) { Color.hairlineSoft.frame(height: 0.5) }
         }.buttonStyle(.pressable)
     }
@@ -1015,24 +1038,24 @@ struct CreateMenuSheet: View {
                 HStack {
                     Text("Create").plType(.cardTitle).foregroundStyle(Color.ink)
                     Spacer()
-                    IconDiscButton(systemName: "xmark", label: "Close create") { dismiss() }
+                    IconDiscButton(systemName: "xmark", label: "Close create", targetSize: 48) { dismiss() }
                 }.padding(.top, 20).padding(.bottom, 8)
 
-                VStack(spacing: 10) {
+                VStack(spacing: 0) {
                     createOption(
                         icon: "bubble.left",
                         title: "Post to the Table",
-                        detail: "Photos, food finds, places, and questions"
+                        detail: "Food finds, places, photos, or questions."
                     ) { onChoose(.tablePost) }
                     createOption(
                         icon: "book.closed",
                         title: "Add a recipe",
-                        detail: "Paste it, scan it, or write it out"
+                        detail: "Import a link, scan, or write your own."
                     ) { onChoose(.recipe) }
                     Text("Deciding together? Add a poll to your post.")
-                        .plType(.footnote).foregroundStyle(Color.inkSecondary)
+                        .plType(.caption).foregroundStyle(Color.inkSecondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.vertical, 12)
+                        .padding(.top, 20).padding(.bottom, 5)
                 }
             }
             .frame(maxWidth: .infinity)

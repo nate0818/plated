@@ -5,6 +5,7 @@ final class HouseholdRemovalUITests: XCTestCase {
     override func setUp() { continueAfterFailure = false }
 
     func launch(_ flags: [String] = [], table: Bool = false, large: Bool = false) {
+        XCUIDevice.shared.orientation = .portrait
         app.launchArguments = ["-plated-design-review", "-plated-tab", table ? "week" : "home",
             "-appearance", "light", "-UIPreferredContentSizeCategoryName",
             large ? "UICTContentSizeCategoryAccessibilityXXXL" : "UICTContentSizeCategoryL"] + flags

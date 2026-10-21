@@ -10,6 +10,7 @@ struct TableFeedView: View {
     @Environment(\.activeAppTab) private var activeAppTab
     @Environment(\.dynamicTypeSize) private var typeSize
     @Environment(\.openURL) private var openURL
+    @Environment(\.scenePhase) private var scenePhase
     @Query(
         filter: #Predicate<TablePost> { !$0.isDiscover },
         sort: \TablePost.createdAt, order: .reverse
@@ -103,7 +104,41 @@ struct TableFeedView: View {
     /// and the photo is a door — so the menu carries the rest.
     @State private var pendingDelete: TablePost?
     @State private var editingPost: TablePost?
-    @State private var retryingPosts: Set<PersistentIdentifier> = []
+    @State private var publication = TablePostPublication.shared
+    @State private var network: NetworkAvailability?
+    @State private var initialIdentityChecked = false
+    @State private var backlogPass = TablePostPublication.BacklogPass()
+    private struct DeferredRecoveryWork {
+        let id: UUID
+        let account: String
+        let task: Task<Void, Never>
+    }
+    @State private var deferredRecoveryWork: DeferredRecoveryWork?
+
+    private var publicationConnection: NetworkAvailability.State {
+        #if DEBUG
+        if PlatedApp.usesPreviewContainer {
+            return ProcessInfo.processInfo.arguments.contains("-plated-review-publication-waiting")
+                ? .unavailable : .unknown
+        }
+        #endif
+        return network?.state ?? .unknown
+    }
+
+    private var backlogRecovery: TablePostPublication.RecoveryContext {
+        .init(connection: publicationConnection, isForeground: scenePhase == .active,
+              isTableActive: activeAppTab == .table, isPreview: PlatedApp.usesPreviewContainer,
+              isIdentityReady: initialIdentityChecked)
+    }
+    private struct DeferredRecoveryTrigger: Equatable {
+        let context: TablePostPublication.RecoveryContext
+        let account: String
+        let revision: UInt64
+    }
+    private var deferredRecoveryTrigger: DeferredRecoveryTrigger {
+        .init(context: backlogRecovery, account: TableIdentity.cached,
+              revision: publication.recoveryRevision)
+    }
     @State private var contentSafety = ContentSafety.shared
     @State private var safetyDialog: SafetyDialog?
 
@@ -157,27 +192,50 @@ struct TableFeedView: View {
     /// birth so reactions have a stable key; publication therefore needs its
     /// own truth rather than treating an identifier as delivery evidence.
     ///
-    /// This is that attempt. It runs on every pull and on the feed's first
-    /// appearance, and it is idempotent: `publish` reuses a name it is
+    /// This is that attempt. It runs on pull/first appearance and when a
+    /// known available path returns to the foreground Table. It is
+    /// idempotent: `publish` reuses a name it is
     /// given, so a post that turns out to have gone after all is overwritten
     /// with itself rather than duplicated.
-    /// Ours, minted more than a minute ago, and still not on the table.
-    ///
-    /// The retry above will keep trying, but a person is entitled to know
-    /// that the thing they posted is not somewhere anybody else can see it.
-    /// Silence here would be the app claiming a post happened.
-    private func stranded(_ post: TablePost) -> Bool {
-        !post.isRemote
-            && !post.isPublished
-            && Date.now.timeIntervalSince(post.createdAt) > 60
-    }
-
     private func publishBacklog() async {
-        let stranded = realPosts.filter { !$0.isRemote && !$0.isPublished }
-        guard !stranded.isEmpty else { return }
+        guard !PlatedApp.usesPreviewContainer,
+              publicationConnection != .unavailable else { return }
+        guard backlogPass.begin() else { return }
+        defer {
+            let followUp = backlogPass.finish()
+            if followUp, backlogRecovery.permitsRetry {
+                Task { await publishBacklog() }
+            }
+        }
+        let initialAccount = TableIdentity.cached
+        let account: String
+        if initialAccount.hasPrefix("local-") {
+            // Resolve before selecting work: exact-placeholder migration makes
+            // these local posts owned by the confirmed account. Pin that real
+            // account for the whole pass so a later Apple ID switch still aborts.
+            guard let confirmed = await TableIdentity.confirmAndReattribute(in: context),
+                  TablePostPublication.mayContinue(from: initialAccount, as: confirmed),
+                  TableIdentity.cached == confirmed else { return }
+            account = confirmed
+        } else {
+            account = initialAccount
+        }
+        let stranded = realPosts.filter { !$0.isRemote && !$0.isPublished && isMine($0) }
         let hostName = members.first(where: \.isOwner)?.name ?? ""
         var sent = false
         for post in stranded {
+            guard !Task.isCancelled, TableIdentity.cached == account,
+                  publicationConnection != .unavailable else { break }
+            // Another writer can finish while the previous record is awaiting
+            // CloudKit. Recheck the row and current ownership before proceeding.
+            guard !post.isDeleted, !post.isRemote, !post.isPublished, isMine(post) else { continue }
+            // Composer/retry work may already be sending this exact record.
+            // Keep the current attempt and its fixed audience; don't stack
+            // another request just because the path changed.
+            if publicationState(post) == .sending {
+                publication.requestRecovery(for: publicationKey(post))
+                continue
+            }
             if let name = await TableShare.publish(post, hostName: hostName) {
                 post.shareRecordName = name
                 post.isPublished = true
@@ -187,7 +245,72 @@ struct TableFeedView: View {
         if sent { Persist.save(context, "publish backlog") }
     }
 
+    /// Completion notifications may arrive while another recovered post is
+    /// awaiting CloudKit. Coalesce them into the running drain, rather than
+    /// letting a changed SwiftUI task ID cancel that valid write.
+    private func scheduleDeferredPublications() {
+        guard backlogRecovery.permitsRetry else {
+            cancelDeferredPublications()
+            publication.discardRecoveries()
+            return
+        }
+        let account = TableIdentity.cached
+        if let work = deferredRecoveryWork, work.account != account {
+            cancelDeferredPublications()
+        }
+        guard deferredRecoveryWork == nil else { return }
+        let id = UUID()
+        let task = Task { @MainActor in
+            await resumeDeferredPublications()
+            // A cancelled old run must not clear its replacement's handle.
+            if deferredRecoveryWork?.id == id { deferredRecoveryWork = nil }
+        }
+        deferredRecoveryWork = DeferredRecoveryWork(id: id, account: account, task: task)
+    }
+
+    private func cancelDeferredPublications() {
+        deferredRecoveryWork?.task.cancel()
+        deferredRecoveryWork = nil
+    }
+
+    private func resumeDeferredPublications() async {
+        let account = TableIdentity.cached
+        guard backlogRecovery.permitsRetry else {
+            publication.discardRecoveries()
+            return
+        }
+        let hostName = members.first(where: \.isOwner)?.name ?? ""
+        var sent = false
+        while !Task.isCancelled, TableIdentity.cached == account, backlogRecovery.permitsRetry {
+            guard let key = publication.takeNextReadyRecovery(account: account) else { break }
+            guard let post = realPosts.first(where: { publicationKey($0) == key }),
+                  !post.isDeleted, !post.isRemote, !post.isPublished, isMine(post) else { continue }
+            if publicationState(post) == .sending {
+                // Another independently requested write started after this
+                // request became ready. Keep the same one-shot intent waiting.
+                publication.requestRecovery(for: key)
+                continue
+            }
+            if let name = await TableShare.publish(post, hostName: hostName) {
+                post.shareRecordName = name
+                post.isPublished = true
+                sent = true
+            }
+        }
+        if sent { Persist.save(context, "recover deferred table posts") }
+    }
+
     private func refreshFeed() async {
+        // A review pull must not drain durable work or open the real store.
+        // Keep its chosen loading/error/waiting fixture deterministic instead.
+        if PlatedApp.usesPreviewContainer {
+            switch reviewState {
+            case .standard, .empty: reach = .reached
+            case .loading: reach = .looking
+            case .error: reach = .unreachable
+            }
+            return
+        }
         Persist.save(context)
         await publishBacklog()
         // Everything tapped since the last pull, including everything
@@ -354,7 +477,6 @@ struct TableFeedView: View {
         var parts = [post.authorName, postWhen(post.createdAt)]
         if post.isRemote { parts.append("from another table") }
         if NewsPreferences.isMuted(post: post.shareRecordName) { parts.append("muted") }
-        if stranded(post) { parts.append("not sent yet") }
         return parts.joined(separator: ", ")
     }
 
@@ -436,7 +558,9 @@ struct TableFeedView: View {
                 if scopeIsMeaningful {
                     scopePicker
                         .padding(.horizontal, Spacing.page)
-                        .padding(.bottom, 12)
+                        // Together with the post's 16pt top inset, this
+                        // preserves the approved 19pt filter-to-author gap.
+                        .padding(.bottom, 3)
                         .transition(.plUnfold)
                 }
 
@@ -481,6 +605,7 @@ struct TableFeedView: View {
                     .padding(.bottom, shownPosts.isEmpty ? 0 : Layout.floatingChromeInset)
                 }
                 .scrollIndicators(.hidden)
+                .accessibilityIdentifier("table-feed")
                 .onChange(of: tabPop) { _, request in
                     guard request.tab == .table else { return }
                     withAnimation(.plSnap) { scroll.scrollTo("table-top", anchor: .top) }
@@ -522,7 +647,12 @@ struct TableFeedView: View {
                         reach = .reached
                         return
                     }
+                    // Begin observing immediately, so a slow identity request
+                    // doesn't hide a known outage. Recovery waits for this
+                    // initial identity check before starting another writer.
+                    network = NetworkAvailability.shared
                     _ = await TableIdentity.confirmAndReattribute(in: context)
+                    initialIdentityChecked = true
                     await refreshFeed()
                 }
                 // A seat accepted from Messages while the Table is already
@@ -628,6 +758,13 @@ struct TableFeedView: View {
             personShown = nil
             pushed = nil
         }
+        .task(id: backlogRecovery) {
+            guard backlogRecovery.permitsRetry else { return }
+            await publishBacklog()
+        }
+        .task(id: deferredRecoveryTrigger) {
+            scheduleDeferredPublications()
+        }
         .onChange(of: activeAppTab) { _, _ in updateFeedPresence() }
         .onChange(of: threadPost) { _, _ in updateFeedPresence() }
         .onChange(of: personShown) { _, _ in updateFeedPresence() }
@@ -648,6 +785,8 @@ struct TableFeedView: View {
             #endif
         }
         .onDisappear {
+            cancelDeferredPublications()
+            publication.discardRecoveries()
             if Presence.shared.feedVisible { Presence.shared.feedVisible = false }
         }
         .overlay(alignment: .bottom) {
@@ -809,7 +948,7 @@ struct TableFeedView: View {
                 : AnyLayout(HStackLayout(spacing: 12))
             layout {
                 Label("Private to your Table", systemImage: "lock.fill")
-                    .plType(.footnote)
+                    .plType(.caption)
                     .foregroundStyle(Color.inkSecondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 Text("People")
@@ -908,7 +1047,7 @@ struct TableFeedView: View {
                     openProfile(post)
                 } label: {
                     HStack(spacing: 10) {
-                        AvatarCircle(initials: post.initials, tone: PersonTone.from(hex: post.authorColorHex), size: 38,
+                        AvatarCircle(initials: post.initials, tone: PersonTone.from(hex: post.authorColorHex), size: 36,
                                      photo: members.photo(forAuthor: post.authorName, authorID: post.authorID))
                             .matchedTransitionSource(id: ZoomID.author(post.persistentModelID), in: zoom)
                         VStack(alignment: .leading, spacing: 0) {
@@ -918,7 +1057,7 @@ struct TableFeedView: View {
                                 .foregroundStyle(Color.ink)
                             HStack(spacing: 5) {
                                 Text(postWhen(post.createdAt))
-                                    .plType(.micro, .semibold)
+                                    .plType(.caption)
                                     .foregroundStyle(Color.inkSecondary)
                                 // Whose table this came from, said once and
                                 // quietly. No badge, no tint: a guest's dish
@@ -927,7 +1066,7 @@ struct TableFeedView: View {
                                 // ranking it.
                                 if post.isRemote {
                                     Text("· another table")
-                                        .plType(.micro, .semibold)
+                                        .plType(.caption)
                                         .foregroundStyle(Color.inkSecondary)
                                 }
                                 // The state, not a badge: a muted dish says
@@ -939,21 +1078,11 @@ struct TableFeedView: View {
                                         .foregroundStyle(Color.inkSecondary)
                                         .accessibilityLabel("Muted")
                                 }
-                                // Only once it has genuinely been sitting.
-                                // Publishing is attempted the moment a post
-                                // is written, so a marker with no delay
-                                // would flash on every single post; a minute
-                                // means it really has not gone.
-                                if !post.isRemote && !post.isPublished && !PlatedApp.usesPreviewContainer {
-                                    Text("· Waiting to sync")
-                                        .plType(.micro, .semibold)
-                                        .foregroundStyle(Color.inkSecondary)
-                                }
                             }
                         }
                     }
+                    .frame(minWidth: 44, minHeight: 44)
                     .contentShape(Rectangle())
-                    .frame(minHeight: 44)
                 }
                 .buttonStyle(.pressable)
                 .accessibilityElement(children: .ignore)
@@ -988,7 +1117,7 @@ struct TableFeedView: View {
                     Button {
                         openThread(post)
                     } label: {
-                        PhotoWell(image: image, clamped: true)
+                        PhotoWell(image: image, clamped: true, maximumHeight: 288, cornerRadius: 10)
                     }
                     .buttonStyle(.pressable)
                     .accessibilityLabel(
@@ -1036,14 +1165,7 @@ struct TableFeedView: View {
                 openThread(post)
             } label: {
                 VStack(alignment: .leading, spacing: 1) {
-                    if !post.dishTitle.isEmpty {
-                        Text(post.dishTitle)
-                            .plType(.heading)
-                            .foregroundStyle(Color.ink)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.top, 4)
-                    }
-                    if !post.caption.isEmpty || post.dishTitle.isEmpty {
+                    if !post.caption.isEmpty || !post.dishTitle.isEmpty {
                         captionText(post)
                             // Three lines, then "more". Unbounded, a twelve
                             // line caption pushed the plate, the comments
@@ -1053,7 +1175,7 @@ struct TableFeedView: View {
                             // clipping at one would make the expander a
                             // required tap on nearly every post.
                             .lineLimit(expandedCaptions.contains(post.persistentModelID) ? nil : 3)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .frame(maxWidth: .infinity, minHeight: 44, alignment: .topLeading)
                             .padding(.top, post.dishTitle.isEmpty ? 4 : 1)
                             .background {
                                 // Did the unclipped text fit in the space the
@@ -1083,7 +1205,7 @@ struct TableFeedView: View {
                         .plType(.footnote, .semibold)
                         .plActionLabel()
                         .foregroundStyle(Color.inkSecondary)
-                        .frame(minHeight: 44)
+                        .frame(minWidth: 44, minHeight: 44)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.pressable)
@@ -1093,22 +1215,13 @@ struct TableFeedView: View {
                     .padding(.top, 4)
                     .animation(.plSnap, value: isSaved(post))
             }
-            // The newest two, not the oldest two. `sortedComments` is
-            // ascending, so `prefix(2)` pinned the preview to the first
-            // two things ever said and it never changed again however
-            // busy the thread got. Instagram previews the most recent,
-            // and in a table of eight the line that just changed is the
-            // whole point.
-            ForEach(comments.suffix(2), id: \.persistentModelID) { comment in
-                commentLine(comment)
-            }
-
+            publicationStatus(post)
+            // Keep the feed compact; the complete, reactive conversation is
+            // one explicit action away instead of repeating reply rows here.
             Button {
-                openThread(post, writing: comments.count <= 2)
+                openThread(post, writing: comments.isEmpty)
             } label: {
-                Text(comments.count > 2
-                     ? "See all \(comments.count) comments"
-                     : "Add a comment")
+                Text(comments.isEmpty ? "Add a comment" : "View \(comments.count.things("comment"))")
                     .plType(.caption, .semibold)
                     .plActionLabel(0.72)
                     .foregroundStyle(Color.inkSecondary)
@@ -1116,6 +1229,7 @@ struct TableFeedView: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.pressable)
+            .accessibilityIdentifier("table-comments-" + post.shareRecordName)
             .padding(.top, 2)
         }
         .padding(.horizontal, Spacing.page)
@@ -1125,21 +1239,66 @@ struct TableFeedView: View {
         .contextMenu { postMenu(post, canSave: post.kind == "dish") }
     }
 
+    private func publicationKey(_ post: TablePost) -> TablePostPublication.Key {
+        .init(account: TableIdentity.cached, owner: post.shareZoneOwner,
+              recordName: post.shareRecordName, isPublished: post.isPublished)
+    }
+
+    private func publicationState(_ post: TablePost) -> TablePostPublication.Status {
+        publication.status(for: publicationKey(post),
+                           isPublished: post.isPublished, connection: publicationConnection)
+    }
+
+    @ViewBuilder
+    private func publicationStatus(_ post: TablePost) -> some View {
+        if !post.isRemote && isMine(post) {
+            let state = publicationState(post)
+            let layout = typeSize.isAccessibilitySize
+                ? AnyLayout(VStackLayout(alignment: .leading, spacing: 2))
+                : AnyLayout(HStackLayout(spacing: 8))
+            layout {
+                Label(state.label, systemImage: state.symbol)
+                    .plType(.caption)
+                    .foregroundStyle(state == .failed ? Color.dangerText : Color.inkSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityIdentifier("post-publication-\(post.shareRecordName)")
+                if state == .failed {
+                    Button { retryPublication(post) } label: {
+                        Text("Retry").plType(.caption, .semibold).foregroundStyle(Color.accentText)
+                            .frame(minWidth: 44, minHeight: 44)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.pressable)
+                    .accessibilityLabel("Retry sharing \(postAccessibilityName(post))")
+                    .accessibilityIdentifier("post-publication-retry-" + post.shareRecordName)
+                }
+            }
+            .padding(.top, 7)
+        }
+    }
+
+    private func retryPublication(_ post: TablePost) {
+        // The fixture's Retry is safe to exercise without publishing sample
+        // content or changing its deliberately injected publication state.
+        guard !PlatedApp.usesPreviewContainer,
+              publicationState(post) != .sending else { return }
+        Task {
+            if let name = await TableShare.publish(post, hostName: members.me?.name ?? "") {
+                post.shareRecordName = name
+                Persist.save(context, "retry table post")
+            } else {
+                showToast("Couldn’t share. Your post is saved on this device.")
+            }
+        }
+    }
+
     @ViewBuilder
     private func postMenu(_ post: TablePost, canSave: Bool) -> some View {
         if !post.isRemote && !post.isPublished && isMine(post) {
-            Button("Retry sending", systemImage: "arrow.clockwise") {
-                guard !retryingPosts.contains(post.persistentModelID) else { return }
-                retryingPosts.insert(post.persistentModelID)
-                Task {
-                    if let name = await TableShare.publish(post, hostName: members.me?.name ?? "") {
-                        post.shareRecordName = name
-                        post.isPublished = true
-                        Persist.save(context, "retry table post")
-                    } else { showToast("Saved on this phone. We'll keep trying to send it.") }
-                    retryingPosts.remove(post.persistentModelID)
-                }
-            }.disabled(retryingPosts.contains(post.persistentModelID))
+            Button(publicationState(post) == .failed ? "Retry sharing" : "Share post", systemImage: "arrow.clockwise") {
+                retryPublication(post)
+            }.disabled(publicationState(post) == .sending)
         }
 
         Button {
@@ -1300,7 +1459,7 @@ struct TableFeedView: View {
                     openProfile(post)
                 } label: {
                     HStack(spacing: 10) {
-                        AvatarCircle(initials: post.initials, tone: PersonTone.from(hex: post.authorColorHex), size: 38,
+                        AvatarCircle(initials: post.initials, tone: PersonTone.from(hex: post.authorColorHex), size: 36,
                                      photo: members.photo(forAuthor: post.authorName, authorID: post.authorID))
                             .matchedTransitionSource(id: ZoomID.author(post.persistentModelID), in: zoom)
                         VStack(alignment: .leading, spacing: 0) {
@@ -1310,7 +1469,7 @@ struct TableFeedView: View {
                                 .foregroundStyle(Color.ink)
                             HStack(spacing: 5) {
                                 Text(postWhen(post.createdAt))
-                                    .plType(.micro, .semibold)
+                                    .plType(.caption)
                                     .foregroundStyle(Color.inkSecondary)
                                 // Whose table this came from, said once and
                                 // quietly. No badge, no tint: a guest's dish
@@ -1319,7 +1478,7 @@ struct TableFeedView: View {
                                 // ranking it.
                                 if post.isRemote {
                                     Text("· another table")
-                                        .plType(.micro, .semibold)
+                                        .plType(.caption)
                                         .foregroundStyle(Color.inkSecondary)
                                 }
                                 // The state, not a badge: a muted dish says
@@ -1334,8 +1493,8 @@ struct TableFeedView: View {
                             }
                         }
                     }
+                    .frame(minWidth: 44, minHeight: 44)
                     .contentShape(Rectangle())
-                    .frame(minHeight: 44)
                 }
                 .buttonStyle(.pressable)
                 .accessibilityElement(children: .ignore)
@@ -1389,6 +1548,7 @@ struct TableFeedView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.pressable)
+            publicationStatus(post)
             ForEach(comments.suffix(2), id: \.persistentModelID) { comment in
                 commentLine(comment)
             }
@@ -1464,7 +1624,7 @@ struct TableFeedView: View {
         } label: {
             HStack(spacing: 7) {
                 Image(systemName: "bubble.right")
-                    .font(.system(size: 20, weight: .semibold))
+                    .font(.system(size: 22, weight: .regular))
                 if typeSize.isAccessibilitySize {
                     Text(comments.isEmpty
                          ? "Comments"
@@ -1473,11 +1633,11 @@ struct TableFeedView: View {
                         .plActionLabel()
                 } else if !comments.isEmpty {
                     Text("\(comments.count)")
-                        .plType(.body, .bold)
+                        .plType(.caption)
                 }
             }
             .foregroundStyle(Color.inkSecondary)
-            .frame(minHeight: 44)
+            .frame(minWidth: 44, minHeight: 44)
             .contentShape(Rectangle())
         }
         .buttonStyle(.pressable)
@@ -1494,7 +1654,7 @@ struct TableFeedView: View {
         } label: {
             HStack(spacing: 5) {
                 Image(systemName: saved ? "bookmark.fill" : "bookmark")
-                    .font(.system(size: 20, weight: .semibold))
+                    .font(.system(size: 22, weight: .regular))
                     .contentTransition(.symbolEffect(.replace.magic(fallback: .replace.downUp)))
                 if typeSize.isAccessibilitySize {
                     Text(saved ? "In cookbook" : "Save to cookbook")
@@ -1515,7 +1675,7 @@ struct TableFeedView: View {
             togglePlate(post)
         } label: {
             HStack(spacing: 7) {
-                PlateReactionGlyph(filled: post.platedByMeNow)
+                PlateReactionGlyph(filled: post.platedByMeNow, size: 22)
                 if typeSize.isAccessibilitySize {
                     Text(post.platedByMeNow ? "Liked" : "Like")
                         .plType(.footnote, .bold)
@@ -1531,7 +1691,7 @@ struct TableFeedView: View {
                 // counter waiting to be filled.
                 if post.totalPlates > 0 {
                     Text("\(post.totalPlates)")
-                        .plType(.body, .bold)
+                        .plType(.caption)
                         .foregroundStyle(post.platedByMeNow ? Color.accentText : Color.inkSecondary)
                         .contentTransition(.numericText())
                 }
@@ -1698,11 +1858,17 @@ struct TableFeedView: View {
     /// hidden measuring copy can never drift apart.
     ///
     /// Concatenated Text takes a Font, not a view modifier, so the scale is
-    /// spelled out rather than applied. These are TypeScale.body's numbers;
+    /// spelled out rather than applied. These are TypeScale.reading's numbers;
     /// keep them in step with it.
     private func captionText(_ post: TablePost) -> some View {
-        Text(post.caption)
-            .plType(.body, .regular)
+        let regular = Font.custom(Font.SansWeight.regular.rawValue, size: 14, relativeTo: .body)
+        let strong = Font.custom(Font.SansWeight.semibold.rawValue, size: 14, relativeTo: .body)
+        let cleanTitle = post.dishTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        let needsStop = cleanTitle.last.map { !".!?…".contains($0) } ?? false
+        let title = cleanTitle.isEmpty ? "" : cleanTitle + (needsStop && !post.caption.isEmpty ? ". " : " ")
+        return (Text(post.firstName + " ").font(strong)
+            + Text(title).font(regular)
+            + Text(post.caption).font(regular))
             .foregroundStyle(Color.ink)
             .lineSpacing(3)
     }
@@ -1829,7 +1995,7 @@ struct PlateReactionButton: View {
                 withAnimation(.plSnap) { bounce = false }
             }
         } label: {
-            PlateReactionGlyph(filled: post.platedByMeNow)
+            PlateReactionGlyph(filled: post.platedByMeNow, size: 22)
                 .plTapTarget()
         }
         .buttonStyle(.pressable)

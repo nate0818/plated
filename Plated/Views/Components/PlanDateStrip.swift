@@ -36,8 +36,6 @@ struct PlanDateStrip: View {
     @Environment(\.accessibilityVoiceOverEnabled) private var voiceOverEnabled
     @Environment(\.scenePhase) private var scenePhase
 
-    private let cellSpacing: CGFloat = 2
-
     /// Fade only the edges during a swipe; a settled row fits seven days.
     private static let edgeFade: CGFloat = 12
 
@@ -74,8 +72,43 @@ struct PlanDateStrip: View {
     }
 
     var body: some View {
+        if voiceOverEnabled {
+            wheelContent.accessibilityRepresentation {
+                Slider(
+                    value: Binding(
+                        get: { 0.0 },
+                        set: { value in
+                            if value > 0 { adjustDay(1) }
+                            else if value < 0 { adjustDay(-1) }
+                        }
+                    ),
+                    in: -1...1,
+                    step: 1
+                )
+                .accessibilityLabel(selection.formatted(.dateTime.weekday(.wide).month().day()))
+                .accessibilityValue((Calendar.current.isDateInToday(selection) ? "Today. " : "") + (hasDinner(selection) ? "Dinner planned" : "No dinner planned"))
+                .accessibilityAddTraits(.isSelected)
+                .accessibilityIdentifier(Self.accessibilityIdentifier(for: selection))
+                .accessibilityHint("Swipe up or down to choose a date")
+                .accessibilityAction(named: "Previous week") { weekAction(-1) }
+                .accessibilityAction(named: "Next week") { weekAction(1) }
+                .accessibilityAction(named: "Today") { choose(.now.startOfDay) }
+            }
+        } else {
+            wheelContent
+        }
+    }
+
+    private var wheelContent: some View {
+        // Measure with the same capped chrome environment as the visible
+        // labels. A fixed 62-point viewport clipped the selected tile at AX.
+        DateWheelDayLabel(date: selection, selected: true, dinnerPlanned: false, hovering: false)
+            .frame(width: 45).hidden().accessibilityHidden(true)
+            .frame(maxWidth: .infinity)
+            .overlay {
         GeometryReader { proxy in
-            let cellWidth = max(44, (proxy.size.width - 6 * cellSpacing) / 7)
+            let cellWidth = min(45, max(44, (proxy.size.width - 24) / 7))
+            let cellSpacing = max(4, (proxy.size.width - 7 * cellWidth) / 6)
             let centerInset = max(0, (proxy.size.width - cellWidth) / 2)
             // Increase Contrast keeps edge text fully opaque.
             let fadeWidth = contrast == .increased ? 0 : Self.edgeFade
@@ -112,6 +145,14 @@ struct PlanDateStrip: View {
             .accessibilityIdentifier("plan-date-wheel")
             .onScrollPhaseChange { _, phase, context in
                 scrollPhase = phase
+                // VoiceOver may scroll the horizontal view merely to expose
+                // its focused date. That is navigation through elements, not
+                // a request to move dinner. Only the date's explicit button
+                // and adjustable actions may change selection in this mode.
+                if voiceOverEnabled {
+                    interaction.cancel()
+                    return
+                }
                 let finalIndex = DateWheelInteraction.centeredIndex(
                     offset: context.geometry.contentOffset.x,
                     leadingInset: context.geometry.contentInsets.leading,
@@ -164,7 +205,8 @@ struct PlanDateStrip: View {
                 )
             } action: { oldIndex, newIndex in
                 centeredIndex = newIndex
-                guard newIndex != oldIndex,
+                guard !voiceOverEnabled,
+                      newIndex != oldIndex,
                       scrollPhase == .interacting || scrollPhase == .decelerating,
                       let newIndex,
                       dates.indices.contains(newIndex)
@@ -192,7 +234,7 @@ struct PlanDateStrip: View {
             .overlay(alignment: .trailing) { edgeFade(fadeWidth).scaleEffect(x: -1) }
             }
         }
-        .frame(height: 62)
+        }
         .plChrome()
         .accessibilityHint("Swipe left or right to choose a date")
         .onKeyPress(.leftArrow) { adjustDay(-1); return .handled }
@@ -379,21 +421,22 @@ private struct DateWheelDayLabel: View {
     var body: some View {
         VStack(spacing: 3) {
             Text(date.formattedWeekday()) // design-ok(action-wrap): weekday and date intentionally stack
-                .plType(.caption, .medium)
+                .plType(.micro, .regular).tracking(0)
             Text(date.formattedDayNumber())
-                .plType(.heading, .semibold)
-                .monospacedDigit()
+                .plType(.heading, .regular).tracking(0)
             Circle().fill(dinnerPlanned ? textColor : .clear).frame(width: 4, height: 4)
         }
         .foregroundStyle(textColor)
         .frame(maxWidth: .infinity)
         .padding(.vertical, 6)
-        .background(background, in: Radius.shape(Radius.chip))
-        .overlay {
+        .frame(minHeight: 65)
+        .background(background, in: Radius.shape(9))
+        .overlay(alignment: .bottom) {
             if Calendar.current.isDateInToday(date) && !selected {
-                Radius.shape(Radius.chip).strokeBorder(Color.inkSecondary, lineWidth: 1)
+                Rectangle().fill(Color.accentText).frame(height: 2)
             }
         }
+        .clipShape(Radius.shape(9))
         .contentShape(Rectangle())
     }
 }

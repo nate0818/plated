@@ -7,7 +7,7 @@ final class ApprovedPolishTests: XCTestCase {
 
     func launch(_ flags: [String] = [], light: Bool = false, large: Bool = false) {
         app.terminate()
-        app.launchArguments = ["-plated-design-review", "-householdName", "Meadows", "-appearance", light ? "light" : "dark",
+        app.launchArguments = ["-plated-design-review", "-householdName", "Meadows", "-userFirstName", "Nate", "-appearance", light ? "light" : "dark",
             "-UIPreferredContentSizeCategoryName", large ? "UICTContentSizeCategoryAccessibilityXXXL" : "UICTContentSizeCategoryL"] + flags
         app.launch()
     }
@@ -19,7 +19,9 @@ final class ApprovedPolishTests: XCTestCase {
     func reveal(_ item: XCUIElement) {
         for _ in 0..<10 {
             if item.isHittable { return }
-            app.scrollViews.firstMatch.swipeUp()
+            let viewport = app.scrollViews.allElementsBoundByIndex.first { $0.isHittable }
+            XCTAssertNotNil(viewport, "A visible scrolling container is required")
+            viewport?.swipeUp()
         }
         XCTAssertTrue(item.isHittable, app.debugDescription)
     }
@@ -33,7 +35,11 @@ final class ApprovedPolishTests: XCTestCase {
         app.buttons["Eating out instead"].tap()
         XCTAssertTrue(app.buttons["featured-dinner-card"].waitForExistence(timeout: 8))
         XCTAssertEqual(app.buttons["featured-dinner-card"].label, "Eating out")
-        XCTAssertTrue(app.staticTexts["Dinner out is on the plan. No cooking needed."].exists)
+        // Original approval: planOpen(out) says exactly this. The compact
+        // description is exposed as the day-detail button's value for VoiceOver.
+        XCTAssertEqual(app.buttons["featured-dinner-card"].value as? String, "Dinner out is on the plan.")
+        XCTAssertGreaterThanOrEqual(app.buttons["featured-dinner-card"].frame.height, 44)
+        XCTAssertGreaterThanOrEqual(app.buttons["Change dinner plan"].frame.height, 44)
         capture("polish-plan-eating-out")
         app.buttons["Add a place"].tap()
         let place = element("dining-place")
@@ -51,7 +57,11 @@ final class ApprovedPolishTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["New post"].waitForExistence(timeout: 8))
         let field = element("table-post-text")
         XCTAssertTrue(field.waitForExistence(timeout: 8)); field.tap(); field.typeText("The market tomatoes were excellent.")
-        XCTAssertTrue(app.staticTexts["Draft saved on this device"].waitForExistence(timeout: 8))
+        // Original composer status is "Draft saved"; verify that exact state
+        // before the existing terminate/relaunch persistence assertions.
+        XCTAssertTrue(element("table-post-draft-status").waitForExistence(timeout: 8))
+        let saved = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == %@", "Draft saved"), object: element("table-post-draft-status"))
+        XCTAssertEqual(XCTWaiter.wait(for: [saved], timeout: 8), .completed)
         app.buttons["Done"].firstMatch.tap()
         capture("polish-composer-draft")
         app.terminate()
@@ -72,10 +82,11 @@ final class ApprovedPolishTests: XCTestCase {
         let old = cell.label
         cell.tap()
         XCTAssertTrue(app.navigationBars["Who cooks \(day)?"].waitForExistence(timeout: 8))
+        XCTAssertTrue(app.staticTexts["Choose someone. Changes apply after saving."].exists)
         capture("polish-rotation-picker")
         app.buttons["Unassigned"].tap(); app.buttons["Cancel"].tap()
         XCTAssertEqual(cell.label, old, "Browsing a rotation must not change the standing cook")
-        cell.tap(); app.buttons["Unassigned"].tap(); app.buttons["Save"].tap()
+        cell.tap(); app.buttons["Unassigned"].tap(); app.buttons["Save cook"].tap()
         XCTAssertEqual(cell.label, "\(day), nobody yet")
     }
 
@@ -99,7 +110,7 @@ final class ApprovedPolishTests: XCTestCase {
         capture("polish-cooking-active")
         let finish = app.buttons["Finish cooking"]
         XCTAssertTrue(finish.waitForExistence(timeout: 8)); finish.tap()
-        XCTAssertTrue(app.staticTexts["Dinner, made."].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Nicely done, Nate."].waitForExistence(timeout: 10))
         XCTAssertTrue(element("Cooking note, optional").exists)
         capture("polish-cooking-finished")
     }
@@ -122,7 +133,7 @@ final class ApprovedPolishTests: XCTestCase {
         XCTAssertEqual(pause.label, "Resume")
         capture("polish-cooking-paused")
         pause.tap()
-        XCTAssertTrue(app.staticTexts["Timer running"].waitForExistence(timeout: 5))
+        XCTAssertEqual(element("cooking-timer-state").value as? String, "Running")
     }
 
     func testGroceryQuickAddUndoAndRecipeCollections() {

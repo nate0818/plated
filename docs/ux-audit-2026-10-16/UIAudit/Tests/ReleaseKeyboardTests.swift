@@ -16,6 +16,7 @@ final class ReleaseKeyboardTests: XCTestCase {
     func testRecipeTitleNotesAndDecimalFieldsHaveAWorkingDoneControl() {
         app.launchArguments = ["-plated-design-review", "-plated-open-recipe-detail", "-appearance", "dark"]
         app.launch()
+        app.buttons["Recipe options"].tap()
         XCTAssertTrue(app.buttons["Edit recipe"].waitForExistence(timeout: 20))
         app.buttons["Edit recipe"].tap()
         let title = app.textFields["Name the dish"]
@@ -43,6 +44,7 @@ final class ReleaseKeyboardTests: XCTestCase {
         XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 5))
         XCTAssertEqual(calories.value as? String, "450")
         app.buttons["Cancel"].tap(); app.buttons["Discard"].tap()
+        app.buttons["Recipe options"].tap()
         XCTAssertTrue(app.buttons["Edit recipe"].waitForExistence(timeout: 10))
     }
 }

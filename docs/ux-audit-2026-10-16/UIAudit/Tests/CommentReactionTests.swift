@@ -5,6 +5,7 @@ final class CommentReactionTests: XCTestCase {
     override func setUp() { continueAfterFailure = false }
     var parent: XCUIElement { app.buttons["comment-like-note-review-parent"] }
     var reply: XCUIElement { app.buttons["comment-like-note-review-reply"] }
+    var fixtureComments: XCUIElement { app.buttons["table-comments-post-review-comment-reactions"] }
     func launch(thread: Bool = true, light: Bool = false, large: Bool = false, flags: [String] = []) {
         app.terminate()
         app.launchArguments = ["-plated-design-review", "-plated-review-comment-reactions",
@@ -18,7 +19,10 @@ final class CommentReactionTests: XCTestCase {
         for _ in 0..<12 {
             if element.exists && element.isHittable { return }
             let thread = app.scrollViews["table-post-thread"]
-            (thread.exists ? thread : app.scrollViews.firstMatch).swipeUp()
+            let feed = app.scrollViews["table-feed"]
+            if thread.exists && thread.isHittable { thread.swipeUp() }
+            else if feed.exists && feed.isHittable { feed.swipeUp() }
+            else { XCTFail("Neither the visible Table feed nor thread is available"); return }
         }
         XCTAssertTrue(element.isHittable)
     }
@@ -95,13 +99,22 @@ final class CommentReactionTests: XCTestCase {
         XCTAssertTrue(reply.exists)
         XCTAssertEqual(reply.value as? String, "1 like")
     }
-    func testFeedPreviewsLikeWithoutOpeningThread() {
+    func testCompactFeedOpensCommentsAndPreservesReactionState() {
+        // The approved feed uses View comments instead of repeating two
+        // interactive comments. Verify that route and the real thread action.
         launch(thread: false, light: true)
-        reveal(parent)
-        parent.tap()
+        let comments = fixtureComments
+        reveal(comments)
+        XCTAssertEqual(comments.label, "View 2 comments", "Exactly the fixture's two live comments must be counted")
+        XCTAssertFalse(parent.exists)
+        comments.tap()
+        XCTAssertTrue(app.staticTexts["A market find"].waitForExistence(timeout: 8))
+        XCTAssertTrue(app.staticTexts["Comments 2"].exists)
+        XCTAssertTrue(parent.waitForExistence(timeout: 8))
+        reveal(parent); parent.tap()
         XCTAssertEqual(parent.value as? String, "3 likes")
-        XCTAssertTrue(app.buttons["tray-table"].exists)
-        capture("comment-liked-feed-light")
+        XCTAssertTrue(parent.isSelected)
+        capture("comment-liked-from-compact-feed-light")
     }
     func testLargestTextCommentAndReplyRemainOperable() {
         launch(light: true, large: true)
@@ -134,7 +147,8 @@ final class CommentReactionTests: XCTestCase {
 
     func testPlanAccessibilityReturnsWhenItsTabIsSelected() {
         launch(thread: false)
-        reveal(parent)
+        reveal(fixtureComments)
+        XCTAssertEqual(fixtureComments.label, "View 2 comments")
         let plan = app.scrollViews["plan-selected-day-content"]
         XCTAssertEqual(plan.staticTexts.count, 0)
         app.buttons["tray-week"].tap()
@@ -143,7 +157,65 @@ final class CommentReactionTests: XCTestCase {
         app.buttons["tray-table"].tap()
         XCTAssertTrue(plan.buttons["featured-dinner-card"].waitForNonExistence(timeout: 5))
         XCTAssertEqual(plan.buttons.count, 0)
-        XCTAssertTrue(parent.exists)
+        reveal(fixtureComments)
+        XCTAssertEqual(fixtureComments.label, "View 2 comments")
+        fixtureComments.tap()
+        XCTAssertTrue(app.staticTexts["A market find"].waitForExistence(timeout: 8))
+        XCTAssertTrue(app.staticTexts["Comments 2"].exists)
+        reveal(parent)
+        XCTAssertEqual(parent.value as? String, "2 likes")
+    }
+
+    func testLongReplyBranchDisclosurePreservesReactions() {
+        verifyLongBranch(large: false)
+    }
+
+    func testLongReplyBranchDisclosureAtLargestText() {
+        verifyLongBranch(large: true)
+    }
+
+    private func verifyLongBranch(large: Bool) {
+        launch(light: large, large: large, flags: ["-plated-review-long-replies"])
+        let disclosure = app.buttons["table-replies-note-review-parent"]
+        reveal(disclosure)
+        XCTAssertTrue(app.staticTexts["Comments 5"].exists)
+        XCTAssertEqual(disclosure.label, "View 4 replies")
+        XCTAssertEqual(disclosure.value as? String, "Collapsed")
+        XCTAssertFalse(reply.exists)
+        XCTAssertGreaterThanOrEqual(disclosure.frame.height, 44)
+        capture("long-replies-collapsed-" + (large ? "AX5" : "default"))
+        disclosure.tap()
+        XCTAssertEqual(disclosure.label, "Hide replies")
+        XCTAssertEqual(disclosure.value as? String, "Expanded")
+        reveal(reply); reply.tap()
+        XCTAssertEqual(reply.value as? String, "1 like")
+        XCTAssertEqual(parent.value as? String, "2 likes")
+        // Return upward inside this thread, never the retained Plan scroll.
+        let thread = app.scrollViews["table-post-thread"]
+        for _ in 0..<12 {
+            if disclosure.isHittable { break }
+            thread.swipeDown()
+        }
+        XCTAssertTrue(disclosure.isHittable); disclosure.tap()
+        XCTAssertEqual(disclosure.label, "View 4 replies")
+        XCTAssertFalse(reply.exists)
+        disclosure.tap(); reveal(reply)
+        XCTAssertEqual(reply.value as? String, "1 like", "Collapsing cannot reset a reaction")
+        capture("long-replies-expanded-" + (large ? "AX5" : "default"))
+    }
+
+    func testNotificationTargetOpensItsCollapsedReplyPath() {
+        launch(thread: false, flags: ["-plated-review-long-replies", "-plated-review-target-reply"])
+        let target = app.buttons["comment-like-note-review-target"]
+        let visible = XCTNSPredicateExpectation(predicate: NSPredicate(format: "hittable == true"), object: target)
+        XCTAssertEqual(XCTWaiter.wait(for: [visible], timeout: 10), .completed,
+                       "The notification route must reveal and scroll to its target without a test swipe")
+        let disclosure = app.buttons["table-replies-note-review-parent"]
+        XCTAssertEqual(disclosure.value as? String, "Expanded")
+        XCTAssertEqual(disclosure.label, "Hide replies")
+        XCTAssertFalse(app.buttons["comment-like-note-review-deleted"].exists)
+        XCTAssertEqual(target.value as? String, "0 likes")
+        capture("long-replies-notification-target")
     }
 
 }

@@ -40,6 +40,34 @@ final class WidgetBridgeTests: XCTestCase {
         XCTAssertEqual(snapshot.tonight?.hasPhoto, false)
     }
 
+    func testLeftoversSnapshotKeepsThePlanWithoutInventingACookOrDishPhoto() throws {
+        let container = try ModelContainer(for: PlatedStore.schema,
+            configurations: [ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)])
+        let context = container.mainContext
+        let cook = HouseholdMember(name: "Sam", role: "partner", seat: .joined)
+        context.insert(cook)
+        // An older freeform row can retain an assignment even though the
+        // new choice clears it. The widget still must not say Sam cooks.
+        let meal = PlannedMeal(date: .now, customTitle: "Leftovers", cook: cook)
+        context.insert(meal)
+        try context.save()
+        PlanLedger.shared.clear()
+        WidgetBridge.publish(from: context)
+        let group = try XCTUnwrap(FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: WidgetBridge.appGroupID))
+        let data = try Data(contentsOf: group.appendingPathComponent("week-snapshot.json"))
+        let snapshot = try JSONDecoder().decode(WidgetBridge.Snapshot.self, from: data)
+        XCTAssertEqual(snapshot.tonight?.title, "Leftovers")
+        XCTAssertEqual(snapshot.tonight?.hasPhoto, false)
+        XCTAssertEqual(snapshot.tonight?.minutes, 0)
+        XCTAssertNil(snapshot.tonight?.cookName)
+        XCTAssertEqual(snapshot.tonight?.cookInitial, "")
+        XCTAssertEqual(snapshot.days.first?.planned, true)
+        XCTAssertNil(snapshot.days.first?.cookName)
+        XCTAssertEqual(snapshot.plannedCount, 1)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: group.appendingPathComponent("tonight.jpg").path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: group.appendingPathComponent("tonight-dark.png").path))
+    }
+
     func testGrocerySnapshotBuildsBeforeSheetOpensAndDoesNotCommitDrafts() throws {
         let container = try ModelContainer(for: PlatedStore.schema,
             configurations: [ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)])

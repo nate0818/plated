@@ -55,6 +55,16 @@ enum TableSync {
 
     static func accountState() async -> AccountState {
         #if PLATED_CLOUDKIT
+        #if DEBUG
+        // Design-review fixtures are memory-only and often run from an
+        // unsigned simulator build. CKContainer.default() raises an Objective-C
+        // exception without its signed container entitlement, before Swift's
+        // do/catch can handle an account error. These fixtures never test live
+        // iCloud status; device and signed-export checks do that separately.
+        if ProcessInfo.processInfo.arguments.contains("-plated-design-review") {
+            return .notArmed
+        }
+        #endif
         do {
             switch try await CKContainer.default().accountStatus() {
             case .available: return .available

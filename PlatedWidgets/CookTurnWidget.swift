@@ -100,7 +100,7 @@ struct CookTurnWidgetView: View {
             Text(isCurrent ? "Nobody yet" : "Open Plan to refresh")
                 .font(.sans(15))
                 .foregroundStyle(Plate.ink)
-            Text(isCurrent ? "Tap to hand out the week" : "The plan needs an update")
+            Text(isCurrent ? (family == .systemSmall ? "Assign a cook" : "Tap to hand out the week") : "The plan needs an update")
                 .font(.sans(12, "SemiBold"))
                 .foregroundStyle(Plate.inkSecondary)
                 .lineLimit(2)

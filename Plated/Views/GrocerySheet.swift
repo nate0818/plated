@@ -12,6 +12,7 @@ struct GrocerySheet: View {
     @Environment(\.openURL) private var openURL
     @Environment(\.dismiss) private var dismiss
     @Environment(\.tabPop) private var tabPop
+    @Environment(\.tabBarReservedHeight) private var tabBarReservedHeight
     @Environment(\.dynamicTypeSize) private var typeSize
     @Environment(\.verticalSizeClass) private var verticalSizeClass
     private var shortWindow: Bool { verticalSizeClass == .compact && !typeSize.isAccessibilitySize }
@@ -195,11 +196,12 @@ struct GrocerySheet: View {
                     } else {
                         VStack(alignment: .leading, spacing: 18) {
                             ForEach(grouped, id: \.0) { aisle, aisleItems in
-                                VStack(alignment: .leading, spacing: 4) {
+                                VStack(alignment: .leading, spacing: 0) {
                                     HStack {
                                         MicroLabel(aisle.rawValue)
                                         Spacer()
-                                        Text("\(aisleItems.count) items").plType(.caption).foregroundStyle(Color.inkSecondary)
+                                        let remaining = aisleItems.filter { !checked($0) }.count
+                                        Text(remaining.things("item")).plType(.caption).foregroundStyle(Color.inkSecondary)
                                     }.padding(.bottom, 6)
                                     ForEach(aisleItems, id: \.persistentModelID) { item in
                                         itemRow(item)
@@ -234,12 +236,12 @@ struct GrocerySheet: View {
                     .plType(.footnote, .semibold).plActionLabel().plTapTarget()
             }
             if !currentItems.isEmpty {
-                shoppingFooter.plChrome()
-                    .padding(.horizontal, Spacing.page)
-                    .padding(.bottom, shortWindow ? 4 : 16)
+                shoppingFooter
             }
         }
-        .padding(.bottom, embedded ? Layout.floatingChromeInset : 0)
+        // The shell overlays its tab bar. Reserve its measured content height
+        // so this fixed progress surface meets the bar without a blank strip.
+        .padding(.bottom, embedded ? tabBarReservedHeight + (ProngsbyFeature.isEnabled ? Layout.perchHeight + 8 : 0) : 0)
         .background(Color.canvas.ignoresSafeArea())
         .alert("Couldn't update groceries", isPresented: Binding(get: { removalProblem != nil }, set: { if !$0 { removalProblem = nil } })) {
             Button("OK") { removalProblem = nil }
@@ -393,36 +395,49 @@ struct GrocerySheet: View {
     /// to the thumb without competing with the check rows above it.
     private var shoppingFooter: some View {
         let completed = max(0, currentItems.count - unchecked.count)
-        return VStack(spacing: 4) {
-            ProgressView(value: Double(completed), total: Double(max(1, currentItems.count)))
-                .tint(unchecked.isEmpty ? Color.completion : Color.olive)
+        return VStack(spacing: 6) {
             let layout = typeSize.isAccessibilitySize
                 ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4))
                 : AnyLayout(HStackLayout(spacing: 12))
             layout {
-                Text(unchecked.isEmpty ? "Everything checked off" : "\(unchecked.count) items left · \(completed) of \(currentItems.count) checked")
-                    .plType(.footnote).foregroundStyle(Color.inkSecondary)
+                Text(unchecked.isEmpty ? "Everything checked off" : "\(unchecked.count.things("item")) left")
+                    .plType(.caption).foregroundStyle(Color.ink)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                if undoCheck != nil {
-                    Button("Undo") {
+                if let (item, _, _) = undoCheck {
+                    Button {
                         guard let (item, data, checked) = undoCheck else { return }
                         item.purchasesData = data
                         item.isChecked = checked
                         item.recordMark()
                         undoCheck = nil
                         Persist.save(context)
+                    } label: {
+                        Text("Undo \(item.name.lowercased())")
+                            .plType(.footnote, .semibold).foregroundStyle(Color.accentText)
+                            .frame(minWidth: 44, minHeight: 44).contentShape(Rectangle())
                     }
-                    .plType(.footnote, .semibold).foregroundStyle(Color.accentText).plTapTarget()
+                    .buttonStyle(.plain)
                     .accessibilityLabel("Undo last check")
+                } else {
+                    Text("\(completed) of \(currentItems.count) checked")
+                        .plType(.caption).foregroundStyle(Color.inkSecondary)
                 }
-
             }
+            .frame(minHeight: 44)
+            GeometryReader { geometry in
+                Rectangle().fill(Color.hairline)
+                    .overlay(alignment: .leading) {
+                        Rectangle().fill(Color.olive)
+                            .frame(width: geometry.size.width * CGFloat(completed) / CGFloat(max(1, currentItems.count)))
+                    }
+            }.frame(height: 3).accessibilityHidden(true)
             if let exportResult {
                 Text(exportResult).plType(.caption).foregroundStyle(Color.inkSecondary)
             }
         }
-        .padding(.top, 8)
-        .background(Color.canvas)
+        .padding(.horizontal, Spacing.page).padding(.vertical, 6)
+        .background(Color.fill)
+        .accessibilityIdentifier("grocery-shopping-footer")
     }
 
     private var shoppingMenu: some View {
@@ -463,10 +478,11 @@ struct GrocerySheet: View {
     private var addRow: some View {
         HStack(spacing: 10) {
             Image(systemName: "plus")
-                .font(.system(size: 13, weight: .bold))
-                .foregroundStyle(Color.inkFaint)
-            TextField("Add an item or amount", text: $newItemName)
-                .plType(.body)
+                .font(.system(size: 20, weight: .regular))
+                .foregroundStyle(Color.inkSecondary)
+            TextField("Add an item", text: $newItemName, prompt: Text("Add an item").foregroundStyle(Color.inkSecondary))
+                .plType(.footnote)
+                .accessibilityLabel("Add an item or amount")
                 .focused($addFieldFocused)
                 .submitLabel(.done)
                 .onSubmit(addManualItem)
@@ -509,8 +525,8 @@ struct GrocerySheet: View {
     private func itemRow(_ item: GroceryItem) -> some View {
         SwipeRow(isOpen: swipeBinding(item), actions: [.remove { remove(item) }]) {
             checkRow(item)
-                .padding(.vertical, 10)
-                .overlay(alignment: .bottom) { Color.hairlineSoft.frame(height: 0.5) }
+                .padding(.vertical, 12)
+                .overlay(alignment: .bottom) { Color.hairline.frame(height: 0.5) }
         }
         .contextMenu {
             if !item.sources.isEmpty {
@@ -570,20 +586,20 @@ struct GrocerySheet: View {
                 Persist.save(context)
                 exportResult = nil
             } label: {
-                HStack(alignment: .top, spacing: 12) {
+                HStack(alignment: .center, spacing: 12) {
                     Image(systemName: isChecked ? "checkmark.circle.fill" : "circle")
                         .font(.system(size: 21, weight: .regular))
                         .foregroundStyle(isChecked ? Color.basil : Color.inkSecondary)
                         .contentTransition(.symbolEffect(.replace))
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(item.name).plType(.body, .medium)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(item.name).plType(.reading, .medium)
                             .strikethrough(isChecked).foregroundStyle(isChecked ? Color.inkSecondary : Color.ink)
                         if let origin = groceryOriginLine(item) {
                             Text(origin)
-                                .plType(.caption).foregroundStyle(Color.inkSecondary).lineLimit(typeSize.isAccessibilitySize ? nil : 2)
+                                .plType(.detail).foregroundStyle(Color.inkSecondary).lineLimit(typeSize.isAccessibilitySize ? nil : 2)
                         }
                         if typeSize.isAccessibilitySize {
-                            Text(measure).plType(.footnote, .semibold).foregroundStyle(Color.inkSecondary)
+                            Text(measure).plType(.caption).foregroundStyle(Color.inkSecondary)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
                         if let hint = packageHint(item) {
@@ -595,7 +611,7 @@ struct GrocerySheet: View {
                     }
                     if !typeSize.isAccessibilitySize {
                         Spacer(minLength: 6)
-                        Text(measure).plType(.footnote, .semibold).foregroundStyle(Color.inkSecondary)
+                        Text(measure).plType(.caption).foregroundStyle(Color.inkSecondary)
                             .fixedSize(horizontal: true, vertical: false)
                     }
                 }.frame(minHeight: 44).contentShape(Rectangle())
@@ -680,7 +696,7 @@ struct GrocerySheet: View {
                         : AnyLayout(HStackLayout(spacing: 12))
                     layout {
                         Text(shoppingRangeText + " · " + (byMeal ? "Selected meals" : "Next 7 days"))
-                            .plType(.footnote).foregroundStyle(Color.inkSecondary)
+                            .plType(.caption).foregroundStyle(Color.inkSecondary)
                             .fixedSize(horizontal: false, vertical: true)
                             .frame(maxWidth: .infinity, alignment: .leading)
                         Text("Change").plType(.footnote, .semibold).foregroundStyle(Color.accentText)
@@ -995,15 +1011,20 @@ struct GrocerySheet: View {
         let start = shoppingStart.startOfDay
         let end = Calendar.current.date(byAdding: .day, value: 6, to: start) ?? start
         let calendar = Calendar.current
-        if calendar.component(.year, from: start) == calendar.component(.year, from: end),
-           calendar.component(.month, from: start) == calendar.component(.month, from: end) {
-            return start.formatted(.dateTime.month(.abbreviated).day())
+        let sameYear = calendar.component(.year, from: start) == calendar.component(.year, from: end)
+        if sameYear, calendar.component(.month, from: start) == calendar.component(.month, from: end) {
+            return start.formatted(.dateTime.month(.wide).day())
                 + "–"
                 + end.formatted(.dateTime.day())
         }
-        return start.formatted(.dateTime.month(.abbreviated).day())
+        if sameYear {
+            return start.formatted(.dateTime.month(.wide).day())
+                + "–"
+                + end.formatted(.dateTime.month(.wide).day())
+        }
+        return start.formatted(.dateTime.month(.wide).day().year())
             + "–"
-            + end.formatted(.dateTime.month(.abbreviated).day())
+            + end.formatted(.dateTime.month(.wide).day().year())
     }
 
     private var mealSelector: some View {

@@ -27,6 +27,7 @@ struct MemberDinnerActivity {
             let date = PlanDay.date(entry.day)
             dinners[key] = isCook && entry.cooked && !entry.isGoing
                 && !PlanRowVoice.isEatingOut(title: entry.title, hasRecipe: entry.hasRecipe)
+                && !PlanRowVoice.isLeftovers(title: entry.title, hasRecipe: entry.hasRecipe)
                 && date.map { $0 >= start && $0 < end } == true
             if dinners[key] == true, let date {
                 events[key] = Event(line: "Cooked \(entry.title.isEmpty ? "dinner" : entry.title)", date: entry.cookedAt ?? date)
@@ -37,6 +38,7 @@ struct MemberDinnerActivity {
                 ?? String(describing: meal.persistentModelID)
             dinners[key] = meal.cook?.persistentModelID == member.persistentModelID && meal.isCooked
                 && !PlanRowVoice.isEatingOut(title: meal.title, hasRecipe: meal.recipe != nil)
+                && !meal.isLeftovers
                 && meal.date >= start && meal.date < end
             if dinners[key] == true {
                 events[key] = Event(line: "Cooked \(meal.title)", date: meal.cookedAt ?? meal.date)

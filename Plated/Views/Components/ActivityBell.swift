@@ -68,7 +68,7 @@ private struct ActivityBellGlyph: View {
     var body: some View {
         KeyframeAnimator(initialValue: Double.zero, trigger: trigger) { (angle: Double) in
             Image(systemName: isUnread ? "bell.fill" : "bell")
-                .font(.system(size: size >= 44 ? 18 : 15, weight: .semibold))
+                .font(.system(size: size >= 44 ? 22 : 17, weight: .regular))
                 .foregroundStyle(Color.ink)
                 .contentTransition(.symbolEffect(.replace))
                 .rotationEffect(.degrees(reduceMotion ? 0 : angle), anchor: .top)

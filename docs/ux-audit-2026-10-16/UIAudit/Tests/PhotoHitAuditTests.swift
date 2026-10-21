@@ -10,6 +10,7 @@ final class PhotoHitAuditTests: XCTestCase {
         continueAfterFailure = false
         app.launchArguments = ["-plated-design-review", "-plated-tab", "cookbook", "-plated-open-recipe-detail", "-appearance", "dark", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryL"]
         app.launch()
+        app.buttons["Recipe options"].tap()
         XCTAssertTrue(app.buttons["Edit recipe"].waitForExistence(timeout: 20))
         app.buttons["Edit recipe"].tap()
         let field = app.textFields["Name the dish"]
@@ -23,9 +24,13 @@ final class PhotoHitAuditTests: XCTestCase {
         field.typeText(" UX AUDIT")
         capture("recipe-edit-unsaved-value")
         app.buttons["Cancel"].coordinate(withNormalizedOffset: CGVector(dx:0.5,dy:0.5)).tap()
-        XCTAssertTrue(app.buttons["Edit recipe"].waitForExistence(timeout: 8))
-        XCTAssertFalse(app.buttons["Keep writing"].exists)
-        capture("recipe-edit-cancelled-no-confirmation")
+        XCTAssertTrue(app.buttons["Keep writing"].waitForExistence(timeout: 8))
+        capture("recipe-edit-cancel-guard")
+        app.buttons["Keep writing"].tap()
+        XCTAssertTrue((field.value as? String)?.contains("UX AUDIT") == true)
+        app.buttons["Cancel"].tap()
+        app.buttons["Discard"].tap()
+        app.buttons["Recipe options"].tap()
         app.buttons["Edit recipe"].tap()
         XCTAssertTrue(field.waitForExistence(timeout: 8))
         XCTAssertEqual(field.value as? String, original)
@@ -39,9 +44,9 @@ final class PhotoHitAuditTests: XCTestCase {
         XCTAssertTrue(start.waitForExistence(timeout:20))
         capture("local-start-cooking-before")
         start.coordinate(withNormalizedOffset:CGVector(dx:0.5,dy:0.5)).tap()
-        XCTAssertTrue(app.buttons["Edit recipe"].waitForExistence(timeout:8))
-        XCTAssertFalse(app.buttons["Minimize cooking"].exists)
-        capture("local-start-cooking-opens-detail")
+        XCTAssertTrue(app.buttons["Minimize cooking"].waitForExistence(timeout:8))
+        XCTAssertTrue(app.buttons["Finish cooking"].exists)
+        capture("local-start-cooking-opens-cooking")
     }
 
 }

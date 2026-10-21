@@ -8,7 +8,7 @@ struct PlanContextView: View {
     let history: PlanDinnerHistory
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
+        VStack(alignment: .leading, spacing: 16) {
             PlanWeatherView(date: date, forecast: forecast)
             Rectangle().fill(Color.hairline).frame(height: 1).accessibilityHidden(true)
             PlanDinnerHistoryView(history: history)
@@ -60,7 +60,7 @@ private struct PlanWeatherView: View {
                     Task { await forecast.refresh(days: 10, mayAsk: true) }
                 }
             } else {
-                weatherMessage("The forecast couldn’t load. Your dinner plan is still here.", action: "Try again") {
+                weatherMessage("Your dinner plan is still available.", heading: "Forecast unavailable", action: "Try again") {
                     Task { await forecast.refresh(days: 10) }
                 }
             }
@@ -74,22 +74,23 @@ private struct PlanWeatherView: View {
     private func weather(_ day: ForecastProvider.DayForecast) -> some View {
         let layout = typeSize.isAccessibilitySize
             ? AnyLayout(VStackLayout(alignment: .leading, spacing: 12))
-            : AnyLayout(HStackLayout(alignment: .center, spacing: 16))
+            : AnyLayout(HStackLayout(alignment: .center, spacing: 10))
         return layout {
             Image(systemName: day.symbolName)
                 .font(.system(size: 32, weight: .regular))
                 .symbolRenderingMode(.hierarchical)
                 .foregroundStyle(Color.olive)
-                .frame(width: 44, height: 44).accessibilityHidden(true)
+                .frame(width: 32, height: 32).accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 4) {
-                Text(day.conditionDescription).plType(.body, .medium).foregroundStyle(Color.ink)
+                Text(day.conditionDescription).plType(.body, .semibold).foregroundStyle(Color.ink)
                 Text("\(dayLabel) · \(Int((day.precipitationChance * 100).rounded()))% chance of rain")
                     .plType(.caption).foregroundStyle(Color.inkSecondary)
             }
             if !typeSize.isAccessibilitySize { Spacer(minLength: 0) }
             VStack(alignment: typeSize.isAccessibilitySize ? .leading : .trailing, spacing: 4) {
-                Text("High \(temperature(day.highF))").plType(.heading).foregroundStyle(Color.ink)
-                Text("Low \(temperature(day.lowF))").plType(.caption).foregroundStyle(Color.inkSecondary)
+                Text(compactTemperature(day.highF)).plType(.title).foregroundStyle(Color.ink)
+                Text("High \(compactTemperature(day.highF)) · Low \(compactTemperature(day.lowF))")
+                    .plType(.caption).foregroundStyle(Color.inkSecondary)
             }
         }
         .accessibilityElement(children: .ignore)
@@ -106,6 +107,13 @@ private struct PlanWeatherView: View {
     private func temperature(_ fahrenheit: Double) -> String {
         Measurement(value: fahrenheit, unit: UnitTemperature.fahrenheit)
             .formatted(.measurement(width: .abbreviated, usage: .weather, numberFormatStyle: .number.precision(.fractionLength(0))))
+    }
+
+    private func compactTemperature(_ fahrenheit: Double) -> String {
+        // Keep the region's weather unit while using the compact degree mark
+        // in the visual forecast. VoiceOver retains the complete unit above.
+        temperature(fahrenheit).replacingOccurrences(of: "°F", with: "°")
+            .replacingOccurrences(of: "°C", with: "°")
     }
 
     @ViewBuilder
@@ -128,21 +136,37 @@ private struct PlanWeatherView: View {
                         Label("Weather", systemImage: "apple.logo").plType(.footnote)
                     }
                     if !typeSize.isAccessibilitySize { Spacer(minLength: 0) }
-                    Text("Weather data sources ↗").plType(.micro)
-                }.foregroundStyle(Color.inkSecondary).frame(minHeight: 44)
+                    Text("Data sources ↗").plType(.caption)
+                }.foregroundStyle(Color.inkSecondary).frame(minHeight: 44).contentShape(Rectangle())
             }
             .accessibilityLabel("Apple Weather. Weather data sources")
             .accessibilityIdentifier("plan-weather-attribution")
         }
     }
 
-    private func weatherMessage(_ message: String, action: String, perform: @escaping () -> Void) -> some View {
+    private func weatherMessage(_ message: String, heading: String? = nil, action: String, perform: @escaping () -> Void) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(message).plType(.footnote).foregroundStyle(Color.inkSecondary)
-                .fixedSize(horizontal: false, vertical: true)
-            Button(action, action: perform)
-                .plType(.footnote, .semibold).foregroundStyle(Color.accentText)
-                .plActionLabel().plTapTarget()
+            if let heading {
+                HStack(spacing: 10) {
+                    Image(systemName: "sun.max")
+                        .font(.system(size: 32, weight: .regular))
+                        .foregroundStyle(Color.olive)
+                        .frame(width: 32, height: 32).accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(heading).plType(.body, .semibold).foregroundStyle(Color.ink)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Text(message).plType(.caption).foregroundStyle(Color.inkSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            } else {
+                Text(message).plType(.footnote).foregroundStyle(Color.inkSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Button(action: perform) {
+                Text(action).plType(.footnote, .semibold).foregroundStyle(Color.accentText)
+                    .plActionLabel().plTapTarget().contentShape(Rectangle())
+            }.buttonStyle(.pressable)
         }
     }
 }
@@ -152,7 +176,7 @@ private struct PlanDinnerHistoryView: View {
     let history: PlanDinnerHistory
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 12) {
             let headingLayout = typeSize.isAccessibilitySize
                 ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
                 : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: 8))
@@ -160,7 +184,7 @@ private struct PlanDinnerHistoryView: View {
                 Text("Household dinners").plType(.heading).foregroundStyle(Color.ink)
                     .accessibilityAddTraits(.isHeader)
                 if !typeSize.isAccessibilitySize { Spacer(minLength: 0) }
-                MicroLabel("Last 7 days")
+                Text("Last 7 days").plType(.caption).foregroundStyle(Color.inkSecondary)
             }
             let layout = typeSize.isAccessibilitySize
                 ? AnyLayout(VStackLayout(alignment: .leading, spacing: 16))
@@ -176,7 +200,7 @@ private struct PlanDinnerHistoryView: View {
                  : history.cooked + history.eatingOut == 1
                  ? "Based on 1 recorded dinner."
                  : "Based on \(history.cooked + history.eatingOut) recorded dinners.")
-                .plType(.footnote).foregroundStyle(Color.inkSecondary)
+                .plType(.caption).foregroundStyle(Color.inkSecondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }
@@ -187,7 +211,7 @@ private struct PlanDinnerHistoryView: View {
                 Text(value, format: .number).plType(.title, .medium).foregroundStyle(Color.ink)
                     .monospacedDigit()
             }
-            Text(label).plType(.footnote).foregroundStyle(Color.inkSecondary)
+            Text(label).plType(.caption).foregroundStyle(Color.inkSecondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .ignore)

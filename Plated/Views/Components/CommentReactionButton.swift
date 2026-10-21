@@ -14,12 +14,13 @@ struct CommentReactionButton: View {
     var body: some View {
         Button {
             Haptic.select()
-            withAnimation(.plSnap) {
+            _ = withAnimation(.plSnap) {
                 TableReactions.toggleLike(comment, context: context, authorName: authorName)
             }
         } label: {
-            HStack(spacing: 6) {
+            VStack(spacing: 3) {
                 Image(systemName: comment.likedByMeNow ? "heart.fill" : "heart")
+                    .font(.system(size: 17, weight: .regular))
                 if comment.totalLikes > 0 {
                     Text(comment.totalLikes.formatted())
                         .monospacedDigit()
@@ -29,7 +30,7 @@ struct CommentReactionButton: View {
                     Image(systemName: "clock")
                 }
             }
-            .plType(.footnote, .medium)
+            .font(.custom(Font.SansWeight.regular.rawValue, size: 10, relativeTo: .body))
             .foregroundStyle(comment.likedByMeNow ? Color.accentText : Color.inkSecondary)
             .plTapTarget()
         }

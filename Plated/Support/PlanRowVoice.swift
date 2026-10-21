@@ -26,6 +26,10 @@ enum PlanRowVoice {
         case eatOut
     }
 
+    static func isLeftovers(title: String, hasRecipe: Bool) -> Bool {
+        PlanMealChoice.isLeftovers(title: title, hasRecipe: hasRecipe)
+    }
+
     static func isEatingOut(title: String, hasRecipe: Bool) -> Bool {
         !hasRecipe && title.localizedCaseInsensitiveContains("eating out")
     }
@@ -159,7 +163,7 @@ extension PlanRowVoice {
     private static func facts(
         for meal: PlannedMeal, members: [HouseholdMember]
     ) -> (line: String, member: HouseholdMember?) {
-        let cook = meal.cook
+        let cook = meal.isLeftovers ? nil : meal.cook
         let planner = planner(for: meal, members: members)
         let eatingOut = isEatingOut(title: meal.title, hasRecipe: meal.recipe != nil)
         let line = whoLine(

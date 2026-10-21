@@ -64,6 +64,7 @@ struct RemotePlanRow: View {
                 photo: ledger.photo(for: entry.recordName),
                 title: entry.title,
                 eatingOut: eatingOut,
+                leftovers: entry.isLeftovers,
                 whoLine: line,
                 today: today
             ) {

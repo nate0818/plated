@@ -63,21 +63,13 @@ enum TableIdentity {
         "plated.household.minter",
     ]
 
-    /// Ask CloudKit who this is, and remember.
-    ///
-    /// Returns nil when it could not ask. It never re-derives a placeholder
-    /// while offline: minting a fresh `local-` id on an offline launch would
-    /// orphan everything already queued under the previous one.
-    @discardableResult
-    static func confirm() async -> String? {
+    /// Lookup has no cache side effects. The main-actor confirmation below
+    /// commits an answer only after local authorship has been persisted.
+    private static func lookupAccount() async -> String? {
         #if canImport(CloudKit)
-        guard let id = try? await CKContainer.default().userRecordID() else { return nil }
-        let name = id.recordName
-        guard !name.isEmpty else { return nil }
-        if store.string(forKey: key) != name {
-            store.set(name, forKey: key)
-        }
-        return name
+        guard let id = try? await CKContainer.default().userRecordID(),
+              !id.recordName.isEmpty else { return nil }
+        return id.recordName
         #else
         return nil
         #endif
@@ -108,28 +100,113 @@ enum TableIdentity {
     @MainActor
     @discardableResult
     static func confirmAndReattribute(in context: ModelContext) async -> String? {
-        let before = cached
-        guard let real = await confirm() else { return nil }
+        await confirmAndReattribute(in: context, services: .live)
+    }
+
+    /// Injected boundaries let identity races and disk failures be exercised
+    /// without an Apple account or the real app-group books.
+    struct ConfirmationServices {
+        var current: @MainActor () -> String
+        var lookup: @MainActor () async -> String?
+        var migrate: @MainActor (String, String, ModelContext) throws -> Void
+        var commit: @MainActor (String, String, ModelContext) -> Void
+        var reset: @MainActor (String) -> Void
+        var failed: @MainActor (Error) -> Void
+
+        @MainActor
+        static var live: Self {
+            Self(
+                current: { cached },
+                lookup: { await lookupAccount() },
+                migrate: { old, new, context in
+                    try reattributeTableContent(from: old, to: new, in: context)
+                },
+                commit: { old, new, context in
+                    // No await between saved model authors, caching the
+                    // answer, and moving the books that reference them.
+                    store.set(new, forKey: key)
+                    TableLedger.shared.reattribute(from: old, to: new)
+                    TableOutbox.shared.reattribute(from: old, to: new)
+                    PlanLedger.shared.reattribute(from: old, to: new)
+                    HouseholdSync.reattribute(from: old, to: new, in: context)
+                },
+                reset: { TableIdentity.reset(becoming: $0) },
+                failed: {
+                    SyncStatus.shared.noteSaveFailure()
+                    print("PLATED TABLE: could not persist confirmed authors: \($0)")
+                }
+            )
+        }
+    }
+
+    @MainActor
+    static func confirmAndReattribute(
+        in context: ModelContext, services: ConfirmationServices
+    ) async -> String? {
+        let before = services.current()
+        guard let real = await services.lookup(), !Task.isCancelled,
+              !real.isEmpty, !real.hasPrefix("local-") else { return nil }
+        let current = services.current()
+        // Another confirmation or an account reset may have completed while
+        // this lookup was suspended. Only an already-committed matching
+        // answer is reusable; a stale answer must never switch the cache back.
+        guard current == before else { return current == real ? real : nil }
         guard real != before else { return real }
         if before.hasPrefix("local-") {
-            TableLedger.shared.reattribute(from: before, to: real)
-            TableOutbox.shared.reattribute(from: before, to: real)
-            PlanLedger.shared.reattribute(from: before, to: real)
-            HouseholdSync.reattribute(from: before, to: real, in: context)
+            do {
+                try services.migrate(before, real, context)
+            } catch {
+                // Lookup never consumed the placeholder. The migration
+                // restores only its touched fields, so a retry stays possible.
+                services.failed(error)
+                return nil
+            }
+            guard services.current() == before else { return nil }
+            services.commit(before, real, context)
         } else {
-            // `becoming:`, not a bare reset. This is the road that actually
-            // runs on an Apple ID change: the observer in ShareAcceptor only
-            // fires when the app was already open, while this one runs at
-            // launch and on every pull. Bare, it removed the key `confirm()`
-            // stored three lines above, so the phone came out on a fresh
-            // `local-` placeholder and PlanShare, TableNews and the
-            // household outbox all refuse to work under one. The fix was
-            // applied to the observer and not to the road, which is the
-            // whole of the bug.
-            reset(becoming: real)
+            // A known Apple ID changing is a new account, never permission
+            // to relabel the old account's rows or carry its outbox forward.
+            services.reset(real)
         }
-        return real
+        return services.current() == real ? real : nil
     }
+
+    /// Move only this device's exact provisional authorship onto its first
+    /// confirmed account. A post's destination and record identity never
+    /// change. Comments are independent authorship: my offline reply on a
+    /// peer's post is still mine even though that parent is remote.
+    ///
+    /// Fetch both families before touching either. If persistence fails,
+    /// restore only the author fields changed here; rolling back the context
+    /// would also discard unrelated writing the person has in progress.
+    @MainActor
+    @discardableResult
+    static func reattributeTableContent(
+        from previous: String, to confirmed: String, in context: ModelContext,
+        save: @MainActor (ModelContext) -> Bool = { Persist.save($0, "reattribute Table identity") }
+    ) throws -> Int {
+        guard previous.hasPrefix("local-"), previous.count > "local-".count,
+              !confirmed.isEmpty, !confirmed.hasPrefix("local-"), previous != confirmed
+        else { return 0 }
+        let posts = try context.fetch(FetchDescriptor<TablePost>()).filter {
+            !$0.isRemote && !$0.isDiscover && $0.authorID == previous
+        }
+        let comments = try context.fetch(FetchDescriptor<TableComment>()).filter {
+            $0.authorID == previous
+        }
+        let count = posts.count + comments.count
+        guard count > 0 else { return 0 }
+        for post in posts { post.authorID = confirmed }
+        for comment in comments { comment.authorID = confirmed }
+        guard save(context) else {
+            for post in posts where post.authorID == confirmed { post.authorID = previous }
+            for comment in comments where comment.authorID == confirmed { comment.authorID = previous }
+            throw ReattributionError.saveFailed
+        }
+        return count
+    }
+
+    private enum ReattributionError: Error { case saveFailed }
 
     /// The Apple ID changed underneath us.
     ///
@@ -142,17 +219,14 @@ enum TableIdentity {
     /// `becoming` is the id CloudKit has just confirmed for the NEW account,
     /// when the caller has one.
     ///
-    /// Without it this cleared the key that `confirm()` had stored seconds
-    /// earlier, so the phone came out of an Apple ID change running on a
-    /// fresh `local-` placeholder. `PlanShare` refuses to publish under a
-    /// placeholder, deliberately, so the new account's week went nowhere at
-    /// all until some later confirm happened to run. The books belong to the
-    /// old account and go; the answer to "who am I" was just established and
-    /// does not.
+    /// Without it an account change would leave a fresh local placeholder
+    /// despite having just resolved the new Apple ID. The old account's books
+    /// must go, while the confirmed new identity must remain available.
     static func reset(becoming newIdentity: String? = nil) {
         SocialPush.reset()
         store.removeObject(forKey: key)
         TableOutbox.shared.clear()
+        TablePostPublication.shared.clear()
         TableLedger.shared.clear()
         // The plan too: the ledger's nights and the household it drew
         // belong to the old account, and the book names records in a zone

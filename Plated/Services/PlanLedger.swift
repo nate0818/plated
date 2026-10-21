@@ -128,7 +128,8 @@ final class PlanLedger {
         var cookFirstName: String { Entry.firstName(cookName) }
         /// A cook with a real seat. A name typed five seconds ago for an
         /// invited seat is not a cook, and the writer already blanks it.
-        var hasCook: Bool { !cookName.isEmpty && cookSeat != HouseholdMember.Seat.invited.rawValue }
+        var isLeftovers: Bool { PlanMealChoice.isLeftovers(title: title, hasRecipe: hasRecipe) }
+        var hasCook: Bool { !isLeftovers && !cookName.isEmpty && cookSeat != HouseholdMember.Seat.invited.rawValue }
         /// A cook-only reservation uses PlannedMeal's existing empty-title
         /// fallback on the wire. It has a cook, but still needs a dish.
         var hasDish: Bool { hasRecipe || (!title.isEmpty && title != "Unplanned" && title != "Dinner to choose") }
@@ -345,7 +346,7 @@ final class PlanLedger {
     /// By identity, never by name. `participantID` and `TableIdentity` are
     /// the same CloudKit user record name.
     func isMine(cook entry: Entry) -> Bool {
-        !entry.cookID.isEmpty && entry.cookID == TableIdentity.cached
+        !entry.isLeftovers && !entry.cookID.isEmpty && entry.cookID == TableIdentity.cached
     }
 
     /// Cooking sentence only. Nil when there is no cook worth naming.
@@ -652,21 +653,46 @@ final class PlanLedger {
     static func edited(_ entry: Entry, by edit: PlanShare.Edit) -> Entry {
         var e = entry
         if let title = edit.title { e.title = title }
-        if let servings = edit.servings { e.servings = servings }
+        if let servings = edit.servings {
+            if edit.lines == nil, e.servings > 0, servings != e.servings {
+                let factor = Double(servings) / Double(e.servings)
+                e.lines = e.lines?.map { line in
+                    var scaled = line
+                    scaled.quantity *= factor
+                    return scaled
+                }
+            }
+            e.servings = servings
+        }
         if let cooked = edit.cooked { e.cooked = cooked }
-        if let cookedAt = edit.cookedAt { e.cookedAt = cookedAt }
+        if edit.cooked == false {
+            e.cookedAt = nil
+        } else if let cookedAt = edit.cookedAt {
+            e.cookedAt = cookedAt
+        }
         if let tagline = edit.tagline { e.tagline = tagline }
         if let cookID = edit.cookID { e.cookID = cookID }
         if let cookName = edit.cookName { e.cookName = cookName }
         if let hex = edit.cookColorHex { e.cookColorHex = hex }
         if let seat = edit.cookSeat { e.cookSeat = seat }
         if let hasRecipe = edit.hasRecipe { e.hasRecipe = hasRecipe }
+        if let lines = edit.lines { e.lines = lines }
         if let minutes = edit.recipeMinutes { e.recipeMinutes = minutes }
         if let key = edit.recipeOriginKey { e.recipeOriginKey = key }
         switch edit.photo {
         case .keep: break
         case .clear: e.hasPhoto = false
         case .send: e.hasPhoto = true
+        }
+        if edit.hasRecipe == false {
+            // A recipe removed from dinner cannot leave its ingredients,
+            // time, origin or artwork behind under "Leftovers" or "Eating out".
+            // Match PlanShare.record(for:) even when older queued edits still
+            // carry those fields or a pending photo send.
+            e.lines = []
+            e.recipeMinutes = 0
+            e.recipeOriginKey = ""
+            e.hasPhoto = false
         }
         // `editorID` and `editorName` are deliberately NOT moved either,
         // for the same reason and with the same shape: they are the
@@ -731,10 +757,14 @@ final class PlanLedger {
             var entry = Self.edited(before, by: edit)
             entry.pendingSince = edit.at
             book.entries[edit.recordName] = entry
-            if case .send = edit.photo, let data = PlanShare.editPhoto(edit.recordName) {
-                writePhoto(edit.recordName, data)
+            if edit.hasRecipe == false {
+                removePhoto(edit.recordName)
+            } else {
+                if case .send = edit.photo, let data = PlanShare.editPhoto(edit.recordName) {
+                    writePhoto(edit.recordName, data)
+                }
+                if case .clear = edit.photo { removePhoto(edit.recordName) }
             }
-            if case .clear = edit.photo { removePhoto(edit.recordName) }
             after = entry
         }
         save()

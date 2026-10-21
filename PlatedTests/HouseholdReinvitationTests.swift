@@ -188,6 +188,94 @@ final class HouseholdReinvitationTests: XCTestCase {
         XCTAssertNil(copy.subtitle); XCTAssertTrue(copy.acceptsName)
     }
 
+    func testFreshInvitationExplainsRestorationButAnOldLinkCannot() throws {
+        let entries = HouseholdReinvitation.authorizing(seat: fresh, entries: [guest])
+        let proof = try XCTUnwrap(HouseholdReinvitation.verifiedInvitation(
+            for: guest, seat: fresh, fetchedEntries: entries
+        ))
+        let freshCopy = HouseholdInvitationCopy(state: .ready, host: "Nate", household: "Meadows", reinvitation: proof)
+        XCTAssertEqual(freshCopy.eyebrow, "New household invitation")
+        XCTAssertEqual(freshCopy.title, "Rejoin Meadows?")
+        XCTAssertEqual(freshCopy.subtitle,
+            "Nate invited you back. Joining restores your access to this household’s plan, groceries and cookbook.")
+        XCTAssertTrue(freshCopy.restoresAccess)
+        XCTAssertTrue(freshCopy.acceptsName)
+
+        let oldProof = HouseholdReinvitation.verifiedInvitation(for: guest, seat: "old-link", fetchedEntries: entries)
+        XCTAssertNil(oldProof)
+        let oldCopy = HouseholdInvitationCopy(state: .removed, host: "Nate", household: "Meadows", reinvitation: oldProof)
+        XCTAssertEqual(oldCopy.title, "New invitation needed")
+        XCTAssertFalse(oldCopy.restoresAccess)
+        XCTAssertFalse(oldCopy.acceptsName)
+        XCTAssertFalse(oldCopy.subtitle?.contains("invited you back") == true)
+    }
+
+    func testRestorationExplanationUsesFetchedGrantRatherThanStaleLocalState() throws {
+        let granted = HouseholdReinvitation.authorizing(seat: fresh, entries: [guest])
+        // A cached fresh grant cannot turn an unread or newly revoked link
+        // into a promise of restoration.
+        HouseholdShare.cacheAccessEntries(granted)
+        XCTAssertNil(HouseholdReinvitation.verifiedInvitation(for: guest, seat: fresh, fetchedEntries: nil))
+        XCTAssertNil(HouseholdReinvitation.verifiedInvitation(for: guest, seat: fresh, fetchedEntries: [guest]))
+        XCTAssertNil(HouseholdReinvitation.verifiedInvitation(for: "another-account", seat: fresh, fetchedEntries: granted))
+        // Conversely the old local revocation cannot suppress a fetched new
+        // grant. Entry array order has no bearing on the capability.
+        HouseholdShare.cacheAccessEntries([guest])
+        let proof = try XCTUnwrap(HouseholdReinvitation.verifiedInvitation(for: guest, seat: fresh, fetchedEntries: granted))
+        XCTAssertEqual(proof, HouseholdReinvitation.verifiedInvitation(
+            for: guest, seat: fresh, fetchedEntries: Array(granted.reversed())
+        ))
+    }
+
+    func testAnotherRemovalOrConsumedGrantNoLongerPromisesRestoration() throws {
+        let granted = HouseholdReinvitation.authorizing(seat: fresh, entries: [guest])
+        let revoked = HouseholdReinvitation.revoking(guest, entries: granted)
+        let accepted = HouseholdReinvitation.accepting(guest, seat: fresh, entries: granted)
+        XCTAssertNil(HouseholdReinvitation.verifiedInvitation(for: guest, seat: fresh, fetchedEntries: revoked))
+        XCTAssertNil(HouseholdReinvitation.verifiedInvitation(for: guest, seat: fresh, fetchedEntries: accepted))
+        // Whether an acceptance arrived before or after the new revocation,
+        // the last removal must not leave a presentation proof behind.
+        for edits: [HouseholdReinvitation.Edit] in [
+            [.init(action: .revoke, identity: guest), .init(action: .accept, identity: guest, seat: fresh)],
+            [.init(action: .accept, identity: guest, seat: fresh), .init(action: .revoke, identity: guest)],
+        ] {
+            let resolved = HouseholdReinvitation.applying(edits, to: granted)
+            XCTAssertNil(HouseholdReinvitation.verifiedInvitation(for: guest, seat: fresh, fetchedEntries: resolved))
+        }
+    }
+
+    func testCurrentInvitationStateWinsOverAnEarlierRestorationProof() throws {
+        let entries = HouseholdReinvitation.authorizing(seat: fresh, entries: [guest])
+        let proof = try XCTUnwrap(HouseholdReinvitation.verifiedInvitation(for: guest, seat: fresh, fetchedEntries: entries))
+        let states: [HouseholdSync.JoinPreview.State] = [
+            .removed, .ownShare, .alreadyHere, .hostingWithJoined(names: ["Sam"]), .needsSeat(candidates: []),
+        ]
+        for state in states {
+            let copy = HouseholdInvitationCopy(state: state, host: "Nate", household: "Meadows", reinvitation: proof)
+            let normal = HouseholdInvitationCopy(state: state, host: "Nate", household: "Meadows")
+            XCTAssertFalse(copy.restoresAccess)
+            XCTAssertEqual(copy.eyebrow, normal.eyebrow)
+            XCTAssertEqual(copy.title, normal.title)
+            XCTAssertEqual(copy.subtitle, normal.subtitle)
+            XCTAssertEqual(copy.acceptsName, normal.acceptsName)
+        }
+    }
+
+    func testFirstOrUnverifiedInvitationKeepsItsOriginalCopy() {
+        for state: HouseholdSync.JoinPreview.State in [.ready, .willLeave(current: "Other household")] {
+            let copy = HouseholdInvitationCopy(state: state, host: "Nate", household: "Meadows")
+            XCTAssertEqual(copy.eyebrow, "Household invitation")
+            XCTAssertEqual(copy.title, "Join Meadows?")
+            XCTAssertEqual(copy.subtitle, "Nate invited you to plan, shop and cook together.")
+            XCTAssertFalse(copy.restoresAccess)
+            XCTAssertTrue(copy.acceptsName)
+        }
+        XCTAssertNil(HouseholdReinvitation.verifiedInvitation(for: guest, seat: fresh, fetchedEntries: []))
+        XCTAssertNil(HouseholdReinvitation.verifiedInvitation(for: guest, seat: nil, fetchedEntries: [guest]))
+        XCTAssertNil(HouseholdReinvitation.verifiedInvitation(for: guest, seat: fresh,
+            fetchedEntries: [guest, "plated-reinvite-v1:bad:hash"]))
+    }
+
     func testParticipantOnlySeatCannotBeClaimedAsEmpty() {
         let linked = HouseholdMember(name: "Sam", role: "partner", seat: .joined, shareRecordName: "linked-seat")
         linked.userRecordName = ""; linked.participantID = guest

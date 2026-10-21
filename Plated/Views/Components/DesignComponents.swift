@@ -8,9 +8,14 @@ struct RecipeArtwork: View {
     var ratio: CGFloat = 1.45
     var radius: CGFloat = Radius.chip
     var maxHeight: CGFloat? = nil
+    var height: CGFloat? = nil
+    var placeholderSymbol = "fork.knife"
+    var placeholderSize: CGFloat = 30
     var body: some View {
-        Color.fill
-            .aspectRatio(ratio, contentMode: .fit)
+        Group {
+            if let height { Color.fill.frame(height: height) }
+            else { Color.fill.aspectRatio(ratio, contentMode: .fit) }
+        }
             .frame(maxHeight: maxHeight)
             .frame(maxWidth: .infinity)
             .overlay {
@@ -20,7 +25,7 @@ struct RecipeArtwork: View {
                             .frame(width: geometry.size.width, height: geometry.size.height)
                     } else {
                         VStack(spacing: 10) {
-                            Image(systemName: "fork.knife").font(.system(size: 30, weight: .light))
+                            Image(systemName: placeholderSymbol).font(.system(size: placeholderSize, weight: .light))
                         }
                         .foregroundStyle(Color.inkSecondary)
                         .padding(18)
@@ -89,7 +94,7 @@ struct EditorialAddButton: View {
             NotificationCenter.default.post(name: .platedCreateRequested, object: nil)
         } label: {
             Image(systemName: "plus")
-                .font(.system(size: 20, weight: .regular))
+                .font(.system(size: 22, weight: .regular))
                 .foregroundStyle(Color.accentText)
                 .plTapTarget()
         }
@@ -131,13 +136,15 @@ struct DesignIconButton: View {
     var symbol: String
     var label: String
     var accent = false
+    var quiet = false
+    var targetSize: CGFloat = 44
     var action: () -> Void
     var body: some View {
         Button { Haptic.tap(); action() } label: {
-            Image(systemName: symbol).font(.system(size: 18, weight: .medium))
+            Image(systemName: symbol).font(.system(size: quiet ? 22 : 18, weight: quiet ? .regular : .medium))
                 .foregroundStyle(accent ? Color.onSelection : Color.ink)
-                .frame(width: 44, height: 44)
-                .background(accent ? Color.selectionFill : Color.fill, in: Radius.shape(Radius.chip))
+                .frame(width: targetSize, height: targetSize)
+                .background(accent ? Color.selectionFill : quiet ? Color.clear : Color.fill, in: Radius.shape(Radius.chip))
                 .contentShape(Radius.shape(Radius.chip))
         }.buttonStyle(.pressable).accessibilityLabel(label)
     }

@@ -277,17 +277,17 @@ struct NotificationsView: View {
     private func face(for note: PlatedNotification) -> some View {
         if !note.actorName.isEmpty, note.kindValue.isAboutSomebody {
             if let member = member(for: note) {
-                AvatarCircle(member: member, size: 40)
+                AvatarCircle(member: member, size: 36)
             } else {
                 // A guest at a table this household joined has no seat row
                 // here, so no colour has been earned: the neutral pair.
-                AvatarCircle(initials: initials(of: note.actorName), tone: .neutralPair, size: 40)
+                AvatarCircle(initials: initials(of: note.actorName), tone: .neutralPair, size: 36)
             }
         } else {
             ZStack {
                 Circle()
                     .fill(Color.fill)
-                    .frame(width: 40, height: 40)
+                    .frame(width: 36, height: 36)
                 Image(systemName: note.kindValue.symbolName)
                     .font(.system(size: 15, weight: .medium))
                     .foregroundStyle(note.isRead ? Color.inkSecondary : Color.ink)
@@ -342,40 +342,48 @@ struct NotificationsView: View {
     }
 
     private func noteLine(_ note: PlatedNotification) -> some View {
-        HStack(alignment: .center, spacing: 12) {
+        HStack(alignment: .center, spacing: 10) {
             face(for: note)
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 3) {
-                Text(note.line(members: members))
-                    .plType(.footnote, note.isRead ? TypeWeight.regular : .medium)
+                activityLine(note)
+                    .plType(.footnote)
                     .foregroundStyle(Color.ink)
                     .fixedSize(horizontal: false, vertical: true)
                 if let excerpt = excerpt(for: note) {
                     Text(excerpt).plType(.footnote).foregroundStyle(Color.inkSecondary).lineLimit(2)
                 }
-                Text(when(note.createdAt))
-                    .plType(.micro, .medium)
+                Text([note.objectTitle, when(note.createdAt)].filter { !$0.isEmpty }.joined(separator: " · "))
+                    .plType(.detail)
                     .foregroundStyle(Color.inkSecondary)
             }
             Spacer(minLength: 8)
             if let photo = thumbnail(for: note) {
                 RecipeArtwork(data: photo, title: note.objectTitle, ratio: 1, radius: Radius.small)
-                    .frame(width: 44, height: 44)
-                    .accessibilityHidden(true)
-            }
-            // Quiet unread: weight and an ink dot — the olive budget is
-            // spent on the bell badge.
-            if !note.isRead {
-                Circle().fill(Color.ink).frame(width: 6, height: 6)
+                    .frame(width: 42, height: 42)
                     .accessibilityHidden(true)
             }
         }
+        .padding(.vertical, 17)
+        .overlay(alignment: .leading) {
+            if !note.isRead {
+                Circle().fill(Color.olive).frame(width: 5, height: 5)
+                    .offset(x: -12).accessibilityHidden(true)
+            }
+        }
         .padding(.horizontal, Spacing.page)
-        .padding(.vertical, 12)
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
         // The dot is paint; the state has to be audible too.
         .accessibilityValue(note.isRead ? "" : "Unread")
+    }
+
+    /// Emphasize the actor, rather than making the entire event a bold sentence.
+    private func activityLine(_ note: PlatedNotification) -> Text {
+        let line = note.line(members: members)
+        let actor = member(for: note)?.firstName ?? note.actorName.split(separator: " ").first.map(String.init) ?? ""
+        guard !actor.isEmpty, line.hasPrefix(actor) else { return Text(line) }
+        return Text(actor).fontWeight(.semibold) + Text(String(line.dropFirst(actor.count)))
     }
 
     /// The Table's ladder, so "Thursday" here means what it means there.

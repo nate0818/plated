@@ -25,10 +25,10 @@ enum PlanEmptyCopy {
     static let eatOutAction = "Eat out"
 
     /// Featured / hero subcopy when the night is open (future).
-    static let heroSubcopy = "Add a meal, or mark eating out."
+    static let heroSubcopy = "Choose a meal, eat leftovers, or eat out."
 
     /// Day-detail body (future + past).
-    static let detailBody = "No cook yet. Plan a meal, eat out, or assign someone."
+    static let detailBody = "Choose a recipe, eat leftovers, or eat out."
 
     /// Optional ambient — complete useful line only; omit when density is better.
     static let ambientChoices = [

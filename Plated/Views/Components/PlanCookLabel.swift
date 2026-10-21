@@ -16,9 +16,9 @@ struct PlanCookLabel: View {
             : AnyLayout(HStackLayout(spacing: 10))
         layout {
             if let member {
-                AvatarCircle(member: member, size: 32).accessibilityHidden(true)
+                AvatarCircle(member: member, size: 36).accessibilityHidden(true)
             } else if let fallbackName {
-                AvatarCircle(initials: PlanRowVoice.initials(fallbackName), tone: .neutralPair, size: 32).accessibilityHidden(true)
+                AvatarCircle(initials: PlanRowVoice.initials(fallbackName), tone: .neutralPair, size: 36).accessibilityHidden(true)
             } else {
                 Image(systemName: "person.crop.circle.badge.questionmark")
                     .plType(.heading).foregroundStyle(Color.olive).accessibilityHidden(true)

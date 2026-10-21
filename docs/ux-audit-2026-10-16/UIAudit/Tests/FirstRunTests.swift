@@ -5,6 +5,7 @@ final class FirstRunTests: XCTestCase {
 
     override func setUp() {
         continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
         app.launchArguments = ["-plated-review-onboarding"]
     }
 
@@ -60,7 +61,8 @@ final class FirstRunTests: XCTestCase {
         groceries.tap()
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'added to Groceries'")).firstMatch.waitForExistence(timeout: 5))
         app.buttons["recipe-plan"].tap()
-        XCTAssertTrue(app.staticTexts["Plan a night"].waitForExistence(timeout: 8))
+        XCTAssertTrue(app.datePickers["Dinner date"].waitForExistence(timeout: 8))
+        XCTAssertTrue(app.staticTexts["Lemon pasta"].exists)
         capture("05-plan-recipe")
     }
 

@@ -132,6 +132,14 @@ extension RemovedNights {
         return gone.recipeOriginKey
     }
 
+    /// Whether the removed night explicitly had a recipe. A false value
+    /// forbids title-based lookup: "Leftovers" may also be a real recipe.
+    /// Nil retains the uncertainty of removal books written by older builds.
+    static func addBackHasRecipe(on date: Date, slot: MealSlot = .dinner) -> Bool? {
+        guard let gone = gone(on: date, slot: slot), gone.settled, !gone.kept else { return nil }
+        return gone.hasRecipe
+    }
+
     /// Named or not, and never a guess in between. `trailing` carries its
     /// own leading full stop, so the opening clause needs no punctuation of
     /// its own and a line with no trailing stays a label rather than

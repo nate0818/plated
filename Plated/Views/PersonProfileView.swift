@@ -183,17 +183,37 @@ private struct PersonProfileContent: View {
                     }
 
                     if isMe {
-                        Button("Edit profile") { editShown = true }
-                            .plType(.footnote, .semibold).foregroundStyle(Color.accentText)
-                            .frame(maxWidth: .infinity, minHeight: 44)
-                            .background(Color.raisedFill, in: Radius.shape(Radius.chip))
-                            .buttonStyle(.pressable)
+                        Button { editShown = true } label: {
+                            Text("Edit profile")
+                                .plType(.footnote, .semibold).foregroundStyle(Color.accentText)
+                                .plActionLabel()
+                                .frame(maxWidth: .infinity, minHeight: 44)
+                                .background(Color.raisedFill, in: Radius.shape(Radius.chip))
+                                .contentShape(Radius.shape(Radius.chip))
+                        }
+                        .buttonStyle(.pressable)
+                    } else if member != nil {
+                        Button { householdShown = true } label: {
+                            Text("View household")
+                                .plType(.footnote, .semibold).foregroundStyle(Color.accentText)
+                                .plActionLabel()
+                                .frame(maxWidth: .infinity, minHeight: 44)
+                                .background(Color.raisedFill, in: Radius.shape(Radius.chip))
+                                .contentShape(Radius.shape(Radius.chip))
+                        }
+                        .buttonStyle(.pressable)
                     }
-                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), alignment: .leading),
-                                            count: typeSize.isAccessibilitySize ? 2 : 3), spacing: 16) {
-                        contributionCount(posts.count, label: "Posts")
-                        contributionCount(recordedDinners, label: "Dinners cooked")
-                        contributionCount(contributedRecipes.count, label: "Recipes added")
+                    Group {
+                        if typeSize.isAccessibilitySize {
+                            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), alignment: .leading), count: 2), spacing: 16) {
+                                profileCounts
+                            }
+                        } else {
+                            HStack(alignment: .top, spacing: 25) {
+                                profileCounts
+                                Spacer(minLength: 0)
+                            }
+                        }
                     }
                     .padding(.vertical, 8)
                     .accessibilityIdentifier("profile-contributions")
@@ -201,17 +221,14 @@ private struct PersonProfileContent: View {
                     if let member {
                         let activity = MemberDinnerActivity(member: member, roster: roster,
                             meals: plannedMeals, remote: PlanLedger.shared.all, posts: allPosts)
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text("Last 7 days").plType(.caption).foregroundStyle(Color.inkSecondary)
-                            if let latest = activity.latest {
-                                Text("\(latest.line) · \(Stamp.day(latest.date))")
-                                    .plType(.footnote, .medium).foregroundStyle(Color.ink)
-                                    .fixedSize(horizontal: false, vertical: true)
-                            }
-                            Text(activity.summary).plType(.footnote).foregroundStyle(Color.inkSecondary)
+                        HStack(alignment: .top, spacing: 10) {
+                            Image(systemName: "clock").accessibilityHidden(true)
+                            Text(activity.latest.map { "\($0.line) · \(Stamp.day($0.date))" }
+                                 ?? "No activity recorded in the last 7 days.")
                                 .fixedSize(horizontal: false, vertical: true)
                         }
-                        .padding(.vertical, 12)
+                        .plType(.caption).foregroundStyle(Color.inkSecondary)
+                        .padding(.vertical, 8)
                         .accessibilityElement(children: .combine)
                         .accessibilityIdentifier("profile-recent-activity")
                     }
@@ -219,11 +236,11 @@ private struct PersonProfileContent: View {
                     if awards.contains(where: \.isEarned) {
                         Button { awardsShown = true } label: {
                             HStack {
-                                Text("\(awards.filter(\.isEarned).count) household milestones earned")
+                                Text("\(awards.filter(\.isEarned).count) household \(awards.filter(\.isEarned).count == 1 ? "milestone" : "milestones") earned")
                                 Spacer()
                                 Text("View").foregroundStyle(Color.accentText)
                             }
-                            .plType(.footnote)
+                            .plType(.caption)
                             .foregroundStyle(Color.inkSecondary)
                             .frame(minHeight: 44)
                             .contentShape(Rectangle())
@@ -232,20 +249,23 @@ private struct PersonProfileContent: View {
                 }
                 .padding(.horizontal, Spacing.page)
 
-                let tabsLayout = typeSize.isAccessibilitySize ? AnyLayout(VStackLayout(spacing: 4)) : AnyLayout(HStackLayout(spacing: 0))
+                let tabsLayout = typeSize.isAccessibilitySize ? AnyLayout(VStackLayout(spacing: 4)) : AnyLayout(HStackLayout(spacing: 19))
                 tabsLayout {
                     ForEach(isMe ? ["Posts", "Recipes", "Saved"] : ["Posts", "Recipes"], id: \.self) { tab in
                         Button { Haptic.select(); withAnimation(.plSnap) { profileTab = tab } } label: {
                             Text(tab)
-                                .plType(.footnote, profileTab == tab ? .semibold : .regular)
+                                .plType(.caption, profileTab == tab ? .semibold : .regular)
                                 .plActionLabel(0.7)
-                                .foregroundStyle(profileTab == tab ? Color.accentText : Color.inkSecondary)
-                                .frame(maxWidth: .infinity, minHeight: 48)
-                                .overlay(alignment: .bottom) { Rectangle().fill(profileTab == tab ? Color.olive : Color.hairline).frame(height: profileTab == tab ? 2 : 0.5) }
+                                .foregroundStyle(profileTab == tab ? Color.ink : Color.inkSecondary)
+                                .frame(minWidth: 44, maxWidth: typeSize.isAccessibilitySize ? .infinity : nil, minHeight: 44)
+                                .overlay(alignment: .bottom) { Rectangle().fill(profileTab == tab ? Color.olive : Color.clear).frame(height: 2) }
                                 .contentShape(Rectangle())
                         }.buttonStyle(.plain).accessibilityAddTraits(profileTab == tab ? .isSelected : [])
                     }
-                }.padding(.horizontal, Spacing.page).padding(.top, 6).padding(.bottom, 16)
+                    if !typeSize.isAccessibilitySize { Spacer(minLength: 0) }
+                }
+                .overlay(alignment: .bottom) { Color.hairline.frame(height: 0.5) }
+                .padding(.horizontal, Spacing.page).padding(.top, 6).padding(.bottom, 17)
                 if profileTab == "Recipes" || (profileTab == "Saved" && isMe) {
                     let collection = profileTab == "Recipes" ? contributedRecipes
                         : recipes.filter { !$0.isDeleted && ($0.isFavorite || !$0.originID.isEmpty) }
@@ -272,7 +292,7 @@ private struct PersonProfileContent: View {
                     else {
                         LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 3), count: typeSize.isAccessibilitySize ? 1 : 3), spacing: 3) {
                             ForEach(posts, id: \.persistentModelID) { post in postCell(post) }
-                        }
+                        }.padding(.horizontal, Spacing.page)
                     }
                 }
                 // Keep the household destination and any chosen personal cover,
@@ -326,13 +346,21 @@ private struct PersonProfileContent: View {
         #endif
     }
 
+    private var profileCounts: some View {
+        Group {
+            contributionCount(posts.count, label: "Posts")
+            contributionCount(recordedDinners, label: "Dinners cooked")
+            contributionCount(contributedRecipes.count, label: "Recipes added")
+        }
+    }
+
     private func contributionCount(_ value: Int, label: String) -> some View {
         VStack(alignment: .leading, spacing: 3) {
-            Text(value.formatted()).plType(.callout, .semibold).foregroundStyle(Color.ink)
-            Text(label).plType(.caption).foregroundStyle(Color.inkSecondary)
+            Text(value.formatted()).font(.custom(Font.SansWeight.semibold.rawValue, size: 18, relativeTo: .body)).foregroundStyle(Color.ink)
+            Text(label).plType(.detail).foregroundStyle(Color.inkSecondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: typeSize.isAccessibilitySize ? .infinity : nil, alignment: .leading)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(value) \(label)")
     }
@@ -351,13 +379,29 @@ private struct PersonProfileContent: View {
 
     private var topBar: some View {
         HStack(spacing: 12) {
-            DesignIconButton(symbol: "arrow.left", label: "Back") { dismiss() }
-            Text(isMe ? "Profile" : firstName)
+            DesignIconButton(symbol: "arrow.left", label: "Back", quiet: true) { dismiss() }
+            Text("Profile")
                 .plType(.pageTitle).foregroundStyle(Color.ink)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
             if isMe {
-                DesignIconButton(symbol: "gearshape", label: "Settings") { settingsShown = true }
+                DesignIconButton(symbol: "gearshape", label: "Settings", quiet: true) { settingsShown = true }
+            } else {
+                Menu {
+                    if member != nil {
+                        Button("View household", systemImage: "person.2") { householdShown = true }
+                    }
+                    Button("View posts", systemImage: "square.grid.2x2") { profileTab = "Posts" }
+                    Button("View recipes", systemImage: "book") { profileTab = "Recipes" }
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 22, weight: .regular))
+                        .foregroundStyle(Color.ink)
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.pressable)
+                .accessibilityLabel("Profile options")
             }
         }
         .padding(.horizontal, Spacing.page)
@@ -699,7 +743,9 @@ struct EditProfileSheet: View {
                 } else {
                     MicroLabel("Your name")
                 }
-                TextField("First name", text: $draftName)
+                TextField("First name", text: $draftName,
+                          prompt: Text("First name").foregroundStyle(Color.inkSecondary))
+                    .foregroundStyle(Color.ink)
                     .plType(.body)
                     .padding(.horizontal, 14)
                     .frame(minHeight: 48)
@@ -712,7 +758,9 @@ struct EditProfileSheet: View {
 
             VStack(alignment: .leading, spacing: 8) {
                 MicroLabel("Bio")
-                TextField("A short line about you", text: $draftBio, axis: .vertical)
+                TextField("A short line about you", text: $draftBio,
+                          prompt: Text("A short line about you").foregroundStyle(Color.inkSecondary), axis: .vertical)
+                    .foregroundStyle(Color.ink)
                     .plType(.body, .medium)
                     .lineLimit(2...4)
                     .padding(14)
@@ -723,7 +771,9 @@ struct EditProfileSheet: View {
 
             VStack(alignment: .leading, spacing: 8) {
                 MicroLabel("Ingredients to avoid")
-                TextField("For example: peanuts, sesame", text: $avoidedIngredientsText, axis: .vertical)
+                TextField("For example: peanuts, sesame", text: $avoidedIngredientsText,
+                          prompt: Text("For example: peanuts, sesame").foregroundStyle(Color.inkSecondary), axis: .vertical)
+                    .foregroundStyle(Color.ink)
                     .plType(.body, .medium)
                     .lineLimit(2...4)
                     .padding(14)

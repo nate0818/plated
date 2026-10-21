@@ -25,6 +25,7 @@ final class FailureRepairTests: XCTestCase {
     }
     func testRejectedRecipeEditCanDiscardWithoutChangingOriginal() {
         launch(["-plated-open-recipe-detail"],failure:"save recipe")
+        tap(app.buttons["Recipe options"])
         tap(app.buttons["Edit recipe"])
         let field=app.textFields["Name the dish"]
         XCTAssertTrue(field.waitForExistence(timeout:8)); let original=field.value as? String
@@ -34,6 +35,7 @@ final class FailureRepairTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Couldn't save the recipe yet. Your work is still here."].waitForExistence(timeout:8))
         capture("failure-recipe-retained")
         tap(app.buttons["Cancel"]);tap(app.buttons["Discard"])
+        tap(app.buttons["Recipe options"])
         tap(app.buttons["Edit recipe"])
         XCTAssertEqual(field.value as? String,original)
         capture("failure-recipe-original-restored")
@@ -83,11 +85,17 @@ final class FailureRepairTests: XCTestCase {
         launch(["-plated-tab","week","-plated-review-shared-tonight"])
         tap(app.buttons["Start cooking"].firstMatch)
         XCTAssertTrue(app.staticTexts["Serves 6"].waitForExistence(timeout:8));capture("state-shared-cooking-six")
+        tap(app.buttons["Cooking options"])
         tap(app.buttons["End cooking"]);tap(app.buttons["End cooking"].firstMatch)
         launch(["-plated-tab","week"])
         tap(app.buttons["Start cooking"].firstMatch);tap(app.buttons["Finish cooking"])
-        XCTAssertTrue(app.staticTexts["Dinner, made."].waitForExistence(timeout:8));capture("state-cooking-completed")
-        tap(app.buttons["Done"])
-        XCTAssertTrue(app.staticTexts["Dinner made"].waitForExistence(timeout:8));capture("state-tonight-completed")
+        XCTAssertTrue(app.staticTexts["cooking-completed-title"].waitForExistence(timeout:8));capture("state-cooking-completed")
+        tap(app.buttons["Back to Plan"])
+        let cooked = app.buttons["plan-cook-assignment"]
+        XCTAssertTrue(cooked.waitForExistence(timeout:8))
+        XCTAssertEqual(cooked.value as? String, "Cooked by you")
+        XCTAssertTrue(app.staticTexts["Cooked tonight"].exists)
+        XCTAssertTrue(app.buttons["Undo"].exists)
+        capture("state-tonight-completed")
     }
 }

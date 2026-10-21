@@ -6,7 +6,7 @@ primary CTA is the approved variation of the Editorial concept.
 ## Foundations
 
 Newsreader Roman for titles; DM Sans for reading and controls. The default
-Editorial appearance uses deep green `#191C17`, cream `#EDF0E6` text and sage
+Editorial appearance uses deep green `#191C17`, cream `#EFF0E6` text and sage
 supporting accents, matching the selected concept. Light paper is optional in
 Settings. Original Plated
 orange for primary commits. Flat surfaces, fine rules, generous photo fields,
@@ -15,14 +15,14 @@ near-square photo corners, and small rectangular controls.
 | Role | Optional Light | Default Editorial | Implementation |
 | --- | --- | --- | --- |
 | Paper | `#FAF9F4` | `#191C17` | `canvas` |
-| Main ink | `#27362A` | `#EDF0E6` | `ink` |
-| Supporting ink | `#606958` | `#B0B8A8` | `inkSecondary` |
-| Surface | `#EFEFE6` | `#242720` | `fill` |
-| Rule | `#DFE2D7` | `#3A4434` | `hairline` |
-| Small supporting accents | `#355941` | `#B2C9A5` | `olive`, `accentText` |
+| Main ink | `#26382C` | `#EFF0E6` | `ink` |
+| Supporting ink | `#606A57` | `#B4BEAA` | `inkSecondary` |
+| Surface | `#EEEEE4` | `#24291F` | `fill` |
+| Rule | `#DCE0D2` | `#384031` | `hairline` |
+| Small supporting accents | `#365C43` | `#B7CAA5` | `olive`, `accentText` |
 | On olive | `#FFFFFF` | `#182219` | `onOlive` |
-| Primary CTA | `#FF5A3C` | `#FF5A3C` | `primaryAction` |
-| On primary | `#221B14` | `#221B14` | `onPrimary` |
+| Primary CTA | `#F45132` | `#FF5738` | `primaryAction` |
+| On primary | `#241D14` | `#241D14` | `onPrimary` |
 | Destructive ink | `#A33D2D` | `#F0A595` | `dangerText` |
 
 Code owns numeric values. Never spell out colors in a screen. A photograph's

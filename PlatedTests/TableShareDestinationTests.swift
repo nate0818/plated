@@ -93,4 +93,30 @@ final class TableShareDestinationTests: XCTestCase {
             "Your Table", "A Table you joined", "Alex's Table"
         ])
     }
+    func testDetachedNewPostCannotConsumeIdentityOrStartPublication() async {
+        let post = TablePost(authorName: "Nate", dishTitle: "Offline draft")
+        post.shareRecordName = ""
+        let account = TableIdentity.cached
+        let result = await TableShare.publish(post, hostName: "Nate")
+        XCTAssertNil(result)
+        XCTAssertNil(post.modelContext)
+        XCTAssertEqual(post.shareRecordName, "", "Reject before minting or starting a wire attempt")
+        XCTAssertFalse(post.isPublished)
+        XCTAssertEqual(TableIdentity.cached, account)
+    }
+
+    func testDetachedPublishedEchoCannotBypassIdentityMigrationPreflight() async {
+        let post = TablePost(authorName: "Nate", dishTitle: "Existing post")
+        post.authorID = "confirmed-author"
+        post.shareRecordName = "existing-record"
+        post.shareZoneOwner = "chosen-table"
+        post.isPublished = true
+        let result = await TableShare.publish(post, hostName: "Nate")
+        XCTAssertNil(result)
+        XCTAssertEqual(post.authorID, "confirmed-author")
+        XCTAssertEqual(post.shareRecordName, "existing-record")
+        XCTAssertEqual(post.shareZoneOwner, "chosen-table")
+        XCTAssertTrue(post.isPublished, "Rejecting a detached edit cannot erase its prior receipt")
+    }
+
 }

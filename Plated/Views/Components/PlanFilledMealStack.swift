@@ -5,6 +5,7 @@ struct PlanFilledMealStack<Face: View>: View {
     var photo: Data?
     var title: String
     var eatingOut: Bool
+    var leftovers = false
     var whoLine: String
     /// Tonight's card sits on `fill`, so its dish well is `canvas` or the
     /// square vanishes into the card. List rows sit on `canvas` and use
@@ -25,6 +26,7 @@ struct PlanFilledMealStack<Face: View>: View {
             PlanDishSquare(
                 photo: photo,
                 eatingOut: eatingOut,
+                leftovers: leftovers,
                 well: onFill ? Color.canvas : Color.fill
             )
             .frame(width: featured ? 72 : 56, height: featured ? 72 : 56)
@@ -54,6 +56,7 @@ struct PlanFilledMealStack<Face: View>: View {
 private struct PlanDishSquare: View {
     var photo: Data?
     var eatingOut: Bool
+    var leftovers: Bool
     var well: Color
 
     var body: some View {
@@ -61,8 +64,8 @@ private struct PlanDishSquare: View {
             .overlay {
                 GeometryReader { geo in
                     let side = min(geo.size.width, geo.size.height)
-                    if eatingOut {
-                        Image(systemName: "building.2")
+                    if eatingOut || leftovers {
+                        Image(systemName: leftovers ? "refrigerator" : "building.2")
                             .font(.system(size: side * 0.38, weight: .regular))
                             .foregroundStyle(Color.inkSecondary)
                             .frame(width: geo.size.width, height: geo.size.height)

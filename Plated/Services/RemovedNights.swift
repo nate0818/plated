@@ -55,6 +55,10 @@ enum RemovedNights {
         /// name and none at all when one has been renamed. "" is the honest
         /// answer for a home-written recipe, and the title is the fallback.
         var recipeOriginKey: String = ""
+        /// False preserves an intentional non-recipe choice when a cookbook
+        /// happens to contain the same title. Nil is an older saved removal
+        /// whose recipe presence was never recorded, not evidence of false.
+        var hasRecipe: Bool? = nil
         var at: Date
         /// The `PlannedMeal` has gone, or was kept because it was cooked.
         /// Either way there is nothing left to do but say so.
@@ -108,7 +112,7 @@ enum RemovedNights {
             book.append(Gone(
                 shoppingID: e.shoppingID, recordName: e.recordName, title: e.title,
                 by: e.editorName ?? "", day: e.day, slot: e.slot,
-                recipeOriginKey: e.recipeOriginKey, at: .now
+                recipeOriginKey: e.recipeOriginKey, hasRecipe: e.hasRecipe, at: .now
             ))
             added += 1
         }

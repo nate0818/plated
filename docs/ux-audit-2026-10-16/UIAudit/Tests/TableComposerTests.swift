@@ -21,16 +21,22 @@ final class TableComposerTests: XCTestCase {
     func reveal(_ target: XCUIElement) {
         for _ in 0..<6 {
             if target.isHittable { return }
-            app.scrollViews.firstMatch.swipeUp()
+            app.scrollViews["table-post-scroll"].swipeUp()
         }
         XCTAssertTrue(target.isHittable)
     }
     func write(_ value: String) { text.tap(); text.typeText(value) }
+    func addTitle() {
+        let more = app.buttons["More post options"]
+        reveal(more); more.tap()
+        let title = app.buttons["Add a title"]
+        XCTAssertTrue(title.waitForExistence(timeout: 5)); title.tap()
+    }
 
     func testTextOnlyRestaurantCanPostAndOpenFromFeed() {
         launch()
         XCTAssertFalse(submit.isEnabled)
-        XCTAssertTrue(app.buttons["Add photo"].isHittable)
+        XCTAssertTrue(app.buttons["Photo"].isHittable)
         capture("composer-dark-empty")
         write("We loved the cafe on Main Street. Try the fresh tomatoes!")
         XCTAssertTrue(submit.isEnabled)
@@ -55,7 +61,7 @@ final class TableComposerTests: XCTestCase {
         capture("composer-light-photo")
         app.buttons["Remove photo"].tap()
         XCTAssertFalse(submit.isEnabled)
-        XCTAssertTrue(app.buttons["Add photo"].exists)
+        XCTAssertTrue(app.buttons["Photo"].exists)
     }
 
     func testPhotoFailureBlocksPostingUntilExplicitRemoval() {
@@ -72,7 +78,7 @@ final class TableComposerTests: XCTestCase {
         write("Where should we go on Friday?")
         app.buttons["Close post"].tap()
         app.buttons["Keep writing"].tap()
-        let poll = app.buttons["Add poll"]; reveal(poll); poll.tap()
+        let poll = app.buttons["Poll"]; reveal(poll); poll.tap()
         let choice = app.textFields["Add a choice"]; reveal(choice); choice.tap(); choice.typeText("Thai")
         XCTAssertFalse(submit.isEnabled)
         app.buttons["Add poll choice"].tap()
@@ -94,7 +100,7 @@ final class TableComposerTests: XCTestCase {
 
     func testPhotoAndPeopleSurviveDraftSaveAndReopen() {
         launch(flags: ["-plated-review-post-photo"])
-        let people = app.buttons["Tag people"]; reveal(people); people.tap()
+        let people = app.buttons["People"]; reveal(people); people.tap()
         let sam = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Tag Sam")).firstMatch
         reveal(sam); sam.tap()
         XCTAssertTrue(sam.isSelected)
@@ -112,12 +118,12 @@ final class TableComposerTests: XCTestCase {
         let done = app.buttons["Done"]
         XCTAssertTrue(done.waitForExistence(timeout: 5)); done.tap()
         XCTAssertTrue(done.waitForNonExistence(timeout: 5))
-        app.buttons["Add title"].tap()
+        addTitle()
         let title = app.descendants(matching: .any).matching(identifier: "table-post-title").firstMatch
         reveal(title); title.tap(); title.typeText("Tomatoes")
         XCTAssertTrue(done.waitForExistence(timeout: 5)); done.tap()
         XCTAssertTrue(done.waitForNonExistence(timeout: 5))
-        let poll = app.buttons["Add poll"]; reveal(poll); poll.tap()
+        let poll = app.buttons["Poll"]; reveal(poll); poll.tap()
         let choice = app.textFields["Add a choice"]; reveal(choice); choice.tap(); choice.typeText("Yes")
         XCTAssertTrue(done.waitForExistence(timeout: 5)); done.tap()
         XCTAssertTrue(done.waitForNonExistence(timeout: 5))
@@ -125,7 +131,7 @@ final class TableComposerTests: XCTestCase {
 
     func testPhotoLibraryOpensAndCanBeCancelled() {
         launch()
-        app.buttons["Add photo"].tap()
+        app.buttons["Photo"].tap()
         let library = app.buttons["Choose from library"]
         if library.waitForExistence(timeout: 2) { library.tap() }
         let cancel = app.buttons.matching(NSPredicate(format: "label == 'Cancel' OR label == 'Close'")).firstMatch
@@ -142,7 +148,7 @@ final class TableComposerTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(app.buttons["Close post"].frame.width, 44)
         XCTAssertLessThan(app.staticTexts["New post"].frame.height, 150)
         capture("composer-ax5-empty")
-        let addTitle = app.buttons["Add title"]; reveal(addTitle); addTitle.tap()
+        addTitle()
         let title = app.descendants(matching: .any).matching(identifier: "table-post-title").firstMatch
         reveal(title); title.tap(); title.typeText("A new restaurant with a very long name and a wonderful patio")
         XCTAssertTrue(submit.isEnabled)

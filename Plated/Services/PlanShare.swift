@@ -232,7 +232,7 @@ enum PlanShare {
         for meal: PlannedMeal, me: String,
         authorName: String = "", authorColorHex: String = "FF5A3C"
     ) -> Plan {
-        let cook = meal.cook
+        let cook = meal.isLeftovers ? nil : meal.cook
         var cookID = ""
         if let cook {
             if let id = cook.participantID, !id.isEmpty { cookID = id }
@@ -249,7 +249,7 @@ enum PlanShare {
             cookColorHex: cook?.colorHex ?? "", cookSeat: cook?.seat.rawValue ?? "",
             day: PlanDay.string(meal.date), slot: meal.slot, title: meal.title,
             servings: meal.servings, tagline: meal.tagline,
-            cooked: meal.cookedAt != nil, cookedAt: meal.cookedAt,
+            cooked: meal.isCooked, cookedAt: meal.isCooked ? meal.cookedAt : nil,
             hasRecipe: recipe != nil, recipeMinutes: recipe?.totalMinutes ?? 0,
             recipeOriginKey: recipe?.planningKey ?? "",
             createdAt: meal.createdAt, photoData: recipe?.photoData,
@@ -265,9 +265,18 @@ enum PlanShare {
     /// produce. A pantry staple is carried and flagged rather than dropped:
     /// whether staples are shown is the reader's setting, not the author's.
     static func groceryLines(for meal: PlannedMeal) -> [Line] {
-        meal.scaledIngredients.compactMap { ingredient, quantity in
+        guard let recipe = meal.recipe else { return [] }
+        return groceryLines(recipe: recipe, servings: meal.servings)
+    }
+
+    /// Shared recipe replacements use the same scaling and canonical units
+    /// as locally planned meals, without inserting a second PlannedMeal.
+    static func groceryLines(recipe: Recipe, servings: Int) -> [Line] {
+        guard recipe.servings > 0 else { return [] }
+        let factor = Double(servings) / Double(recipe.servings)
+        return recipe.sortedIngredients.compactMap { ingredient in
             guard !ingredient.normalizedName.isEmpty else { return nil }
-            let amount = GroceryMeasure.canonical(quantity, ingredient.unit)
+            let amount = GroceryMeasure.canonical(ingredient.quantity * factor, ingredient.unit)
             return Line(
                 name: ingredient.name, normalizedName: ingredient.normalizedName,
                 unit: amount.unit, quantity: amount.quantity,
@@ -1015,6 +1024,10 @@ enum PlanShare {
         var cookColorHex: String?
         var cookSeat: String?
         var hasRecipe: Bool?
+        /// Nil leaves the record's ingredients alone; [] deliberately clears
+        /// them. Replacement lines are scaled to this edit's explicit servings.
+        /// Optional so older queued edits remain decodable after an upgrade.
+        var lines: [Line]?
         var recipeMinutes: Int?
         var recipeOriginKey: String?
         var photo: PhotoIntent = .keep
@@ -1047,6 +1060,25 @@ enum PlanShare {
             let signer = PlanShare.editor()
             editorID = signer.id
             editorName = signer.name
+        }
+
+        /// A no-cooking choice replaces the dish without changing the night's
+        /// identity, date, servings or original author.
+        @MainActor
+        init(changing entry: PlanLedger.Entry, mealChoice: PlanMealChoice) {
+            self.init(changing: entry)
+            title = mealChoice.title
+            tagline = mealChoice.tagline
+            cookID = ""
+            cookName = ""
+            cookColorHex = ""
+            cookSeat = ""
+            cooked = false
+            hasRecipe = false
+            lines = []
+            recipeMinutes = 0
+            recipeOriginKey = ""
+            photo = .clear
         }
 
         /// Taking the night off the plan for everybody.
@@ -1168,14 +1200,39 @@ enum PlanShare {
             entry.cookColorHex = edit.cookColorHex ?? waiting.cookColorHex
             entry.cookSeat = edit.cookSeat ?? waiting.cookSeat
             entry.hasRecipe = edit.hasRecipe ?? waiting.hasRecipe
+            entry.lines = edit.lines ?? waiting.lines
+            if edit.lines == nil, let lines = waiting.lines,
+               let was = waiting.servings, was > 0,
+               let servings = edit.servings, servings != was {
+                // Replacement lines already reflect the earlier recipe edit's
+                // servings. A later stepper edit must update that payload once.
+                let factor = Double(servings) / Double(was)
+                entry.lines = lines.map { line in
+                    var scaled = line
+                    scaled.quantity *= factor
+                    return scaled
+                }
+            }
             entry.recipeMinutes = edit.recipeMinutes ?? waiting.recipeMinutes
             entry.recipeOriginKey = edit.recipeOriginKey ?? waiting.recipeOriginKey
             if entry.photo == .keep { entry.photo = waiting.photo }
+        }
+        // A later change can fold onto a queued recipe or cooking completion.
+        // Persist the explicit removal as well as its flag, so a relaunch or
+        // another unrelated edit cannot bring stale details back.
+        if entry.cooked == false { entry.cookedAt = nil }
+        if entry.hasRecipe == false {
+            entry.lines = []
+            entry.recipeMinutes = 0
+            entry.recipeOriginKey = ""
+            entry.photo = .clear
+        }
+        if let i = edits.firstIndex(where: { $0.recordName == entry.recordName }) {
             edits[i] = entry
         } else {
             edits.append(entry)
         }
-        if let photo, let small = downscale(photo) { writeEditPhoto(entry.recordName, small) }
+        if entry.photo == .send, let photo, let small = downscale(photo) { writeEditPhoto(entry.recordName, small) }
         if entry.photo == .clear || entry.kind == .delete { removeEditPhoto(entry.recordName) }
         saveEdits(edits)
         return entry.revision
@@ -1574,7 +1631,11 @@ enum PlanShare {
             record.setParent(rootID)
         }
         if let cooked = edit.cooked { record["cooked"] = (cooked ? 1 : 0) as CKRecordValue }
-        if let cookedAt = edit.cookedAt { record["cookedAt"] = cookedAt as CKRecordValue }
+        if edit.cooked == false {
+            record["cookedAt"] = nil
+        } else if let cookedAt = edit.cookedAt {
+            record["cookedAt"] = cookedAt as CKRecordValue
+        }
         if let title = edit.title { record["title"] = title as CKRecordValue }
         if let servings = edit.servings {
             // Read before the overwrite: `record` IS `existing` here.
@@ -1591,7 +1652,7 @@ enum PlanShare {
             // Without it, doubling a night's servings left the household
             // shopping for the old quantities, which is the list quietly
             // lying about a change the person watched land.
-            if was > 0, servings != was {
+            if edit.lines == nil, was > 0, servings != was {
                 let factor = Double(servings) / Double(was)
                 let raw = record["lines"] as? String
                 let decoded = TableShare.decodeLines(raw)
@@ -1623,8 +1684,19 @@ enum PlanShare {
         if let hex = edit.cookColorHex { record["cookColorHex"] = hex as CKRecordValue }
         if let seat = edit.cookSeat { record["cookSeat"] = seat as CKRecordValue }
         if let hasRecipe = edit.hasRecipe { record["hasRecipe"] = (hasRecipe ? 1 : 0) as CKRecordValue }
+        if let lines = edit.lines {
+            record["lines"] = (TableShare.encodeLines(lines) ?? "[]") as CKRecordValue
+        }
         if let minutes = edit.recipeMinutes { record["recipeMinutes"] = minutes as CKRecordValue }
         if let key = edit.recipeOriginKey { record["recipeOriginKey"] = key as CKRecordValue }
+        if edit.hasRecipe == false {
+            // Remote groceries consume the carried lines even without a recipe
+            // in this cookbook. Removing that recipe must remove its ingredient
+            // contribution, not keep the previous dinner's shopping list.
+            record["lines"] = "[]" as CKRecordValue
+            record["recipeMinutes"] = 0 as CKRecordValue
+            record["recipeOriginKey"] = "" as CKRecordValue
+        }
         // Unconditional, like `modifiedAt` and unlike every line above it:
         // these two are not fields the person touched, they are who touched
         // them. A reader takes the sentence about a CHANGE from here, so a
@@ -1640,7 +1712,8 @@ enum PlanShare {
         // record two phones could argue about.
         if edit.kind == .delete { record["removed"] = 1 as CKRecordValue }
         var temp: URL?
-        switch edit.photo {
+        let photoIntent: PhotoIntent = edit.hasRecipe == false ? .clear : edit.photo
+        switch photoIntent {
         case .keep:
             break
         case .clear:

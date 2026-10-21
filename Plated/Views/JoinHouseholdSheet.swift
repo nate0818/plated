@@ -120,7 +120,7 @@ struct JoinHouseholdSheet: View {
                         .foregroundStyle(Color.ink)
                         .multilineTextAlignment(.center)
                 } else if let preview {
-                    let copy = HouseholdInvitationCopy(state: preview.state, host: host, household: invitedHouseholdName)
+                    let copy = invitationCopy(preview)
                     AvatarCircle(
                         initials: String(host.prefix(1)).uppercased(),
                         tone: .neutralPair, size: 72, photo: preview.hostPhoto
@@ -152,7 +152,7 @@ struct JoinHouseholdSheet: View {
             .padding(.horizontal, 24)
 
             if let preview {
-                if needsName, HouseholdInvitationCopy(state: preview.state, host: host, household: invitedHouseholdName).acceptsName {
+                if needsName, invitationCopy(preview).acceptsName {
                     VStack(alignment: .leading, spacing: Spacing.compact) {
                         Text("What should your household call you?").plType(.body)
                         TextField("Your name", text: $joinName)
@@ -198,6 +198,13 @@ struct JoinHouseholdSheet: View {
                 EmptyView()
             }
         }
+    }
+
+    private func invitationCopy(_ preview: HouseholdSync.JoinPreview) -> HouseholdInvitationCopy {
+        HouseholdInvitationCopy(
+            state: preview.state, host: host, household: invitedHouseholdName,
+            reinvitation: preview.reinvitation
+        )
     }
 
     private var invitedHouseholdName: String {
@@ -384,8 +391,14 @@ struct JoinHouseholdSheet: View {
             if let preview, candidates == nil {
                 switch preview.state {
                 case .ready:
-                    PrimaryActionButton(title: joining ? "Joining household" : "Join household", busy: joining) { join() }
-                        .disabled(joining)
+                    let restoresAccess = invitationCopy(preview).restoresAccess
+                    PrimaryActionButton(
+                        title: joining
+                            ? (restoresAccess ? "Rejoining household" : "Joining household")
+                            : (restoresAccess ? "Rejoin household" : "Join household"),
+                        busy: joining
+                    ) { join() }
+                    .disabled(joining)
                 case .willLeave:
                     PrimaryActionButton(title: joining ? "Switching households" : "Switch households", busy: joining) { join() }
                         .disabled(joining)

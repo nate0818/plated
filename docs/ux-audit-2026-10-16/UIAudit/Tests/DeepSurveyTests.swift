@@ -54,8 +54,9 @@ final class DeepSurveyTests: XCTestCase {
             app.swipeUp(); capture("light-" + tab + "-scrolled")
         }
     }
-    func testExistingRecipeCancelLosesDraft() {
+    func testExistingRecipeCancelKeepsDraftUntilDecision() {
         launch(["-plated-open-recipe-detail"])
+        tap("Recipe options")
         tap("Edit recipe")
         let name = app.textFields["Name the dish"]
         XCTAssertTrue(name.waitForExistence(timeout: 5))
@@ -63,12 +64,16 @@ final class DeepSurveyTests: XCTestCase {
         name.tap(); name.typeText(" UX AUDIT")
         capture("edit-unsaved-keyboard")
         tap("Cancel")
-        XCTAssertTrue(app.buttons["Edit recipe"].waitForExistence(timeout: 5))
-        XCTAssertFalse(app.buttons["Keep writing"].exists)
-        capture("edit-dismissed-without-confirmation")
+        XCTAssertTrue(app.buttons["Keep writing"].waitForExistence(timeout: 5))
+        capture("edit-discard-confirmation")
+        tap("Keep writing")
+        XCTAssertTrue((name.value as? String)?.contains("UX AUDIT") == true)
+        tap("Cancel")
+        tap("Discard")
+        tap("Recipe options")
         tap("Edit recipe")
         XCTAssertEqual(name.value as? String, original)
-        capture("edit-reopened-draft-lost")
+        capture("edit-reopened-after-explicit-discard")
     }
     func testRecipeTabReselectKeepsScroll() {
         launch(["-plated-tab","cookbook"])

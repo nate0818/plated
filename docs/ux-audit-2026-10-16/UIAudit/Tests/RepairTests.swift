@@ -33,11 +33,13 @@ final class RepairTests: XCTestCase {
         tap(app.buttons["Back to tonight"])
         XCTAssertTrue(app.buttons["Resume cooking"].firstMatch.waitForExistence(timeout: 8))
         tap(app.buttons["Resume cooking"].firstMatch)
+        tap(app.buttons["Cooking options"])
         tap(app.buttons["End cooking"])
         tap(app.buttons["End cooking"].firstMatch)
     }
     func testExistingRecipeEditHasKeepAndDiscard() {
         launch(["-plated-tab", "cookbook", "-plated-open-recipe-detail"])
+        tap(app.buttons["Recipe options"])
         tap(app.buttons["Edit recipe"])
         let field = app.textFields["Name the dish"]
         XCTAssertTrue(field.waitForExistence(timeout: 8))
@@ -49,11 +51,12 @@ final class RepairTests: XCTestCase {
         tap(app.buttons["Keep writing"])
         XCTAssertTrue((field.value as? String)?.contains("UX REPAIR") == true)
         tap(app.buttons["Cancel"]); tap(app.buttons["Discard"])
+        tap(app.buttons["Recipe options"])
         tap(app.buttons["Edit recipe"])
         XCTAssertTrue(field.waitForExistence(timeout: 8))
         XCTAssertEqual(field.value as? String, original)
         tap(app.buttons["Cancel"])
-        XCTAssertTrue(app.buttons["Edit recipe"].waitForExistence(timeout: 8), "An untouched edit closes without a discard prompt")
+        XCTAssertTrue(app.buttons["Recipe options"].waitForExistence(timeout: 8), "An untouched edit closes without a discard prompt")
     }
     func testRepairedScreensDefaultAndLargestText() {
         let cases: [(String,[String])] = [
@@ -75,7 +78,7 @@ final class RepairTests: XCTestCase {
         }
     }
     func testSelectedTabsReturnToTop() {
-        for (tab,label,heading) in [("week","Plan","Calendar"),("cookbook","Recipes","The recipe book"),("groceries","Groceries","Groceries"),("table","Table","The Table")] {
+        for (tab,label,heading) in [("week","Plan","Calendar"),("cookbook","Recipes","Recipes"),("groceries","Groceries","Groceries"),("table","Table","The Table")] {
             launch(["-plated-tab",tab])
             app.swipeUp(); app.swipeUp()
             capture("reselect-before-" + tab)
@@ -84,7 +87,16 @@ final class RepairTests: XCTestCase {
             let fallback = app.buttons[label].firstMatch
             tap(button.exists ? button : fallback)
             capture("reselect-after-" + tab)
-            XCTAssertTrue(app.staticTexts[heading].exists || app.buttons[heading].exists)
+            let topHeading = app.staticTexts.matching(NSPredicate(format: "label == %@", heading)).allElementsBoundByIndex
+                .contains { $0.frame.minY < 150 }
+            let headingButton = app.buttons[heading]
+            XCTAssertTrue(topHeading || (headingButton.exists && headingButton.frame.minY < 150),
+                          "Reselect returns to the tab root")
+            if tab == "cookbook" {
+                let firstRecipe = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Pancake Dinner,'")).firstMatch
+                XCTAssertTrue(firstRecipe.isHittable && firstRecipe.frame.minY < app.frame.midY,
+                              "Reselect restores the first recipe row, not just the fixed header")
+            }
         }
     }
     func testLightPlanAndGroceries() {
@@ -112,7 +124,7 @@ final class RepairTests: XCTestCase {
 
     func testFinalLargeTextThreadComposer() {
         launch(["-plated-open-thread"], ax:true)
-        XCTAssertTrue(app.textFields.firstMatch.waitForExistence(timeout: 8))
+        XCTAssertTrue(app.textViews["post-comment-input"].waitForExistence(timeout: 8))
         capture("final-ax-thread")
     }
 

@@ -714,3 +714,33 @@ refusal not putting a night back into a household this phone has left,
 the edit coming back as no news at all,
 `Stamp.nightPhrase`, `DeepLink` plan day round trip, the reminder
 dedupe (local night wins the day).
+
+
+## Explicit leftovers choice — October 20, 2026
+
+Nate requested **Eat leftovers** when choosing what to eat. It is offered in the
+single-day planning sheet (including other meal slots) and the dinner menu. This
+is an addendum to the approved Plan design, not a replacement for that reference.
+
+The saved state uses the existing no-recipe `customTitle = "Leftovers"` shape.
+A real recipe named Leftovers retains normal recipe behavior. Selection preserves
+the date, slot, shopping ID, servings, notes and planner, and clears the attached
+recipe, cook, completion timestamp, reaction and actual cooking minutes. It counts
+as planned, not a new cooking session. The original cookbook recipe is preserved.
+
+Local writes close only after a successful save and restore action-owned fields
+on failure. A remote choice edits its existing record through `PlanShare.write`;
+it never creates a competing private meal. Queued, conflicting and refused writes
+retain their existing visible recovery states. Explicit `hasRecipe = false` clears
+ingredient lines, recipe origin/time and artwork in both the optimistic ledger and
+CloudKit record; `cooked = false` clears the completion timestamp. Changing back to
+a recipe supplies ingredient lines scaled to the selected servings. Optional edit
+lines and cached adoption `hasRecipe` evidence remain compatible with older queues.
+
+The leftovers hero is compact, with an explanatory sentence and Change dinner plan.
+It has no recipe artwork, cook assignment or Start/Mark cooked action. Day details,
+rows, widgets, reminders and history follow the same semantics, including stale
+legacy freeform leftovers data. Household adoption respects explicit no-recipe
+state rather than attaching a cookbook recipe by matching its title.
+
+Verification status and limits: [leftovers change record](design-fidelity-2026-10-18/leftovers-2026-10-20.md).

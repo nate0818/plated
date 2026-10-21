@@ -55,11 +55,14 @@ private struct HouseholdHomeContent: View {
     @State private var addPresented = false
     @State private var resendTarget: InviteTarget?
     @State private var resendBody = ""
+    @State private var sentInvitation: HouseholdInvitationReceipt?
+    @State private var queuedInvitationReceipt: HouseholdInvitationReceipt?
     @AppStorage("userFirstName") private var userFirstName = ""
     @Environment(\.openURL) private var openURL
     @State private var paywallPresented = false
     @State private var namingFromMasthead = false
     @State private var turnsTipShown = false
+    @State private var turnsSettingsShown = false
     @State private var rotationDay: Int?
     @State private var rotationPerson: String?
     @State private var bannerItem: PhotosPickerItem?
@@ -207,7 +210,13 @@ private struct HouseholdHomeContent: View {
                 banner
                 peopleSection
                 cooksSection
-                statsStrip
+                householdPrivacySummary
+                Button { pushed = .stats } label: {
+                    Text("Household stats and milestones")
+                        .plType(.caption).foregroundStyle(Color.accentText)
+                        .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(Rectangle())
+                }.buttonStyle(.pressable)
             }
             .padding(.horizontal, Spacing.page)
             .padding(.top, 6)
@@ -221,25 +230,34 @@ private struct HouseholdHomeContent: View {
         }
         .background(Color.canvas)
         // Two `.sheet` modifiers on one view is undefined — see CLAUDE.md.
-        .sheet(item: homeSheet, onDismiss: { namingFromMasthead = false }) { destination in
+        .sheet(item: homeSheet, onDismiss: finishHomeSheetDismissal) { destination in
             switch destination {
             case .add:
-                AddMemberSheet()
+                AddMemberSheet { receipt in
+                    receiveInvitationReceipt(receipt)
+                }
             case .resend(let target):
                 InviteComposer(
                     recipients: [target.phone].compactMap { $0 },
                     body: resendBody
                 ) { sent in
-                    resendTarget = nil
+                    defer { resendTarget = nil }
                     // The same seat, so nothing is laid; only the date moves,
                     // and only when the message went. Matched on the seat
                     // record, never the name: two invited Sams are two rows.
-                    guard sent, let member = members.first(where: {
+                    guard let receipt = HouseholdInvitationReceipt.resent(
+                        wasSent: sent, seat: target.seat, name: target.name
+                    ) else { return }
+                    if let member = roster.first(where: {
                         $0.shareRecordName == target.seat && $0.seat == .invited
-                    }) else { return }
-                    member.invitedAt = .now
+                    }) {
+                        member.invitedAt = .now
+                    }
+                    receiveInvitationReceipt(receipt)
                 }
                 .ignoresSafeArea()
+            case .invitationSent(let receipt):
+                invitationReceipt(receipt)
             case .paywall:
                 PaywallSheet()
             case .rotation(let day):
@@ -302,6 +320,9 @@ private struct HouseholdHomeContent: View {
             // before any CloudKit wait. TF26 left Alessandra as New member
             // until a pull that never had to run for the name to be known.
             Seats.bindShareIdentity(in: context, standings: [])
+            #if DEBUG
+            prepareInvitationReceiptPreview()
+            #endif
             // Stuck Invited labels settle when Home is opened, not only
             // when CloudKit happens to send a share delta. Replay the zone
             // so a seat we deleted locally but that still exists in iCloud
@@ -360,11 +381,12 @@ private struct HouseholdHomeContent: View {
     }
 
     private enum HomeSheet: Identifiable {
-        case add, resend(InviteTarget), paywall, rotation(Int)
+        case add, resend(InviteTarget), invitationSent(HouseholdInvitationReceipt), paywall, rotation(Int)
         var id: String {
             switch self {
             case .add: "add"
             case .resend(let target): "resend-\(target.id)"
+            case .invitationSent(let receipt): "sent-\(receipt.id)"
             case .paywall: "paywall"
             case .rotation(let day): "rotation-\(day)"
             }
@@ -376,6 +398,7 @@ private struct HouseholdHomeContent: View {
                 if let rotationDay { return .rotation(rotationDay) }
                 if addPresented { return .add }
                 if let resendTarget { return .resend(resendTarget) }
+                if let sentInvitation { return .invitationSent(sentInvitation) }
                 if paywallPresented { return .paywall }
                 return nil
             },
@@ -384,11 +407,113 @@ private struct HouseholdHomeContent: View {
                     rotationDay = nil
                     addPresented = false
                     resendTarget = nil
+                    sentInvitation = nil
                     paywallPresented = false
                 }
             }
         )
     }
+
+    private func receiveInvitationReceipt(_ receipt: HouseholdInvitationReceipt) {
+        if addPresented || resendTarget != nil {
+            queuedInvitationReceipt = receipt
+        } else {
+            // InviteFlow's callback follows UIKit dismissal. If UIKit has
+            // already closed the add sheet too, no later onDismiss is owed.
+            sentInvitation = receipt
+        }
+    }
+
+    /// Present the receipt only after the add/message sheet has actually
+    /// left. A delay or a second sheet modifier can lose this transition.
+    private func finishHomeSheetDismissal() {
+        namingFromMasthead = false
+        guard let receipt = queuedInvitationReceipt else { return }
+        queuedInvitationReceipt = nil
+        sentInvitation = receipt
+    }
+
+    private func invitationReceipt(_ receipt: HouseholdInvitationReceipt) -> some View {
+        let state = receipt.state(in: roster.map {
+            .init(seat: $0.shareRecordName, state: $0.seat)
+        })
+        return VStack(alignment: .leading, spacing: 16) {
+            HStack(alignment: .top, spacing: 12) {
+                Text(state == .joined ? "Invitation accepted" : state == .ended ? "Access ended" : state == .unavailable ? "Invitation status unavailable" : "Invitation sent")
+                    .plType(.heading).foregroundStyle(Color.ink)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityAddTraits(.isHeader)
+                    .accessibilityIdentifier("household-invitation-title")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                DesignIconButton(symbol: "xmark", label: "Close invitation", quiet: true, targetSize: 48) {
+                    sentInvitation = nil
+                }
+            }
+            Text(state == .joined
+                 ? "\(receipt.subjectName) joined \(householdDisplayName)."
+                 : state == .ended
+                 ? "\(receipt.departureSubject) no longer in \(householdDisplayName)."
+                 : state == .unavailable
+                 ? "This invitation’s membership status isn’t available on this device."
+                 : "Waiting for \(receipt.displayName) to join \(householdDisplayName).")
+                .plType(.body).foregroundStyle(Color.ink)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("household-invitation-status")
+            HStack(spacing: 8) {
+                Image(systemName: state == .joined ? "checkmark" : "clock")
+                    .accessibilityHidden(true)
+                Text(state == .joined ? "Joined" : state == .ended ? "Access ended"
+                     : state == .unavailable ? "Membership not confirmed"
+                     : receipt.isResend ? "Pending · Invitation resent" : "Pending · New invitation")
+                    .plType(.caption).foregroundStyle(Color.inkSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(12).frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.fill, in: RoundedRectangle(cornerRadius: 8))
+            Text(state == .joined
+                 ? "You’re ready to plan, shop and cook together."
+                 : state == .ended
+                 ? "Send a new invitation if you want them to rejoin."
+                 : state == .unavailable
+                 ? "Check the household roster before sending another invitation."
+                 : "Messages reports the invitation was sent. Joining is confirmed when their household membership syncs here.")
+                .plType(.caption).foregroundStyle(Color.inkSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+            PrimaryActionButton(title: "Done") { sentInvitation = nil }
+                .accessibilityIdentifier("household-invitation-done")
+        }
+        .padding(.horizontal, Spacing.page).padding(.top, 24).padding(.bottom, 20)
+        .plFitsOrScrolls()
+        .presentationDetents(typeSize.isAccessibilitySize ? [.large] : [.medium, .large])
+        .presentationDragIndicator(.visible)
+        .presentationBackground(Color.canvas)
+        .presentationCornerRadius(Radius.sheet)
+    }
+
+    #if DEBUG
+    /// Presentation-only fixtures. They use the in-memory review store and
+    /// never prepare a CloudKit link, invoke Messages, or record a sent seat.
+    private func prepareInvitationReceiptPreview() {
+        guard PlatedApp.usesPreviewContainer else { return }
+        let prefix = "-plated-review-inviter-"
+        guard let state = ["sent", "resent", "joined", "ended", "unavailable", "cancelled", "failed"].first(where: {
+            LaunchFlags.consume(prefix + $0)
+        }) else { return }
+        let seat = "review-inviter-receipt"
+        let prepared = Seats.Prepared(outcome: .ready(URL(string: "https://example.invalid/review-only")!), seat: seat)
+        let result: InviteFlow.Result = state == "cancelled" ? .declined(name: "Alessandra", phone: nil, prepared: prepared)
+            : state == "failed" ? .failed(name: "Alessandra", phone: nil, prepared: prepared)
+            : .sent(name: "Alessandra", phone: nil, prepared: prepared)
+        let receipt = state == "resent"
+            ? HouseholdInvitationReceipt.resent(wasSent: true, seat: seat, name: "Alessandra")
+            : HouseholdInvitationReceipt.fresh(result)
+        guard let receipt else { return }
+        let member = HouseholdMember(name: "Alessandra", colorHex: "365C43", role: "partner",
+            seat: state == "joined" ? .joined : state == "ended" ? .left : .invited, shareRecordName: seat)
+        if state != "unavailable" { context.insert(member) }
+        sentInvitation = receipt
+    }
+    #endif
 
     // MARK: Masthead
 
@@ -416,21 +541,7 @@ private struct HouseholdHomeContent: View {
     }
 
     private var backButton: some View {
-        Button {
-            Haptic.tap()
-            dismiss()
-        } label: {
-            Image(systemName: "arrow.left")
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(Color.ink)
-                .frame(width: 38, height: 38)
-                .background(Color.canvas.opacity(0.9), in: Circle())
-                .overlay(Circle().strokeBorder(Color.hairline, lineWidth: 1.5))
-                .frame(minWidth: 44, minHeight: 44)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.pressable)
-        .accessibilityLabel("Back")
+        DesignIconButton(symbol: "arrow.left", label: "Back", quiet: true) { dismiss() }
     }
 
     @ViewBuilder
@@ -441,7 +552,7 @@ private struct HouseholdHomeContent: View {
                 pushed = .settings
             } label: {
                 Image(systemName: "gearshape")
-                    .font(.system(size: 18, weight: .semibold))
+                    .font(.system(size: 22, weight: .regular))
                     .foregroundStyle(Color.ink)
                     .plTapTarget()
             }
@@ -450,9 +561,7 @@ private struct HouseholdHomeContent: View {
             .accessibilityHint("Shows household name, sharing and membership settings.")
             .accessibilityIdentifier("household-settings")
 
-            ActivityBellButton(size: 44, accessibilityID: "household-notifications-bell") {
-                pushed = .activity
-            }
+            ActivityBellButton(size: 44, accessibilityID: "household-notifications-bell") { pushed = .activity }
 
             if !embedded {
                 // The root Household page keeps the same profile door as the
@@ -672,75 +781,34 @@ private struct HouseholdHomeContent: View {
 
     // MARK: Banner
 
-    /// The household's photo over the door, cropped at pick time to hold
-    /// the faces in it. The caption names who sits here — the photo is of
-    /// the household, so the line under it should be too.
+    /// The approved shallow household cover. A missing photo stays honest;
+    /// the entire cover remains the accessible photo-change action.
     private var banner: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            PhotosPicker(selection: $bannerItem, matching: .images) {
-                ZStack(alignment: .bottomTrailing) {
+        PhotosPicker(selection: $bannerItem, matching: .images) {
+            VStack(alignment: .leading, spacing: 6) {
+                MicroLabel("Our household")
+                Text("Good food. Together.").plType(.cardTitle).foregroundStyle(Color.ink)
+                    .fixedSize(horizontal: false, vertical: true)
+                if profiles.first?.bannerPhotoData == nil {
+                    Label("Add a household photo", systemImage: "camera")
+                        .plType(.caption).foregroundStyle(Color.inkSecondary)
+                }
+            }
+            .padding(20)
+            .frame(maxWidth: .infinity, minHeight: 103, alignment: .leading)
+            .background {
+                Color.fill.overlay {
                     if let data = profiles.first?.bannerPhotoData, let image = UIImage(data: data) {
-                        Color.clear
-                            .frame(height: 104)
-                            .overlay {
-                                Image(uiImage: image)
-                                    .resizable()
-                                    .scaledToFill()
-                            }
-                            .clipShape(RoundedRectangle(cornerRadius: Radius.hero, style: .continuous))
-                            .contentShape(RoundedRectangle(cornerRadius: Radius.hero, style: .continuous))
-
-                        HStack(spacing: 5) {
-                            Image(systemName: "camera")
-                                .font(.system(size: 11, weight: .semibold))
-                            Text("Change")
-                                .plType(.micro)
-                        }
-                        .foregroundStyle(Color.ink)
-                        .padding(.horizontal, 12)
-                        .frame(height: 30)
-                        .background(.ultraThinMaterial, in: Radius.shape(Radius.chip))
-                        .padding(10)
-                    } else {
-                        HStack(spacing: 12) {
-                            Image(systemName: "photo")
-                                .font(.system(size: 16, weight: .semibold))
-                                .frame(width: 38, height: 38)
-                                .background(Color.fill, in: Circle())
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Add a household photo")
-                                    .plType(.footnote, .bold)
-                                    .fixedSize(horizontal: false, vertical: true)
-                                Text("Shared with everyone in your household")
-                                    .plType(.caption)
-                                    .fixedSize(horizontal: false, vertical: true)
-                            }
-                            .layoutPriority(1)
-                            Spacer(minLength: 0)
-                        }
-                        .foregroundStyle(Color.inkSecondary)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 14)
-                        .frame(maxWidth: .infinity, minHeight: 76, alignment: .leading)
-                        .overlay {
-                            RoundedRectangle(cornerRadius: Radius.hero, style: .continuous)
-                                .strokeBorder(Color.hairlineDashed, style: StrokeStyle(lineWidth: 2, dash: [8, 7]))
-                        }
+                        Image(uiImage: image).resizable().scaledToFill().opacity(0.28)
                     }
                 }
             }
-            .buttonStyle(.pressable)
-            .accessibilityLabel("Household photo")
-
-            // Who SITS here (§10): a seat that left is gone and an invited
-            // seat is a message that went out and nothing that came back.
-            // Naming either is the same claim as "You host this household
-            // with Riley" over somebody who never opened the link.
-            Text(Seats.seatedCaption(among: roster, reader: roster.me))
-                .plType(.caption)
-                .foregroundStyle(Color.inkSecondary)
-                .padding(.horizontal, 2)
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         }
+        .buttonStyle(.pressable)
+        .accessibilityLabel(profiles.first?.bannerPhotoData == nil ? "Add a household photo" : "Change household photo")
+        .accessibilityHint("The photo is shared with your household.")
     }
 
     /// A banner hung before the crop existed is still whatever shape it
@@ -771,50 +839,6 @@ private struct HouseholdHomeContent: View {
         Haptic.plate()
     }
 
-    // MARK: The count
-    // Three numbers under the photo; everything else lives one tap in.
-    //
-    // Four boxed tiles with a stock glyph each read as a dashboard of
-    // buttons that weren't buttons. Instagram's profile triad is the
-    // shape that works: number over word, three across, no chrome — and
-    // the words are what someone would say out loud, so no glyph has to
-    // explain them. The whole strip is the tap target now, which is both
-    // a bigger target and one fewer capsule on the page.
-
-    private var statsStrip: some View {
-        Button {
-            Haptic.tap()
-            pushed = .stats
-        } label: {
-            VStack(spacing: 12) {
-                HStack(spacing: 0) {
-                    CountBlock(value: "\(nightsPlated)", label: "Dinners")
-                    CountDivider()
-                    CountBlock(value: "\(platesEarned)", label: "Likes")
-                    CountDivider()
-                    CountBlock(value: "\(kissCount)", label: "Chef's kisses", accent: kissCount > 0)
-                }
-
-                HStack(spacing: 6) {
-                    Image(systemName: "sparkles")
-                        .font(.system(size: 10, weight: .bold))
-                    Text("All stats and badges")
-                        .plType(.caption, .semibold)
-                        .plActionLabel()
-                }
-                .foregroundStyle(Color.accentText)
-                .padding(.horizontal, 12)
-                .frame(minHeight: 30)
-                .background(Color.olive.opacity(0.09), in: Radius.shape(Radius.chip))
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 4)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.pressable)
-        .accessibilityHint("Opens all stats and badges")
-    }
-
     // MARK: The people
 
     private var peopleSection: some View {
@@ -825,8 +849,8 @@ private struct HouseholdHomeContent: View {
                 let identityLayout = hugeType ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4))
                                               : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: 8))
                 identityLayout {
-                    Text("People").plType(.heading).foregroundStyle(Color.ink)
-                    Text("\(roster.listed.count) people").plType(.caption).foregroundStyle(Color.inkSecondary)
+                    Text("People").font(.custom(Font.EditorialWeight.regular.face, size: 22, relativeTo: .body)).foregroundStyle(Color.ink)
+                    Text(roster.listed.count.things("member")).plType(.caption).foregroundStyle(Color.inkSecondary)
                 }.fixedSize(horizontal: false, vertical: true)
                 if !hugeType { Spacer() }
                 HStack(spacing: 8) {
@@ -1004,7 +1028,7 @@ private struct HouseholdHomeContent: View {
                     VStack(alignment: .leading, spacing: 1) {
                         Text(name)
                             .plName()
-                            .plType(.body, .medium)
+                            .plType(.reading, .semibold)
                             .foregroundStyle(Color.ink)
                         Text(subtitle)
                             .plType(.caption)
@@ -1013,7 +1037,7 @@ private struct HouseholdHomeContent: View {
                     }
                     Spacer(minLength: 4)
                 }
-                .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
+                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.pressable)
@@ -1051,7 +1075,7 @@ private struct HouseholdHomeContent: View {
                 memberActionsMenu(member, readerIsHead: readerIsHead)
             }
         }
-        .padding(.vertical, 12)
+        .padding(.vertical, 9)
     }
 
     private func memberActionsMenu(_ member: HouseholdMember, readerIsHead: Bool) -> some View {
@@ -1088,8 +1112,6 @@ private struct HouseholdHomeContent: View {
             Image(systemName: "ellipsis")
                 .font(.system(size: 14, weight: .bold))
                 .foregroundStyle(Color.ink)
-                .frame(width: 38, height: 38)
-                .background(Color.fill, in: Circle())
                 .frame(minWidth: 44, minHeight: 44)
                 .contentShape(Rectangle())
         }
@@ -1194,7 +1216,7 @@ private struct HouseholdHomeContent: View {
     private var cooksSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 6) {
-                Text("Who cooks when").plType(.heading)
+                Text("Who cooks when").font(.custom(Font.EditorialWeight.regular.face, size: 22, relativeTo: .body)).foregroundStyle(Color.ink)
                 Button {
                     Haptic.tap()
                     withAnimation(.plSnap) { turnsTipShown.toggle() }
@@ -1207,58 +1229,81 @@ private struct HouseholdHomeContent: View {
                 }
                 .buttonStyle(.pressable)
                 .accessibilityLabel("How turns work")
+                .accessibilityValue(turnsTipShown ? "Expanded" : "Collapsed")
+                .accessibilityHint("Explains standing cooks and open nights")
                 Spacer()
             }
 
+            Text("Tap a day to choose the cook.")
+                .plType(.caption).foregroundStyle(Color.inkSecondary)
             cookGrid
 
-            Text("Choose a day to set its standing cook.")
-                .plType(.caption)
-                .foregroundStyle(Color.inkSecondary)
-
-            // A 51pt switch beside a sentence is a fixed-width companion,
-            // and at accessibility sizes it squeezed the label until
-            // "automatically" broke across two lines as "automatical / ly".
-            // The switch goes underneath rather than the words getting
-            // narrower: it is the same answer the cook grid needed.
-            let stacked = typeSize.isAccessibilitySize
-            let label = VStack(alignment: .leading, spacing: 2) {
-                Text("Take turns automatically")
-                    .plType(.body, .bold)
-                    .foregroundStyle(Color.ink)
-                Text("Open nights go to whoever has cooked least")
-                    .plType(.caption)
-                    .foregroundStyle(Color.inkSecondary)
+            Button {
+                Haptic.tap()
+                withAnimation(.plSnap) { turnsSettingsShown.toggle() }
+            } label: {
+                HStack(spacing: 8) {
+                    Text("Turn-taking settings").plType(.footnote, .semibold)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: 8)
+                    Image(systemName: turnsSettingsShown ? "chevron.up" : "chevron.down") // design-ok(generic-chevron): indicates the explicit disclosure's current expanded/collapsed state.
+                        .font(.system(size: 12, weight: .semibold))
+                        .accessibilityHidden(true)
+                }
+                .foregroundStyle(Color.accentText)
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
             }
-            // Named, then hidden: labelsHidden() takes it off the screen and
-            // leaves it for VoiceOver, which was otherwise reading an
-            // anonymous switch.
-            let control = Toggle("Take turns automatically", isOn: $autoRotate)
-                .labelsHidden()
-                .sensoryFeedback(.selection, trigger: autoRotate)
-                .tint(Color.basil)
+            .buttonStyle(.pressable)
+            .accessibilityValue(turnsSettingsShown ? "Expanded" : "Collapsed")
+            .accessibilityHint("Shows the automatic turn-taking preference")
+            .accessibilityIdentifier("household-turn-taking-settings")
 
-            Group {
-                if stacked {
-                    VStack(alignment: .leading, spacing: 12) {
-                        label
-                        control
-                    }
-                } else {
-                    HStack {
-                        label
-                        Spacer()
-                        control
+            if turnsSettingsShown {
+                // A 51pt switch beside a sentence is a fixed-width companion,
+                // and at accessibility sizes it squeezed the label until
+                // "automatically" broke across two lines as "automatical / ly".
+                // The switch goes underneath rather than the words getting
+                // narrower: it is the same answer the cook grid needed.
+                let stacked = typeSize.isAccessibilitySize
+                let label = VStack(alignment: .leading, spacing: 2) {
+                    Text("Take turns automatically")
+                        .plType(.body, .bold)
+                        .foregroundStyle(Color.ink)
+                    Text("Open nights go to whoever has cooked least")
+                        .plType(.caption)
+                        .foregroundStyle(Color.inkSecondary)
+                }
+                // Named, then hidden: labelsHidden() takes it off the screen and
+                // leaves it for VoiceOver, which was otherwise reading an
+                // anonymous switch.
+                let control = Toggle("Take turns automatically", isOn: $autoRotate)
+                    .labelsHidden()
+                    .sensoryFeedback(.selection, trigger: autoRotate)
+                    .tint(Color.basil)
+
+                Group {
+                    if stacked {
+                        VStack(alignment: .leading, spacing: 12) {
+                            label
+                            control
+                        }
+                    } else {
+                        HStack {
+                            label
+                            Spacer()
+                            control
+                        }
                     }
                 }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 14)
+                .overlay(RoundedRectangle(cornerRadius: Radius.card, style: .continuous).strokeBorder(Color.hairline))
+                .padding(.top, 8)
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 14)
-            .overlay(RoundedRectangle(cornerRadius: Radius.card, style: .continuous).strokeBorder(Color.hairline))
-            .padding(.top, 8)
 
             if turnsTipShown {
-                Text("A day with a standing cook always goes to them. Open nights go to whoever has cooked least that week, or to you with this off.")
+                Text("A day with a standing cook always goes to them. For open nights, turn-taking settings decide whether the cook is chosen automatically or assigned to you.")
                     .plType(.caption)
                     .foregroundStyle(Color.inkSecondary)
                     .padding(14)
@@ -1266,6 +1311,19 @@ private struct HouseholdHomeContent: View {
                     .transition(.plUnfold)
             }
         }
+    }
+
+    private var householdPrivacySummary: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "calendar").font(.system(size: 22, weight: .regular))
+            VStack(alignment: .leading, spacing: 5) {
+                Text("Plans stay with your household").plType(.reading, .semibold)
+                Text("Shared meals, groceries, and recipes.").plType(.caption).foregroundStyle(Color.inkSecondary)
+            }
+        }
+        .foregroundStyle(Color.ink).padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.fill, in: Radius.shape(Radius.card))
     }
 
     private var cookGrid: some View {
@@ -1287,9 +1345,9 @@ private struct HouseholdHomeContent: View {
             rotationPerson = cook?.shareRecordName
             rotationDay = weekday
         } label: {
-            VStack(spacing: 6) {
+            VStack(spacing: 8) {
                 Text(shortDay(weekday).uppercased())
-                    .plType(.micro, .extraBold)
+                    .font(.custom(Font.SansWeight.regular.rawValue, size: 10, relativeTo: .body))
                     .foregroundStyle(isToday ? Color.accentText : Color.inkSecondary)
                     // One line, always. Seven cells share the page width, so
                     // a cell is about 44pt wide on a 393pt phone and 32 of
@@ -1309,25 +1367,23 @@ private struct HouseholdHomeContent: View {
                             .id(cook.name)
                             .transition(.plArrive)
                     } else {
-                        Circle()
-                            .strokeBorder(Color.hairlineDashed, style: StrokeStyle(lineWidth: 2, dash: [4, 4]))
-                            .frame(width: 28, height: 28)
+                        AvatarCircle(initials: "–", tone: .neutralPair, size: 28)
                             .transition(.opacity)
                     }
                 }
             }
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 10)
+            .padding(.vertical, 11)
             // Seven fixed cells across one row: furniture, and it cannot
             // reflow. This is the grid plChrome was written for and the one
             // I did not apply it to. See VerticalAlignment.discCentre's
             // neighbour in Theme.swift.
             .plChrome()
-            .background(isToday ? Color.todayTint : Color.canvas)
+            .background(Color.fill)
             .clipShape(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: Radius.chip, style: .continuous)
-                    .strokeBorder(isToday ? Color.olive : Color.hairline, lineWidth: isToday ? 2 : 1)
+                    .strokeBorder(isToday ? Color.olive : Color.clear, lineWidth: 1.5)
             }
         }
         .buttonStyle(.pressable)
@@ -1413,6 +1469,10 @@ private struct HouseholdHomeContent: View {
                         }
                         .accessibilityAddTraits(rotationPerson == member.shareRecordName ? .isSelected : [])
                     }
+                } header: {
+                    Text("Choose someone. Changes apply after saving.")
+                        .plType(.footnote).foregroundStyle(Color.inkSecondary)
+                        .textCase(nil)
                 } footer: {
                     Text("This sets the standing cook for \(Calendar.current.weekdaySymbols[day - 1])s. Existing meal assignments stay as planned.")
                 }
@@ -1422,7 +1482,7 @@ private struct HouseholdHomeContent: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { rotationDay = nil } }
-                ToolbarItem(placement: .confirmationAction) { Button("Save") { saveRotation(day) } }
+                ToolbarItem(placement: .confirmationAction) { Button("Save cook") { saveRotation(day) } }
             }
         }
         .presentationDetents([.medium, .large])
@@ -1456,6 +1516,7 @@ private struct HouseholdHomeContent: View {
 /// shortcut is hidden until invite APNs is live: an "Already on Plated"
 /// row would promise a nudge the server cannot send.
 struct AddMemberSheet: View {
+    var onInvitationSent: (HouseholdInvitationReceipt) -> Void = { _ in }
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
 
@@ -1602,7 +1663,9 @@ struct AddMemberSheet: View {
                 .foregroundStyle(Color.inkSecondary)
                 .fixedSize(horizontal: false, vertical: true)
 
-            TextField("Their name", text: $name)
+            TextField("Their name", text: $name,
+                      prompt: Text("Their name").foregroundStyle(Color.inkSecondary))
+                .foregroundStyle(Color.ink)
                 .plType(.body)
                 .padding(14)
                 .overlay(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous).strokeBorder(Color.hairline))
@@ -1653,6 +1716,9 @@ struct AddMemberSheet: View {
                     email: nil, role: role, in: context
                 )
                 Persist.save(context, "seat invited")
+                if let receipt = HouseholdInvitationReceipt.fresh(result) {
+                    onInvitationSent(receipt)
+                }
                 dismiss()
             case .failed(let name, _, let prepared):
                 Seats.abandon(kind: .household, prepared: prepared)
@@ -1748,5 +1814,64 @@ struct AddMemberSheet: View {
         }
         .buttonStyle(.pressable)
         .accessibilityAddTraits(active ? .isSelected : [])
+    }
+}
+
+/// A receipt for an actual Messages result, not for preparing or opening an
+/// invitation. Seat identity keeps another person with the same name from
+/// incorrectly satisfying the waiting state.
+struct HouseholdInvitationReceipt: Identifiable, Equatable {
+    struct Membership {
+        let seat: String
+        let state: HouseholdMember.Seat
+    }
+    enum State: Equatable { case pending, joined, ended, unavailable }
+
+    let id: UUID
+    let seat: String
+    let name: String
+    let isResend: Bool
+
+    var displayName: String {
+        name.split(whereSeparator: { $0.isWhitespace }).first.map(String.init) ?? "them"
+    }
+
+    var subjectName: String {
+        name.split(whereSeparator: { $0.isWhitespace }).first.map(String.init) ?? "They"
+    }
+
+    var departureSubject: String {
+        name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "They are" : "\(subjectName) is"
+    }
+
+    private init(seat: String, name: String, isResend: Bool) {
+        self.id = UUID()
+        self.seat = seat
+        self.name = name
+        self.isResend = isResend
+    }
+
+    @MainActor
+    static func fresh(_ result: InviteFlow.Result) -> Self? {
+        guard case .sent(let name, _, let prepared) = result,
+              case .ready = prepared.outcome,
+              let seat = prepared.seat, !seat.isEmpty else { return nil }
+        return Self(seat: seat, name: name, isResend: false)
+    }
+
+    static func resent(wasSent: Bool, seat: String, name: String) -> Self? {
+        guard wasSent, !seat.isEmpty else { return nil }
+        return Self(seat: seat, name: name, isResend: true)
+    }
+
+    func state(in members: [Membership]) -> State {
+        let matching = members.filter { $0.seat == seat }
+        // A later departure wins while duplicate local records reconcile.
+        if matching.contains(where: { $0.state == .left }) { return .ended }
+        if matching.contains(where: { $0.state == .joined }) { return .joined }
+        if matching.contains(where: { $0.state == .invited }) { return .pending }
+        // Removal can delete the row instead of retaining a .left seat.
+        // Absence cannot prove either an outstanding invitation or removal.
+        return .unavailable
     }
 }

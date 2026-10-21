@@ -2,8 +2,8 @@
 
 Approved direction: Editorial, October 16, 2026. The default appearance is the deep green Editorial room (`#191C17`), with
 cream serif titles and sage supporting accents. Light is an optional setting,
-not the initial design presentation. Primary CTAs retain the original
-Plated orange at the user's request. This replaces the previous rounded,
+not the initial design presentation. Primary CTAs retain Plated orange, using the exact green/cream variants
+from the later approved October 18 review. This replaces the previous rounded,
 Gabarito/Jakarta, floating-tray system.
 
 ## The experience
@@ -24,6 +24,8 @@ full-screen session with explicit Minimize and a confirmed End action in session
 
 The current/proposed review in `docs/design-polish-review-2026-10-18` was approved
 in full. Its native implementation supersedes older masthead and social layouts.
+The approved renderer supplies exact semantic palette values, type, spacing and
+control geometry; do not label controllable differences “native adaptations.”
 Use one compact destination header. Table creation opens a post directly; Recipes
 creation opens recipe tools. The global Create menu has Post and Recipe choices,
 with polls inside posts. Post and comment reactions use hearts; persisted reaction

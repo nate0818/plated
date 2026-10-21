@@ -41,6 +41,11 @@ enum HouseholdEdits {
         /// needed it for the same problem, and this was the one place that
         /// could take a night's name without being able to give it a dish.
         var recipeOriginKey: String = ""
+        /// Explicit recipe presence avoids attaching a recipe merely because
+        /// its title matches a no-cooking choice. Nil preserves old saved
+        /// decisions whose payload predates this evidence.
+        var hasRecipe: Bool? = nil
+        var tagline: String? = nil
         var cooked: Bool? = nil
         var cookedAt: Date? = nil
         /// Who made it so, empty when the record names nobody. A screen
@@ -49,6 +54,15 @@ enum HouseholdEdits {
         var at: Date
         /// The person has seen it and decided, either way.
         var settled: Bool = false
+
+        func answers(_ entry: PlanLedger.Entry) -> Bool {
+            title == entry.title && cookID == entry.cookID
+                && servings == entry.servings && day == entry.day && slot == entry.slot
+                && recipeOriginKey == entry.recipeOriginKey
+                && (hasRecipe == nil || hasRecipe == entry.hasRecipe)
+                && (tagline == nil || tagline == entry.tagline)
+                && cooked == entry.cooked && cookedAt == entry.cookedAt
+        }
     }
 
     private static var url: URL? {
@@ -98,18 +112,15 @@ enum HouseholdEdits {
             // front of somebody who had already said Keep mine. Only a
             // household change to something DIFFERENT is a new question.
             let previous = book.first { $0.shoppingID == e.shoppingID }
-            let sameAnswer = previous.map {
-                $0.title == e.title && $0.cookID == e.cookID
-                    && $0.servings == e.servings && $0.day == e.day
-                    && $0.cooked == e.cooked && $0.cookedAt == e.cookedAt
-            } ?? false
+            let sameAnswer = previous?.answers(e) ?? false
             if sameAnswer, previous?.settled == true { continue }
             book.removeAll { $0.shoppingID == e.shoppingID }
             book.append(Change(
                 shoppingID: e.shoppingID, recordName: e.recordName,
                 title: e.title, cookID: e.cookID, cookName: e.cookName,
                 servings: e.servings, day: e.day, slot: e.slot,
-                recipeOriginKey: e.recipeOriginKey, cooked: e.cooked, cookedAt: e.cookedAt,
+                recipeOriginKey: e.recipeOriginKey, hasRecipe: e.hasRecipe, tagline: e.tagline,
+                cooked: e.cooked, cookedAt: e.cookedAt,
                 by: e.editorName ?? "", at: .now
             ))
         }
@@ -140,39 +151,74 @@ enum HouseholdEdits {
     ///
     /// The caller saves, so this can be called from inside a delivery
     /// without scheduling a publisher pass mid-flight.
+    enum AdoptionResult: Equatable {
+        case adopted
+        case unavailable(String)
+    }
+
     @discardableResult
     static func adopt(_ change: Change, in context: ModelContext) -> Bool {
-        let meals = (try? context.fetch(FetchDescriptor<PlannedMeal>())) ?? []
+        adoptResult(change, in: context) == .adopted
+    }
+
+    /// A caller must keep the change available and show the recovery message
+    /// when it cannot safely copy the household's explicit recipe intent.
+    static func adoptResult(_ change: Change, in context: ModelContext,
+                            settleOnSuccess: Bool = true) -> AdoptionResult {
+        guard let meals = try? context.fetch(FetchDescriptor<PlannedMeal>()) else {
+            return .unavailable("Your plan couldn’t be opened. Try again.")
+        }
         guard let meal = meals.first(where: { $0.shoppingID == change.shoppingID }) else {
             settle(change.shoppingID)
-            return false
+            return .unavailable("This night is no longer on your plan.")
         }
-        if !change.title.isEmpty, change.title != meal.title {
-            meal.customTitle = change.title
-            // The recipe goes with the name. Renaming a night to Ragu while
-            // a taco recipe stays attached leaves "Let's cook" opening the
-            // wrong dish and the wrong photograph under the new title: the
-            // same honesty rule `PhotoIntent` states for the picture, which
-            // this would have broken by the other door.
-            if let recipe = meal.recipe, recipe.title != change.title {
-                // Their dish if this phone has it, and nothing rather than
-                // the wrong one. Detaching alone left a named night with no
-                // recipe behind it even when the household's dish was
-                // sitting in this cookbook, so "Use their version" could
-                // take a dish away and never give one back: `addBack`
-                // already solved this with the same key.
-                let recipes = (try? context.fetch(FetchDescriptor<Recipe>())) ?? []
-                meal.recipe = recipes.first {
-                    !change.recipeOriginKey.isEmpty && $0.planningKey == change.recipeOriginKey
-                } ?? recipes.first { $0.title == change.title }
-                _ = recipe
+        let isLeftovers = change.hasRecipe == false
+            && PlanMealChoice.isLeftovers(title: change.title, hasRecipe: false)
+        // Resolve before changing the model. A failed local fetch is not
+        // evidence that the household's recipe is absent.
+        var adoptedRecipe = meal.recipe
+        if change.hasRecipe == false {
+            adoptedRecipe = nil
+        } else if change.hasRecipe == true || !change.recipeOriginKey.isEmpty {
+            guard let recipes = try? context.fetch(FetchDescriptor<Recipe>()) else {
+                return .unavailable("Your cookbook couldn’t be opened. Try again.")
+            }
+            if !change.recipeOriginKey.isEmpty {
+                // An explicit identity never falls back to a same-named,
+                // different recipe when that identity is not in this cookbook.
+                adoptedRecipe = recipes.first { $0.planningKey == change.recipeOriginKey }
+            } else {
+                let matches = recipes.filter { $0.title == change.title }
+                adoptedRecipe = matches.count == 1 ? matches.first : nil
             }
         }
+        if adoptedRecipe == nil, change.hasRecipe != false,
+           change.hasRecipe == true || !change.recipeOriginKey.isEmpty,
+           PlanMealChoice.isLeftovers(title: change.title, hasRecipe: false) {
+            // "Leftovers" is also a valid recipe title. Dropping that explicit
+            // recipe while copying its name would turn it into the no-cooking
+            // choice on this device and republish a different plan.
+            return .unavailable("The household’s recipe isn’t in your cookbook yet. Refresh the household, then try again.")
+        }
+        // With neither presence nor identity in an old saved change, keep
+        // the owner's recipe instead of guessing from a dinner's name.
+        meal.recipe = adoptedRecipe
+        if !change.title.isEmpty { meal.customTitle = change.title }
+        if let tagline = change.tagline { meal.tagline = tagline }
         if change.servings > 0 { meal.servings = change.servings }
         if let cooked = change.cooked {
             meal.cookedAt = cooked ? (change.cookedAt ?? meal.cookedAt ?? change.at) : nil
         }
-        if !change.cookID.isEmpty {
+        if isLeftovers {
+            meal.cook = nil
+            meal.cookedAt = nil
+            meal.cookReaction = 0
+            meal.actualMinutes = 0
+        } else if change.cookID.isEmpty {
+            // The delivered record carries a full cook field. Empty means
+            // explicitly unassigned, unlike an unresolved nonempty identity.
+            meal.cook = nil
+        } else {
             let members = (try? context.fetch(FetchDescriptor<HouseholdMember>())) ?? []
             // Only when somebody is actually found. Assigning the lookup
             // straight through wrote nil over a cook the person had chosen
@@ -192,8 +238,8 @@ enum HouseholdEdits {
                 meal.cook = cook
             }
         }
-        settle(change.shoppingID)
-        return true
+        if settleOnSuccess { settle(change.shoppingID) }
+        return .adopted
     }
 
     /// Answered, either way. Keeping the row after it is settled is what

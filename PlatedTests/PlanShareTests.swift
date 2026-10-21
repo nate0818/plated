@@ -26,6 +26,7 @@ final class PlanShareTests: XCTestCase {
     /// The phone's real answer, put back afterwards, so running these on a
     /// simulator does not leave it drawing nobody's week.
     private var savedHouseholdOwner: String?
+    private var conversionAssetURLs: [URL] = []
 
     override func setUp() async throws {
         container = try ModelContainer(
@@ -42,6 +43,8 @@ final class PlanShareTests: XCTestCase {
         PlanShare.forgetEdits()
         PlanLedger.shared.clear()
         PlanLedger.shared.householdOwner = savedHouseholdOwner
+        for url in conversionAssetURLs { try? FileManager.default.removeItem(at: url) }
+        conversionAssetURLs.removeAll()
         container = nil
     }
 
@@ -974,5 +977,421 @@ final class PlanShareTests: XCTestCase {
         // this: a row claiming a change is on its way with nothing to send it.
         PlanLedger.shared.clearPending(except: [])
         XCTAssertNil(PlanLedger.shared.entry(night.recordName)?.pendingSince)
+    }
+
+    // MARK: No-cooking choices preserve the night, not the old recipe
+
+    private func completedRecipeNight() -> PlanLedger.Entry {
+        var night = remoteNight()
+        night.hasRecipe = true
+        night.recipeMinutes = 35
+        night.recipeOriginKey = "recipe-tacos"
+        night.hasPhoto = true
+        night.lines = [.init(name: "Beef", normalizedName: "beef", unit: "oz",
+                             quantity: 16, aisle: "Meat & Seafood", isPantryStaple: false)]
+        night.cookID = "_sam"
+        night.cookName = "Sam Okafor"
+        night.cookColorHex = "3DA35D"
+        night.cookSeat = HouseholdMember.Seat.joined.rawValue
+        night.cooked = true
+        night.cookedAt = Date(timeIntervalSince1970: 1_800_000_000)
+        night.tagline = "Kids pick"
+        return night
+    }
+
+    private func recipeRecord(_ night: PlanLedger.Entry) throws -> CKRecord {
+        let zone = CKRecordZone.ID(zoneName: TableShare.householdZoneName, ownerName: night.zoneOwner)
+        let record = CKRecord(recordType: TableShare.planType,
+                              recordID: CKRecord.ID(recordName: night.recordName, zoneID: zone))
+        record["authorID"] = night.authorID as CKRecordValue
+        record["authorName"] = night.authorName as CKRecordValue
+        record["shoppingID"] = night.shoppingID as CKRecordValue
+        record["day"] = night.day as CKRecordValue
+        record["slot"] = night.slot as CKRecordValue
+        record["title"] = night.title as CKRecordValue
+        record["servings"] = night.servings as CKRecordValue
+        record["tagline"] = night.tagline as CKRecordValue
+        record["cookID"] = night.cookID as CKRecordValue
+        record["cookName"] = night.cookName as CKRecordValue
+        record["hasRecipe"] = (night.hasRecipe ? 1 : 0) as CKRecordValue
+        record["recipeMinutes"] = night.recipeMinutes as CKRecordValue
+        record["recipeOriginKey"] = night.recipeOriginKey as CKRecordValue
+        record["lines"] = (TableShare.encodeLines(night.lines ?? []) ?? "[]") as CKRecordValue
+        record["cooked"] = (night.cooked ? 1 : 0) as CKRecordValue
+        record["cookedAt"] = night.cookedAt as CKRecordValue?
+        record["createdAt"] = night.createdAt as CKRecordValue
+        // record(for:) only manipulates the asset reference; no upload or
+        // network access occurs in these tests.
+        let photoURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".jpg")
+        try Data([0xFF, 0xD8, 0xFF, 0xD9]).write(to: photoURL)
+        conversionAssetURLs.append(photoURL)
+        record["photo"] = CKAsset(fileURL: photoURL)
+        return record
+    }
+
+    func testNoCookingChoiceEditPreservesTheNightAndClearsCookAndRecipeIntent() {
+        let night = completedRecipeNight()
+        for choice in [PlanMealChoice.leftovers, .eatingOut] {
+            let edit = PlanShare.Edit(changing: night, mealChoice: choice)
+            XCTAssertEqual(edit.recordName, night.recordName)
+            XCTAssertEqual(edit.zoneOwner, night.zoneOwner)
+            XCTAssertEqual(edit.day, night.day)
+            XCTAssertEqual(edit.slot, night.slot)
+            XCTAssertEqual(edit.seenAt, night.changedAt)
+            XCTAssertEqual(edit.authorID, night.authorID)
+            XCTAssertNil(edit.servings, "Choosing leftovers does not change how many people are eating")
+            XCTAssertEqual(edit.title, choice.title)
+            XCTAssertEqual(edit.tagline, choice.tagline)
+            XCTAssertEqual(edit.cookID, "")
+            XCTAssertEqual(edit.cookName, "")
+            XCTAssertEqual(edit.cookColorHex, "")
+            XCTAssertEqual(edit.cookSeat, "")
+            XCTAssertEqual(edit.cooked, false)
+            XCTAssertNil(edit.cookedAt)
+            XCTAssertEqual(edit.hasRecipe, false)
+            XCTAssertEqual(edit.photo, .clear)
+        }
+    }
+
+    func testRemovingRecipeClearsOptimisticIngredientsArtworkAndMetadataWithoutTouchingOtherFields() {
+        let night = completedRecipeNight()
+        var edit = PlanShare.Edit(changing: night)
+        edit.hasRecipe = false
+        // Old queued recipe details may still be present; explicit removal wins.
+        edit.recipeMinutes = 99
+        edit.recipeOriginKey = "stale-recipe"
+        edit.photo = .send
+        edit.lines = night.lines
+        let actual = PlanLedger.edited(night, by: edit)
+        var expected = night
+        expected.hasRecipe = false
+        expected.lines = []
+        expected.recipeMinutes = 0
+        expected.recipeOriginKey = ""
+        expected.hasPhoto = false
+        XCTAssertEqual(actual, expected, "The removal must leave the author, cook, clock, date and completion alone unless explicitly changed")
+    }
+
+    func testRemovingRecipeClearsWireIngredientsArtworkAndMetadataButPreservesIdentity() throws {
+        let night = completedRecipeNight()
+        var edit = PlanShare.Edit(changing: night)
+        edit.hasRecipe = false
+        edit.recipeMinutes = 99
+        edit.recipeOriginKey = "stale-recipe"
+        edit.photo = .send
+        edit.lines = night.lines
+        let original = try recipeRecord(night)
+        let (record, temp) = PlanShare.record(for: edit, existing: original,
+                                             zone: original.recordID.zoneID, now: .now)
+        XCTAssertTrue(record === original)
+        XCTAssertNil(temp)
+        XCTAssertEqual(TableShare.int(record, "hasRecipe"), 0)
+        XCTAssertEqual(record["lines"] as? String, "[]")
+        XCTAssertEqual(TableShare.int(record, "recipeMinutes"), 0)
+        XCTAssertEqual(record["recipeOriginKey"] as? String, "")
+        XCTAssertNil(record["photo"])
+        XCTAssertEqual(record.recordID.recordName, night.recordName)
+        XCTAssertEqual(record["shoppingID"] as? String, night.shoppingID)
+        XCTAssertEqual(record["authorID"] as? String, night.authorID)
+        XCTAssertEqual(record["authorName"] as? String, night.authorName)
+        XCTAssertEqual(record["day"] as? String, night.day)
+        XCTAssertEqual(record["slot"] as? String, night.slot)
+        XCTAssertEqual(record["createdAt"] as? Date, night.createdAt)
+        XCTAssertEqual(record["title"] as? String, night.title)
+        XCTAssertEqual(TableShare.int(record, "servings"), night.servings)
+        XCTAssertEqual(record["cookID"] as? String, night.cookID)
+        XCTAssertEqual(record["tagline"] as? String, night.tagline)
+        XCTAssertEqual(TableShare.int(record, "cooked"), 1)
+        XCTAssertEqual(record["cookedAt"] as? Date, night.cookedAt)
+    }
+
+    func testExplicitNotCookedClearsTimestampInLedgerAndWireEvenWhenStaleTimestampTravelsWithIt() throws {
+        let night = completedRecipeNight()
+        var edit = PlanShare.Edit(changing: night)
+        edit.cooked = false
+        edit.cookedAt = night.cookedAt
+        let actual = PlanLedger.edited(night, by: edit)
+        var expected = night
+        expected.cooked = false
+        expected.cookedAt = nil
+        XCTAssertEqual(actual, expected)
+        let original = try recipeRecord(night)
+        let (record, _) = PlanShare.record(for: edit, existing: original,
+                                          zone: original.recordID.zoneID, now: .now)
+        XCTAssertEqual(TableShare.int(record, "cooked"), 0)
+        XCTAssertNil(record["cookedAt"])
+        XCTAssertEqual(TableShare.decodeLines(record["lines"] as? String), night.lines ?? [])
+        XCTAssertEqual(record["recipeOriginKey"] as? String, night.recipeOriginKey)
+        XCTAssertNotNil(record["photo"])
+    }
+
+    func testUnrelatedEditKeepsExistingRecipeAndCompletionInLedgerAndWire() throws {
+        let night = completedRecipeNight()
+        var edit = PlanShare.Edit(changing: night)
+        edit.tagline = "Together"
+        let actual = PlanLedger.edited(night, by: edit)
+        var expected = night
+        expected.tagline = "Together"
+        XCTAssertEqual(actual, expected)
+        let original = try recipeRecord(night)
+        let photo = original["photo"] as? CKAsset
+        let (record, _) = PlanShare.record(for: edit, existing: original,
+                                          zone: original.recordID.zoneID, now: .now)
+        XCTAssertEqual(record["tagline"] as? String, "Together")
+        XCTAssertEqual(TableShare.int(record, "cooked"), 1)
+        XCTAssertEqual(record["cookedAt"] as? Date, night.cookedAt)
+        XCTAssertEqual(TableShare.int(record, "hasRecipe"), 1)
+        XCTAssertEqual(TableShare.decodeLines(record["lines"] as? String), night.lines ?? [])
+        XCTAssertEqual(TableShare.int(record, "recipeMinutes"), night.recipeMinutes)
+        XCTAssertEqual(record["recipeOriginKey"] as? String, night.recipeOriginKey)
+        XCTAssertEqual((record["photo"] as? CKAsset)?.fileURL, photo?.fileURL)
+    }
+
+    func testExplicitRecipeAndCookedTrueKeepIngredientsAndAcceptNewCompletion() throws {
+        var night = completedRecipeNight()
+        night.cooked = false
+        night.cookedAt = nil
+        var edit = PlanShare.Edit(changing: night)
+        edit.hasRecipe = true
+        edit.recipeMinutes = 40
+        edit.recipeOriginKey = "new-origin"
+        edit.cooked = true
+        let completion = Date(timeIntervalSince1970: 1_900_000_000)
+        edit.cookedAt = completion
+        let actual = PlanLedger.edited(night, by: edit)
+        XCTAssertTrue(actual.hasRecipe)
+        XCTAssertEqual(actual.lines, night.lines)
+        XCTAssertTrue(actual.hasPhoto)
+        XCTAssertEqual(actual.recipeMinutes, 40)
+        XCTAssertEqual(actual.recipeOriginKey, "new-origin")
+        XCTAssertTrue(actual.cooked)
+        XCTAssertEqual(actual.cookedAt, completion)
+        let original = try recipeRecord(night)
+        let (record, _) = PlanShare.record(for: edit, existing: original,
+                                          zone: original.recordID.zoneID, now: .now)
+        XCTAssertEqual(TableShare.int(record, "cooked"), 1)
+        XCTAssertEqual(record["cookedAt"] as? Date, completion)
+        XCTAssertEqual(TableShare.int(record, "hasRecipe"), 1)
+        XCTAssertEqual(TableShare.int(record, "recipeMinutes"), 40)
+        XCTAssertEqual(record["recipeOriginKey"] as? String, "new-origin")
+        XCTAssertEqual(TableShare.decodeLines(record["lines"] as? String), night.lines ?? [])
+        XCTAssertNotNil(record["photo"])
+    }
+
+    func testLeftoversConversionSurvivesQueuedRecipeAndCompletionFoldsAndRelaunch() throws {
+        let night = completedRecipeNight()
+        var first = PlanShare.Edit(changing: night)
+        first.hasRecipe = true
+        first.recipeMinutes = 50
+        first.recipeOriginKey = "queued-old-recipe"
+        first.photo = .send
+        first.cooked = true
+        first.cookedAt = night.cookedAt
+        PlanShare.enqueue(first)
+        PlanShare.enqueue(PlanShare.Edit(changing: night, mealChoice: .leftovers))
+        var later = PlanShare.Edit(changing: night)
+        later.servings = 6
+        PlanShare.enqueue(later)
+        PlanShare.reloadEdits()
+        let edit = try XCTUnwrap(PlanShare.queuedEdits().first)
+        XCTAssertEqual(edit.title, PlanMealChoice.leftovers.title)
+        XCTAssertEqual(edit.hasRecipe, false)
+        XCTAssertEqual(edit.recipeMinutes, 0)
+        XCTAssertEqual(edit.recipeOriginKey, "")
+        XCTAssertEqual(edit.photo, .clear)
+        XCTAssertEqual(edit.cooked, false)
+        XCTAssertNil(edit.cookedAt)
+        XCTAssertEqual(edit.servings, 6)
+        XCTAssertEqual(edit.seenAt, night.changedAt)
+        let actual = PlanLedger.edited(night, by: edit)
+        XCTAssertEqual(actual.lines, [])
+        XCTAssertFalse(actual.hasPhoto)
+        XCTAssertFalse(actual.cooked)
+        XCTAssertNil(actual.cookedAt)
+        XCTAssertFalse(actual.hasCook)
+        let original = try recipeRecord(night)
+        let (record, _) = PlanShare.record(for: edit, existing: original,
+                                          zone: original.recordID.zoneID, now: .now)
+        XCTAssertEqual(record["lines"] as? String, "[]")
+        XCTAssertNil(record["cookedAt"])
+        XCTAssertNil(record["photo"])
+        XCTAssertEqual(TableShare.int(record, "servings"), 6)
+        XCTAssertEqual(record["cookID"] as? String, "")
+    }
+
+    func testLaterRecipeAndCompletionCanReplaceQueuedLeftovers() throws {
+        let night = completedRecipeNight()
+        PlanShare.enqueue(PlanShare.Edit(changing: night, mealChoice: .leftovers))
+        var later = PlanShare.Edit(changing: night)
+        later.title = "Fresh soup"
+        later.hasRecipe = true
+        later.recipeMinutes = 25
+        later.recipeOriginKey = "recipe-soup"
+        later.cooked = true
+        later.cookedAt = Date(timeIntervalSince1970: 1_900_000_000)
+        PlanShare.enqueue(later)
+        PlanShare.reloadEdits()
+        let edit = try XCTUnwrap(PlanShare.queuedEdits().first)
+        XCTAssertEqual(edit.hasRecipe, true)
+        XCTAssertEqual(edit.recipeMinutes, 25)
+        XCTAssertEqual(edit.recipeOriginKey, "recipe-soup")
+        XCTAssertEqual(edit.cooked, true)
+        XCTAssertEqual(edit.cookedAt, later.cookedAt)
+        XCTAssertEqual(edit.photo, .clear, "The old recipe's photo must not return")
+    }
+
+    func testStoredLeftoversCannotClaimCookingThroughStaleAssignment() {
+        var night = completedRecipeNight()
+        night.title = "Leftovers"
+        night.hasRecipe = false
+        night.cookID = TableIdentity.cached
+        XCTAssertTrue(night.isLeftovers)
+        XCTAssertFalse(night.hasCook)
+        XCTAssertFalse(PlanLedger.shared.isMine(cook: night))
+        XCTAssertNil(PlanLedger.shared.cookLine(for: night))
+        XCTAssertEqual(PlanLedger.shared.whoLine(for: night), "Riley planned this night")
+        night.hasRecipe = true
+        XCTAssertFalse(night.isLeftovers, "A recipe genuinely named Leftovers remains a recipe")
+        XCTAssertTrue(night.hasCook)
+    }
+
+    private func soupRecipe() -> Recipe {
+        let recipe = Recipe(title: "Soup")
+        recipe.servings = 4
+        let beans = Ingredient(name: "Beans", quantity: 16, unit: "oz", aisle: .pantry)
+        context.insert(recipe)
+        context.insert(beans)
+        beans.recipe = recipe
+        return recipe
+    }
+
+    func testSharedRecipeReplacementUsesSameScaledIngredientsAsLocalMeal() throws {
+        let recipe = soupRecipe()
+        let night = completedRecipeNight()
+        let leftovers = PlanLedger.edited(night, by: PlanShare.Edit(changing: night, mealChoice: .leftovers))
+        var edit = PlanShare.Edit(changing: leftovers)
+        edit.title = recipe.title
+        edit.hasRecipe = true
+        edit.servings = 6
+        edit.lines = PlanShare.groceryLines(recipe: recipe, servings: 6)
+        edit.recipeOriginKey = recipe.planningKey
+        let local = meal(title: recipe.title, recipe: recipe)
+        local.servings = 6
+        XCTAssertEqual(edit.lines, PlanShare.groceryLines(for: local))
+        XCTAssertEqual(edit.lines?.first?.quantity ?? 0, 24, accuracy: 0.0001)
+        let actual = PlanLedger.edited(leftovers, by: edit)
+        XCTAssertEqual(actual.lines, edit.lines)
+        XCTAssertEqual(actual.servings, 6)
+        XCTAssertTrue(actual.hasRecipe)
+        let original = try recipeRecord(leftovers)
+        let (record, _) = PlanShare.record(for: edit, existing: original,
+                                          zone: original.recordID.zoneID, now: .now)
+        XCTAssertEqual(TableShare.decodeLines(record["lines"] as? String), edit.lines)
+        XCTAssertEqual(TableShare.int(record, "servings"), 6)
+        XCTAssertEqual(record["shoppingID"] as? String, night.shoppingID)
+        XCTAssertEqual(record["authorID"] as? String, night.authorID)
+    }
+
+    func testQueuedReplacementThenServingChangeRescalesNewIngredientsExactlyOnce() throws {
+        let night = completedRecipeNight()
+        PlanShare.enqueue(PlanShare.Edit(changing: night, mealChoice: .leftovers))
+        var replacement = PlanShare.Edit(changing: night)
+        replacement.title = "Soup"
+        replacement.hasRecipe = true
+        replacement.servings = 6
+        replacement.lines = PlanShare.groceryLines(recipe: soupRecipe(), servings: 6)
+        PlanShare.enqueue(replacement)
+        var more = PlanShare.Edit(changing: night)
+        more.servings = 8
+        PlanShare.enqueue(more)
+        PlanShare.reloadEdits()
+        let edit = try XCTUnwrap(PlanShare.queuedEdits().first)
+        XCTAssertEqual(edit.servings, 8)
+        XCTAssertEqual(edit.lines?.first?.normalizedName, "beans")
+        XCTAssertEqual(edit.lines?.first?.quantity ?? 0, 32, accuracy: 0.0001)
+        XCTAssertEqual(PlanLedger.edited(night, by: edit).lines, edit.lines)
+        let original = try recipeRecord(night)
+        let (record, _) = PlanShare.record(for: edit, existing: original,
+                                          zone: original.recordID.zoneID, now: .now)
+        let wireLines = TableShare.decodeLines(record["lines"] as? String)
+        XCTAssertEqual(wireLines, edit.lines, "Already-scaled replacement ingredients must not be multiplied by the old record's serving ratio again")
+        XCTAssertEqual(wireLines.first?.quantity ?? 0, 32, accuracy: 0.0001)
+    }
+
+    func testServingOnlyChangeMatchesOptimisticAndWireIngredientQuantities() throws {
+        let night = completedRecipeNight()
+        var edit = PlanShare.Edit(changing: night)
+        edit.servings = 6
+        let actual = PlanLedger.edited(night, by: edit)
+        XCTAssertEqual(actual.lines?.first?.quantity ?? 0, 24, accuracy: 0.0001)
+        let original = try recipeRecord(night)
+        let (record, _) = PlanShare.record(for: edit, existing: original,
+                                          zone: original.recordID.zoneID, now: .now)
+        XCTAssertEqual(actual.lines, TableShare.decodeLines(record["lines"] as? String))
+    }
+
+    func testExplicitEmptyIngredientsClearWithoutPretendingTheRecipeWasRemoved() throws {
+        let night = completedRecipeNight()
+        var edit = PlanShare.Edit(changing: night)
+        edit.lines = []
+        let actual = PlanLedger.edited(night, by: edit)
+        XCTAssertTrue(actual.hasRecipe)
+        XCTAssertTrue(actual.hasPhoto)
+        XCTAssertEqual(actual.lines, [])
+        let original = try recipeRecord(night)
+        let (record, _) = PlanShare.record(for: edit, existing: original,
+                                          zone: original.recordID.zoneID, now: .now)
+        XCTAssertEqual(TableShare.int(record, "hasRecipe"), 1)
+        XCTAssertEqual(record["lines"] as? String, "[]")
+        XCTAssertNotNil(record["photo"])
+    }
+
+    func testLegacyQueuedEditWithoutIngredientsStillDecodesAndPreservesItsIntent() throws {
+        var edit = PlanShare.Edit(changing: completedRecipeNight())
+        edit.servings = 6
+        let data = try JSONEncoder().encode(edit)
+        var object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        object.removeValue(forKey: "lines")
+        let legacy = try JSONSerialization.data(withJSONObject: object)
+        let decoded = try JSONDecoder().decode(PlanShare.Edit.self, from: legacy)
+        XCTAssertNil(decoded.lines)
+        XCTAssertEqual(decoded.recordName, edit.recordName)
+        XCTAssertEqual(decoded.zoneOwner, edit.zoneOwner)
+        XCTAssertEqual(decoded.servings, 6)
+        XCTAssertEqual(decoded.seenAt, edit.seenAt)
+    }
+
+    func testLegacyLocalLeftoversCannotRepublishAStaleCookOrCompletion() {
+        let sam = member("Sam Okafor", seat: .joined, participant: "_sam")
+        let leftovers = meal(title: "Leftovers", cook: sam)
+        leftovers.cookedAt = Date(timeIntervalSince1970: 1_800_000_000)
+        let plan = PlanShare.plan(for: leftovers, me: "_me")
+        XCTAssertEqual(plan.title, "Leftovers")
+        XCTAssertEqual(plan.recordName, "plan-" + (leftovers.shoppingID ?? ""))
+        XCTAssertEqual(plan.cookID, "")
+        XCTAssertEqual(plan.cookName, "")
+        XCTAssertEqual(plan.cookSeat, "")
+        XCTAssertEqual(plan.cookColorHex, "")
+        XCTAssertFalse(plan.cooked)
+        XCTAssertNil(plan.cookedAt)
+        XCTAssertFalse(plan.hasRecipe)
+        XCTAssertTrue(plan.lines.isEmpty)
+        XCTAssertNil(plan.photoData)
+        XCTAssertNotNil(leftovers.cookedAt, "Publication normalizes its payload without silently editing a private model")
+        XCTAssertNotNil(leftovers.cook)
+    }
+
+    func testRealRecipeNamedLeftoversKeepsItsCookAndCompletionWhenPublished() {
+        let recipe = Recipe(title: "Leftovers")
+        context.insert(recipe)
+        let sam = member("Sam Okafor", seat: .joined, participant: "_sam")
+        let dinner = meal(title: "", recipe: recipe, cook: sam)
+        dinner.cookedAt = Date(timeIntervalSince1970: 1_800_000_000)
+        let plan = PlanShare.plan(for: dinner, me: "_me")
+        XCTAssertEqual(plan.title, "Leftovers")
+        XCTAssertTrue(plan.hasRecipe)
+        XCTAssertEqual(plan.cookID, "_sam")
+        XCTAssertTrue(plan.cooked)
+        XCTAssertEqual(plan.cookedAt, dinner.cookedAt)
     }
 }

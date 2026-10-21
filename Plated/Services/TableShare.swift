@@ -153,20 +153,197 @@ enum TableShare {
         return destinations[0].ownerID
     }
 
-    private static var destinationCacheKey: String {
-        "plated.table.destinations.\(TableIdentity.cached)"
+    /// All publishing callers share the same observable attempt ledger,
+    /// including composer, background backlog, retries, edits and cooking.
+    @MainActor
+    static func publish(_ post: TablePost, hostName: String) async -> String? {
+        // All callers share this boundary, including edit and Plan question
+        // flows that may be opened from the isolated design-review fixture.
+        // Return before identity lookup, ID mutation, or publication attempts.
+        guard !PlatedApp.usesPreviewContainer, post.modelContext != nil,
+              !post.isDeleted, !Task.isCancelled else { return nil }
+        if post.shareRecordName.isEmpty {
+            post.shareRecordName = "post-\(UUID().uuidString)"
+        }
+        let account = TableIdentity.cached
+        let ledger = TablePostPublication.shared
+        let attempt = ledger.begin(TablePostPublication.Key(
+            account: account, owner: post.shareZoneOwner,
+            recordName: post.shareRecordName, isPublished: post.isPublished
+        ))
+        var result: String?
+        defer { ledger.finish(attempt, succeeded: result != nil) }
+        result = await publishRecord(post, hostName: hostName, account: account, attempt: attempt)
+        return result
     }
 
-    private static var cachedDestinations: [Destination] {
-        guard let data = UserDefaults.standard.data(forKey: destinationCacheKey),
+    /// The caller captures the actor before creating its Task (or retains
+    /// the durable outbox actor). Looking up "me" only after that Task starts
+    /// would let a switched account inherit the old person's send/delete.
+    @MainActor
+    static func pushNote(
+        _ comment: TableComment, post: String, zoneOwner: String, expectedAccount: String
+    ) async -> Bool {
+        guard !PlatedApp.usesPreviewContainer else { return false }
+        return await pushNote(comment, post: post, zoneOwner: zoneOwner,
+                              expectedAccount: expectedAccount, transport: .live)
+    }
+
+    /// Each attempt gets its own transport/database slot. The injected form
+    /// exercises switches at every suspension without an Apple account, while
+    /// production still uses the same preflight and acknowledgement path.
+    struct NoteTransport {
+        var isPreview: @MainActor () -> Bool
+        var currentAccount: @MainActor () -> String
+        var localIdentity: @MainActor (ModelContext, String) -> (ids: [String], names: [String])
+        var accountAvailable: @MainActor () async -> Bool
+        var verifiedAccount: @MainActor () async -> String?
+        var resolveZone: @MainActor (String) async -> CKRecordZone.ID?
+        var fetch: @MainActor (CKRecord.ID) async throws -> CKRecord
+        var save: @MainActor (CKRecord) async throws -> CKRecord
+        var confirmed: @MainActor (CKRecord) -> Void
+
+        @MainActor
+        static var live: Self {
+            var database: CKDatabase?
+            return Self(
+                isPreview: { PlatedApp.usesPreviewContainer },
+                currentAccount: { TableIdentity.cached },
+                localIdentity: { context, account in
+                    let me = Seats.all(in: context).me
+                    return ([account, me?.participantID, me?.userRecordName].compactMap { $0 },
+                            [me?.name, UserDefaults.standard.string(forKey: "userFirstName")].compactMap { $0 })
+                },
+                accountAvailable: { await TableSync.accountAvailable() },
+                verifiedAccount: {
+                    // Availability and a cached ID do not prove which Apple
+                    // account is currently backing the CloudKit database.
+                    try? await CKContainer.default().userRecordID().recordName
+                },
+                resolveZone: { owner in
+                    #if PLATED_CLOUDKIT
+                    guard let resolved = await zone(ownedBy: owner) else { return nil }
+                    database = resolved.0
+                    return resolved.1
+                    #else
+                    return nil
+                    #endif
+                },
+                fetch: { id in
+                    guard let database else { throw CKError(.notAuthenticated) }
+                    return try await database.record(for: id)
+                },
+                save: { record in
+                    guard let database else { throw CKError(.notAuthenticated) }
+                    return try await database.save(record)
+                },
+                confirmed: { SocialPush.confirmed($0) }
+            )
+        }
+    }
+
+    @MainActor
+    static func pushNote(
+        _ comment: TableComment, post: String, zoneOwner: String,
+        expectedAccount: String, transport: NoteTransport
+    ) async -> Bool {
+        guard !transport.isPreview(), !Task.isCancelled,
+              !expectedAccount.isEmpty, !expectedAccount.hasPrefix("local-"),
+              transport.currentAccount() == expectedAccount,
+              !post.isEmpty, !comment.shareRecordName.isEmpty,
+              !comment.isDeleted, let context = comment.modelContext,
+              let parent = comment.post, !parent.isDeleted else { return false }
+        let name = comment.shareRecordName
+        // Empty means the actor's legacy own zone, never the account that
+        // happens to be current after a network suspension.
+        let owner = zoneOwner.isEmpty ? expectedAccount : zoneOwner
+        let identity = transport.localIdentity(context, expectedAccount)
+        func isCurrentAndAuthorized() -> Bool {
+            guard !Task.isCancelled, !transport.isPreview(),
+                  transport.currentAccount() == expectedAccount,
+                  !comment.isDeleted, !parent.isDeleted,
+                  comment.modelContext === context, parent.modelContext === context, comment.post === parent,
+                  comment.shareRecordName == name, parent.shareRecordName == post,
+                  (parent.shareZoneOwner.isEmpty ? expectedAccount : parent.shareZoneOwner) == owner
+            else { return false }
+            if comment.deletedAt != nil {
+                // A post author can moderate another person's comment. Keep
+                // that person's author ID; only the captured actor may delete.
+                return TableMutationAuthorization.canDelete(comment: comment, on: parent,
+                    identityIDs: identity.ids, displayNames: identity.names)
+            }
+            return !comment.authorID.isEmpty && !comment.authorID.hasPrefix("local-")
+                && identity.ids.contains(comment.authorID)
+        }
+        guard isCurrentAndAuthorized(), await transport.accountAvailable(),
+              isCurrentAndAuthorized(), await transport.verifiedAccount() == expectedAccount,
+              isCurrentAndAuthorized(), let zoneID = await transport.resolveZone(owner),
+              isCurrentAndAuthorized(), zoneID.zoneName == zoneName,
+              zoneID.ownerName == owner || (owner == expectedAccount && zoneID.ownerName == CKCurrentUserDefaultName)
+        else { return false }
+        let recordID = CKRecord.ID(recordName: name, zoneID: zoneID)
+        let record: CKRecord
+        do { record = try await transport.fetch(recordID) }
+        catch let error as CKError where error.code == .unknownItem {
+            record = CKRecord(recordType: noteType, recordID: recordID)
+        } catch { return false }
+        guard isCurrentAndAuthorized(), await transport.verifiedAccount() == expectedAccount,
+              isCurrentAndAuthorized(),
+              (record["postRecordName"] as? String).map({ $0.isEmpty || $0 == post }) ?? true,
+              (record["authorID"] as? String).map({ $0.isEmpty || $0 == comment.authorID }) ?? true
+        else { return false }
+        // A delayed retry cannot restore a deleted comment, or apply a
+        // server tombstone to a model after this account has changed.
+        if let deleted = record["deletedAt"] as? Date, comment.deletedAt == nil {
+            comment.deletedAt = deleted
+            comment.text = ""
+            comment.linkURL = ""
+            comment.photoData = nil
+            comment.mentions = []
+            return true
+        }
+        record["postRecordName"] = post as CKRecordValue
+        record["authorID"] = comment.authorID as CKRecordValue
+        record["authorName"] = comment.authorName as CKRecordValue
+        record["text"] = comment.text as CKRecordValue
+        record["linkURL"] = comment.linkURL as CKRecordValue
+        record["replyToName"] = comment.replyToName as CKRecordValue
+        record["parentCommentID"] = comment.parentCommentID as CKRecordValue?
+        record["deletedAt"] = comment.deletedAt as CKRecordValue?
+        record["createdAt"] = comment.createdAt as CKRecordValue
+        record["mentions"] = comment.mentions.isEmpty ? nil : comment.mentions as CKRecordValue
+        record["postRef"] = CKRecord.Reference(
+            recordID: CKRecord.ID(recordName: post, zoneID: zoneID), action: .deleteSelf)
+        record.setParent(CKRecord.ID(recordName: "table-root", zoneID: zoneID))
+        record["photo"] = nil
+        var temp: URL?
+        if let data = comment.photoData, let asset = asset(from: data) {
+            record["photo"] = asset
+            temp = asset.fileURL
+        }
+        defer { if let temp { try? FileManager.default.removeItem(at: temp) } }
+        guard isCurrentAndAuthorized() else { return false }
+        do {
+            let saved = try await transport.save(record)
+            guard isCurrentAndAuthorized(), await transport.verifiedAccount() == expectedAccount,
+                  isCurrentAndAuthorized() else { return false }
+            transport.confirmed(saved)
+            return isCurrentAndAuthorized()
+        } catch { return false }
+    }
+
+    private static func cachedDestinations(for account: String) -> [Destination] {
+        guard let data = UserDefaults.standard.data(forKey: "plated.table.destinations.\(account)"),
               let choices = try? JSONDecoder().decode([Destination].self, from: data)
         else { return [] }
         return choices
     }
 
-    private static func rememberDestinations(_ choices: [Destination]) {
-        guard let data = try? JSONEncoder().encode(choices) else { return }
-        UserDefaults.standard.set(data, forKey: destinationCacheKey)
+    @MainActor
+    private static func rememberDestinations(_ choices: [Destination], for account: String) {
+        guard TableIdentity.cached == account,
+              let data = try? JSONEncoder().encode(choices) else { return }
+        UserDefaults.standard.set(data, forKey: "plated.table.destinations.\(account)")
     }
 
     #if DEBUG
@@ -675,17 +852,30 @@ enum TableShare {
     /// private one — same zone, different database handle, which is the
     /// single thing that most often goes wrong in a CKShare implementation.
     @MainActor
-    static func publish(_ post: TablePost, hostName: String) async -> String? {
-        guard await TableSync.accountAvailable() else { return nil }
+    private static func publishRecord(
+        _ post: TablePost, hostName: String, account initialAccount: String,
+        attempt: TablePostPublication.Attempt
+    ) async -> String? {
+        guard let context = post.modelContext, !post.isDeleted, !Task.isCancelled,
+              await TableSync.accountAvailable(), !Task.isCancelled,
+              let account = await TableIdentity.confirmAndReattribute(in: context),
+              !Task.isCancelled, TableIdentity.cached == account,
+              TablePostPublication.mayPublish(authorID: post.authorID,
+                  initialAccount: initialAccount, confirmedAccount: account)
+        else { return nil }
+        TablePostPublication.shared.move(attempt, to: TablePostPublication.Key(
+            account: account, owner: post.shareZoneOwner,
+            recordName: post.shareRecordName, isPublished: post.isPublished
+        ))
         // A locally minted record name says who the post is, not whether it
         // has ever left the phone. Published posts and failed first attempts
         // already name their exact Table. A wholly unassigned first attempt
         // may infer its audience only when there is exactly one choice.
         let choices = !post.isPublished && post.shareZoneOwner.isEmpty
-            ? await writableDestinations()
+            ? await writableDestinations(in: context)
             : []
-        guard let owner = publicationOwner(for: post, destinations: choices),
-              let (db, zoneID) = await zone(ownedBy: owner)
+        guard !Task.isCancelled, !post.isDeleted, TableIdentity.cached == account,
+              let owner = publicationOwner(for: post, destinations: choices)
         else {
             if !post.isPublished && post.shareZoneOwner.isEmpty && choices.count > 1 {
                 print("PLATED SHARE: post needs an explicit Table destination")
@@ -693,11 +883,15 @@ enum TableShare {
             return nil
         }
         post.shareZoneOwner = owner
-        // Old rows can still have no name; pin one before the network call so
-        // an ambiguous CloudKit response retries the same record, not a copy.
-        if post.shareRecordName.isEmpty {
-            post.shareRecordName = "post-\(UUID().uuidString)"
-        }
+        TablePostPublication.shared.move(attempt, to: TablePostPublication.Key(
+            account: account, owner: owner.isEmpty ? account : owner,
+            recordName: post.shareRecordName
+        ))
+        guard let (db, zoneID) = await zone(ownedBy: owner),
+              !Task.isCancelled, !post.isDeleted, TableIdentity.cached == account,
+              TablePostPublication.mayPublish(authorID: post.authorID,
+                  initialAccount: initialAccount, confirmedAccount: account)
+        else { return nil }
         do {
             let name = post.shareRecordName
             let record = CKRecord(
@@ -705,7 +899,7 @@ enum TableShare {
                 recordID: CKRecord.ID(recordName: name, zoneID: zoneID)
             )
             record["authorName"] = post.authorName as CKRecordValue
-            record["authorID"] = TableIdentity.cached as CKRecordValue
+            record["authorID"] = account as CKRecordValue
             // An ask's poll never crossed the wire at all, so a guest saw
             // the question with no answers under it and no way to vote —
             // "Ask the Table" reaching everybody except the table.
@@ -738,10 +932,12 @@ enum TableShare {
                 record["photo"] = asset
                 defer { try? FileManager.default.removeItem(at: asset.fileURL!) }
                 _ = try await db.save(record)
+                guard TableIdentity.cached == account else { return nil }
                 post.isPublished = true
                 return name
             }
             _ = try await db.save(record)
+            guard TableIdentity.cached == account else { return nil }
             post.isPublished = true
             return name
         } catch {
@@ -1028,68 +1224,6 @@ enum TableShare {
             inviteID: record["inviteID"] as? String ?? "",
             userRecordName: record["userRecordName"] as? String ?? ""
         )
-    }
-
-    /// One comment on the table.
-    ///
-    /// Named `note-<UUID>`, minted when the comment is composed and reused
-    /// across every retry and every drain. Globally unique by construction,
-    /// so two people commenting in the same instant never contend, and a
-    /// save whose response was lost replays as a no-op instead of a
-    /// duplicate — which is the whole reason not to mint it at send time.
-    static func pushNote(_ comment: TableComment, post: String, zoneOwner: String) async -> Bool {
-        guard await TableSync.accountAvailable() else { return false }
-        guard let (db, zoneID) = await zone(ownedBy: zoneOwner) else { return false }
-        let recordID = CKRecord.ID(recordName: comment.shareRecordName, zoneID: zoneID)
-        let record: CKRecord
-        do { record = try await db.record(for: recordID) }
-        catch let error as CKError where error.code == .unknownItem {
-            record = CKRecord(recordType: noteType, recordID: recordID)
-        } catch { return false }
-        // A delayed retry from another device cannot restore a deleted
-        // comment. Deletion is permanent; its replies remain in place.
-        if let deleted = record["deletedAt"] as? Date, comment.deletedAt == nil {
-            comment.deletedAt = deleted
-            comment.text = ""
-            comment.linkURL = ""
-            comment.photoData = nil
-            comment.mentions = []
-            return true
-        }
-        record["postRecordName"] = post as CKRecordValue
-        record["authorID"] = comment.authorID as CKRecordValue
-        record["authorName"] = comment.authorName as CKRecordValue
-        record["text"] = comment.text as CKRecordValue
-        record["linkURL"] = comment.linkURL as CKRecordValue
-        record["replyToName"] = comment.replyToName as CKRecordValue
-        record["parentCommentID"] = comment.parentCommentID as CKRecordValue?
-        record["deletedAt"] = comment.deletedAt as CKRecordValue?
-        record["createdAt"] = comment.createdAt as CKRecordValue
-        // A list field minted empty is minted as the wrong type and stays
-        // that way, so the key is omitted rather than written empty.
-        if !comment.mentions.isEmpty {
-            record["mentions"] = comment.mentions as CKRecordValue
-        }
-        record["postRef"] = CKRecord.Reference(
-            recordID: CKRecord.ID(recordName: post, zoneID: zoneID),
-            action: .deleteSelf
-        )
-        record.setParent(CKRecord.ID(recordName: "table-root", zoneID: zoneID))
-
-        if comment.mentions.isEmpty { record["mentions"] = nil }
-        record["photo"] = nil
-        var temp: URL?
-        if let data = comment.photoData, let asset = asset(from: data) {
-            record["photo"] = asset
-            temp = asset.fileURL
-        }
-        defer { if let temp { try? FileManager.default.removeItem(at: temp) } }
-
-        do {
-            let saved = try await db.save(record)
-            await SocialPush.confirmed(saved)
-            return true
-        } catch { return false }
     }
 
     /// A comment as it exists on the wire.
@@ -1538,9 +1672,13 @@ enum TableShare {
     /// Same reasoning as SchemaPrimer, which primes the SwiftData mirror's
     /// types — these are different types on a different path, and that
     /// primer does not cover them.
-    static func primeSchema() async -> String {
+    @MainActor
+    static func primeSchema(context: ModelContext) async -> String {
         guard await TableSync.accountAvailable() else {
             return "PRIME SHARE: no iCloud account, nothing primed."
+        }
+        guard let probeAccount = await TableIdentity.confirmAndReattribute(in: context) else {
+            return "PRIME SHARE FAILED: could not confirm the probe account."
         }
         // `invitationURL` names the table after whoever is inviting, and
         // this probe has no business renaming a table a person actually
@@ -1579,13 +1717,29 @@ enum TableShare {
         // seat, looks exactly like "my comment just didn't appear". Lists
         // must be NON-EMPTY here or the field is minted as the wrong type,
         // permanently.
+        let probeContainer: ModelContainer
+        do {
+            probeContainer = try ModelContainer(for: PlatedStore.schema,
+                configurations: [ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)])
+        } catch {
+            await restoreTitle()
+            return "PRIME SHARE FAILED: could not create isolated probe store."
+        }
+        let probeContext = probeContainer.mainContext
         let probe = TablePost(
             authorName: "Prime", authorColorHex: "FF5A3C",
             dishTitle: "Schema probe", caption: "Written to teach CloudKit the type.",
             kind: "ask", createdAt: .now
         )
+        probe.authorID = probeAccount
         probe.pollOptions = ["a", "b"]
         probe.taggedNames = ["Prime"]
+        probeContext.insert(probe)
+        do { try probeContext.save() }
+        catch {
+            await restoreTitle()
+            return "PRIME SHARE FAILED: could not save isolated probe."
+        }
         guard let name = await publish(probe, hostName: "Prime") else {
             await restoreTitle()
             return "PRIME SHARE FAILED: zone exists, but the post would not save.\nShare URL: \(url)"
@@ -1594,9 +1748,12 @@ enum TableShare {
         let owner = probe.shareZoneOwner
         let note = TableComment(
             authorName: "Prime", text: "Schema probe.", linkURL: "https://plated.food",
-            replyToName: "Prime", mentions: ["Prime"], authorID: "prime"
+            replyToName: "Prime", mentions: ["Prime"], authorID: probeAccount
         )
-        let noteOK = await pushNote(note, post: name, zoneOwner: owner)
+        note.post = probe
+        probeContext.insert(note)
+        try? probeContext.save()
+        let noteOK = await pushNote(note, post: name, zoneOwner: owner, expectedAccount: probeAccount)
         let plateOK = await pushPlate(
             post: name, zoneOwner: owner, author: "prime",
             authorName: "Prime", active: true, at: .now
@@ -2420,12 +2577,31 @@ enum TableShare {
     /// current participant is checked as well so a downgraded share is never
     /// presented as an audience.
     @MainActor
-    static func writableDestinations() async -> [Destination] {
-        let cached = cachedDestinations
-        guard await TableSync.accountAvailable(),
-              let myOwnerID = await TableIdentity.confirm(), !myOwnerID.isEmpty
-        else { return cached }
-
+    static func writableDestinations(in context: ModelContext) async -> [Destination] {
+        // Plan questions and the main composer share the same preview boundary.
+        // Never confirm identity or consult a real account's cache for fixtures.
+        if PlatedApp.usesPreviewContainer {
+            return [Destination(ownerID: "review-table", title: "Your Table", isOwn: true)]
+        }
+        let initialAccount = TableIdentity.cached
+        let initialCached = cachedDestinations(for: initialAccount)
+        guard !Task.isCancelled, await TableSync.accountAvailable() else {
+            return !Task.isCancelled && TableIdentity.cached == initialAccount ? initialCached : []
+        }
+        guard !Task.isCancelled,
+              let myOwnerID = await TableIdentity.confirmAndReattribute(in: context) else {
+            return !Task.isCancelled && TableIdentity.cached == initialAccount ? initialCached : []
+        }
+        guard TablePostPublication.mayContinue(from: initialAccount, as: myOwnerID),
+              TableIdentity.cached == myOwnerID, !Task.isCancelled else { return [] }
+        // The resolved account owns this lookup and its cache for its entire
+        // lifetime. A suspended fetch must not adopt another account's results.
+        let cached = cachedDestinations(for: myOwnerID)
+        let initialHouseholdOwner = householdOwner
+        func isCurrent() -> Bool {
+            !Task.isCancelled && TableIdentity.cached == myOwnerID
+                && householdOwner == initialHouseholdOwner
+        }
         let sharedDB = container.sharedCloudDatabase
         let sharedZones: [CKRecordZone]
         do {
@@ -2433,8 +2609,9 @@ enum TableShare {
                 $0.zoneID.zoneName == zoneName && !$0.zoneID.ownerName.isEmpty
             }
         } catch {
-            return cached
+            return isCurrent() ? cached : []
         }
+        guard isCurrent() else { return [] }
 
         let cachedByOwner = Dictionary(
             cached.map { ($0.ownerID, $0) },
@@ -2443,20 +2620,23 @@ enum TableShare {
         var shared: [Destination] = []
         for zone in sharedZones {
             let rootID = CKRecord.ID(recordName: "table-root", zoneID: zone.zoneID)
-            guard let root = try? await sharedDB.record(for: rootID) else {
+            let root = try? await sharedDB.record(for: rootID)
+            guard isCurrent() else { return [] }
+            guard let root else {
                 if let old = cachedByOwner[zone.zoneID.ownerName] { shared.append(old) }
                 continue
             }
-            if let reference = root.share,
-               let share = try? await sharedDB.record(for: reference.recordID) as? CKShare {
-                let canWrite = share.currentUserParticipant.map { $0.permission == .readWrite }
-                    ?? (share.publicPermission == .readWrite)
-                guard canWrite else { continue }
-            } else {
+            guard let reference = root.share else { continue }
+            let share = try? await sharedDB.record(for: reference.recordID) as? CKShare
+            guard isCurrent() else { return [] }
+            guard let share else {
                 // A shared zone without its share record cannot establish that
                 // this participant may write. Do not guess from list order.
                 continue
             }
+            let canWrite = share.currentUserParticipant.map { $0.permission == .readWrite }
+                ?? (share.publicPermission == .readWrite)
+            guard canWrite else { continue }
             shared.append(Destination(
                 ownerID: zone.zoneID.ownerName,
                 title: root["title"] as? String ?? "",
@@ -2465,13 +2645,15 @@ enum TableShare {
         }
 
         var own: Destination?
-        if householdOwner == nil {
+        if initialHouseholdOwner == nil {
             let ownZoneID = CKRecordZone.ID(zoneName: zoneName, ownerName: CKCurrentUserDefaultName)
             do {
                 _ = try await container.privateCloudDatabase.recordZone(for: ownZoneID)
+                guard isCurrent() else { return [] }
                 let root = try? await container.privateCloudDatabase.record(
                     for: CKRecord.ID(recordName: "table-root", zoneID: ownZoneID)
                 )
+                guard isCurrent() else { return [] }
                 if root != nil {
                     own = Destination(
                         ownerID: myOwnerID,
@@ -2480,16 +2662,19 @@ enum TableShare {
                     )
                 }
             } catch let error as CKError where error.code == .zoneNotFound {
+                guard isCurrent() else { return [] }
                 own = nil
             } catch {
+                guard isCurrent() else { return [] }
                 own = cached.first(where: \.isOwn)
             }
         }
 
+        guard isCurrent() else { return [] }
         let choices = orderedDestinations(
-            own: own, householdOwnerID: householdOwner, shared: shared
+            own: own, householdOwnerID: initialHouseholdOwner, shared: shared
         )
-        rememberDestinations(choices)
+        rememberDestinations(choices, for: myOwnerID)
         return choices
     }
 
@@ -2497,9 +2682,12 @@ enum TableShare {
     static func invitationURL(hostName: String) async -> URL? { nil }
     static func accept(_ metadata: CKShare.Metadata) async -> Accepted { .unreachable }
     @MainActor
-    static func writableDestinations() async -> [Destination] { [] }
+    static func writableDestinations(in context: ModelContext) async -> [Destination] { [] }
     @MainActor
-    static func publish(_ post: TablePost, hostName: String) async -> String? { nil }
+    private static func publishRecord(
+        _ post: TablePost, hostName: String, account: String,
+        attempt: TablePostPublication.Attempt
+    ) async -> String? { nil }
     static func retract(recordName: String, zoneOwner: String) async -> Bool { true }
     struct RemotePost { var recordName = ""; var zoneOwner = ""; var authorID = ""
                         var pollOptions: [String] = []; var taggedNames: [String] = []
@@ -2536,7 +2724,6 @@ enum TableShare {
                      var hasEvents: Bool { !posts.isEmpty || !reactions.isEmpty || !notes.isEmpty
                          || !plans.isEmpty || !claims.isEmpty || !deleted.isEmpty || sharesChanged
                          || householdShareChanged || replayed || !replayedOwners.isEmpty } }
-    static func pushNote(_ comment: TableComment, post: String, zoneOwner: String) async -> Bool { false }
     static func subscribe(force: Bool = false) async {}
     static func pushPlate(post: String, zoneOwner: String, author: String,
                           authorName: String, active: Bool, at: Date) async -> Bool { false }

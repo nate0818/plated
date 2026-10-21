@@ -46,7 +46,7 @@ extension Font {
 }
 
 enum TypeScale {
-    case micro, caption, footnote, body, callout, tileTitle, heading, cardTitle, title, pageTitle, featureTitle, display, hero
+    case micro, detail, caption, footnote, reading, body, callout, tileTitle, heading, cardTitle, title, pageTitle, featureTitle, display, hero
     var isDisplay: Bool {
         switch self {
         case .tileTitle, .heading, .cardTitle, .title, .pageTitle, .featureTitle, .display, .hero: true
@@ -55,9 +55,10 @@ enum TypeScale {
     }
     var size: CGFloat {
         switch self {
-        case .micro: 11
+        case .micro, .detail: 11
         case .caption: 12
         case .footnote: 13
+        case .reading: 14
         case .body: 15
         case .callout: 16
         case .tileTitle: 20
@@ -74,31 +75,39 @@ enum TypeScale {
     var trackingEm: CGFloat {
         switch self {
         case .micro: 0.08
-        case .caption, .footnote, .body: 0
+        case .detail, .caption, .footnote, .reading, .body: 0
         case .callout: -0.005
         case .tileTitle, .heading: -0.012
-        case .cardTitle, .title, .pageTitle, .featureTitle, .display: -0.018
+        case .cardTitle, .title, .display: -0.018
+        case .pageTitle: -0.01875
+        case .featureTitle: -0.4 / 33
         case .hero: -0.025
         }
     }
     var lineSpacing: CGFloat { isDisplay ? 0 : 3 }
-    // A shared scaling curve preserves ordering at every content-size category.
-    var relativeTo: Font.TextStyle { .body }
+    // Display text follows the native large-title curve. Body scaling made
+    // a 33pt headline exceed 100pt at AX5, pushing a single question across
+    // five lines. Controls/prose retain the full body curve.
+    var relativeTo: Font.TextStyle { isDisplay ? .largeTitle : .body }
 }
 
 #if DEBUG
 extension TypeScale {
     static func assertMonotone() {
-        let ordered: [TypeScale] = [.micro, .caption, .footnote, .body, .callout, .tileTitle, .heading, .cardTitle, .title, .pageTitle, .featureTitle, .display, .hero]
+        let ordered: [TypeScale] = [.micro, .detail, .caption, .footnote, .reading, .body, .callout, .tileTitle, .heading, .cardTitle, .title, .pageTitle, .featureTitle, .display, .hero]
         let categories: [UIContentSizeCategory] = [.extraSmall, .small, .medium, .large, .extraLarge, .extraExtraLarge, .extraExtraExtraLarge, .accessibilityMedium, .accessibilityLarge, .accessibilityExtraLarge, .accessibilityExtraExtraLarge, .accessibilityExtraExtraExtraLarge]
         for category in categories {
             let traits = UITraitCollection(preferredContentSizeCategory: category)
-            let metrics = UIFontMetrics(forTextStyle: .body)
-            var previous: CGFloat = 0
-            for step in ordered {
-                let resolved = metrics.scaledValue(for: step.size, compatibleWith: traits)
-                assert(resolved > previous, "TypeScale must remain ordered at \(category.rawValue)")
-                previous = resolved
+            // Compare ordering within each scaling family. At accessibility
+            // sizes prose may intentionally grow beyond a small display label.
+            for family in [false, true] {
+                let metrics = UIFontMetrics(forTextStyle: family ? .largeTitle : .body)
+                var previous: CGFloat = 0
+                for step in ordered where step.isDisplay == family {
+                    let resolved = metrics.scaledValue(for: step.size, compatibleWith: traits)
+                    assert(resolved > 0 && resolved >= previous, "TypeScale must remain ordered at \(category.rawValue)")
+                    previous = resolved
+                }
             }
         }
     }
@@ -129,7 +138,9 @@ private struct PLTypeModifier: ViewModifier {
     let style: TypeScale
     let weight: TypeWeight
     let family: TypeFamily
-    @ScaledMetric(relativeTo: .body) private var scale: CGFloat = 1
+    @ScaledMetric(relativeTo: .body) private var textScale: CGFloat = 1
+    @ScaledMetric(relativeTo: .largeTitle) private var displayScale: CGFloat = 1
+    private var scale: CGFloat { style.isDisplay ? displayScale : textScale }
 
     func body(content: Content) -> some View {
         let font: Font = family == .display
@@ -146,7 +157,7 @@ extension View {
         let resolved: TypeWeight = weight ?? {
             switch style {
             case .micro, .callout: .semibold
-            case .caption, .footnote, .body: .regular
+            case .detail, .caption, .footnote, .reading, .body: .regular
             default: .regular
             }
         }()

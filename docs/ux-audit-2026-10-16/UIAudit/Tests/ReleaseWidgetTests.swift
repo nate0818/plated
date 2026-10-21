@@ -25,11 +25,26 @@ final class ReleaseWidgetTests: XCTestCase {
         let widget = home.icons.matching(NSPredicate(format: "identifier == 'Plated' AND value == 'Widget'")).firstMatch
         XCTAssertTrue(widget.waitForExistence(timeout: 10))
         widget.tap()
-        XCTAssertTrue(app.buttons["Start cooking"].firstMatch.waitForExistence(timeout: 15))
-        XCTAssertTrue(app.staticTexts["Pancake Dinner"].firstMatch.exists)
+        XCTAssertTrue(app.staticTexts["Pancake Dinner"].firstMatch.waitForExistence(timeout: 15))
+        // An unplanned recipe opens its detail with a planning action; cooking
+        // starts from a planned dinner, not from this cookbook widget link.
+        XCTAssertTrue(app.buttons["Plan a night"].waitForExistence(timeout: 8))
         let opened = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
         opened.name = "widget-cookbook-opened-recipe"; opened.lifetime = .keepAlways; add(opened)
     }
+    func testEmptyTonightAndTurnGallery() {
+        openGallery(extra: ["-plated-review-widget-empty"])
+        XCTAssertTrue(home.pageIndicators.matching(NSPredicate(format: "value == 'page 1 of 13'")).firstMatch.waitForExistence(timeout: 5))
+        capture("widget-empty-tonight")
+        for _ in 1..<12 { swipeGallery(left: true) }
+        XCTAssertTrue(home.pageIndicators.matching(NSPredicate(format: "value == 'page 12 of 13'")).firstMatch.waitForExistence(timeout: 5))
+        capture("widget-empty-turn-small")
+        swipeGallery(left: true)
+        XCTAssertTrue(home.pageIndicators.matching(NSPredicate(format: "value == 'page 13 of 13'")).firstMatch.waitForExistence(timeout: 5))
+        capture("widget-empty-turn-medium")
+        XCUIDevice.shared.press(.home)
+    }
+
     func testEmptyGroceryGallery() {
         openGallery(extra: ["-plated-review-onboarding"])
         for _ in 0..<8 { swipeGallery(left: true) }
@@ -57,7 +72,8 @@ final class ReleaseWidgetTests: XCTestCase {
             home.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.81)).press(forDuration: 1.5)
             leftover.buttons["DeleteButton"].tap()
             home.alerts.buttons["Remove"].tap()
-            XCTAssertTrue(leftover.waitForNonExistence(timeout: 5))
+            capture("widget-prior-install-removal")
+            XCTAssertTrue(leftover.waitForNonExistence(timeout: 15))
             XCUIDevice.shared.press(.home)
         }
         for (page, name) in [(4, "table"), (9, "grocery")] {
@@ -72,7 +88,7 @@ final class ReleaseWidgetTests: XCTestCase {
             if name == "table" {
                 XCTAssertTrue(app.buttons["Back"].waitForExistence(timeout: 15))
                 XCTAssertTrue(app.staticTexts["Pancake Dinner"].firstMatch.exists)
-                XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'COMMENTS' ")).firstMatch.exists)
+                XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Comments")).firstMatch.exists)
             } else {
                 XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Asparagus,'")).firstMatch.waitForExistence(timeout: 15))
                 XCTAssertTrue(app.buttons["tray-groceries"].isSelected)

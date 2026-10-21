@@ -1372,12 +1372,13 @@ enum TableNews {
         comment.post = post
         context.insert(comment)
         guard Persist.save(context, "reply from notice") else { return }
-        if await TableShare.pushNote(comment, post: record, zoneOwner: post.shareZoneOwner) == false {
-            TableOutbox.shared.enqueue(
-                .note(post: record, zoneOwner: post.shareZoneOwner, id: comment.shareRecordName),
-                author: comment.authorID
-            )
-        }
+        let queued = TableOutbox.shared.enqueue(
+            .note(post: record, zoneOwner: post.shareZoneOwner, id: comment.shareRecordName),
+            author: comment.authorID
+        )
+        let sent = await TableShare.pushNote(comment, post: record,
+            zoneOwner: post.shareZoneOwner, expectedAccount: queued.author)
+        TableOutbox.shared.finish(queued, succeeded: sent)
     }
 
     static func find(_ record: String, in context: ModelContext) -> TablePost? {

@@ -73,6 +73,58 @@ final class RemovedNightTests: XCTestCase {
         return PlanLedger.shared.absorb(changes, me: me)
     }
 
+    // MARK: Non-recipe add-back evidence
+
+    func testRemovedLeftoversAndARecipeWithTheSameTitleKeepTheirDistinctTypes() throws {
+        var leftovers = plan(id: "leftovers", title: "Leftovers", day: 2, removed: 1)
+        leftovers.hasRecipe = false
+        var recipe = plan(id: "leftovers-recipe", title: "Leftovers", day: 3, removed: 1)
+        recipe.hasRecipe = true
+        recipe.recipeOriginKey = "recipe:real-leftovers-recipe"
+        RemovedNights.park([PlanLedger.Entry(leftovers), PlanLedger.Entry(recipe)])
+        XCTAssertNil(RemovedNights.addBackHasRecipe(on: Self.day(2)), "An unsettled removal cannot be added back yet")
+        XCTAssertFalse(RemovedNights.drain(in: context), "Neither removal had a local model to delete")
+
+        XCTAssertEqual(RemovedNights.addBackTitle(on: Self.day(2)), "Leftovers")
+        XCTAssertEqual(RemovedNights.addBackHasRecipe(on: Self.day(2)), false)
+        XCTAssertEqual(RemovedNights.addBackHasRecipe(on: Self.day(3)), true)
+        XCTAssertEqual(RemovedNights.addBackOrigin(on: Self.day(3)), "recipe:real-leftovers-recipe")
+        XCTAssertNil(RemovedNights.addBackHasRecipe(on: Self.day(2), slot: .lunch))
+        XCTAssertNil(RemovedNights.addBackHasRecipe(on: Self.day(4)))
+
+        // The evidence must survive the removal book's Codable boundary;
+        // keeping it only on the live ledger entry would lose it on restart.
+        let saved = try JSONEncoder().encode(RemovedNights.all)
+        let reopened = try JSONDecoder().decode([RemovedNights.Gone].self, from: saved)
+        XCTAssertEqual(reopened.first { $0.shoppingID == "leftovers" }?.hasRecipe, false)
+        XCTAssertEqual(reopened.first { $0.shoppingID == "leftovers-recipe" }?.hasRecipe, true)
+    }
+
+    func testLegacyRemovalWithoutRecipePresenceStillDecodesAsUnknown() throws {
+        let old = RemovedNights.Gone(shoppingID: "legacy", recordName: "plan-legacy",
+            title: "Leftovers", by: "Sam", day: PlanDay.string(Self.day(2)),
+            slot: MealSlot.dinner.rawValue, recipeOriginKey: "", at: .now, settled: true)
+        let encoded = try JSONEncoder().encode(old)
+        var object = try XCTUnwrap(try JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+        object.removeValue(forKey: "hasRecipe")
+        let oldData = try JSONSerialization.data(withJSONObject: object)
+        let decoded = try JSONDecoder().decode(RemovedNights.Gone.self, from: oldData)
+        XCTAssertNil(decoded.hasRecipe, "Missing evidence must not be upgraded into an explicit no-recipe claim")
+        XCTAssertEqual(decoded.shoppingID, old.shoppingID)
+        XCTAssertEqual(decoded.title, "Leftovers")
+        XCTAssertTrue(decoded.settled)
+    }
+
+    func testAddBackRecipeEvidenceIsUnavailableForAKeptCookedNight() {
+        _ = meal(id: "n1", cooked: true)
+        var removed = plan(id: "n1", title: "Tacos", removed: 1)
+        removed.hasRecipe = true
+        RemovedNights.park([PlanLedger.Entry(removed)])
+        XCTAssertFalse(RemovedNights.drain(in: context))
+        XCTAssertTrue(RemovedNights.all.first?.kept == true)
+        XCTAssertNil(RemovedNights.addBackHasRecipe(on: Self.day(2)))
+    }
+
     // MARK: The author hears it
 
     func testTheAuthorIsToldTheHouseholdTookTheirNightOff() {

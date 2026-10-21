@@ -88,12 +88,23 @@ struct TableComposerSheet: View {
             .padding(.bottom, 16)
 
             ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
+                VStack(alignment: .leading, spacing: 16) {
                     authorAndAudience
-                    VStack(alignment: .leading, spacing: 8) {
-                        TextField("", text: $caption,
-                                  prompt: Text("What’s worth sharing?").foregroundStyle(Color.inkSecondary), axis: .vertical)
-                            .plType(.heading)
+                    ZStack(alignment: .topLeading) {
+                        // Native vertical-field prompts truncate at accessibility
+                        // sizes. Let a real multiline label establish its height.
+                        if caption.isEmpty {
+                            Text("What’s worth sharing?")
+                                .font(.custom(Font.EditorialWeight.regular.face, size: 22, relativeTo: .body))
+                                .lineSpacing(4)
+                                .foregroundStyle(Color.inkSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .allowsHitTesting(false)
+                                .accessibilityHidden(true)
+                        }
+                        TextField("", text: $caption, prompt: Text(""), axis: .vertical)
+                            .font(.custom(Font.EditorialWeight.regular.face, size: 22, relativeTo: .body))
+                            .lineSpacing(4)
                             .foregroundStyle(Color.ink)
                             .lineLimit(3...10)
                             .frame(minHeight: 140, alignment: .topLeading)
@@ -107,7 +118,8 @@ struct TableComposerSheet: View {
                     if titleExpanded {
                         VStack(alignment: .leading, spacing: 8) {
                             MicroLabel("Title · optional")
-                            TextField("Ingredient, place, or a title", text: $dishTitle, axis: .vertical)
+                            TextField("Ingredient, place, or a title", text: $dishTitle,
+                                      prompt: Text("Ingredient, place, or a title").foregroundStyle(Color.inkSecondary), axis: .vertical)
                                 .plType(.body)
                                 .lineLimit(1...3)
                                 .foregroundStyle(Color.ink)
@@ -133,10 +145,14 @@ struct TableComposerSheet: View {
                         }
                     }
                     attachmentActions
+                    // Keep the full privacy explanation reachable while leaving
+                    // space to write when text and the keyboard are large.
+                    if typeSize.isAccessibilitySize { audienceReminder }
                 }
                 .padding(.horizontal, Spacing.page)
                 .padding(.bottom, 20)
             }
+            .accessibilityIdentifier("table-post-scroll")
             .scrollDismissesKeyboard(.interactively)
             VStack(spacing: 8) {
                 if let localSaveMessage {
@@ -145,20 +161,15 @@ struct TableComposerSheet: View {
                         .foregroundStyle(Color.dangerText)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                HStack(spacing: 6) {
-                    Image(systemName: "lock.fill").accessibilityHidden(true)
-                    Text("Only people at this Table can see your post.")
-                }
-                .plType(.caption)
-                .foregroundStyle(Color.inkSecondary)
-                .fixedSize(horizontal: false, vertical: true)
+                if !typeSize.isAccessibilitySize { audienceReminder }
                 PrimaryActionButton(title: saving ? "Saving post…" : "Post to Table", busy: saving, action: post)
                     .disabled(!canPost)
                     .accessibilityIdentifier("table-post-submit")
             }
             .padding(.horizontal, Spacing.page)
-            .padding(.top, 12)
+            .padding(.top, 16)
             .padding(.bottom, 14)
+            .overlay(alignment: .top) { Color.hairline.frame(height: 0.5) }
         }
         .toolbar {
             ToolbarItemGroup(placement: .keyboard) {
@@ -206,14 +217,79 @@ struct TableComposerSheet: View {
         }
     }
 
+    private var audienceReminder: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "lock.fill").accessibilityHidden(true)
+            Text(audiencePrivacyText)
+        }
+        .plType(.caption)
+        .foregroundStyle(Color.inkSecondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private var audienceLabel: String {
+        guard let destination = selectedDestination else {
+            return destinations.isEmpty ? "Table unavailable · Private" : "Choose a Table"
+        }
+        return (destination.isOwn ? "Your Table" : destination.label) + " · Private"
+    }
+
+    private var audiencePrivacyText: String {
+        guard destinationsLoaded else { return "Finding your Table…" }
+        guard let destination = selectedDestination else {
+            return destinations.isEmpty
+                ? "Your post stays on this device until a Table is available."
+                : "Choose a Table before posting."
+        }
+        return destination.isOwn
+            ? "Only people at your Table can see this."
+            : "Only people at \(destination.label) can see this."
+    }
+
     private var authorAndAudience: some View {
+        Group {
+            if typeSize.isAccessibilitySize {
+                stackedAuthorAndAudience
+            } else {
+                ViewThatFits(in: .horizontal) {
+                    HStack(alignment: .top, spacing: 12) {
+                        authorIdentity.fixedSize(horizontal: true, vertical: false)
+                        Spacer(minLength: 0)
+                        draftStatus.fixedSize(horizontal: true, vertical: false)
+                    }
+                    stackedAuthorAndAudience
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var stackedAuthorAndAudience: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            authorIdentity
+            draftStatus
+        }
+    }
+
+    private var authorIdentity: some View {
         HStack(alignment: .top, spacing: 12) {
-            if let me = members.me { AvatarCircle(member: me, size: 44).accessibilityHidden(true) }
+            if let me = members.me { AvatarCircle(member: me, size: 36).accessibilityHidden(true) }
             VStack(alignment: .leading, spacing: 4) {
-                Text(members.me?.name ?? "You").plType(.body, .semibold).foregroundStyle(Color.ink)
+                Text(members.me?.name ?? "You")
+                    .plType(.body, .semibold).foregroundStyle(Color.ink)
+                    .fixedSize(horizontal: false, vertical: true)
                 destinationControl
             }
-            Spacer(minLength: 0)
+        }
+    }
+
+    @ViewBuilder
+    private var draftStatus: some View {
+        if hasContent {
+            Text(photoLoading ? "Adding photo…" : photoLoadMessage != nil || localSaveMessage != nil ? "Draft needs attention" : draftSaved ? "Draft saved" : "Saving draft…")
+                .plType(.caption).foregroundStyle(Color.inkSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("table-post-draft-status")
         }
     }
 
@@ -236,16 +312,16 @@ struct TableComposerSheet: View {
                     }
                 }
             } label: {
-                Label(selectedDestination?.label ?? "Choose a Table", systemImage: "person.2.fill")
+                Label(audienceLabel, systemImage: "person.2.fill")
                     .plType(.footnote, .semibold).foregroundStyle(Color.accentText)
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(minHeight: 44, alignment: .leading)
             }
             .accessibilityLabel("Table audience")
-            .accessibilityValue(selectedDestination?.label ?? "Choose a Table before posting")
+            .accessibilityValue(selectedDestination == nil ? "Choose a Table before posting" : audienceLabel)
         } else {
-            Label(selectedDestination?.label ?? "Your Table", systemImage: "lock.fill")
-                .plType(.footnote, .semibold).foregroundStyle(Color.inkSecondary)
+            Label(audienceLabel, systemImage: "lock.fill")
+                .plType(.caption).foregroundStyle(Color.inkSecondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }
@@ -276,18 +352,13 @@ struct TableComposerSheet: View {
                         .foregroundStyle(Color.accentText)
                         .frame(width: typeSize.isAccessibilitySize ? nil : 44, height: 44)
                         .frame(maxWidth: typeSize.isAccessibilitySize ? .infinity : nil)
-                        .background(Color.raisedFill, in: Capsule())
+                        .background(Color.raisedFill, in: RoundedRectangle(cornerRadius: 15, style: .continuous))
                 }
                 .accessibilityLabel("More post options")
             }
-            if hasContent {
-                Text(photoLoading ? "Adding photo…" : photoLoadMessage != nil ? "Resolve the photo to save this draft" : localSaveMessage != nil ? "Draft needs attention" : draftSaved ? "Draft saved on this device" : "Saving draft…")
-                    .plType(.caption)
-                    .foregroundStyle(Color.inkSecondary)
-                    .accessibilityIdentifier("table-post-draft-status")
-            }
+
         }
-        .padding(.top, 12)
+        .padding(.top, 0)
 
     }
 
@@ -298,8 +369,8 @@ struct TableComposerSheet: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.horizontal, 12)
                 .frame(maxWidth: typeSize.isAccessibilitySize ? .infinity : nil, minHeight: 44)
-                .background(Color.raisedFill, in: Capsule())
-                .contentShape(Capsule())
+                .background(Color.raisedFill, in: RoundedRectangle(cornerRadius: 15, style: .continuous))
+                .contentShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
         }.buttonStyle(.pressable)
     }
 
@@ -332,22 +403,12 @@ struct TableComposerSheet: View {
     private var photoPreview: some View {
         VStack(alignment: .leading, spacing: 8) {
             if let photoData, let image = UIImage(data: photoData) {
-                Image(uiImage: image).resizable().scaledToFit()
-                    .frame(maxWidth: .infinity, maxHeight: 240)
-                    .clipShape(Radius.shape(Radius.hero))
+                PhotoWell(image: image, height: 225, cornerRadius: 9)
                     .accessibilityLabel("Attached photo")
-                    .overlay(alignment: .topTrailing) {
-                        Menu {
-                            Button("Change photo", systemImage: "photo") { choosePhoto() }
-                            Button("Remove photo", systemImage: "trash", role: .destructive) { removePhoto() }
-                        } label: {
-                            Image(systemName: "ellipsis").foregroundStyle(Color.ink)
-                                .frame(width: 44, height: 44)
-                                .background(Color.canvas, in: Circle())
-                        }
-                        .padding(8)
-                        .accessibilityLabel("Photo options")
-                    }
+                HStack(spacing: 8) {
+                    attachmentButton("Change photo", icon: "photo") { choosePhoto() }
+                    attachmentButton("Remove photo", icon: "xmark") { removePhoto() }
+                }
             }
             if photoLoading {
                 HStack(spacing: 10) { ProgressView(); Text("Getting the photo…").plType(.footnote) }
@@ -423,7 +484,8 @@ struct TableComposerSheet: View {
 
             if pollOptions.count < 4 {
                 HStack(spacing: 8) {
-                    TextField("Add a choice", text: $pollEntry)
+                    TextField("Add a choice", text: $pollEntry,
+                              prompt: Text("Add a choice").foregroundStyle(Color.inkSecondary))
                         .focused($focusedField, equals: .pollChoice)
                         .plType(.body, .medium)
                         .foregroundStyle(Color.ink)
@@ -581,7 +643,7 @@ struct TableComposerSheet: View {
             selectedDestinationID = "review-table"; destinationsLoaded = true
             return
         }
-        let choices = await TableShare.writableDestinations()
+        let choices = await TableShare.writableDestinations(in: context)
         let preferred = selectedDestinationID
         destinations = choices
         switch choices.count {

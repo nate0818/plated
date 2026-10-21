@@ -189,18 +189,20 @@ struct PlanNightSheet: View {
                                 .contentTransition(.numericText())
                         }
                         .padding(.vertical, 6)
-                        Menu {
-                            Button("Unassigned") { meal.cook = nil; Persist.save(context) }
-                            ForEach(members.assignableCooks) { member in
-                                Button(member.isMe ? "You" : member.name) { meal.cook = member; Persist.save(context) }
+                        if !meal.isLeftovers {
+                            Menu {
+                                Button("Unassigned") { meal.cook = nil; Persist.save(context) }
+                                ForEach(members.assignableCooks) { member in
+                                    Button(member.isMe ? "You" : member.name) { meal.cook = member; Persist.save(context) }
+                                }
+                            } label: {
+                                HStack {
+                                    Text("Cook").plType(.body)
+                                    Spacer()
+                                    Text(meal.cook.map { $0.isMe ? "You" : $0.name } ?? "Unassigned").plType(.body, .semibold)
+                                    Image(systemName: "slider.horizontal.3").font(.footnote)
+                                }.foregroundStyle(Color.ink).frame(minHeight: 44)
                             }
-                        } label: {
-                            HStack {
-                                Text("Cook").plType(.body)
-                                Spacer()
-                                Text(meal.cook.map { $0.isMe ? "You" : $0.name } ?? "Unassigned").plType(.body, .semibold)
-                                Image(systemName: "slider.horizontal.3").font(.footnote)
-                            }.foregroundStyle(Color.ink).frame(minHeight: 44)
                         }
                         MicroLabel(meal.hasDish ? "Something else" : "Choose dinner")
                     } else if let remote {
@@ -271,18 +273,20 @@ struct PlanNightSheet: View {
                                     .contentTransition(.numericText())
                             }
                             .padding(.vertical, 6)
-                            Menu {
-                                Button("Unassigned") { changeCook(nil, on: remote) }
-                                ForEach(members.assignableCooks) { member in
-                                    Button(member.isMe ? "You" : member.name) { changeCook(member, on: remote) }
+                            if !remote.isLeftovers {
+                                Menu {
+                                    Button("Unassigned") { changeCook(nil, on: remote) }
+                                    ForEach(members.assignableCooks) { member in
+                                        Button(member.isMe ? "You" : member.name) { changeCook(member, on: remote) }
+                                    }
+                                } label: {
+                                    HStack {
+                                        Text("Cook").plType(.body)
+                                        Spacer()
+                                        Text(remoteCookName(remote)).plType(.body, .semibold)
+                                        Image(systemName: "slider.horizontal.3").font(.footnote)
+                                    }.foregroundStyle(Color.ink).frame(minHeight: 44)
                                 }
-                            } label: {
-                                HStack {
-                                    Text("Cook").plType(.body)
-                                    Spacer()
-                                    Text(remoteCookName(remote)).plType(.body, .semibold)
-                                    Image(systemName: "slider.horizontal.3").font(.footnote)
-                                }.foregroundStyle(Color.ink).frame(minHeight: 44)
                             }
                             MicroLabel(remote.hasDish ? "Something else" : "Choose dinner")
                         }
@@ -325,6 +329,8 @@ struct PlanNightSheet: View {
                             ) { addBack(title) }
                         }
 
+                        if notice != nil, meal != nil { noticeRow }
+
                         // Food first: the night is about dinner. Eating out,
                         // asking the Table and gatherings stay reachable but
                         // sit under a quieter "Or" so they do not compete
@@ -354,10 +360,17 @@ struct PlanNightSheet: View {
                         MicroLabel("Or")
 
                         OptionRow(
+                            icon: "refrigerator",
+                            title: "Eat leftovers",
+                            detail: "Enjoy what’s already made. No new groceries."
+                        ) { chooseMeal(.leftovers) }
+                        .accessibilityIdentifier("plan-eat-leftovers")
+
+                        OptionRow(
                             icon: "fork.knife.circle",
                             title: "Eating out",
                             detail: "Counts as a planned night."
-                        ) { markEatingOut() }
+                        ) { chooseMeal(.eatingOut) }
 
                         OptionRow(
                             icon: "bubble.and.pencil",
@@ -477,7 +490,7 @@ struct PlanNightSheet: View {
                         .strokeBorder(Color.hairline, lineWidth: 2)
                         .frame(width: 52, height: 52)
                         .overlay {
-                            Image(systemName: "fork.knife.circle")
+                            Image(systemName: meal.isLeftovers ? "refrigerator" : "fork.knife.circle")
                                 .font(.system(size: 22, weight: .medium))
                                 .foregroundStyle(Color.inkSecondary)
                         }
@@ -494,9 +507,7 @@ struct PlanNightSheet: View {
             }
             Spacer()
             Button {
-                Haptic.plate()
-                withAnimation(.plSnap) { context.delete(meal) }
-                Persist.save(context, "remove planned meal")
+                removeMeal(meal)
             } label: {
                 Image(systemName: "trash")
                     .accessibilityLabel("Remove this meal")
@@ -524,12 +535,23 @@ struct PlanNightSheet: View {
             // drawn by the component that already knows what to do when a
             // night has no photograph. Peers look like peers, and these two
             // cards are peers on one page.
-            RecipeArtwork(
-                data: PlanLedger.shared.photo(for: entry.recordName),
-                title: entry.title, ratio: 1, radius: 26
-            )
-            .frame(width: 52, height: 52)
-            .plDishShadow()
+            Group {
+                if entry.isLeftovers {
+                    Image(systemName: "refrigerator")
+                        .font(.system(size: 22, weight: .medium))
+                        .foregroundStyle(Color.inkSecondary)
+                        .frame(width: 52, height: 52)
+                        .background(Color.fill, in: Circle())
+                } else {
+                    RecipeArtwork(
+                        data: PlanLedger.shared.photo(for: entry.recordName),
+                        title: entry.title, ratio: 1, radius: 26
+                    )
+                    .frame(width: 52, height: 52)
+                    .plDishShadow()
+                }
+            }
+            .accessibilityHidden(true)
             // Title, then who cooks, then whose night it is: the order
             // `RemotePlanRow` uses, because the row and this card are the
             // same night on two screens.
@@ -664,10 +686,25 @@ struct PlanNightSheet: View {
             }
             HStack(spacing: 10) {
                 Button(HouseholdEdits.adoptTitle) {
-                    Haptic.plate()
-                    HouseholdEdits.adopt(change, in: context)
-                    Persist.save(context)
-                    answer(change)
+                    let previous = choiceSnapshot(of: meal)
+                    let servings = meal.servings
+                    switch HouseholdEdits.adoptResult(change, in: context, settleOnSuccess: false) {
+                    case .unavailable(let message):
+                        notice = message
+                        Haptic.warn()
+                    case .adopted:
+                        guard Persist.save(context, "adopt household meal") else {
+                            previous.restore(on: meal)
+                            meal.servings = servings
+                            notice = "Couldn’t save this change. Try again."
+                            Haptic.warn()
+                            return
+                        }
+                        notice = nil
+                        HouseholdEdits.settle(change.shoppingID)
+                        Haptic.plate()
+                        answer(change)
+                    }
                 }
                 .plType(.footnote, .bold)
                 .plActionLabel()
@@ -1021,40 +1058,49 @@ struct PlanNightSheet: View {
         send(edit)
     }
 
-    private func markEatingOut() {
+    /// A failed delete must leave the same night in place. Reinsert just
+    /// this model and restore its relationships; a context-wide rollback
+    /// could erase unrelated recipe or household edits.
+    private func removeMeal(_ meal: PlannedMeal) {
+        let previous = choiceSnapshot(of: meal)
+        let gathering = meal.gathering
+        let servings = meal.servings
+        context.delete(meal)
+        guard Persist.save(context, "remove planned meal") else {
+            context.insert(meal)
+            previous.restore(on: meal)
+            meal.gathering = gathering
+            meal.servings = servings
+            notice = "Couldn’t remove this meal. Try again."
+            Haptic.warn()
+            return
+        }
+        notice = nil
+        Haptic.plate()
+    }
+
+    private func choiceSnapshot(of meal: PlannedMeal) -> PlannedMeal.MealChoiceSnapshot {
+        .init(recipe: meal.recipe, title: meal.customTitle, tagline: meal.tagline,
+              cook: meal.cook, cookedAt: meal.cookedAt,
+              reaction: meal.cookReaction, minutes: meal.actualMinutes)
+    }
+
+    private func chooseMeal(_ choice: PlanMealChoice) {
         if let remote {
-            var edit = PlanShare.Edit(changing: remote)
-            edit.title = "Eating out"
-            edit.tagline = "Night off the stove"
-            edit.cookID = ""
-            edit.cookName = ""
-            edit.cookColorHex = ""
-            edit.cookSeat = ""
-            edit.hasRecipe = false
-            edit.recipeMinutes = 0
-            edit.recipeOriginKey = ""
-            // A night nobody is cooking may not keep the last dish's
-            // photograph.
-            edit.photo = .clear
-            // The sheet closes when the zone says it took it, and stays to
-            // say so when it did not.
-            send(edit, closing: true)
+            send(PlanShare.Edit(changing: remote, mealChoice: choice), closing: true)
+            return
+        }
+        let original = meal
+        let selected = original ?? PlannedMeal(date: date, slot: slot)
+        if original == nil { context.insert(selected) }
+        let previous = selected.select(choice)
+        guard Persist.save(context, choice.persistenceContext) else {
+            if original == nil { context.delete(selected) } else { previous.restore(on: selected) }
+            notice = "Couldn’t save this meal. Try again."
+            Haptic.warn()
             return
         }
         Haptic.plate()
-        withAnimation(.plPop) {
-            if let meal {
-                meal.recipe = nil
-                meal.customTitle = "Eating out"
-                meal.tagline = "Night off the stove"
-                meal.cook = nil
-            } else {
-                let meal = PlannedMeal(date: date, slot: slot, customTitle: "Eating out")
-                meal.tagline = "Night off the stove"
-                context.insert(meal)
-            }
-        }
-        Persist.save(context, "mark eating out")
         dismiss()
     }
 
@@ -1071,31 +1117,42 @@ struct PlanNightSheet: View {
     /// A dish that has since left the cookbook comes back as a named night
     /// with no recipe behind it, which is what the person planned either way.
     private func addBack(_ title: String) {
-        Haptic.plate()
-        withAnimation(.plPop) {
-            let meal = PlannedMeal(date: date, slot: slot)
-            // By origin key first, so a dish that has since been renamed
-            // comes back as itself and two recipes sharing a title cannot
-            // return the wrong one. The title is the fallback, and a
-            // home-written recipe with no key falls to it by design.
-            let origin = RemovedNights.addBackOrigin(on: date, slot: slot) ?? ""
-            let recipe = (origin.isEmpty ? nil : recipes.first { $0.planningKey == origin })
-                ?? recipes.first { $0.title == title }
-            if let recipe {
-                meal.recipe = recipe
-                meal.servings = recipe.servings
-            } else {
-                meal.customTitle = title
-            }
-            context.insert(meal)
+        let origin = RemovedNights.addBackOrigin(on: date, slot: slot) ?? ""
+        let hasRecipe = RemovedNights.addBackHasRecipe(on: date, slot: slot)
+        let legacyLeftovers = hasRecipe == nil && origin.isEmpty
+            && PlanRowVoice.isLeftovers(title: title, hasRecipe: false)
+        let recipe: Recipe?
+        if hasRecipe == false || legacyLeftovers {
+            recipe = nil
+        } else if !origin.isEmpty {
+            recipe = recipes.first { $0.planningKey == origin }
+        } else {
+            recipe = recipes.first { $0.title == title }
         }
-        Persist.save(context, "restore planned meal")
-        // Cleared rather than left to age out. Every caption is gated on the
-        // night having no meal, so leaving it would be harmless today, and
-        // that is the point: the gate is a property of four call sites
-        // rather than of the data, and the fifth reader will not know to
-        // write it.
+        if hasRecipe == true, recipe == nil,
+           PlanRowVoice.isLeftovers(title: title, hasRecipe: false) {
+            notice = "This recipe isn’t in your cookbook. Add it before planning it again."
+            Haptic.warn()
+            return
+        }
+        let restored = PlannedMeal(date: date, slot: slot)
+        if let recipe {
+            restored.recipe = recipe
+            restored.servings = recipe.servings
+        } else if PlanRowVoice.isLeftovers(title: title, hasRecipe: false) {
+            restored.select(.leftovers)
+        } else {
+            restored.customTitle = title
+        }
+        context.insert(restored)
+        guard Persist.save(context, "restore planned meal") else {
+            context.delete(restored)
+            notice = "Couldn’t restore this meal. Try again."
+            Haptic.warn()
+            return
+        }
         RemovedNights.forget(day: PlanDay.string(date), slot: slot)
+        Haptic.plate()
         dismiss()
     }
 
@@ -1109,7 +1166,9 @@ struct PlanNightSheet: View {
             edit.title = recipe.title
             edit.tagline = tagline
             edit.servings = PlanReplacement.servings(current: remote.servings, defaultValue: recipe.servings)
+            edit.lines = PlanShare.groceryLines(recipe: recipe, servings: edit.servings ?? remote.servings)
             edit.hasRecipe = true
+            if remote.isLeftovers { edit.cooked = false }
             edit.recipeMinutes = recipe.totalMinutes
             edit.recipeOriginKey = recipe.planningKey
             edit.photo = recipe.photoData == nil ? .clear : .send
@@ -1124,30 +1183,52 @@ struct PlanNightSheet: View {
             send(edit, photo: recipe.photoData, closing: true)
             return
         }
-        Haptic.plate()
-        let cook = meal == nil ? CookRotation.cook(for: date, members: members, meals: meals) : meal?.cook
-        let servings = PlanReplacement.servings(current: meal?.servings, defaultValue: recipe.servings)
-        withAnimation(.plPop) {
-            if let meal {
-                meal.recipe = recipe
-                meal.customTitle = ""
-                meal.servings = servings
-                meal.cook = cook
-                meal.tagline = tagline
-            } else {
-                context.insert(PlannedMeal(
-                    date: date, slot: slot, recipe: recipe,
-                    servings: servings, cook: cook, tagline: tagline
-                ))
-            }
+        let original = meal
+        let cook = original == nil ? CookRotation.cook(for: date, members: members, meals: meals) : original?.cook
+        let servings = PlanReplacement.servings(current: original?.servings, defaultValue: recipe.servings)
+        let selected = original ?? PlannedMeal(date: date, slot: slot)
+        if original == nil { context.insert(selected) }
+        let previous = choiceSnapshot(of: selected)
+        let previousServings = selected.servings
+        if selected.isLeftovers {
+            selected.cookedAt = nil
+            selected.cookReaction = 0
+            selected.actualMinutes = 0
+            selected.cook = nil
         }
-        let cookName = (cook?.isMe ?? true) ? "you" : (cook?.name ?? "someone")
-        Notifier.post(
-            .mealPlanned, actor: cook?.name ?? "",
-            body: "\(dayTitle): \(recipe.title). \(cookName.capitalized) cook\(cookName == "you" ? "" : "s").",
-            into: context
+        selected.recipe = recipe
+        selected.customTitle = ""
+        selected.servings = servings
+        selected.cook = cook
+        selected.tagline = tagline
+
+        let cookLine: String
+        if let cook {
+            cookLine = cook.isMe ? "You cook." : "\(cook.name) cooks."
+        } else {
+            cookLine = "No cook assigned yet."
+        }
+        // Own the inserted notification so a failed save can remove exactly
+        // this row along with the proposed meal change. Neither an unsaved
+        // dinner nor an invented cooking obligation may reach the bell.
+        let notification = PlatedNotification(
+            kind: .mealPlanned, actorName: cook?.name ?? "",
+            body: "\(dayTitle): \(recipe.title). \(cookLine)"
         )
-        Persist.save(context, "plan meal")
+        context.insert(notification)
+        guard Persist.save(context, "plan meal") else {
+            context.delete(notification)
+            if original == nil {
+                context.delete(selected)
+            } else {
+                previous.restore(on: selected)
+                selected.servings = previousServings
+            }
+            notice = "Couldn’t save this meal. Try again."
+            Haptic.warn()
+            return
+        }
+        Haptic.plate()
         // The moment to ask, and the only one. They have just said they
         // intend to cook on a given night, so "shall I remind you" continues
         // their own thought instead of interrupting it. iOS grants exactly
@@ -1553,7 +1634,7 @@ struct AskComposerSheet: View {
 
     @MainActor
     private func loadDestinations() async {
-        let choices = await TableShare.writableDestinations()
+        let choices = await TableShare.writableDestinations(in: context)
         let preferred = selectedDestinationID
         destinations = choices
         switch choices.count {

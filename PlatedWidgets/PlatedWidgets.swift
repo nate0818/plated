@@ -253,7 +253,7 @@ enum Plate {
     }
 
     static let canvas = color(0xFAF9F4, 0x191C17)
-    static let ink = color(0x27362A, 0xEDF0E6)
+    static let ink = color(0x26382C, 0xEFF0E6)
     // 0x7F7364, not 0x8A8074. The old value measured 3.87:1 on canvas,
     // under the 4.5:1 floor, and was replaced in Theme.swift. This copy kept
     // shipping the failing one — and the amber note eleven lines down proves
@@ -261,12 +261,12 @@ enum Plate {
     // A fork that receives SOME fixes is worse than one that receives none,
     // because you cannot tell by looking which state it is in. See
     // scripts/check-tokens, which now fails the build of a drift like this.
-    static let inkSecondary = color(0x606958, 0xB0B8A8)
+    static let inkSecondary = color(0x606A57, 0xB4BEAA)
     static let inkFaint = color(0xA5AD9A, 0x727D68)
     static let hairlineDashed = color(0xCCD2C2, 0x4C5844)
-    static let fill = color(0xEFEFE6, 0x242720)
+    static let fill = color(0xEEEEE4, 0x24291F)
     static let basil = color(0x3DA35D, 0x55BE76)
-    static let olive = color(0x355941, 0xB2C9A5)
+    static let olive = color(0x365C43, 0xB7CAA5)
     // A photograph is a photograph in both rooms, so these two do not flip.
     // The app has carried them since the remove-photo button vanished after
     // dark; the widget was still writing `.white` by hand over its own food

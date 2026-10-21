@@ -26,12 +26,18 @@ struct PostThreadView: View {
     @Environment(\.activeAppTab) private var activeAppTab
     @Environment(\.dismiss) private var dismiss
     @Environment(\.dynamicTypeSize) private var typeSize
+    @Environment(\.scenePhase) private var scenePhase
     @Environment(\.openURL) private var openURL
     @AppStorage("userFirstName") private var userFirstName = ""
     @Query(sort: \HouseholdMember.createdAt) private var members: [HouseholdMember]
     @Query private var recipes: [Recipe]
 
     @State private var draft = ""
+    @State private var replyDraftScope: CommentReplyDraftStore.Scope?
+    @State private var draftAccountChanged = false
+    @State private var composerSelection: TextSelection?
+    @State private var mentionInsertionSelection: NSRange?
+    @State private var mentionPickerRequested = false
     @State private var sendProblem: String?
     @State private var retryingComments: Set<String> = []
     /// Which face this profile was opened from. A thread offers four
@@ -44,10 +50,11 @@ struct PostThreadView: View {
     @State private var linkFieldShown = false
     @State private var replyTo: String?
     @State private var replyToID: String?
-    @State private var collapsedReplies = Set<String>()
+    @State private var replyVisibility = CommentReplyVisibility()
     @State private var mentionBarShown = false
     @State private var photoItem: PhotosPickerItem?
     @State private var commentPhoto: Data?
+    @State private var commentPhotoLoad = CommentPhotoLoadState()
     @State private var bounce = false
     @State private var personShown: PersonRef?
     @State private var localSave: TablePost?
@@ -81,7 +88,6 @@ struct PostThreadView: View {
     var body: some View {
         VStack(spacing: 0) {
             topBar
-            Divider().overlay(Color.hairlineSoft)
 
             ScrollViewReader { scroll in
             ScrollView(showsIndicators: false) {
@@ -91,6 +97,7 @@ struct PostThreadView: View {
                         ZStack(alignment: .topTrailing) {
                             PhotoWell(image: image, height: 180)
                                 .plCardShadow()
+                                .accessibilityLabel("Photo attached to \(post.firstName)'s \(post.dishTitle.isEmpty ? "post" : post.dishTitle)")
                             if post.hasChefsKiss(seats: TableKiss.seating(members: members, dishAuthors: [post.authorName])) {
                                 chefsKissPill.offset(x: 6, y: -10)
                             }
@@ -99,7 +106,7 @@ struct PostThreadView: View {
 
                     if !post.caption.isEmpty || post.dishTitle.isEmpty {
                         Text(post.caption)
-                            .plType(.body, .regular)
+                            .plType(.reading)
                             .foregroundStyle(Color.ink)
                             .lineSpacing(3)
                     }
@@ -154,12 +161,13 @@ struct PostThreadView: View {
                     HStack {
                         Text(visibleComments.filter { $0.deletedAt == nil }.isEmpty ? "Comments"
                              : "Comments \(visibleComments.filter { $0.deletedAt == nil }.count)")
-                            .plType(.body, .semibold)
+                            .plType(.body, .semibold).foregroundStyle(Color.ink)
                         Spacer()
                         Text("Oldest first").plType(.caption).foregroundStyle(Color.inkSecondary)
                     }.padding(.top, 8)
 
-                    if visibleComments.isEmpty {
+                    let replyLayout = replyVisibility.layout(replyVisibilityComments)
+                    if replyLayout.rows.isEmpty {
                         Text(post.kind == "ask"
                              ? "No replies yet. Be the first to answer."
                              : "No comments yet. Start the conversation below.")
@@ -167,24 +175,32 @@ struct PostThreadView: View {
                             .foregroundStyle(Color.inkSecondary)
                     }
 
-                    ForEach(threadRows, id: \.comment.persistentModelID) { row in
+                    ForEach(threadRows(in: replyLayout), id: \.comment.persistentModelID) { row in
                         VStack(alignment: .leading, spacing: 0) {
-                            threadComment(row.comment)
-                            let children = descendantCount(row.comment.shareRecordName)
-                            if children > 2 || collapsedReplies.contains(row.comment.shareRecordName) {
-                                Button(collapsedReplies.contains(row.comment.shareRecordName)
-                                       ? (children == 1 ? "Show 1 reply" : "Show \(children) replies") : "Hide replies") {
+                            threadComment(row.comment, isReply: row.depth > 0)
+                            let id = commentKey(row.comment)
+                            let children = replyLayout.liveDescendantCounts[id, default: 0]
+                            let collapsed = replyVisibility.isCollapsed(id, descendantCount: children)
+                            if children > 2 || collapsed {
+                                Button {
                                     Haptic.select()
-                                    withAnimation(.plSnap) {
-                                        if collapsedReplies.contains(row.comment.shareRecordName) { collapsedReplies.remove(row.comment.shareRecordName) }
-                                        else { collapsedReplies.insert(row.comment.shareRecordName) }
+                                    withAnimation(reduceMotion ? nil : .plSnap) {
+                                        replyVisibility.toggle(id, descendantCount: children, in: replyVisibilityComments)
                                     }
-                                }.plType(.caption, .bold).foregroundStyle(Color.inkSecondary).plTapTarget()
+                                } label: {
+                                    Text(collapsed ? (children == 1 ? "View 1 reply" : "View \(children) replies") : "Hide replies")
+                                        .plType(.caption, .bold).foregroundStyle(Color.inkSecondary)
+                                        .frame(minWidth: 44, minHeight: 44, alignment: .leading)
+                                        .contentShape(Rectangle())
+                                }
+                                .buttonStyle(.pressable)
+                                .accessibilityValue(collapsed ? "Collapsed" : "Expanded")
+                                .accessibilityIdentifier("table-replies-" + id)
                             }
                         }
-                        .padding(.leading, row.depth > 0 ? 36 : 0)
+                        .padding(.leading, row.depth > 0 ? 61 : 0)
                         .overlay(alignment: .leading) {
-                            if row.depth > 0 { Rectangle().fill(Color.hairline).frame(width: 1) }
+                            if row.depth > 0 { Rectangle().fill(Color.hairline).frame(width: 1).padding(.leading, 47) }
                         }
                         .background(focusedComment == row.comment.shareRecordName ? Color.oliveTint : Color.clear,
                                     in: Radius.shape(Radius.chip))
@@ -198,10 +214,16 @@ struct PostThreadView: View {
                 .padding(.bottom, 20)
             }
             .accessibilityIdentifier("table-post-thread")
+            .onChange(of: replyVisibilityComments, initial: true) { _, comments in
+                replyVisibility.observe(comments, pendingIDs: pendingCommentIDs)
+            }
+            .onChange(of: pendingCommentIDs) { _, pendingIDs in
+                replyVisibility.observe(replyVisibilityComments, pendingIDs: pendingIDs)
+            }
             .task(id: (targetComment ?? "") + visibleComments.map(\.shareRecordName).joined()) {
                 guard let targetComment, targetComment != lastFocusedComment,
                       visibleComments.contains(where: { $0.shareRecordName == targetComment }) else { return }
-                collapsedReplies.removeAll()
+                replyVisibility.reveal([targetComment], in: replyVisibilityComments)
                 do { try await Task.sleep(for: .milliseconds(250)) } catch { return }
                 withAnimation(.plSnap) { scroll.scrollTo(targetComment, anchor: .center) }
                 lastFocusedComment = targetComment
@@ -213,18 +235,15 @@ struct PostThreadView: View {
             }
 
             if let sendProblem { Text(sendProblem).plType(.caption).foregroundStyle(Color.dangerText).padding(.horizontal, Spacing.page) }
-            composer
+            if !draftAccountChanged { composer }
         }
         .background(Color.canvas)
-        .onAppear {
-            let key = "table.replyDraft." + (post.shareRecordName.isEmpty ? String(describing: post.persistentModelID) : post.shareRecordName)
-            if let saved = UserDefaults.standard.dictionary(forKey: key) {
-                draft = saved["text"] as? String ?? ""
-                link = saved["link"] as? String ?? ""
-                replyTo = saved["replyTo"] as? String
-                replyToID = saved["parent"] as? String
-                commentPhoto = saved["photo"] as? Data
-            }
+        .onAppear { restoreReplyDraft() }
+        .onReceive(NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification).receive(on: RunLoop.main)) { _ in
+            if replyDraftScope != nil { _ = ensureDraftOwnership() }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active, replyDraftScope != nil { _ = ensureDraftOwnership() }
         }
         .onChange(of: draft) { saveReplyDraft() }
         .onChange(of: link) { saveReplyDraft() }
@@ -236,7 +255,8 @@ struct PostThreadView: View {
         // arrives already scrolled.
         .task {
             guard startWriting else { return }
-            try? await Task.sleep(for: .milliseconds(350))
+            do { try await Task.sleep(for: .milliseconds(350)) } catch { return }
+            guard ensureDraftOwnership() else { return }
             composerFocused = true
         }
         // A banner about this very thread would be the app tapping you on
@@ -321,11 +341,16 @@ struct PostThreadView: View {
             }
         }
         .onChange(of: photoItem, initial: false) { _, item in
-            guard let item else { return }
-            Task {
-                if let raw = try? await item.loadTransferable(type: Data.self) {
-                    commentPhoto = ProfilePhoto.downscale(raw)
-                }
+            commentPhotoLoad.invalidate()
+            guard let item, ensureDraftOwnership(), let scope = replyDraftScope else { return }
+            let request = commentPhotoLoad.begin(scope: scope)
+            Task { @MainActor in
+                guard let raw = try? await item.loadTransferable(type: Data.self),
+                      ensureDraftOwnership(), let currentScope = replyDraftScope,
+                      commentPhotoLoad.accepts(request, scope: currentScope,
+                                               currentAccount: TableIdentity.cached,
+                                               selectionMatches: photoItem == item) else { return }
+                commentPhoto = ProfilePhoto.downscale(raw)
             }
         }
     }
@@ -383,7 +408,7 @@ struct PostThreadView: View {
                 openProfile(post.authorName, colorHex: post.authorColorHex, authorID: post.authorID, door: .author(post.persistentModelID))
             } label: {
                 HStack(spacing: 10) {
-                    AvatarCircle(initials: post.initials, tone: PersonTone.from(hex: post.authorColorHex), size: 38,
+                    AvatarCircle(initials: post.initials, tone: PersonTone.from(hex: post.authorColorHex), size: 36,
                                  photo: members.photo(forAuthor: post.authorName, authorID: post.authorID))
                         .matchedTransitionSource(id: ZoomID.author(post.persistentModelID), in: zoom)
                     VStack(alignment: .leading, spacing: 3) {
@@ -391,7 +416,7 @@ struct PostThreadView: View {
                             .fixedSize(horizontal: false, vertical: true)
                         Text("\(Stamp.day(post.createdAt)) · Your Table").plType(.caption).foregroundStyle(Color.inkSecondary)
                     }
-                }.contentShape(Rectangle())
+                }.frame(minWidth: 44, minHeight: 44).contentShape(Rectangle())
             }.buttonStyle(.pressable)
             Text(post.dishTitle.isEmpty ? (post.kind == "ask" ? "Question" : "Post") : post.dishTitle)
                 .plType(.cardTitle).foregroundStyle(Color.ink)
@@ -604,43 +629,27 @@ struct PostThreadView: View {
         }
     }
 
-    /// Linearized tree with bounded indentation. Missing parents and cycles
-    /// remain visible; stale sync data can never hide someone's comment.
-    private var threadRows: [(comment: TableComment, depth: Int)] {
-        let comments = visibleComments.filter { $0.deletedAt == nil || descendantCount(commentKey($0)) > 0 }
-        let ids = Set(comments.map(commentKey))
-        var visited = Set<String>()
-        var rows: [(comment: TableComment, depth: Int)] = []
-        func append(_ comment: TableComment, depth: Int) {
-            guard visited.insert(commentKey(comment)).inserted else { return }
-            rows.append((comment, depth))
-            if collapsedReplies.contains(commentKey(comment)) {
-                func mark(_ id: String) {
-                    for child in comments where child.parentCommentID == id {
-                        if visited.insert(child.shareRecordName).inserted { mark(child.shareRecordName) }
-                    }
-                }
-                mark(commentKey(comment))
-            } else {
-                for child in comments where child.parentCommentID == comment.shareRecordName { append(child, depth: depth + 1) }
-            }
+    private func threadRows(in layout: CommentReplyVisibility.Layout) -> [(comment: TableComment, depth: Int)] {
+        let byID = Dictionary(visibleComments.map { (commentKey($0), $0) }, uniquingKeysWith: { first, _ in first })
+        return layout.rows.compactMap { row in
+            guard let comment = byID[row.id] else { return nil }
+            return (comment, row.depth)
         }
-        for comment in comments where comment.parentCommentID == nil || !ids.contains(comment.parentCommentID ?? "") { append(comment, depth: 0) }
-        for comment in comments where !visited.contains(commentKey(comment)) { append(comment, depth: 0) }
-        return rows
-    }
-    private func descendantCount(_ id: String) -> Int {
-        var visited: Set<String> = [id]
-        func visit(_ parent: String) {
-            for child in visibleComments where child.parentCommentID == parent {
-                if visited.insert(child.shareRecordName).inserted { visit(child.shareRecordName) }
-            }
-        }
-        visit(id)
-        return visited.count - 1
     }
 
-    private func threadComment(_ comment: TableComment) -> some View {
+    private var replyVisibilityComments: [CommentReplyVisibility.Comment] {
+        visibleComments.map { .init(id: commentKey($0), parentID: $0.parentCommentID, isDeleted: $0.deletedAt != nil) }
+    }
+
+    private var pendingCommentIDs: Set<String> {
+        Set(TableOutbox.shared.pending.compactMap { entry in
+            if case .note(let postID, _, let id) = entry.work, postID == post.shareRecordName { return id }
+            return nil
+        })
+    }
+
+    private func threadComment(_ comment: TableComment, isReply: Bool) -> some View {
+        let avatarSize: CGFloat = isReply ? 28 : 36
         let removable = canRemove(comment)
         let commentAuthor = author(for: comment)
         let reportAllowed = canReport(
@@ -652,17 +661,21 @@ struct PostThreadView: View {
             Button {
                 openProfile(comment.authorName, authorID: comment.authorID, door: .author(comment.persistentModelID))
             } label: {
-                AvatarCircle(initials: initials(for: comment.authorName), tone: tone(for: comment.authorName), size: 30,
+                AvatarCircle(initials: initials(for: comment.authorName), tone: tone(for: comment.authorName), size: avatarSize,
                              photo: members.photo(forAuthor: comment.authorName, authorID: comment.authorID))
                     .matchedTransitionSource(id: ZoomID.author(comment.persistentModelID), in: zoom)
-                    .plTapTarget()
+                    .frame(width: 44, height: 44, alignment: .topLeading)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.pressable)
+            // Preserve the approved visual column while the 44pt profile
+            // target extends into the noninteractive author-text space.
+            .padding(.trailing, avatarSize - 44)
             // The avatar is the profile action; the adjacent name is text.
             // Avoid two separate focus stops for the same destination.
             .accessibilityLabel("Open \(comment.authorName)’s profile")
             VStack(alignment: .leading, spacing: 3) {
-                Text(comment.authorName).plType(.footnote, .semibold).foregroundStyle(Color.ink)
+                Text(comment.authorName).plType(.reading, .semibold).foregroundStyle(Color.ink)
                     .fixedSize(horizontal: false, vertical: true)
                 if !comment.replyToName.isEmpty && !post.sortedComments.contains(where: { $0.shareRecordName == comment.parentCommentID }) {
                     Label("Replying to \(comment.replyToName)", systemImage: "arrowshape.turn.up.left")
@@ -671,14 +684,14 @@ struct PostThreadView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 if comment.deletedAt != nil {
-                    Text("Comment deleted").plType(.body).foregroundStyle(Color.inkSecondary)
+                    Text("Earlier comment deleted").plType(.body).foregroundStyle(Color.inkSecondary)
                 } else { mentionedText(comment).lineSpacing(2) }
                 if let pending = TableOutbox.shared.pending.first(where: {
                     if case .note(_, _, let id) = $0.work { return id == comment.shareRecordName }
                     return false
                 }) {
                     HStack(spacing: 8) {
-                        Text(pending.tries == 0 ? "Sending…" : "Saved on this phone · waiting to sync")
+                        Text(pending.tries == 0 ? "Sending…" : "Saved on this device · waiting to sync")
                             .plType(.caption).foregroundStyle(Color.inkSecondary)
                         if pending.tries > 0 {
                             Button("Retry") { retryComment(comment, entry: pending) }
@@ -710,6 +723,8 @@ struct PostThreadView: View {
                         .frame(minHeight: 44)
                         .contentShape(Rectangle())
                     }
+                    .accessibilityLabel("Open \(comment.authorName)'s web link")
+                    .accessibilityHint("Opens \(comment.linkLabel)")
                 }
                 if comment.deletedAt == nil {
                     if typeSize.isAccessibilitySize { CommentReactionButton(comment: comment) }
@@ -724,7 +739,7 @@ struct PostThreadView: View {
                             }
                         } label: {
                             Text("Reply")
-                                .plType(.micro)
+                                .plType(.caption)
                                 .plActionLabel()
                                 .foregroundStyle(Color.inkSecondary)
                                 .frame(minWidth: 44, minHeight: 44, alignment: .leading)
@@ -825,15 +840,16 @@ struct PostThreadView: View {
         }
         TableReactions.forgetComments([comment.shareRecordName])
         Persist.save(context, "delete comment")
+        let postRecord = post.shareRecordName
+        let zoneOwner = post.shareZoneOwner
         let queued = TableOutbox.shared.enqueue(
-            .note(post: post.shareRecordName, zoneOwner: post.shareZoneOwner, id: comment.shareRecordName),
+            .note(post: postRecord, zoneOwner: zoneOwner, id: comment.shareRecordName),
             author: TableIdentity.cached
         )
         Task {
             let sent = await TableShare.pushNote(
-                comment,
-                post: post.shareRecordName,
-                zoneOwner: post.shareZoneOwner
+                comment, post: postRecord, zoneOwner: zoneOwner,
+                expectedAccount: queued.author
             )
             TableOutbox.shared.finish(queued, succeeded: sent)
         }
@@ -867,8 +883,8 @@ struct PostThreadView: View {
     /// eats its first half.
     private func mentionedText(_ comment: TableComment) -> Text {
         let body = comment.text
-        let plain = Font.sans(TypeScale.body.size)
-        let bold = Font.sans(TypeScale.body.size, .bold)
+        let plain = Font.custom(Font.SansWeight.regular.rawValue, size: 14, relativeTo: .body)
+        let bold = Font.custom(Font.SansWeight.semibold.rawValue, size: 14, relativeTo: .body)
         guard !comment.mentions.isEmpty else {
             return Text(body).font(plain).foregroundStyle(Color.ink)
         }
@@ -917,9 +933,9 @@ struct PostThreadView: View {
                     Button {
                         withAnimation(.plSnap) { self.replyTo = nil; self.replyToID = nil }
                     } label: {
-                        Image(systemName: "xmark")
+                        Text("Cancel")
                             .accessibilityLabel("Cancel reply")
-                            .font(.system(size: 11, weight: .bold))
+                            .plType(.caption)
                             .foregroundStyle(Color.inkSecondary)
                             .frame(minWidth: 44, minHeight: 44)
                             .contentShape(Rectangle())
@@ -936,8 +952,7 @@ struct PostThreadView: View {
                         ForEach(members, id: \.persistentModelID) { member in
                             Button {
                                 Haptic.tap()
-                                draft += (draft.isEmpty || draft.hasSuffix(" ") ? "" : " ") + "@\(member.name) "
-                                mentionBarShown = false
+                                insertMention(member.name)
                             } label: {
                                 HStack(spacing: 5) {
                                     AvatarCircle(member: member, size: 22)
@@ -948,7 +963,8 @@ struct PostThreadView: View {
                                         .foregroundStyle(Color.ink)
                                 }
                                 .padding(.horizontal, 10)
-                                .frame(minHeight: 34)
+                                .frame(minHeight: 44)
+                                .contentShape(Rectangle())
                                 .overlay(Radius.shape(Radius.chip).strokeBorder(Color.hairline))
                             }
                             .buttonStyle(.pressable)
@@ -960,7 +976,9 @@ struct PostThreadView: View {
             }
 
             if linkFieldShown {
-                TextField("Paste a link", text: $link)
+                TextField("Paste a link", text: $link,
+                          prompt: Text("Paste a link").foregroundStyle(Color.inkSecondary))
+                    .foregroundStyle(Color.ink)
                     // .body, like the other nineteen text inputs in the app.
                     // This was the only one set a step down, so typing into
                     // it felt like a different app.
@@ -984,6 +1002,8 @@ struct PostThreadView: View {
                         .clipShape(RoundedRectangle(cornerRadius: Radius.small, style: .continuous))
                         .overlay(alignment: .topTrailing) {
                             Button {
+                                commentPhotoLoad.invalidate()
+                                photoItem = nil
                                 withAnimation(.plSnap) { self.commentPhoto = nil }
                             } label: {
                                 Circle()
@@ -1009,7 +1029,10 @@ struct PostThreadView: View {
                 HStack(spacing: 6) {
                 Button {
                     Haptic.tap()
-                    withAnimation(.plSnap) { mentionBarShown.toggle() }
+                    withAnimation(.plSnap) {
+                        mentionPickerRequested = !mentionBarShown
+                        mentionBarShown = mentionPickerRequested
+                    }
                 } label: {
                     Image(systemName: "at")
                         .accessibilityLabel("Mention someone")
@@ -1047,63 +1070,91 @@ struct PostThreadView: View {
                 }.padding(.horizontal, 20)
             }
             HStack(alignment: .bottom, spacing: 6) {
-                DesignIconButton(symbol: attachmentsExpanded ? "minus" : "plus", label: attachmentsExpanded ? "Hide attachments" : "Add attachment or mention") {
-                    withAnimation(.plSnap) { attachmentsExpanded.toggle() }
-                }
-                TextField(typeSize.isAccessibilitySize ? "Write…" : placeholder, text: $draft, axis: .vertical)
-                    .accessibilityLabel(placeholder)
-                    .plType(.body, .medium)
-                    .lineLimit(1...4)
-                    .focused($composerFocused)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 10)
-                    .overlay(RoundedRectangle(cornerRadius: 23, style: .continuous).strokeBorder(Color.hairline))
-                    .plTapToFocus { composerFocused = true }
-                    // The padding is part of the pill but not of the text
-                    // field — without this, taps on it go nowhere.
-                    .contentShape(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous))
-                    .onTapGesture { composerFocused = true }
-                    .onChange(of: draft) { _, text in
-                        if text.hasSuffix("@") {
-                            withAnimation(.plSnap) { mentionBarShown = true }
-                        }
-                    }
-
                 Button {
-                    send()
+                    withAnimation(.plSnap) { attachmentsExpanded.toggle() }
                 } label: {
-                    Circle()
-                        .fill(canSend ? Color.primaryAction : Color.fill)
-                        .frame(width: 40, height: 40)
-                        .overlay {
-                            Image(systemName: "arrow.up")
-                                .accessibilityLabel("Send")
-                                .font(.system(size: 15, weight: .bold))
-                                .foregroundStyle(canSend ? Color.onPrimary : Color.inkSecondary)
+                    ZStack(alignment: .bottomTrailing) {
+                        AvatarCircle(initials: initials(for: currentAuthorName), tone: tone(for: currentAuthorName), size: 28,
+                                     photo: members.me?.photoData)
+                        Image(systemName: attachmentsExpanded ? "minus.circle.fill" : "plus.circle.fill")
+                            .font(.system(size: 12)).foregroundStyle(Color.accentText, Color.canvas)
+                            .offset(x: 3, y: 3)
+                    }.frame(width: 44, height: 46).contentShape(Rectangle())
+                }.buttonStyle(.pressable)
+                    .accessibilityLabel(attachmentsExpanded ? "Hide attachments" : "Add attachment or mention")
+                HStack(alignment: .bottom, spacing: 0) {
+                    // The editor itself owns the full padded hit area. A padded
+                    // multiline TextField exposed only its 17pt glyph frame to
+                    // accessibility, even when its outer frame was 46pt tall.
+                    Text(draft.isEmpty ? " " : draft + "\u{200B}")
+                        .plType(.footnote)
+                        .lineLimit(1...4)
+                        .padding(.leading, 16)
+                        .padding(.trailing, 5)
+                        .padding(.vertical, 12)
+                        .frame(maxWidth: .infinity, minHeight: 46, alignment: .leading)
+                        .hidden()
+                        .accessibilityHidden(true)
+                        .overlay(alignment: .topLeading) {
+                            TextEditor(text: $draft, selection: $composerSelection)
+                                .plType(.footnote)
+                                .foregroundStyle(Color.ink)
+                                .scrollContentBackground(.hidden)
+                                .contentMargins(.vertical, 4, for: .scrollContent)
+                                .padding(.leading, 11)
+                                .focused($composerFocused)
+                                .accessibilityLabel(placeholder)
+                                .accessibilityIdentifier("post-comment-input")
+                            if draft.isEmpty {
+                                Text(typeSize.isAccessibilitySize ? "Write…" : placeholder)
+                                    .plType(.footnote)
+                                    .foregroundStyle(Color.inkSecondary)
+                                    .padding(.leading, 16)
+                                    .padding(.vertical, 12)
+                                    .allowsHitTesting(false)
+                                    .accessibilityHidden(true)
+                            }
                         }
-                        .plTapTarget()
+                        .plTapToFocus { composerFocused = true }
+                        .onChange(of: draft) { _, _ in updateMentionPicker() }
+                        .onChange(of: composerSelection) { _, selection in
+                            guard let selection, case let .selection(range) = selection.indices,
+                                  range.lowerBound >= draft.startIndex,
+                                  range.upperBound <= draft.endIndex,
+                                  (range.lowerBound == draft.endIndex || draft.indices.contains(range.lowerBound)),
+                                  (range.upperBound == draft.endIndex || draft.indices.contains(range.upperBound)) else { return }
+                            let nativeRange = NSRange(range, in: draft)
+                            guard CommentMentionInsertion.validRange(nativeRange, in: draft) != nil else { return }
+                            mentionInsertionSelection = nativeRange
+                            updateMentionPicker()
+                        }
+                    Button(action: send) {
+                        Image(systemName: "arrow.up")
+                            .font(.system(size: 18, weight: .regular))
+                            .foregroundStyle(canSend ? Color.accentText : Color.inkSecondary)
+                            .frame(width: 44, height: 46).contentShape(Rectangle())
+                    }.buttonStyle(.pressable).disabled(!canSend).accessibilityLabel("Send")
                 }
-                .buttonStyle(.pressable)
-                .disabled(!canSend)
+                .frame(minHeight: 46)
+                .overlay(RoundedRectangle(cornerRadius: 23, style: .continuous).strokeBorder(Color.hairline))
             }
             .padding(.horizontal, 20)
-            // Threads are focused destinations, so the root tray retires and
-            // the composer only owes the home indicator a small breath.
             .padding(.bottom, 10)
             .animation(.plSnap, value: composerFocused)
         }
     }
 
     private var placeholder: String {
-        if replyTo != nil { return "Your reply…" }
+        if replyTo != nil { return "Write a reply…" }
         return post.kind == "ask" ? "Add a reply…" : "Add a comment…"
     }
 
     private var canSend: Bool {
         // The link field is there so a comment can BE a link. Requiring
         // text as well made it decoration.
-        !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || commentPhoto != nil
-            || !link.trimmingCharacters(in: .whitespaces).isEmpty
+        !draftAccountChanged && replyDraftScope?.belongs(to: TableIdentity.cached) == true
+            && (!draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || commentPhoto != nil
+                || !link.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
     }
 
     private var chefsKissPill: some View {
@@ -1154,33 +1205,81 @@ struct PostThreadView: View {
         }
     }
 
-    private func saveReplyDraft() {
-        let key = "table.replyDraft." + (post.shareRecordName.isEmpty ? String(describing: post.persistentModelID) : post.shareRecordName)
-        if draft.isEmpty && link.isEmpty && commentPhoto == nil {
-            UserDefaults.standard.removeObject(forKey: key)
-        } else {
-            var value: [String: Any] = ["text": draft, "link": link]
-            value["replyTo"] = replyTo; value["parent"] = replyToID; value["photo"] = commentPhoto
-            UserDefaults.standard.set(value, forKey: key)
+    private func updateMentionPicker() {
+        mentionBarShown = mentionPickerRequested
+            || CommentMentionInsertion.activeToken(in: draft, selection: mentionInsertionSelection, names: members.map(\.name)) != nil
+    }
+
+    private func insertMention(_ name: String) {
+        guard ensureDraftOwnership(),
+              let result = CommentMentionInsertion.inserting(name, into: draft, selection: mentionInsertionSelection),
+              let caret = Range(NSRange(location: result.caretUTF16, length: 0), in: result.text)?.lowerBound else { return }
+        draft = result.text
+        mentionInsertionSelection = NSRange(location: result.caretUTF16, length: 0)
+        composerSelection = TextSelection(insertionPoint: caret)
+        mentionPickerRequested = false
+        mentionBarShown = false
+        composerFocused = true
+    }
+
+    private func restoreReplyDraft() {
+        // Capture ownership once. Recomputing this key on every keystroke could
+        // write account A's already-loaded private draft into account B's key.
+        guard replyDraftScope == nil else { _ = ensureDraftOwnership(); return }
+        let scope = CommentReplyDraftStore.Scope(
+            account: TableIdentity.cached, zoneOwner: post.shareZoneOwner,
+            postID: post.shareRecordName.isEmpty ? String(describing: post.persistentModelID) : post.shareRecordName)
+        replyDraftScope = scope
+        guard let saved = CommentReplyDraftStore.load(scope: scope) else { return }
+        draft = saved.text
+        link = saved.link
+        replyTo = saved.replyTo
+        replyToID = saved.parent
+        commentPhoto = saved.photo
+        linkFieldShown = saved.showsLink
+        attachmentsExpanded = saved.showsAttachments
+        if let replyToID { replyVisibility.reveal([replyToID], in: replyVisibilityComments) }
+    }
+
+    @discardableResult
+    private func ensureDraftOwnership() -> Bool {
+        guard let scope = replyDraftScope else { return false }
+        guard !draftAccountChanged, scope.belongs(to: TableIdentity.cached) else {
+            if !draftAccountChanged {
+                draftAccountChanged = true
+                commentPhotoLoad.invalidate()
+                composerFocused = false
+                sendProblem = "Your account connection changed. Reopen this thread before sending. Your saved draft stays with its original account."
+            }
+            return false
         }
+        return true
+    }
+
+    private func saveReplyDraft() {
+        guard ensureDraftOwnership(), let scope = replyDraftScope else { return }
+        CommentReplyDraftStore.save(
+            .init(text: draft, link: link, replyTo: replyTo, parent: replyToID, photo: commentPhoto),
+            scope: scope, currentAccount: TableIdentity.cached)
     }
 
     private func retryComment(_ comment: TableComment, entry: TableOutbox.Entry) {
         guard !retryingComments.contains(comment.shareRecordName) else { return }
         retryingComments.insert(comment.shareRecordName)
         Task {
-            let sent = await TableShare.pushNote(comment, post: post.shareRecordName, zoneOwner: post.shareZoneOwner)
+            let sent = await TableShare.pushNote(comment, post: post.shareRecordName, zoneOwner: post.shareZoneOwner, expectedAccount: entry.author)
             TableOutbox.shared.finish(entry, succeeded: sent)
             retryingComments.remove(comment.shareRecordName)
         }
     }
 
     private func send() {
+        guard ensureDraftOwnership(), canSend else { return }
         let author = currentAuthorName.isEmpty ? "Me" : currentAuthorName
         let cleanDraft = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         let cleanLink = link.trimmingCharacters(in: .whitespacesAndNewlines)
         let normalized = cleanLink.isEmpty ? "" : (cleanLink.hasPrefix("http") ? cleanLink : "https://\(cleanLink)")
-        let mentioned = members.map(\.name).filter { draft.contains("@\($0)") }
+        let mentioned = CommentMentionInsertion.mentionedNames(in: cleanDraft, names: members.map(\.name))
         let comment = TableComment(
             authorName: author,
             // Not a camera emoji. `canSend` deliberately allows a comment
@@ -1222,7 +1321,11 @@ struct PostThreadView: View {
             sendProblem = "Couldn't save your comment. Your writing is still here. Try sending again."
             return
         }
+        commentPhotoLoad.invalidate()
         sendProblem = nil
+        // Sending into a collapsed branch must immediately show the saved
+        // reply and its delivery status, including a later offline retry.
+        replyVisibility.reveal([commentKey(comment)], in: replyVisibilityComments)
         let postRecord = post.shareRecordName
         let zoneOwner = post.shareZoneOwner
         let queued = TableOutbox.shared.enqueue(
@@ -1230,7 +1333,7 @@ struct PostThreadView: View {
             author: comment.authorID
         )
         Task {
-            let sent = await TableShare.pushNote(comment, post: postRecord, zoneOwner: zoneOwner)
+            let sent = await TableShare.pushNote(comment, post: postRecord, zoneOwner: zoneOwner, expectedAccount: queued.author)
             TableOutbox.shared.finish(queued, succeeded: sent)
         }
         Haptic.plate()

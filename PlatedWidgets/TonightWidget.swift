@@ -208,10 +208,10 @@ struct TonightWidgetView: View {
                     }
                 }
             }
-            // The widget's own title and cook line carry the words. The
-            // illustration contributes only people, centered in the open
-            // space, so small and large families both stay collision-free.
+            // The small widget's answer occupies the lower half. Lift the
+            // people above it so the empty-state icon never crosses the copy.
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+            .offset(y: family == .systemSmall ? -23 : 0)
         }
     }
 
