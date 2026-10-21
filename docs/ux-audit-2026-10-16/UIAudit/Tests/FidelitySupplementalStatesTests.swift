@@ -9,9 +9,10 @@ final class FidelitySupplementalStatesTests: XCTestCase {
     private func element(_ id: String) -> XCUIElement { app.descendants(matching: .any).matching(identifier: id).firstMatch }
     private func launch(_ flags: [String], light: Bool, ax: Bool = false) {
         app.terminate()
-        // The preceding iPad matrix intentionally rotates the shared runner.
-        // These phone approval captures must start from a known portrait state.
-        XCUIDevice.shared.orientation = .portrait
+        // Start in the supported physical orientation for each device. On a
+        // portrait-held landscape-only iPad, swipeUp runs across the app scene.
+        XCUIDevice.shared.orientation = UIDevice.current.userInterfaceIdiom == .pad
+            ? .landscapeLeft : .portrait
         app.launchArguments = ["-plated-design-review", "-householdName", "Meadows", "-userFirstName", "Nate",
             "-appearance", light ? "light" : "dark", "-UIPreferredContentSizeCategoryName",
             ax ? "UICTContentSizeCategoryAccessibilityXXXL" : "UICTContentSizeCategoryL"] + flags
@@ -133,8 +134,7 @@ final class FidelitySupplementalStatesTests: XCTestCase {
         XCTAssertTrue(remove.waitForNonExistence(timeout: 5))
         XCTAssertFalse(app.buttons["table-post-submit"].isEnabled)
     }
-    func testAttachedPhotoControlsAtLargestTextOnCompactPhone() {
-        guard UIDevice.current.userInterfaceIdiom == .phone else { return }
+    func testAttachedPhotoControlsAtLargestText() {
         launch(["-plated-open-table-post", "-plated-review-post-reset", "-plated-review-post-photo"],
                light: true, ax: true)
         let scroll = app.scrollViews["table-post-scroll"]
@@ -145,6 +145,7 @@ final class FidelitySupplementalStatesTests: XCTestCase {
             if remove.isHittable && change.isHittable { break }
             scroll.swipeUp()
         }
+        capture("fidelity-composer-photo-accessibility-reachability")
         XCTAssertTrue(remove.isHittable && change.isHittable,
                       "Both photo actions must remain reachable at the largest text size")
         XCTAssertGreaterThanOrEqual(remove.frame.height, 44)

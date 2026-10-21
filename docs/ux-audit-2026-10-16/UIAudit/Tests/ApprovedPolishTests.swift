@@ -6,6 +6,7 @@ final class ApprovedPolishTests: XCTestCase {
     override func setUp() { continueAfterFailure = false }
 
     func launch(_ flags: [String] = [], light: Bool = false, large: Bool = false) {
+        XCUIDevice.shared.orientation = .portrait
         app.terminate()
         app.launchArguments = ["-plated-design-review", "-householdName", "Meadows", "-userFirstName", "Nate", "-appearance", light ? "light" : "dark",
             "-UIPreferredContentSizeCategoryName", large ? "UICTContentSizeCategoryAccessibilityXXXL" : "UICTContentSizeCategoryL"] + flags
@@ -153,7 +154,9 @@ final class ApprovedPolishTests: XCTestCase {
         let poke = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Poke Night,")).firstMatch
         XCTAssertTrue(poke.exists)
         app.buttons["Favorites"].tap()
-        XCTAssertFalse(poke.exists)
+        capture("polish-favorites-filter-after-tap")
+        XCTAssertTrue(poke.waitForNonExistence(timeout: 5),
+                      "A non-favorite recipe should leave the list after selecting Favorites")
         app.buttons["All recipes"].tap()
         XCTAssertTrue(poke.exists)
         app.buttons["Recipe collections"].tap()
