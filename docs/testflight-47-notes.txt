@@ -1,0 +1,3 @@
+Build 47 refines Plan at the largest text size and repairs Table invitation recovery and phone-alert registration. An accepted Table invitation should leave Invited, appear in People, and create an Activity item. An older acceptance recovered now is shown quietly in Activity rather than as a late phone banner.
+
+For phone alerts, open Settings → Notifications and turn on Household and Table activity if needed. Then use Phone alert connection if it says Connect or Retry, on both phones. A confirmed registration is a setup check, not proof of delivery. Please try a new Table comment, reaction, and invitation, then check the in-app Activity, People, and phone alerts. Plated does not yet claim a two-phone delivery pass for this build.
