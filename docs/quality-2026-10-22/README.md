@@ -1,7 +1,8 @@
 # Build 48 candidate: October 22 correction
 
-This is a candidate record, not an assertion that build 48 is on TestFlight or
-that phone alerts work. Build 47 is the last verified distributed binary. The
+This is a candidate-quality record, not an assertion that phone alerts work.
+Build 48 was subsequently verified available to both TestFlight groups; see
+[the distribution record](../testflight-48.md). The
 reference is the original approved October 18 design review; Nate's installed
 build-47 screenshots are the defect evidence. The candidate starts from
 `8907f0b` on `codex/approved-design-fidelity-46` in an isolated worktree.
