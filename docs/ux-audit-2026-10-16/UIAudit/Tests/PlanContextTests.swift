@@ -251,6 +251,9 @@ final class PlanContextVoiceOverTests: XCTestCase {
         app.terminate()
     }
     func testDinnerWeatherAndCountsReadInOrder() throws {
+        guard ProcessInfo.processInfo.operatingSystemVersion.majorVersion >= 27 else {
+            throw XCTSkip("The XCTest VoiceOver remote service is unavailable on this iOS 26 simulator; this reading-order check runs on iOS 27.")
+        }
         if voice.isEnabled { try voice.disable() }
         app.launchArguments = ["-plated-design-review", "-plated-tab", "week", "-plated-review-empty-tonight",
                                "-plated-review-dinner-history", "-plated-fake-weather", "-appearance", "dark"]

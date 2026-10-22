@@ -11,8 +11,9 @@ final class PhotoHitAuditTests: XCTestCase {
         app.launchArguments = ["-plated-design-review", "-plated-tab", "cookbook", "-plated-open-recipe-detail", "-appearance", "dark", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryL"]
         app.launch()
         app.buttons["Recipe options"].tap()
-        XCTAssertTrue(app.buttons["Edit recipe"].waitForExistence(timeout: 20))
-        app.buttons["Edit recipe"].tap()
+        let edit = app.descendants(matching: .any).matching(identifier: "Edit recipe").firstMatch
+        XCTAssertTrue(edit.waitForExistence(timeout: 20))
+        edit.tap()
         let field = app.textFields["Name the dish"]
         XCTAssertTrue(field.waitForExistence(timeout: 10))
         capture("photo-hit-before-title-tap")
@@ -31,7 +32,7 @@ final class PhotoHitAuditTests: XCTestCase {
         app.buttons["Cancel"].tap()
         app.buttons["Discard"].tap()
         app.buttons["Recipe options"].tap()
-        app.buttons["Edit recipe"].tap()
+        edit.tap()
         XCTAssertTrue(field.waitForExistence(timeout: 8))
         XCTAssertEqual(field.value as? String, original)
         capture("recipe-edit-reopened-original-value")

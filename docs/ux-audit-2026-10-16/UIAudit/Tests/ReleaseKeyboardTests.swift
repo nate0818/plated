@@ -17,8 +17,9 @@ final class ReleaseKeyboardTests: XCTestCase {
         app.launchArguments = ["-plated-design-review", "-plated-open-recipe-detail", "-appearance", "dark"]
         app.launch()
         app.buttons["Recipe options"].tap()
-        XCTAssertTrue(app.buttons["Edit recipe"].waitForExistence(timeout: 20))
-        app.buttons["Edit recipe"].tap()
+        let edit = app.descendants(matching: .any).matching(identifier: "Edit recipe").firstMatch
+        XCTAssertTrue(edit.waitForExistence(timeout: 20))
+        edit.tap()
         let title = app.textFields["Name the dish"]
         XCTAssertTrue(title.waitForExistence(timeout: 10))
         title.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
@@ -44,7 +45,13 @@ final class ReleaseKeyboardTests: XCTestCase {
         XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 5))
         XCTAssertEqual(calories.value as? String, "450")
         app.buttons["Cancel"].tap(); app.buttons["Discard"].tap()
-        app.buttons["Recipe options"].tap()
-        XCTAssertTrue(app.buttons["Edit recipe"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.textFields["Name the dish"].waitForNonExistence(timeout: 10),
+                      "Discard must close the editor before returning to the recipe")
+        XCTAssertTrue(app.alerts.firstMatch.waitForNonExistence(timeout: 10))
+        let options = app.buttons["Recipe options"]
+        XCTAssertTrue(options.waitForExistence(timeout: 10))
+        XCTAssertTrue(options.isHittable)
+        options.tap()
+        XCTAssertTrue(edit.waitForExistence(timeout: 10))
     }
 }

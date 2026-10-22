@@ -8,7 +8,12 @@ final class ReleaseVoiceOverTests: XCTestCase {
     var speech: [String] = []
     var voice: XCUIVoiceOverService { XCUIDevice.shared.voiceOverService }
 
-    override func setUpWithError() throws { continueAfterFailure = false }
+    override func setUpWithError() throws {
+        continueAfterFailure = false
+        guard ProcessInfo.processInfo.operatingSystemVersion.majorVersion >= 27 else {
+            throw XCTSkip("The XCTest VoiceOver remote service is unavailable on this iOS 26 simulator; run this native speech suite on iOS 27 and retain physical-device checks separately.")
+        }
+    }
     override func tearDownWithError() throws {
         let transcript = XCTAttachment(string: speech.joined(separator: "\n"))
         transcript.name = name + "-speech"; transcript.lifetime = .keepAlways; add(transcript)

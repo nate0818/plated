@@ -68,14 +68,17 @@ final class ReleaseWidgetTests: XCTestCase {
         XCTAssertTrue(app.buttons.firstMatch.waitForExistence(timeout: 20))
         XCUIDevice.shared.press(.home)
         let leftover = home.icons.matching(NSPredicate(format: "identifier == 'Plated' AND value == 'Widget'")).firstMatch
-        if leftover.waitForExistence(timeout: 5) {
+        // Earlier gallery cases can leave more than one Plated family on
+        // this simulator. Remove every test-owned instance, then assert the
+        // Home Screen is clean before measuring each tap-through.
+        for _ in 0..<8 where leftover.exists {
             home.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.81)).press(forDuration: 1.5)
             leftover.buttons["DeleteButton"].tap()
             home.alerts.buttons["Remove"].tap()
             capture("widget-prior-install-removal")
-            XCTAssertTrue(leftover.waitForNonExistence(timeout: 15))
             XCUIDevice.shared.press(.home)
         }
+        XCTAssertTrue(leftover.waitForNonExistence(timeout: 15), "All prior Plated test widgets must be removed")
         for (page, name) in [(4, "table"), (9, "grocery")] {
             openGallery()
             XCTAssertEqual(existingPlatedWidgets, 0)
@@ -192,6 +195,10 @@ final class ReleaseWidgetTests: XCTestCase {
         if !tonight.waitForExistence(timeout: 3) {
             inline.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
         }
+        // iOS 26 opens the inline picker at Calendar/Fitness, even after
+        // visiting Plated's grouped families. Scroll the provider results;
+        // the inline family is not necessarily on the first visible page.
+        for _ in 0..<5 where !tonight.exists { editor.swipeUp() }
         XCTAssertTrue(tonight.waitForExistence(timeout: 10))
         editor.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.9))
             .press(forDuration: 0.05, thenDragTo: editor.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.55)))

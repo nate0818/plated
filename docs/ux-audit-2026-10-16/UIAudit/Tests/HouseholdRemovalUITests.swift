@@ -72,11 +72,15 @@ final class HouseholdRemovalUITests: XCTestCase {
         if app.buttons["Cancel"].exists {
             app.buttons["Cancel"].tap()
         } else {
-            // iOS 27 presents this as a popover with outside-tap dismissal.
-            app.buttons["Notifications"].firstMatch.tap()
+            // On iOS 26 this is a centered confirmation sheet without an
+            // exposed Cancel action. Its underlying header is dimmed and
+            // cannot receive a tap; dismiss at the unobscured lower edge.
+            capture("household-removal-confirmation-before-outside-tap")
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.7)).tap()
         }
         XCTAssertFalse(remove.exists)
         XCTAssertTrue(app.buttons["More options for Sam"].exists)
+        capture("household-removal-cancel-preserves-person")
     }
 
     func testTablePeopleUsesTheSameRemovalFlowAtLargestText() {

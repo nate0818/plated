@@ -71,19 +71,37 @@ final class SelectedDayPlanTests: XCTestCase {
         launch(["-plated-review-drag"], largeText: true, light: true)
         expectDinner("Drag test dinner")
         let content = app.scrollViews["plan-selected-day-content"]
-        let breakfast = app.staticTexts["Morning pancakes"]
-        for _ in 0..<5 {
-            if breakfast.isHittable { break }
-            content.swipeUp()
+        // The meal row is a single accessible button; SwiftUI combines its
+        // title and serving count rather than exposing the title as a child
+        // static text on all supported OS versions.
+        let breakfast = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "BREAKFAST, Morning pancakes")).firstMatch
+        XCTAssertTrue(breakfast.waitForExistence(timeout: 5))
+        capture("selected-day-largest-text-before-scroll")
+        let dateRail = app.scrollViews["plan-date-wheel"]
+        let tabBarTop = app.buttons["tray-week"].exists ? app.buttons["tray-week"].frame.minY : app.windows.firstMatch.frame.maxY - 60
+        for _ in 0..<8 {
+            let frame = breakfast.frame
+            if frame.minY >= dateRail.frame.maxY + 8 && frame.maxY <= tabBarTop - 8 { break }
+            // Full-height XCTest swipes jump past this row at AX5 on an SE.
+            // Drag in shorter steps so the whole row can clear both chrome
+            // regions instead of oscillating above and below the viewport.
+            let movingDown = frame.minY < dateRail.frame.maxY + 8
+            let start = content.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: movingDown ? 0.40 : 0.65))
+            let end = content.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: movingDown ? 0.60 : 0.45))
+            start.press(forDuration: 0.05, thenDragTo: end)
         }
+        capture("selected-day-largest-text-after-scroll")
         XCTAssertTrue(breakfast.isHittable)
+        XCTAssertGreaterThanOrEqual(breakfast.frame.minY, dateRail.frame.maxY + 8, "Breakfast must clear the pinned date row")
+        XCTAssertLessThanOrEqual(breakfast.frame.maxY, tabBarTop - 8, "Breakfast must clear the tab bar")
         XCTAssertEqual(app.buttons["featured-dinner-card"].label, "Drag test dinner")
         XCTAssertTrue(dateButton(0).isHittable)
         capture("selected-day-largest-text-breakfast")
         select(1)
         expectDinner("Second dinner")
         XCTAssertTrue(app.buttons["featured-dinner-card"].isHittable, "A changed day starts at the top of its content")
-        XCTAssertFalse(breakfast.exists)
+        capture("selected-day-largest-text-next-day-before-absence-check")
+        XCTAssertTrue(breakfast.waitForNonExistence(timeout: 5), "The prior day's breakfast must leave the accessible day content")
         capture("selected-day-largest-text-next-day")
     }
 

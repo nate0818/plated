@@ -21,7 +21,9 @@ final class FocusedAuditTests: XCTestCase {
     func testEditCancel() {
         launch(["-plated-open-recipe-detail"])
         app.buttons["Recipe options"].tap()
-        let edit = app.buttons["Edit recipe"]
+        // SwiftUI's menu action is a Button on iOS 27 and a PopUpButton
+        // in the iOS 26 accessibility tree.
+        let edit = app.descendants(matching: .any).matching(identifier: "Edit recipe").firstMatch
         XCTAssertTrue(edit.waitForExistence(timeout: 8)); edit.tap()
         capture("editor-before-entry")
         let field = app.textFields["Name the dish"]
