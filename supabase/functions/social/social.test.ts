@@ -115,6 +115,21 @@ Deno.test("CloudKit refuses an identity response without exactly one caller",asy
   const cloud=new CloudKit("public-api","initial-token-long-enough","production",fetcher);
   await assertRejects(()=>cloud.identity(),Rejected,"cloud_identity_unavailable");
 });
+Deno.test("CloudKit accepts a privacy-protected caller's lookup record name",async()=>{
+  const fetcher=(async()=>Response.json({users:[{lookupInfo:{userRecordName:"nate"}}],ckWebAuthToken:"next-token"})) as typeof fetch;
+  const cloud=new CloudKit("public-api","initial-token-long-enough","production",fetcher);
+  assertEquals(await cloud.identity(),"nate");
+});
+Deno.test("CloudKit rejects conflicting or unbound caller identities",async()=>{
+  for(const caller of [
+    {userRecordName:"nate",lookupInfo:{userRecordName:"another"}},
+    {lookupInfo:{emailAddress:"person@example.com"}},
+  ]) {
+    const fetcher=(async()=>Response.json({users:[caller],ckWebAuthToken:"next-token"})) as typeof fetch;
+    const cloud=new CloudKit("public-api","initial-token-long-enough","production",fetcher);
+    await assertRejects(()=>cloud.identity(),Rejected,"cloud_identity_unavailable");
+  }
+});
 Deno.test("CloudKit failures never leak token-bearing URL errors",async()=>{
   const cloud=new CloudKit("api","secret-token-long-enough","production",(()=>Promise.reject(new Error("secret-url"))) as typeof fetch);
   const e=await assertRejects(()=>cloud.identity(),Rejected,"cloud_unavailable");assertEquals(e.message.includes("secret"),false);

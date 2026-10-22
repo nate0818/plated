@@ -24,9 +24,11 @@ broad app logic and approved-screen runs; focused current-OS Plan and final
 Settings captures use the revised code.
 
 Static design, native token, schema-manifest and whitespace checks passed.
-The recorded schema manifest is not a live CloudKit transaction. The production
-`social` Edge Function is ACTIVE at version 5, logging only bounded error codes
-for future diagnosis; successful registration or APNs delivery remains unverified.
+The recorded schema manifest is not a live CloudKit transaction. At archive,
+the production `social` Edge Function was ACTIVE at version 5. A server-only
+caller-identity parser correction was deployed as version 6 after build 48
+entered TestFlight; its focused checks are below. Successful registration or
+APNs delivery remains unverified.
 
 ## Exact signed package
 
@@ -76,6 +78,19 @@ events, and deliveries. This narrows the next investigation to Apple's caller
 identity response or its interpretation; it does not establish which one is
 wrong. The new Settings result explains that alerts are unavailable and keeps
 in-app Activity available, but it is not a notification transport repair.
+
+Apple [documents privacy-protected caller identities](https://developer.apple.com/documentation/cloudkitjs/cloudkit.useridentity)
+that contain only `lookupInfo`, including a possible `userRecordName`. The
+version-5 parser read only the top-level name. Version 6 accepts Apple's nested
+record name, rejects conflicting direct/nested names, and never falls back to an
+email address or client-supplied identity. Its 24 Deno tests and complete Edge
+Function type-check
+passed; deployed source was read back as ACTIVE at artifact hash
+`0e9c2cfd0cff80b38e196c8dfc0d8d4d91d807165e26bc84ab9116048b800142`.
+An unauthenticated endpoint smoke test returned the expected 401. This is a
+protocol-compatible correction, not proof that the previously observed phone
+will now register. No new account attempt or push delivery has been observed
+after version 6.
 
 Settings still contains a dense list of notification categories; the compact
 Phone alerts status removes the oversized connection block but is not a full

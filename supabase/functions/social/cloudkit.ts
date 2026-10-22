@@ -68,7 +68,19 @@ export class CloudKit {
     if (!Array.isArray(users) || users.length !== 1 || !users[0] || typeof users[0] !== "object") {
       throw new Rejected(403, "cloud_identity_unavailable");
     }
-    return identifier((users[0] as Record<string, unknown>).userRecordName);
+    const caller = users[0] as Record<string, unknown>;
+    // Apple may return only lookupInfo for a privacy-protected identity. Its
+    // userRecordName is still the identity Apple authenticated as the caller.
+    const lookup = caller.lookupInfo;
+    const nested = lookup && typeof lookup === "object" && !Array.isArray(lookup)
+      ? (lookup as Record<string, unknown>).userRecordName : undefined;
+    const direct = caller.userRecordName;
+    if (typeof direct === "string" && typeof nested === "string" && direct !== nested) {
+      throw new Rejected(403, "cloud_identity_unavailable");
+    }
+    const name = typeof direct === "string" ? direct : nested;
+    if (typeof name !== "string") throw new Rejected(403, "cloud_identity_unavailable");
+    return identifier(name);
   }
   async record(name: string, zone: string, owner: string, me: string): Promise<CKRecord> {
     if (!this.token) throw new Rejected(503, "cloud_token_refresh_required");

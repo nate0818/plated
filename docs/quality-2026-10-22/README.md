@@ -21,11 +21,13 @@ freshly checked routes and explicit gaps for this incremental beta.
 ## Known limits
 
 The production notification service previously returned HTTP 403 for phone
-registration and had no confirmed installation. The deployed service now logs
-only a finite rejection code so a fresh phone attempt can identify the failed
-step without logging credentials. No new phone attempt has reached that path
-since deployment. No push delivery, current invitation acceptance, or two-way
-profile/photo/activity sync is claimed. Physical VoiceOver, the installed
+registration and had no confirmed installation. The deployed service logs
+only a finite rejection code. A later server-only version 6 accepts Apple's
+documented privacy-protected caller identity shape; its focused tests and
+deployment read-back are in [the release record](../testflight-48.md). No new
+phone attempt has verified registration after that change. No push delivery,
+current invitation acceptance, or two-way profile/photo/activity sync is
+claimed. Physical VoiceOver, the installed
 widget, and real Calendar permission behavior remain separate device checks.
 
 The captures use an isolated iPhone 17 Pro simulator on iOS 26.2 with review
