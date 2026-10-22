@@ -1,0 +1,32 @@
+Contrast failed
+Contrast failed for SwiftUI.AccessibilityNode
+Attributes: StaticText, 0x105036260, {{34.0, 307.0}, {334.0, 206.0}}, label: 'Salmon Night'
+Element subtree:
+ →StaticText, 0x105036260, {{34.0, 307.0}, {334.0, 206.0}}, label: 'Salmon Night'
+Path to element:
+ →Application, 0x10502eb70, pid: 34000, label: 'Plated'
+  ↳Window (Main), 0x10502f610, {{0.0, 0.0}, {402.0, 874.0}}
+   ↳Other, 0x1050308a0, {{0.0, 0.0}, {402.0, 874.0}}
+    ↳Other, 0x105030c20, {{0.0, 0.0}, {402.0, 874.0}}
+     ↳Other, 0x105030500, {{0.0, 0.0}, {402.0, 874.0}}
+      ↳Other, 0x10502f9b0, {{0.0, 0.0}, {402.0, 874.0}}
+       ↳Other, 0x105030f90, {{0.0, 0.0}, {402.0, 874.0}}
+        ↳Other, 0x1050312e0, {{0.0, 0.0}, {402.0, 874.0}}
+         ↳Other, 0x105031650, {{0.0, 0.0}, {402.0, 874.0}}
+          ↳Other, 0x1050319b0, {{0.0, 0.0}, {402.0, 874.0}}
+           ↳Other, 0x105031d10, {{0.0, 0.0}, {402.0, 874.0}}
+            ↳ScrollView, 0x105032400, {{0.0, 0.0}, {402.0, 874.0}}, identifier: 'plan-selected-day-content'
+             ↳Other, 0x105032790, {{0.0, 62.0}, {402.0, 1137.0}}
+              ↳Other, 0x105034a20, {{20.0, 176.0}, {679.0, 942.3}}
+               ↳Button, 0x105035b90, {{34.0, 307.0}, {334.0, 206.0}}, identifier: 'featured-dinner-card', label: 'Salmon Night'
+                ↳Button, 0x105035f00, {{34.0, 307.0}, {334.0, 206.0}}, label: 'Salmon Night'
+                 ↳StaticText, 0x105036260, {{34.0, 307.0}, {334.0, 206.0}}, label: 'Salmon Night'
+Query chain:
+ →Find: Application 'com.natemeadows.plated'
+  Output: {
+    Application, 0x105063e60, pid: 34000, label: 'Plated'
+  }
+  ↪︎Find: Descendant with identity binding to AX element pid: 34000, elementOrHash.elementID: 4341606944.39
+    Output: {
+      StaticText, 0x10554cf60, {{34.0, 307.0}, {334.0, 206.0}}, label: 'Salmon Night'
+    }

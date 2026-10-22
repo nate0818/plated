@@ -8,6 +8,27 @@ import UserNotifications
 /// Kept per device, never in SwiftData's mirrored store.
 @MainActor
 enum SocialPush {
+    enum ConnectionOutcome: Equatable {
+        case connected
+        case waitingForDeviceToken
+        case appleAccountRequired
+        case serviceUnavailable
+        case appleAccessDenied
+        case appleIdentityUnavailable
+        case temporarilyUnavailable
+
+        var explanation: String? {
+            switch self {
+            case .connected: nil
+            case .waitingForDeviceToken: "This phone hasn’t finished connecting for alerts. Plated will keep trying automatically."
+            case .appleAccountRequired: "Connect your Apple Account to receive Table alerts on this phone."
+            case .serviceUnavailable: "Phone alerts aren’t available right now. Activity still appears in Plated."
+            case .appleAccessDenied: "Phone alerts couldn’t connect. Activity still appears in Plated while we fix this."
+            case .appleIdentityUnavailable: "We couldn’t confirm this iCloud account for phone alerts. Activity still appears in Plated."
+            case .temporarilyUnavailable: "Phone alerts couldn’t connect. Activity still appears in Plated."
+            }
+        }
+    }
     struct Pending: Codable, Equatable {
         var zone: String
         var owner: String
@@ -24,7 +45,11 @@ enum SocialPush {
     private static let installationKey = "plated.socialPush.installation.v1"
     private static let bindingKey = "plated.socialPush.binding.v1"
     private static let receiptKey = "plated.socialPush.registration.v1"
-    private static var running = false
+    private static let receiptContextKey = "plated.socialPush.receiptContext.v1"
+    private static var syncTask: Task<ConnectionOutcome, Never>?
+    private static var syncRequestedAgain = false
+    private static var sessionGeneration = 0
+    private(set) static var lastConnectionOutcome: ConnectionOutcome?
     private static var wake: Task<Void, Never>?
     private static var queue: [Pending] {
         get { UserDefaults.standard.data(forKey: queueKey).flatMap { try? JSONDecoder().decode([Pending].self, from: $0) } ?? [] }
@@ -44,7 +69,14 @@ enum SocialPush {
     /// registration receipt. Settings must not call a preference toggle
     /// "on" proof that any phone can actually receive social alerts.
     static var hasConfirmedInstallation: Bool {
-        Directory.isRegistered && UserDefaults.standard.double(forKey: receiptKey) > 0
+        let token = (UserDefaults(suiteName: WidgetBridge.appGroupID) ?? .standard).string(forKey: "plated.apns.latest") ?? ""
+        return Directory.isRegistered && token.count == 64
+            && UserDefaults.standard.double(forKey: receiptKey) > 0
+            && UserDefaults.standard.string(forKey: receiptContextKey) == receiptContext(token: token, cloud: TableIdentity.cached)
+    }
+    private static func receiptContext(token: String, cloud: String) -> String {
+        let data = Data("\(environment)|\(cloud)|\(token)".utf8)
+        return SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
     }
     private static var installation: String {
         if let id = UserDefaults.standard.string(forKey: installationKey) { return id }
@@ -84,13 +116,23 @@ enum SocialPush {
         requestSync()
     }
     static func requestSync() {
+        syncRequestedAgain = true
         guard wake == nil else { return }
+        let joiningExistingAttempt = syncTask != nil
+        let generation = sessionGeneration
         wake = Task { @MainActor in
-            defer { wake = nil }
-            await synchronize()
+            defer { if sessionGeneration == generation { wake = nil } }
+            // If Settings started a connection first, join it and then make
+            // a fresh pass for the new work that arrived during that attempt.
+            if joiningExistingAttempt { _ = await synchronize() }
+            repeat {
+                syncRequestedAgain = false
+                _ = await synchronize()
+            } while syncRequestedAgain && !Task.isCancelled
         }
     }
     static func reset() {
+        sessionGeneration += 1
         // Capture this session before Directory clears it. A subsequent
         // registration also replaces this exact APNs token's old binding.
         if let id = UserDefaults.standard.string(forKey: installationKey),
@@ -101,16 +143,33 @@ enum SocialPush {
         }
         wake?.cancel()
         wake = nil
+        syncTask?.cancel()
+        syncTask = nil
+        syncRequestedAgain = false
+        lastConnectionOutcome = nil
         queue = []
-        for key in [installationKey, bindingKey, receiptKey] { UserDefaults.standard.removeObject(forKey: key) }
+        for key in [installationKey, bindingKey, receiptKey, receiptContextKey] { UserDefaults.standard.removeObject(forKey: key) }
     }
-    static func synchronize() async {
-        guard !running, Directory.isRegistered, !TableIdentity.isPlaceholder else { return }
+    @discardableResult
+    static func synchronize() async -> ConnectionOutcome {
+        if let syncTask { return await syncTask.value }
+        let generation = sessionGeneration
+        let task = Task { @MainActor in
+            let outcome = await performSynchronization(generation: generation)
+            if sessionGeneration == generation {
+                syncTask = nil
+                lastConnectionOutcome = outcome
+            }
+            return outcome
+        }
+        syncTask = task
+        return await task.value
+    }
+    private static func performSynchronization(generation: Int) async -> ConnectionOutcome {
+        guard Directory.isRegistered, !TableIdentity.isPlaceholder else { return .appleAccountRequired }
         #if DEBUG
-        guard !ProcessInfo.processInfo.arguments.contains("-plated-seed-sample"), !TableNews.rehearsing else { return }
+        guard !ProcessInfo.processInfo.arguments.contains("-plated-seed-sample"), !TableNews.rehearsing else { return .temporarilyUnavailable }
         #endif
-        running = true
-        defer { running = false }
         let me = TableIdentity.cached
         do {
             let snapshot = await preferences()
@@ -119,22 +178,30 @@ enum SocialPush {
             let binding = SHA256.hash(data: bindingData).map { String(format: "%02x", $0) }.joined()
             let needsRegistration = UserDefaults.standard.string(forKey: bindingKey) != binding
                 || Date.now.timeIntervalSince1970 - UserDefaults.standard.double(forKey: receiptKey) > 3600
+                || !hasConfirmedInstallation
             let ready = queue.filter { $0.author == me && $0.retryAt <= .now && $0.queuedAt > Date.now.addingTimeInterval(-86400) }
-            guard (needsRegistration && device.count == 64) || !ready.isEmpty else { return }
+            // A sender may still queue verified activity for other phones
+            // while this phone is waiting for its own APNs token.
+            guard (needsRegistration && device.count == 64) || !ready.isEmpty else {
+                return needsRegistration ? .waitingForDeviceToken : .connected
+            }
             let config = try await request(["action": "config"])
-            guard config["enabled"] as? Bool == true, let apiToken = config["api_token"] as? String else { return }
+            guard config["enabled"] as? Bool == true, let apiToken = config["api_token"] as? String else { return .serviceUnavailable }
             if needsRegistration && device.count == 64 {
                 let token = try await webToken(apiToken)
                 let result = try await request(["action":"register", "installation":installation, "apns_token":device,
                     "web_token":token, "preferences":snapshot])
-                guard result["cloud_id"] as? String == me, TableIdentity.cached == me, Directory.isRegistered else { return }
+                guard !Task.isCancelled, sessionGeneration == generation,
+                      result["cloud_id"] as? String == me, TableIdentity.cached == me,
+                      Directory.isRegistered else { return .appleIdentityUnavailable }
                 UserDefaults.standard.set(binding, forKey: bindingKey)
+                UserDefaults.standard.set(receiptContext(token: device, cloud: me), forKey: receiptContextKey)
                 UserDefaults.standard.set(Date.now.timeIntervalSince1970, forKey: receiptKey)
                 print("[SocialPush] verified device registered")
             }
             // Bounded so CloudKit/push maintenance never monopolizes a pull.
             for item in ready.prefix(8) {
-                guard !Task.isCancelled, TableIdentity.cached == me, Directory.isRegistered else { return }
+                guard !Task.isCancelled, TableIdentity.cached == me, Directory.isRegistered else { return .appleAccountRequired }
                 do {
                     let token = try await webToken(apiToken)
                     _ = try await request(["action":item.roomOnly ? "room" : "event", "web_token":token, "zone":item.zone, "owner":item.owner, "record":item.record])
@@ -153,16 +220,24 @@ enum SocialPush {
                     print("[SocialPush] event retained for retry")
                 }
             }
+            return hasConfirmedInstallation ? .connected : .waitingForDeviceToken
         } catch let error as ResponseError {
             print("[SocialPush] registration deferred (\(error.status), \(error.code))")
+            switch error.code {
+            case "cloud_access_denied": return .appleAccessDenied
+            case "cloud_identity_unavailable": return .appleIdentityUnavailable
+            case "not_configured", "apns_not_configured": return .serviceUnavailable
+            case "unauthorized": return .appleAccountRequired
+            default: return .temporarilyUnavailable
+            }
         } catch {
             // Never log CloudKit token-bearing URL/request objects.
             print("[SocialPush] verification unavailable; durable queue retained")
+            return .temporarilyUnavailable
         }
     }
     static func localFallback(_ notices: [TableNews.Notice]) async -> [TableNews.Notice] {
-        guard !TableNews.rehearsing, Directory.isRegistered,
-              UserDefaults.standard.object(forKey: receiptKey) != nil else { return notices }
+        guard !TableNews.rehearsing, hasConfirmedInstallation else { return notices }
         let covered: Set<TableNews.Notice.Kind> = [.comment, .plates, .votes, .commentLikes, .kiss, .seat, .householdSeat]
         let keys = Set(notices.filter { covered.contains($0.kind) }.flatMap { $0.key.split(separator: "|").map(String.init) })
         guard !keys.isEmpty, keys.count <= 100 else { return notices }

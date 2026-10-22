@@ -3,10 +3,18 @@
 Build 47 is available to the existing Internal and External TestFlight groups.
 [Install or update through TestFlight](https://testflight.apple.com/join/2exAQgYs)
 and confirm the installed app reports **1.0.1 (47)**. Build 47 contains the
-approved Plan design already present in build 46 and the
+Plan implementation from build 46 and the
 Table invitation/phone-alert repairs in app-source commit `12b7e02`. This is a
 beta release with explicit live-verification gaps. **TestFlight availability
 does not prove that a particular iPhone installed build 47.**
+
+**October 22 correction:** Nate's installed build-47 screenshots show that the
+Plan presentation was not accepted as faithful to the approved design, and the
+Settings alert connection remained stuck on Retry. Production `social` logs
+showed repeated HTTP 403 registration failures; the installation table still
+had zero confirmed devices. The earlier source/simulator checks below do not
+establish design acceptance or working phone notifications. These are open
+release defects, not successful build-47 checks.
 
 ## What changed
 

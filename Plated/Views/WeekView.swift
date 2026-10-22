@@ -358,6 +358,12 @@ struct WeekView: View {
     private var portraitPlan: some View {
         GeometryReader { geometry in
             let wide = geometry.size.width >= 800 && !typeSize.isAccessibilitySize
+            // A short phone loses the dinner counts behind the tab bar when
+            // live Weather attribution takes its full 44-point tap target.
+            // Keep the same hierarchy and controls; tighten only supporting
+            // space at standard text sizes.
+            let compactPhone = geometry.size.width < 600 && geometry.size.height < 800
+                && !typeSize.isAccessibilitySize
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     tonightHeader
@@ -369,7 +375,7 @@ struct WeekView: View {
                         Section {
                             let layout = wide
                                 ? AnyLayout(HStackLayout(alignment: .top, spacing: 26))
-                                : AnyLayout(VStackLayout(alignment: .leading, spacing: 24))
+                                : AnyLayout(VStackLayout(alignment: .leading, spacing: compactPhone ? 16 : 24))
                             layout {
                                 VStack(alignment: .leading, spacing: 20) {
                                     if let arrivingHost {
@@ -378,7 +384,7 @@ struct WeekView: View {
                                             .fixedSize(horizontal: false, vertical: true)
                                     }
                                     featuredDinner(shortViewport: geometry.size.height < 730 && !typeSize.isAccessibilitySize)
-                                        .padding(18)
+                                        .padding(compactPhone ? 14 : 18)
                                         .frame(maxWidth: .infinity, alignment: .leading)
                                         .background(Color.fill, in: Radius.shape(Radius.hero))
                                     additionalMealsForSelectedDay
@@ -391,7 +397,8 @@ struct WeekView: View {
                                 .frame(maxWidth: .infinity, alignment: .topLeading)
                                 VStack(alignment: .leading, spacing: 20) {
                                     PlanContextView(date: weekAnchor, forecast: forecast,
-                                        history: PlanDinnerHistory(local: meals, shared: PlanLedger.shared.all))
+                                        history: PlanDinnerHistory(local: meals, shared: PlanLedger.shared.all),
+                                        compact: compactPhone)
                                     Divider().accessibilityHidden(true)
                                     PlanHouseholdView(members: members, meals: meals) { member in
                                         pushed = .person(PersonRef(name: member.name, colorHex: member.colorHex,
@@ -854,10 +861,17 @@ struct WeekView: View {
                         }
                         if typeSize.isAccessibilitySize { chooseMealAction }
                         localCookPicker(for: dinner(on: weekAnchor))
-                        if !typeSize.isAccessibilitySize { chooseMealAction }
-                        planTextAction("Eating out instead") { markEatingOut(on: weekAnchor) }
-                            .accessibilityIdentifier("plan-eating-out-action")
-                            .accessibilityHint("Marks dinner on the selected date as eating out")
+                        if typeSize.isAccessibilitySize {
+                            eatingOutAction
+                        } else {
+                            // The approved proposal treats these as one
+                            // decision: the secondary choice sits directly
+                            // under the primary button, not in a new band.
+                            VStack(spacing: 4) {
+                                chooseMealAction
+                                eatingOutAction
+                            }
+                        }
                     }.frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
@@ -874,6 +888,12 @@ struct WeekView: View {
                             ? "Choose a meal" : PlanEmptyCopy.planNight) {
             planDay = weekAnchor
         }
+    }
+
+    private var eatingOutAction: some View {
+        planTextAction("Eating out instead") { markEatingOut(on: weekAnchor) }
+            .accessibilityIdentifier("plan-eating-out-action")
+            .accessibilityHint("Marks dinner on the selected date as eating out")
     }
 
     private func localCookPicker(for meal: PlannedMeal?) -> some View {

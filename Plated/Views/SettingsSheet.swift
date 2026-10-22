@@ -114,6 +114,9 @@ struct SettingsSheet: View {
                 refreshPendingSyncCount()
                 phoneAlertsConnected = SocialPush.hasConfirmedInstallation
                 if phoneAlertsConnected { phoneAlertProblem = nil }
+                else if !connectingPhoneAlerts, phoneAlertProblem == nil {
+                    phoneAlertProblem = SocialPush.lastConnectionOutcome?.explanation
+                }
                 try? await Task.sleep(for: .seconds(1))
             }
         }
@@ -183,10 +186,10 @@ struct SettingsSheet: View {
                     SettingsDivider()
                     tableActivityRow
                     if notificationState == .allowed, tableNewsOn {
-                        SettingsDivider()
-                        phoneAlertsRow
-                    }
-                    if notificationState == .allowed, tableNewsOn {
+                        if !phoneAlertsConnected {
+                            SettingsDivider()
+                            phoneAlertsRow
+                        }
                         ForEach(NewsPreferences.Category.allCases, id: \.self) { category in
                             SettingsDivider()
                             categoryRow(category)
@@ -652,25 +655,13 @@ struct SettingsSheet: View {
     }
 
     private var phoneAlertsRow: some View {
-        SettingsControlRow(
-            symbol: phoneAlertsConnected ? "checkmark.circle.fill" : "bell.badge",
-            title: "Phone alert connection",
-            detail: phoneAlertProblem
-                ?? (connectingPhoneAlerts ? "Connecting this phone…"
-                    : phoneAlertsConnected ? "Registration confirmed for this phone"
-                    : Directory.isRegistered
-                        ? "This phone has not confirmed its alert connection"
-                        : "Reconnect Apple Account to receive Table alerts"),
-            tint: .oliveTint,
-            tone: .olive
-        ) {
-            if phoneAlertsConnected {
-                Image(systemName: "checkmark.circle.fill")
-                    .foregroundStyle(Color.olive)
-                    .frame(minWidth: 44, minHeight: 44)
-                    .accessibilityLabel("Phone alert registration confirmed")
-            } else {
-                Button(Directory.isRegistered ? "Retry" : "Connect") {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 10) {
+                Label("Phone alerts", systemImage: "bell.slash")
+                    .plType(.footnote, .semibold)
+                    .foregroundStyle(Color.ink)
+                Spacer(minLength: 8)
+                Button(connectingPhoneAlerts ? "Checking…" : Directory.isRegistered ? "Try again" : "Connect") {
                     Task { await connectPhoneAlerts() }
                 }
                 .plType(.footnote, .bold)
@@ -680,7 +671,18 @@ struct SettingsSheet: View {
                 .disabled(connectingPhoneAlerts)
                 .accessibilityIdentifier("phone-alert-connect")
             }
+            Text(phoneAlertProblem
+                 ?? (connectingPhoneAlerts ? "Checking this phone…"
+                     : SocialPush.lastConnectionOutcome?.explanation
+                         ?? (Directory.isRegistered
+                             ? "Activity still appears in Plated. Phone alerts aren’t connected yet."
+                             : "Connect your Apple Account to receive Table alerts on this phone.")))
+                .plType(.caption)
+                .foregroundStyle(Color.inkSecondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
     }
 
     private func connectPhoneAlerts() async {
@@ -702,11 +704,11 @@ struct SettingsSheet: View {
             }
         } else {
             UIApplication.shared.registerForRemoteNotifications()
-            await SocialPush.synchronize()
         }
+        let outcome = await SocialPush.synchronize()
         phoneAlertsConnected = SocialPush.hasConfirmedInstallation
         if !phoneAlertsConnected {
-            phoneAlertProblem = "Waiting for iOS and iCloud to confirm this phone. Try again shortly."
+            phoneAlertProblem = outcome.explanation
         }
     }
 

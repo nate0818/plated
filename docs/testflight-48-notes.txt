@@ -1,0 +1,3 @@
+Build 48 tightens the Plan screen on compact iPhones so the dinner choice, cook, Apple Weather attribution, and seven-day household dinner counts stay readable together. It also makes a joined Table guest visible in the audience before that person posts, and gives a clearer result when phone-alert setup is retried.
+
+Phone notifications are still under investigation: the production service has rejected registration on the tested account. Do not rely on a phone banner for Table or household activity in this build. In-app Activity remains available. We have not verified a fresh invitation, photo/activity sync, or push delivery between two real accounts for build 48.

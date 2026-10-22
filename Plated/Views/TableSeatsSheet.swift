@@ -91,6 +91,19 @@ struct TableSeatsSheet: View {
     /// there without a membership check.
     private var readerIsHead: Bool { members.readable.me?.isOwner == true }
 
+    /// The People sheet and feed must agree about who has actually joined.
+    /// Names and pending invitations are not membership; the accepted share
+    /// participant identity is. Deduplicate by that identity across reads.
+    static func acceptedGuests(
+        from participants: [TableShare.Seat], excluding knownIDs: Set<String>
+    ) -> [TableShare.Seat] {
+        var seen = Set<String>()
+        return participants.filter { seat in
+            !seat.isMe && !seat.isOwner && !knownIDs.contains(seat.id)
+                && seen.insert(seat.id).inserted
+        }
+    }
+
     /// The people at the table who are not in the household: the share's
     /// participants minus every identity the roster already carries, minus
     /// me, once each. Identity is the only key (§1): link joiners carry no
@@ -106,10 +119,7 @@ struct TableSeatsSheet: View {
         // the owner participant is never a guest even if the head's row
         // has not been stamped with an identity yet.
         if let owner = HouseholdShare.membership.owner { known.insert(owner) }
-        var seen = Set<String>()
-        return participants.compactMap { seat in
-            guard !seat.isMe, !seat.isOwner, !known.contains(seat.id),
-                  seen.insert(seat.id).inserted else { return nil }
+        return Self.acceptedGuests(from: participants, excluding: known).map { seat in
             // iOS hands over a participant's name only when it can look
             // the identity up, which for a link joiner it often cannot.
             // `participants()` spells the blank as "Someone"; their posts

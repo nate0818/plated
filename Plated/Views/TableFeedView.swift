@@ -56,6 +56,12 @@ struct TableFeedView: View {
     /// sharing an id.
     @State private var personDoor: ZoomID = .host
     @State private var seatsPresented = false
+    /// Accepted Table guests are a share fact, not a post count. A friend who
+    /// joined but has not posted must still appear as present on the feed.
+    /// Nil means the share has not been confirmed on this visit.
+    @State private var acceptedGuestIDs: Set<String>?
+    @State private var acceptedGuestsAccount = ""
+    @State private var acceptedGuestsRequest = UUID()
     /// The composer, opened straight from the empty state. The + in the tab
     /// bar owns the same sheet, but an empty screen that can only be
     /// answered by a control somewhere else is a dead end.
@@ -169,6 +175,29 @@ struct TableFeedView: View {
             members: members,
             dishAuthors: realPosts.filter { $0.kind == "dish" }.map(\.authorName)
         )
+    }
+
+    private var acceptedGuestCount: Int {
+        guard acceptedGuestsAccount == TableIdentity.cached else { return 0 }
+        return acceptedGuestIDs?.count ?? 0
+    }
+
+    private var acceptedGuestsKnown: Bool {
+        acceptedGuestsAccount == TableIdentity.cached && acceptedGuestIDs != nil
+    }
+
+    private func refreshAcceptedGuests() async {
+        guard !PlatedApp.usesPreviewContainer else { return }
+        let account = TableIdentity.cached
+        guard !account.hasPrefix("local-") else { return }
+        let request = UUID()
+        acceptedGuestsRequest = request
+        let seats = await TableShare.participantSnapshot()
+        guard acceptedGuestsRequest == request, TableIdentity.cached == account else { return }
+        acceptedGuestsAccount = account
+        acceptedGuestIDs = seats.map { found in
+            Set(TableSeatsSheet.acceptedGuests(from: found, excluding: householdIdentityIDs).map(\.id))
+        }
     }
 
     /// Pull to refresh. `@Query` is live, so anything CloudKit has already
@@ -402,7 +431,8 @@ struct TableFeedView: View {
             .buttonStyle(.pressable)
             .padding(.top, 4)
 
-            if scope == .everyone && seatCount <= 1 {
+            if scope == .everyone && seatCount <= 1 && acceptedGuestsKnown
+                && acceptedGuestCount == 0 {
                 Button("Invite someone") {
                     Haptic.tap()
                     seatsPresented = true
@@ -667,6 +697,7 @@ struct TableFeedView: View {
                     // Starting another pull here creates a refresh loop and
                     // plays pull-to-refresh haptics for background activity.
                     reach = TablePull.lastReadSucceeded ? .reached : .unreachable
+                    Task { await refreshAcceptedGuests() }
                 }
                 // A notice about one dish opens that dish. The request is
                 // parked by the shell; the feed collects it here, or on
@@ -765,7 +796,15 @@ struct TableFeedView: View {
         .task(id: deferredRecoveryTrigger) {
             scheduleDeferredPublications()
         }
-        .onChange(of: activeAppTab) { _, _ in updateFeedPresence() }
+        .onChange(of: activeAppTab) { _, tab in
+            updateFeedPresence()
+            if tab == .table { Task { await refreshAcceptedGuests() } }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active, activeAppTab == .table {
+                Task { await refreshAcceptedGuests() }
+            }
+        }
         .onChange(of: threadPost) { _, _ in updateFeedPresence() }
         .onChange(of: personShown) { _, _ in updateFeedPresence() }
         .onChange(of: pushed) { _, _ in updateFeedPresence() }
@@ -951,7 +990,9 @@ struct TableFeedView: View {
                     .plType(.caption)
                     .foregroundStyle(Color.inkSecondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                Text("People")
+                Text(acceptedGuestCount > 0
+                     ? "\(acceptedGuestCount) \(acceptedGuestCount == 1 ? "friend" : "friends") joined"
+                     : "People")
                     .plType(.footnote, .semibold)
                     .foregroundStyle(Color.accentText)
                     .frame(minHeight: 44)
@@ -960,7 +1001,9 @@ struct TableFeedView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.pressable)
-        .accessibilityLabel("Private to your Table. People and invitations.")
+        .accessibilityLabel(acceptedGuestCount > 0
+            ? "Private to your Table. \(acceptedGuestCount) \(acceptedGuestCount == 1 ? "friend" : "friends") joined. People and invitations."
+            : "Private to your Table. People and invitations.")
         .accessibilityHint("Shows who can see posts")
         .accessibilityIdentifier("table-people")
     }

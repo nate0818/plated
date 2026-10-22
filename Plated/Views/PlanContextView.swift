@@ -6,10 +6,11 @@ struct PlanContextView: View {
     let date: Date
     let forecast: ForecastProvider
     let history: PlanDinnerHistory
+    let compact: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            PlanWeatherView(date: date, forecast: forecast)
+        VStack(alignment: .leading, spacing: compact ? 10 : 16) {
+            PlanWeatherView(date: date, forecast: forecast, compact: compact)
             Rectangle().fill(Color.hairline).frame(height: 1).accessibilityHidden(true)
             PlanDinnerHistoryView(history: history)
         }
@@ -23,6 +24,7 @@ private struct PlanWeatherView: View {
     @Environment(\.openURL) private var openURL
     let date: Date
     let forecast: ForecastProvider
+    let compact: Bool
 
     private var inForecastRange: Bool {
         let days = Calendar.current.dateComponents([.day], from: Date.now.startOfDay, to: date.startOfDay).day ?? 0
@@ -36,7 +38,7 @@ private struct PlanWeatherView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: compact ? 2 : 8) {
             if !inForecastRange {
                 Text(title).plType(.footnote, .medium).foregroundStyle(Color.ink)
                 Text(date.startOfDay < Date.now.startOfDay

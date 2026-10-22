@@ -1,0 +1,29 @@
+Contrast failed
+Contrast failed for SwiftUI.AccessibilityNode
+Attributes: StaticText, 0x1057419f0, {{66.0, 787.8}, {43.7, 15.7}}, label: '1 hr. ago'
+Element subtree:
+ →StaticText, 0x1057419f0, {{66.0, 787.8}, {43.7, 15.7}}, label: '1 hr. ago'
+Path to element:
+ →Application, 0x10573a3a0, pid: 34067, label: 'Plated'
+  ↳Window (Main), 0x10572b650, {{0.0, 0.0}, {402.0, 874.0}}
+   ↳Other, 0x105723c60, {{0.0, 0.0}, {402.0, 874.0}}
+    ↳Other, 0x105727080, {{0.0, 0.0}, {402.0, 874.0}}
+     ↳Other, 0x105722390, {{0.0, 0.0}, {402.0, 874.0}}
+      ↳Other, 0x10571e3e0, {{0.0, 0.0}, {402.0, 874.0}}
+       ↳Other, 0x10573ecf0, {{0.0, 0.0}, {402.0, 874.0}}
+        ↳Other, 0x10573ee10, {{0.0, 0.0}, {402.0, 874.0}}
+         ↳Other, 0x10573ef30, {{0.0, 0.0}, {402.0, 874.0}}
+          ↳Other, 0x10573f050, {{0.0, 0.0}, {402.0, 874.0}}
+           ↳Other, 0x10573f170, {{0.0, 0.0}, {402.0, 874.0}}
+            ↳ScrollView, 0x10573f950, {{0.0, 122.0}, {402.0, 653.7}}, identifier: 'table-post-thread'
+             ↳Other, 0x10573fa70, {{0.0, 122.0}, {402.0, 828.3}}
+              ↳StaticText, 0x1057419f0, {{66.0, 787.8}, {43.7, 15.7}}, label: '1 hr. ago'
+Query chain:
+ →Find: Application 'com.natemeadows.plated'
+  Output: {
+    Application, 0x10556c800, pid: 34067, label: 'Plated'
+  }
+  ↪︎Find: Descendant with identity binding to AX element pid: 34067, elementOrHash.elementID: 4345759664.58
+    Output: {
+      StaticText, 0x1056426b0, {{66.0, 787.8}, {43.7, 15.7}}, label: '1 hr. ago'
+    }

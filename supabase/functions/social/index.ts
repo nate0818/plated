@@ -102,7 +102,13 @@ Deno.serve(async req => {
     EdgeRuntime.waitUntil(worker);
     return json(202,{queued:true});
   } catch (e) {
-    if (e instanceof Rejected) return json(e.status,{error:e.code});
+    if (e instanceof Rejected) {
+      // A status alone cannot distinguish an Apple credential rejection from
+      // an identity-shape error. Log only our finite error code: never tokens,
+      // CloudKit URLs, account IDs, record names, or request bodies.
+      console.warn("Social request rejected", e.status, e.code);
+      return json(e.status,{error:e.code});
+    }
     console.error("Social request failed",e instanceof Error ? e.name : "unknown");
     return json(500,{error:"retry_later"});
   }

@@ -31,6 +31,25 @@ final class PlanContextTests: XCTestCase {
     func testLiveWeatherAttributionOnCream() { reviewWeatherAttribution(light: true) }
     func testLiveWeatherAttributionAtAccessibilitySize() { reviewWeatherAttribution(light: true, accessible: true) }
 
+    func testCompactPhoneKeepsLiveWeatherAndDinnerCountsAboveTabs() {
+        for light in [false, true] {
+            if app.state != .notRunning { app.terminate() }
+            launch(["-plated-review-dinner-history", "-plated-fake-weather",
+                    "-plated-review-weather-attribution"], light: light)
+            XCTAssertTrue(element("plan-weather-attribution-mark").waitForExistence(timeout: 20))
+            let cooked = element("plan-history-cooked")
+            let out = element("plan-history-eating-out")
+            XCTAssertTrue(cooked.waitForExistence(timeout: 8))
+            XCTAssertTrue(out.exists)
+            let tabTop = app.buttons["tray-week"].frame.minY
+            XCTAssertLessThan(cooked.frame.maxY, tabTop,
+                              "Cooked count and label must be visible before scrolling")
+            XCTAssertLessThan(out.frame.maxY, tabTop,
+                              "Eating-out count and label must be visible before scrolling")
+            capture("plan-compact-weather-history-\(light ? "cream" : "green")")
+        }
+    }
+
     private func reviewWeatherAttribution(light: Bool, accessible: Bool = false) {
         launch(["-plated-fake-weather", "-plated-review-weather-attribution"],
                size: accessible ? "UICTContentSizeCategoryAccessibilityXXXL" : "UICTContentSizeCategoryL", light: light)

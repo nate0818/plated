@@ -133,7 +133,6 @@ enum AppleIdentity {
                 return .unavailable
             }
             UIApplication.shared.registerForRemoteNotifications()
-            await SocialPush.synchronize()
             return .connected
         }
     }
