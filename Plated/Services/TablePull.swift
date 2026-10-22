@@ -80,7 +80,13 @@ enum TablePull {
                     await TableClaimOutbox.drain()
                 }
 
-                let changes = await TableShare.fetchChanges()
+                var changes = await TableShare.fetchChanges()
+                if maintenance, !TableInvites.shared.isEmpty {
+                    let recovered = await TableShare.acceptedClaims(
+                        for: TableInvites.shared.pending.map(\.id))
+                    let delivered = Set(changes.claims.map(\.inviteID))
+                    changes.claims.append(contentsOf: recovered.filter { !delivered.contains($0.inviteID) })
+                }
                 if maintenance || changes.hasEvents { await ShareAcceptor.absorb(changes) }
                 // Main cleaned these after every merge. Every merge is here now.
                 if maintenance { await TableShare.removeSchemaProbes(from: context) }

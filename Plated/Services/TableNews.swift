@@ -181,6 +181,7 @@ enum TableNews {
     static func deliver(
         _ changes: TableShare.Changes,
         newSeats: [HouseholdMember] = [],
+        settledTableInvites: [TableInvites.Settled] = [],
         plans: PlanLedger.Delta = PlanLedger.Delta(),
         context: ModelContext,
         save: @MainActor (ModelContext) -> Bool = { Persist.save($0, "table news") }
@@ -203,7 +204,9 @@ enum TableNews {
             print("[TableNews] identity unconfirmed, nothing decided")
             return
         }
-        let notices = digest(changes, newSeats: newSeats, plans: plans, context: context)
+        let notices = digest(changes, newSeats: newSeats,
+                             settledTableInvites: settledTableInvites,
+                             plans: plans, context: context)
         guard !notices.isEmpty else { return }
         for n in notices where n.writesRow {
             writeRow(n, context: context)
@@ -223,6 +226,7 @@ enum TableNews {
     static func digest(
         _ changes: TableShare.Changes,
         newSeats: [HouseholdMember],
+        settledTableInvites: [TableInvites.Settled] = [],
         plans: PlanLedger.Delta = PlanLedger.Delta(),
         context: ModelContext,
         // Injected so a test can drive the planning burst window without
@@ -452,6 +456,34 @@ enum TableNews {
                 deed: "Joined your table.", group: "The Table",
                 template: "{actor} joined. They can see the Table now."
             ))
+        }
+
+        // A Table-only guest never creates a household seat. The verified
+        // claim answers this phone's sent invitation and supplies the name
+        // that a public CKShare participant often omits. A late recovery
+        // belongs in Activity without a days-late lock-screen banner.
+        for answer in settledTableInvites {
+            let identity = answer.claim.userRecordName
+            let key = "seat:\(identity)"
+            guard identity != me, !identity.isEmpty, !seen.contains(key),
+                  !members.contains(where: { $0.userRecordName == identity && $0.seat == .joined })
+            else { continue }
+            let recipient = answer.entry.name.trimmingCharacters(in: .whitespacesAndNewlines)
+            var notice = Notice(
+                kind: .seat, key: key, identifier: idPrefix + key,
+                title: "Your Table invitation was accepted",
+                body: recipient.isEmpty ? "Someone joined your Table."
+                    : "The link you sent to \(recipient) was used.",
+                line: recipient.isEmpty ? "Someone joined your Table."
+                    : "The Table link you sent to \(recipient) was used.",
+                link: DeepLink.url(.table), post: "",
+                direct: true, photo: nil, feedKind: .seatJoined,
+                actor: "A guest", at: answer.claim.at,
+                rowKey: key, relevance: 0.8, actorID: identity,
+                deed: "Joined your Table.", group: "The Table"
+            )
+            notice.bellOnly = now.timeIntervalSince(answer.claim.at) > window
+            notices.append(notice)
         }
 
         notices.append(contentsOf: commentReactionNotices(changes, me: me, cutoff: cutoff, seen: seen, context: context))

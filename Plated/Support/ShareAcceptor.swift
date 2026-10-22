@@ -178,14 +178,16 @@ final class ShareAcceptor: NSObject, UIApplicationDelegate {
         // here rather than at the call site keeps every fold of a delta
         // saying the same thing about a seat. An empty claim list is a
         // no-op, which is what the household's plan-only delta carries.
-        TableInvites.shared.settle(claims: changes.claims)
+        let settledTableInvites = TableInvites.shared.settle(claims: changes.claims)
         if changes.householdShareChanged {
             // The head's own household zone keeps a departed member's
             // nights unless the head takes them out; nothing on the server
             // cascades. The Table share changing says nothing about this.
             swept = await TableShare.sweepDepartedPlans()
         }
-        await TableNews.deliver(changes, newSeats: joined, plans: plans, context: context)
+        await TableNews.deliver(changes, newSeats: joined,
+                                settledTableInvites: settledTableInvites,
+                                plans: plans, context: context)
         // A swept night is not news (this phone took it off, not its
         // author), but a row and a banner about it are claims about a
         // night that no longer exists: withdrawn the way a wire deletion's
@@ -256,7 +258,10 @@ final class ShareAcceptor: NSObject, UIApplicationDelegate {
     ) {
         let hex = deviceToken.map { String(format: "%02x", $0) }.joined()
         print("[Push] APNs token \(hex.prefix(8))…")
-        Task { await Directory.registerDevice(apnsToken: hex) }
+        Task {
+            await Directory.registerDevice(apnsToken: hex)
+            SocialPush.requestSync()
+        }
     }
 
     func application(

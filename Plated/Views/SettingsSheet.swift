@@ -37,6 +37,7 @@ struct SettingsSheet: View {
     @AppStorage("showCalendarEvents") private var showCalendarEvents = false
     @AppStorage("householdName") private var householdName = ""
     @AppStorage("didSignIn") private var didSignIn = false
+    @AppStorage("userFirstName") private var userFirstName = ""
     @AppStorage("remindersOn") private var remindersOn = true
     /// What the Table may say when somebody else plates, writes, plans a
     /// night or takes a seat. `TableNews.tableOnKey` reads the same key.
@@ -49,6 +50,9 @@ struct SettingsSheet: View {
     @State private var planHousehold: PlanShare.Household = .unknown
 
     @State private var notificationState: NotificationScheduler.AuthorizationState = .notDetermined
+    @State private var phoneAlertsConnected = SocialPush.hasConfirmedInstallation
+    @State private var connectingPhoneAlerts = false
+    @State private var phoneAlertProblem: String?
     @State private var pendingSyncCount = 0
     @State private var calendarRefused = false
     @State private var signOutAsked = false
@@ -108,6 +112,8 @@ struct SettingsSheet: View {
             // for an unrelated SwiftUI redraw.
             while !Task.isCancelled {
                 refreshPendingSyncCount()
+                phoneAlertsConnected = SocialPush.hasConfirmedInstallation
+                if phoneAlertsConnected { phoneAlertProblem = nil }
                 try? await Task.sleep(for: .seconds(1))
             }
         }
@@ -176,6 +182,10 @@ struct SettingsSheet: View {
                     planningReminderRow
                     SettingsDivider()
                     tableActivityRow
+                    if notificationState == .allowed, tableNewsOn {
+                        SettingsDivider()
+                        phoneAlertsRow
+                    }
                     if notificationState == .allowed, tableNewsOn {
                         ForEach(NewsPreferences.Category.allCases, id: \.self) { category in
                             SettingsDivider()
@@ -638,6 +648,65 @@ struct SettingsSheet: View {
                 .buttonStyle(.pressable)
                 .accessibilityLabel("Open notification settings")
             }
+        }
+    }
+
+    private var phoneAlertsRow: some View {
+        SettingsControlRow(
+            symbol: phoneAlertsConnected ? "checkmark.circle.fill" : "bell.badge",
+            title: "Phone alert connection",
+            detail: phoneAlertProblem
+                ?? (connectingPhoneAlerts ? "Connecting this phone…"
+                    : phoneAlertsConnected ? "Registration confirmed for this phone"
+                    : Directory.isRegistered
+                        ? "This phone has not confirmed its alert connection"
+                        : "Reconnect Apple Account to receive Table alerts"),
+            tint: .oliveTint,
+            tone: .olive
+        ) {
+            if phoneAlertsConnected {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundStyle(Color.olive)
+                    .frame(minWidth: 44, minHeight: 44)
+                    .accessibilityLabel("Phone alert registration confirmed")
+            } else {
+                Button(Directory.isRegistered ? "Retry" : "Connect") {
+                    Task { await connectPhoneAlerts() }
+                }
+                .plType(.footnote, .bold)
+                .foregroundStyle(Color.accentText)
+                .frame(minWidth: 60, minHeight: 44)
+                .buttonStyle(.pressable)
+                .disabled(connectingPhoneAlerts)
+                .accessibilityIdentifier("phone-alert-connect")
+            }
+        }
+    }
+
+    private func connectPhoneAlerts() async {
+        guard !connectingPhoneAlerts else { return }
+        connectingPhoneAlerts = true
+        phoneAlertProblem = nil
+        defer { connectingPhoneAlerts = false }
+        if !Directory.isRegistered {
+            let name = me?.name ?? userFirstName
+            switch await AppleIdentity.connectAlerts(displayName: name) {
+            case .connected: break
+            case .cancelled: return
+            case .wrongAccount:
+                phoneAlertProblem = "This Apple Account differs from the one used for this Table."
+                return
+            case .unavailable:
+                phoneAlertProblem = "Couldn't connect phone alerts. Try again."
+                return
+            }
+        } else {
+            UIApplication.shared.registerForRemoteNotifications()
+            await SocialPush.synchronize()
+        }
+        phoneAlertsConnected = SocialPush.hasConfirmedInstallation
+        if !phoneAlertsConnected {
+            phoneAlertProblem = "Waiting for iOS and iCloud to confirm this phone. Try again shortly."
         }
     }
 

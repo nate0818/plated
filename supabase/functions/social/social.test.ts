@@ -100,11 +100,20 @@ Deno.test("CloudKit uses fixed origin, user proof and rotated single-use tokens"
   const fetcher=(async (input:RequestInfo|URL,init?:RequestInit)=>{
     const u=new URL(String(input)); tokens.push(u.searchParams.get("ckWebAuthToken")!);
     assertEquals(u.host,"api.apple-cloudkit.com");assertEquals(new Headers(init?.headers).get("Origin"),"https://dyvrksooelbkzkprqlhk.supabase.co");
-    return Response.json(tokens.length===1?{userRecordName:"nate",ckWebAuthToken:"next-token"}:{records:[record("table-root","Table")],ckWebAuthToken:"third-token"});
+    if(tokens.length===1){
+      assertEquals(u.pathname,"/database/1/iCloud.com.natemeadows.plated/production/public/users/caller");
+      return Response.json({users:[{userRecordName:"nate"}],ckWebAuthToken:"next-token"});
+    }
+    return Response.json({records:[record("table-root","Table")],ckWebAuthToken:"third-token"});
   }) as typeof fetch;
   const cloud=new CloudKit("public-api","initial-token-long-enough","production",fetcher);
   assertEquals(await cloud.identity(),"nate");await cloud.record("table-root","PlatedTable","nate","nate");
   assertEquals(tokens,["initial-token-long-enough","next-token"]);
+});
+Deno.test("CloudKit refuses an identity response without exactly one caller",async()=>{
+  const fetcher=(async()=>Response.json({users:[],ckWebAuthToken:"next-token"})) as typeof fetch;
+  const cloud=new CloudKit("public-api","initial-token-long-enough","production",fetcher);
+  await assertRejects(()=>cloud.identity(),Rejected,"cloud_identity_unavailable");
 });
 Deno.test("CloudKit failures never leak token-bearing URL errors",async()=>{
   const cloud=new CloudKit("api","secret-token-long-enough","production",(()=>Promise.reject(new Error("secret-url"))) as typeof fetch);

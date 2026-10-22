@@ -27,6 +27,8 @@ struct NotificationsView: View {
     /// The dish photographs, by post record, loaded once per visit rather
     /// than fetched on every body pass.
     @State private var thumbnails: [String: Data] = [:]
+    @State private var phoneAlertsNeedSetup = false
+    @State private var showingAlertSettings = false
 
     private var visibleNotifications: [PlatedNotification] {
         notifications.filter { !contentSafety.hidesTableActivity($0) }
@@ -99,6 +101,29 @@ struct NotificationsView: View {
             }.padding(.horizontal, Spacing.page)
             Divider().overlay(Color.hairlineSoft)
 
+            if phoneAlertsNeedSetup {
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Phone alerts need setup")
+                            .plType(.footnote, .semibold)
+                            .foregroundStyle(Color.ink)
+                        Text("Activity can update here, but this phone isn't registered for Table alerts.")
+                            .plType(.caption)
+                            .foregroundStyle(Color.inkSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer(minLength: 4)
+                    Button("Set up") { showingAlertSettings = true }
+                        .plType(.footnote, .bold)
+                        .foregroundStyle(Color.accentText)
+                        .frame(minHeight: 44)
+                }
+                .padding(14)
+                .background(Color.fill, in: Radius.shape(Radius.card))
+                .padding(.horizontal, Spacing.page)
+                .padding(.vertical, 12)
+            }
+
             if visibleNotifications.isEmpty {
                 Spacer()
                 VStack(spacing: 8) {
@@ -140,6 +165,11 @@ struct NotificationsView: View {
         .toolbar(.hidden, for: .navigationBar)
         .plSwipeBack()
         .hidesFloatingChrome()
+        .sheet(isPresented: $showingAlertSettings) { SettingsSheet() }
+        .task { await refreshPhoneAlertStatus() }
+        .onChange(of: showingAlertSettings) { _, showing in
+            if !showing { Task { await refreshPhoneAlertStatus() } }
+        }
         .confirmationDialog(
             "Clear all activity?", isPresented: $clearAllAsked, titleVisibility: .visible
         ) {
@@ -166,6 +196,12 @@ struct NotificationsView: View {
         }
         .onChange(of: notifications.count) { _, _ in loadThumbnails() }
         .onDisappear { finishReading() }
+    }
+
+    private func refreshPhoneAlertStatus() async {
+        let permission = await NotificationScheduler.authorizationState()
+        phoneAlertsNeedSetup = permission == .allowed && NewsPreferences.tableOn
+            && !SocialPush.hasConfirmedInstallation
     }
 
     private func row(_ note: PlatedNotification) -> some View {

@@ -37,7 +37,7 @@ export class CloudKit {
     if (typeof token !== "string" || token.length < 16 || token.length > 16384) throw new Rejected(401, "cloud_auth_required");
     this.token = token;
   }
-  private async call(scope: "private" | "shared", path: string, body?: unknown): Promise<Record<string, unknown>> {
+  private async call(scope: "public" | "private" | "shared", path: string, body?: unknown): Promise<Record<string, unknown>> {
     const url = new URL(`https://api.apple-cloudkit.com/database/1/iCloud.com.natemeadows.plated/${this.environment}/${scope}/${path}`);
     url.searchParams.set("ckAPIToken", this.apiToken);
     url.searchParams.set("ckWebAuthToken", this.token);
@@ -60,8 +60,15 @@ export class CloudKit {
     return data;
   }
   async identity(): Promise<string> {
-    const data = await this.call("private", "users/current");
-    return identifier(data.userRecordName);
+    // Apple exposes the current authenticated identity at public/users/caller.
+    // The prior private/users/current route is not the documented caller
+    // identity endpoint, so registration could not verify the user there.
+    const data = await this.call("public", "users/caller");
+    const users = data.users;
+    if (!Array.isArray(users) || users.length !== 1 || !users[0] || typeof users[0] !== "object") {
+      throw new Rejected(403, "cloud_identity_unavailable");
+    }
+    return identifier((users[0] as Record<string, unknown>).userRecordName);
   }
   async record(name: string, zone: string, owner: string, me: string): Promise<CKRecord> {
     if (!this.token) throw new Rejected(503, "cloud_token_refresh_required");

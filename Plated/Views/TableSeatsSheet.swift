@@ -12,6 +12,7 @@ struct TableSeatsSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var context
     @Environment(\.openURL) private var openURL
+    @Environment(\.scenePhase) private var scenePhase
     @Query(sort: \HouseholdMember.createdAt) private var members: [HouseholdMember]
     // An author is the one thing every real post has. The empty-name
     // rows are blanks the CloudKit mirror adopts (TablePost.isBlank),
@@ -27,6 +28,7 @@ struct TableSeatsSheet: View {
         var id: String
         var name: String
         var colorHex: String?
+        var invitationRecipient: String? = nil
         var tone: PersonTone { colorHex.map(PersonTone.from(hex:)) ?? .neutralPair }
     }
 
@@ -67,6 +69,8 @@ struct TableSeatsSheet: View {
     /// is a claim that nobody is there, and it is only true once the
     /// share has actually been read.
     @State private var participants: [TableShare.Seat]?
+    @State private var shareReadFailed = false
+    @State private var refreshID = UUID()
     @State private var joinedTables: [JoinedTable]?
     /// Nil until asked. When the answer is anything but available, the
     /// sheet says so once above the groups rather than letting an empty
@@ -104,7 +108,8 @@ struct TableSeatsSheet: View {
         if let owner = HouseholdShare.membership.owner { known.insert(owner) }
         var seen = Set<String>()
         return participants.compactMap { seat in
-            guard !seat.isMe, !known.contains(seat.id), seen.insert(seat.id).inserted else { return nil }
+            guard !seat.isMe, !seat.isOwner, !known.contains(seat.id),
+                  seen.insert(seat.id).inserted else { return nil }
             // iOS hands over a participant's name only when it can look
             // the identity up, which for a link joiner it often cannot.
             // `participants()` spells the blank as "Someone"; their posts
@@ -117,7 +122,8 @@ struct TableSeatsSheet: View {
             if let theirs, !theirs.authorName.isEmpty {
                 return Guest(id: seat.id, name: theirs.authorName, colorHex: theirs.authorColorHex)
             }
-            return Guest(id: seat.id, name: "Someone at your table", colorHex: nil)
+            return Guest(id: seat.id, name: "Someone at your Table", colorHex: nil,
+                         invitationRecipient: invites.invitationRecipient(for: seat.id))
         }
     }
 
@@ -244,6 +250,12 @@ struct TableSeatsSheet: View {
             }
             await refreshFromiCloud()
         }
+        .onReceive(NotificationCenter.default.publisher(for: ShareAcceptor.didChangeRemotely)) { _ in
+            Task { await refreshFromiCloud() }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { Task { await refreshFromiCloud() } }
+        }
         .confirmationDialog(
             dialogTitle,
             isPresented: Binding(get: { dialog != nil }, set: { if !$0 { dialog = nil } }),
@@ -262,9 +274,11 @@ struct TableSeatsSheet: View {
     /// now.
     @ViewBuilder
     private var reachLine: some View {
-        if let reach, reach != .available, reach != .notArmed {
+        if (reach != nil && reach != .available && reach != .notArmed) || shareReadFailed {
             VStack(alignment: .leading, spacing: 6) {
-                Text(HouseholdIdentity.PeopleCopy.reachFailure)
+                Text(shareReadFailed && reach == .available
+                     ? "Couldn't confirm who's at your Table from iCloud."
+                     : HouseholdIdentity.PeopleCopy.reachFailure)
                     .plType(.caption, .semibold)
                     .foregroundStyle(Color.inkSecondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -321,12 +335,14 @@ struct TableSeatsSheet: View {
     }
 
     private func guestRow(_ guest: Guest) -> some View {
-        seatRow(name: guest.name, subtitle: "Sees what you cook", tone: guest.tone) {
+        seatRow(name: guest.name,
+                subtitle: guest.invitationRecipient.map { "Joined using your invitation to \($0)" }
+                    ?? "Sees what you cook", tone: guest.tone) {
             // A CloudKit participant is an identity, not a contact: the
             // share carries no number we are allowed to open, so there is
             // no Message here. Only the owner edits participants, so Remove
             // is the head's alone.
-            if readerIsHead {
+            if readerIsHead && !guest.id.hasPrefix("unknown-") {
                 actionsMenu(label: "More options for \(guest.name)") {
                     Button("Remove from Table", systemImage: "person.badge.minus", role: .destructive) {
                         dialog = .removeGuest(guest)
@@ -723,23 +739,28 @@ struct TableSeatsSheet: View {
     /// before them, because it is what says whether an empty list means
     /// nobody or means the share could not be read.
     private func refreshFromiCloud() async {
+        let requested = UUID()
+        refreshID = requested
         if PlatedApp.usesPreviewContainer {
             reach = .notArmed
             participants = []
+            shareReadFailed = false
             joinedTables = []
             link = .missing
             return
         }
         async let state = TableSync.accountState()
-        async let seats = TableShare.participants()
+        async let seats = TableShare.participantSnapshot()
         async let tables = TableShare.joinedTables()
         // Membership-aware: on a member's phone this is the household's
         // link off the root, and nothing is minted.
         async let url = TableShare.invitationURL(hostName: userFirstName)
         let (answered, found, joined, minted) = await (state, seats, tables, url)
+        guard refreshID == requested else { return }
         withAnimation(.plSnap) {
             reach = answered
-            participants = found
+            shareReadFailed = answered == .available && found == nil
+            if let found { participants = found }
             joinedTables = joined.map { JoinedTable(owner: $0.owner, title: $0.title) }
             link = minted.map(LinkState.ready) ?? .missing
         }

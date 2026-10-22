@@ -21,6 +21,7 @@ final class TableNewsTests: XCTestCase {
         )
         TableNews.forgetAll()
         TableLedger.shared.clear()
+        TableInvites.shared.clear()
         // The digest refuses to decide anything on a placeholder identity,
         // which is what a simulator without iCloud has. The rehearsal
         // switch is the same door the debug flag uses.
@@ -34,6 +35,7 @@ final class TableNewsTests: XCTestCase {
     override func tearDown() async throws {
         TableNews.forgetAll()
         TableLedger.shared.clear()
+        TableInvites.shared.clear()
         TableNews.rehearsing = false
         // Never leave a development simulator's switch off.
         UserDefaults.standard.removeObject(forKey: TableNews.tableOnKey)
@@ -418,6 +420,36 @@ final class TableNewsTests: XCTestCase {
         // The key the old `Notifier.postKeyed` used, so a row written
         // before this change is updated rather than joined by a sibling.
         XCTAssertEqual(notices[0].rowKey, "seat:participant-jo")
+    }
+
+    func testATableOnlyAcceptanceSettlesItsInvitationAndCreatesActivity() {
+        let entry = TableInvites.shared.mint(name: "Alex Rivera", phone: nil, email: nil)
+        TableInvites.shared.record(entry)
+        let claim = TableShare.Claim(inviteID: entry.id, userRecordName: "alex-cloud-id")
+        let settled = TableInvites.shared.settle(claims: [claim])
+        XCTAssertTrue(TableInvites.shared.pending.isEmpty)
+        XCTAssertEqual(TableInvites.shared.invitationRecipient(for: "alex-cloud-id"), "Alex Rivera")
+        let notices = TableNews.digest(TableShare.Changes(), newSeats: [],
+                                       settledTableInvites: settled, context: context)
+        XCTAssertEqual(notices.count, 1)
+        XCTAssertEqual(notices[0].title, "Your Table invitation was accepted")
+        XCTAssertEqual(notices[0].body, "The link you sent to Alex Rivera was used.")
+        XCTAssertEqual(notices[0].rowKey, "seat:alex-cloud-id")
+        XCTAssertEqual(notices[0].link, DeepLink.url(.table))
+        TableNews.remember(notices.map(\.key))
+        XCTAssertTrue(TableNews.digest(TableShare.Changes(), newSeats: [],
+                                       settledTableInvites: settled, context: context).isEmpty)
+    }
+
+    func testLateRecoveredAcceptanceGoesToActivityWithoutALateBanner() {
+        let entry = TableInvites.shared.mint(name: "Alex Rivera", phone: nil, email: nil)
+        let claim = TableShare.Claim(inviteID: entry.id, userRecordName: "alex-cloud-id",
+                                     at: .now.addingTimeInterval(-3 * 24 * 3600))
+        let notices = TableNews.digest(TableShare.Changes(), newSeats: [],
+                                       settledTableInvites: [.init(entry: entry, claim: claim)],
+                                       context: context)
+        XCTAssertEqual(notices.count, 1)
+        XCTAssertTrue(notices[0].bellOnly)
     }
 
     func testMyOwnPlateIsNeverNarratedBackToMe() {

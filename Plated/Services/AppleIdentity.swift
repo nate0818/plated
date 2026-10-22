@@ -107,6 +107,37 @@ enum AppleIdentity {
         await SignInRunner().run()
     }
 
+    enum AlertConnectionResult {
+        case connected, cancelled, wrongAccount, unavailable
+    }
+
+    /// Older installations signed in before social alerts existed. Their
+    /// Apple identity is durable, but the short-lived identity token needed
+    /// to create a directory session is gone. A person can explicitly
+    /// renew it without signing out or disturbing their CloudKit data.
+    @MainActor
+    static func connectAlerts(displayName: String) async -> AlertConnectionResult {
+        let authorization = await request()
+        switch authorization {
+        case .failure(let error):
+            if (error as? ASAuthorizationError)?.code == .canceled { return .cancelled }
+            return .unavailable
+        case .success(let credential):
+            if let existing = load(), existing != credential.user { return .wrongAccount }
+            guard let data = credential.identityToken,
+                  let token = String(data: data, encoding: .utf8),
+                  !token.isEmpty else { return .unavailable }
+            if load() == nil && !save(credential.user) { return .unavailable }
+            guard await Directory.register(identityToken: token,
+                                           displayName: displayName, phone: nil) else {
+                return .unavailable
+            }
+            UIApplication.shared.registerForRemoteNotifications()
+            await SocialPush.synchronize()
+            return .connected
+        }
+    }
+
     @MainActor
     private final class SignInRunner: NSObject, ASAuthorizationControllerDelegate, ASAuthorizationControllerPresentationContextProviding {
         private var continuation: CheckedContinuation<Result<ASAuthorizationAppleIDCredential, Error>, Never>?

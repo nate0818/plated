@@ -40,6 +40,12 @@ enum SocialPush {
         "production"
         #endif
     }
+    /// This phone has received a successful, identity-verified server
+    /// registration receipt. Settings must not call a preference toggle
+    /// "on" proof that any phone can actually receive social alerts.
+    static var hasConfirmedInstallation: Bool {
+        Directory.isRegistered && UserDefaults.standard.double(forKey: receiptKey) > 0
+    }
     private static var installation: String {
         if let id = UserDefaults.standard.string(forKey: installationKey) { return id }
         let id = UUID().uuidString

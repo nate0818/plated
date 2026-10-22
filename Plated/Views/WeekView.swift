@@ -721,6 +721,10 @@ struct WeekView: View {
         let relativeDay: String? = calendar.isDateInToday(weekAnchor) ? "Tonight"
             : calendar.isDateInTomorrow(weekAnchor) ? "Tomorrow" : nil
         let kind = featuredDinnerKind
+        if typeSize.isAccessibilitySize {
+            let lead = relativeDay ?? weekAnchor.formatted(.dateTime.weekday(.abbreviated))
+            return lead + " · " + weekAnchor.formatted(.dateTime.month(.abbreviated).day())
+        }
         if kind.hasDish && !kind.eatingOut && !kind.leftovers {
             let day = relativeDay ?? weekAnchor.formatted(.dateTime.weekday(.wide))
             return day + " · " + weekAnchor.formatted(.dateTime.month(.abbreviated).day())
@@ -734,6 +738,7 @@ struct WeekView: View {
             HStack {
                 MicroLabel(featuredDinnerDateLabel)
                     .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityLabel(weekAnchor.formatted(.dateTime.weekday(.wide).month(.wide).day()))
                 Spacer(minLength: 0)
                 if !featuredDinnerKind.eatingOut,
                    dinner(on: weekAnchor) != nil || PlanLedger.shared.dinner(on: weekAnchor) != nil {
@@ -841,14 +846,15 @@ struct WeekView: View {
                             Text(Calendar.current.isDateInToday(weekAnchor) ? unplannedDinnerTitle : PlanEmptyCopy.heroTitle(past: isPast(weekAnchor)))
                                 .accessibilityLabel(Calendar.current.isDateInToday(weekAnchor) ? "What sounds good tonight?" : PlanEmptyCopy.heroTitle(past: isPast(weekAnchor)))
                                 .accessibilityIdentifier("plan-open-headline")
-                                .plType(.featureTitle).foregroundStyle(Color.ink)
+                                .plType(typeSize.isAccessibilitySize ? .cardTitle : .featureTitle).foregroundStyle(Color.ink)
                                 .accessibilityAddTraits(.isHeader)
                             if isPast(weekAnchor) {
                                 Text(PlanEmptyCopy.detailBody).plType(.footnote).foregroundStyle(Color.inkSecondary)
                             }
                         }
+                        if typeSize.isAccessibilitySize { chooseMealAction }
                         localCookPicker(for: dinner(on: weekAnchor))
-                        PrimaryActionButton(title: Calendar.current.isDateInToday(weekAnchor) ? "Choose a meal" : PlanEmptyCopy.planNight) { planDay = weekAnchor }
+                        if !typeSize.isAccessibilitySize { chooseMealAction }
                         planTextAction("Eating out instead") { markEatingOut(on: weekAnchor) }
                             .accessibilityIdentifier("plan-eating-out-action")
                             .accessibilityHint("Marks dinner on the selected date as eating out")
@@ -861,6 +867,13 @@ struct WeekView: View {
     private var unplannedDinnerTitle: String {
         // The approved line ends after “good”; accessibility text reflows.
         typeSize.isAccessibilitySize ? "What sounds good tonight?" : "What sounds good\ntonight?"
+    }
+
+    private var chooseMealAction: some View {
+        PrimaryActionButton(title: Calendar.current.isDateInToday(weekAnchor)
+                            ? "Choose a meal" : PlanEmptyCopy.planNight) {
+            planDay = weekAnchor
+        }
     }
 
     private func localCookPicker(for meal: PlannedMeal?) -> some View {
@@ -996,7 +1009,7 @@ struct WeekView: View {
         let title = entry.hasDish ? entry.title : Calendar.current.isDateInToday(weekAnchor) ? "What sounds good tonight?" : PlanEmptyCopy.heroTitle(past: isPast(weekAnchor))
         Button { Haptic.tap(); pushed = .day(weekAnchor) } label: {
             VStack(alignment: .leading, spacing: eatingOut || leftovers ? 7 : 12) {
-                Text(eatingOut && title == "Eating out" ? "A night out." : !entry.hasDish && Calendar.current.isDateInToday(weekAnchor) ? unplannedDinnerTitle : title).plType(!entry.hasDish || eatingOut || leftovers ? .featureTitle : .cardTitle).foregroundStyle(Color.ink)
+                Text(eatingOut && title == "Eating out" ? "A night out." : !entry.hasDish && Calendar.current.isDateInToday(weekAnchor) ? unplannedDinnerTitle : title).plType(typeSize.isAccessibilitySize && !entry.hasDish ? .cardTitle : !entry.hasDish || eatingOut || leftovers ? .featureTitle : .cardTitle).foregroundStyle(Color.ink)
                     .accessibilityIdentifier(!entry.hasDish ? "plan-open-headline" : "plan-meal-headline")
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .fixedSize(horizontal: false, vertical: true)
@@ -1040,6 +1053,9 @@ struct WeekView: View {
                 .plType(.footnote).foregroundStyle(Color.inkSecondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
+        if typeSize.isAccessibilitySize && !entry.hasDish && !entry.isGoing {
+            chooseMealAction
+        }
         if !entry.isGoing {
             if eatingOut {
                 diningOutActions(title: entry.title)
@@ -1068,7 +1084,7 @@ struct WeekView: View {
         // to start a cook session on a dinner this phone has just taken off
         // the plan for everybody.
         if !entry.hasDish && !entry.isGoing {
-            PrimaryActionButton(title: Calendar.current.isDateInToday(weekAnchor) ? "Choose a meal" : PlanEmptyCopy.planNight) { planDay = weekAnchor }
+            if !typeSize.isAccessibilitySize { chooseMealAction }
             planTextAction("Eating out instead") { markEatingOut(on: weekAnchor) }
                 .accessibilityIdentifier("plan-eating-out-action")
                 .accessibilityHint("Marks dinner on the selected date as eating out")

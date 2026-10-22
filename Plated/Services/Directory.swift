@@ -86,6 +86,7 @@ enum Directory {
         if let apns = store.string(forKey: "plated.apns.latest"), !apns.isEmpty {
             await registerDevice(apnsToken: apns)
         }
+        await MainActor.run { SocialPush.requestSync() }
         return true
     }
 

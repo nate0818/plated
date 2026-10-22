@@ -1196,6 +1196,24 @@ enum TableShare {
     struct Claim: Equatable {
         var inviteID: String
         var userRecordName: String
+        var at: Date = .now
+    }
+
+    /// A previously consumed change token must not strand an invitation
+    /// forever. Ask for the exact records named by this phone's pending
+    /// invitations during periodic maintenance, including after upgrades.
+    static func acceptedClaims(for inviteIDs: [String]) async -> [Claim] {
+        guard !inviteIDs.isEmpty, await TableSync.accountAvailable() else { return [] }
+        let db = container.privateCloudDatabase
+        let zoneID = CKRecordZone.ID(zoneName: zoneName, ownerName: CKCurrentUserDefaultName)
+        var claims: [Claim] = []
+        for id in Set(inviteIDs) {
+            guard let record = try? await db.record(
+                for: CKRecord.ID(recordName: "claim-\(id)", zoneID: zoneID)
+            ), let claim = claim(from: record) else { continue }
+            claims.append(claim)
+        }
+        return claims
     }
 
     static func pushClaim(inviteID: String, zoneOwner: String) async -> Bool {
@@ -1219,11 +1237,13 @@ enum TableShare {
         return ok
     }
 
-    private static func claim(from record: CKRecord) -> Claim {
-        Claim(
-            inviteID: record["inviteID"] as? String ?? "",
-            userRecordName: record["userRecordName"] as? String ?? ""
-        )
+    private static func claim(from record: CKRecord) -> Claim? {
+        guard let inviteID = record["inviteID"] as? String, !inviteID.isEmpty,
+              record.recordID.recordName == "claim-\(inviteID)",
+              let person = record["userRecordName"] as? String, !person.isEmpty,
+              record.creatorUserRecordID?.recordName == person else { return nil }
+        return Claim(inviteID: inviteID, userRecordName: person,
+                     at: record.creationDate ?? .now)
     }
 
     /// A comment as it exists on the wire.
@@ -1506,7 +1526,7 @@ enum TableShare {
                         case noteType:
                             part.notes.append(remoteNote(from: record))
                         case claimType:
-                            part.claims.append(claim(from: record))
+                            if let claim = claim(from: record) { part.claims.append(claim) }
                         default:
                             if record is CKShare { part.sharesChanged = true }
                             continue
@@ -1561,16 +1581,31 @@ enum TableShare {
 
     /// The people on the share. Empty for a table that has never been
     /// shared, which is not an error — it is most tables, most of the time.
-    static func participants() async -> [Seat] {
-        guard await TableSync.accountAvailable() else { return [] }
-        guard let share = await tableShare() else { return [] }
+    static func participants() async -> [Seat] { await participantSnapshot() ?? [] }
+
+    /// Nil is a failed read, not an empty table. The People sheet keeps its
+    /// last answer and offers Retry instead of claiming no one has joined.
+    static func participantSnapshot() async -> [Seat]? {
+        guard await TableSync.accountAvailable() else { return nil }
+        let owner = householdOwner
+        let db = owner == nil ? container.privateCloudDatabase : container.sharedCloudDatabase
+        let zoneID = CKRecordZone.ID(zoneName: zoneName, ownerName: owner ?? CKCurrentUserDefaultName)
+        let root: CKRecord
+        do {
+            root = try await db.record(for: CKRecord.ID(recordName: "table-root", zoneID: zoneID))
+        } catch let error as CKError where error.code == .unknownItem && owner == nil {
+            return [] // A host who has never shared has no participants.
+        } catch { return nil }
+        guard let ref = root.share else { return [] }
+        guard let share = try? await db.record(for: ref.recordID) as? CKShare else { return nil }
         let me = share.currentUserParticipant
-        return share.participants.map { p in
+        return share.participants.enumerated().compactMap { index, p -> Seat? in
+            guard p.acceptanceStatus == .accepted else { return nil }
             let name = [p.userIdentity.nameComponents?.givenName,
                         p.userIdentity.nameComponents?.familyName]
                 .compactMap { $0 }.joined(separator: " ")
             return Seat(
-                id: p.userIdentity.userRecordID?.recordName ?? UUID().uuidString,
+                id: p.userIdentity.userRecordID?.recordName ?? "unknown-\(index)",
                 name: name.isEmpty ? "Someone" : name,
                 isOwner: p.role == .owner,
                 isMe: p == me
@@ -2712,8 +2747,9 @@ enum TableShare {
                         var removed = 0
                         var lines: [PlanShare.Line] = []
                         var createdAt = Date.now; var changedAt = Date.now }
-    struct Claim: Equatable { var inviteID: String; var userRecordName: String }
+    struct Claim: Equatable { var inviteID: String; var userRecordName: String; var at: Date = .now }
     static func pushClaim(inviteID: String, zoneOwner: String) async -> Bool { false }
+    static func acceptedClaims(for inviteIDs: [String]) async -> [Claim] { [] }
     struct Changes { var posts: [RemotePost] = []; var reactions: [RemoteReaction] = []
                      var notes: [RemoteNote] = []; var plans: [RemotePlan] = []
                      var claims: [Claim] = []

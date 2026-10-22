@@ -83,6 +83,18 @@ final class PlanContextTests: XCTestCase {
         XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Choose a recipe")).firstMatch.waitForExistence(timeout: 8))
     }
 
+    func testAccessibilityPlanKeepsThePrimaryChoiceInView() {
+        launch(["-plated-fake-weather"], size: "UICTContentSizeCategoryAccessibilityXXXL", light: true)
+        let choose = app.buttons["Choose a meal"]
+        let tabBarTop = app.buttons["tray-week"].frame.minY
+        XCTAssertTrue(choose.isHittable)
+        XCTAssertLessThan(choose.frame.midY, tabBarTop,
+                          "The dinner decision should be visible before scrolling past cook assignment")
+        capture("plan-open-accessibility-primary-action")
+        choose.tap()
+        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Choose a recipe")).firstMatch.waitForExistence(timeout: 8))
+    }
+
     func testEatingOutSaveFailureKeepsTheDayEmptyAndHistoryUnchanged() {
         launch(["-plated-review-dinner-history", "-plated-fake-weather", "-plated-review-fail-save", "plan eating out"])
         app.buttons["Eating out instead"].tap()
