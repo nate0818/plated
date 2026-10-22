@@ -1,6 +1,7 @@
 # Approved-design candidate status — October 21, 2026
 
-This is a checkpoint for the isolated, **unreleased** candidate at
+This is a checkpoint for the isolated build-46 candidate, now distributed as a
+TestFlight beta with explicit verification gaps, at
 `/Users/natemeadows/.codex/worktrees/plated-approved-fidelity/Plated` on
 `codex/approved-design-fidelity-46`. The approved-design implementation was
 committed as `abd64872e107efa9cb0ce64653a6317dc72a3f7c`, followed by the
@@ -10,7 +11,15 @@ blocker in `continuation-status-2026-10-20.md`, not the outstanding coverage in
 `acceptance-ledger.md` or `docs/release-quality-standard.md`. Project settings now
 say 1.0.1 (46) for the app and widget. Fresh signed archives and IPA exports
 were created locally from both `7b4d56d` and the current app-source commit
-`afe2f99`. Nothing has been uploaded, processed, or made available to testers.
+`afe2f99`. On October 21, Nate explicitly directed a TestFlight beta upload
+without waiting for the unavailable live-device and two-account checks. The
+exact signed build-46 IPA below was uploaded successfully via `altool`; delivery
+UUID `c4da9151-e417-4814-b3d3-93a30c0eb823`. Apple processing finished
+`VALID`; both Internal and External show `IN_BETA_TESTING`. Internal has
+all-build access and External explicitly lists build 46. Automatic tester
+notification is enabled, and the tester notes were saved and read back.
+No individual testers are assigned directly to build 46. Installation on a
+particular phone remains unverified. The live checks remain unverified, not passed.
 The later one-line household cover-copy refinement (`Add a household photo` →
 `Add photo`) keeps the visible prompt on one line at AX5 while preserving the
 full accessible action name.
@@ -37,7 +46,7 @@ full accessible action name.
 | In-place local recipe upgrade | Passed for one persisted recipe | Exact distributed source `aea845b75ec14978a522ecd682dc9c2722467c28` was compiled as simulator build 45 and installed on a clean iOS 26.2 iPhone 16e. A recipe was created through the real local first-run path, confirmed after relaunch (`Upgrade45-Clean-Seed-20261021.xcresult`), and still opened after installing the candidate build 46 over the existing app without uninstall or erase (`Upgrade46-Clean-After-20261021.xcresult`). This narrow result does not cover other persisted models, drafts, settings, photos, queues or timers. |
 | Collect-only accessibility audit | Two concrete Table-thread naming findings corrected; seven contrast findings triaged but not counted as an app-wide accessibility pass | Before: `Compact-Accessibility-Diagnostics-20261021.xcresult` reported an unlabeled post photo and a URL-only link name. After the new labels, `Compact-Accessibility-After-20261021.xcresult` reports neither. [The named contrast triage](accessibility-contrast-triage-2026-10-21.md) maps six targets to actual source color/background pairs above 4.5:1, identifies two sampled offscreen positions, and leaves the one unattributed node open for the fresh visual inventory. Raw probe findings are preserved. |
 | Static checks | Passed again after the committed household-copy change | `scripts/check-design` (183 Swift), `scripts/check-tokens --native-only` (10 shared tokens), `scripts/check-schema` (159 recorded fields), and `git diff --check`. The schema check is a manifest check, not a live CloudKit test. |
-| Current local release archive/export | Build 46 archive/export succeeded from committed app source `afe2f99`; **not distributed** | `build/Plated-46-afe2f99.xcarchive` and `build/export-46-afe2f99/Plated.ipa` in this checkout; IPA SHA-256 `fcddb74165450f96cf912eb1bf24ac0f5a183650e728f239dc1e3c2b315cdeff`. Exported app and widget both report 1.0.1 (46), minimum iOS 18.0 and `get-task-allow=false`. App has production APNs/CloudKit, WeatherKit, app group, associated domain and communication/time-sensitive notification entitlements; widget has the app group. iPad Info.plist allows only landscape and requires full screen. Strict `codesign --verify --deep --strict` passed separately for app and widget. App UUID `C59D4553-52B1-3D1C-B71E-AB1EFBE499DE` and widget UUID `91128856-72B2-338D-8BB1-6A04AC21B7D9` match their respective archive dSYMs. Both privacy manifests are packaged. No upload or Apple processing receipt exists. |
+| Current signed release archive/export | Build 46 archive/export succeeded from committed app source `afe2f99`; upload and group distribution verified | `build/Plated-46-afe2f99.xcarchive` and `build/export-46-afe2f99/Plated.ipa` in this checkout; IPA SHA-256 `fcddb74165450f96cf912eb1bf24ac0f5a183650e728f239dc1e3c2b315cdeff`. Exported app and widget both report 1.0.1 (46), minimum iOS 18.0 and `get-task-allow=false`. App has production APNs/CloudKit, WeatherKit, app group, associated domain and communication/time-sensitive notification entitlements; widget has the app group. iPad Info.plist allows only landscape and requires full screen. Strict `codesign --verify --deep --strict` passed separately for app and widget. App UUID `C59D4553-52B1-3D1C-B71E-AB1EFBE499DE` and widget UUID `91128856-72B2-338D-8BB1-6A04AC21B7D9` match their respective archive dSYMs. Both privacy manifests are packaged. `altool` upload receipt: `c4da9151-e417-4814-b3d3-93a30c0eb823`. Apple processing `VALID`, Internal and External `IN_BETA_TESTING`; no phone installation proof. |
 | Superseded local archive/export | The earlier build-46 export from app source `7b4d56d` is retained only as historical evidence | `build/Plated.xcarchive` and `build/export/Plated.ipa`, SHA-256 `a3b2c730faa55b0566ebd57a97af67b1abc2fc54a1a43c733b3af66f383db944`. It lacks the AX5 household cover refinement and must not be uploaded. |
 | Broad phone UI suite | Latest completed compact run: 192 executed, 5 skips, 15 failures; focused triage passed and the exact-current-app complete rerun is in progress | `/Users/natemeadows/Plated/build/Phone-UI-Final-Compact-Portrait-20261021.xcresult` is retained as a failed run. The 15 comprise one Favorites transition timing assertion, three iOS 26 recipe-menu query type mismatches, one household confirmation outside-tap mismatch, seven iOS 26 simulator VoiceOver service errors, one AX5 selected-day assertion matching recent activity, and two reused-simulator widget gallery/cleanup assumptions. Focused evidence below resolves or scopes each; it does not turn this completed run into a pass. A prior rerun at `Phone-UI-Compact-Final-Rerun-20261021.xcresult` was interrupted after 32 methods when the app source changed and is not counted. The new complete run uses `/Users/natemeadows/Plated/build/Phone-UI-Correct-App-Compact-20261021.xcresult` against explicitly installed app source `afe2f99`; it must finish before its result can be counted. The older pre-fix 188-test discovery run and its nine failures remain separately preserved in `phone-ui-current-20261021.log`. |
 
@@ -198,7 +207,7 @@ respectively. The final UI runner plugin, after adding the small-widget capture,
 had SHA-256 `b8a38873b8041df9be0b35bbeb9a19453dd46efeb14fa22ba5b139b9f70b9732`.
 All are unsigned-for-distribution simulator products, not a release export.
 
-## Release gates still open
+## Verification still open after beta distribution
 
 1. Reconcile and inspect the full current route/state inventory and every original
    approved annotation. The 15 illustrative design families and passing focused
@@ -218,13 +227,12 @@ All are unsigned-for-distribution simulator products, not a release export.
    widgets, push registration and live notification delivery/timing, and device Calendar remain unverified
    on this candidate. A second real account/device was unavailable, so both-way
    avatar/activity, invitation, Plan, grocery and Table sync is also unverified.
-5. Before any TestFlight distribution: finish the release ledger and the clean
-   final-source UI suite. The app-source commit and matching signed export are
-   recorded above; commit the remaining documentation/test-runner evidence
-   without changing app source. Then verify Apple upload, processing
-   and access for each authorized internal and external tester group. No upload
-   receipt or tester availability exists for this candidate.
+5. Build 46 is on TestFlight after Nate explicitly chose beta distribution
+   without the unavailable live checks. The signed export, upload receipt,
+   Apple processing and both tester groups were read back as recorded above.
+   The release ledger is still incomplete; the beta exception does not turn
+   missing visual, device, account, or minimum-OS checks into passes.
 
-No missing check is treated as passed or waived. App Store Connect's latest
-build number read back on October 21 was 45; this local build 46 is not on
-TestFlight.
+App Store Connect's latest build read back on October 21 is 46. The public
+TestFlight group lists build 46; installation on either household phone has
+not been observed.
