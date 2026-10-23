@@ -1500,7 +1500,9 @@ private struct HouseholdHomeContent: View {
         .foregroundStyle(Color.ink)
         .background(Color.fill)
         .presentationBackground(Color.fill)
-        .presentationDetents([.height(520), .large])
+        .presentationDetents(typeSize.isAccessibilitySize
+            ? [.large]
+            : [.height(min(560, 220 + CGFloat(roster.filter(\.cooks).count + 1) * 61)), .large])
         .presentationDragIndicator(.visible)
     }
 
