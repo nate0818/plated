@@ -169,9 +169,9 @@ final class FidelitySupplementalStatesTests: XCTestCase {
         let name = Calendar.current.weekdaySymbols[weekday - 1]
         let cell = app.buttons["household-rotation-\(weekday)"]
         reveal(cell); let original = cell.label; cell.tap()
-        XCTAssertTrue(app.navigationBars["Who cooks \(name)?"].waitForExistence(timeout: 8))
+        XCTAssertTrue(app.navigationBars[name].waitForExistence(timeout: 8))
         XCTAssertTrue(app.buttons["Save cook"].exists)
-        XCTAssertTrue(app.staticTexts["Choose someone. Changes apply after saving."].exists)
+        XCTAssertTrue(app.staticTexts["Choose a cook. Changes apply after saving."].exists)
         XCTAssertTrue(app.buttons["Cancel"].exists)
         capture("fidelity-household-assign-dark")
         app.buttons["Unassigned"].tap(); app.buttons["Cancel"].tap()

@@ -22,7 +22,7 @@ before implementing or releasing changes. Every release needs fresh visual,
 interaction, regression and device/account evidence; passing a build or screenshot
 survey does not establish that the experience is complete.
 
-The latest recorded native delivery is [TestFlight 1.0.1 (48)](docs/testflight-48.md).
+The latest recorded native delivery is [TestFlight 1.0.1 (49)](docs/testflight-49.md).
 Consult its dated evidence and remaining limits. Historical audit and release notes
 below are not current verification or current App Store Connect status.
 

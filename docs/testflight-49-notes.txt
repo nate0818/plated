@@ -1,0 +1,7 @@
+Build 49
+
+Refines the approved Plan, Table, household, recipe and cooking screens. Fixes a Plan scrolling freeze around the pinned dinner summary, improves the iPad cooking layout, and keeps cook selection explicit with Save and Cancel.
+
+Improves notification authentication and recovery. New posts and questions, comments, replies, reactions and invitation acceptances use the verified notification delivery service. Settings respect your alert preferences; likes remain quiet.
+
+Please update every participating phone. Real-device notification delivery and two-account sync could not be verified for this build; these fixes are covered by automated app/backend tests and simulator interaction checks, not a guarantee of delivery.
