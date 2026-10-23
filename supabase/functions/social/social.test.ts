@@ -28,6 +28,35 @@ Deno.test("comment recipient and copy come from the actual CloudKit post",async(
   const e=await fixture().run(); assertEquals(e.notices.map(n=>[n.recipient,n.key,n.category]),[["nate","note:note-1","comments"]]);
   assertEquals(e.notices[0].body,"That was great");
 });
+Deno.test("confirmed posts notify only accepted members and honor post preferences",async()=>{
+  const f=fixture();
+  f.records["new-post"]=record("new-post","PlatedDish",{authorID:"alessandra",kind:"post",caption:"The market has fresh basil."});
+  const e=await f.run("new-post");
+  assertEquals(e.notices.map(n=>n.recipient).sort(),["friend","nate"]);
+  assertEquals(e.notices.every(n=>n.key==="post:new-post" && n.category==="dishes"),true);
+  const n=e.notices[0];
+  const enabled=preferences({enabled:true,authorized:true,timeZone:"UTC"});
+  const push=pushFor(e,n,enabled,new Date("2026-10-18T12:00:00Z"));
+  assertEquals([push?.link,push?.category,push?.body],["plated://post?id=new-post","plated.category.dish","The market has fresh basil."]);
+  for(const p of [{...enabled,categories:{dishes:false}},{...enabled,muted:["new-post"]},{...enabled,blocked:["alessandra"]}]) assertEquals(pushFor(e,n,p),null);
+  f.records["new-post"].fields!.kind={value:"ask"};
+  const ask=await f.run("new-post");
+  assertEquals(pushFor(ask,ask.notices[0],enabled)?.category,"plated.category.ask");
+  assertEquals(ask.notices[0].key,n.key,"Editing does not create a new delivery identity");
+});
+Deno.test("old or spoofed posts cannot become new post alerts",async()=>{
+  const f=fixture();f.records["new-post"]=record("new-post","PlatedDish",{authorID:"stranger"});
+  await assertRejects(()=>f.run("new-post"),Rejected,"invalid_event");
+  f.records["new-post"].fields!.authorID={value:"alessandra"};
+  f.records["new-post"].created!.timestamp=now-172800000;
+  await assertRejects(()=>f.run("new-post"),Rejected,"event_expired");
+  f.records["new-post"].fields!.deletedAt={value:now};
+  assertEquals((await f.run("new-post")).cancelled,true);
+});
+Deno.test("shared-zone default owner is not proof of a guest modifier",async()=>{
+  const f=fixture();f.records["note-1"].modified!.userRecordName="__defaultOwner__";
+  await assertRejects(()=>f.run(),Rejected,"not_your_event");
+});
 Deno.test("privacy-protected share participants retain verified membership",async()=>{
   const f=fixture();
   const share=f.records["share-1"];

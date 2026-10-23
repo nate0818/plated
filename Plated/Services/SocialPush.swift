@@ -85,7 +85,7 @@ enum SocialPush {
         return id
     }
     static func confirmed(_ record: CKRecord) {
-        let types = ["PlatedDishNote", "PlatedDishPlate", "PlatedDishBallot", "PlatedDishClaim", "PlatedHouseholdSeat"]
+        let types = ["PlatedDish", "TablePost", "PlatedDishNote", "PlatedDishPlate", "PlatedDishBallot", "PlatedDishClaim", "PlatedHouseholdSeat"]
         guard types.contains(record.recordType), !TableIdentity.isPlaceholder else { return }
         // A seat's creator can be the host who invited them; the claimant is
         // the person who joined. Post/comment authors use the other field.
@@ -248,7 +248,7 @@ enum SocialPush {
     }
     static func localFallback(_ notices: [TableNews.Notice]) async -> [TableNews.Notice] {
         guard !TableNews.rehearsing, hasConfirmedInstallation else { return notices }
-        let covered: Set<TableNews.Notice.Kind> = [.comment, .plates, .votes, .commentLikes, .kiss, .seat, .householdSeat]
+        let covered: Set<TableNews.Notice.Kind> = [.dish, .ask, .comment, .plates, .votes, .commentLikes, .kiss, .seat, .householdSeat]
         let keys = Set(notices.filter { covered.contains($0.kind) }.flatMap { $0.key.split(separator: "|").map(String.init) })
         guard !keys.isEmpty, keys.count <= 100 else { return notices }
         do {

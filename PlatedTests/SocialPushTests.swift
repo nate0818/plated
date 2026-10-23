@@ -33,11 +33,19 @@ final class SocialPushTests: XCTestCase {
     }
     func testOnlyConfirmedWritesByCurrentAccountEnterNotificationQueue() {
         SocialPush.confirmed(record(author:"someone-else"))
-        SocialPush.confirmed(record("PlatedDish"))
+        SocialPush.confirmed(record("UnknownRecord"))
         XCTAssertTrue(SocialPush.pending.isEmpty)
         SocialPush.confirmed(record())
         XCTAssertEqual(SocialPush.pending.map(\.record),["note-test"])
         XCTAssertEqual(SocialPush.pending.first?.owner,"owner-test")
+    }
+    func testConfirmedPostsAndQuestionsEnterTheSameDurableQueue() {
+        for (name, kind) in [("post-test", "post"), ("question-test", "ask")] {
+            let post = record("PlatedDish", name: name)
+            post["kind"] = kind as CKRecordValue
+            SocialPush.confirmed(post)
+        }
+        XCTAssertEqual(Set(SocialPush.pending.map(\.record)), ["post-test", "question-test"])
     }
     func testLaterUndoReplacesQueuedReactionAndOldAcknowledgementCannotEraseIt() throws {
         let reaction = record("PlatedDishPlate",name:"plate-test")

@@ -10,7 +10,7 @@ export function preferences(value: unknown): Preferences {
   const zone = typeof v?.timeZone === "string" ? v.timeZone : "UTC";
   try { new Intl.DateTimeFormat("en", {timeZone: zone}).format(); } catch { throw new Error("invalid_time_zone"); }
   return { enabled: v?.enabled === true, authorized: v?.authorized === true, timeZone: zone,
-    categories: Object.fromEntries(["comments", "replies", "plates", "seats"].map(k => [k, v?.categories?.[k] !== false])),
+    categories: Object.fromEntries(["dishes", "comments", "replies", "plates", "seats"].map(k => [k, v?.categories?.[k] !== false])),
     muted: list(v?.muted), blocked: list(v?.blocked) };
 }
 export function pushFor(event: VerifiedEvent, notice: VerifiedNotice, prefs: Preferences, now = new Date()): Push | null {
@@ -25,7 +25,7 @@ export function pushFor(event: VerifiedEvent, notice: VerifiedNotice, prefs: Pre
     title: notice.title, body: notice.body, link, thread: notice.post || (notice.kind === "householdSeat" ? "household" : "table"),
     contentAvailable: true,
     sound: !passive && (notice.direct || notice.category === "seats"), level: passive ? "passive" : "active", priority: 10,
-    category: notice.kind === "comment" ? "plated.category.comment" : notice.kind === "householdSeat" ? "plated.category.household.seat" : "plated.category.plates",
+    category: notice.kind === "dish" ? "plated.category.dish" : notice.kind === "ask" ? "plated.category.ask" : notice.kind === "comment" ? "plated.category.comment" : notice.kind === "householdSeat" ? "plated.category.household.seat" : "plated.category.plates",
     expiresAt: Math.floor((event.occurredAt + 86400000) / 1000),
     extra: {post: notice.post, kind: notice.kind, actor: event.actorName, actorID: event.actor, source: "social-v1", noticeKey: notice.key, comment: notice.kind === "comment" ? notice.key.replace(/^note:/, "") : ""},
   };

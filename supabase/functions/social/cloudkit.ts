@@ -109,7 +109,7 @@ export class CloudKit {
     const data = await this.call(owner === me ? "private" : "shared", "records/lookup", {
       zoneID: { zoneName: zone, ...(owner === me ? {} : { ownerRecordName: owner }) },
       records: [{ recordName: identifier(name) }],
-      desiredKeys: ["authorID", "authorName", "text", "dishTitle", "kind", "postRecordName", "parentCommentID",
+      desiredKeys: ["authorID", "authorName", "text", "caption", "dishTitle", "kind", "postRecordName", "parentCommentID",
         "deletedAt", "active", "choice", "userRecordName", "seat", "joinedAt", "removedIDs", "name", "inviteID"],
     });
     const record = (data.records as CKRecord[] | undefined)?.find(r => r.recordName === name);
@@ -118,8 +118,8 @@ export class CloudKit {
   }
 }
 export interface VerifiedNotice {
-  key: string; recipient: string; kind: "comment" | "plates" | "votes" | "commentLikes" | "seat" | "householdSeat";
-  category: "replies" | "comments" | "plates" | "seats";
+  key: string; recipient: string; kind: "dish" | "ask" | "comment" | "plates" | "votes" | "commentLikes" | "seat" | "householdSeat";
+  category: "dishes" | "replies" | "comments" | "plates" | "seats";
   post: string; title: string; body: string; direct: boolean;
 }
 export interface VerifiedEvent {
@@ -159,7 +159,8 @@ export async function verifyEvent(
   const {owner: verifiedOwner, household, rootName, share, members} = await verifyRoom(cloud,me,owner,zone,zone === "PlatedHousehold" ? name : undefined);
   owner = verifiedOwner;
   const record = await cloud.record(name, zone, owner, me);
-  if (record.parent?.recordName !== rootName || ![me,"__defaultOwner__"].includes(record.modified?.userRecordName ?? "")) throw new Rejected(403, "not_your_event");
+  const modifier = record.modified?.userRecordName;
+  if (record.parent?.recordName !== rootName || !(modifier === me || (owner === me && modifier === "__defaultOwner__"))) throw new Rejected(403, "not_your_event");
   const age = now - (record.modified?.timestamp ?? 0);
   if (age < -300000 || age > 86400000) throw new Rejected(410, "event_expired");
   const event: VerifiedEvent = {
@@ -173,6 +174,19 @@ export async function verifyEvent(
     event.notices.push({key: record.recordType === "PlatedDishNote" ? `note:${name}` : household ? `household:${me}:${name}` : record.recordType === "PlatedDishClaim" ? `seat:${me}` : `${kind === "commentLikes" ? "commentLike" : kind === "votes" ? "ballot" : "plate"}:${string(record,"postRecordName")}:${me}`, recipient, kind, category, post, title, body, direct: category === "replies" || category === "comments"});
   };
   const clean = (value: string, max: number) => value.replace(/[\x00-\x1f\x7f]/g, " ").trim().slice(0, max);
+  if (!household && ["PlatedDish", "TablePost"].includes(record.recordType)) {
+    if (string(record, "authorID") !== me) throw new Rejected(403, "invalid_event");
+    event.cancelled = field(record, "deletedAt") != null;
+    if (now - (record.created?.timestamp ?? 0) > 86400000 && !event.cancelled) throw new Rejected(410, "event_expired");
+    const question = string(record, "kind").toLowerCase() === "ask";
+    for (const member of members) {
+      if (member === me) continue;
+      event.notices.push({key: `post:${name}`, recipient: member, kind: question ? "ask" : "dish",
+        category: "dishes", post: name, title: `${event.actorName} ${question ? "asked the Table" : "shared a post"}`,
+        body: clean(string(record, "caption") || string(record, "dishTitle"), 180) || "See it at your Table.", direct: false});
+    }
+    return event;
+  }
   if (record.recordType === "PlatedDishClaim" || record.recordType === "PlatedHouseholdSeat") {
     if (string(record, "userRecordName") !== me || (household && string(record, "seat") !== "joined")) throw new Rejected(403, "invalid_join");
     if (household && typeof field(record, "joinedAt") !== "number") throw new Rejected(403, "invalid_join");

@@ -931,13 +931,15 @@ enum TableShare {
             if let data = post.photoData, let asset = asset(from: data) {
                 record["photo"] = asset
                 defer { try? FileManager.default.removeItem(at: asset.fileURL!) }
-                _ = try await db.save(record)
+                let saved = try await db.save(record)
                 guard TableIdentity.cached == account else { return nil }
+                SocialPush.confirmed(saved)
                 post.isPublished = true
                 return name
             }
-            _ = try await db.save(record)
+            let saved = try await db.save(record)
             guard TableIdentity.cached == account else { return nil }
+            SocialPush.confirmed(saved)
             post.isPublished = true
             return name
         } catch {
