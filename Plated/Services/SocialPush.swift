@@ -20,12 +20,12 @@ enum SocialPush {
         var explanation: String? {
             switch self {
             case .connected: nil
-            case .waitingForDeviceToken: "This phone hasn’t finished connecting for alerts. Plated will keep trying automatically."
-            case .appleAccountRequired: "Connect your Apple Account to receive Table alerts on this phone."
-            case .serviceUnavailable: "Phone alerts aren’t available right now. Activity still appears in Plated."
-            case .appleAccessDenied: "Phone alerts couldn’t connect. Activity still appears in Plated while we fix this."
-            case .appleIdentityUnavailable: "We couldn’t confirm this iCloud account for phone alerts. Activity still appears in Plated."
-            case .temporarilyUnavailable: "Phone alerts couldn’t connect. Activity still appears in Plated."
+            case .waitingForDeviceToken: "Notifications are still connecting. Plated will retry automatically."
+            case .appleAccountRequired: "Sign in with Apple to receive Table notifications."
+            case .serviceUnavailable: "Notifications are temporarily unavailable. Please try again later."
+            case .appleAccessDenied: "Couldn’t connect notifications. Please try again later."
+            case .appleIdentityUnavailable: "Couldn’t verify your iCloud account. Please try again."
+            case .temporarilyUnavailable: "Couldn’t connect notifications. Please try again."
             }
         }
     }

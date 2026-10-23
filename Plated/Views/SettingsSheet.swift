@@ -180,7 +180,7 @@ struct SettingsSheet: View {
                 appearanceChooser
             }
 
-            SettingsSection(title: "Notifications", caption: "Choose what deserves a nudge.") {
+            SettingsSection(title: "Notifications", caption: "Choose which updates notify you.") {
                 SettingsGroup {
                     planningReminderRow
                     SettingsDivider()
@@ -521,7 +521,7 @@ struct SettingsSheet: View {
                 title: "Cook reminders",
                 detail: remindersOn
                     ? "The evening before your night, and Sundays when the week is still open"
-                    : "Off. Plated will stay quiet.",
+                    : "Cooking reminders are off.",
                 tint: .oliveTint,
                 tone: .olive
             ) {
@@ -544,7 +544,7 @@ struct SettingsSheet: View {
             SettingsControlRow(
                 symbol: "bell.badge",
                 title: "Cook reminders",
-                detail: "Helpful nudges tied to real plans",
+                detail: "Reminders before your cooking nights",
                 tint: .oliveTint,
                 tone: .olive
             ) {
@@ -597,7 +597,7 @@ struct SettingsSheet: View {
                 title: "Household and Table activity",
                 detail: tableNewsOn
                     ? "Posts, replies, likes, new members and changes to the plan"
-                    : "Off. The bell still keeps the list.",
+                    : "Alerts are off. View updates in Activity.",
                 tint: .oliveTint,
                 tone: .olive
             ) {
@@ -675,8 +675,8 @@ struct SettingsSheet: View {
                  ?? (connectingPhoneAlerts ? "Checking this phone…"
                      : SocialPush.lastConnectionOutcome?.explanation
                          ?? (Directory.isRegistered
-                             ? "Activity still appears in Plated. Phone alerts aren’t connected yet."
-                             : "Connect your Apple Account to receive Table alerts on this phone.")))
+                             ? "Notifications haven’t connected. Try again."
+                             : "Sign in with Apple to receive Table notifications.")))
                 .plType(.caption)
                 .foregroundStyle(Color.inkSecondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -726,7 +726,7 @@ struct SettingsSheet: View {
         return SettingsControlRow(
             symbol: category.symbol,
             title: category.title,
-            detail: binding.wrappedValue ? category.detail : "Off. Still in the bell, never on the screen.",
+            detail: binding.wrappedValue ? category.detail : "Alerts are off for this category.",
             tint: .chipFill,
             tone: .ink
         ) {

@@ -115,6 +115,26 @@ Deno.test("CloudKit refuses an identity response without exactly one caller",asy
   const cloud=new CloudKit("public-api","initial-token-long-enough","production",fetcher);
   await assertRejects(()=>cloud.identity(),Rejected,"cloud_identity_unavailable");
 });
+Deno.test("CloudKit accepts the direct identity returned by CloudKit JS 2",async()=>{
+  for (const caller of [{userRecordName:"nate"},{lookupInfo:{userRecordName:"nate"}}]) {
+    const fetcher=(async()=>Response.json({...caller,ckWebAuthToken:"next-token"})) as typeof fetch;
+    const cloud=new CloudKit("public-api","initial-token-long-enough","production",fetcher);
+    assertEquals(await cloud.identity(),"nate");
+  }
+});
+Deno.test("CloudKit rejects malformed or ambiguous caller envelopes",async()=>{
+  for (const body of [
+    {}, {users:[] ,userRecordName:"nate"}, {users:[[]]},
+    {users:[{userRecordName:"nate"},{userRecordName:"another"}]},
+    {users:[{userRecordName:"nate"}],userRecordName:"another"},
+    {userRecordName:"nate",lookupInfo:{userRecordName:"another"}},
+    {lookupInfo:{emailAddress:"person@example.com"}},
+  ]) {
+    const cloud=new CloudKit("public-api","initial-token-long-enough","production",
+      (async()=>Response.json(body)) as typeof fetch);
+    await assertRejects(()=>cloud.identity(),Rejected,"cloud_identity_unavailable");
+  }
+});
 Deno.test("CloudKit accepts a privacy-protected caller's lookup record name",async()=>{
   const fetcher=(async()=>Response.json({users:[{lookupInfo:{userRecordName:"nate"}}],ckWebAuthToken:"next-token"})) as typeof fetch;
   const cloud=new CloudKit("public-api","initial-token-long-enough","production",fetcher);

@@ -38,9 +38,9 @@ enum NewsPreferences {
             switch self {
             case .dishes: return "Posts and questions"
             case .replies: return "Replies and mentions"
-            case .comments: return "Comments on yours"
-            case .plates: return "Reactions and votes on yours"
-            case .seats: return "New seats"
+            case .comments: return "Comments on your posts"
+            case .plates: return "Likes and votes"
+            case .seats: return "New members"
             case .planning: return "Planning"
             }
         }
@@ -49,11 +49,11 @@ enum NewsPreferences {
         var detail: String {
             switch self {
             case .dishes: return "When someone shares a post or asks the Table"
-            case .replies: return "A reply to you, your name, or a tag. Gets through a muted post."
+            case .replies: return "Replies and mentions, including in muted posts"
             case .comments: return "When someone comments on a post you shared"
-            case .plates: return "Quiet: in the list and on the icon, never a banner"
+            case .plates: return "Delivered quietly, without sound or a banner"
             case .seats: return "When an invitation is accepted"
-            case .planning: return "When somebody plans a night, moves it, or takes it off the week"
+            case .planning: return "Meals added, moved or removed"
             }
         }
 

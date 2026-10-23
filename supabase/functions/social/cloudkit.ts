@@ -64,11 +64,22 @@ export class CloudKit {
     // The prior private/users/current route is not the documented caller
     // identity endpoint, so registration could not verify the user there.
     const data = await this.call("public", "users/caller");
+    // CloudKit JS 2 returns the response body itself as UserIdentity. The
+    // archived web-services reference instead describes a one-element users
+    // envelope. Accept either Apple response, never a client-claimed identity.
+    // An explicit malformed envelope must not fall through to a direct ID.
     const users = data.users;
-    if (!Array.isArray(users) || users.length !== 1 || !users[0] || typeof users[0] !== "object") {
-      throw new Rejected(403, "cloud_identity_unavailable");
+    let caller = data;
+    if (Object.hasOwn(data, "users")) {
+      if (!Array.isArray(users) || users.length !== 1 || !users[0]
+          || typeof users[0] !== "object" || Array.isArray(users[0])) {
+        throw new Rejected(403, "cloud_identity_unavailable");
+      }
+      caller = users[0] as Record<string, unknown>;
+      if (Object.hasOwn(data, "userRecordName") || Object.hasOwn(data, "lookupInfo")) {
+        throw new Rejected(403, "cloud_identity_unavailable");
+      }
     }
-    const caller = users[0] as Record<string, unknown>;
     // Apple may return only lookupInfo for a privacy-protected identity. Its
     // userRecordName is still the identity Apple authenticated as the caller.
     const lookup = caller.lookupInfo;
