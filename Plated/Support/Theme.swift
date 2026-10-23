@@ -936,7 +936,7 @@ struct PrimaryActionButton: View {
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            .foregroundStyle(awake ? Color.onPrimary : Color.inkSecondary)
+            .foregroundStyle(Color.onPrimary)
             .padding(.horizontal, ControlMetrics.actionHorizontalInset)
             .padding(.vertical, ControlMetrics.actionVerticalInset)
             .frame(maxWidth: .infinity)
@@ -1000,12 +1000,13 @@ private struct PrimaryActionStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .background(ground(pressed: configuration.isPressed), in: Radius.shape(Radius.chip))
+            .opacity(enabled ? 1 : 0.38)
             .scaleEffect(configuration.isPressed && enabled && !reduceMotion ? 0.98 : 1)
             .animation(.plSnap, value: configuration.isPressed)
     }
 
     private func ground(pressed: Bool) -> Color {
-        guard enabled else { return .fill }
+        guard enabled else { return .primaryAction }
         return pressed ? .primaryPressed : .primaryAction
     }
 }

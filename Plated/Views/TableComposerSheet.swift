@@ -405,20 +405,41 @@ struct TableComposerSheet: View {
             if let photoData, let image = UIImage(data: photoData) {
                 PhotoWell(image: image, height: 225, cornerRadius: 9)
                     .accessibilityLabel("Attached photo")
-                Group {
-                    if typeSize.isAccessibilitySize {
-                        VStack(spacing: 8) {
-                            attachmentButton("Change photo", icon: "photo") { choosePhoto() }
-                            attachmentButton("Remove photo", icon: "xmark") { removePhoto() }
+                    .overlay(alignment: .bottomLeading) {
+                        if !typeSize.isAccessibilitySize {
+                            Button { choosePhoto() } label: {
+                                Label("Change photo", systemImage: "pencil")
+                                    .plType(.caption, .medium).plActionLabel()
+                                    .foregroundStyle(Color.onScrim)
+                                    .padding(.horizontal, 12)
+                                    .frame(minHeight: 44)
+                                    .background(Color.scrim, in: Radius.shape(Radius.chip))
+                                    .contentShape(Rectangle())
+                            }.buttonStyle(.plain).padding(12)
                         }
-                    } else {
-                        HStack(spacing: 8) {
-                            attachmentButton("Change photo", icon: "photo") { choosePhoto() }
-                            attachmentButton("Remove photo", icon: "xmark") { removePhoto() }
+                    }
+                    .overlay(alignment: .topTrailing) {
+                        if !typeSize.isAccessibilitySize {
+                            Button { removePhoto() } label: {
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 20, weight: .regular))
+                                    .foregroundStyle(Color.onScrim)
+                                    .frame(width: 44, height: 44)
+                                    .background(Color.scrim, in: Circle())
+                                    .contentShape(Circle())
+                            }
+                            .buttonStyle(.plain).accessibilityLabel("Remove photo")
+                            .padding(8)
                         }
+                    }
+                if typeSize.isAccessibilitySize {
+                    VStack(spacing: 8) {
+                        attachmentButton("Change photo", icon: "photo") { choosePhoto() }
+                        attachmentButton("Remove photo", icon: "xmark") { removePhoto() }
                     }
                 }
             }
+
             if photoLoading {
                 HStack(spacing: 10) { ProgressView(); Text("Getting the photo…").plType(.footnote) }
                     .foregroundStyle(Color.inkSecondary)

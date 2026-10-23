@@ -358,12 +358,6 @@ struct WeekView: View {
     private var portraitPlan: some View {
         GeometryReader { geometry in
             let wide = geometry.size.width >= 800 && !typeSize.isAccessibilitySize
-            // A short phone loses the dinner counts behind the tab bar when
-            // live Weather attribution takes its full 44-point tap target.
-            // Keep the same hierarchy and controls; tighten only supporting
-            // space at standard text sizes.
-            let compactPhone = geometry.size.width < 600 && geometry.size.height < 800
-                && !typeSize.isAccessibilitySize
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     tonightHeader
@@ -375,7 +369,7 @@ struct WeekView: View {
                         Section {
                             let layout = wide
                                 ? AnyLayout(HStackLayout(alignment: .top, spacing: 26))
-                                : AnyLayout(VStackLayout(alignment: .leading, spacing: compactPhone ? 16 : 24))
+                                : AnyLayout(VStackLayout(alignment: .leading, spacing: 24))
                             layout {
                                 VStack(alignment: .leading, spacing: 20) {
                                     if let arrivingHost {
@@ -383,8 +377,8 @@ struct WeekView: View {
                                             .plType(.footnote).foregroundStyle(Color.inkSecondary)
                                             .fixedSize(horizontal: false, vertical: true)
                                     }
-                                    featuredDinner(shortViewport: geometry.size.height < 730 && !typeSize.isAccessibilitySize)
-                                        .padding(compactPhone ? 14 : 18)
+                                    featuredDinner()
+                                        .padding(wide ? 22 : 18)
                                         .frame(maxWidth: .infinity, alignment: .leading)
                                         .background(Color.fill, in: Radius.shape(Radius.hero))
                                     additionalMealsForSelectedDay
@@ -398,7 +392,7 @@ struct WeekView: View {
                                 VStack(alignment: .leading, spacing: 20) {
                                     PlanContextView(date: weekAnchor, forecast: forecast,
                                         history: PlanDinnerHistory(local: meals, shared: PlanLedger.shared.all),
-                                        compact: compactPhone)
+                                        compact: false)
                                     Divider().accessibilityHidden(true)
                                     PlanHouseholdView(members: members, meals: meals) { member in
                                         pushed = .person(PersonRef(name: member.name, colorHex: member.colorHex,
@@ -743,7 +737,7 @@ struct WeekView: View {
         return relativeDay.map { $0 + " · " + date } ?? date
     }
 
-    private func featuredDinner(shortViewport: Bool) -> some View {
+    private func featuredDinner() -> some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
                 MicroLabel(featuredDinnerDateLabel)
@@ -774,7 +768,7 @@ struct WeekView: View {
                                 leftoversDescription
                             } else {
                                 RecipeArtwork(data: meal.recipe?.photoData, title: meal.title, ratio: 2, radius: Radius.chip,
-                                              maxHeight: 252, height: shortViewport ? 96 : nil)
+                                              maxHeight: 252)
                             }
                         }
                         .contentShape(Rectangle())
@@ -825,7 +819,7 @@ struct WeekView: View {
                         }.buttonStyle(.pressable)
                     }
                 } else if let remote = PlanLedger.shared.dinner(on: weekAnchor) {
-                    remoteFeatured(remote, shortViewport: shortViewport)
+                    remoteFeatured(remote)
                 } else {
                     VStack(alignment: .leading, spacing: 12) {
                         if let removedNotice, !isPast(weekAnchor) {
@@ -1024,7 +1018,7 @@ struct WeekView: View {
     /// A shared night keeps the same editorial hierarchy as a local one.
     /// Cooking requires the recipe to exist in this phone's cookbook.
     @ViewBuilder
-    private func remoteFeatured(_ entry: PlanLedger.Entry, shortViewport: Bool) -> some View {
+    private func remoteFeatured(_ entry: PlanLedger.Entry) -> some View {
         let ledger = PlanLedger.shared
         let honesty = entry.isGoing || entry.pendingLine != nil
         let eatingOut = PlanRowVoice.isEatingOut(title: entry.title, hasRecipe: entry.hasRecipe)
@@ -1043,7 +1037,7 @@ struct WeekView: View {
                 } else if entry.hasDish && !eatingOut && !leftovers {
                     RecipeArtwork(data: ledger.photo(for: entry.recordName) ?? cookbookRecipe(for: entry)?.photoData,
                                   title: entry.title, ratio: 2, radius: Radius.chip,
-                                  maxHeight: 252, height: shortViewport ? 96 : nil)
+                                  maxHeight: 252)
                 }
                 if honesty {
                     Text(RemotePlanRow.caption(for: entry))

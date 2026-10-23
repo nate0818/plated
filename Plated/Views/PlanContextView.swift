@@ -9,8 +9,9 @@ struct PlanContextView: View {
     let compact: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: compact ? 10 : 16) {
+        VStack(alignment: .leading, spacing: 18) {
             PlanWeatherView(date: date, forecast: forecast, compact: compact)
+                .padding(.vertical, 16)
             Rectangle().fill(Color.hairline).frame(height: 1).accessibilityHidden(true)
             PlanDinnerHistoryView(history: history)
         }

@@ -104,6 +104,11 @@ final class FidelitySupplementalStatesTests: XCTestCase {
             let remove = app.buttons["Remove photo"]
             XCTAssertTrue(remove.waitForExistence(timeout: 20))
             XCTAssertTrue(remove.isHittable, "Capture the attached photo viewport, not the tagging panel")
+            let change = app.buttons["Change photo"]
+            XCTAssertGreaterThanOrEqual(remove.frame.width, 44)
+            XCTAssertGreaterThanOrEqual(remove.frame.height, 44)
+            XCTAssertGreaterThan(change.frame.minY - remove.frame.maxY, 80,
+                                 "Approved photo controls occupy opposite corners of the photo, not a row below it")
             XCTAssertTrue(app.buttons["table-post-submit"].isEnabled)
             capture("fidelity-composer-photo-" + (light ? "light" : "dark"))
             remove.tap()
@@ -169,9 +174,9 @@ final class FidelitySupplementalStatesTests: XCTestCase {
         let name = Calendar.current.weekdaySymbols[weekday - 1]
         let cell = app.buttons["household-rotation-\(weekday)"]
         reveal(cell); let original = cell.label; cell.tap()
-        XCTAssertTrue(app.navigationBars[name].waitForExistence(timeout: 8))
+        XCTAssertTrue(app.staticTexts["Who cooks \(name)?"].waitForExistence(timeout: 8))
         XCTAssertTrue(app.buttons["Save cook"].exists)
-        XCTAssertTrue(app.staticTexts["Choose a cook. Changes apply after saving."].exists)
+        XCTAssertTrue(app.staticTexts["Choose someone. Changes apply after saving."].exists)
         XCTAssertTrue(app.buttons["Cancel"].exists)
         capture("fidelity-household-assign-dark")
         app.buttons["Unassigned"].tap(); app.buttons["Cancel"].tap()

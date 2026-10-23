@@ -82,8 +82,8 @@ final class ApprovedPolishTests: XCTestCase {
         reveal(cell)
         let old = cell.label
         cell.tap()
-        XCTAssertTrue(app.navigationBars[day].waitForExistence(timeout: 8))
-        XCTAssertTrue(app.staticTexts["Choose a cook. Changes apply after saving."].exists)
+        XCTAssertTrue(app.staticTexts["Who cooks \(day)?"].waitForExistence(timeout: 8))
+        XCTAssertTrue(app.staticTexts["Choose someone. Changes apply after saving."].exists)
         capture("polish-rotation-picker")
         app.buttons["Unassigned"].tap(); app.buttons["Cancel"].tap()
         XCTAssertEqual(cell.label, old, "Browsing a rotation must not change the standing cook")

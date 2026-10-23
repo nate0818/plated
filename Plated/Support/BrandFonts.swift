@@ -62,7 +62,7 @@ enum TypeScale {
         case .body: 15
         case .callout: 16
         case .tileTitle: 20
-        case .heading: 23
+        case .heading: 22
         case .cardTitle: 27
         case .title: 29
         case .pageTitle: 32

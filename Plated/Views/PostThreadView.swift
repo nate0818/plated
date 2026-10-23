@@ -739,9 +739,9 @@ struct PostThreadView: View {
                             }
                         } label: {
                             Text("Reply")
-                                .plType(.caption)
+                                .plType(.caption, .semibold)
                                 .plActionLabel()
-                                .foregroundStyle(Color.inkSecondary)
+                                .foregroundStyle(Color.accentText)
                                 .frame(minWidth: 44, minHeight: 44, alignment: .leading)
                                 .contentShape(Rectangle())
                         }
@@ -1111,6 +1111,7 @@ struct PostThreadView: View {
                                     .foregroundStyle(Color.inkSecondary)
                                     .padding(.leading, 16)
                                     .padding(.vertical, 12)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
                                     .allowsHitTesting(false)
                                     .accessibilityHidden(true)
                             }

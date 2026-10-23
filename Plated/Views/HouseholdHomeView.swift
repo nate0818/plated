@@ -1448,44 +1448,59 @@ private struct HouseholdHomeContent: View {
     }
 
     private func rotationEditor(_ day: Int) -> some View {
-        NavigationStack {
-            List {
-                Section {
-                    Button { rotationPerson = nil } label: {
-                        HStack {
-                            Text("Unassigned")
-                            Spacer()
-                            if rotationPerson == nil { Image(systemName: "checkmark") }
-                        }.foregroundStyle(Color.ink).frame(minHeight: 44)
-                    }
+        VStack(spacing: 0) {
+            HStack(alignment: .top, spacing: 12) {
+                Text("Who cooks \(Calendar.current.weekdaySymbols[day - 1])?")
+                    .plType(.cardTitle).foregroundStyle(Color.ink)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .accessibilityAddTraits(.isHeader)
+                    .accessibilityIdentifier("rotation-picker-title")
+                DesignIconButton(symbol: "xmark", label: "Cancel", quiet: true) { rotationDay = nil }
+            }
+            .padding(.top, 24)
+            .padding(.horizontal, 22)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    Text("Choose someone. Changes apply after saving.")
+                        .plType(.caption).foregroundStyle(Color.inkSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.top, 8).padding(.bottom, 10)
                     ForEach(roster.filter(\.cooks)) { member in
                         Button { rotationPerson = member.shareRecordName } label: {
                             HStack(spacing: 12) {
                                 AvatarCircle(member: member, size: 36)
-                                Text(member.name).foregroundStyle(Color.ink)
-                                Spacer()
+                                Text(member.name).plType(.reading).foregroundStyle(Color.ink)
+                                Spacer(minLength: 8)
                                 if rotationPerson == member.shareRecordName { Image(systemName: "checkmark") }
-                            }.frame(minHeight: 44)
+                            }
+                            .frame(minHeight: 44).padding(.vertical, 8)
+                            .contentShape(Rectangle())
                         }
+                        .buttonStyle(.plain)
                         .accessibilityAddTraits(rotationPerson == member.shareRecordName ? .isSelected : [])
+                        Divider().accessibilityHidden(true)
                     }
-                } header: {
-                    Text("Choose a cook. Changes apply after saving.")
-                        .plType(.footnote).foregroundStyle(Color.inkSecondary)
-                        .textCase(nil)
-                } footer: {
-                    Text("This sets the standing cook for \(Calendar.current.weekdaySymbols[day - 1])s. Existing meal assignments stay as planned.")
-                }
+                    Button { rotationPerson = nil } label: {
+                        HStack(spacing: 12) {
+                            Image(systemName: "person.crop.circle").font(.system(size: 30, weight: .light))
+                                .frame(width: 36, height: 36)
+                            Text("Unassigned").plType(.reading)
+                            Spacer(minLength: 8)
+                            if rotationPerson == nil { Image(systemName: "checkmark") }
+                        }.frame(minHeight: 44).padding(.vertical, 8).contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityAddTraits(rotationPerson == nil ? .isSelected : [])
+                }.padding(.horizontal, 22)
             }
-            .tint(Color.accentText)
-            .navigationTitle(Calendar.current.weekdaySymbols[day - 1])
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { rotationDay = nil } }
-                ToolbarItem(placement: .confirmationAction) { Button("Save cook") { saveRotation(day) } }
-            }
+            PrimaryActionButton(title: "Save cook") { saveRotation(day) }
+                .padding(.horizontal, 22).padding(.top, 12).padding(.bottom, 20)
         }
-        .presentationDetents([.medium, .large])
+        .foregroundStyle(Color.ink)
+        .background(Color.fill)
+        .presentationBackground(Color.fill)
+        .presentationDetents([.height(520), .large])
         .presentationDragIndicator(.visible)
     }
 
