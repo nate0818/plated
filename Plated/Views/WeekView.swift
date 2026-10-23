@@ -427,10 +427,6 @@ struct WeekView: View {
                                     .frame(maxWidth: 1100, alignment: .leading)
                                     .frame(maxWidth: .infinity)
                                     .padding(.horizontal, Spacing.page).padding(.vertical, 8)
-                                    .onGeometryChange(for: PlanViewportPosition.self) { proxy in
-                                        PlanViewportPosition(day: weekAnchor,
-                                            bottom: proxy.frame(in: .global).maxY)
-                                    } action: { dateRailPosition = $0 }
                                 if !wide, dinnerHasScrolledBehindDates {
                                     selectedDinnerSummary
                                         .frame(maxWidth: 1100, alignment: .leading)
@@ -440,6 +436,13 @@ struct WeekView: View {
                                 }
                             }
                             .background(Color.canvas)
+                            // Include the summary in the occluding header. Measuring
+                            // only the dates lets inserting the summary move dinner
+                            // below that threshold, repeatedly removing/reinserting it.
+                            .onGeometryChange(for: PlanViewportPosition.self) { proxy in
+                                PlanViewportPosition(day: weekAnchor,
+                                    bottom: proxy.frame(in: .global).maxY)
+                            } action: { dateRailPosition = $0 }
                         }
                     }
                 }

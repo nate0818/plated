@@ -47,6 +47,10 @@ final class NotificationSettingsReviewTests: XCTestCase {
         XCTAssertEqual(pause.label, "Resume")
         capture("cooking-readable-width")
         app.buttons["Minimize cooking"].tap()
+        // Minimize returns to the recipe; root chrome resumes after Back.
+        let back = app.buttons["Back"]
+        XCTAssertTrue(back.waitForExistence(timeout: 10))
+        back.tap()
         let resume = app.buttons["cooking-resume-strip"]
         XCTAssertTrue(resume.waitForExistence(timeout: 10))
         resume.tap()

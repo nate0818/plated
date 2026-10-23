@@ -78,8 +78,10 @@ final class FidelityAdditionalStatesTests: XCTestCase {
             let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: Date())!
             let c = Calendar.current.dateComponents([.year, .month, .day], from: tomorrow)
             XCTAssertTrue(app.buttons["week-date-\(c.year!)-\(c.month!)-\(c.day!)"].isSelected)
-            let dateText = "Tomorrow · " + tomorrow.formatted(.dateTime.month(.abbreviated).day())
-            XCTAssertTrue(app.staticTexts[dateText.uppercased()].exists)
+            // The visual micro-label says Tomorrow; VoiceOver receives the
+            // full date so its meaning survives returning on another day.
+            let spokenDate = tomorrow.formatted(.dateTime.weekday(.wide).month(.wide).day())
+            XCTAssertTrue(app.staticTexts[spokenDate].exists)
             capture("fidelity-plan-future-\(theme)")
             action.tap()
             XCTAssertTrue(app.buttons["Change this night"].waitForExistence(timeout: 8),
