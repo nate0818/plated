@@ -1470,7 +1470,7 @@ private struct HouseholdHomeContent: View {
                         .accessibilityAddTraits(rotationPerson == member.shareRecordName ? .isSelected : [])
                     }
                 } header: {
-                    Text("Choose someone. Changes apply after saving.")
+                    Text("Choose a cook. Changes apply after saving.")
                         .plType(.footnote).foregroundStyle(Color.inkSecondary)
                         .textCase(nil)
                 } footer: {
@@ -1478,7 +1478,7 @@ private struct HouseholdHomeContent: View {
                 }
             }
             .tint(Color.accentText)
-            .navigationTitle("Who cooks \(Calendar.current.weekdaySymbols[day - 1])?")
+            .navigationTitle(Calendar.current.weekdaySymbols[day - 1])
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { rotationDay = nil } }
