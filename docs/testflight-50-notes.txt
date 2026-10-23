@@ -1,0 +1,5 @@
+Design refinements across Plan, household cook selection, post photos and comments.
+
+Plan restores the approved card spacing, meal photography and weather layout. Cook selection uses an explicit roster, Save cook and Cancel, with a sheet sized to your household. Photo controls sit on the attachment and remain accessible at large text sizes. Disabled actions and comment input alignment are corrected.
+
+This build does not establish a fix for live phone notification delivery or cross-account syncing; those remain under investigation.

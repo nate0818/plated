@@ -1,0 +1,68 @@
+{
+  "source": "12ca9439ddf9cff2b9ca06795d2b5cf19a84fb8c",
+  "ipa_sha256": "278b5da8dec4eed11f986e67c0e9c9ae993d49fa67654903500557335942851d",
+  "size": 18712765,
+  "bundles": [
+    {
+      "bundle": "Plated.app",
+      "version": "1.0.1",
+      "build": "50",
+      "minimum_os": "18.0",
+      "ipad_orientations": [
+        "UIInterfaceOrientationLandscapeLeft",
+        "UIInterfaceOrientationLandscapeRight"
+      ],
+      "entitlements": {
+        "application-identifier": "JA9M6TYXYL.com.natemeadows.plated",
+        "aps-environment": "production",
+        "beta-reports-active": true,
+        "com.apple.developer.applesignin": [
+          "Default"
+        ],
+        "com.apple.developer.associated-domains": [
+          "applinks:plated.food"
+        ],
+        "com.apple.developer.icloud-container-environment": "Production",
+        "com.apple.developer.icloud-container-identifiers": [
+          "iCloud.com.natemeadows.plated"
+        ],
+        "com.apple.developer.icloud-services": [
+          "CloudKit"
+        ],
+        "com.apple.developer.team-identifier": "JA9M6TYXYL",
+        "com.apple.developer.ubiquity-kvstore-identifier": "JA9M6TYXYL.com.natemeadows.plated",
+        "com.apple.developer.usernotifications.communication": true,
+        "com.apple.developer.usernotifications.time-sensitive": true,
+        "com.apple.developer.weatherkit": true,
+        "com.apple.security.application-groups": [
+          "group.com.natemeadows.plated"
+        ],
+        "get-task-allow": false
+      },
+      "privacy_manifest": true,
+      "binary_uuid": "B2CBAB70-3E00-30B2-859B-106103CEC38E",
+      "dsym_uuid": "B2CBAB70-3E00-30B2-859B-106103CEC38E",
+      "signature_exit": 0
+    },
+    {
+      "bundle": "PlatedWidgetsExtension.appex",
+      "version": "1.0.1",
+      "build": "50",
+      "minimum_os": "18.0",
+      "ipad_orientations": null,
+      "entitlements": {
+        "application-identifier": "JA9M6TYXYL.com.natemeadows.plated.widgets",
+        "beta-reports-active": true,
+        "com.apple.developer.team-identifier": "JA9M6TYXYL",
+        "com.apple.security.application-groups": [
+          "group.com.natemeadows.plated"
+        ],
+        "get-task-allow": false
+      },
+      "privacy_manifest": true,
+      "binary_uuid": "91128856-72B2-338D-8BB1-6A04AC21B7D9",
+      "dsym_uuid": "91128856-72B2-338D-8BB1-6A04AC21B7D9",
+      "signature_exit": 0
+    }
+  ]
+}
