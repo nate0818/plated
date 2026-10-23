@@ -319,6 +319,8 @@ struct CookingFocusView: View {
                     .overlay(alignment: .top) { Color.hairline.frame(height: 0.5) }
             }
         }
+        .frame(maxWidth: Layout.readableMaxWidth)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.canvas).foregroundStyle(Color.ink)
         .onAppear {
             ledger.begin(recipe, servings: servings, mealID: meal?.shoppingID, remotePlanID: remotePlanID)

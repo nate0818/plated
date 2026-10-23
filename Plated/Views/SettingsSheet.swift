@@ -661,12 +661,15 @@ struct SettingsSheet: View {
                     .plType(.footnote, .semibold)
                     .foregroundStyle(Color.ink)
                 Spacer(minLength: 8)
-                Button(connectingPhoneAlerts ? "Checking…" : Directory.isRegistered ? "Try again" : "Connect") {
+                Button {
                     Task { await connectPhoneAlerts() }
+                } label: {
+                    Text(connectingPhoneAlerts ? "Checking…" : phoneAlertsNeedSignIn ? "Sign in" : "Try again")
+                        .plType(.footnote, .bold)
+                        .frame(minWidth: 60, minHeight: 44)
+                        .contentShape(Rectangle())
                 }
-                .plType(.footnote, .bold)
                 .foregroundStyle(Color.accentText)
-                .frame(minWidth: 60, minHeight: 44)
                 .buttonStyle(.pressable)
                 .disabled(connectingPhoneAlerts)
                 .accessibilityIdentifier("phone-alert-connect")
@@ -685,12 +688,16 @@ struct SettingsSheet: View {
         .padding(.vertical, 8)
     }
 
+    private var phoneAlertsNeedSignIn: Bool {
+        !Directory.isRegistered || SocialPush.lastConnectionOutcome == .appleAccountRequired
+    }
+
     private func connectPhoneAlerts() async {
         guard !connectingPhoneAlerts else { return }
         connectingPhoneAlerts = true
         phoneAlertProblem = nil
         defer { connectingPhoneAlerts = false }
-        if !Directory.isRegistered {
+        if phoneAlertsNeedSignIn {
             let name = me?.name ?? userFirstName
             switch await AppleIdentity.connectAlerts(displayName: name) {
             case .connected: break

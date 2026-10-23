@@ -207,7 +207,7 @@ enum SocialPush {
                     _ = try await request(["action":item.roomOnly ? "room" : "event", "web_token":token, "zone":item.zone, "owner":item.owner, "record":item.record])
                     remove(item)
                     print("[SocialPush] confirmed event queued for server delivery")
-                } catch let error as ResponseError where [400,403,410].contains(error.status) {
+                } catch let error as ResponseError where isTerminalEventError(status: error.status, code: error.code) {
                     remove(item)
                     print("[SocialPush] event no longer eligible (\(error.status), \(error.code))")
                 } catch {
@@ -235,6 +235,16 @@ enum SocialPush {
             print("[SocialPush] verification unavailable; durable queue retained")
             return .temporarilyUnavailable
         }
+    }
+    /// Authentication/service failures do not establish that the event is
+    /// invalid. Keep its durable hint for a fresh proof on the next attempt.
+    static func isTerminalEventError(status: Int, code: String) -> Bool {
+        if status == 410 { return code == "event_expired" }
+        guard status == 400 || status == 403 else { return false }
+        return ["invalid_identifier", "invalid_zone", "invalid_root", "invalid_share",
+                "not_a_member", "not_your_event", "invalid_join", "invalid_event",
+                "invalid_target", "invalid_post", "invalid_comment_target", "invalid_reply"]
+            .contains(code)
     }
     static func localFallback(_ notices: [TableNews.Notice]) async -> [TableNews.Notice] {
         guard !TableNews.rehearsing, hasConfirmedInstallation else { return notices }

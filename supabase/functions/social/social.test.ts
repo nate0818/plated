@@ -28,6 +28,15 @@ Deno.test("comment recipient and copy come from the actual CloudKit post",async(
   const e=await fixture().run(); assertEquals(e.notices.map(n=>[n.recipient,n.key,n.category]),[["nate","note:note-1","comments"]]);
   assertEquals(e.notices[0].body,"That was great");
 });
+Deno.test("privacy-protected share participants retain verified membership",async()=>{
+  const f=fixture();
+  const share=f.records["share-1"];
+  share.owner={userIdentity:{lookupInfo:{userRecordName:"nate"}}};
+  share.participants![0].userIdentity={lookupInfo:{userRecordName:"alessandra"}};
+  assertEquals((await f.run()).notices[0].recipient,"nate");
+  share.participants![0].userIdentity={userRecordName:"other",lookupInfo:{userRecordName:"alessandra"}};
+  await assertRejects(()=>f.run(),Rejected,"not_a_member");
+});
 Deno.test("reply reaches parent author and post author once each",async()=>{
   const f=fixture(); f.records["note-1"].fields!.parentCommentID={value:"note-parent"};
   const e=await f.run(); assertEquals(e.notices.map(n=>[n.recipient,n.category]),[["friend","replies"],["nate","comments"]]);
@@ -114,6 +123,33 @@ Deno.test("CloudKit refuses an identity response without exactly one caller",asy
   const fetcher=(async()=>Response.json({users:[],ckWebAuthToken:"next-token"})) as typeof fetch;
   const cloud=new CloudKit("public-api","initial-token-long-enough","production",fetcher);
   await assertRejects(()=>cloud.identity(),Rejected,"cloud_identity_unavailable");
+});
+Deno.test("Apple header rotation survives the complete comment verification sequence",async()=>{
+  const f=fixture();let calls=0;
+  const cloud=new CloudKit("public-api","initial-token-long-enough","production",
+    (async(input:RequestInfo|URL,init?:RequestInit)=>{
+      const url=new URL(String(input));
+      assertEquals(url.searchParams.get("ckWebAuthToken"),calls===0?"initial-token-long-enough":`token-${calls}`);
+      calls++;
+      const headers={ [calls%2===1?"X-Apple-CloudKit-Web-Auth-Token":"X-Apple-CloudKit-Session"]:`token-${calls}` };
+      if(calls===1) return Response.json({userRecordName:"alessandra"},{headers});
+      const request=JSON.parse(String(init?.body));
+      assertEquals(url.pathname.endsWith("/shared/records/lookup"),true);
+      assertEquals(request.zoneID.ownerRecordName,"nate");
+      return Response.json({records:[f.records[request.records[0].recordName]]},{headers});
+    }) as typeof fetch);
+  const me=await cloud.identity();
+  const event=await verifyEvent(cloud,me,"nate","PlatedTable","note-1","Alessandra",now);
+  assertEquals(event.notices[0].recipient,"nate");
+  assertEquals(calls,5);
+});
+Deno.test("missing refreshed Apple credential fails closed before another request",async()=>{
+  let calls=0;
+  const cloud=new CloudKit("public-api","initial-token-long-enough","production",
+    (async()=>{calls++;return Response.json({userRecordName:"nate"});}) as typeof fetch);
+  await cloud.identity();
+  await assertRejects(()=>cloud.record("table-root","PlatedTable","nate","nate"),Rejected,"cloud_token_refresh_required");
+  assertEquals(calls,1);
 });
 Deno.test("CloudKit accepts the direct identity returned by CloudKit JS 2",async()=>{
   for (const caller of [{userRecordName:"nate"},{lookupInfo:{userRecordName:"nate"}}]) {

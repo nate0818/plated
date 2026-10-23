@@ -70,4 +70,13 @@ final class SocialPushTests: XCTestCase {
     func testBackoffIsBounded() {
         XCTAssertEqual([1,2,3,40].map(SocialPush.retryDelay),[15,30,60,1800])
     }
+    func testAuthenticationFailureDoesNotDiscardConfirmedActivity() {
+        for code in ["cloud_identity_unavailable", "cloud_access_denied", "cloud_auth_required", "unauthorized"] {
+            XCTAssertFalse(SocialPush.isTerminalEventError(status: 403, code: code))
+        }
+        XCTAssertFalse(SocialPush.isTerminalEventError(status: 503, code: "cloud_token_refresh_required"))
+        XCTAssertTrue(SocialPush.isTerminalEventError(status: 403, code: "not_a_member"))
+        XCTAssertTrue(SocialPush.isTerminalEventError(status: 403, code: "not_your_event"))
+        XCTAssertTrue(SocialPush.isTerminalEventError(status: 410, code: "event_expired"))
+    }
 }

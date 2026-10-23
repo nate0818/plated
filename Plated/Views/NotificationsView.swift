@@ -104,16 +104,16 @@ struct NotificationsView: View {
             if phoneAlertsNeedSetup {
                 HStack(spacing: 12) {
                     VStack(alignment: .leading, spacing: 3) {
-                        Text("Phone alerts need setup")
+                        Text("Get Table notifications")
                             .plType(.footnote, .semibold)
                             .foregroundStyle(Color.ink)
-                        Text("Activity can update here, but this phone isn't registered for Table alerts.")
+                        Text("Replies and invitation updates, even when Plated is closed.")
                             .plType(.caption)
                             .foregroundStyle(Color.inkSecondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     Spacer(minLength: 4)
-                    Button("Set up") { showingAlertSettings = true }
+                    Button("Settings") { showingAlertSettings = true }
                         .plType(.footnote, .bold)
                         .foregroundStyle(Color.accentText)
                         .frame(minHeight: 44)

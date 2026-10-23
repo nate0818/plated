@@ -11,8 +11,14 @@ export interface CKRecord {
   deleted?: boolean; serverErrorCode?: string;
 }
 export interface Participant {
-  userIdentity?: { userRecordName?: string };
+  userIdentity?: { userRecordName?: string; lookupInfo?: { userRecordName?: string } };
   type?: string; acceptanceStatus?: string; permission?: string;
+}
+function participantID(participant: Participant | undefined): string | undefined {
+  const direct = participant?.userIdentity?.userRecordName;
+  const nested = participant?.userIdentity?.lookupInfo?.userRecordName;
+  if (typeof direct === "string" && typeof nested === "string" && direct !== nested) return undefined;
+  return typeof direct === "string" ? direct : typeof nested === "string" ? nested : undefined;
 }
 export class Rejected extends Error {
   constructor(public status: number, public code: string) { super(code); }
@@ -56,7 +62,12 @@ export class CloudKit {
     }
     // Apple's refreshed token is mandatory before another request. Some
     // record responses omit it: don't silently replay an expired token.
-    this.token = typeof data.ckWebAuthToken === "string" ? data.ckWebAuthToken : "";
+    // CloudKit JS reads these response headers, in this order. Native web
+    // proofs are single-use: the refreshed credential must drive the next
+    // record lookup, rather than replaying the original proof.
+    this.token = response.headers.get("x-apple-cloudkit-web-auth-token")
+      ?? response.headers.get("x-apple-cloudkit-session")
+      ?? (typeof data.ckWebAuthToken === "string" ? data.ckWebAuthToken : "");
     return data;
   }
   async identity(): Promise<string> {
@@ -125,7 +136,7 @@ export async function verifyRoom(cloud: Pick<CloudKit, "record" | "environment">
   if (root.recordType !== (household ? "PlatedHousehold" : "Table")) throw new Rejected(403, "invalid_root");
   if (!root.share?.recordName) throw new Rejected(409, "share_unavailable");
   const share = await cloud.record(root.share.recordName, zone, owner, me);
-  const shareOwner = share.owner?.userIdentity?.userRecordName;
+  const shareOwner = participantID(share.owner);
   if (!["cloudKit.share", "cloudkit.share"].includes(share.recordType) || (shareOwner !== owner && !(owner === me && shareOwner === "__defaultOwner__"))) {
     throw new Rejected(403, "invalid_share");
   }
@@ -137,7 +148,7 @@ export async function verifyRoom(cloud: Pick<CloudKit, "record" | "environment">
   }
   const members = new Set([owner, ...(share.participants ?? []).filter(p =>
     p.acceptanceStatus === "ACCEPTED" && ["READ_ONLY", "READ_WRITE"].includes(p.permission ?? "")
-  ).map(p => p.userIdentity?.userRecordName ?? "")].filter(id => id && !removed.has(id)));
+  ).map(p => participantID(p) ?? "")].filter(id => id && !removed.has(id)));
   if (!members.has(me)) throw new Rejected(403, "not_a_member");
   return {owner,household,rootName,share,members,room:`${cloud.environment}|${owner}|${zone}|${share.recordName}`};
 }
